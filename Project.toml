@@ -4,9 +4,21 @@ authors = ["Paul Tiede"]
 version = "0.1.0"
 
 [deps]
+BinaryTraits = "190e46ec-f771-4705-b939-984896f7be0e"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+HypergeometricFunctions = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
+Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
+LRUCache = "8ac3fa9e-de4c-5943-b1dc-09c6b5f20637"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
+Memoize = "c03570c3-d221-55d1-a50c-7939bbd78826"
 NFFT = "efe261a4-0d2b-5849-be55-fc731d526b0d"
+PaddedViews = "5432bcbf-9aad-5242-b902-cca2824c8663"
+ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
 julia = "1.5"
