@@ -1,3 +1,7 @@
+using FFTW
+using PaddedViews
+using Interpolations
+
 struct FFTCache{T,I}
     plan::T
     xitr::I
@@ -6,7 +10,7 @@ struct FFTCache{T,I}
     vitr::I
 end
 
-function FFTCache(sim::StokesMatrix{T,S}) where {T,S}
+function FFTCache(sim::ROSE.StokesMatrix{T,S}) where {T,S}
     ny,nx = size(sim)
     xitr = range(-fovx/2, fovx2/2, length=nx)
     yitr = range(-fovy/2, fovy/2, length=ny)
@@ -29,19 +33,23 @@ function cft(img,x,y)
     umax = 1.0/(2*dx)
     vmax = 1.0/(2*dy)
 
-    du = umax*2/length(x)
-    dv = vmax*2/length(y)
+    du = umax*2/(length(x))
+    dv = vmax*2/(length(y))
 
-    uu = range(-umax, umax, step=du)
-    vv = range(-vmax, vmax, step=dv)
+    uu = range(-umax, umax-du, step=du)
+    vv = range(-vmax, vmax-dv, step=dv)
 
-    vis = fftshift(fft(img))
+    vis = conj.(fftshift(fft(img)))
 
     @inbounds @simd for I in CartesianIndices(vis)
         iy, ix = Tuple(I)
         u = -umax + du*(ix-1)
         v = -vmax + dv*(iy-1)
-        vis[I] *= dx*dy*exp(-2im*π*(u*first(x) + v*first(y)))
+        vis[I] *= dx*dy*exp(2im*π*(u*first(x) + v*first(y)))
     end
-    return vis, uu ,vv
+    itp = interpolate(vis, BSpline(Cubic(Line(OnGrid()))))
+    etp = extrapolate(itp, zero(eltype(vis)))
+    sitp = Interpolations.scale(etp, uu, vv)
+
+    return sitp
 end

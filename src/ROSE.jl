@@ -1,22 +1,27 @@
 """
-    R.O.B.S
-Radio Observation Bayesian
+    R.O.S.E.
+Radio Observation Sampling Extravagance
 """
 module ROSE
 
 using DocStringExtensions
 using FFTW
 using LoopVectorization
-using Memoize
+using Memoization
 using SpecialFunctions
 using StructArrays
+using Interpolations
+using ImageFiltering: imfilter, Kernel.gaussian, Fill, Algorithm.FFT
 # Write your package code here.
 
-export Disk, Gaussian,
+export Disk, Gaussian, ConcordanceCrescent,
        intensity, visibility, flux,
        RImage, SqExpKernel, BSplineKernel,
-       scale, shift, rotate,
+       stretched, shifted, rotated, smoothed, renormed,
+       load_tpy,
+       getdata, renorm, pixel_iterator,
        stokesmatrix, stokesmatrix!
 
 include("models/models.jl")
+include("observations/observations.jl")
 end

@@ -55,7 +55,7 @@ function stokesmatrix!(im::StokesMatrix{T,S},
     return nothing
 end
 
-function stokesmatrix(m::AbstractModel{T}, nx, ny, fovx::T, fovy::T) where {T}
+function stokesmatrix(m::AbstractModel{T}, nx, ny, fovx, fovy) where {T}
     psizex = fovx/max(nx-1,1)
     psizey = fovy/max(ny-1,1)
     im = zeros(T, ny, nx)

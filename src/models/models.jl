@@ -2,7 +2,20 @@ abstract type AbstractModel{T} end
 abstract type GeometricModel{T} <: AbstractModel{T} end
 abstract type AbstractRadioImage{T} <: AbstractModel{T} end
 abstract type AbstractPolarizedImage{T} <: AbstractModel{T} end
+
+"""
+    $(TYPEDEF)
+Abstract type for image modifiers. These are some model wrappers
+that can transform any model using simple Fourier transform properties.
+To see the implemented modifier
+"""
 abstract type AbstractModifier{T} <: AbstractModel{T} end
+
+"""
+    $(SIGNATURES)
+Returns a list containing all the image modifiers available in ROSE.
+"""
+modifierlist() = subtypes(AbstractModifier)
 
 abstract type ImageKernel end
 
@@ -30,8 +43,8 @@ FourierStyle(::Type{<:GeometricModel}) = IsAnalytic()
 FourierStyle(::Type{<:AbstractModifier}) = IsAnalytic()
 
 
-function visibility(::IsNumeric, m::M, u::T, v::T, args...)
-
+function visibility(::IsNumeric, m::M, u::T, v::T, args...) where {T,M<:AbstractModel{T}}
+    throw("Numeric visibility is not implemented yet")
 end
 
 
@@ -46,11 +59,13 @@ Fourier transform or (if defined) the analytical Fourier transform.
 visibility(m::M, u::T,v::T,args...) where {M<:AbstractModel, T<:Real} =
         visibility(FourierStyle(M),m,u,v, args...)
 
-function visibilities!(m::M,
-                    vis::AbstractVector{Complex{T}},
+
+function visibilities!(
+                    vis::AbstractVector{Complex{S}},
+                    m::M,
                     u::AbstractVector{T},
                     v::AbstractVector{T},
-                    args...) where {M<:AbstractModel, T<:Real}
+                    args...) where {M<:AbstractModel,S, T<:Real}
 
     @inbounds for i in eachindex(u,v,vis)
         vis[i] = visibility(m, u[i], v[i], args...)
@@ -61,9 +76,9 @@ end
 function visibilities(m::M,
                       u::AbstractVector{T},
                       v::AbstractVector{T},
-                      args...) where {M<:AbstractModel, T<:Real}
-    vis = similar(Complex{T}, u)
-    return visibilities!(m, vis, u, v, args...)
+                      args...) where {S,M<:AbstractModel{S}, T<:Real}
+    vis = StructArray{Complex{S}}(re=similar(u,S), im=similar(v,S))
+    return visibilities!(vis, m, u, v, args...)
 end
 
 
@@ -113,12 +128,12 @@ end
 
 
 """
-    Returns the intensity for the model with args...
+    intensity(model::AbstractModel, x, y, args...)
+Returns the intensity for the model at x and y with args...
 """
-function intensity(model::AbstractModel, args...) end
+function intensity end
 
-
+include("stokesmatrix.jl")
 include("geometric_models.jl")
 include("radio_image_models.jl")
 include("modifiers.jl")
-include("stokesmatrix.jl")

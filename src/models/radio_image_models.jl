@@ -22,9 +22,9 @@ smoothness is modfied with `ϵ` which is the inverse variance in units of
 struct SqExpKernel{T} <: ImageKernel
     ϵ::T
 end
-@inline @fastmath κ(b::SqExpKernel, x) = exp(-0.5*b.ϵ*x^2)/sqrt(2*π/b.ϵ)
+@inline @fastmath κ(b::SqExpKernel, x) = exp(-0.5*b.ϵ^2*x^2)/sqrt(2*π/b.ϵ^2)
 @inline κflux(::SqExpKernel{T}) where {T} = one(T)
-@inline @fastmath ω(b::SqExpKernel, u) = exp(-2*(π*u)^2/b.ϵ)
+@inline @fastmath ω(b::SqExpKernel, u) = exp(-2*(π*u/b.ϵ)^2)
 
 
 @doc raw"""
@@ -68,6 +68,29 @@ end
         return zero(T)
     end
 end
+
+#struct CubicSplineKernel{T} <: ImageKernel
+#    b::T
+#end
+#CubicSplineKernel() = CubicSplineKernel(0.5)
+
+#@inline κflux(::CubicSplineKernel) = 1.0
+#@inline function κ(b::CubicSplineKernel, x::T) where {T}
+#    mag = abs(x)
+#    if mag ≤ 1
+#        return @horner(mag, one(T), zero(T), -(b.b+T(3)), (b.b+T(2)))
+#    elseif 1 < mag ≤ 2
+#return b.b*@horner(mag, T(-4.0), T(8.0), T(-5.0), T(1.0))
+#else
+#        zero(T)
+#   end
+#end
+
+#@inline @fastmath function ω(b::CubicSplineKernel, u::T) where {T}#
+
+#end
+
+
 
 @doc raw"""
     $(TYPEDEF)
@@ -114,7 +137,7 @@ struct RImage{S,B<:ImageKernel,M<:AbstractMatrix{S}} <: AbstractRadioImage{S}
 end
 FourierStyle(::Type{RImage{S,B,M}}) where {S,B,M} = IsAnalytic()
 
-function flux(model::RImage{S,B,M}) where {S,B,M}
+@inline function flux(model::RImage{S,B,M}) where {S,B,M}
     sum = zero(S)
     @avx for i in eachindex(model.coeff)
         sum += model.coeff[i]
@@ -132,7 +155,7 @@ return the size of the coefficient matrix for `model`.
 """
 @inline Base.size(model::RImage) = size(model.coeff)
 
-function intensity(model::RImage{S,M,B}, x, y, args...) where {S,M,B}
+@inline function intensity(model::RImage{S,M,B}, x, y, args...) where {S,M,B}
     sum = zero(S)
     ny,nx = size(model)
     dx = 1/(max(nx-1,1))
@@ -142,25 +165,24 @@ function intensity(model::RImage{S,M,B}, x, y, args...) where {S,M,B}
         iy,ix = Tuple(I)
         xx = x - (-0.5 + dx*(ix-1))
         yy = y - (-0.5 + dy*(iy-1))
-        sum += model.coeff[I]* κ(model.kernel, xx*(nx-1))*κ(model.kernel, yy*(ny-1))
+        sum += model.coeff[I]* κ(model.kernel, xx/dx)*κ(model.kernel, yy/dy)
     end
     # Note this will be intensity per uas
     return sum
 end
 
-function visibility(::IsAnalytic, model::RImage{S,M,B}, u, v, args...) where {S,M,B}
-    sum = zero(S)
+@inline function visibility(::IsAnalytic, model::RImage{S,M,B}, u, v, args...) where {S,M,B}
+    sum = zero(Complex{S})
     ny,nx = size(model)
     dx = 1/max(nx-1,1)
     dy = 1/max(ny-1,1)
     startx = -0.5
     starty = -0.5
-    @inbounds @simd for I in CartesianIndices(model.coeff)
-        iy,ix = Tuple(I)
-        xi = startx + (ix-1)*dx
-        yi = starty + (iy-1)*dy
-        sum += model.coeff[I]*ω(model.kernel, u/(nx-1))*ω(model.kernel, v/(ny-1))*
-               exp(-2im*π*(u*xi + v*yi))
+    upx = u*dx
+    vpx = v*dy
+    phasecenter = exp(2im*π*(u*startx + v*starty))
+    @inbounds for i in axes(model.coeff,2), j in axes(model.coeff,1)
+        sum += model.coeff[j,i]*exp(2im*π*(upx*(i-1) + vpx*(j-1)))
     end
-    return sum/(ny*nx)
+    return sum*dx*dy*ω(model.kernel, u*dx)*ω(model.kernel, v*dy)*phasecenter
 end
