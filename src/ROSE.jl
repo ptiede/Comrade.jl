@@ -22,6 +22,6 @@ export Disk, Gaussian, ConcordanceCrescent,
        getdata, renorm, pixel_iterator,
        stokesmatrix, stokesmatrix!
 
-include("models/models.jl")
 include("observations/observations.jl")
+include("models/models.jl")
 end

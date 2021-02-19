@@ -62,6 +62,10 @@ Base.@kwdef struct EHTClosurePhaseDatum{T<:Number} <: ClosureProducts{T}
     baselines::NTuple{3,Symbol}
 end
 
+"""
+    $(SIGNATURES)
+Load a ThemisPy style ascii EHT observation file.
+"""
 function load_tpy(file)
     data = readdlm(file, skipstart=1)
     bs1 = Symbol.(getindex.(data[:,6], Ref(1:2)))

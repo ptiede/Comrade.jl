@@ -14,6 +14,19 @@ Find the pointwise value of the image interpolation kernel `κ` at `x`.
 function κ end
 
 """
+    ImageKernel
+Pixel response function for a radio image model. This makes
+a discrete sampling continuous by picking a certain *smoothing*
+kernel for the image.
+
+# Notes
+To see the implemented ImageKernels please use the subtypes function i.e.
+`subtypes(ImageKernel)`
+"""
+abstract type ImageKernel end
+
+
+"""
     $(TYPEDEF)
 Normalized square exponential kernel, i.e. a Gaussian. Note the
 smoothness is modfied with `ϵ` which is the inverse variance in units of
@@ -69,10 +82,10 @@ end
     end
 end
 
-#struct CubicSplineKernel{T} <: ImageKernel
+#struct CubicKernel{T} <: ImageKernel
 #    b::T
 #end
-#CubicSplineKernel() = CubicSplineKernel(0.5)
+#CubicKernel() = CubicKernel(-0.5)
 
 #@inline κflux(::CubicSplineKernel) = 1.0
 #@inline function κ(b::CubicSplineKernel, x::T) where {T}
@@ -137,6 +150,29 @@ struct RImage{S,B<:ImageKernel,M<:AbstractMatrix{S}} <: AbstractRadioImage{S}
 end
 FourierStyle(::Type{RImage{S,B,M}}) where {S,B,M} = IsAnalytic()
 
+struct FourierCache{C} <: ObservationCache
+    cache::C
+end
+
+function FourierCache(rimage::I, obs::Observation) where {S,I<:AbstractRadioImage{S}}
+    cache = zeros(Complex{S}, size(rimage)..., nsamples(obs))
+    ny,nx = size(rimage)
+    u = getdata(obs, :u)
+    v = getdata(obs, :v)
+    dx = 1/max(nx-1,1)
+    dy = 1/max(ny-1,1)
+    startx = -0.5
+    starty = -0.5
+    x = range(startx, length=nx, step=dx)
+    y = range(starty, length=ny, step=dy)
+    for i in eachindex(u,v)
+        cache[:,:,i] .= exp.(2im*π*(u[i].*x' .+ v[i].*y))
+    end
+    FourierCache(cache)
+end
+
+
+
 @inline function flux(model::RImage{S,B,M}) where {S,B,M}
     sum = zero(S)
     @avx for i in eachindex(model.coeff)
@@ -171,7 +207,7 @@ return the size of the coefficient matrix for `model`.
     return sum
 end
 
-@inline function visibility(::IsAnalytic, model::RImage{S,M,B}, u, v, args...) where {S,M,B}
+@inline function visibility(model::RImage{S,M,B}, u, v, args...) where {S,M,B}
     sum = zero(Complex{S})
     ny,nx = size(model)
     dx = 1/max(nx-1,1)

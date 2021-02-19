@@ -15,7 +15,7 @@ Gaussian() = Gaussian{Float64}()
     return exp(-(x^2+y^2)/2)/2π
 end
 
-@inline function visibility(::IsAnalytic, ::Gaussian{T}, u, v, args...) where {T}
+@inline function visibility(::Gaussian{T}, u, v, args...) where {T}
     return exp(-2π^2*(u^2 + v^2)) + zero(T)im
 end
 
@@ -35,7 +35,7 @@ Disk() = Disk{Float64}()
     return r < 1 ?  π^(-1)*one(T) : zero(T)
 end
 
-@inline function visibility(::IsAnalytic, ::Disk{T}, x, y, args...) where {T}
+@inline function visibility(::Disk{T}, x, y, args...) where {T}
     ur = hypot(x,y) + eps(T)
     return besselj1(2π*ur)/(π*ur) + zero(T)im
 end
@@ -94,7 +94,7 @@ function intensity(m::ConcordanceCrescent{T}, x, y, args...) where {T}
     end
 end
 
-function visibility(::IsAnalytic, m::ConcordanceCrescent{T}, u, v, args...) where {T}
+function visibility(m::ConcordanceCrescent{T}, u, v, args...) where {T}
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     norm = π*_crescentnorm(m)/k
     phaseshift = exp(2im*π*m.shift*u)

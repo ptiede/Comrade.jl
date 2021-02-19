@@ -9,7 +9,7 @@ Abstract type for image modifiers. These are some model wrappers
 that can transform any model using simple Fourier transform properties.
 To see the implemented modifier
 """
-abstract type AbstractModifier{T} <: AbstractModel{T} end
+abstract type AbstractModifier{M<:AbstractModel,T} <: AbstractModel{T} end
 
 """
     $(SIGNATURES)
@@ -42,10 +42,38 @@ FourierStyle(::Type{<:GeometricModel}) = IsAnalytic()
 
 FourierStyle(::Type{<:AbstractModifier}) = IsAnalytic()
 
+abstract type ObservationCache end
+abstract type ModelCache <: ObservationCache end
 
-function visibility(::IsNumeric, m::M, u::T, v::T, args...) where {T,M<:AbstractModel{T}}
-    throw("Numeric visibility is not implemented yet")
+struct NFFTCache{T} <: ModelCache
+    cache::T
 end
+struct FFTCache{T} <: ModelCache
+    cache::T
+end
+struct DFTCache{T} <: ModelCache
+    cache::T
+end
+
+abstract type CacheStyle end
+
+struct WithCache <: CacheStyle end
+struct NoCache <: CacheStyle end
+
+CacheStyle(::Type{<:AbstractModel}) = NoCache();
+CacheStyle(::AbstractModifier{T,M}) where {T,M} = CacheStyle(M)
+
+"""
+    $(SIGNATURES)
+Creates a model cache to speed up computation. For certain models, e.g.
+numerical visibility models with fix u,v, positions, e.g. models that don't
+change the uv positions for certain parameters, this can cause a speed up.
+"""
+function createcache(m::M, obs::Observation, cachetype::ObservationCache) where {M<: AbstractModel}
+    return createcache(CacheStyle(M), m, obs, cachetype)
+end
+
+
 
 
 """
@@ -56,16 +84,24 @@ Computes the complex visibility for the given model with args...
 THis will use FourierStyle trait to decide whether to use the numerical
 Fourier transform or (if defined) the analytical Fourier transform.
 """
-visibility(m::M, u::T,v::T,args...) where {M<:AbstractModel, T<:Real} =
+visibility(m::M, u,v,args...) where {M<:AbstractModel} =
         visibility(FourierStyle(M),m,u,v, args...)
+
+
+function visibility(::IsNumeric, m::M, u, v, args...) where {T,M<:AbstractModel{T}}
+    throw("Not implemented yet")
+end
+
+
+
 
 
 function visibilities!(
                     vis::AbstractVector{Complex{S}},
                     m::M,
-                    u::AbstractVector{T},
-                    v::AbstractVector{T},
-                    args...) where {M<:AbstractModel,S, T<:Real}
+                    u::AbstractVector,
+                    v::AbstractVector,
+                    args...) where {M<:AbstractModel,S}
 
     @inbounds for i in eachindex(u,v,vis)
         vis[i] = visibility(m, u[i], v[i], args...)
@@ -74,9 +110,9 @@ function visibilities!(
 end
 
 function visibilities(m::M,
-                      u::AbstractVector{T},
-                      v::AbstractVector{T},
-                      args...) where {S,M<:AbstractModel{S}, T<:Real}
+                      u::AbstractVector,
+                      v::AbstractVector,
+                      args...) where {S,M<:AbstractModel{S}}
     vis = StructArray{Complex{S}}(re=similar(u,S), im=similar(v,S))
     return visibilities!(vis, m, u, v, args...)
 end
@@ -89,23 +125,25 @@ end
     $(SIGNATURES)
 Computes the visibility amplitude of a model `m` in `Jy` and the uv positions `u`, `v`.
 """
-visibility_amplitude(m::AbstractModel, u, v, args...) = abs(visibility(m, u, v, args...))
+@inline visibility_amplitude(m::AbstractModel, u, v, args...) = abs(visibility(m, u, v, args...))
 
 
 """
     $(SIGNATURES)
 Computes the complex bispectrum of a model `m` in `Jy` at the closure triangle, uv1, uv2, uv3
 """
-function bispectrum(m::AbstractModel, uv1, uv2, uv3, args...)
-    return visibility(m, uv1, args...)*visibility(m, uv2, args...)*visibility(m, uv3, args...)
+@inline function bispectrum(m::AbstractModel, u1,v1, u2, v2, u3, v3, args...)
+    return visibility(m, u1, v1, args...)*
+           visibility(m, u2, v2, args...)*
+           visibility(m, u3, v3, args...)
 end
 
 """
     $(SIGNATURES)
 Computes the closure phase of a model `m` in `Jy` at closure triangle, uv1, uv2, uv3
 """
-function closure_phase(m::AbstractModel, uv1, uv2, uv3, args...)
-    return angle(bispectrum(m, uv1, uv2, uv3, args...))
+@inline function closure_phase(m::AbstractModel, u1, v1, u2, v2, u3, v3, args...)
+    return angle(bispectrum(m, u1,v1, u2,v2, u3,v3, args...))
 end
 
 """
@@ -119,9 +157,14 @@ V(uv1)*V(uv3)/V(uv2)*V(uv4),
 
 where V is the complex visibility
 """
-function logclosure_amplitude(m::AbstractModel, uv1, uv2, uv3, uv4, args...)
-    return log( visibility(m, uv1...)*visibility(m, uv3...)/
-               (visibility(m, uv2...)*visibility(m, uv4...))
+@inline function logclosure_amplitude(m::AbstractModel,
+                                      u1, v1,
+                                      u2, v2,
+                                      u3, v3,
+                                      u4, v4,
+                                      args...)
+    return log( visibility_amplitude(m, u1,v1...)*visibility_amplitude(m, u2,v3...)/
+               (visibility_amplitude(m, u3,v2...)*visibility_amplitude(m, u4,v4...))
               )
 end
 
