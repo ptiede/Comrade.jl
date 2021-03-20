@@ -10,6 +10,7 @@ using LoopVectorization
 using Memoization
 using SpecialFunctions
 using StructArrays
+using StaticArrays
 using Interpolations
 using ImageFiltering: imfilter, Kernel.gaussian, Fill, Algorithm.FFT
 # Write your package code here.
@@ -19,7 +20,7 @@ export Disk, Gaussian, ConcordanceCrescent,
        RImage, SqExpKernel, BSplineKernel,
        stretched, shifted, rotated, smoothed, renormed,
        load_tpy,
-       getdata, renorm, pixel_iterator,
+       data, renorm, pixel_iterator,
        stokesmatrix, stokesmatrix!
 
 include("observations/observations.jl")

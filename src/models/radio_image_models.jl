@@ -207,8 +207,11 @@ return the size of the coefficient matrix for `model`.
     return sum
 end
 
-@inline function visibility(model::RImage{S,M,B}, u, v, args...) where {S,M,B}
-    sum = zero(Complex{S})
+function cache(model::AbstractModifier, u, v)
+    return cache(basemodel(model), u, v)
+end
+
+function cache(model::RImage{S,M,B}, u, v) where {S,M,B}
     ny,nx = size(model)
     dx = 1/max(nx-1,1)
     dy = 1/max(ny-1,1)
@@ -217,8 +220,25 @@ end
     upx = u*dx
     vpx = v*dy
     phasecenter = exp(2im*π*(u*startx + v*starty))
+    c = zeros(Complex{S}, size(model.coeff))
     @inbounds for i in axes(model.coeff,2), j in axes(model.coeff,1)
-        sum += model.coeff[j,i]*exp(2im*π*(upx*(i-1) + vpx*(j-1)))
+        c[j,i] = exp(2im*π*(upx*(i-1) + vpx*(j-1)))*phasecenter*dx*dy
     end
-    return sum*dx*dy*ω(model.kernel, u*dx)*ω(model.kernel, v*dy)*phasecenter
+    return c
+end
+
+@inline function visibility(model::RImage{S,M,B}, u, v, cache, args...) where {S,M,B}
+    sum = zero(Complex{S})
+    ny,nx = size(model)
+    dx = 1/max(nx-1,1)
+    dy = 1/max(ny-1,1)
+    #startx = -0.5
+    #starty = -0.5
+    #upx = u*dx
+    #vpx = v*dy
+    #phasecenter = exp(2im*π*(u*startx + v*starty))
+    @avx for i in axes(model.coeff,2), j in axes(model.coeff,1)
+            sum += model.coeff[j,i]*cache[j,i]
+    end
+    return sum*dx*dy*ω(model.kernel, u*dx)*ω(model.kernel, v*dy)#*phasecenter
 end

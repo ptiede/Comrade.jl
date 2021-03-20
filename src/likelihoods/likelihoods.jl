@@ -1,1 +1,1 @@
-abstract type AbstractRadioLikelihood <:  end
+abstract type AbstractRadioLikelihood  end

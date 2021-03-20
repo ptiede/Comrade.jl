@@ -11,6 +11,7 @@ basemodel(model::AbstractModifier) = model.model
 flux(m::AbstractModifier) = flux(m.model)
 
 
+abstract type CompositeModel{T} <: AbstractModel{T} end
 
 """
     $(TYPEDEF)
@@ -19,7 +20,7 @@ I may change this in the future so make it easier on the compiler,
 i.e. make the composite model a fancy model vector and heap allocate
 stuff. This should help when combining multiple models together.
 """
-struct AddModel{T,T1<:AbstractModel{T},T2<:AbstractModel{T}} <: AbstractModifier{T}
+struct AddModel{T,T1<:AbstractModel{T},T2<:AbstractModel{T}} <: CompositeModel{T}
     m1::T1
     m2::T2
 end
@@ -41,7 +42,7 @@ function intensity(m::AddModel{T1,T2}, x, y, args...) where {T1, T2}
     return intensity(m.m1, x, y, args...) + intensity(m.m2, x, y, args...)
 end
 
-function visibility(::IsAnalytic, m::AddModel{T1,T2}, u, v, args...) where {T1, T2}
+@inline function visibility(m::AddModel{T1,T2}, u, v, args...) where {T1, T2}
     return visibility(m.m1, u, v, args...) + visibility(m.m2, u, v, args...)
 end
 
@@ -69,13 +70,13 @@ with `128` pixel nodes and a total `fov` of 10 in x and y direction.
 
 **This needs to be improved**
 """
-struct SmoothedModel{T<:AbstractModel, F} <: AbstractModifier{F}
-    model::T
-    σ::F
+struct SmoothedModel{M<:AbstractModel, T} <: AbstractModifier{M,T}
+    model::M
+    σ::T
 end
 smoothed(model, σ) = SmoothedModel(model, σ)
 
-Memoization.@memoize function _smoothitp(sim::StokesMatrix, σ)
+Memoization.@memoize function _smoothitp(sim::StokesImage, σ)
     ny,nx = size(sim)
     dx,dy = pixelsizes(sim)
     xitr,yitr = pixel_iterator(sim)
@@ -85,7 +86,7 @@ Memoization.@memoize function _smoothitp(sim::StokesMatrix, σ)
     # gaussian kernel. I have to add one for the convolution to play nice
     nkern = Int(floor(σ_px)*10 + 1)
 
-    bsim = imfilter(sim,
+    bsim = imfilter(sim.im,
         gaussian((σ_px, σ_px),(nkern,nkern)),
         Fill(0.0, sim),
         FFT())
@@ -98,7 +99,7 @@ Memoization.@memoize function _smoothitp(sim::StokesMatrix, σ)
 end
 
 Memoization.@memoize function _create_image(model, fov, npix)
-    sim = stokesmatrix(model, npix, npix, fov, fov)
+    sim = stokesimage(model, npix, npix, fov, fov)
     return sim
 end
 
@@ -108,7 +109,7 @@ function intensity(model::SmoothedModel, x, y, args...;fov=200.0, npix=512)
     return bitp(y, x)
 end
 
-function visibility(::IsAnalytic, model::SmoothedModel, u, v, args...)
+@inline function visibility(model::SmoothedModel, u, v, args...)
     return visibility(basemodel(model), u, v, args...)*
             exp(-2*(π*model.σ)^2*(u^2+v^2))
 end
@@ -118,18 +119,18 @@ end
 Shifts the model by `Δx` units in the x-direction and `Δy` units
 in the y-direction.
 """
-struct ShiftedModel{T<:AbstractModel,F} <: AbstractModifier{F}
-    model::T
-    Δx::F
-    Δy::F
+struct ShiftedModel{T,M<:AbstractModel} <: AbstractModifier{M,T}
+    model::M
+    Δx::T
+    Δy::T
 end
 shifted(model, Δx, Δy) = ShiftedModel(model, Δx, Δy)
 
-function intensity(model::ShiftedModel, x, y, args...)
+@inline function intensity(model::ShiftedModel, x, y, args...)
     return intensity(basemodel(model), x-model.Δx, y-model.Δy, args...)
 end
 
-function visibility(::IsAnalytic, model::ShiftedModel, u, v, args...)
+@inline function visibility(model::ShiftedModel, u, v, args...)
     return visibility(basemodel(model), u, v, args...)*
             exp(2im*π*(u*model.Δx + v*model.Δy))
 end
@@ -140,9 +141,9 @@ Renormalizes the flux of the model to the new value `flux`.
 We have also overloaded the Base.:* operator as syntactic sugar
 although I may get rid of this.
 """
-struct RenormalizedModel{T<:AbstractModel,F} <: AbstractModifier{F}
-    model::T
-    flux::F
+struct RenormalizedModel{M<:AbstractModel,T} <: AbstractModifier{M,T}
+    model::M
+    flux::T
 end
 renormed(model::M, flux) where {M<:AbstractModel} = RenormalizedModel(model, flux)
 Base.:*(model::AbstractModel, flux::Real) = renormed(model, flux)
@@ -155,13 +156,12 @@ Base.:-(model::AbstractModel) = renormed(model, -flux(model))
 flux(m::RenormalizedModel) = m.flux
 
 
-@inline function intensity(m::RenormalizedModel{T,F}, x, y, args...) where {T<:AbstractModel, F}
+@inline function intensity(m::RenormalizedModel, x, y, args...)
     return intensity(basemodel(m), x,y, args...)*m.flux/flux(basemodel(m))
 end
 
-@inline function visibility(::IsAnalytic,
-                            model::RenormalizedModel{T,F},
-                            u, v, args...) where {T<:AbstractModel, F}
+@inline function visibility(model::RenormalizedModel,
+                            u, v, args...)
     return visibility(basemodel(model), u, v, args...)*model.flux/flux(basemodel(model))
 end
 
@@ -173,17 +173,17 @@ Stretched the model in the x and y directions, i.e. the new intensity is
 ```
 where were renormalize the intensity to preserve the models flux.
 """
-struct StretchedModel{T<:AbstractModel,F} <: AbstractModifier{F}
-    model::T
-    α::F
-    β::F
+struct StretchedModel{M<:AbstractModel,T} <: AbstractModifier{M,T}
+    model::M
+    α::T
+    β::T
 end
 stretched(model, α, β) = StretchedModel(model, 1/α, 1/β)
 
-function intensity(model::StretchedModel, x,y, args...)
+@inline function intensity(model::StretchedModel, x,y, args...)
     return intensity(basemodel(model), x*model.α, y*model.β, args...)*model.α*model.β
 end
-function visibility(::IsAnalytic, model::StretchedModel, u, v, args...)
+@inline function visibility(model::StretchedModel, u, v, args...)
     return visibility(basemodel(model), u/model.α, v/model.β, args...)
 end
 
@@ -197,26 +197,26 @@ the `rotate` method e.g.
 rotate(model, ξ)
 ```
 """
-struct RotatedModel{T<:AbstractModel,F} <: AbstractModifier{F}
-    model::T
-    s::F
-    c::F
+struct RotatedModel{M<:AbstractModel,T} <: AbstractModifier{M,T}
+    model::M
+    s::T
+    c::T
 end
 function RotatedModel(model::T, ξ::F) where {T, F}
     s,c = sincos(ξ)
     return RotatedModel(model, s, c)
 end
 rotated(model, ξ) = RotatedModel(model, ξ)
-angle(model::RotatedModel) = atan(model.s, model.s)
+posangle(model::RotatedModel) = atan(model.s, model.c)
 
 
-function intensity(model::RotatedModel, x,y, args...)
+@inline function intensity(model::RotatedModel, x,y, args...)
     s,c = model.s, model.c
     xx, yy = c*x - s*y, s*x + c*y
     return intensity(basemodel(model), xx, yy, args...)
 end
 
-function visibility(::IsAnalytic ,model::RotatedModel, u,v, args...)
+@inline function visibility(model::RotatedModel, u,v, args...)
     s,c = model.s, model.c
     uu, vv = c*u - s*v, s*u + c*v
     return visibility(basemodel(model), uu, vv, args...)

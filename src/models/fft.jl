@@ -10,7 +10,7 @@ struct FFTCache{T,I}
     vitr::I
 end
 
-function FFTCache(sim::ROSE.StokesMatrix{T,S}) where {T,S}
+function FFTCache(sim::ROSE.StokesImage{T,S}) where {T,S}
     ny,nx = size(sim)
     xitr = range(-fovx/2, fovx2/2, length=nx)
     yitr = range(-fovy/2, fovy/2, length=ny)
@@ -24,7 +24,7 @@ function FFTCache(sim::ROSE.StokesMatrix{T,S}) where {T,S}
     uitr = range(-umax, umax, step=du)
     vitr = range(-vmax, vmax, step=dv)
 
-    return FFTCache(plan_fft(sim), xitr, yitr, uitr, vitr)
+    return FFTCache(plan_fft(sim.im), xitr, yitr, uitr, vitr)
 end
 
 function cft(img,x,y)

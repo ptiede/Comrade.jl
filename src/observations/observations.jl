@@ -20,7 +20,7 @@ Base.@kwdef struct EHTObservation{F,T<:AbstractVisibilityDatum{F}, N} <: Observa
     timetype::Symbol = :UTC
 end
 
-getdata(obs::Observation, s::Symbol) = getproperty(obs.data, s)
+data(obs::Observation, s::Symbol) = getproperty(obs.data, s)
 nsamples(obs) = length(obs.data)
 Base.getindex(obs::Observation, i) = getindex(obs.data, i)
 

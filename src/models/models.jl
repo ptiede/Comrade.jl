@@ -101,7 +101,7 @@ function visibilities!(
                     m::M,
                     u::AbstractVector,
                     v::AbstractVector,
-                    args...) where {M<:AbstractModel,S}
+                    args...) where {S,M<:AbstractModel}
 
     @inbounds for i in eachindex(u,v,vis)
         vis[i] = visibility(m, u[i], v[i], args...)

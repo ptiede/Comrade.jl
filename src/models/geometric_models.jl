@@ -40,6 +40,33 @@ end
     return besselj1(2π*ur)/(π*ur) + zero(T)im
 end
 
+
+struct MRing{T,N} <: GeometricModel{T}
+    """
+    Radius of the thin ring
+    """
+    radius::T
+    """
+    Real Fourier mode coefficients
+    """
+    α::SVector{N,T}
+    """
+    Imaginary Fourier mode coefficients
+    """
+    β::SVector{N,T}
+end
+
+@inline function visibility(m::MRing{T,N}, u, v, args...) where {T,N}
+    k = 2π*sqrt(u^2 + v^2)*m.radius + eps(T)
+    vis = besselj0(k) + zero(T)*im
+    θ = Base.angle(v+1im*u) + π
+    for n in 1:N
+        s,c = sincos(n*θ)
+        vis += 2*(m.α[n]*c - m.β[n]*s)*(-1im)^n*besselj(n, k)
+    end
+    return vis
+end
+
 """
     $(TYPEDEF)
 Creates the ConcordanceCrescent model, i.e. a flat-top crescent
