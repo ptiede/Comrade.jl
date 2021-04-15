@@ -47,6 +47,7 @@ ZigZagBoomerang = "36347407-b186-4a6a-8c98-4f4567861712"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
+MCMCChains = "4.8"
 julia = "1.5"
 
 [extras]
