@@ -1,6 +1,3 @@
-using FFTW
-using PaddedViews
-using Interpolations
 
 struct FFTCache{T,I}
     plan::T
@@ -26,6 +23,8 @@ function FFTCache(sim::ROSE.StokesImage{T,S}) where {T,S}
 
     return FFTCache(plan_fft(sim.im), xitr, yitr, uitr, vitr)
 end
+
+
 
 function cft(img,x,y)
     dx = step(x)
