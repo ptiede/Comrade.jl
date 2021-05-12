@@ -30,6 +30,7 @@ abstract type FourierStyle end
 struct IsAnalytic <: FourierStyle end
 struct IsNumeric <: FourierStyle end
 
+
 """
     FourierStyle(::AbstractModel)
 Sets the trait for the Fourier transform to be used for a given model.
@@ -169,6 +170,33 @@ where V is the complex visibility
 end
 
 
+function intensitymap!(im::StokesImage{T,S}, m::AbstractModel) where {T,S}
+    ny,nx = size(im)
+    psizex = im.fovx/max(nx-1,1)
+    psizey = im.fovy/max(ny-1,1)
+    flux = zero(T)
+    fov = max(im.fovx, im.fovy)
+    npix = max(nx, ny)
+    @inbounds @simd for I in CartesianIndices(im)
+        iy,ix = Tuple(I)
+        x = -im.fovx/2 + psizex*(ix-1)
+        y = -im.fovy/2 + psizey*(iy-1)
+        tmp = intensity(m, x, y, fov, npix)
+        im[I] = tmp
+    end
+    return im
+end
+
+function intensitymap(m::AbstractModel{T}, nx, ny, fovx, fovy) where {T}
+    im = zeros(T, ny, nx)
+    sim = StokesImage(im, fovx, fovy)
+    intensitymap!(sim, m)
+
+end
+
+
+
+
 
 """
     intensity(model::AbstractModel, x, y, args...)
@@ -176,7 +204,6 @@ Returns the intensity for the model at x and y with args...
 """
 function intensity end
 
-include("stokesmatrix.jl")
 include("geometric_models.jl")
 include("radio_image_models.jl")
 include("modifiers.jl")

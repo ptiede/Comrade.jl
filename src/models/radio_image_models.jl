@@ -1,4 +1,3 @@
-import Base.Math.@horner
 
 """
     κflux(ImageKernel)
@@ -74,9 +73,9 @@ end
 @inline function κ(b::BSplineKernel{3}, x::T) where {T}
     mag = abs(x)
     if mag < 1
-        return @horner(mag, 4, 0, -6, 3)/6
+        return evalpoly(mag, (4, 0, -6, 3))/6
     elseif 1 ≤ mag < 2
-        return @horner(mag, 8, -12, 6, -1)/6
+        return evalpoly(mag, (8, -12, 6, -1))/6
     else
         return zero(T)
     end
@@ -91,9 +90,9 @@ end
 #@inline function κ(b::CubicSplineKernel, x::T) where {T}
 #    mag = abs(x)
 #    if mag ≤ 1
-#        return @horner(mag, one(T), zero(T), -(b.b+T(3)), (b.b+T(2)))
+#        return evalpoly(mag, one(T), zero(T), -(b.b+T(3)), (b.b+T(2)))
 #    elseif 1 < mag ≤ 2
-#return b.b*@horner(mag, T(-4.0), T(8.0), T(-5.0), T(1.0))
+#return b.b*evalpoly(mag, T(-4.0), T(8.0), T(-5.0), T(1.0))
 #else
 #        zero(T)
 #   end
@@ -227,18 +226,18 @@ function cache(model::RImage{S,M,B}, u, v) where {S,M,B}
     return c
 end
 
-@inline function visibility(model::RImage{S,M,B}, u, v, cache, args...) where {S,M,B}
+@inline function visibility(model::RImage{S,M,B}, u, v, args...) where {S,M,B}
     sum = zero(Complex{S})
     ny,nx = size(model)
     dx = 1/max(nx-1,1)
     dy = 1/max(ny-1,1)
-    #startx = -0.5
-    #starty = -0.5
-    #upx = u*dx
-    #vpx = v*dy
-    #phasecenter = exp(2im*π*(u*startx + v*starty))
+    startx = -0.5
+    starty = -0.5
+    upx = u*dx
+    vpx = v*dy
+    phasecenter = exp(2im*π*(u*startx + v*starty))
     @avx for i in axes(model.coeff,2), j in axes(model.coeff,1)
-            sum += model.coeff[j,i]*cache[j,i]
+            sum += model.coeff[j,i]*exp(2im*π*(upx*(i-1) + vpx*(j-1)))*phasecenter
     end
     return sum*dx*dy*ω(model.kernel, u*dx)*ω(model.kernel, v*dy)#*phasecenter
 end

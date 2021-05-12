@@ -32,12 +32,12 @@ Disk() = Disk{Float64}()
 
 @inline function intensity(::Disk{T}, x, y, args...) where {T}
     r = x^2 + y^2
-    return r < 1 ?  π^(-1)*one(T) : zero(T)
+    return r < 1 ?  one(T)/(π) : zero(T)
 end
 
 @inline function visibility(::Disk{T}, x, y, args...) where {T}
-    ur = hypot(x,y) + eps(T)
-    return besselj1(2π*ur)/(π*ur) + zero(T)im
+    ur = 2π*hypot(x,y) + eps(T)
+    return 2*besselj1(ur)/(ur) + zero(T)im
 end
 
 
@@ -49,20 +49,50 @@ struct MRing{T,N} <: GeometricModel{T}
     """
     Real Fourier mode coefficients
     """
-    α::SVector{N,T}
+    α::NTuple{N,T}
     """
     Imaginary Fourier mode coefficients
     """
-    β::SVector{N,T}
+    β::NTuple{N,T}
+end
+
+@inline function intensity(m::MRing{T,N}, x::Number, y::Number, fov=160.0, nx=128, args...) where {T,N}
+    r = hypot(x,y)
+    θ = atan(x,y)
+    dr = fov/(nx-1)
+    if (abs(r-m.radius) < dr/2)
+        acc = one(T)
+        for n in 1:N
+            s,c = sincos(n*θ)
+            acc += m.α[n]*c - m.β[n]*s
+        end
+        return acc/(2π*m.radius*dr)
+    else
+        return zero(T)
+    end
+end
+
+function intensitymap!(im::StokesImage{T,S}, m::MRing) where {T,S}
+    ny,nx = size(im)
+    psizex = im.fovx/max(nx-1,1)
+    psizey = im.fovy/max(ny-1,1)
+    @inbounds @simd for I in CartesianIndices(im)
+        iy,ix = Tuple(I)
+        x = -im.fovx/2 + psizex*(ix-1)
+        y = -im.fovy/2 + psizey*(iy-1)
+        tmp = intensity(m, x, y, im.fovx, nx)
+        im[I] = tmp
+    end
+    return im
 end
 
 @inline function visibility(m::MRing{T,N}, u, v, args...) where {T,N}
-    k = 2π*sqrt(u^2 + v^2)*m.radius + eps(T)
+    k = 2π*sqrt(u^2 + v^2)*m.radius + eps(T)*m.radius
     vis = besselj0(k) + zero(T)*im
-    θ = Base.angle(v+1im*u) + π
-    for n in 1:N
+    θ = atan(u, v)
+    @inbounds for n in 1:N
         s,c = sincos(n*θ)
-        vis += 2*(m.α[n]*c - m.β[n]*s)*(-1im)^n*besselj(n, k)
+        vis += 2*(m.α[n]*c - m.β[n]*s)*(1im)^n*besselj(n, k)
     end
     return vis
 end
@@ -75,8 +105,6 @@ unit flux. If you want a different flux please use the `renomed`
 modifier.
 
 ## Fields
-$(FIELDS)
-
 ## Notes
 Unlike the Gaussian and Disk models this does not create the
 unit version. In fact, this model could have been created using
