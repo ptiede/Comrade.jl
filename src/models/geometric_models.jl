@@ -56,9 +56,10 @@ struct MRing{T,N} <: GeometricModel{T}
     β::NTuple{N,T}
 end
 
-@inline function intensity(m::MRing{T,N}, x::Number, y::Number, dr=1, args...) where {T,N}
+@inline function intensity(m::MRing{T,N}, x::Number, y::Number, fov=160.0, nx=128, args...) where {T,N}
     r = hypot(x,y)
     θ = atan(x,y)
+    dr = fov/(nx-1)
     if (abs(r-m.radius) < dr/2)
         acc = one(T)
         for n in 1:N
@@ -75,12 +76,11 @@ function intensitymap!(im::StokesImage{T,S}, m::MRing) where {T,S}
     ny,nx = size(im)
     psizex = im.fovx/max(nx-1,1)
     psizey = im.fovy/max(ny-1,1)
-    dr = 2*min(psizex, psizey)
     @inbounds @simd for I in CartesianIndices(im)
         iy,ix = Tuple(I)
         x = -im.fovx/2 + psizex*(ix-1)
         y = -im.fovy/2 + psizey*(iy-1)
-        tmp = intensity(m, x, y, dr)
+        tmp = intensity(m, x, y, im.fovx, nx)
         im[I] = tmp
     end
     return im

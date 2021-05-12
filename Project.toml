@@ -17,7 +17,6 @@ LRUCache = "8ac3fa9e-de4c-5943-b1dc-09c6b5f20637"
 LeastSquaresOptim = "0fc2ff8b-aaa3-5acd-a817-1944a5e08891"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 Memoization = "6fafb56a-5788-4b4e-91ca-c0cea6611c73"
-Memoize = "c03570c3-d221-55d1-a50c-7939bbd78826"
 NFFT = "efe261a4-0d2b-5849-be55-fc731d526b0d"
 NLopt = "76087f3c-5699-56af-9a33-bf431cd00edd"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
@@ -33,7 +32,7 @@ StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 ThreadSafeDicts = "4239201d-c60e-5e0a-9702-85d713665ba7"
 
 [compat]
-julia = "1.5"
+julia = "1.5,1.6"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

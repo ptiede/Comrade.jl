@@ -175,11 +175,13 @@ function intensitymap!(im::StokesImage{T,S}, m::AbstractModel) where {T,S}
     psizex = im.fovx/max(nx-1,1)
     psizey = im.fovy/max(ny-1,1)
     flux = zero(T)
+    fov = max(im.fovx, im.fovy)
+    npix = max(nx, ny)
     @inbounds @simd for I in CartesianIndices(im)
         iy,ix = Tuple(I)
         x = -im.fovx/2 + psizex*(ix-1)
         y = -im.fovy/2 + psizey*(iy-1)
-        tmp = intensity(m, x, y, im.fovx, nx)
+        tmp = intensity(m, x, y, fov, npix)
         im[I] = tmp
     end
     return im
