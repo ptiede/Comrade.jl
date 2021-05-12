@@ -22,9 +22,8 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 
 [compat]
-julia = "1.5,1.6"
-AstroTime="0.6"
-Distributions = "0.23,0.24,0.25"
+AstroTime = "0.6"
+Distributions = "0.22,0.23,0.24,0.25"
 DocStringExtensions = "0.7,0.8"
 FFTW = "1"
 HypergeometricFunctions = "0.2,0.3"
@@ -34,9 +33,10 @@ LoopVectorization = "0.10,0.11,0.12"
 Memoization = "0.1"
 NFFT = "0.5,0.6"
 PaddedViews = "0.5"
-SpecialFunctions = "1"
+SpecialFunctions = "0.10 - 0.25,1"
 StatsBase = "0.31,0.32,0.33"
 StructArrays = "0.3,0.4,0.5"
+julia = "1.5,1.6"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
