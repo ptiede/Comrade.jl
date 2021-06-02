@@ -147,8 +147,10 @@ struct RImage{S,B<:ImageKernel,M<:AbstractMatrix{S}} <: AbstractRadioImage{S}
         new{S,B,M}(coeff, basis, psizex, psizey)
     end
 end
-FourierStyle(::Type{RImage{S,B,M}}) where {S,B,M} = IsAnalytic()
+VisStyle(::Type{RImage{S,B,M}}) where {S,B,M} = VisPoint()
 
+
+#=
 struct FourierCache{C} <: ObservationCache
     cache::C
 end
@@ -169,7 +171,7 @@ function FourierCache(rimage::I, obs::Observation) where {S,I<:AbstractRadioImag
     end
     FourierCache(cache)
 end
-
+=#
 
 
 @inline function flux(model::RImage{S,B,M}) where {S,B,M}
@@ -178,7 +180,10 @@ end
         sum += model.coeff[i]
     end
     # Divide by pixel number to convert properly
-    return sum*κflux(model.kernel)/prod(size(model))
+    ny,nx = size(model.coeff)
+    dx = 1/max(nx-1,1)
+    dy = 1/max(ny-1,1)
+    return sum*κflux(model.kernel)*dx*dy
 end
 
 
@@ -190,7 +195,7 @@ return the size of the coefficient matrix for `model`.
 """
 @inline Base.size(model::RImage) = size(model.coeff)
 
-@inline function intensity(model::RImage{S,M,B}, x, y, args...) where {S,M,B}
+@inline function intensity(::ImPoint, model::RImage{S,M,B}, x, y, args...) where {S,M,B}
     sum = zero(S)
     ny,nx = size(model)
     dx = 1/(max(nx-1,1))
@@ -226,7 +231,7 @@ function cache(model::RImage{S,M,B}, u, v) where {S,M,B}
     return c
 end
 
-@inline function visibility(model::RImage{S,M,B}, u, v, args...) where {S,M,B}
+@inline function visibility(::VisPoint, model::RImage{S,M,B}, u, v, args...) where {S,M,B}
     sum = zero(Complex{S})
     ny,nx = size(model)
     dx = 1/max(nx-1,1)

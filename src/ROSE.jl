@@ -12,7 +12,7 @@ using LoopVectorization: @avx
 using SpecialFunctions
 using StructArrays
 using Interpolations: interpolate, scale, extrapolate, BSpline, Cubic, Line, OnGrid
-using ImageFiltering: imfilter, Kernel.gaussian, Fill, Algorithm.FFT
+using ImageFiltering: imfilter, imfilter!, Kernel.gaussian, Fill, Algorithm.FFT
 # Write your package code here.
 
 export Disk, Gaussian, ConcordanceCrescent, MRing,

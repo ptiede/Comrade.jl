@@ -64,29 +64,16 @@ with `128` pixel nodes and a total `fov` of 10 in x and y direction.
 
 **This needs to be improved**
 """
-struct SmoothedModel{M<:AbstractModel, T} <: AbstractModifier{M,T}
+struct SmoothedModel{M<:AbstractModel, T} <: AbstractModel{M,T}
     model::M
     σ::T
 end
 smoothed(model, σ) = SmoothedModel(model, σ)
+ImStyle(::Type{SmoothedModel{M,T}}) where {M,T} = ImGrid()
 
-@memoize function cache(m::SmoothedModel, fov::Float64, npix::Int)
-    bim = intensitymap(m, npix, npix, fov, fov)
-
-    x_itr,y_itr = imagepixels(bim)
-    itp = interpolate(bim, BSpline(Cubic(Line(OnGrid()))))
-    sitp = scale(itp, x_itr, y_itr)
-    etp = extrapolate(sitp, 0)
-    return etp
-end
-
-function intensity(m::SmoothedModel, x, y, fov=160.0, npix=128, args...)
-    itp = cache(m, fov, npix)
-    return itp(x,y)
-end
 
 function intensitymap!(sim::StokesImage{T,S}, model::SmoothedModel) where {T,S}
-    cim = copy(sim)
+    cim = deepcopy(sim)
     intensitymap!(cim, basemodel(model))
     dx,dy = pixelsizes(sim)
     xitr,yitr = imagepixels(sim)
@@ -96,7 +83,7 @@ function intensitymap!(sim::StokesImage{T,S}, model::SmoothedModel) where {T,S}
     # gaussian kernel. I have to add one for the convolution to play nice
     nkern = Int(floor(σ_px)*10 + 1)
 
-    sim = imfilter(cim,
+    imfilter!(sim, cim,
         gaussian((σ_px, σ_px),(nkern,nkern)),
         Fill(0.0, cim),
         FFT())
