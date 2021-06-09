@@ -1,4 +1,35 @@
+"""
+    $(TYPEDEF)
+Abstract type for image modifiers. These are some model wrappers
+that can transform any model using simple Fourier transform properties.
+To see the implemented modifier
+"""
+abstract type AbstractModifier{M<:AbstractModel,T} <: AbstractModel{T} end
 
+ImStyle(::Type{<:AbstractModifier{M,T}}) where {M,T} = ImStyle(M)
+VisStyle(::Type{<:AbstractModifier{M,T}}) where {M,T} = VisAnalytic()
+
+"""
+    $(SIGNATURES)
+Returns a list containing all the image modifiers available in ROSE.
+"""
+modifierlist() = subtypes(AbstractModifier)
+
+VisStyle(::Type{<:AbstractModifier}) = VisAnalytic()
+
+@inline transform(m::AbstractModifier, x, y) = (x,y)
+@inline imscale(m::AbstractModifier, x, y) = one(eltype(x))
+
+@inline transformuv(m::AbstractModifier, u, v)  = (u,v)
+@inline visscale(m::AbstractModifier, u, v) = one(eltype(u))
+
+@inline function intensity(::ImAnalytic, m::AbstractModifier, x, y, args...)
+    return imscale(m,x,y)*intensity(basemodel(m), transform(m, x, y), args...)
+end
+
+@inline function visibility(m::AbstractModifier, u, v, args...)
+    return visscale(m, u, v)*visibility(basemodel(m), transformuv(m, u, v), args...)
+end
 
 
 # TODO: Make basemodel a trait!
@@ -11,42 +42,7 @@ basemodel(model::AbstractModifier) = model.model
 flux(m::AbstractModifier) = flux(m.model)
 
 
-abstract type CompositeModel{T} <: AbstractModel{T} end
 
-"""
-    $(TYPEDEF)
-Adds two models together to create composite models. Note that
-I may change this in the future so make it easier on the compiler,
-i.e. make the composite model a fancy model vector and heap allocate
-stuff. This should help when combining multiple models together.
-"""
-struct AddModel{T,T1<:AbstractModel{T},T2<:AbstractModel{T}} <: CompositeModel{T}
-    m1::T1
-    m2::T2
-end
-Base.:+(m1::T1, m2::T2) where {T1<:AbstractModel, T2<:AbstractModel} = AddModel(m1, m2)
-add(m1::M1, m2::M2) where {M1<:AbstractModel, M2<:AbstractModel} = AddModel(m1, m2)
-
-"""
-    $(SIGNATURES)
-Returns the components for a composite model. This
-will return a Tuple with all the models you have constructed.
-"""
-components(m::AbstractModel) = m
-components(m::AddModel{M1,M2}) where
-    {M1<:AbstractModel, M2<:AbstractModel} = (components(m.m1)..., components(m.m2)...)
-
-flux(m::AddModel) = flux(m.m1) + flux(m.m2)
-
-function intensity(m::AddModel{T1,T2}, x, y, args...) where {T1, T2}
-    return intensity(m.m1, x, y, args...) + intensity(m.m2, x, y, args...)
-end
-
-
-@inline function visibility(m::AddModel{T1,T2}, u, v, args...) where {T1, T2}
-
-    return visibility(m.m1, u, v, args...) + visibility(m.m2, u, v, args...)
-end
 
 """
     $(TYPEDEF)
@@ -64,13 +60,15 @@ with `128` pixel nodes and a total `fov` of 10 in x and y direction.
 
 **This needs to be improved**
 """
-struct SmoothedModel{M<:AbstractModel, T} <: AbstractModel{M,T}
+struct SmoothedModel{M<:AbstractModel, T} <: AbstractModel{T}
     model::M
     σ::T
 end
+basemodel(m::SmoothedModel) = m.model
 smoothed(model, σ) = SmoothedModel(model, σ)
-ImStyle(::Type{SmoothedModel{M,T}}) where {M,T} = ImGrid()
+ImStyle(::Type{SmoothedModel{M,T}}) where {M,T} = ImNumeric()
 
+visscale(m::SmoothedModel, u, v) = exp(-2*(π*m.σ)^2*(u^2+v^2))
 
 function intensitymap!(sim::StokesImage{T,S}, model::SmoothedModel) where {T,S}
     cim = deepcopy(sim)
@@ -90,11 +88,23 @@ function intensitymap!(sim::StokesImage{T,S}, model::SmoothedModel) where {T,S}
     return sim
 end
 
-
-@inline function visibility(model::SmoothedModel, u, v, args...)
-    return visibility(basemodel(model), u, v, args...)*
-            exp(-2*(π*model.σ)^2*(u^2+v^2))
+function visibilities(::VisAnalytic, m::SmoothedModel, cache, args...)
+    vis = visibilities(basemodel(m), cache, args...)
+    u, v = cache.u, cache.v
+    for i in eachindex(u,v)
+        vis[i] *= visscale(m, u[i], v[i])
+    end
+    return vis
 end
+
+function visibilities(::VisAnalytic, m::SmoothedModel, u, v, args...)
+    vis = visibilities(basemodel(m), u, v, args...)
+    for i in eachindex(u,v)
+        vis[i] *= visscale(m, u[i], v[i])
+    end
+    return vis
+end
+
 
 """
     $(TYPEDEF)
@@ -108,14 +118,10 @@ struct ShiftedModel{T,M<:AbstractModel} <: AbstractModifier{M,T}
 end
 shifted(model, Δx, Δy) = ShiftedModel(model, Δx, Δy)
 
-@inline function intensity(model::ShiftedModel, x, y, args...)
-    return intensity(basemodel(model), x-model.Δx, y-model.Δy, args...)
-end
+@inline transform(m::ShiftedModel, x, y) = x-m.Δx, y-m.Δy
+@inline visscale(m::ShiftedModel, u, v) = exp(2im*π*(u*m.Δx + v*m.Δy))
 
-@inline function visibility(model::ShiftedModel, u, v, args...)
-    return visibility(basemodel(model), u, v, args...)*
-            exp(2im*π*(u*model.Δx + v*model.Δy))
-end
+
 
 """
     $(TYPEDEF)
@@ -137,15 +143,10 @@ Base.:*(flux::Real, model::AbstractModel) = renormed(model, flux)
 Base.:-(model::AbstractModel) = renormed(model, -flux(model))
 flux(m::RenormalizedModel) = m.flux
 
+@inline visscale(m::RenormalizedModel, u, v) = m.flux/flux(basemodel(m))
+@inline imscale(m::RenormalizedModel, x,y) = m.flux/flux(basemodel(m))
 
-@inline function intensity(m::RenormalizedModel, x, y, args...)
-    return intensity(basemodel(m), x,y, args...)*m.flux/flux(basemodel(m))
-end
 
-@inline function visibility(model::RenormalizedModel,
-                            u, v, args...)
-    return visibility(basemodel(model), u, v, args...)*model.flux/flux(basemodel(model))
-end
 
 """
     $(TYPEDEF)
@@ -162,12 +163,11 @@ struct StretchedModel{M<:AbstractModel,T} <: AbstractModifier{M,T}
 end
 stretched(model, α, β) = StretchedModel(model, α, β)
 
-@inline function intensity(model::StretchedModel, x,y, args...)
-    return intensity(basemodel(model), x/model.α, y/model.β, args...)/(model.α*model.β)
-end
-@inline function visibility(model::StretchedModel, u, v, args...)
-    return visibility(basemodel(model), u*model.α, v*model.β, args...)
-end
+@inline transformuv(m::StretchedModel, u, v) = u*m.α, v*m.β
+@inline transform(m::StretchedModel, x, y) = x/m.α, y/m.β
+@inline imscale(m::StretchedModel, x, y) = 1/(m.α*m.β)
+
+
 
 """
     $(TYPEDEF)
@@ -191,15 +191,12 @@ end
 rotated(model, ξ) = RotatedModel(model, ξ)
 posangle(model::RotatedModel) = atan(model.s, model.c)
 
-
-@inline function intensity(model::RotatedModel, x,y, args...)
-    s,c = model.s, model.c
-    xx, yy = c*x - s*y, s*x + c*y
-    return intensity(basemodel(model), xx, yy, args...)
+function transformuv(m::RotatedModel, u, v)
+    s,c = m.s, m.c
+    return c*u - s*v, s*u + c*v
 end
 
-@inline function visibility(model::RotatedModel, u,v, args...)
-    s,c = model.s, model.c
-    uu, vv = c*u - s*v, s*u + c*v
-    return visibility(basemodel(model), uu, vv, args...)
+function transform(m::RotatedModel, x, y)
+    s,c = m.s, m.c
+    return c*x - s*y, s*x + c*y
 end

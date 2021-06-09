@@ -1,11 +1,12 @@
 """
     R.O.S.E.
-Radio Observation Sampling Extravagance
+Radio Observation Sampling Event
 """
 module ROSE
 
 using DocStringExtensions
-using FFTW: fft, fft
+using FFTW: fft, fftshift, fftfreq, plan_fft
+using NFFT
 using PaddedViews
 using Memoization
 using LoopVectorization: @avx
@@ -28,4 +29,5 @@ include("stokesimage.jl")
 include("observations/observations.jl")
 include("models/models.jl")
 include("likelihoods/likelihoods.jl")
+include("fft.jl")
 end

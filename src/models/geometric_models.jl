@@ -1,3 +1,8 @@
+abstract type GeometricModel{T} <: AbstractModel{T} end
+VisStyle(::Type{<:GeometricModel}) = VisAnalytic()
+
+
+
 @inline flux(::GeometricModel{T}) where {T} = one(T)
 
 """
@@ -11,11 +16,11 @@ To change the Gaussian flux, and shape please use the modifier functions
 struct Gaussian{T} <: GeometricModel{T} end
 Gaussian() = Gaussian{Float64}()
 
-@inline function intensity(::ImPoint, ::Gaussian, x,y, args...)
+@inline function intensity(::ImAnalytic, ::Gaussian, x,y, args...)
     return exp(-(x^2+y^2)/2)/2π
 end
 
-@inline function visibility(::Gaussian{T}, u, v, args...) where {T}
+@inline function _visibility(::Gaussian{T}, u, v, args...) where {T}
     return exp(-2π^2*(u^2 + v^2)) + zero(T)im
 end
 
@@ -30,12 +35,12 @@ Tophat disk geometrical model. The model is given by
 struct Disk{T} <: GeometricModel{T} end
 Disk() = Disk{Float64}()
 
-@inline function intensity(::ImPoint, ::Disk{T}, x, y, args...) where {T}
+@inline function intensity(::ImAnalytic, ::Disk{T}, x, y, args...) where {T}
     r = x^2 + y^2
     return r < 1 ?  one(T)/(π) : zero(T)
 end
 
-@inline function visibility(::VisPoint, ::Disk{T}, x, y, args...) where {T}
+@inline function _visibility(::VisAnalytic, ::Disk{T}, x, y, args...) where {T}
     ur = 2π*hypot(x,y) + eps(T)
     return 2*besselj1(ur)/(ur) + zero(T)im
 end
@@ -56,7 +61,7 @@ struct MRing{T,N} <: GeometricModel{T}
     β::NTuple{N,T}
 end
 
-@inline function intensity(::ImPoint, m::MRing{T,N}, x::Number, y::Number, fov=160.0, nx=128, args...) where {T,N}
+@inline function intensity(::ImAnalytic, m::MRing{T,N}, x::Number, y::Number, fov=160.0, nx=128, args...) where {T,N}
     r = hypot(x,y)
     θ = atan(x,y)
     dr = fov/(nx-1)
@@ -73,7 +78,7 @@ end
 end
 
 
-@inline function visibility(::VisPoint, m::MRing{T,N}, u, v, args...) where {T,N}
+@inline function _visibility(::VisAnalytic, m::MRing{T,N}, u, v, args...) where {T,N}
     k = 2π*sqrt(u^2 + v^2)*m.radius + eps(T)*m.radius
     vis = besselj0(k) + zero(T)*im
     θ = atan(u, v)
@@ -126,7 +131,7 @@ function _crescentnorm(m::ConcordanceCrescent)
     return 2/π/f
 end
 
-function intensity(::ImPoint, m::ConcordanceCrescent{T}, x, y, args...) where {T}
+function intensity(::ImAnalytic, m::ConcordanceCrescent{T}, x, y, args...) where {T}
     r2 = x^2 + y ^2
     norm = _crescentnorm(m)
     if (r2 < m.router^2 && (x-m.shift)^2 + y^2 > m.rinner^2 )
@@ -136,7 +141,7 @@ function intensity(::ImPoint, m::ConcordanceCrescent{T}, x, y, args...) where {T
     end
 end
 
-function visibility(::VisPoint, m::ConcordanceCrescent{T}, u, v, args...) where {T}
+function _visibility(::VisAnalytic, m::ConcordanceCrescent{T}, u, v, args...) where {T}
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     norm = π*_crescentnorm(m)/k
     phaseshift = exp(2im*π*m.shift*u)
