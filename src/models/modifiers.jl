@@ -64,7 +64,7 @@ with `128` pixel nodes and a total `fov` of 10 in x and y direction.
 
 **This needs to be improved**
 """
-struct SmoothedModel{M<:AbstractModel, T} <: AbstractModel{M,T}
+struct SmoothedModel{M<:AbstractModel, T} <: AbstractModifier{M,T}
     model::M
     σ::T
 end
