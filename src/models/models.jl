@@ -62,9 +62,9 @@ transform.
 """
 VisStyle(::Type{<:AbstractModel}) = IsNumeric()
 
-VisStyle(::Type{<:GeometricModel}) = IsAnalytic()
+VisStyle(::Type{<:GeometricModel}) = VisPoint()
 
-VisStyle(::Type{<:AbstractModifier}) = IsAnalytic()
+VisStyle(::Type{<:AbstractModifier}) = VisGrid()
 
 
 #=
