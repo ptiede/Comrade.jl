@@ -36,7 +36,7 @@ Disk() = Disk{Float64}()
 end
 
 @inline function visibility(::VisPoint, ::Disk{T}, x, y, args...) where {T}
-    ur = 2π*hypot(x,y) + eps(T)
+    ur = 2π*(hypot(x,y) + eps(T))
     return 2*besselj1(ur)/(ur) + zero(T)im
 end
 

@@ -42,9 +42,17 @@ function intensity(m::AddModel{T1,T2}, x, y, args...) where {T1, T2}
     return intensity(m.m1, x, y, args...) + intensity(m.m2, x, y, args...)
 end
 
+function intensitymap!(sim::StokesImage, m::AddModel)
+    csim = deepcopy(sim)
+    intensitymap!(csim, m.m1)
+    sim .= csim
+    intensitymap!(csim, m.m2)
+    sim .= sim .+ csim
+    return sim
+end
 
-@inline function visibility(m::AddModel{T1,T2}, u, v, args...) where {T1, T2}
 
+@inline function visibility(m::AddModel, u, v, args...)
     return visibility(m.m1, u, v, args...) + visibility(m.m2, u, v, args...)
 end
 
