@@ -85,6 +85,24 @@ function closurephase(D1::EHTVisibilityDatum,
 end
 =#
 
+Base.@kwdef struct EHTLogClosureAmplitudeDatum{T<:Number} <: ClosureProducts{T}
+    amp::T
+    error::T
+    u1::T
+    v1::T
+    u2::T
+    v2::T
+    u3::T
+    v3::T
+    u4::T
+    v4::T
+    time::T
+    frequency::T
+    bandwidth::T
+    baselines::NTuple{4,Symbol}
+end
+
+
 
 Base.@kwdef struct EHTClosurePhaseDatum{T<:Number} <: ClosureProducts{T}
     phase::T
