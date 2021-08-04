@@ -12,6 +12,7 @@ using Memoization
 using LoopVectorization: @avx
 using SpecialFunctions
 using StructArrays
+using MappedArrays
 using Interpolations: interpolate, scale, extrapolate, BSpline, Cubic, Line, OnGrid
 using ImageFiltering: imfilter, imfilter!, Kernel.gaussian, Fill, Algorithm.FFT
 # Write your package code here.
