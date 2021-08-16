@@ -79,11 +79,9 @@ function visibilities(m::AbstractModel,
 end
 
 function visibilities(::VisAnalytic, m::AbstractModel, u, v, args...)
-    vis = similar(u, Complex{eltype(u)})
-    for i in eachindex(u,v,vis)
+    return mappedarray(eachindex(u,v)) do i
         vis[i] = visibility(m, u[i], v[i], args...)
     end
-    return vis
 end
 
 
@@ -111,7 +109,8 @@ end
 Computes the closure phase of a model `m` in `Jy` at closure triangle, uv1, uv2, uv3
 """
 @inline function closure_phases(m::AbstractModel, u1, v1, u2, v2, u3, v3, args...)
-    return angle.(bispectra.(m, u1,v1, u2,v2, u3,v3, args...))
+    return mappedarray(u1,v1,u2,v2,u3,v3, args...) do pu1, pv1, pu2, pv2, pu3, pv3
+        angle(bispectra(m, u1[i],v1[i], u2[i] ,v2[i] , u3,v3, args...))
 end
 
 """
