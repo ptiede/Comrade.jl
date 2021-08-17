@@ -236,8 +236,8 @@ where V is the complex visibility
                                       u3, v3,
                                       u4, v4,
                                       args...)
-    return log( visibility_amplitude(m, u1,v1...)*visibility_amplitude(m, u2,v3...)/
-               (visibility_amplitude(m, u3,v2...)*visibility_amplitude(m, u4,v4...))
+    return log( visibility_amplitude(m, u1,v1...)*visibility_amplitude(m, u2,v2...)/
+               (visibility_amplitude(m, u3,v3...)*visibility_amplitude(m, u4,v4...))
               )
 end
 
