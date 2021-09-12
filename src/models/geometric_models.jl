@@ -56,6 +56,11 @@ struct MRing{T,N} <: GeometricModel{T}
     β::NTuple{N,T}
 end
 
+function MRing{N}(radius::S, α::T, β::T) where {N,S,T<:AbstractVector}
+    @assert N == length(α)
+    return MRing{S, N}(radius, NTuple{N,S}(α), NTuple{N,S}(β))
+end
+
 @inline function intensity(::ImPoint, m::MRing{T,N}, x::Number, y::Number, fov=160.0, nx=128, args...) where {T,N}
     r = hypot(x,y)
     θ = atan(x,y)
