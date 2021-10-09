@@ -103,7 +103,7 @@ change the uv positions for certain parameters, this can cause a speed up.
 
 
 function intensity(m::M, u, v, args...) where {M<:AbstractModel}
-    return intensity(ImStyle(M), m, u, v)
+    return intensity(ImStyle(M), m, u, v, args...)
 end
 
 
