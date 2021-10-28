@@ -40,7 +40,11 @@ end
     return 2*besselj1(ur)/(ur) + zero(T)im
 end
 
-
+"""
+    $(TYPEDEF)
+m-ring geometric model. This corresponds to a delta ring with a fourier expansion
+in θ. The m in m-ring refers to the order of the Fourier expansion.
+"""
 struct MRing{T,N} <: GeometricModel{T}
     """
     Radius of the thin ring
