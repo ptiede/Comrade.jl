@@ -12,6 +12,20 @@ using DelimitedFiles
 using AstroTime: UTCEpoch, modified_julian
 
 
+"""
+    $(TYPEDEF)
+This defined the abstract type for an array configuration. Namely, baselines
+times, SEFD's, bandwidth, observation frequencies, etc.
+"""
+abstract type ArrayConfiguration end
+
+
+struct StaticArray{S} <: ArrayConfiguration
+    sourcemeta::S
+    arraydata::D
+end
+
+
 getuv(D::AbstractVisibilityDatum) = D.u, D.v
 
 Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructArray{T}, N} <: Observation{F}

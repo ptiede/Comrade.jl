@@ -241,8 +241,8 @@ end
     upx = u*dx
     vpx = v*dy
     phasecenter = exp(2im*π*(u*startx + v*starty))
-    @avx for i in axes(model.coeff,2), j in axes(model.coeff,1)
-            sum += model.coeff[j,i]*exp(2im*π*(upx*(i-1) + vpx*(j-1)))*phasecenter
+    @turbo for i in axes(model.coeff,2), j in axes(model.coeff,1)
+            sum += model.coeff[j,i]*exp(2im*π*(upx*(i-1) + vpx*(j-1)))
     end
-    return sum*dx*dy*ω(model.kernel, u*dx)*ω(model.kernel, v*dy)#*phasecenter
+    return sum*dx*dy*ω(model.kernel, u*dx)*ω(model.kernel, v*dy)*phasecenter
 end
