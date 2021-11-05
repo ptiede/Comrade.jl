@@ -8,7 +8,7 @@ using DocStringExtensions
 using FFTW: fft, fft
 using PaddedViews
 using Memoization
-using LoopVectorization: @avx
+using LoopVectorization: @turbo
 using SpecialFunctions
 using StructArrays
 using Interpolations: interpolate, scale, extrapolate, BSpline, Cubic, Line, OnGrid

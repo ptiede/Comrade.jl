@@ -20,11 +20,6 @@ times, SEFD's, bandwidth, observation frequencies, etc.
 abstract type ArrayConfiguration end
 
 
-struct StaticArray{S} <: ArrayConfiguration
-    sourcemeta::S
-    arraydata::D
-end
-
 
 getuv(D::AbstractVisibilityDatum) = D.u, D.v
 

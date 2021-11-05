@@ -104,6 +104,8 @@ end
 
 
 
+
+
 @doc raw"""
     $(TYPEDEF)
 An image model given by a set of coefficients and a kernel response or basis function.
@@ -150,6 +152,8 @@ end
 VisStyle(::Type{RImage{S,B,M}}) where {S,B,M} = VisPoint()
 
 
+
+
 #=
 struct FourierCache{C} <: ObservationCache
     cache::C
@@ -176,7 +180,7 @@ end
 
 @inline function flux(model::RImage{S,B,M}) where {S,B,M}
     sum = zero(S)
-    @avx for i in eachindex(model.coeff)
+    @turbo for i in eachindex(model.coeff)
         sum += model.coeff[i]
     end
     # Divide by pixel number to convert properly
@@ -211,25 +215,6 @@ return the size of the coefficient matrix for `model`.
     return sum
 end
 
-function cache(model::AbstractModifier, u, v)
-    return cache(basemodel(model), u, v)
-end
-
-function cache(model::RImage{S,M,B}, u, v) where {S,M,B}
-    ny,nx = size(model)
-    dx = 1/max(nx-1,1)
-    dy = 1/max(ny-1,1)
-    startx = -0.5
-    starty = -0.5
-    upx = u*dx
-    vpx = v*dy
-    phasecenter = exp(2im*π*(u*startx + v*starty))
-    c = zeros(Complex{S}, size(model.coeff))
-    @inbounds for i in axes(model.coeff,2), j in axes(model.coeff,1)
-        c[j,i] = exp(2im*π*(upx*(i-1) + vpx*(j-1)))*phasecenter*dx*dy
-    end
-    return c
-end
 
 @inline function visibility(::VisPoint, model::RImage{S,M,B}, u, v, args...) where {S,M,B}
     sum = zero(Complex{S})
@@ -241,8 +226,8 @@ end
     upx = u*dx
     vpx = v*dy
     phasecenter = exp(2im*π*(u*startx + v*starty))
-    @turbo for i in axes(model.coeff,2), j in axes(model.coeff,1)
-            sum += model.coeff[j,i]*exp(2im*π*(upx*(i-1) + vpx*(j-1)))
+    @inbounds for i in axes(model.coeff,2), j in axes(model.coeff,1)
+        sum += model.coeff[j,i]*exp(2im*π*(upx*(i-1) + vpx*(j-1)))
     end
     return sum*dx*dy*ω(model.kernel, u*dx)*ω(model.kernel, v*dy)*phasecenter
 end

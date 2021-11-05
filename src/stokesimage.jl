@@ -76,7 +76,7 @@ end
 
 function flux(im::AbstractStokesImage{T,S}) where {T,S}
     sum = zero(T)
-    @avx for i in eachindex(im.im)
+    @turbo for i in eachindex(im.im)
         sum += im[i]
     end
     ny,nx = size(im)
