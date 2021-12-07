@@ -22,7 +22,7 @@ export Disk, Gaussian, ConcordanceCrescent, MRing,
        load_tpy,
        getdata, renorm, imagepixels,
        intensitymap, intensitymap!,
-       CPNormal
+       CPNormal, getuv, nsamples, vamp, phase, uvtriangle
 
 include("stokesimage.jl")
 include("observations/observations.jl")
