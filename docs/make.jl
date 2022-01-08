@@ -1,10 +1,10 @@
 using Documenter
 
-if haskey(ENV, "GITHUB_ACTIONS")
-    ENV["JULIA_DEBUG"] = "Documenter"
-end
+#if haskey(ENV, "GITHUB_ACTIONS")
+#    ENV["JULIA_DEBUG"] = "Documenter"
+#end
 
-Documenter.post_status(; type="pending", repo="github.com/ptiede/ROSEx.jl.git")
+#Documenter.post_status(; type="pending", repo="github.com/ptiede/ROSEx.jl.git")
 using ROSEx
 
 
@@ -25,5 +25,6 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/ptiede/ROSEx.jl",
-    push_preview=true
+    push_preview=true,
+    forcepush=true
 )
