@@ -5,7 +5,7 @@
 [![Build Status](https://github.com/ptiede/ROSEx.jl/workflows/CI/badge.svg)](https://github.com/ptiede/ROSEx.jl/actions)
 [![Coverage](https://codecov.io/gh/ptiede/ROSEx.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/ptiede/ROSEx.jl)
 
-Radio Observation Sampling Exploration
+Radio Observation Structure Exploration
 
 This is a alpha version of a potential EHT/ngEHT modeling/imaging software written in pure Julia. The objectives are in order of importance
 
