@@ -12,11 +12,11 @@ export Rice, CPVonMises, CPNormal
 @kwstruct Rice(ν, σ)
 
 
-function MeasureBase.logdensity(d::Rice{(:ν, β)}, x)
+function MeasureBase.logdensity(d::Rice{(:ν, :σ)}, x)
     log(x/d.σ^2*besseli(0, x*d.ν/d.σ^2)) - (x^2 + ν^2)/(2*d.σ^2)
 end
 
-function Base.rand(rng::AbstractRNG, T::Type, d::Rice{:ν, σ})
+function Base.rand(rng::AbstractRNG, T::Type, d::Rice{(:ν, :σ)})
     x1 = randn(rng, T)*d.σ + d.ν
     x2 = randn(rng, T)*d.σ
     return hypot(x1,x2)
@@ -27,7 +27,7 @@ partype(::Rice{T}) where {T<:Real} = T
 
 #### Statistics
 L12(x) = exp(x/2)*( (1-x)*besseli(0,-x/2) - x*besseli(1,-x/2) )
-mean(d::Rice{(:ν,:σ)}) = d.σ*Distributions.sqrt2π/2*L12(-(d.ν/(2d.σ))^2)
+mean(d::Rice{(:ν,:σ)}) = d.σ*Dists.sqrt2π/2*L12(-(d.ν/(2d.σ))^2)
 var(d::Rice{(:ν, :σ)}) = 2*d.σ^2 + d.ν^2 - π*d.σ^2/2*L12(-(ν/(2d.σ))^2)^2
 
 @parameterized CPVonMises(μ, κ)
@@ -58,7 +58,7 @@ Base.minimum(::CPNormal) = -Inf
 Base.maximum(::CPNormal) = Inf
 
 const log2π = log(2*π)
-function MeasureBase.logdensity(dist::CPNormal{(:μ, σ)}, x::Real)
+function MeasureBase.logdensity(dist::CPNormal{(:μ, :σ)}, x::Real)
     μ,σ = dist.μ, dist.σ
     s,c = sincos(x)
     dθ = atan(s, c)
