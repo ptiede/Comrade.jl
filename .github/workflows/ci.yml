@@ -16,7 +16,7 @@ jobs:
           - ubuntu-latest
           - macOS-latest
         arch:
-          - x86
+          - x64
         exclude:
           - os: macOS-latest
             arch: x86

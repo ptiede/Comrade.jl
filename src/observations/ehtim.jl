@@ -1,4 +1,4 @@
-export extract_amps, extract_vis, extract_lcamp, extract_cphase
+export extract_amp, extract_vis, extract_lcamp, extract_cphase
 
 function getvisfield(obs)
     obsamps = obs.data::PyObject
@@ -83,7 +83,7 @@ function getcpfield(obs)
         time = time,
         frequency = freq,
         bandwidth = bw,
-        baseline = baseline
+        triangle = baseline
     )
 
 end
@@ -124,7 +124,7 @@ function getlcampfield(obs)
         time = time,
         frequency = freq,
         bandwidth = bw,
-        baseline = baseline
+        quadrangle = baseline
     )
 
 end
@@ -143,20 +143,24 @@ end
 
 
 """
-    extract_amps(obs)
+    extract_amp(obs)
 Extracts the visibility amplitudes from an ehtim observation object
 
 Returns an EHTObservation with visibility amplitude data
 """
 
-function extract_amps(obs)
+function extract_amp(obs; kwargs...)
+    obs.add_amp(;kwargs...)
     data = getampfield(obs)
     ra, dec = getradec(obs)
     mjd = getmjd(obs)
     source = getsource(obs)
+    bw = obs.bw
+    rf = obs.rf
 
     return ROSEx.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
+                   bandwidth=bw, frequency=rf,
                    source = source,
     )
 end

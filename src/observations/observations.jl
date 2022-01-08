@@ -11,8 +11,8 @@ abstract type Observation{T} end
 using DelimitedFiles
 using AstroTime: modified_julian
 
-export uvpositions, stations, getdata, nsamples, arrayconfig, baseline,
-        nsamples, getuv
+export uvpositions, stations, getdata, nsamples, arrayconfig,
+        nsamples, getuv, baselines
 
 
 
@@ -68,12 +68,16 @@ Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructA
     timetype::Symbol = :UTC
 end
 
-function stations(d::EHTObservation{A}) where {A}
+Base.getindex(data::EHTObservation, i::Int) = data.data[i]
+Base.length(data::EHTObservation) = nsamples(data)
+
+function stations(d::EHTObservation{T,A}) where {T,A<:AbstractInterferometryDatum}
     bl = getdata(d, :baseline)
     s1 = first.(bl)
     s2 = last.(bl)
     return unique([s1..., s2...])
 end
+
 
 function Base.show(io::IO, d::EHTObservation{F,D}) where {F,D}
     println(io, "EHTObservation{$F,$D, ...}")
@@ -82,7 +86,7 @@ function Base.show(io::IO, d::EHTObservation{F,D}) where {F,D}
     println(io, "  frequency: ", d.frequency)
     println(io, "  bandwidth: ", d.bandwidth)
     println(io, "  stations: ", stations(d))
-    print(io, "  nsamples: ", nsamples(d))
+    println(io, "  nsamples: ", nsamples(d))
 end
 
 
@@ -137,11 +141,15 @@ function checktriangle(D1::EHTVisibilityDatum,
 end
 
 @inline function visibility(D::EHTVisibilityDatum{T}) where {T}
-    return Complex{T}(visr, visi)
+    return Complex{T}(D.visr, D.visi)
+end
+
+@inline function amplitude(D::EHTVisibilityAmplitudeDatum{T}) where {T}
+    return D.amp
 end
 
 @inline function bispectrum(D1::EHTVisibilityDatum, D2::EHTVisibilityDatum, D3::EHTVisibilityDatum)
-    visibility(D2)*visibility(D2)*visibility(D3)
+    visibility(D1)*visibility(D2)*visibility(D3)
 end
 
 """
@@ -162,6 +170,14 @@ Base.@kwdef struct EHTClosurePhaseDatum{T<:Number} <: ClosureProducts{T}
     time::T
     triangle::NTuple{3,Symbol}
 end
+
+function stations(d::EHTObservation{T,A}) where {T,A<:EHTClosurePhaseDatum}
+    bl = getdata(d, :triangle)
+    return unique(vcat(collect.(bl)...))
+end
+
+
+
 
 """
     $(SIGNATURES)
@@ -194,7 +210,7 @@ function closure_phase(D1::EHTVisibilityDatum,
                                 time, s123)
 end
 
-function baseline(CP::EHTClosurePhaseDatum)
+function baselines(CP::EHTClosurePhaseDatum)
     tri = CP.triangle
     return ((tri[1],tri[2]), (tri[2], tri[3]), (tri[3], tri[1]))
 end
@@ -217,9 +233,14 @@ Base.@kwdef struct EHTLogClosureAmplitudeDatum{T<:Number} <: ClosureProducts{T}
     quadrangle::NTuple{4,Symbol}
 end
 
-function baseline(CP::EHTLogClosureAmplitudeDatum)
+function baselines(CP::EHTLogClosureAmplitudeDatum)
     quad = CP.quadrangle
     return ((quad[1],quad[2]), (quad[3], quad[4]), (quad[1], quad[3]), (quad[2], quad[4]))
+end
+
+function stations(d::EHTObservation{T,A}) where {T,A<:EHTLogClosureAmplitudeDatum}
+    bl = getdata(d, :quadrangle)
+    return unique(vcat(collect.(bl)...))
 end
 
 uvpositions(datum::EHTLogClosureAmplitudeDatum) = (datum.u1, datum.v1, datum.u2, datum.v2, datum.u3, datum.v3, datum.u4, datum.v4)

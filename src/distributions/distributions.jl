@@ -2,7 +2,7 @@ using MeasureBase
 using SpecialFunctions: besseli
 using Random
 using KeywordCalls
-import Statistics: mean, var
+import Statistics
 import Distributions as Dists
 
 export Rice, CPVonMises, CPNormal
@@ -13,7 +13,8 @@ export Rice, CPVonMises, CPNormal
 
 
 function MeasureBase.logdensity(d::Rice{(:ν, :σ)}, x)
-    log(x/d.σ^2*besseli(0, x*d.ν/d.σ^2)) - (x^2 + ν^2)/(2*d.σ^2)
+    li0 = log(besselix(0, x*d.ν/d.σ^2)) + abs(x*d.ν/d.σ^2)
+    log(x/d.σ^2) + li0 - (x^2 + d.ν^2)/(2*d.σ^2)
 end
 
 function Base.rand(rng::AbstractRNG, T::Type, d::Rice{(:ν, :σ)})
@@ -27,19 +28,20 @@ partype(::Rice{T}) where {T<:Real} = T
 
 #### Statistics
 L12(x) = exp(x/2)*( (1-x)*besseli(0,-x/2) - x*besseli(1,-x/2) )
-mean(d::Rice{(:ν,:σ)}) = d.σ*Dists.sqrt2π/2*L12(-(d.ν/(2d.σ))^2)
-var(d::Rice{(:ν, :σ)}) = 2*d.σ^2 + d.ν^2 - π*d.σ^2/2*L12(-(ν/(2d.σ))^2)^2
+Statistics.mean(d::Rice{(:ν,:σ)}) = d.σ*sqrt(π/2)*L12(-0.5*(d.ν/(d.σ))^2)
+Statistics.var(d::Rice{(:ν, :σ)}) = 2*d.σ^2 + d.ν^2 - π*d.σ^2/2*L12(-0.5*(d.ν/(d.σ))^2)^2
 
 @parameterized CPVonMises(μ, κ)
 
 @kwstruct CPVonMises(μ, κ)
+@kwstruct CPVonMises(μ, σ)
 
 function MeasureBase.logdensity(d::CPVonMises{(:μ, :κ)}, x)
-    return d.κ*(cos(x-d.μ)-1)^2
+    return d.κ*cos(x-d.μ)
 end
 
 function MeasureBase.logdensity(d::CPVonMises{(:μ, :σ)},x)
-    return (cos(x-d.μ)-1)^2/d.σ^2
+    return cos(x-d.μ)/d.σ^2
 end
 
 function Base.rand(rng::AbstractRNG, T::Type, d::CPVonMises{(:μ, :κ)})
