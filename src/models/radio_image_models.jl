@@ -1,106 +1,4 @@
-
-"""
-    κflux(ImageKernel)
-Finds the total flux for the image kernel. This is important for find the
-flux of the model.
-"""
-function κflux end
-
-"""
-    κ(ImageKernel, x)
-Find the pointwise value of the image interpolation kernel `κ` at `x`.
-"""
-function κ end
-
-"""
-    ImageKernel
-Pixel response function for a radio image model. This makes
-a discrete sampling continuous by picking a certain *smoothing*
-kernel for the image.
-
-# Notes
-To see the implemented ImageKernels please use the subtypes function i.e.
-`subtypes(ImageKernel)`
-"""
-abstract type ImageKernel end
-
-
-"""
-    $(TYPEDEF)
-Normalized square exponential kernel, i.e. a Gaussian. Note the
-smoothness is modfied with `ϵ` which is the inverse variance in units of
-1/pixels².
-"""
-struct SqExpKernel{T} <: ImageKernel
-    ϵ::T
-end
-@inline @fastmath κ(b::SqExpKernel, x) = exp(-0.5*b.ϵ^2*x^2)/sqrt(2*π/b.ϵ^2)
-@inline κflux(::SqExpKernel{T}) where {T} = one(T)
-@inline @fastmath ω(b::SqExpKernel, u) = exp(-2*(π*u/b.ϵ)^2)
-
-
-@doc raw"""
-    $(TYPEDEF)
-Uses the basis spline (BSpline) kernel of order `N`. These are the kernel that come
-from recursively convolving the tophat kernel
-```math
-    B_0(x) = \begin{cases} 1 & |x| < 1 \\ 0 & otherwise \end{cases}
-```
-`N` times.
-
-## Notes
-
-BSpline kernels have a number of nice properties:
-1. Simple frequency response $\sinc(u/2)^N$
-2. preserve total intensity
-
-For `N`>1 these kernels aren't actually interpolation kernels however, this doesn't matter
-for us.
-
-Currently only the 0,1,3 order kernels are implemented.
-"""
-struct BSplineKernel{N} <: ImageKernel end
-@inline ω(::BSplineKernel{N}, u) where {N} = sinc(π*u)^N
-@inline κflux(::BSplineKernel) = 1.0
-
-@inline κ(b::BSplineKernel{0}, x::T) where {T} = abs(x) < 0.5 ? one(T) : zero(T)
-
-@inline function κ(b::BSplineKernel{1}, x::T) where {T}
-    mag = abs(x)
-    return mag < 1 ? 1-mag : zero(T)
-end
-
-@inline function κ(b::BSplineKernel{3}, x::T) where {T}
-    mag = abs(x)
-    if mag < 1
-        return evalpoly(mag, (4, 0, -6, 3))/6
-    elseif 1 ≤ mag < 2
-        return evalpoly(mag, (8, -12, 6, -1))/6
-    else
-        return zero(T)
-    end
-end
-
-#struct CubicKernel{T} <: ImageKernel
-#    b::T
-#end
-#CubicKernel() = CubicKernel(-0.5)
-
-#@inline κflux(::CubicSplineKernel) = 1.0
-#@inline function κ(b::CubicSplineKernel, x::T) where {T}
-#    mag = abs(x)
-#    if mag ≤ 1
-#        return evalpoly(mag, one(T), zero(T), -(b.b+T(3)), (b.b+T(2)))
-#    elseif 1 < mag ≤ 2
-#return b.b*evalpoly(mag, T(-4.0), T(8.0), T(-5.0), T(1.0))
-#else
-#        zero(T)
-#   end
-#end
-
-#@inline @fastmath function ω(b::CubicSplineKernel, u::T) where {T}#
-
-#end
+export RImage
 
 
 
@@ -133,7 +31,7 @@ use the scale function like with other models.
 $(FIELDS)
 
 """
-struct RImage{S,B<:ImageKernel,M<:AbstractMatrix{S}} <: AbstractRadioImage{S}
+struct RImage{S,B<:Pulse,M<:AbstractMatrix{S}} <: AbstractModel
     """ Image coefficients cᵢⱼ in expansion """
     coeff::M
     """ Image kernel/basis κ that defined the delta image response """
@@ -149,10 +47,8 @@ struct RImage{S,B<:ImageKernel,M<:AbstractMatrix{S}} <: AbstractRadioImage{S}
         new{S,B,M}(coeff, basis, psizex, psizey)
     end
 end
-VisStyle(::Type{RImage{S,B,M}}) where {S,B,M} = VisPoint()
-
-
-
+@inline visanalytic(::Type{<:RImage}) = IsAnalytic()
+@inline isprimitive(::Type{<:RImage}) = IsPrimitive()
 
 #=
 struct FourierCache{C} <: ObservationCache
@@ -199,7 +95,7 @@ return the size of the coefficient matrix for `model`.
 """
 @inline Base.size(model::RImage) = size(model.coeff)
 
-@inline function intensity(::ImPoint, model::RImage{S,M,B}, x, y, args...) where {S,M,B}
+@inline function intensity_point(model::RImage{S,M,B}, x, y, args...) where {S,M,B}
     sum = zero(S)
     ny,nx = size(model)
     dx = 1/(max(nx-1,1))
@@ -216,7 +112,7 @@ return the size of the coefficient matrix for `model`.
 end
 
 
-@inline function visibility(::VisPoint, model::RImage{S,M,B}, u, v, args...) where {S,M,B}
+@inline function visibility_point(model::RImage{S,M,B}, u, v, args...) where {S,M,B}
     sum = zero(Complex{S})
     ny,nx = size(model)
     dx = 1/max(nx-1,1)

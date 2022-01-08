@@ -1,12 +1,13 @@
 abstract type AbstractJones{T} <: AbstractMatrix{T} end
 
 
-mutable struct Gain{T<:Number} <: AbstractJones{T}
-    g1::NamedTuple{:a,T}
-    g2::NamedTuple{:b,T}
+
+struct Gain{S, T<:Number} <: AbstractJones{T}
+    g1::T
+    g2::T
 end
 
-mutable struct DTerm{T<:Number} <: AbstractJones{T}
-    d1::NamedTuple{:a, T}
-    d2::NamedTuple{:b, T}
+struct DTerm{S, T<:Number} <: AbstractJones{T}
+    d1::T
+    d2::T
 end

@@ -1,4 +1,19 @@
-@inline flux(::GeometricModel{T}) where {T} = one(T)
+export Gaussian, Disk, MRing, ConcordanceCrescent, ExtendedRing
+
+"""
+$(TYPEDEF)
+A type that defines it is a geometric model. These are usually
+primitive models, and are usually analytic in Fourier and the image domain.
+"""
+abstract type GeometricModel <: AbstractModel end
+@inline flux(::GeometricModel) = 1.0
+
+@inline isprimitive(::Type{<:GeometricModel}) = IsPrimitive()
+
+@inline visanalytic(::Type{<:GeometricModel}) = IsAnalytic()
+@inline imanalytic(::Type{<:GeometricModel}) = IsAnalytic()
+
+
 
 """
     $(TYPEDEF)
@@ -8,14 +23,14 @@ This is a Gaussian with unit flux and standard deviation.
 ## Notes
 To change the Gaussian flux, and shape please use the modifier functions
 """
-struct Gaussian{T} <: GeometricModel{T} end
+struct Gaussian{T} <: GeometricModel end
 Gaussian() = Gaussian{Float64}()
 
-@inline function intensity(::ImPoint, ::Gaussian, x,y, args...)
+@inline function intensity_point(::Gaussian, x,y)
     return exp(-(x^2+y^2)/2)/2π
 end
 
-@inline function visibility(::Gaussian{T}, u, v, args...) where {T}
+@inline function visibility_point(::Gaussian{T}, u, v, args...) where {T}
     return exp(-2π^2*(u^2 + v^2)) + zero(T)im
 end
 
@@ -27,15 +42,15 @@ Tophat disk geometrical model. The model is given by
     I(x,y) = \begin{cases} \pi^{-1} & x^2+y^2 < 1 \\ 0 & x^2+y^2 \geq 0 \end{cases}
 ```
 """
-struct Disk{T} <: GeometricModel{T} end
+struct Disk{T} <: GeometricModel end
 Disk() = Disk{Float64}()
 
-@inline function intensity(::ImPoint, ::Disk{T}, x, y, args...) where {T}
+@inline function intensity_point(::Disk{T}, x, y, args...) where {T}
     r = x^2 + y^2
     return r < 1 ?  one(T)/(π) : zero(T)
 end
 
-@inline function visibility(::VisPoint, ::Disk{T}, x, y, args...) where {T}
+@inline function visibility_point(::Disk{T}, x, y, args...) where {T}
     ur = 2π*(hypot(x,y) + eps(T))
     return 2*besselj1(ur)/(ur) + zero(T)im
 end
@@ -45,7 +60,7 @@ end
 m-ring geometric model. This corresponds to a delta ring with a fourier expansion
 in θ. The m in m-ring refers to the order of the Fourier expansion.
 """
-struct MRing{T,N} <: GeometricModel{T}
+struct MRing{T,N} <: GeometricModel
     """
     Radius of the thin ring
     """
@@ -65,10 +80,10 @@ function MRing{N}(radius::S, α::T, β::T) where {N,S,T<:AbstractVector}
     return MRing{S, N}(radius, NTuple{N,S}(α), NTuple{N,S}(β))
 end
 
-@inline function intensity(::ImPoint, m::MRing{T,N}, x::Number, y::Number, fov=160.0, nx=128, args...) where {T,N}
+@inline function intensity_point(m::MRing{T,N}, x::Number, y::Number) where {T,N}
     r = hypot(x,y)
     θ = atan(x,y)
-    dr = fov/(nx-1)
+    dr = m.radius/50
     if (abs(r-m.radius) < dr/2)
         acc = one(T)
         for n in 1:N
@@ -82,7 +97,7 @@ end
 end
 
 
-@inline function visibility(::VisPoint, m::MRing{T,N}, u, v, args...) where {T,N}
+@inline function visibility_point(m::MRing{T,N}, u, v, args...) where {T,N}
     k = 2π*sqrt(u^2 + v^2)*m.radius + eps(T)*m.radius
     vis = besselj0(k) + zero(T)*im
     θ = atan(u, v)
@@ -104,10 +119,10 @@ modifier.
 ## Notes
 Unlike the Gaussian and Disk models this does not create the
 unit version. In fact, this model could have been created using
-the `Disk` and primitives by using ROSE.jl's model composition
+the `Disk` and primitives by using ROSEx.jl's model composition
 functionality.
 """
-struct ConcordanceCrescent{T} <: GeometricModel{T}
+struct ConcordanceCrescent{T} <: GeometricModel
     """
     Outer radius of the crescent
     """
@@ -135,7 +150,7 @@ function _crescentnorm(m::ConcordanceCrescent)
     return 2/π/f
 end
 
-function intensity(::ImPoint, m::ConcordanceCrescent{T}, x, y, args...) where {T}
+function intensity_point(m::ConcordanceCrescent{T}, x, y, args...) where {T}
     r2 = x^2 + y ^2
     norm = _crescentnorm(m)
     if (r2 < m.router^2 && (x-m.shift)^2 + y^2 > m.rinner^2 )
@@ -145,7 +160,7 @@ function intensity(::ImPoint, m::ConcordanceCrescent{T}, x, y, args...) where {T
     end
 end
 
-function visibility(::VisPoint, m::ConcordanceCrescent{T}, u, v, args...) where {T}
+function visibility_point(m::ConcordanceCrescent{T}, u, v, args...) where {T}
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     norm = π*_crescentnorm(m)/k
     phaseshift = exp(2im*π*m.shift*u)
@@ -165,4 +180,33 @@ function visibility(::VisPoint, m::ConcordanceCrescent{T}, u, v, args...) where 
                           2*b1inner/k
                          )/(2*k)*(m.rinner/m.router)*phaseshift
     return norm*(v1-v2+v3-v4)
+end
+
+"""
+    $(TYPEDEF)
+A symmetric extended ring whose radial profile follows an inverse
+gamma distributions.
+
+# Note
+@e mainly use this as an example of a non-analytic Fourier transform
+(although it has a complicated expression)
+
+# Fields
+
+$(FIELDS)
+
+"""
+struct ExtendedRing{F} <: GeometricModel
+    """radius of peak emission"""
+    radius::F
+    """shape of the radial distribution"""
+    shape::F
+end
+visanalytic(::Type{<:ExtendedRing}) = NotAnalytic()
+
+function intensity_point(m::ExtendedRing, x, y)
+    r = hypot(x, y) + eps(m.radius)
+    β = m.radius*(m.shape + 1)
+    α = m.shape
+    β^α*r^(-α-2)*exp(-β/r)/gamma(α)/(2*π)
 end
