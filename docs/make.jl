@@ -26,5 +26,7 @@ makedocs(;
 deploydocs(;
     repo="github.com/ptiede/ROSEx.jl",
     push_preview=true,
-    forcepush=true
+    forcepush=true,
+    devbranch = "main",
+    devurl = "latest",
 )
