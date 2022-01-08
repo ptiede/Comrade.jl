@@ -3,18 +3,6 @@ export visibility, amplitude, closure_phase, logclosure_amplitude, bispectrum,
        flux, intensitymap, intensitymap!, PolarizedModel
 
 
-
-include(joinpath(@__DIR__, "fft_alg.jl"))
-include(joinpath(@__DIR__, "modelimage.jl"))
-include(joinpath(@__DIR__, "modifiers.jl"))
-include(joinpath(@__DIR__, "combinators.jl"))
-include(joinpath(@__DIR__, "geometric_models.jl"))
-include(joinpath(@__DIR__, "radio_image_models.jl"))
-include(joinpath(@__DIR__, "polarized.jl"))
-
-
-
-
 """
     $(SIGNATURES)
 Computes the complex visibility of model `m` at u,v positions `u,v`
@@ -220,3 +208,12 @@ function intensitymap!(::NotAnalytic, img::IntensityMap, m)
         img[I] = real(vis[I])/(nx*ny)
     end
 end
+
+
+include(joinpath(@__DIR__, "fft_alg.jl"))
+include(joinpath(@__DIR__, "modelimage.jl"))
+include(joinpath(@__DIR__, "modifiers.jl"))
+include(joinpath(@__DIR__, "combinators.jl"))
+include(joinpath(@__DIR__, "geometric_models.jl"))
+include(joinpath(@__DIR__, "radio_image_models.jl"))
+include(joinpath(@__DIR__, "polarized.jl"))

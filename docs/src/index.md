@@ -25,7 +25,8 @@ future we may increase this as Julia advances.
 ```@contents
 Pages = [
     "index.md",
-        
+    "getting_started.md",
+    "model_interface.md"
 ]
 ```
 
