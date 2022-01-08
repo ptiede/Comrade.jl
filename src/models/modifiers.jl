@@ -89,6 +89,11 @@ struct ShiftedModel{T,M<:AbstractModel} <: AbstractModifier{M}
     Δx::T
     Δy::T
 end
+
+"""
+    $(SIGNATURES)
+Shifts the model `m` in the image domain by an amount `Δx,Δy`.
+"""
 shifted(model, Δx, Δy) = ShiftedModel(model, Δx, Δy)
 
 @inline transform_image(model::ShiftedModel, x, y) = (x-model.Δx, y-model.Δy)
@@ -109,6 +114,11 @@ struct RenormalizedModel{M<:AbstractModel,T} <: AbstractModifier{M}
     scale::T
     RenormalizedModel(model::M, f::T) where {M,T} = new{M,T}(model, f/flux(model))
 end
+
+"""
+    $(SIGNATURES)
+Renormalizes the model `m` to have total flux `flux`.
+"""
 renormed(model::M, flux) where {M<:AbstractModel} = RenormalizedModel(model, flux)
 Base.:*(model::AbstractModel, flux::Real) = renormed(model, flux)
 # Dispatch on RenormalizedModel so that I just make a new RenormalizedModel with a different flux
@@ -140,6 +150,15 @@ struct StretchedModel{M<:AbstractModel,T} <: AbstractModifier{M}
     α::T
     β::T
 end
+
+"""
+    $(SIGNATURES)
+Stretches the model `m` according to the formula
+```math
+    I_s(x,y) = 1/(αβ) I(x/α, y/β),
+```
+where were renormalize the intensity to preserve the models flux.
+"""
 stretched(model, α, β) = StretchedModel(model, α, β)
 
 @inline transform_image(model::StretchedModel, x, y) = (x/model.α, y/model.β)
@@ -169,6 +188,11 @@ function RotatedModel(model::T, ξ::F) where {T, F}
     s,c = sincos(ξ)
     return RotatedModel(model, s, c)
 end
+
+"""
+    $(SIGNATURES)
+Rotates the model by an amount `ξ` in radians.
+"""
 rotated(model, ξ) = RotatedModel(model, ξ)
 posangle(model::RotatedModel) = atan(model.s, model.c)
 
