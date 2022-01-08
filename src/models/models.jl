@@ -1,260 +1,268 @@
-abstract type AbstractModel{T} end
-abstract type GeometricModel{T} <: AbstractModel{T} end
-abstract type AbstractRadioImage{T} <: AbstractModel{T} end
-abstract type AbstractPolarizedImage{T} <: AbstractModel{T} end
+export visibility, amplitude, closure_phase, logclosure_amplitude, bispectrum,
+       visibilities, amplitudes, closure_phases, logclosure_amplitudes, bispectra,
+       flux, intensitymap, intensitymap!, PolarizedModel
+abstract type AbstractModel end
+abstract type AbstactPolarizedModel <: AbstractModel end
+
+
 
 """
     $(TYPEDEF)
-Abstract type for image modifiers. These are some model wrappers
-that can transform any model using simple Fourier transform properties.
-To see the implemented modifier
+This trait specifies whether the model is a *primitive*
+
+# Notes
+This will likely turn into a trait in the future so people
+can inject their models into ROSEx more easily.
 """
-abstract type AbstractModifier{M<:AbstractModel,T} <: AbstractModel{T} end
+abstract type PrimitiveTrait end
+struct IsPrimitive end
+struct NotPrimitive end
 
 """
-    $(SIGNATURES)
-Returns a list containing all the image modifiers available in ROSE.
-"""
-modifierlist() = subtypes(AbstractModifier)
+    isprimitive(::Type)
+Dispatch function that specifies whether a type is a primitive ROSEx model.
+This function is used for dispatch purposes when composing models.
 
-abstract type ImageKernel end
+# Notes
+If a user is specifying their own model primitive model outside of ROSEx they need
+to specify if it is primitive
+
+```julia
+struct MyPrimitiveModel end
+ROSEx.isprimitive(::Type{MyModel}) = ROSEx.IsPrimitive()
+```
+
+"""
+function isprimitive end
+
+isprimitive(::Type{<:AbstractModel}) = NotPrimitive()
+
+"""
+    DensityAnalytic
+Internal type for specifying the nature of the model functions.
+Whether they can be easily evaluated pointwise analytic. This
+is an internal type that may change.
+"""
+abstract type DensityAnalytic end
 
 """
     $(TYPEDEF)
-Abstract trait for Fourier transform trait. This will decide whether
-a given model should use the analytic (if it exists) or numerical
-FT.
+Defines a trait that a states that a model is analytic.
+This is usually used with an abstract model where we use
+it to specify whether a model has a analytic fourier transform
+and/or image.
 """
-abstract type VisStyle end
-
-struct VisPoint <: VisStyle end
-struct VisGrid <: VisStyle end
-
-
-abstract type ImStyle end
-
-struct ImPoint <: ImStyle end
-struct ImGrid <: ImStyle end
+struct IsAnalytic <: DensityAnalytic end
 
 """
-    ImStyle(::Type{AbstractModel})
-Determines whether the image is pointwise analytic, i.e. we can evaluate
-its intensity as a pixel location.
-
-If the model has the IsAnalytic() trait then the user must implement a function
-intensity, that computes the intensity at a location.
-
-If the model has the IsNumeric() trait then the user must specify intensitymap! that
-return the entire image on a grid. The intensity function then works by memoizing this function
-and interpolating on it.
+    $(TYPEDEF)
+Defines a trait that a states that a model is analytic.
+This is usually used with an abstract model where we use
+it to specify whether a model has does not have a easy analytic
+fourier transform and/or intensity function.
 """
-ImStyle(::Type{<:AbstractModel}) = ImPoint()
-
-ImStyle(::Type{<:AbstractModifier{M,T}}) where {M,T} = ImStyle(M)
-
-
+struct NotAnalytic <: DensityAnalytic end
 
 """
-    VisStyle(::AbstractModel)
-Sets the trait for the Fourier transform to be used for a given model.
-The default value is IsNumeric() which says to use the numerical Fourier
-transform.
+    visanalytic(::Type{<:AbstractModel})
+Determines whether the model is pointwise analytic in Fourier domain, i.e. we can evaluate
+its fourier transform at an arbritrary point.
+
+If `IsAnalytic()` then it will try to call `visibility_point` to calculate the complex visibilities.
+Otherwise it fallback to using the FFT that works for all models that can compute an image.
+
 """
-VisStyle(::Type{<:AbstractModel}) = IsNumeric()
+@inline visanalytic(::Type{<:AbstractModel}) = NotAnalytic()
 
-VisStyle(::Type{<:GeometricModel}) = VisPoint()
+"""
+    imanalytic(::Type{<:AbstractModel})
+Determines whether the model is pointwise analytic in the image domain, i.e. we can evaluate
+its intensity at an arbritrary point.
 
-VisStyle(::Type{<:AbstractModifier}) = VisGrid()
+If `IsAnalytic()` then it will try to call `intensity_point` to calculate the intensity.
+"""
+@inline imanalytic(::Type{<:AbstractModel}) = IsAnalytic()
+
 
 
 #=
-abstract type ObservationCache end
-abstract type ModelCache <: ObservationCache end
-
-struct NFFTCache{T} <: ModelCache
-    cache::T
-end
-struct FFTCache{T} <: ModelCache
-    cache::T
-end
-struct DFTCache{T} <: ModelCache
-    cache::T
-end
+    This is internal function definitions for how to
+    compose whether a model is analytic. We need this
+    for composite models.
 =#
-#abstract type CacheStyle end
+@inline Base.:*(::IsAnalytic, ::IsAnalytic) = IsAnalytic()
+@inline Base.:*(::IsAnalytic, ::NotAnalytic) = NotAnalytic()
+@inline Base.:*(::NotAnalytic, ::IsAnalytic) = NotAnalytic()
+@inline Base.:*(::NotAnalytic, ::NotAnalytic) = NotAnalytic()
 
-#struct WithCache <: CacheStyle end
-#struct NoCache <: CacheStyle end
+include(joinpath(@__DIR__, "fft_alg.jl"))
+include(joinpath(@__DIR__, "modelimage.jl"))
+include(joinpath(@__DIR__, "modifiers.jl"))
+include(joinpath(@__DIR__, "combinators.jl"))
+include(joinpath(@__DIR__, "geometric_models.jl"))
+include(joinpath(@__DIR__, "radio_image_models.jl"))
 
-#CacheStyle(::Type{<:AbstractModel}) = NoCache();
-#CacheStyle(::AbstractModifier{T,M}) where {T,M} = CacheStyle(M)
 
-#=
+
+
+
+
+
+
 """
     $(SIGNATURES)
-Creates a model cache to speed up computation. For certain models, e.g.
-numerical visibility models with fix u,v, positions, e.g. models that don't
-change the uv positions for certain parameters, this can cause a speed up.
+Computes the complex visibility of model `m` at u,v positions `u,v`
+
+If you want to compute the visibilities at a large number of positions
+consider using the `visibilities` function which uses MappedArrays to
+compute a lazy, no allocation vector.
 """
-=#
-#function createcache(m::M, obs::Observation, cachetype::ObservationCache) where {M<: AbstractModel}
-#    return createcache(CacheStyle(M), m, obs, cachetype)
-#end
+@inline function visibility(mimg::M, u, v) where {M}
+    #first we split based on whether the model is primitive
+    _visibility(isprimitive(M), mimg, u, v)
+end
 
+"""
+    $(SIGNATURES)
+Computes the visibility amplitude of model `m` at u,v positions `u,v`
 
-function intensity(m::M, u, v, args...) where {M<:AbstractModel}
-    return intensity(ImStyle(M), m, u, v, args...)
+If you want to compute the amplitudes at a large number of positions
+consider using the `amplitudes` function which uses MappedArrays to
+compute a lazy, no allocation vector.
+"""
+@inline function amplitude(model, u, v)
+    return abs(visibility(model, u, v))
+end
+
+"""
+    $(SIGNATURES)
+Computes the complex bispectrum of model `m` at the uv-triangle
+u1,v1 -> u2,v2 -> u3,v3
+
+If you want to compute the bispectrum over a number of triangles
+consider using the `bispectra` function which uses MappedArrays to
+compute a lazy, no allocation vector.
+"""
+@inline function bispectrum(model, u1, v1, u2, v2, u3, v3)
+    return visibility(model, u1, v1)*visibility(model, u2, v2)*visibility(model, u3, v3)
+end
+
+"""
+    $(SIGNATURES)
+Computes the closure phase of model `m` at the uv-triangle
+u1,v1 -> u2,v2 -> u3,v3
+
+If you want to compute closure phases over a number of triangles
+consider using the `closure_phases` function which uses MappedArrays to
+compute a lazy, no allocation vector.
+"""
+@inline function closure_phase(model, u1, v1, u2, v2, u3, v3)
+    return angle(bispectrum(model, u1, v1, u2, v2, u3, v3))
+end
+
+"""
+    $(SIGNATURES)
+Computes the log-closure amplitude of model `m` at the uv-quadrangle
+u1,v1 -> u2,v2 -> u3,v3 -> u4,v3 using the formula
+
+```math
+C = \\log\\left|\\frac{V(u1,v1)V(u2,v2)}{V(u3,v3)V(u4,v4)}\\right|
+```
+
+If you want to compute log closure amplitudes over a number of triangles
+consider using the `logclosure_amplitudes` function which uses MappedArrays to
+compute a lazy, no allocation vector.
+"""
+@inline function logclosure_amplitude(model, u1, v1, u2, v2, u3, v3, u4, v4)
+    a1 = amplitude(model, u1, v1)
+    a2 = amplitude(model, u2, v2)
+    a3 = amplitude(model, u3, v3)
+    a4 = amplitude(model, u4, v4)
+
+    return log(a1*a2/(a3*a4))
 end
 
 
-function intensitymap!(im::StokesImage{T,S}, m::AbstractModel) where {T,S}
-    ny,nx = size(im)
-    psizex = im.fovx/max(nx-1,1)
-    psizey = im.fovy/max(ny-1,1)
-    fov = max(im.fovx, im.fovy)
-    npix = max(nx, ny)
-    @inbounds @simd for I in CartesianIndices(im)
-        iy,ix = Tuple(I)
-        x = -im.fovx/2 + psizex*(ix-1)
-        y = -im.fovy/2 + psizey*(iy-1)
-        tmp = intensity(m, x, y, im.fovx, im.fovy, nx, ny)
-        im[I] = tmp
+#=
+    Welcome to the trait jungle. What is below is
+    how we specify how to evaluate the model
+=#
+@inline function _visibility(::NotPrimitive, m, u, v)
+    return visibility_point(m, u, v)
+end
+
+@inline function _visibility(::IsPrimitive, m::M, u, v) where {M}
+    _visibility_primitive(visanalytic(M), m, u, v)
+end
+
+
+@inline function _visibility_primitive(::IsAnalytic, mimg, u, v)
+    return visibility_point(mimg, u, v)
+end
+
+@inline function _visibility_primitive(::NotAnalytic, mimg, u, v)
+    return mimg.cache.sitp(u, v)
+end
+
+
+
+function visibilities(m, u::AbstractArray, v::AbstractArray)
+    f(x,y) = visibility(m, x, y)
+    return mappedarray(f, u, v)
+end
+
+function amplitudes(m, u::AbstractArray, v::AbstractArray)
+    f(x,y) = amplitude(m, x, y)
+    return mappedarray(f, u, v)
+end
+
+function bispectra(m,
+                    u1::AbstractArray, v1::AbstractArray,
+                    u2::AbstractArray, v2::AbstractArray,
+                    u3::AbstractArray, v3::AbstractArray
+                   )
+    f(x1,y1,x2,y2,x3,y3) = bispectra(m, x1, y1, x2, y2, x3, y3)
+    return mappedarray(f, u1, v1, u2, v2, u3, v3)
+end
+
+function closure_phases(m,
+                        u1::AbstractArray, v1::AbstractArray,
+                        u2::AbstractArray, v2::AbstractArray,
+                        u3::AbstractArray, v3::AbstractArray
+                       )
+    f(x1,y1,x2,y2,x3,y3) = closure_phase(m, x1, y1, x2, y2, x3, y3)
+    return mappedarray(f, u1, v1, u2, v2, u3, v3)
+end
+
+function logclosure_amplitudes(m,
+                               u1::AbstractArray, v1::AbstractArray,
+                               u2::AbstractArray, v2::AbstractArray,
+                               u3::AbstractArray, v3::AbstractArray,
+                               u4::AbstractArray, v4::AbstractArray
+                              )
+    f(x1,y1,x2,y2,x3,y3,x4,y4) = logclosure_amplitude(m, x1, y1, x2, y2, x3, y3, x4, y4)
+    return mappedarray(f, u1, v1, u2, v2, u3, v3, u4, v4)
+end
+
+function intensitymap!(im::IntensityMap, m::M) where {M}
+    return intensitymap!(imanalytic(M), im, m)
+end
+
+
+function intensitymap!(::IsAnalytic, im::IntensityMap, m)
+    xitr, yitr = imagepixels(im)
+    @inbounds for (i,x) in pairs(xitr), (j,y) in pairs(yitr)
+        im[j, i] = intensity_point(m, x, y)
     end
     return im
 end
 
 
-@memoize function imcache(m::AbstractModel, fovx, fovy, nx, ny)
-    sim = ROSE.StokesImage(zeros(ny,nx), fovx, fovy)
-    sim = intensitymap!(sim, m)
-    x_itr,y_itr = imagepixels(sim)
-    itp = interpolate(sim, BSpline(Cubic(Line(OnGrid()))))
-    sitp = scale(itp, x_itr, y_itr)
-    etp = extrapolate(sitp, 0)
-    return etp
-end
-
-function intensity(::ImGrid, m::AbstractModel, x, y, fovx=120.0,fovy=120.0,nx=200,ny=200, args...)
-    itp = imcache(m, fovx, fovy, nx, ny)
-    return itp(x,y)
-end
-
-
-function intensitymap(m::AbstractModel{T}, nx, ny, fovx, fovy) where {T}
-    im = zeros(T, ny, nx)
-    sim = StokesImage(im, fovx, fovy)
-    intensitymap!(sim, m)
-end
-
-
-
-
-"""
-    $(SIGNATURES)
-Computes the complex visibility for the given model with args...
-
-## Notes
-THis will use FourierStyle trait to decide whether to use the numerical
-Fourier transform or (if defined) the analytical Fourier transform.
-"""
-visibility(m::M, u,v,args...) where {M<:AbstractModel} =
-        visibility(VisStyle(M),m,u,v, args...)
-
-
-function visibility(::VisGrid, m::M, u, v, args...) where {T,M<:AbstractModel{T}}
-    throw("Not implemented yet")
-end
-
-
-
-
-
-function visibilities!(
-                    vis::AbstractVector{Complex{S}},
-                    m::M,
-                    u::AbstractVector,
-                    v::AbstractVector,
-                    args...) where {S,M<:AbstractModel}
-
-    @inbounds for i in eachindex(u,v,vis)
-        vis[i] = visibility(m, u[i], v[i], args...)
+function intensitymap!(::NotAnalytic, img::IntensityMap, m)
+    ny, nx = size(img)
+    vis = ifftshift(phasedecenter!(fouriermap(m, img), img))
+    ifft!(vis)
+    for I in CartesianIndices(img)
+        img[I] = real(vis[I])/(nx*ny)
     end
-    return vis
 end
-
-function visibilities(m::M,
-                      u::AbstractVector,
-                      v::AbstractVector,
-                      args...) where {S,M<:AbstractModel{S}}
-    vis = StructArray{Complex{S}}(re=similar(u,S), im=similar(v,S))
-    return visibilities!(vis, m, u, v, args...)
-end
-
-
-
-
-
-"""
-    $(SIGNATURES)
-Computes the visibility amplitude of a model `m` in `Jy` and the uv positions `u`, `v`.
-"""
-@inline visibility_amplitude(m::AbstractModel, u, v, args...) = abs(visibility(m, u, v, args...))
-
-
-"""
-    $(SIGNATURES)
-Computes the complex bispectrum of a model `m` in `Jy` at the closure triangle, uv1, uv2, uv3
-"""
-@inline function bispectrum(m::AbstractModel, u1,v1, u2, v2, u3, v3, args...)
-    return visibility(m, u1, v1, args...)*
-           visibility(m, u2, v2, args...)*
-           visibility(m, u3, v3, args...)
-end
-
-"""
-    $(SIGNATURES)
-Computes the closure phase of a model `m` in `Jy` at closure triangle, uv1, uv2, uv3
-"""
-@inline function closure_phase(m::AbstractModel, u1, v1, u2, v2, u3, v3, args...)
-    return angle(bispectrum(m, u1,v1, u2,v2, u3,v3, args...))
-end
-
-"""
-    $(SIGNATURES)
-Computes the log closure amplitude of a model `m` in `Jy` at closure quadrangle, uv1, uv2, uv3, uv4
-
-## Notes
-We use the convention
-
-V(uv1)*V(uv3)/V(uv2)*V(uv4),
-
-where V is the complex visibility
-"""
-@inline function logclosure_amplitude(m::AbstractModel,
-                                      u1, v1,
-                                      u2, v2,
-                                      u3, v3,
-                                      u4, v4,
-                                      args...)
-    return log( visibility_amplitude(m, u1,v1...)*visibility_amplitude(m, u2,v2...)/
-               (visibility_amplitude(m, u3,v3...)*visibility_amplitude(m, u4,v4...))
-              )
-end
-
-
-
-
-
-
-
-
-
-"""
-    intensity(model::AbstractModel, x, y, args...)
-Returns the intensity for the model at x and y with args...
-"""
-function intensity end
-
-include("geometric_models.jl")
-include("radio_image_models.jl")
-include("modifiers.jl")

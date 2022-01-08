@@ -1,6 +1,6 @@
-using ROSE
+using ROSEx
 using Test
 
-@testset "ROSE.jl" begin
+@testset "ROSEx.jl" begin
     # Write your tests here.
 end

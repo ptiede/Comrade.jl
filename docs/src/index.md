@@ -1,12 +1,12 @@
 ```@meta
-CurrentModule = ROSE
+CurrentModule = ROSEx
 ```
 
-# ROSE
+# ROSEx
 
 ```@index
 ```
 
 ```@autodocs
-Modules = [ROSE]
+Modules = [ROSEx]
 ```
