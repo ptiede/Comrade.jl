@@ -31,7 +31,7 @@ use the scale function like with other models.
 $(FIELDS)
 
 """
-struct RImage{S,B<:ImageKernel,M<:AbstractMatrix{S}} <: AbstractModel
+struct RImage{S,B<:Pulse,M<:AbstractMatrix{S}} <: AbstractModel
     """ Image coefficients cᵢⱼ in expansion """
     coeff::M
     """ Image kernel/basis κ that defined the delta image response """
