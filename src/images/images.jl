@@ -1,4 +1,5 @@
 abstract type AbstractIntensityMap{T,S} <: AbstractMatrix{T} end
+
 abstract type AbstractPolarizedMap{I,Q,U,V} end
 
 
@@ -20,3 +21,7 @@ isprimitive(::Type{<:Pulse}) = IsPrimitive()
 
 @inline intensity_point(p::Pulse, x,y) = κ(p::Pulse, x)*κ(p::Pulse, y)
 @inline visibility_point(p::Pulse, u,v) = ω(p::Pulse, u)*ω(p::Pulse, u)
+
+include("pulse.jl")
+include("intensitymap.jl")
+include("polarizedmap.jl")

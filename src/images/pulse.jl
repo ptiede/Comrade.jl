@@ -8,8 +8,8 @@ dicrete Fourier transform
 struct DeltaPulse{T} <: Pulse end
 DeltaPulse() = DeltaPulse{Float64}()
 # This should really be a delta function but whatever
-@inline κ(::DeltaPulse{T}, x) = one(T)
-@inline ω(::DeltaPulse{T}, u) = one(T)
+@inline κ(::DeltaPulse{T}, x) where {T} = one(T)
+@inline ω(::DeltaPulse{T}, u) where {T} = one(T)
 
 
 """
