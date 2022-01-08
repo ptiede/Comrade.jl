@@ -3,8 +3,9 @@ using SpecialFunctions: besseli
 using Random
 using KeywordCalls
 import Statistics: mean, var
+import Distributions as Dists
 
-export Rice, CPVonMises
+export Rice, CPVonMises, CPNormal
 
 @parameterized Rice(ν, σ) ≃ Lebesgue(ℝ₊)
 
@@ -34,31 +35,36 @@ var(d::Rice{(:ν, :σ)}) = 2*d.σ^2 + d.ν^2 - π*d.σ^2/2*L12(-(ν/(2d.σ))^2)^
 @kwstruct CPVonMises(μ, κ)
 
 function MeasureBase.logdensity(d::CPVonMises{(:μ, :κ)}, x)
-    return -
+    return d.κ*(cos(x-d.μ)-1)^2
 end
 
-struct CPVonMises{T,S} <: Distributions.ContinuousUnivariateDistribution
-    μ::T
-    σ::S
-    I0κx::S
+function MeasureBase.logdensity(d::CPVonMises{(:μ, :σ)},x)
+    return (cos(x-d.μ)-1)^2/d.σ^2
 end
 
-function CPVonMises(μ, σ)
-    CPVonMises(μ, σ, besselix(zero(typeof(σ)), 1/σ^2))
+function Base.rand(rng::AbstractRNG, T::Type, d::CPVonMises{(:μ, :κ)})
+    d = Dists.VonMises(d.μ, d.κ)
+    return rand(rng, T, d)
 end
 
-function Distributions.logpdf(dist::CPVonMises, x::Real)
+function Base.rand(rng::AbstractRNG, T::Type, d::CPVonMises{(:μ, :σ)})
+    d = Dists.VonMises(d.μ, 1/d.σ^2)
+    return rand(rng, T, d)
+end
+
+@parameterized CPNormal(μ, σ)
+
+Base.minimum(::CPNormal) = -Inf
+Base.maximum(::CPNormal) = Inf
+
+const log2π = log(2*π)
+function MeasureBase.logdensity(dist::CPNormal{(:μ, σ)}, x::Real)
     μ,σ = dist.μ, dist.σ
-    dθ = (cos(x-μ)-1)/σ^2
-    return dθ - log(dist.I0κx) - log2π
+    s,c = sincos(x)
+    dθ = atan(s, c)
+    return  -(abs2(dθ/σ) + log2π)/2
 end
 
-Base.minimum(::CPVonMises) = -Inf
-Base.maximum(::CPVonMises) = Inf
-
-
-function Base.rand(rng::AbstractRNG, d::CPVonMises)
-    return d.μ + d.σ*randn(rng)
+function Base.rand(rng::AbstractRNG, T::Type, d::CPNormal)
+    return d.μ + d.σ*randn(rng, T)
 end
-
-Base.rand(rng::AbstractRNG, ::Type{Float64}, d::CPVonMises) = rand(rng, d)
