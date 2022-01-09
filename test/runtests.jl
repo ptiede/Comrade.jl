@@ -1,7 +1,8 @@
 if lowercase(get(ENV, "CI", "false")) == "true"
     include("install_pycall.jl")
     using PyCall
-    PyCall.Conda.pip("ehtim")
+    Conda.pip_interop(true)
+    PyCall.Conda.pip("install", "ehtim")
 end
 
 using ROSEx
