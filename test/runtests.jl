@@ -1,6 +1,6 @@
-if lowercase(get(ENV, "CI", "false")) == "true"
-    include("install_pycall.jl")
-end
+#if lowercase(get(ENV, "CI", "false")) == "true"
+#    include("install_pycall.jl")
+#end
 #using Pkg
 #Pkg.build("PyCall")
 using ROSEx
