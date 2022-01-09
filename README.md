@@ -1,7 +1,7 @@
 # ROSEx
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://ptiede.github.io/ROSEx.jl/stable)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://ptiede.github.io/ROSEx.jl/dev)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://ptiede.github.io/ROSEx.jl/latest/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://ptiede.github.io/ROSEx.jl/latest/)
 [![Build Status](https://github.com/ptiede/ROSEx.jl/workflows/CI/badge.svg)](https://github.com/ptiede/ROSEx.jl/actions)
 [![Coverage](https://codecov.io/gh/ptiede/ROSEx.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/ptiede/ROSEx.jl)
 
