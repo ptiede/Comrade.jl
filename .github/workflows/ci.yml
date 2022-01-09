@@ -17,15 +17,31 @@ jobs:
           - macOS-latest
         arch:
           - x64
+        python-version:
+          - '3'
         exclude:
           - os: macOS-latest
             arch: x86
+        
+
     steps:
       - uses: actions/checkout@v2
+      - name: Setup python
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: ${{ matrix.arch }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install ehtim
+
       - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
+      - uses: julia-actions/julia-buildpkg@v1
+        env:
+          PYTHON: python
+      
       - uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
@@ -36,7 +52,11 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - uses: julia-actions/julia-buildpkg@v1
+
+
+      - run: >
+          sudo apt-get install --no-install-recommends gfortran python3-setuptools python3-wheel
+          && pip3 install ehtim
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v1
