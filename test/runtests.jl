@@ -11,6 +11,6 @@ include("test_util.jl")
 
 @testset "ROSEx.jl" begin
 
-    include("observation.jl")
-
+    #include("observation.jl")
+    include("distributions.jl")
 end

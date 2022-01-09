@@ -31,11 +31,11 @@ Loads the [eht-imaging](https://github.com/achael/eht-imaging) library and store
 This will fail if ehtim isn't installed in the python installation that PyCall references.
 """
 function load_ehtim()
-    #try
-        copy!(ehtim, pyimport_conda("ehtim", "ehtim"))
-    #catch
-    #    @warn "No ehtim installation found in python path. Some data functionality will not work"
-    #end
+    try
+        copy!(ehtim, pyimport("ehtim"))
+    catch
+        @warn "No ehtim installation found in python path. Some data functionality will not work"
+    end
 end
 
 
