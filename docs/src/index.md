@@ -26,10 +26,7 @@ future we may increase this as Julia advances.
 Pages = [
     "index.md",
     "getting_started.md",
-    "model_interface.md"
+    "model_interface.md",
+    "api.md"
 ]
-```
-
-```@autodocs
-Modules = [ROSE]
 ```
