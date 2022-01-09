@@ -1,9 +1,9 @@
-# ROSEx
+# ROSE
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://ptiede.github.io/ROSEx.jl/latest/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://ptiede.github.io/ROSEx.jl/latest/)
-[![Build Status](https://github.com/ptiede/ROSEx.jl/workflows/CI/badge.svg)](https://github.com/ptiede/ROSEx.jl/actions)
-[![Coverage](https://codecov.io/gh/ptiede/ROSEx.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/ptiede/ROSEx.jl)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://ptiede.github.io/ROSE.jl/latest/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://ptiede.github.io/ROSE.jl/latest/)
+[![Build Status](https://github.com/ptiede/ROSEx.jl/workflows/CI/badge.svg)](https://github.com/ptiede/ROSE.jl/actions)
+[![Coverage](https://codecov.io/gh/ptiede/ROSEx.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/ptiede/ROSE.jl)
 
 Radio Observation Structure Exploration
 
@@ -16,9 +16,9 @@ This is a alpha version of a potential EHT/ngEHT modeling/imaging software writt
 # Installation
 To install ROSEx.jl you must use Julia's package manager. For example you can launch your Julia session with then type `]` to move into Pkg mode. Once in pkg mode type
 ```julia
-add "https://github.com/ptiede/ROSEx.jl"
+add "https://github.com/ptiede/ROSE.jl"
 ```
-to install the main branch of ROSEx.jl. Eventually this will be push to the official Julia repo's but the name of the package may change before that happens.
+to install the main branch of ROSE.jl. Eventually this will be push to the official Julia repo's but the name of the package may change before that happens.
 
 
 # Roadmap
