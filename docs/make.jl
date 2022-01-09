@@ -4,18 +4,18 @@ using Documenter
 #    ENV["JULIA_DEBUG"] = "Documenter"
 #end
 
-#Documenter.post_status(; type="pending", repo="github.com/ptiede/ROSEx.jl.git")
-using ROSEx
+#Documenter.post_status(; type="pending", repo="github.com/ptiede/ROSE.jl.git")
+using ROSE
 
 
 makedocs(;
-    modules=[ROSEx],
+    modules=[ROSE],
     authors="Paul Tiede",
-    repo="https://github.com/ptiede/ROSEx.jl/blob/{commit}{path}#L{line}",
-    sitename="ROSEx.jl",
+    repo="https://github.com/ptiede/ROSE.jl/blob/{commit}{path}#L{line}",
+    sitename="ROSE.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://ptiede.github.io/ROSEx.jl",
+        canonical="https://ptiede.github.io/ROSE.jl",
         assets=String[],
     ),
     pages=[
@@ -24,7 +24,7 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/ptiede/ROSEx.jl",
+    repo="github.com/ptiede/ROSE.jl",
     push_preview=true,
     forcepush=true,
     devbranch = "main",

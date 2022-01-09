@@ -1,10 +1,10 @@
 ```@meta
-CurrentModule = ROSEx
+CurrentModule = ROSE
 ```
 
-# ROSEx
+# ROSE
 
-ROSEx is a **differentiable** modular modeling framework for use with very long baseline interferometry.
+ROSE is a **differentiable** modular modeling framework for use with very long baseline interferometry.
 The goal is to allow the user to easily combine and modify a set of *primitive* models
 to construct complicated source structures. These primitives themselves do not have to 
 be simple. ROSE itself does not Bayesian inference or optimization itself. Instead it
@@ -31,5 +31,5 @@ Pages = [
 ```
 
 ```@autodocs
-Modules = [ROSEx]
+Modules = [ROSE]
 ```

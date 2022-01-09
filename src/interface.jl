@@ -6,7 +6,7 @@ This trait specifies whether the model is a *primitive*
 
 # Notes
 This will likely turn into a trait in the future so people
-can inject their models into ROSEx more easily.
+can inject their models into ROSE more easily.
 """
 abstract type PrimitiveTrait end
 struct IsPrimitive end
@@ -14,16 +14,16 @@ struct NotPrimitive end
 
 """
     isprimitive(::Type)
-Dispatch function that specifies whether a type is a primitive ROSEx model.
+Dispatch function that specifies whether a type is a primitive ROSE model.
 This function is used for dispatch purposes when composing models.
 
 # Notes
-If a user is specifying their own model primitive model outside of ROSEx they need
+If a user is specifying their own model primitive model outside of ROSE they need
 to specify if it is primitive
 
 ```julia
 struct MyPrimitiveModel end
-ROSEx.isprimitive(::Type{MyModel}) = ROSEx.IsPrimitive()
+ROSE.isprimitive(::Type{MyModel}) = ROSE.IsPrimitive()
 ```
 
 """

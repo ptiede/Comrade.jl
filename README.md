@@ -2,8 +2,8 @@
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://ptiede.github.io/ROSE.jl/latest/)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://ptiede.github.io/ROSE.jl/latest/)
-[![Build Status](https://github.com/ptiede/ROSEx.jl/workflows/CI/badge.svg)](https://github.com/ptiede/ROSE.jl/actions)
-[![Coverage](https://codecov.io/gh/ptiede/ROSEx.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/ptiede/ROSE.jl)
+[![Build Status](https://github.com/ptiede/ROSE.jl/workflows/CI/badge.svg)](https://github.com/ptiede/ROSE.jl/actions)
+[![Coverage](https://codecov.io/gh/ptiede/ROSE.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/ptiede/ROSE.jl)
 
 Radio Observation Structure Exploration
 
@@ -14,7 +14,7 @@ This is a alpha version of a potential EHT/ngEHT modeling/imaging software writt
 3. Speed. The code must be fast, with proper SIMD, GPU, and distributed computing support
 
 # Installation
-To install ROSEx.jl you must use Julia's package manager. For example you can launch your Julia session with then type `]` to move into Pkg mode. Once in pkg mode type
+To install ROSE.jl you must use Julia's package manager. For example you can launch your Julia session with then type `]` to move into Pkg mode. Once in pkg mode type
 ```julia
 add "https://github.com/ptiede/ROSE.jl"
 ```
@@ -32,7 +32,7 @@ to install the main branch of ROSE.jl. Eventually this will be push to the offic
    - Probably will use Accessors.jl and some other tool to do this
 6. Write model adjoints when needed for additional speed (and define a may to define AD backends like Zygote, Enzyme, Diffractor, etc.)
 7. Hook up into PPL's?
-   - Already have something like this for Soss.jl at [ROSExSoss.jl](https://github.com/ptiede/ROSExSoss.jl)
+   - Already have something like this for Soss.jl at [ROSESoss.jl](https://github.com/ptiede/ROSESoss.jl)
    - Add something for Turing and Gen?
 8. GPU support when its a good idea (maybe for gain solves?)
 

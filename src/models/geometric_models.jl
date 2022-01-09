@@ -119,7 +119,7 @@ modifier.
 ## Notes
 Unlike the Gaussian and Disk models this does not create the
 unit version. In fact, this model could have been created using
-the `Disk` and primitives by using ROSEx.jl's model composition
+the `Disk` and primitives by using ROSE.jl's model composition
 functionality.
 """
 struct ConcordanceCrescent{T} <: GeometricModel

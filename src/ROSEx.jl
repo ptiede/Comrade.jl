@@ -1,8 +1,8 @@
 """
-    ROSEx
+    ROSE
 Radio Observation Sampling Exploration
 """
-module ROSEx
+module ROSE
 
 using Accessors: @set
 using DocStringExtensions

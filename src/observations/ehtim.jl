@@ -13,7 +13,7 @@ function getvisfield(obs)
     freq = zeros(length(time))
     bw = zeros(length(time))
 
-    return  StructArray{ROSEx.EHTVisibilityDatum{Float64}}(
+    return  StructArray{ROSE.EHTVisibilityDatum{Float64}}(
         visr = real.(vis),
         visi = imag.(vis),
         u = u,
@@ -40,7 +40,7 @@ function getampfield(obs)
     freq = zeros(length(time))
     bw = zeros(length(time))
 
-    return  StructArray{ROSEx.EHTVisibilityAmplitudeDatum{Float64}}(
+    return  StructArray{ROSE.EHTVisibilityAmplitudeDatum{Float64}}(
         amp = amps,
         u = uamp,
         v = vamp,
@@ -71,7 +71,7 @@ function getcpfield(obs)
     freq = zeros(length(time))
     bw = zeros(length(time))
 
-    return StructArray{ROSEx.EHTClosurePhaseDatum{Float64}}(
+    return StructArray{ROSE.EHTClosurePhaseDatum{Float64}}(
         phase = cp,
         u1 = u1,
         v1 = v1,
@@ -110,7 +110,7 @@ function getlcampfield(obs)
     freq = zeros(length(time))
     bw = zeros(length(time))
 
-    return StructArray{ROSEx.EHTLogClosureAmplitudeDatum{Float64}}(
+    return StructArray{ROSE.EHTLogClosureAmplitudeDatum{Float64}}(
         amp = camp,
         u1 = u1,
         v1 = v1,
@@ -158,7 +158,7 @@ function extract_amp(obs; kwargs...)
     bw = obs.bw
     rf = obs.rf
 
-    return ROSEx.EHTObservation(data = data, mjd = mjd,
+    return ROSE.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    bandwidth=bw, frequency=rf,
                    source = source,
@@ -179,7 +179,7 @@ function extract_vis(obs)
     source = getsource(obs)
     bw = obs.bw
     rf = obs.rf
-    return ROSEx.EHTObservation(
+    return ROSE.EHTObservation(
                    data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    bandwidth=bw, frequency=rf,
@@ -202,7 +202,7 @@ function extract_cphase(obs; kwargs...)
     bw = obs.bw
     rf = obs.rf
 
-    return ROSEx.EHTObservation(data = data, mjd = mjd,
+    return ROSE.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    bandwidth=bw, frequency=rf,
                    source = source,
@@ -226,7 +226,7 @@ function extract_lcamp(obs; kwargs...)
     bw = obs.bw
     rf = obs.rf
 
-    return ROSEx.EHTObservation(data = data, mjd = mjd,
+    return ROSE.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    bandwidth=bw, frequency=rf,
                    source = source,
