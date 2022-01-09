@@ -74,10 +74,9 @@ jobs:
       - run: |
           julia --project=docs -e '
             using Documenter: doctest
-            using ROSE
-            doctest(ROSE)'
-      - name: Build and deploy
+            using ROSEx
+            doctest(ROSEx)'
+      - run: julia --project=docs docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-      - run: julia --project=docs docs/make.jl
