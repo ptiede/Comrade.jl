@@ -1,7 +1,7 @@
 if lowercase(get(ENV, "CI", "false")) == "true"
     include("install_pycall.jl")
     using PyCall
-    Conda.pip_interop(true)
+    PyCall.Conda.pip_interop(true)
     PyCall.Conda.pip("install", "ehtim")
 end
 
