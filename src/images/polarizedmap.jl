@@ -1,10 +1,10 @@
 export PolarizedMap, stokes_parameter, StokesVector, CoherencyMatrix, evpa, m̆
 
 struct StokesVector{T} <: FieldVector{4,T}
-    i::T
-    q::T
-    u::T
-    v::T
+    I::T
+    Q::T
+    U::T
+    V::T
 end
 
 struct CoherencyMatrix{T} <: FieldMatrix{2,2,T}
@@ -16,10 +16,10 @@ end
 
 
 @inline function Base.convert(::Type{CoherencyMatrix}, p::StokesVector)
-    rr = p.i + p.v
-    ll = p.i - p.v
-    rl = p.q + 1im*p.u
-    lr = p.q - 1im*p.u
+    rr = p.I + p.V
+    ll = p.I - p.V
+    rl = p.Q + 1im*p.U
+    lr = p.Q - 1im*p.U
     return CoherencyMatrix(rr, lr, rl, ll)
 end
 
@@ -28,15 +28,16 @@ end
     v = (p.rr - p.ll)/2
     q = (p.rl + p.lr)/2
     u = (p.rl - p.lr)/(2im)
-    return CircularMatrix(i, q, u, v)
+    return StokesVector(i, q, u, v)
 end
 
 
-m̆(m::StokesVector) = m.q + 1im*m.u
-m̆(m::CoherencyMatrix) = m.rl
+m̆(m::StokesVector) = (m.Q + 1im*m.U)/m.I
+m̆(m::CoherencyMatrix) = 2*m.rl/(m.rr+m.ll)
 
 
-evpa(m::StokesVector) = 1/2*atan2(m.U, m.Q)
+evpa(m::StokesVector) = 1/2*atan(m.U,m.Q)
+evpa(m::StokesVector{<:Complex}) = 1/2*angle(m.U/m.Q)
 evpa(m::CoherencyMatrix) = evpa(convert(StokesVector, m))
 
 

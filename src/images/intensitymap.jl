@@ -10,6 +10,8 @@ mutable struct IntensityMap{T,S<:AbstractMatrix, K<:Pulse} <: AbstractIntensityM
     pulse::K
 end
 
+fov(m::AbstractIntensityMap) = (m.fovx, m.fovy)
+
 
 function IntensityMap(im, fovx, fovy, pulse=DeltaPulse())
     ny,nx = size(im)
@@ -31,15 +33,12 @@ Computes the flux of a intensity map
 function flux(im::AbstractIntensityMap{T,S}) where {T,S}
     sum = zero(T)
     x,y = imagepixels(im)
-    @inbounds @simd for i in axes(im,1) j in axes(im, 2)
+    @inbounds for i in axes(im,1), j in axes(im, 2)
         xx = x[i]
         yy = y[j]
-        sum += im[i]*intensity_point(im.pulse, xx, yy)
+        sum += im[j,i]*intensity_point(im.pulse, xx, yy)
     end
-    ny,nx = size(im)
-    psizex,psizey = im.fovx/max(nx-1,1), im.fovy/max(ny-1,1)
-    sum *= psizex*psizey
-    return sum
+    return sum*prod(pixelsizes(im))
 end
 
 

@@ -24,6 +24,8 @@ flux(m::AbstractModifier) = flux(m.model)
 @inline visanalytic(::Type{<:AbstractModifier{M}}) where {M} = visanalytic(M)
 @inline imanalytic(::Type{<:AbstractModifier{M}}) where {M} = imanalytic(M)
 
+radialextent(m::AbstractModifier) = radialextent(basemodel(m))
+
 
 @inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number)
     ut, vt = transform_uv(m, u, v)
@@ -95,6 +97,8 @@ end
 Shifts the model `m` in the image domain by an amount `Δx,Δy`.
 """
 shifted(model, Δx, Δy) = ShiftedModel(model, Δx, Δy)
+# This is a simple overload to simplify the type system
+shifted(model::ShiftedModel, Δx, Δy) = ShiftedModel(basemodel(model), Δx+model.Δx, Δy+model.Δy)
 
 @inline transform_image(model::ShiftedModel, x, y) = (x-model.Δx, y-model.Δy)
 @inline transform_uv(model::ShiftedModel, u, v) = (u, v)
@@ -112,22 +116,22 @@ although I may get rid of this.
 struct RenormalizedModel{M<:AbstractModel,T} <: AbstractModifier{M}
     model::M
     scale::T
-    RenormalizedModel(model::M, f::T) where {M,T} = new{M,T}(model, f/flux(model))
+    RenormalizedModel(model::M, f::T) where {M,T} = new{M,T}(model, f)
 end
 
 """
     $(SIGNATURES)
 Renormalizes the model `m` to have total flux `flux`.
 """
-renormed(model::M, flux) where {M<:AbstractModel} = RenormalizedModel(model, flux)
-Base.:*(model::AbstractModel, flux::Real) = renormed(model, flux)
-# Dispatch on RenormalizedModel so that I just make a new RenormalizedModel with a different flux
+renormed(model::M, f) where {M<:AbstractModel} = RenormalizedModel(model, f)
+Base.:*(model::AbstractModel, f::Real) = renormed(model, f)
+# Dispatch on RenormalizedModel so that I just make a new RenormalizedModel with a different f
 # This will make it easier on the compiler.
-Base.:*(model::RenormalizedModel, flux::Real) = renormed(model.model, model.scale*flux)
-Base.:*(flux::Real, model::AbstractModel) = renormed(model, flux)
+Base.:*(model::RenormalizedModel, f::Real) = renormed(model.model, model.scale*f)
+Base.:*(f::Real, model::AbstractModel) = renormed(model, f)
 # Overload the unary negation operator to be the same model with negative flux
-Base.:-(model::AbstractModel) = renormed(model, -flux(model))
-flux(m::RenormalizedModel) = m.flux
+Base.:-(model::AbstractModel) = renormed(model, -1.0)
+flux(m::RenormalizedModel) = m.scale*flux(m.model)
 
 @inline transform_image(model::RenormalizedModel, x, y) = (x, y)
 @inline transform_uv(model::RenormalizedModel, u, v) = (u, v)
@@ -160,12 +164,13 @@ Stretches the model `m` according to the formula
 where were renormalize the intensity to preserve the models flux.
 """
 stretched(model, α, β) = StretchedModel(model, α, β)
+radialextent(model::StretchedModel) = max(model.α, model.β)*radialextent(basemodel(model))
 
 @inline transform_image(model::StretchedModel, x, y) = (x/model.α, y/model.β)
 @inline transform_uv(model::StretchedModel, u, v) = (u*model.α, v*model.β)
 
 @inline scale_image(model::StretchedModel, x, y) = inv(model.α*model.β)
-@inline scale_uv(model::StretchedModel, u, v) = one(eltype(u))
+@inline scale_uv(::StretchedModel, u, v) = one(eltype(u))
 
 
 

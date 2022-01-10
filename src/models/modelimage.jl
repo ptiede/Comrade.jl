@@ -25,6 +25,7 @@ intensitymap!(mimg::ModelImage) = intensitymap!(mimg.image, mimg.model)
 
 flux(mimg::ModelImage) = flux(intensitymap!(mimg.image, mimg.model))
 
+radialextent(m::ModelImage) = fov(m.image)[1]/2
 
 @inline visibility_point(m::AbstractModelImage, u, v) = visibility_point(m.model, u, v)
 
@@ -63,7 +64,7 @@ this will *guess* a reasonable image to use.
 """
 function modelimage(m::M) where {M}
     if visanalytic(M) == IsAnalytic()
-        return ModelImage(m, Matrix{Float64}(undef, 1, 1), NoCache())
+        return m
     else
         throw(ArgumentError("$m is not an analytic model a image must be specified"))
     end

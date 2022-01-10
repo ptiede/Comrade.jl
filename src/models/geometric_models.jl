@@ -1,4 +1,4 @@
-export Gaussian, Disk, MRing, ConcordanceCrescent, ExtendedRing
+export Gaussian, Disk, MRing, Crescent, ConcordanceCrescent, ExtendedRing
 
 """
 $(TYPEDEF)
@@ -25,6 +25,8 @@ To change the Gaussian flux, and shape please use the modifier functions
 """
 struct Gaussian{T} <: GeometricModel end
 Gaussian() = Gaussian{Float64}()
+radialextent(::Gaussian) = 5.0
+
 
 @inline function intensity_point(::Gaussian, x,y)
     return exp(-(x^2+y^2)/2)/2π
@@ -33,6 +35,8 @@ end
 @inline function visibility_point(::Gaussian{T}, u, v, args...) where {T}
     return exp(-2π^2*(u^2 + v^2)) + zero(T)im
 end
+
+
 
 
 raw"""
@@ -55,16 +59,14 @@ end
     return 2*besselj1(ur)/(ur) + zero(T)im
 end
 
+radialextent(::Disk) = 3.0
+
 """
     $(TYPEDEF)
 m-ring geometric model. This corresponds to a delta ring with a fourier expansion
-in θ. The m in m-ring refers to the order of the Fourier expansion.
+in θ. The m in m-ring refers to the order of the Fourier expansion. The radius is unity.
 """
 struct MRing{T,N} <: GeometricModel
-    """
-    Radius of the thin ring
-    """
-    radius::T
     """
     Real Fourier mode coefficients
     """
@@ -75,30 +77,35 @@ struct MRing{T,N} <: GeometricModel
     β::NTuple{N,T}
 end
 
-function MRing{N}(radius::S, α::T, β::T) where {N,S,T<:AbstractVector}
+function MRing{N}(α::T, β::T) where {N,T<:AbstractVector}
     @assert N == length(α)
-    return MRing{S, N}(radius, NTuple{N,S}(α), NTuple{N,S}(β))
+    S = promote_type(eltype(α), eltype(β))
+    return MRing{S, N}(NTuple{N,S}(α), NTuple{N,S}(β))
 end
+
+radialextent(::MRing) = 1.5
+
 
 @inline function intensity_point(m::MRing{T,N}, x::Number, y::Number) where {T,N}
     r = hypot(x,y)
     θ = atan(x,y)
-    dr = m.radius/50
-    if (abs(r-m.radius) < dr/2)
+    dr = 1/50
+    if (abs(r-1) < dr/2)
         acc = one(T)
         for n in 1:N
             s,c = sincos(n*θ)
             acc += m.α[n]*c - m.β[n]*s
         end
-        return acc/(2π*m.radius*dr)
+        return acc/(2π*dr)
     else
         return zero(T)
     end
 end
 
 
+
 @inline function visibility_point(m::MRing{T,N}, u, v, args...) where {T,N}
-    k = 2π*sqrt(u^2 + v^2)*m.radius + eps(T)*m.radius
+    k = 2π*sqrt(u^2 + v^2) + eps(T)
     vis = besselj0(k) + zero(T)*im
     θ = atan(u, v)
     @inbounds for n in 1:N
@@ -107,6 +114,19 @@ end
     end
     return vis
 end
+
+"""
+    $(TYPEDEF)
+Creates a [Kamruddin and Dexter](https://academic.oup.com/mnras/article/434/1/765/1005984)
+crescent model. This works by composing two disk models together.
+
+# Arguments
+- router: The radius of the outer disk
+- rinner: The radius of the inner disk
+- shift: How much the inner disk radius is shifted (positive is to the right)
+- floor: The floor of the inner disk 0 means the inner intensity is zero and 1 means it is a large disk.
+"""
+Crescent(router, rinner, shift, floor) = stretched(Disk(), router, router)*(π*router^2) - shifted(stretched(Disk(), rinner, rinner)*((1-floor)*π*rinner^2), shift, zero(typeof(shift)))
 
 """
     $(TYPEDEF)
@@ -142,6 +162,8 @@ struct ConcordanceCrescent{T} <: GeometricModel
     """
     slash::T
 end
+
+radialextent(m::ConcordanceCrescent) = m.router*1.5
 
 # Crescent normalization to ensure the
 function _crescentnorm(m::ConcordanceCrescent)
@@ -203,6 +225,8 @@ struct ExtendedRing{F} <: GeometricModel
     shape::F
 end
 visanalytic(::Type{<:ExtendedRing}) = NotAnalytic()
+
+radialextent(m::ExtendedRing) = m.radius*5
 
 function intensity_point(m::ExtendedRing, x, y)
     r = hypot(x, y) + eps(m.radius)

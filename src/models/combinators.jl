@@ -28,6 +28,10 @@ function modelimage(::NotAnalytic,
     @set m1.m2 = modelimage(m1.m2, image; alg)
 end
 
+radialextent(m::CompositeModel) = max(radialextent(m.m1), radialextent(m.m2))
+
+@inline visanalytic(::Type{<:CompositeModel{M1,M2}}) where {M1,M2} = visanalytic(M1)*visanalytic(M2)
+@inline imanalytic(::Type{<:CompositeModel{M1,M2}}) where {M1,M2} = imanalytic(M1)*imanalytic(M2)
 
 
 """
@@ -42,19 +46,19 @@ struct AddModel{T1,T2} <: CompositeModel{T1,T2}
     m2::T2
 end
 Base.:+(m1::T1, m2::T2) where {T1<:AbstractModel, T2<:AbstractModel} = AddModel(m1, m2)
+Base.:-(m1, m2) = AddModel(m1, -1.0*m2)
 add(m1::M1, m2::M2) where {M1<:AbstractModel, M2<:AbstractModel} = AddModel(m1, m2)
 
 @inline combinator(::Type{<:AddModel}) = add
 
-@inline visanalytic(::Type{<:CompositeModel{M1,M2}}) where {M1,M2} = visanalytic(M1)*visanalytic(M2)
 
 """
     $(SIGNATURES)
 Returns the components for a composite model. This
 will return a Tuple with all the models you have constructed.
 """
-components(m::AbstractModel) = m
-components(m::AddModel{M1,M2}) where
+components(m::AbstractModel) = (m,)
+components(m::CompositeModel{M1,M2}) where
     {M1<:AbstractModel, M2<:AbstractModel} = (components(m.m1)..., components(m.m2)...)
 
 flux(m::AddModel) = flux(m.m1) + flux(m.m2)
@@ -108,6 +112,8 @@ struct ConvolvedModel{M1, M2} <: CompositeModel{M1,M2}
     m2::M2
 end
 convolved(m1, m2) = ConvolvedModel(m1, m2)
+
+@inline imanalytic(::Type{<:ConvolvedModel}) = NotAnalytic()
 
 
 @inline uv_combinator(::ConvolvedModel) = Base.:*

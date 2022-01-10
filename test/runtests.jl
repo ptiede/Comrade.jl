@@ -4,6 +4,7 @@
 #using Pkg
 #Pkg.build("PyCall")
 using ROSE
+using FFTW
 using Statistics
 using Test
 
@@ -13,4 +14,5 @@ include("test_util.jl")
 
     #include("observation.jl")
     include("distributions.jl")
+    include("models.jl")
 end
