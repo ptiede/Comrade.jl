@@ -5,7 +5,7 @@
 [![Build Status](https://github.com/ptiede/Comrade.jl/workflows/CI/badge.svg)](https://github.com/ptiede/Comrade.jl/actions)
 [![Coverage](https://codecov.io/gh/ptiede/Comrade.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/ptiede/Comrade.jl)
 
-Radio Observation Structure Exploration
+Composable Modeling of Radio Emission
 
 This is a alpha version of a potential EHT/ngEHT modeling/imaging software written in pure Julia. The objectives are in order of importance
 
