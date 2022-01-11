@@ -1,4 +1,4 @@
 
 ```@autodocs
-Modules = [ROSE]
+Modules = [Comrade]
 ```

@@ -1,9 +1,9 @@
 # Getting Started
 
-To get started with ROSE
+To get started with Comrade
 
 ```julia
-using ROSE
+using Comrade
 
 #load ehtim
 load_ehtim()

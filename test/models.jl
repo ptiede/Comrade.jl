@@ -1,9 +1,9 @@
 
-function testmodel(m::ROSE.AbstractModel, atol=1e-4)
-    img = intensitymap(m, 2*ROSE.radialextent(m), 2*ROSE.radialextent(m), 2048, 2048)
+function testmodel(m::Comrade.AbstractModel, atol=1e-4)
+    img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), 2048, 2048)
     @test isapprox(flux(m), flux(img), atol=atol)
 
-    cache = ROSE.create_cache(ROSE.FFT(), m, img)
+    cache = Comrade.create_cache(Comrade.FFT(), m, img)
     u = fftshift(fftfreq(size(img,1), 1/img.psizex))
     @test isapprox(mean(collect(visibilities(m, u, u))), mean(cache.sitp.(u, u)), atol=atol)
 end
@@ -67,8 +67,8 @@ end
         mbs = shifted(mb, 0.5, 0.5)
         testmodel(mas)
         testmodel(modelimage(mbs, IntensityMap(zeros(2048, 2048),
-                                               2*ROSE.radialextent(mbs),
-                                               2*ROSE.radialextent(mbs))))
+                                               2*Comrade.radialextent(mbs),
+                                               2*Comrade.radialextent(mbs))))
     end
 
     @testset "Renormed" begin
@@ -78,8 +78,8 @@ end
         mbs = 3.0*mb
         testmodel(m1)
         testmodel(modelimage(mbs, IntensityMap(zeros(2048, 2048),
-                                               2*ROSE.radialextent(mbs),
-                                               2*ROSE.radialextent(mbs))))
+                                               2*Comrade.radialextent(mbs),
+                                               2*Comrade.radialextent(mbs))))
     end
 
     @testset "Stretched" begin
@@ -87,8 +87,8 @@ end
         mbs = stretched(mb, 5.0, 4.0)
         testmodel(mas)
         testmodel(modelimage(mbs, IntensityMap(zeros(2048, 2048),
-                                               2*ROSE.radialextent(mbs),
-                                               2*ROSE.radialextent(mbs))))
+                                               2*Comrade.radialextent(mbs),
+                                               2*Comrade.radialextent(mbs))))
     end
 
     @testset "Rotated" begin
@@ -96,8 +96,8 @@ end
         mbs = rotated(mb, π/3)
         testmodel(mas)
         testmodel(modelimage(mbs, IntensityMap(zeros(2048, 2048),
-                                               2*ROSE.radialextent(mbs),
-                                               2*ROSE.radialextent(mbs))))
+                                               2*Comrade.radialextent(mbs),
+                                               2*Comrade.radialextent(mbs))))
     end
 
     @testset "AllMods" begin
@@ -105,8 +105,8 @@ end
         mbs = rotated(stretched(shifted(mb, 0.5, 0.5), 5.0, 4.0), π/3)
         testmodel(mas)
         testmodel(modelimage(mbs, IntensityMap(zeros(2048, 2048),
-                                               2*ROSE.radialextent(mbs),
-                                               2*ROSE.radialextent(mbs))))
+                                               2*Comrade.radialextent(mbs),
+                                               2*Comrade.radialextent(mbs))))
     end
 end
 
@@ -121,7 +121,7 @@ end
         mt1 = m1 + m2
         mt2 = shifted(m1, 1.0, 1.0) + m2
         mt3 = shifted(m1, 1.0, 1.0) + 0.5*stretched(m2, 0.9, 0.8)
-        mc = ROSE.components(mt1)
+        mc = Comrade.components(mt1)
         @test mc[1] === m1
         @test mc[2] === m2
 
@@ -137,7 +137,7 @@ end
         mt1 = convolved(m1, m2)
         mt2 = convolved(shifted(m1, 1.0, 1.0), m2)
         mt3 = convolved(shifted(m1, 1.0, 1.0), 0.5*stretched(m2, 0.9, 0.8))
-        mc = ROSE.components(mt1)
+        mc = Comrade.components(mt1)
         @test mc[1] === m1
         @test mc[2] === m2
 
@@ -152,7 +152,7 @@ end
         15.0)
 
         mt = m1 + convolved(m1, m2)
-        mc = ROSE.components(mt)
+        mc = Comrade.components(mt)
         @test mc[1] === m1
         @test mc[2] === m1
         @test mc[3] === m2

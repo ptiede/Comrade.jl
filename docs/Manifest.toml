@@ -631,7 +631,7 @@ version = "2.4.2"
 deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
-[[ROSE]]
+[[Comrade]]
 deps = ["Accessors", "AstroTime", "DelimitedFiles", "Distributions", "DocStringExtensions", "FFTW", "FillArrays", "Interpolations", "KeywordCalls", "LoopVectorization", "MappedArrays", "MeasureBase", "NFFT", "PaddedViews", "PyCall", "Random", "SpecialFunctions", "StaticArrays", "Statistics", "StatsBase", "StructArrays"]
 path = ".."
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"

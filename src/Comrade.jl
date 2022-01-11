@@ -1,8 +1,8 @@
 """
-    ROSE
+    Comrade
 Radio Observation Sampling Exploration
 """
-module ROSE
+module Comrade
 
 using Accessors: @set
 using DocStringExtensions

@@ -3,14 +3,14 @@
 #end
 #using Pkg
 #Pkg.build("PyCall")
-using ROSE
+using Comrade
 using FFTW
 using Statistics
 using Test
 
 include("test_util.jl")
 
-@testset "ROSE.jl" begin
+@testset "Comrade.jl" begin
 
     #include("observation.jl")
     include("distributions.jl")
