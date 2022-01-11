@@ -79,8 +79,8 @@ function create_cache(alg::FFT, model, img)
 
     uu = fftshift(fftfreq(nnx, 1/dx))
     vv = fftshift(fftfreq(nny, 1/dy))
-    plan = plan_fft(pimg)
-    vis = fftshift(plan*pimg)
+    #plan = plan_fft(pimg)
+    vis = fftshift(fft(pimg))
     #println(sum(img)*dx*dy)
     #println(sum(pimg)*dx*dy)
     x0,y0 = first.(imagepixels(img))
@@ -89,7 +89,7 @@ function create_cache(alg::FFT, model, img)
         vis[I] = conj(vis[I])*dx*dy*exp(2im*π*(uu[ix]*x0 + vv[iy]*y0))
     end
     sitp = create_interpolator(uu, vv, vis)
-    return FFTCache(plan, sitp)
+    return FFTCache(nothing, sitp)
 end
 
 

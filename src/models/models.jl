@@ -102,6 +102,35 @@ end
     return mimg.cache.sitp(u, v)
 end
 
+@inline function visibilities(m::M, u::AbstractArray, v::AbstractArray) where {M}
+    visibilities(visanalytic(M), m, u, v)
+end
+
+function visibilities(m, ac::ArrayConfiguration)
+    u, v = getuv(ac)
+    return visibilities(m, u, v)
+end
+
+visibilities(::IsAnalytic, m, u, v) = _visibilities(m, u, v)
+
+function create_mimg(m::AbstractModel, u, v)
+    fovx = fovy = radialextent(m)*2.5
+    ps = max(maximum(u), maximum(v))
+    nx, ny = abs(Int(ceil(10*fovx*ps))), abs(Int(ceil(10*fovy*ps)))
+    img = intensitymap(m, fovx, fovy, nx, ny)
+    return modelimage(m, img)
+end
+
+function create_mimg(m::ModelImage, u, v)
+    return m
+end
+
+
+function visibilities(::NotAnalytic, m, u, v)
+    mimg = create_mimg(m, u, v)
+    return _visibilities(mimg, u, v)
+end
+
 
 """
     $(SIGNATURES)
@@ -109,15 +138,12 @@ Computes the visibilities of the model `m` at the u,v positions `u`, `v`.
 
 Note this is done lazily so the visibility is only computed when accessed.
 """
-function visibilities(m, u::AbstractArray, v::AbstractArray)
+function _visibilities(m, u::AbstractArray, v::AbstractArray)
     f(x,y) = visibility(m, x, y)
-    return mappedarray(f, u, v)
+    return map(f, u, v)#mappedarray(f, u, v)
 end
 
-function visibilities(m, ac::ArrayConfiguration)
-    u, v = getuv(ac)
-    return visibilities(m, u, v)
-end
+
 
 """
     $(SIGNATURES)

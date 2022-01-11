@@ -13,11 +13,10 @@ using MappedArrays: mappedarray
 using MeasureBase
 using NFFT: nfft, plan_nfft
 using PaddedViews
-using PyCall: pyimport_conda, PyNULL, PyObject
+using PyCall: pyimport, PyNULL, PyObject
 using SpecialFunctions
 using StaticArrays: FieldVector, FieldMatrix
 using StructArrays: StructArray
-#using ImageFiltering: imfilter, imfilter!, Kernel.gaussian, Fill
 # Write your package code here.
 
 const ehtim = PyNULL()
@@ -32,7 +31,7 @@ This will fail if ehtim isn't installed in the python installation that PyCall r
 """
 function load_ehtim()
     try
-        copy!(ehtim, pyimport("ehtim"))
+       copy!(ehtim, pyimport("ehtim"))
     catch
         @warn "No ehtim installation found in python path. Some data functionality will not work"
     end
