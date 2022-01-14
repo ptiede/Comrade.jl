@@ -260,11 +260,37 @@ struct ExtendedRing{F} <: GeometricModel
 end
 visanalytic(::Type{<:ExtendedRing}) = NotAnalytic()
 
-radialextent(m::ExtendedRing) = m.radius*5
+radialextent(m::ExtendedRing) = m.radius*10
 
 function intensity_point(m::ExtendedRing, x, y)
     r = hypot(x, y) + eps(m.radius)
     β = m.radius*(m.shape + 1)
     α = m.shape
     β^α*r^(-α-2)*exp(-β/r)/gamma(α)/(2*π)
+end
+
+
+"""
+    $(TYPEDEF)
+A delta parabolic wisp in the image domain.
+The wisp is a parabolic line segment centered at zero, with roots ±1 and a yintercept of 1.
+"""
+struct Wisp{F} <: GeometricModel end
+Wisp() = Wisp{Float64}()
+function Wisp(a, h) end
+radialextent(m::Wisp) = 1
+
+function intensity_point(::Wisp, x, y)
+    yw = (x-1)^2
+    if (y - yw) < 0.1 && abs(x) < 1
+        N = sqrt(5) + 1/2*asinh(2h/a)
+        return inv(n)/(0.1)^2
+    else
+        return 0
+    end
+end
+
+function visibility_point(::Wisp, u, v)
+    phase = exp(1im*π*(3/4 + 2*v + u^2/(2v)))
+    Δ1 = erf((π/(2v)))
 end
