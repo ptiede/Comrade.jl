@@ -63,11 +63,11 @@ function apply_uv_transform(m, u::AbstractVector, v::AbstractVector)
     return ut, vt
 end
 
-@inline function _visibilities(m::AbstractModifier, u, v, args...)
-    ut, vt = apply_uv_transform(m, u, v)
-    scales = apply_uv_scaling.(Ref(m), u, v)
-    scales.*visibilities(unmodified(m), ut, vt, args...)
-end
+#@inline function _visibilities(m::AbstractModifier, u, v, args...)
+#    ut, vt = apply_uv_transform(m, u, v)
+#    scales = apply_uv_scaling.(Ref(m), u, v)
+#    scales.*visibilities(unmodified(m), ut, vt, args...)
+#end
 
 @inline function visibility_point(m::AbstractModifier, u, v, args...)
     ut, vt = apply_uv_transform(m, u, v)
@@ -75,10 +75,10 @@ end
     scale*visibility(unmodified(m), ut, vt, args...)
 end
 
-@inline function intensity_point(m::AbstractModifier, x, y)
+@inline function ComradeBase.intensity_point(m::AbstractModifier, x, y)
     xt, yt = transform_image(m, x, y)
     scale = scale_image(m, x, y)
-    return intensity_point(basemodel(m), xt, yt)*scale
+    return ComradeBase.intensity_point(basemodel(m), xt, yt)*scale
 end
 
 """

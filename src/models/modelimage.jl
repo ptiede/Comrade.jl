@@ -1,7 +1,28 @@
 export modelimage
 
-abstract type AbstractModelImage{M} <: AbstractModel end
+"""
+    $(TYPEDEF)
+Container for non-analytic model that contains a image cache which will hold the image,
+a Fourier transform cache C, which usually an instance of a <: FourierCache which usually
+holds a interpolator that allows you to compute visibilities.
 
+# Notes
+This is an internal implementation detail that shouldn't usually be called directly.
+Instead the user should use the exported function `modelimage`, for example
+
+```julia
+using Comrade
+m = ExtendedRing(20.0, 5.0)
+
+# This creates an version where the image is dynamically specified according to the
+# radial extent of the image
+mimg = modelimage(m) # you can also optionally pass the number of pixels nx and ny
+
+# Or you can create an IntensityMap
+img = intensitymap(m, 100.0, 100.0, 512, 512)
+mimg = modelimage(m, img)
+```
+"""
 struct ModelImage{M,I,C} <: AbstractModelImage{M}
     model::M
     image::I
@@ -18,18 +39,22 @@ function Base.show(io::IO, mi::ModelImage)
    println(io, "ModelImage")
    println(io, "\tmodel: ", summary(mi.model))
    println(io, "\timage: ", summary(mi.image))
-   print(io, "\tcache: ", ci)
+   println(io, "\tcache: ", ci)
 end
 
-intensitymap!(mimg::ModelImage) = intensitymap!(mimg.image, mimg.model)
-
+model(m::AbstractModelImage) = m.model
 flux(mimg::ModelImage) = flux(intensitymap!(mimg.image, mimg.model))
+
+function intensitymap(mimg::ModelImage)
+    intensitymap!(mimg.image, mimg.model)
+    mimg.image
+end
 
 radialextent(m::ModelImage) = fov(m.image)[1]/2
 
-@inline visibility_point(m::AbstractModelImage, u, v) = visibility_point(m.model, u, v)
+@inline visibility_point(m::AbstractModelImage, u, v) = visibility_point(model(m), u, v)
 
-@inline intensity_point(m::ModelImage, x, y) = intensity_point(m.model, x, y)
+@inline intensity_point(m::AbstractModelImage, x, y) = intensity_point(model(m), x, y)
 
 """
     $(SIGNATURES)
@@ -41,7 +66,7 @@ For analytic models this is a no-op and just return the model.
 For non-analytic models this wraps the model in a object with an image
 and precomputes the fourier transform using `alg`.
 """
-@inline function modelimage(model::M, image; alg=FFT()) where {M}
+@inline function modelimage(model::M, image::ComradeBase.AbstractIntensityMap; alg=FFT()) where {M}
     return modelimage(visanalytic(M), model, image; alg)
 end
 
@@ -50,7 +75,8 @@ end
 end
 
 @inline function modelimage(::NotAnalytic, model, image; alg=FFT())
-    cache = create_cache(alg, model, image)
+    intensitymap!(image, model)
+    cache = create_cache(alg, image)
     return ModelImage(model, image, cache)
 end
 
@@ -59,13 +85,22 @@ end
 Construct a `ModelImage` where just the model `m` is specified
 
 # Notes
-Currently this is only defined for analytic models. In the future
-this will *guess* a reasonable image to use.
+If m `IsAnalytic()` is the visibility domain this is a no-op and just returns the model itself.
+Otherwise `modelimage` will *guess* a reasonable field of view based on the `radialextent`
+function. One can optionally pass the number of pixels nx and ny in each direction.
 """
-function modelimage(m::M) where {M}
+function modelimage(m::M;
+                    fovx=2*radialextent(m),
+                    fovy=2*radialextent(m),
+                    nx=512,
+                    ny=512,
+                    alg=FFT()) where {M}
     if visanalytic(M) == IsAnalytic()
         return m
     else
-        throw(ArgumentError("$m is not an analytic model a image must be specified"))
+        T = typeof(intensity_point(m, 0.0, 0.0))
+        img = IntensityMap(zeros(T,ny,nx), fovx, fovy)
+        modelimage(m, img; alg)
+        #throw(ArgumentError("$m is not an analytic model a image must be specified"))
     end
 end

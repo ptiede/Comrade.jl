@@ -3,6 +3,7 @@
 #end
 using Pkg
 Pkg.build("PyCall")
+Pkg.instantiate()
 using Comrade
 using FFTW
 using Statistics

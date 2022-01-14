@@ -3,7 +3,7 @@ function testmodel(m::Comrade.AbstractModel, atol=1e-4)
     img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), 2048, 2048)
     @test isapprox(flux(m), flux(img), atol=atol)
 
-    cache = Comrade.create_cache(Comrade.FFT(), m, img)
+    cache = Comrade.create_cache(Comrade.FFT(), img)
     u = fftshift(fftfreq(size(img,1), 1/img.psizex))
     @test isapprox(mean(collect(visibilities(m, u, u))), mean(cache.sitp.(u, u)), atol=atol)
 end
@@ -180,9 +180,9 @@ end
     pimg1 = PolarizedMap(I,Q,U,V)
     intensitymap!(pimg1, m)
     pimg2 = intensitymap(m, 100.0, 100.0, 2048, 2048)
-    @test pimg1.I == pimg2.I
-    @test pimg1.Q == pimg2.Q
-    @test pimg1.U == pimg2.U
-    @test pimg1.V == pimg2.V
+    @test isapprox(sum(abs, (pimg1.I .- pimg2.I)), 0.0, atol=1e-12)
+    @test isapprox(sum(abs, (pimg1.Q .- pimg2.Q)), 0.0, atol=1e-12)
+    @test isapprox(sum(abs, (pimg1.U .- pimg2.U)), 0.0, atol=1e-12)
+    @test isapprox(sum(abs, (pimg1.V .- pimg2.V)), 0.0, atol=1e-12)
 
 end

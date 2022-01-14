@@ -1,7 +1,7 @@
 export RImage
 
 
-
+import ComradeBase: Pulse
 
 
 @doc raw"""
@@ -95,7 +95,7 @@ return the size of the coefficient matrix for `model`.
 """
 @inline Base.size(model::RImage) = size(model.coeff)
 
-@inline function intensity_point(model::RImage{S,M,B}, x, y, args...) where {S,M,B}
+@inline function ComradeBase.intensity_point(model::RImage{S,M,B}, x, y, args...) where {S,M,B}
     sum = zero(S)
     ny,nx = size(model)
     dx = 1/(max(nx-1,1))

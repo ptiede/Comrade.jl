@@ -12,7 +12,7 @@ Any implementation of a composite type must define the following methods:
 - uv_combinator
 - imanalytic
 - visanalytic
-- intensity_point if model intensity is `IsAnalytic`
+- ComradeBase.intensity_point if model intensity is `IsAnalytic`
 - intensitymap! if model intensity is `NotAnalytic`
 - flux
 
@@ -67,6 +67,12 @@ function intensity(m::AddModel{T1,T2}, x, y, args...) where {T1, T2}
     return intensity(m.m1, x, y, args...) + intensity(m.m2, x, y, args...)
 end
 
+function intensitymap(m::AddModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
+    sim1 = intensitymap(m.m1, fovx, fovy, nx, ny; pulse)
+    sim2 = intensitymap(m.m2, fovx, fovy, nx, ny; pulse)
+    return sim1 .+ sim2
+end
+
 function intensitymap!(sim::IntensityMap, m::AddModel)
     csim = deepcopy(sim)
     intensitymap!(csim, m.m1)
@@ -86,6 +92,13 @@ end
     f = uv_combinator(model)
     v1 = visibility(model.m1, u, v, args...)
     v2 = visibility(model.m2, u, v, args...)
+    return f(v1,v2)
+end
+
+@inline function intensity_point(model::CompositeModel, u, v)
+    f = uv_combinator(model)
+    v1 = intensity_point(model.m1, u, v)
+    v2 = intensity_point(model.m2, u, v)
     return f(v1,v2)
 end
 
@@ -120,11 +133,20 @@ convolved(m1, m2) = ConvolvedModel(m1, m2)
 
 flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
+function intensitymap(model::ConvolvedModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
+    T = typeof(visibility(model, 0.0, 0.0))
+    vis1 = fouriermap(model.m1, fovx, fovy, nx, ny)
+    vis2 = fouriermap(model.m2, fovx, fovy, nx, ny)
+    vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, nx, ny))
+    img = ifft(vis)
+    return IntensityMap(real.(img)./(nx*ny), fovx, fovy, pulse)
+end
+
 function intensitymap!(sim::IntensityMap, model::ConvolvedModel)
     ny, nx = size(sim)
     vis1 = fouriermap(model.m1, sim)
     vis2 = fouriermap(model.m2, sim)
-    vis = ifftshift(phasedecenter!(vis1.*vis2, sim))
+    vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, nx, ny))
     ifft!(vis)
     for I in CartesianIndices(sim)
         sim[I] = real(vis[I])/(nx*ny)

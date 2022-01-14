@@ -1,6 +1,6 @@
 export PolarizedModel, coherencymatrix
 
-abstract type AbstractPolarizedModel end
+import ComradeBase: AbstractPolarizedModel, m̆, evpa, CoherencyMatrix, StokesVector
 
 """
     $(TYPEDEF)

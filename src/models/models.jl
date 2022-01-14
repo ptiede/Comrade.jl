@@ -1,6 +1,15 @@
+import ComradeBase: AbstractModel, IsPrimitive, NotPrimitive, IsAnalytic, NotAnalytic,
+                    visanalytic, imanalytic, isprimitive
+import ComradeBase: visibility_point,
+                    intensitymap, intensitymap!, intensity_point,
+                    flux
+
 export visibility, amplitude, closure_phase, logclosure_amplitude, bispectrum,
        visibilities, amplitudes, closure_phases, logclosure_amplitudes, bispectra,
        flux, intensitymap, intensitymap!, PolarizedModel
+
+
+abstract type AbstractModelImage{M} <: ComradeBase.AbstractModel end
 
 
 """
@@ -103,7 +112,8 @@ end
 end
 
 @inline function visibilities(m::M, u::AbstractArray, v::AbstractArray) where {M}
-    visibilities(visanalytic(M), m, u, v)
+    _visibilities(m, u, v)
+    #visibilities(visanalytic(M), m, u, v)
 end
 
 function visibilities(m, ac::ArrayConfiguration)
@@ -111,25 +121,27 @@ function visibilities(m, ac::ArrayConfiguration)
     return visibilities(m, u, v)
 end
 
-visibilities(::IsAnalytic, m, u, v) = _visibilities(m, u, v)
+#isibilities(::IsAnalytic, m, u, v) = _visibilities(m, u, v)
 
-function create_mimg(m::AbstractModel, u, v)
-    fovx = fovy = radialextent(m)*2.5
-    ps = max(maximum(u), maximum(v))
-    nx, ny = abs(Int(ceil(10*fovx*ps))), abs(Int(ceil(10*fovy*ps)))
-    img = intensitymap(m, fovx, fovy, nx, ny)
-    return modelimage(m, img)
-end
+#function create_mimg(m::AbstractModel, u, v)
+#    fovx = fovy = radialextent(m)*2
+#    ps = max(maximum(u), maximum(v))
+#    nx, ny = abs(Int(ceil(10*fovx*ps))), abs(Int(ceil(10*fovy*ps)))
+#    println(nx)
+#   img = intensitymap(m, fovx, fovy, nx, ny)
+#    return modelimage(m, img)
+#end
 
-function create_mimg(m::ModelImage, u, v)
-    return m
-end
+#function create_mimg(m::AbstractModelImage, u, v)
+#    return m
+#end
 
 
-function visibilities(::NotAnalytic, m, u, v)
-    mimg = create_mimg(m, u, v)
-    return _visibilities(mimg, u, v)
-end
+#function visibilities(::NotAnalytic, m, u, v)
+#   mimg = create_mimg(m, u, v)
+#    println("here")
+#    return _visibilities(mimg, u, v)
+#end
 
 
 """
@@ -205,12 +217,20 @@ function logclosure_amplitudes(m,
     return mappedarray(f, u1, v1, u2, v2, u3, v3, u4, v4)
 end
 
+
+
 function intensitymap(m, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
-    buff = Matrix{typeof(fovx)}(undef, ny, nx)
-    img = IntensityMap(buff, fovx, fovy, pulse)
-    intensitymap!(img, m)
-    return img
+    px = fovx/max(nx-1,1)
+    py = fovy/max(ny-1,1)
+    img = map(CartesianIndices((1:nx, 1:ny))) do I
+        iy,ix = Tuple(I)
+        x = -fovx/2 + (ix-1)*px
+        y = -fovy/2 + (iy-1)*py
+        return intensity_point(m, x, y)
+    end
+    return IntensityMap(img, fovx, fovy, pulse)
 end
+
 
 function intensitymap!(im::IntensityMap, m::M) where {M}
     return intensitymap!(imanalytic(M), im, m)
