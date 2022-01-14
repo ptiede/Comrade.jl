@@ -13,6 +13,16 @@ struct PolarizedModel{TI,TQ,TU,TV} <: AbstractPolarizedModel
     V::TV
 end
 
+@inline visanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = visanalytic(I)*visanalytic(Q)*visanalytic(U)*visanalytic(V)
+@inline imanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = imanalytic(I)*imanalytic(Q)*imanalytic(U)*imanalytic(V)
+
+@inline function intensity_point(pmodel::PolarizedModel, u, v)
+    I = intensity_point(pmodel.I, u, v)
+    Q = intensity_point(pmodel.Q, u, v)
+    U = intensity_point(pmodel.U, u, v)
+    V = intensity_point(pmodel.V, u, v)
+    return StokesVector(I,Q,U,V)
+end
 
 """
     $(SIGNATURES)
@@ -30,19 +40,20 @@ end
     $(SIGNATURES)
 Finds the polarized intensity map of the polarized model pmodel.
 """
-function intensitymap!(pimg::PolarizedMap, pmodel::PolarizedModel)
-    intensitymap!(pimg.I, pmodel.I)
-    intensitymap!(pimg.Q, pmodel.Q)
-    intensitymap!(pimg.U, pmodel.U)
-    intensitymap!(pimg.V, pmodel.V)
+function intensitymap!(pimg::IntensityMap{<:StokesVector}, pmodel::PolarizedModel)
+    intensitymap!(stokes(pimg, :I), pmodel.I)
+    intensitymap!(stokes(pimg, :Q), pmodel.Q)
+    intensitymap!(stokes(pimg, :U), pmodel.U)
+    intensitymap!(stokes(pimg, :V), pmodel.V)
 end
 
-function intensitymap(pmodel::PolarizedModel, fovx::Real, fovy::Real, nx::Int, ny::Int)
+function intensitymap(pmodel::PolarizedModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
     imgI = intensitymap(pmodel.I, fovx, fovy, nx, ny)
     imgQ = intensitymap(pmodel.Q, fovx, fovy, nx, ny)
     imgU = intensitymap(pmodel.U, fovx, fovy, nx, ny)
     imgV = intensitymap(pmodel.V, fovx, fovy, nx, ny)
-    return PolarizedMap(imgI, imgQ, imgU, imgV)
+    pimg = StructArray{StokesVector{eltype(imgI)}}((imgI.im, imgQ.im, imgU.im, imgV.im))
+    return IntensityMap(pimg, fovx, fovy, pulse)
 end
 
 """

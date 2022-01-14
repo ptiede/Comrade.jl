@@ -12,7 +12,6 @@ using ChainRulesCore
 using ComradeBase
 using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
-using Interpolations: interpolate, scale, extrapolate, BSpline, Cubic, Line, OnGrid
 using LoopVectorization: @turbo
 using MappedArrays: mappedarray
 using MeasureBase
@@ -21,9 +20,7 @@ using PaddedViews
 using PyCall: pyimport, PyNULL, PyObject
 using SpecialFunctions
 using Reexport
-using StaticArrays: FieldVector, FieldMatrix
 using StructArrays: StructArray
-using ZygoteRules
 # Write your package code here.
 
 @reexport using ComradeBase
