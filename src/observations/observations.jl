@@ -11,8 +11,8 @@ abstract type Observation{T} end
 using DelimitedFiles
 using AstroTime: modified_julian
 
-export uvpositions, stations, getdata, nsamples, arrayconfig,
-        nsamples, getuv, baselines
+export uvpositions, stations, getdata, arrayconfig,
+       getuv, baselines
 
 
 
@@ -69,7 +69,7 @@ Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructA
 end
 
 Base.getindex(data::EHTObservation, i::Int) = data.data[i]
-Base.length(data::EHTObservation) = nsamples(data)
+Base.length(data::EHTObservation) = length(data.data)
 
 function stations(d::EHTObservation{T,A}) where {T,A<:AbstractInterferometryDatum}
     bl = getdata(d, :baseline)
@@ -86,12 +86,11 @@ function Base.show(io::IO, d::EHTObservation{F,D}) where {F,D}
     println(io, "  frequency: ", d.frequency)
     println(io, "  bandwidth: ", d.bandwidth)
     println(io, "  stations: ", stations(d))
-    println(io, "  nsamples: ", nsamples(d))
+    println(io, "  nsamples: ", length(d))
 end
 
 
 getdata(obs::Observation, s::Symbol) = getproperty(obs.data, s)
-nsamples(obs) = length(obs.data)
 Base.getindex(obs::Observation, i) = getindex(obs.data, i)
 
 
