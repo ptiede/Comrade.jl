@@ -62,7 +62,7 @@ Converts a number from μas to rad
 
 #include("interface.jl")
 #include("images/images.jl")
-import ComradeBase: flux, radialextent
+import ComradeBase: flux, radialextent, intensitymap, intensitymap!
 include("observations/observations.jl")
 include("models/models.jl")
 include("distributions/distributions.jl")
