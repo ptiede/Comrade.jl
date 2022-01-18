@@ -1,6 +1,15 @@
+import ComradeBase: AbstractModel, IsPrimitive, NotPrimitive, IsAnalytic, NotAnalytic,
+                    visanalytic, imanalytic, isprimitive
+import ComradeBase: visibility_point,
+                    intensitymap, intensitymap!, intensity_point,
+                    flux
+
 export visibility, amplitude, closure_phase, logclosure_amplitude, bispectrum,
        visibilities, amplitudes, closure_phases, logclosure_amplitudes, bispectra,
        flux, intensitymap, intensitymap!, PolarizedModel
+
+
+abstract type AbstractModelImage{M} <: ComradeBase.AbstractModel end
 
 
 """
@@ -102,6 +111,38 @@ end
     return mimg.cache.sitp(u, v)
 end
 
+@inline function visibilities(m::M, u::AbstractArray, v::AbstractArray) where {M}
+    _visibilities(m, u, v)
+    #visibilities(visanalytic(M), m, u, v)
+end
+
+function visibilities(m, ac::ArrayConfiguration)
+    u, v = getuv(ac)
+    return visibilities(m, u, v)
+end
+
+#isibilities(::IsAnalytic, m, u, v) = _visibilities(m, u, v)
+
+#function create_mimg(m::AbstractModel, u, v)
+#    fovx = fovy = radialextent(m)*2
+#    ps = max(maximum(u), maximum(v))
+#    nx, ny = abs(Int(ceil(10*fovx*ps))), abs(Int(ceil(10*fovy*ps)))
+#    println(nx)
+#   img = intensitymap(m, fovx, fovy, nx, ny)
+#    return modelimage(m, img)
+#end
+
+#function create_mimg(m::AbstractModelImage, u, v)
+#    return m
+#end
+
+
+#function visibilities(::NotAnalytic, m, u, v)
+#   mimg = create_mimg(m, u, v)
+#    println("here")
+#    return _visibilities(mimg, u, v)
+#end
+
 
 """
     $(SIGNATURES)
@@ -109,15 +150,12 @@ Computes the visibilities of the model `m` at the u,v positions `u`, `v`.
 
 Note this is done lazily so the visibility is only computed when accessed.
 """
-function visibilities(m, u::AbstractArray, v::AbstractArray)
+function _visibilities(m, u::AbstractArray, v::AbstractArray)
     f(x,y) = visibility(m, x, y)
-    return mappedarray(f, u, v)
+    return map(f, u, v)#mappedarray(f, u, v)
 end
 
-function visibilities(m, ac::ArrayConfiguration)
-    u, v = getuv(ac)
-    return visibilities(m, u, v)
-end
+
 
 """
     $(SIGNATURES)
@@ -179,24 +217,10 @@ function logclosure_amplitudes(m,
     return mappedarray(f, u1, v1, u2, v2, u3, v3, u4, v4)
 end
 
-function intensitymap(m, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
-    buff = Matrix{typeof(fovx)}(undef, ny, nx)
-    img = IntensityMap(buff, fovx, fovy, pulse)
-    intensitymap!(img, m)
-    return img
-end
+
 
 function intensitymap!(im::IntensityMap, m::M) where {M}
     return intensitymap!(imanalytic(M), im, m)
-end
-
-
-function intensitymap!(::IsAnalytic, im::IntensityMap, m)
-    xitr, yitr = imagepixels(im)
-    @inbounds for (i,x) in pairs(xitr), (j,y) in pairs(yitr)
-        im[j, i] = intensity_point(m, x, y)
-    end
-    return im
 end
 
 
@@ -207,6 +231,17 @@ function intensitymap!(::NotAnalytic, img::IntensityMap, m)
     for I in CartesianIndices(img)
         img[I] = real(vis[I])/(nx*ny)
     end
+end
+
+
+function intensitymap(::NotAnalytic, m, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
+    img = IntensityMap(zeros(ny, nx), fovx, fovy, pulse)
+    vis = ifftshift(phasedecenter!(fouriermap(m, fovx, fovy, nx, ny), fovx, fovy, nx, ny))
+    ifft!(vis)
+    for I in CartesianIndices(img)
+        img[I] = real(vis[I])/(nx*ny)
+    end
+    return img
 end
 
 

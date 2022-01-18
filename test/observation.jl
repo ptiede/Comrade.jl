@@ -16,10 +16,10 @@
     lcamp = extract_lcamp(obsavg)
     show(lcamp)
 
-    @test nsamples(vis) == length(obsavg.data)
-    @test nsamples(amp) == length(obsavg.amp)
-    @test nsamples(cphase) == length(obsavg.cphase)
-    @test nsamples(lcamp) == length(obsavg.logcamp)
+    @test length(vis) == length(obsavg.data)
+    @test length(amp) == length(obsavg.amp)
+    @test length(cphase) == length(obsavg.cphase)
+    @test length(lcamp) == length(obsavg.logcamp)
     @test Set(stations(vis)) == Set(Symbol.(collect(get(obsavg.tarr, "site"))))
     @test mean(getdata(amp, :amp)) == mean(get(obsavg.amp, :amp))
 

@@ -2,5 +2,6 @@
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 MeasureBase = "fa1605e6-acd5-459c-a1e6-7e635759db14"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
