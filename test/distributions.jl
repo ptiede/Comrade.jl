@@ -20,8 +20,8 @@ using Distributions
 
     # Take off the normalization piece
     ds = VonMises(0.0, 1/0.1^2)
-    norm = logpdf(ds, π/2)
-    @test logpdf(ds, 0.5) - norm ≈ logdensity(dvm1, 0.5)
+    norm = -log(ds.I0κx) - log(2π)
+    @test logpdf(ds, 0.5) - norm ≈ logdensity(dvm2, 0.5)
 
 
     @test logdensity(dvm1, 0.5) ≈ logdensity(dvm2, 0.5)

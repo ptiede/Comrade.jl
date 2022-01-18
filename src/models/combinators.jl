@@ -1,4 +1,4 @@
-export add, convolved, components
+export add, convolved, smoothed, components
 
 """
     $(TYPEDEF)
@@ -125,6 +125,15 @@ struct ConvolvedModel{M1, M2} <: CompositeModel{M1,M2}
     m2::M2
 end
 convolved(m1, m2) = ConvolvedModel(m1, m2)
+
+"""
+    $(SIGNATURES)
+Smooths a model `m` with a Gaussian kernel with standard deviation `σ`.
+
+# Notes
+This will created a convolved model under the hood.
+"""
+smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 
 @inline imanalytic(::Type{<:ConvolvedModel}) = NotAnalytic()
 

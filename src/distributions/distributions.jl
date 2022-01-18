@@ -65,7 +65,7 @@ end
 Base.minimum(::CPNormal) = -Inf
 Base.maximum(::CPNormal) = Inf
 
-const log2π = log(2*π)
+const log2π = log(2π)
 function MeasureBase.logdensity(dist::CPNormal{(:μ, :σ)}, x::Real)
     μ,σ = dist.μ, dist.σ
     s,c = sincos(x)
