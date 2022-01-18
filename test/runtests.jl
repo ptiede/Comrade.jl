@@ -13,7 +13,7 @@ include("test_util.jl")
 
 @testset "Comrade.jl" begin
 
-    include("observation.jl")
+    #include("observation.jl")
     include("distributions.jl")
     include("models.jl")
 end
