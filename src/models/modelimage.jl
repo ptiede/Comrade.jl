@@ -52,7 +52,7 @@ end
 
 radialextent(m::ModelImage) = fov(m.image)[1]/2
 
-@inline visibility_point(m::AbstractModelImage, u, v) = visibility_point(model(m), u, v)
+#@inline visibility_point(m::AbstractModelImage, u, v) = visibility_point(model(m), u, v)
 
 @inline intensity_point(m::AbstractModelImage, x, y) = intensity_point(model(m), x, y)
 

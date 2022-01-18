@@ -219,30 +219,8 @@ end
 
 
 
-function intensitymap(m, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
-    px = fovx/max(nx-1,1)
-    py = fovy/max(ny-1,1)
-    img = map(CartesianIndices((1:nx, 1:ny))) do I
-        iy,ix = Tuple(I)
-        x = -fovx/2 + (ix-1)*px
-        y = -fovy/2 + (iy-1)*py
-        return intensity_point(m, x, y)
-    end
-    return IntensityMap(img, fovx, fovy, pulse)
-end
-
-
 function intensitymap!(im::IntensityMap, m::M) where {M}
     return intensitymap!(imanalytic(M), im, m)
-end
-
-
-function intensitymap!(::IsAnalytic, im::IntensityMap, m)
-    xitr, yitr = imagepixels(im)
-    @inbounds for (i,x) in pairs(xitr), (j,y) in pairs(yitr)
-        im[j, i] = intensity_point(m, x, y)
-    end
-    return im
 end
 
 
@@ -253,6 +231,17 @@ function intensitymap!(::NotAnalytic, img::IntensityMap, m)
     for I in CartesianIndices(img)
         img[I] = real(vis[I])/(nx*ny)
     end
+end
+
+
+function intensitymap(::NotAnalytic, m, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
+    img = IntensityMap(zeros(ny, nx), fovx, fovy, pulse)
+    vis = ifftshift(phasedecenter!(fouriermap(m, fovx, fovy, nx, ny), fovx, fovy, nx, ny))
+    ifft!(vis)
+    for I in CartesianIndices(img)
+        img[I] = real(vis[I])/(nx*ny)
+    end
+    return img
 end
 
 

@@ -1,7 +1,7 @@
 export RImage
 
 
-import ComradeBase: Pulse
+import ComradeBase: Pulse, κ, ω, κflux
 
 
 @doc raw"""
@@ -49,7 +49,7 @@ struct RImage{S,B<:Pulse,M<:AbstractMatrix{S}} <: AbstractModel
 end
 @inline visanalytic(::Type{<:RImage}) = IsAnalytic()
 @inline isprimitive(::Type{<:RImage}) = IsPrimitive()
-
+@inline radialextent(m::RImage{S}) where {S} = max(radialextent(m.kernel), 1.0)
 #=
 struct FourierCache{C} <: ObservationCache
     cache::C
@@ -83,7 +83,7 @@ end
     ny,nx = size(model.coeff)
     dx = 1/max(nx-1,1)
     dy = 1/max(ny-1,1)
-    return sum*κflux(model.kernel)*dx*dy
+    return sum*κflux(model.kernel)
 end
 
 
@@ -95,17 +95,17 @@ return the size of the coefficient matrix for `model`.
 """
 @inline Base.size(model::RImage) = size(model.coeff)
 
-@inline function ComradeBase.intensity_point(model::RImage{S,M,B}, x, y, args...) where {S,M,B}
+@inline function intensity_point(model::RImage{S,M,B}, x, y, args...) where {S,M,B}
     sum = zero(S)
     ny,nx = size(model)
     dx = 1/(max(nx-1,1))
     dy = 1/(max(ny-1,1))
     #The kernel is written in terms of pixel number so we convert x to it
-    @inbounds @simd for I in CartesianIndices(model.coeff)
+    @inbounds @fastmath for I in CartesianIndices(model.coeff)
         iy,ix = Tuple(I)
         xx = x - (-0.5 + dx*(ix-1))
         yy = y - (-0.5 + dy*(iy-1))
-        sum += model.coeff[I]* κ(model.kernel, xx/dx)*κ(model.kernel, yy/dy)
+        sum += model.coeff[I]* κ(model.kernel, xx/dx)*κ(model.kernel, yy/dy)/(dx*dy)
     end
     # Note this will be intensity per uas
     return sum
@@ -122,8 +122,8 @@ end
     upx = u*dx
     vpx = v*dy
     phasecenter = exp(2im*π*(u*startx + v*starty))
-    @inbounds for i in axes(model.coeff,2), j in axes(model.coeff,1)
+    @inbounds @fastmath for i in axes(model.coeff,2), j in axes(model.coeff,1)
         sum += model.coeff[j,i]*exp(2im*π*(upx*(i-1) + vpx*(j-1)))
     end
-    return sum*dx*dy*ω(model.kernel, u*dx)*ω(model.kernel, v*dy)*phasecenter
+    return sum*ω(model.kernel, u*dx)*ω(model.kernel, v*dy)*phasecenter
 end

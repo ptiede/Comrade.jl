@@ -78,7 +78,7 @@ struct MRing{T,N} <: GeometricModel
 end
 
 function MRing{N}(α::T, β::T) where {N,T<:AbstractVector}
-    @assert N == length(α)
+    (N != length(α)) && throw("N must be the length of the vector")
     S = promote_type(eltype(α), eltype(β))
     return MRing{S, N}(NTuple{N,S}(α), NTuple{N,S}(β))
 end
@@ -89,8 +89,8 @@ radialextent(::MRing) = 1.5
 @inline function intensity_point(m::MRing{T,N}, x::Number, y::Number) where {T,N}
     r = hypot(x,y)
     θ = atan(x,y)
-    dr = 1/50
-    if (abs(r-1) < dr/2)
+    dr = 0.1
+    if (abs(r-1) < dr)
         acc = one(T)
         for n in 1:N
             s,c = sincos(n*θ)

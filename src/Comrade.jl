@@ -62,10 +62,11 @@ Converts a number from μas to rad
 
 #include("interface.jl")
 #include("images/images.jl")
-import ComradeBase: flux
+import ComradeBase: flux, radialextent
 include("observations/observations.jl")
 include("models/models.jl")
 include("distributions/distributions.jl")
+include("distributions/radiolikelihood.jl")
 
 function __init__()
     # try

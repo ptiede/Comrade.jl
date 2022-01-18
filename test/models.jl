@@ -186,3 +186,20 @@ end
     @test isapprox(sum(abs, (stokes(pimg1, :V) .- stokes(pimg2, :V))), 0.0, atol=1e-12)
 
 end
+
+@testset "RImage SqExp" begin
+    mI = RImage(rand(8,8), SqExpPulse(0.1))
+    testmodel(mI)
+end
+#@testset "RImage Bspline0" begin
+#    mI = RImage(rand(8,8), BSplinePulse{0}())
+#    testmodel(mI)
+#end
+@testset "RImage BSpline1" begin
+    mI = RImage(rand(8,8), BSplinePulse{1}())
+    testmodel(mI)
+end
+@testset "RImage BSpline3" begin
+    mI = RImage(rand(8,8), BSplinePulse{3}())
+    testmodel(mI)
+end
