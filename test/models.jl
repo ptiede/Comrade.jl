@@ -19,6 +19,7 @@ end
 
     @testset "Disk" begin
         m = smoothed(Disk(), 0.25)
+        ComradeBase.intensity_point(Disk(), 0.0, 0.0)
         testmodel(m)
     end
 
@@ -29,6 +30,8 @@ end
 
         # We convolve it to remove some pixel effects
         m = convolved(MRing(α, β), stretched(Gaussian(), 0.1, 0.1))
+        m2 = convolved(MRing{1}(collect(α), collect(β)), stretched(Gaussian(), 0.1, 0.1))
+        @test m == m2
         testmodel(m)
     end
 
@@ -59,6 +62,20 @@ end
         m = modelimage(mr, IntensityMap(zeros(1024,1024), rad, rad))
         testmodel(m)
     end
+end
+
+@testset "ModelImage" begin
+    m1 = Gaussian()
+    m2 = ExtendedRing(2.0, 10.0)
+    mimg1 = modelimage(m1)
+    mimg2 = modelimage(m2)
+
+    show(mimg1)
+
+    img = similar(mimg2.image)
+    intensitymap!(img, m2)
+    @test m1 == mimg1
+    @test isapprox(mean(img .- mimg2.image), 0.0, atol=1e-8)
 end
 
 

@@ -152,7 +152,7 @@ Note this is done lazily so the visibility is only computed when accessed.
 """
 function _visibilities(m, u::AbstractArray, v::AbstractArray)
     f(x,y) = visibility(m, x, y)
-    return map(f, u, v)#mappedarray(f, u, v)
+    return mappedarray(f, u, v)
 end
 
 

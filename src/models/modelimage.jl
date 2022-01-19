@@ -45,10 +45,10 @@ end
 model(m::AbstractModelImage) = m.model
 flux(mimg::ModelImage) = flux(intensitymap!(mimg.image, mimg.model))
 
-function intensitymap(mimg::ModelImage)
-    intensitymap!(mimg.image, mimg.model)
-    mimg.image
-end
+# function intensitymap(mimg::ModelImage)
+#     intensitymap!(mimg.image, mimg.model)
+#     mimg.image
+# end
 
 radialextent(m::ModelImage) = fov(m.image)[1]/2
 

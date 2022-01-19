@@ -18,6 +18,18 @@ end
 @inline MeasureBase.logdensity(d::RadioLikelihood, m) = sum(x->logdensity(x, m), d.lklhds)
 
 
+function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
+    u,v = getdata(data, :u), getdata(data, :v)
+    σ = getdata(data, :error)
+    f(m) = amplitudes(m, u, v)
+    k = kernel(MvNormal{(:μ, :σ)},
+                    σ = x->σ,
+                    μ = x->f(x)
+              )
+    amp = getdata(data, :amp)
+    return Likelihood(k, amp)
+end
+
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
     u1, v1 = getdata(data, :u1), getdata(data, :v1)

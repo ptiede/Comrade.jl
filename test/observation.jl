@@ -37,7 +37,10 @@
     ac = arrayconfig(vis)
 
 
+
+
     @testset "RadioLikelihood" begin
+        lamp = RadioLikelihood(amp)
         lcphase = RadioLikelihood(cphase)
         llcamp = RadioLikelihood(lcamp)
         lclose1 = RadioLikelihood(cphase, lcamp)
@@ -46,6 +49,7 @@
         m = stretched(Gaussian(), μas2rad(20.0), μas2rad(20.0))
         logdensity(lcphase, m)
         logdensity(llcamp, m)
+        logdensity(lamp, m)
 
         @test logdensity(lclose1,m) ≈ logdensity(lclose2,m)
         @test logdensity(lclose1,m ) ≈ logdensity(lcphase, m) + logdensity(llcamp, m)

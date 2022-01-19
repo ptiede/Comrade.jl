@@ -63,9 +63,6 @@ components(m::CompositeModel{M1,M2}) where
 
 flux(m::AddModel) = flux(m.m1) + flux(m.m2)
 
-function intensity(m::AddModel{T1,T2}, x, y, args...) where {T1, T2}
-    return intensity(m.m1, x, y, args...) + intensity(m.m2, x, y, args...)
-end
 
 function intensitymap(m::AddModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
     sim1 = intensitymap(m.m1, fovx, fovy, nx, ny; pulse)
@@ -106,24 +103,20 @@ end
 
 """
     $(TYPEDEF)
-Smooths a `model` with a Gaussian kernel with standard deviation
-of `σ`.
+Convolves two models `m1` and `m2`.
 
-## Notes
-
-```julia
-m = smoothed(Disk(), 5.0)
-intensity(m, 2.0, 2.0; fov=10.0, npix=128)
-```
-will compute the intensity of the smoothed disk with using an interpolation
-with `128` pixel nodes and a total `fov` of 10 in x and y direction.
-
-**This needs to be improved**
+# Notes
+This is the non-exported constructor. The user should call the `convolved` function during use
 """
 struct ConvolvedModel{M1, M2} <: CompositeModel{M1,M2}
     m1::M1
     m2::M2
 end
+
+"""
+    $(SIGNATURES)
+Convolves two models `m1` and `m2`. This is done lazily.
+"""
 convolved(m1, m2) = ConvolvedModel(m1, m2)
 
 """
