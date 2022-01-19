@@ -35,4 +35,21 @@
     #Test amplitude which is already debiased for very very dumb reasons
     @test sqrt(abs(visibility(vis[1]))^2 - vis[1].error^2) == amplitude(amp[1])
     ac = arrayconfig(vis)
+
+
+    @testset "RadioLikelihood" begin
+        lcphase = RadioLikelihood(cphase)
+        llcamp = RadioLikelihood(lcamp)
+        lclose1 = RadioLikelihood(cphase, lcamp)
+        lclose2 = RadioLikelihood(lcamp, cphase)
+
+        m = stretched(Gaussian(), μas2rad(20.0), μas2rad(20.0))
+        logdensity(lcphase, m)
+        logdensity(llcamp, m)
+
+        @test logdensity(lclose1,m) ≈ logdensity(lclose2,m)
+        @test logdensity(lclose1,m ) ≈ logdensity(lcphase, m) + logdensity(llcamp, m)
+
+    end
+
 end
