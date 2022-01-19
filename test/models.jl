@@ -1,8 +1,10 @@
 
 function testmodel(m::Comrade.AbstractModel, atol=1e-4)
     img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), 1024, 1024)
+    img2 = similar(img)
+    intensitymap!(img2, m)
     @test isapprox(flux(m), flux(img), atol=atol)
-
+    @test isapprox(mean(img .- img2), 0, atol=1e-8)
     cache = Comrade.create_cache(Comrade.FFT(padfac=3), img)
     u = fftshift(fftfreq(size(img,1), 1/img.psizex))./10
     @test isapprox(mean(abs.(visibility.(Ref(m), u', u) .- cache.sitp.(u', u))), 0.0, atol=1e-3)
@@ -128,6 +130,7 @@ end
         mc = Comrade.components(mt1)
         @test mc[1] === m1
         @test mc[2] === m2
+        @test flux(mt1) ≈ flux(m1) + flux(m2)
 
         testmodel(modelimage(mt1, img))
         testmodel(modelimage(mt2, img))

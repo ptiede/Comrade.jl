@@ -14,6 +14,7 @@ Any implementation of a composite type must define the following methods:
 - visanalytic
 - ComradeBase.intensity_point if model intensity is `IsAnalytic`
 - intensitymap! if model intensity is `NotAnalytic`
+- intensitymap if model intensity is `NotAnalytic`
 - flux
 
 """
@@ -49,7 +50,6 @@ Base.:+(m1::T1, m2::T2) where {T1<:AbstractModel, T2<:AbstractModel} = AddModel(
 Base.:-(m1, m2) = AddModel(m1, -1.0*m2)
 add(m1::M1, m2::M2) where {M1<:AbstractModel, M2<:AbstractModel} = AddModel(m1, m2)
 
-@inline combinator(::Type{<:AddModel}) = add
 
 
 """
