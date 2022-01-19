@@ -3,7 +3,7 @@
 #end
 using Pkg
 #ENV["PYTHON"]="/opt/hostedtoolcache/Python/3.10.1/x64/lib/libpython3.10.so.1.0"
-#using PyCall
+using PyCall
 #run(`$(PyCall.python) -m pip install --upgrade pip setuptools`)
 #run(`$(PyCall.python) -m pip install ehtim`)
 Pkg.build("PyCall")
