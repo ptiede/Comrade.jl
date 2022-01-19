@@ -4,6 +4,8 @@
 using Pkg
 Pkg.build("PyCall")
 using PyCall
+run(`$(PyCall.python) -m pip install --upgrade pip setuptools`)
+run(`$(PyCall.python) -m pip install ehtim`)
 println(PyCall.libpython)
 using Comrade
 using FFTW
