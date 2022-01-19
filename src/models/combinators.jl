@@ -153,11 +153,12 @@ end
 
 function intensitymap!(sim::IntensityMap, model::ConvolvedModel)
     ny, nx = size(sim)
-    vis1 = fouriermap(model.m1, sim)
-    vis2 = fouriermap(model.m2, sim)
+    fovx, fovy = sim.fovx, sim.fovy
+    vis1 = fouriermap(model.m1, fovx, fovy, nx, ny)
+    vis2 = fouriermap(model.m2, fovx, fovy, nx, ny)
     vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, nx, ny))
     ifft!(vis)
-    for I in CartesianIndices(sim)
+    for I in eachindex(sim)
         sim[I] = real(vis[I])/(nx*ny)
     end
 end

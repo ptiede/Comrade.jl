@@ -49,7 +49,7 @@ struct RImage{S,B<:Pulse,M<:AbstractMatrix{S}} <: AbstractModel
 end
 @inline visanalytic(::Type{<:RImage}) = IsAnalytic()
 @inline isprimitive(::Type{<:RImage}) = IsPrimitive()
-@inline radialextent(m::RImage{S}) where {S} = max(radialextent(m.kernel), 1.0)
+@inline radialextent(m::RImage{S}) where {S} = max(radialextent(m.kernel), 0.75)
 #=
 struct FourierCache{C} <: ObservationCache
     cache::C

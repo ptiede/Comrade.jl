@@ -126,7 +126,10 @@ crescent model. This works by composing two disk models together.
 - shift: How much the inner disk radius is shifted (positive is to the right)
 - floor: The floor of the inner disk 0 means the inner intensity is zero and 1 means it is a large disk.
 """
-Crescent(router, rinner, shift, floor) = stretched(Disk(), router, router)*(π*router^2) - shifted(stretched(Disk(), rinner, rinner)*((1-floor)*π*rinner^2), shift, zero(typeof(shift)))
+function Crescent(router, rinner, shift, floor)
+    m = stretched(Disk(), router, router)*(π*router^2) - shifted(stretched(Disk(), rinner, rinner)*((1-floor)*π*rinner^2), shift, zero(typeof(shift)))
+    return m/flux(m)
+end
 
 """
     $(TYPEDEF)

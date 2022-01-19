@@ -27,23 +27,23 @@ flux(m::AbstractModifier) = flux(m.model)
 radialextent(m::AbstractModifier) = radialextent(basemodel(m))
 
 
-@inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number)
-    ut, vt = transform_uv(m, u, v)
-    return apply_uv_transform(basemodel(m), ut, vt)
-end
+# @inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number)
+#     ut, vt = transform_uv(m, u, v)
+#     return apply_uv_transform(basemodel(m), ut, vt)
+# end
 
-@inline function apply_uv_transform(m::AbstractModel, u::Number, v::Number)
-    return u, v
-end
+# @inline function apply_uv_transform(m::AbstractModel, u::Number, v::Number)
+#     return u, v
+# end
 
-@inline function apply_uv_scaling(m::AbstractModifier, u, v)
-    scale = scale_uv(m, u, v)
-    return scale*apply_uv_scaling(basemodel(m), u, v)
-end
+# @inline function apply_uv_scaling(m::AbstractModifier, u, v)
+#     scale = scale_uv(m, u, v)
+#     return scale*apply_uv_scaling(basemodel(m), u, v)
+# end
 
-@inline function apply_uv_scaling(m::AbstractModel, u, v)
-    return one(eltype(u))
-end
+# @inline function apply_uv_scaling(m::AbstractModel, u, v)
+#     return one(eltype(u))
+# end
 
 function modelimage(::NotAnalytic,
     model::AbstractModifier,
@@ -70,9 +70,9 @@ end
 #end
 
 @inline function visibility_point(m::AbstractModifier, u, v, args...)
-    ut, vt = apply_uv_transform(m, u, v)
-    scale = apply_uv_scaling(m, u, v)
-    scale*visibility(unmodified(m), ut, vt, args...)
+    ut, vt = transform_uv(m, u, v)
+    scale = scale_uv(m, u, v)
+    scale*visibility(basemodel(m), ut, vt, args...)
 end
 
 @inline function ComradeBase.intensity_point(m::AbstractModifier, x, y)
@@ -99,6 +99,7 @@ Shifts the model `m` in the image domain by an amount `Δx,Δy`.
 shifted(model, Δx, Δy) = ShiftedModel(model, Δx, Δy)
 # This is a simple overload to simplify the type system
 shifted(model::ShiftedModel, Δx, Δy) = ShiftedModel(basemodel(model), Δx+model.Δx, Δy+model.Δy)
+radialextent(model::ShiftedModel, Δx, Δy) = radialextent(model.model) + max(abs(Δx), abs(Δy))
 
 @inline transform_image(model::ShiftedModel, x, y) = (x-model.Δx, y-model.Δy)
 @inline transform_uv(model::ShiftedModel, u, v) = (u, v)
@@ -125,10 +126,12 @@ Renormalizes the model `m` to have total flux `flux`.
 """
 renormed(model::M, f) where {M<:AbstractModel} = RenormalizedModel(model, f)
 Base.:*(model::AbstractModel, f::Real) = renormed(model, f)
+Base.:*(f::Real, model::AbstractModel) = renormed(model, f)
+Base.:/(f::Real, model::AbstractModel) = renormed(model, inv(f))
+Base.:/(model::AbstractModel, f::Real) = renormed(model, inv(f))
 # Dispatch on RenormalizedModel so that I just make a new RenormalizedModel with a different f
 # This will make it easier on the compiler.
 Base.:*(model::RenormalizedModel, f::Real) = renormed(model.model, model.scale*f)
-Base.:*(f::Real, model::AbstractModel) = renormed(model, f)
 # Overload the unary negation operator to be the same model with negative flux
 Base.:-(model::AbstractModel) = renormed(model, -1.0)
 flux(m::RenormalizedModel) = m.scale*flux(m.model)
@@ -164,7 +167,7 @@ Stretches the model `m` according to the formula
 where were renormalize the intensity to preserve the models flux.
 """
 stretched(model, α, β) = StretchedModel(model, α, β)
-radialextent(model::StretchedModel) = max(model.α, model.β)*radialextent(basemodel(model))
+radialextent(model::StretchedModel) = hypot(model.α, model.β)*radialextent(basemodel(model))
 
 @inline transform_image(model::StretchedModel, x, y) = (x/model.α, y/model.β)
 @inline transform_uv(model::StretchedModel, u, v) = (u*model.α, v*model.β)

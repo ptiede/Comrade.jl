@@ -1,11 +1,11 @@
 
 function testmodel(m::Comrade.AbstractModel, atol=1e-4)
-    img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), 2048, 2048)
+    img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), 1024, 1024)
     @test isapprox(flux(m), flux(img), atol=atol)
 
-    cache = Comrade.create_cache(Comrade.FFT(), img)
-    u = fftshift(fftfreq(size(img,1), 1/img.psizex))
-    @test isapprox(mean(collect(visibilities(m, u, u))), mean(cache.sitp.(u, u)), atol=atol)
+    cache = Comrade.create_cache(Comrade.FFT(padfac=3), img)
+    u = fftshift(fftfreq(size(img,1), 1/img.psizex))./10
+    @test isapprox(mean(abs.(visibility.(Ref(m), u', u) .- cache.sitp.(u', u))), 0.0, atol=1e-3)
 end
 
 @testset "Primitive models" begin
@@ -16,7 +16,7 @@ end
     end
 
     @testset "Disk" begin
-        m = Disk()
+        m = smoothed(Disk(), 0.25)
         testmodel(m)
     end
 
@@ -47,12 +47,14 @@ end
 
 
     @testset "Crescent" begin
-        m = convolved(Crescent(5.0, 2.0, 1.0, 0.5), stretched(Gaussian(), 0.1, 0.1))
-        testmodel(m, 1e-3)
+        m = smoothed(Crescent(5.0, 2.0, 1.0, 0.5), 1.0)
+        testmodel(m,1e-3)
     end
 
     @testset "ExtendedRing" begin
-        m = modelimage(ExtendedRing(10.0, 0.5), IntensityMap(zeros(2048,2048), 50.0, 50.0))
+        mr = ExtendedRing(10.0, 0.5)
+        rad = Comrade.radialextent(mr)
+        m = modelimage(mr, IntensityMap(zeros(1024,1024), rad, rad))
         testmodel(m)
     end
 end
@@ -66,7 +68,7 @@ end
         mas = shifted(ma, 0.5, 0.5)
         mbs = shifted(mb, 0.5, 0.5)
         testmodel(mas)
-        testmodel(modelimage(mbs, IntensityMap(zeros(2048, 2048),
+        testmodel(modelimage(mbs, IntensityMap(zeros(1024, 1024),
                                                2*Comrade.radialextent(mbs),
                                                2*Comrade.radialextent(mbs))))
     end
@@ -74,10 +76,12 @@ end
     @testset "Renormed" begin
         m1 = 3.0*ma
         m2 = ma*3.0
+        m2inv = ma/(1/3)
         @test visibility(m1, 4.0, 0.0) == visibility(m2, 4.0, 0.0)
+        @test visibility(m2, 4.0, 0.0) == visibility(m2inv, 4.0, 0.0)
         mbs = 3.0*mb
         testmodel(m1)
-        testmodel(modelimage(mbs, IntensityMap(zeros(2048, 2048),
+        testmodel(modelimage(mbs, IntensityMap(zeros(1024, 1024),
                                                2*Comrade.radialextent(mbs),
                                                2*Comrade.radialextent(mbs))))
     end
@@ -86,7 +90,7 @@ end
         mas = stretched(ma, 5.0, 4.0)
         mbs = stretched(mb, 5.0, 4.0)
         testmodel(mas)
-        testmodel(modelimage(mbs, IntensityMap(zeros(2048, 2048),
+        testmodel(modelimage(mbs, IntensityMap(zeros(1024, 1024),
                                                2*Comrade.radialextent(mbs),
                                                2*Comrade.radialextent(mbs))))
     end
@@ -95,7 +99,7 @@ end
         mas = rotated(ma, π/3)
         mbs = rotated(mb, π/3)
         testmodel(mas)
-        testmodel(modelimage(mbs, IntensityMap(zeros(2048, 2048),
+        testmodel(modelimage(mbs, IntensityMap(zeros(1024, 1024),
                                                2*Comrade.radialextent(mbs),
                                                2*Comrade.radialextent(mbs))))
     end
@@ -104,7 +108,7 @@ end
         mas = rotated(stretched(shifted(ma, 0.5, 0.5), 5.0, 4.0), π/3)
         mbs = rotated(stretched(shifted(mb, 0.5, 0.5), 5.0, 4.0), π/3)
         testmodel(mas)
-        testmodel(modelimage(mbs, IntensityMap(zeros(2048, 2048),
+        testmodel(modelimage(mbs, IntensityMap(zeros(1024, 1024),
                                                2*Comrade.radialextent(mbs),
                                                2*Comrade.radialextent(mbs))))
     end
@@ -115,9 +119,9 @@ end
     m2 = ExtendedRing(2.0, 10.0)
 
     @testset "Add models" begin
-        img = IntensityMap(zeros(2048, 2048),
-                     15.0,
-                     15.0)
+        img = IntensityMap(zeros(1024, 1024),
+                                        20.0,
+                                        20.0)
         mt1 = m1 + m2
         mt2 = shifted(m1, 1.0, 1.0) + m2
         mt3 = shifted(m1, 1.0, 1.0) + 0.5*stretched(m2, 0.9, 0.8)
@@ -131,9 +135,9 @@ end
     end
 
     @testset "Convolved models" begin
-        img = IntensityMap(zeros(2048, 2048),
-                     15.0,
-                     15.0)
+        img = IntensityMap(zeros(1024, 1024),
+                                        20.0,
+                                        20.0)
         mt1 = convolved(m1, m2)
         mt2 = convolved(shifted(m1, 1.0, 1.0), m2)
         mt3 = convolved(shifted(m1, 1.0, 1.0), 0.5*stretched(m2, 0.9, 0.8))
@@ -147,9 +151,9 @@ end
     end
 
     @testset "All composite" begin
-        img = IntensityMap(zeros(2048, 2048),
-        15.0,
-        15.0)
+        img = IntensityMap(zeros(1024, 1024),
+                                            20.0,
+                                            20.0)
 
         mt = m1 + convolved(m1, m2)
         mc = Comrade.components(mt)
@@ -173,13 +177,13 @@ end
     @test evpa(v) == evpa(m, 0.005, 0.01)
     @test m̆(v) == m̆(m, 0.005, 0.01)
 
-    I = IntensityMap(zeros(2048,2048), 100.0, 100.0)
+    I = IntensityMap(zeros(1024,1024), 100.0, 100.0)
     Q = similar(I)
     U = similar(I)
     V = similar(I)
     pimg1 = IntensityMap(I,Q,U,V)
     intensitymap!(pimg1, m)
-    pimg2 = intensitymap(m, 100.0, 100.0, 2048, 2048)
+    pimg2 = intensitymap(m, 100.0, 100.0, 1024, 1024)
     @test isapprox(sum(abs, (stokes(pimg1, :I) .- stokes(pimg2, :I))), 0.0, atol=1e-12)
     @test isapprox(sum(abs, (stokes(pimg1, :Q) .- stokes(pimg2, :Q))), 0.0, atol=1e-12)
     @test isapprox(sum(abs, (stokes(pimg1, :U) .- stokes(pimg2, :U))), 0.0, atol=1e-12)
@@ -187,19 +191,19 @@ end
 
 end
 
-#@testset "RImage SqExp" begin
-#    mI = RImage(rand(8,8), SqExpPulse(5.0))
-#    testmodel(mI)
-#end
+@testset "RImage SqExp" begin
+   mI = RImage(rand(8,8), SqExpPulse(5.0))
+   testmodel(mI)
+end
 #@testset "RImage Bspline0" begin
-#    mI = RImage(rand(8,8), BSplinePulse{0}())
-#    testmodel(mI)
+#   mI = RImage(rand(8,8), BSplinePulse{0}())
+#   testmodel(mI, 1e-2)
 #end
-#@testset "RImage BSpline1" begin
-#    mI = RImage(rand(8,8), BSplinePulse{1}())
-#    testmodel(mI)
-#end
-#@testset "RImage BSpline3" begin
-#    mI = RImage(rand(8,8), BSplinePulse{3}())
-#    testmodel(mI)
-#end
+@testset "RImage BSpline1" begin
+   mI = RImage(rand(8,8), BSplinePulse{1}())
+   testmodel(mI)
+end
+@testset "RImage BSpline3" begin
+   mI = RImage(rand(8,8), BSplinePulse{3}())
+   testmodel(mI)
+end

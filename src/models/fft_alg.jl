@@ -46,12 +46,13 @@ function create_interpolator(u, v, vis)
     #itp = interpolate(vis, BSpline(Cubic(Line(OnGrid()))))
     #etp = extrapolate(itp, zero(eltype(vis)))
     #scale(etp, u, v)
-    #uc = chebygrid(first(u), last(u), length(u))
-    #vc = chebygrid(first(v), last(v), length(v))
-    #println(u)
-    p1 = BicubicInterpolator(u, v, real(vis), NoBoundaries())
-    p2 = BicubicInterpolator(u, v, imag(vis), NoBoundaries())
-    return (u,v)->p1(u,v) + 1im*p2(u,v)
+    # #uc = chebygrid(first(u), last(u), length(u))
+    # #vc = chebygrid(first(v), last(v), length(v))
+    # #println(u)
+    # The transposes are because of how I defined the images.
+    p1 = BicubicInterpolator(u, v, real(vis'), NoBoundaries())
+    p2 = BicubicInterpolator(u, v, imag(vis'), NoBoundaries())
+    return (u,v)->(p1(u,v) - 1im*p2(u,v))
 end
 
 #function ChainRulesCore.rrule(::typeof(create_interpolator), u, v, vis)
@@ -134,7 +135,7 @@ function create_cache(alg::FFT, img)
     padfac = alg.padfac
     nnx = nextpow(2, padfac*nx)
     nny = nextpow(2, padfac*ny)
-    pimg = PaddedView(zero(eltype(img)), img, (nnx, nny))
+    pimg = PaddedView(zero(eltype(img)), img, (nny, nnx))
 
 
     # Do the plan and then fft because currently just fft(img) gives crap
@@ -142,16 +143,36 @@ function create_cache(alg::FFT, img)
     vis = fftshift(plan*pimg)
     #println(sum(img)*dx*dy)
     #println(sum(pimg)*dx*dy)
-    uu = fftshift(fftfreq(nnx, 1/dx))
-    vv = fftshift(fftfreq(nny, 1/dy))
+
+    #Construct the uv grid
+    uu, vv = uviterator(dx, dy, nnx, nny)
+
     x0,y0 = first.(imagepixels(img))
     vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
     sitp = create_interpolator(uu, vv, vispc)
     return FFTCache(nothing, sitp)
 end
 
+"""
+    $(SIGNATURES)
+Construct the u,v iterators for the Fourier transform of the image
+with pixel sizes `dx, dy` and number of pixels `nx, ny`
+
+If you are extending Fourier transform stuff please use these functions
+to ensure that the centroid is being properly computed.
+"""
+function uviterator(dx, dy, nnx, nny)
+    uM = 1/(2*dx)
+    du = 2*uM/nnx
+    vM = 1/(2*dy)
+    dv = 2*vM/nny
+    uu = range(-uM, step=du, length=nnx)
+    vv = range(-vM, step=dv, length=nny)
+    return uu, vv
+end
+
 function phasecenter(vis, uu, vv, x0, y0, dx, dy)
-    map(CartesianIndices((eachindex(uu), eachindex(vv)))) do I
+    map(CartesianIndices((eachindex(uu), eachindex(reverse(vv))))) do I
         iy,ix = Tuple(I)
         return conj(vis[I])*dx*dy*exp(2im*π*(uu[ix]*x0 + vv[iy]*y0))
     end
@@ -174,12 +195,10 @@ end
 
 
 function fouriermap(m, fovx, fovy, nx, ny)
-    dx,dy = fovx/max(nx-1,1), fovy/max(ny-1,1)
-    x = range(-fovx/2, fovx/2, step=dx)
-    y = range(-fovy/2, fovy/2, step=dy)
+    x,y = imagepixels(fovx, fovy, nx, ny)
+    dx = step(x); dy = step(y)
+    uu,vv = uviterator(dx, dy, nx, ny)
 
-    uu = fftshift(fftfreq(length(x), 1/dx))
-    vv = fftshift(fftfreq(length(y), 1/dy))
     T = typeof(visibility(m, 0.0, 0.0))
     vis = Matrix{T}(undef, ny, nx)
 
@@ -192,12 +211,9 @@ function fouriermap(m, fovx, fovy, nx, ny)
 end
 
 function phasedecenter!(vis, fovx, fovy, nx, ny)
-    dx,dy = fovx/max(nx-1,1), fovy/max(ny-1,1)
-    x = range(-fovx/2, fovx/2, step=dx)
-    y = range(-fovy/2, fovy/2, step=dy)
-
-    uu = fftshift(fftfreq(length(x), 1/dx))
-    vv = fftshift(fftfreq(length(y), 1/dy))
+    x,y = imagepixels(fovx, fovy, nx, ny)
+    dx = step(x); dy = step(y)
+    uu,vv = uviterator(dx, dy, nx, ny)
 
     for I in CartesianIndices(vis)
         iy, ix = Tuple(I)
