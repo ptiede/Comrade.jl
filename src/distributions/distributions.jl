@@ -5,7 +5,7 @@ using KeywordCalls
 import Statistics
 import Distributions as Dists
 
-export Rice, CPVonMises, CPNormal
+export Rice, CPVonMises, CPNormal, CMvNormal
 
 @parameterized Rice(ν, σ) ≃ Lebesgue(ℝ₊)
 

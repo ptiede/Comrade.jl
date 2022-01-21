@@ -1,5 +1,6 @@
 using MeasureTheory
 export RadioLikelihood, logdensity
+using LinearAlgebra
 
 struct RadioLikelihood{T} <: MeasureBase.AbstractMeasure
     lklhds::T
@@ -20,8 +21,8 @@ end
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     u,v = getdata(data, :u), getdata(data, :v)
-    σ = getdata(data, :error)
-    f(m) = amplitudes(m, u, v)
+    σ = Diagonal(getdata(data, :error))
+    f(m) = amplitude.(Ref(m), u, v)
     k = kernel(MvNormal{(:μ, :σ)},
                     σ = x->σ,
                     μ = x->f(x)
@@ -36,10 +37,10 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
     u2, v2 = getdata(data, :u2), getdata(data, :v2)
     u3, v3 = getdata(data, :u3), getdata(data, :v3)
     u4, v4 = getdata(data, :u4), getdata(data, :v4)
-    τ = getdata(data, :error)
+    τ = Diagonal(getdata(data, :error))
     f(m) = logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
     k = kernel(MvNormal{(:μ, :σ)},
-                σ = x->τ,
+                σ = x->Diagonal(τ),
                 μ = x->f(x)
               )
 
