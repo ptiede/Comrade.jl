@@ -1,4 +1,4 @@
-export Gaussian, Disk, MRing, Crescent, ConcordanceCrescent, ExtendedRing
+export Gaussian, Disk, MRing, Crescent, ConcordanceCrescent, ExtendedRing, Ring
 
 """
 $(TYPEDEF)
@@ -60,6 +60,37 @@ end
 end
 
 radialextent(::Disk) = 3.0
+
+"""
+    $(TYPEDEF)
+m-ring geometric model. This corresponds to a delta ring with a fourier expansion
+in θ. The m in m-ring refers to the order of the Fourier expansion. The radius is unity.
+"""
+struct Ring{T} <: GeometricModel end
+Ring() = Ring{Float64}()
+radialextent(::Ring) = 1.5
+
+@inline function intensity_point(m::Ring, x::Number, y::Number)
+    r = hypot(x,y)
+    θ = atan(x,y)
+    dr = 0.1
+    if (abs(r-1) < dr)
+        acc = one(T)
+        return acc/(2π*dr)
+    else
+        return zero(T)
+    end
+end
+
+
+
+@inline function visibility_point(m::Ring, u, v, args...)
+    k = 2π*sqrt(u^2 + v^2) + eps()
+    vis = besselj0(k) + zero(typeof(u))*im
+    return vis
+end
+
+
 
 """
     $(TYPEDEF)
