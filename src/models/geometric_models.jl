@@ -241,16 +241,16 @@ end
 A delta parabolic wisp in the image domain.
 The wisp is a parabolic line segment centered at zero, with roots ±1 and a yintercept of 1.
 """
-struct Wisp{F} <: GeometricModel end
-Wisp() = Wisp{Float64}()
-function Wisp(a, h) end
+struct UnitWisp{F} <: GeometricModel end
+UnitWisp() = UnitWisp{Float64}()
+function UnitWisp(a, h) end
 radialextent(m::Wisp) = 1
 
 function intensity_point(::Wisp, x, y)
-    yw = (x-1)^2
-    if (y - yw) < 0.1 && abs(x) < 1
-        N = sqrt(5) + 1/2*asinh(2h/a)
-        return inv(n)/(0.1)^2
+    length = (√5 + asinh(2)/2)
+    yw = (1-x^2)
+    if abs(y - yw) < 0.1 && abs(x) < 1
+        return 1/(length*0.1)
     else
         return 0
     end
@@ -258,5 +258,9 @@ end
 
 function visibility_point(::Wisp, u, v)
     phase = exp(1im*π*(3/4 + 2*v + u^2/(2v)))
-    Δ1 = erf((π/(2v)))
+    length = (√5 + asinh(2)/2)
+    Δ1 = erf(√(π/2v)*exp(π*im/4)*(u-2v))
+    Δ2 = erf(√(π/2v)*exp(π*im/4)*(u+2v))
+
+    return phase/(length*√(2v))*(Δ1-Δ2)
 end
