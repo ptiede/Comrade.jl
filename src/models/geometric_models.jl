@@ -70,7 +70,7 @@ struct Ring{T} <: GeometricModel end
 Ring() = Ring{Float64}()
 radialextent(::Ring) = 1.5
 
-@inline function intensity_point(m::Ring, x::Number, y::Number)
+@inline function intensity_point(m::Ring{T}, x::Number, y::Number) where {T}
     r = hypot(x,y)
     θ = atan(x,y)
     dr = 0.1
@@ -84,9 +84,9 @@ end
 
 
 
-@inline function visibility_point(m::Ring, u, v, args...)
-    k = 2π*sqrt(u^2 + v^2) + eps()
-    vis = besselj0(k) + zero(typeof(u))*im
+@inline function visibility_point(m::Ring{T}, u, v, args...) where {T}
+    k = 2π*sqrt(u^2 + v^2) + eps(T)
+    vis = besselj0(k) + zero(T)*im
     return vis
 end
 

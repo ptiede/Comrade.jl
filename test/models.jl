@@ -23,6 +23,12 @@ end
         testmodel(m)
     end
 
+    @testset "Ring" begin
+        m = smoothed(Ring(), 0.25)
+        ComradeBase.intensity_point(Ring(), 0.0, 0.0)
+        testmodel(m)
+    end
+
 
     @testset "MRing1" begin
         α = (0.25,)
@@ -211,19 +217,19 @@ end
 
 end
 
-@testset "RImage SqExp" begin
-   mI = RImage(rand(8,8), SqExpPulse(5.0))
+@testset "DImage SqExp" begin
+   mI = DImage(rand(8,8), SqExpPulse(5.0))
    testmodel(mI)
 end
-#@testset "RImage Bspline0" begin
-#   mI = RImage(rand(8,8), BSplinePulse{0}())
+#@testset "DImage Bspline0" begin
+#   mI = DImage(rand(8,8), BSplinePulse{0}())
 #   testmodel(mI, 1e-2)
 #end
-@testset "RImage BSpline1" begin
-   mI = RImage(rand(8,8), BSplinePulse{1}())
+@testset "DImage BSpline1" begin
+   mI = DImage(rand(8,8), BSplinePulse{1}())
    testmodel(mI)
 end
-@testset "RImage BSpline3" begin
-   mI = RImage(rand(8,8), BSplinePulse{3}())
+@testset "DImage BSpline3" begin
+   mI = DImage(rand(8,8), BSplinePulse{3}())
    testmodel(mI)
 end
