@@ -5,7 +5,7 @@ using KeywordCalls
 import Statistics
 import Distributions as Dists
 
-export Rice, CPVonMises, CPNormal, CMvNormal
+export Rice, CPVonMises, CPNormal, CMvNormal, AmpNormal
 
 @parameterized Rice(ν, σ) ≃ Lebesgue(ℝ₊)
 
@@ -36,7 +36,7 @@ const log2π = log(2π)
 function MeasureBase.logdensity(d::CPVonMises{(:μ, :κ)}, x)
     T = eltype(d.μ)
     sum = zero(T)
-    @inbounds @simd for i = eachindex(x)
+    @inbounds for i = eachindex(x)
         sum += d.κ[i]*(cos(x[i]-d.μ[i])-1)
     end
     return sum
@@ -44,7 +44,7 @@ end
 
 function MeasureBase.logdensity(d::CPVonMises{(:μ, :σ)},x)
     sum = zero(eltype(d.μ))
-    @inbounds @simd for i = eachindex(x)
+    @inbounds for i = eachindex(x)
         sum += (cos(x[i]-d.μ[i])-1)/d.σ[i]^2
     end
     return sum
@@ -58,6 +58,24 @@ end
 function Base.rand(rng::AbstractRNG, T::Type, d::CPVonMises{(:μ, :σ)})
     d = @. Dists.VonMises(d.μ, 1/d.σ^2)
     return rand.(Ref(rng), Ref(T), d)
+end
+
+@parameterized AmpNormal(μ, τ)
+
+@kwstruct AmpNormal(μ, τ)
+
+function MeasureBase.logdensity(d::AmpNormal{(:μ, :τ)}, x)
+    T = eltype(d.μ)
+    sum = zero(T)
+    @inbounds for i = eachindex(x)
+        sum += -(d.τ[i]*(d.μ[i] - x[i]))^2/2.0
+    end
+    return sum
+end
+
+function Base.rand(rng::AbstractRNG, T::Type, d::AmpNormal{(:μ, :τ)})
+    nd = length(d.μ)
+    return randn(rng, T, nd)./d.τ + d.μ
 end
 
 @parameterized CPNormal(μ, σ)

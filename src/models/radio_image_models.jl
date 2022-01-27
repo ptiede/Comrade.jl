@@ -1,7 +1,8 @@
-export RImage
+export DImage
 
 
 import ComradeBase: Pulse, κ, ω, κflux
+
 
 
 @doc raw"""
@@ -18,7 +19,7 @@ the κ doesn't have to be an interpolating kernel.
 ## Example
 ```julia
 samples = rand(10,10)
-model = RImage(samples, BSplineKernel{3})
+model = DImage(samples, BSplineKernel{3})
 ```
 
 ## Notes
@@ -31,7 +32,7 @@ use the scale function like with other models.
 $(FIELDS)
 
 """
-struct RImage{S,B<:Pulse,M<:AbstractMatrix{S}} <: AbstractModel
+struct DImage{S,B<:Pulse,M<:AbstractMatrix{S}} <: AbstractModel
     """ Image coefficients cᵢⱼ in expansion """
     coeff::M
     """ Image kernel/basis κ that defined the delta image response """
@@ -40,16 +41,16 @@ struct RImage{S,B<:Pulse,M<:AbstractMatrix{S}} <: AbstractModel
     psizex::S
     # pixel size in 1/pixels
     psizey::S
-    function RImage(coeff::M, basis::B) where {S,M<:AbstractMatrix{S},B}
+    function DImage(coeff::M, basis::B) where {S,M<:AbstractMatrix{S},B}
         ny, nx = size(coeff)
         psizex = one(S)/max(nx-1, 1)
         psizey = one(S)/max(ny-1, 1)
         new{S,B,M}(coeff, basis, psizex, psizey)
     end
 end
-@inline visanalytic(::Type{<:RImage}) = IsAnalytic()
-@inline isprimitive(::Type{<:RImage}) = IsPrimitive()
-@inline radialextent(m::RImage{S}) where {S} = max(radialextent(m.kernel), 0.75)
+@inline visanalytic(::Type{<:DImage}) = IsAnalytic()
+@inline isprimitive(::Type{<:DImage}) = IsPrimitive()
+@inline radialextent(m::DImage{S}) where {S} = max(radialextent(m.kernel), 0.75)
 #=
 struct FourierCache{C} <: ObservationCache
     cache::C
@@ -74,7 +75,7 @@ end
 =#
 
 
-@inline function flux(model::RImage{S,B,M}) where {S,B,M}
+@inline function flux(model::DImage{S,B,M}) where {S,B,M}
     sum = zero(S)
     @turbo for i in eachindex(model.coeff)
         sum += model.coeff[i]
@@ -93,9 +94,9 @@ end
     $(SIGNATURES)
 return the size of the coefficient matrix for `model`.
 """
-@inline Base.size(model::RImage) = size(model.coeff)
+@inline Base.size(model::DImage) = size(model.coeff)
 
-@inline function intensity_point(model::RImage{S,M,B}, x, y, args...) where {S,M,B}
+@inline function intensity_point(model::DImage{S,M,B}, x, y, args...) where {S,M,B}
     sum = zero(S)
     ny,nx = size(model)
     dx = 1/(max(nx-1,1))
@@ -112,7 +113,7 @@ return the size of the coefficient matrix for `model`.
 end
 
 
-@inline function visibility_point(model::RImage{S,M,B}, u, v, args...) where {S,M,B}
+@inline function visibility_point(model::DImage{S,M,B}, u, v, args...) where {S,M,B}
     sum = zero(Complex{S})
     ny,nx = size(model)
     dx = 1/max(nx-1,1)

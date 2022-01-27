@@ -1,4 +1,4 @@
-function create_plan(img, u, v, padfac, m)
+function create_cache(alg::NFFT, img)
     dx,dy = pixelsizes(img)
     uv = Matrix{eltype(u)}(undef, 2, length(u))
     uv[1,:] = u*dx

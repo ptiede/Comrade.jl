@@ -218,12 +218,6 @@ function logclosure_amplitudes(m,
 end
 
 
-
-function intensitymap!(im::IntensityMap, m::M) where {M}
-    return intensitymap!(imanalytic(M), im, m)
-end
-
-
 function intensitymap!(::NotAnalytic, img::IntensityMap, m)
     ny, nx = size(img)
     vis = ifftshift(phasedecenter!(fouriermap(m, img), img))

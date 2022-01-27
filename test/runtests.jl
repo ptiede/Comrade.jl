@@ -1,10 +1,10 @@
 #if lowercase(get(ENV, "CI", "false")) == "true"
 #    include("install_pycall.jl")
 #end
-using Pkg
-using PyCall
-Pkg.build("PyCall")
-println(PyCall.libpython)
+#using Pkg
+#using PyCall
+#Pkg.build("PyCall")
+#println(PyCall.libpython)
 using Comrade
 using FFTW
 using Statistics

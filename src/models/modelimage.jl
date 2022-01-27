@@ -43,7 +43,7 @@ function Base.show(io::IO, mi::ModelImage)
 end
 
 model(m::AbstractModelImage) = m.model
-flux(mimg::ModelImage) = flux(intensitymap!(mimg.image, mimg.model))
+flux(mimg::ModelImage) = flux(mimg.image)
 
 # function intensitymap(mimg::ModelImage)
 #     intensitymap!(mimg.image, mimg.model)
@@ -81,7 +81,7 @@ end
 end
 
 """
-    modelimage(m)
+    $(SIGNATURES)
 Construct a `ModelImage` where just the model `m` is specified
 
 # Notes
@@ -94,13 +94,13 @@ function modelimage(m::M;
                     fovy=2*radialextent(m),
                     nx=512,
                     ny=512,
+                    pulse=ComradeBase.DeltaPulse(),
                     alg=FFT()) where {M}
     if visanalytic(M) == IsAnalytic()
         return m
     else
         T = typeof(intensity_point(m, 0.0, 0.0))
-        img = IntensityMap(zeros(T,ny,nx), fovx, fovy)
+        img = IntensityMap(zeros(T,ny,nx), fovx, fovy, pulse)
         modelimage(m, img; alg)
-        #throw(ArgumentError("$m is not an analytic model a image must be specified"))
     end
 end

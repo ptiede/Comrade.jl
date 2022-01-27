@@ -21,12 +21,13 @@ end
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     u,v = getdata(data, :u), getdata(data, :v)
-    σ = Diagonal(getdata(data, :error))
+    τ = inv.(getdata(data, :error))
     f(m) = amplitude.(Ref(m), u, v)
-    k = kernel(MvNormal{(:μ, :σ)},
-                    σ = x->σ,
-                    μ = x->f(x)
-              )
+
+    k = kernel(AmpNormal{(:μ, :τ)},
+                   τ = x->τ,
+                   μ = x->f(x)
+             )
     amp = getdata(data, :amp)
     return Likelihood(k, amp)
 end
@@ -40,7 +41,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
     τ = Diagonal(getdata(data, :error))
     f(m) = logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
     k = kernel(MvNormal{(:μ, :σ)},
-                σ = x->Diagonal(τ),
+                σ = x->τ,
                 μ = x->f(x)
               )
 

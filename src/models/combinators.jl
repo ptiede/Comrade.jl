@@ -135,7 +135,7 @@ smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 
 flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
-function intensitymap(model::ConvolvedModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
+function intensitymap(::NotAnalytic, model::ConvolvedModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
     T = typeof(visibility(model, 0.0, 0.0))
     vis1 = fouriermap(model.m1, fovx, fovy, nx, ny)
     vis2 = fouriermap(model.m2, fovx, fovy, nx, ny)
@@ -144,7 +144,7 @@ function intensitymap(model::ConvolvedModel, fovx::Real, fovy::Real, nx::Int, ny
     return IntensityMap(real.(img)./(nx*ny), fovx, fovy, pulse)
 end
 
-function intensitymap!(sim::IntensityMap, model::ConvolvedModel)
+function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel)
     ny, nx = size(sim)
     fovx, fovy = sim.fovx, sim.fovy
     vis1 = fouriermap(model.m1, fovx, fovy, nx, ny)
