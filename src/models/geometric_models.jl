@@ -238,15 +238,20 @@ end
 
 """
     $(TYPEDEF)
-A delta parabolic wisp in the image domain.
-The wisp is a parabolic line segment centered at zero, with roots ±1 and a yintercept of 1.
+A delta parabolic segment in the image domain.
+The segment is centered at zero, with roots ±1 and a yintercept of 1.
 """
-struct UnitWisp{F} <: GeometricModel end
-UnitWisp() = UnitWisp{Float64}()
-function UnitWisp(a, h) end
-radialextent(m::Wisp) = 1
+struct ParabolicSegment{F} <: GeometricModel end
+ParabolicSegment() = ParabolicSegment{Float64}()
 
-function intensity_point(::Wisp, x, y)
+
+function ParabolicSegment(a, h) 
+    # Deifine stretched model from unital model
+    stretched(ParabolicSegment(), a, h)
+end
+radialextent(m::ParabolicSegment) = one(T)
+
+function intensity_point(::ParabolicSegment, x, y)
     length = (√5 + asinh(2)/2)
     yw = (1-x^2)
     if abs(y - yw) < 0.1 && abs(x) < 1
@@ -256,7 +261,7 @@ function intensity_point(::Wisp, x, y)
     end
 end
 
-function visibility_point(::Wisp, u, v)
+function visibility_point(::ParabolicSegment, u, v)
     phase = exp(1im*π*(3/4 + 2*v + u^2/(2v)))
     length = (√5 + asinh(2)/2)
     Δ1 = erf(√(π/2v)*exp(π*im/4)*(u-2v))
