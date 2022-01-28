@@ -246,7 +246,7 @@ ParabolicSegment() = ParabolicSegment{Float64}()
 
 
 function ParabolicSegment(a, h) 
-    # Deifine stretched model from unital model
+    # Define stretched model from unital model
     stretched(ParabolicSegment(), a, h)
 end
 radialextent(m::ParabolicSegment) = one(T)
@@ -264,8 +264,51 @@ end
 function visibility_point(::ParabolicSegment, u, v)
     phase = exp(1im*π*(3/4 + 2*v + u^2/(2v)))
     length = (√5 + asinh(2)/2)
-    Δ1 = erf(√(π/2v)*exp(π*im/4)*(u-2v))
-    Δ2 = erf(√(π/2v)*exp(π*im/4)*(u+2v))
+    Δ1 = erf(√(π/(2v))*exp(π*im/4)*(u-2v))
+    Δ2 = erf(√(π/(2v))*exp(π*im/4)*(u+2v))
 
     return phase/(length*√(2v))*(Δ1-Δ2)
+end
+
+"""
+    $(TYPEDEF)
+A delta wisp in the image domain.
+The wisp is a prabolic segment, with roots at x=0,d and a yintercept of h.
+"""
+struct Wisp{F} <: GeometricModel 
+    """width"""
+    d::F
+    """height"""
+    h::F
+end
+Wisp(d,h) = Wisp{Float64}(d,h)
+
+
+radialextent(m::Wisp) = m.d
+
+function intensity_point(m::Wisp, x, y)
+    a = m.d / 2.
+    h = m.h
+
+    length = √(a^2 + 4h^2) + (a^2/(2h))*asinh(2h/a)
+    yw = h*(1-x^2/a^2)
+    if abs(y - yw) < 0.1 && (x-a) < a
+        return 1/(length*0.1)
+    else
+        return 0
+    end
+end
+
+function visibility_point(m::Wisp, u, v)
+    a = m.d / 2.
+    h = m.h
+
+    length = √(a^2 + 4h^2) + (a^2/(2h))*asinh(2h/a)
+    fac = 1 / (2*length*√(2*h*v))
+
+    phase = exp(1im*π*(3/4 + 2*h*v + (a*u)^2/(2*h*v)))
+    Δ1 = erf(√(π/(2h*v))*exp(π*im/4)*(a*u-2*h*v))
+    Δ2 = erf(√(π/(2h*v))*exp(π*im/4)*(a*u+2*h*v))
+
+    return phase*fac*(Δ1-Δ2)*exp(2a*π*u*im)
 end
