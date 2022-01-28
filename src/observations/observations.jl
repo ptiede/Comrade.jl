@@ -12,7 +12,7 @@ using DelimitedFiles
 using AstroTime: modified_julian
 
 export uvpositions, stations, getdata, arrayconfig,
-       getuv, baselines
+       getuv, baselines, rescaleuv!
 
 
 
@@ -94,6 +94,13 @@ getdata(obs::Observation, s::Symbol) = getproperty(obs.data, s)
 Base.getindex(obs::Observation, i) = getindex(obs.data, i)
 
 
+function rescaleuv!(data::EHTObservation{T,D}, scale) where {T,D<:Union{EHTVisibilityAmplitudeDatum,EHTVisibilityDatum}}
+    data.data.u .= data.data.u.*scale
+    data.data.v .= data.data.v.*scale
+    return data
+end
+
+
 
 
 Base.@kwdef struct EHTVisibilityDatum{T<:Number} <: AbstractVisibilityDatum{T}
@@ -151,6 +158,7 @@ end
     visibility(D1)*visibility(D2)*visibility(D3)
 end
 
+
 """
     $(TYPEDEF)
 
@@ -169,6 +177,18 @@ Base.@kwdef struct EHTClosurePhaseDatum{T<:Number} <: ClosureProducts{T}
     time::T
     triangle::NTuple{3,Symbol}
 end
+
+function rescaleuv!(data::EHTObservation{T,D}, scale) where {T,D<:EHTClosurePhaseDatum}
+    data.data.u1 .= data.data.u1.*scale
+    data.data.v1 .= data.data.v1.*scale
+    data.data.u2 .= data.data.u2.*scale
+    data.data.v2 .= data.data.v2.*scale
+    data.data.u3 .= data.data.u3.*scale
+    data.data.v3 .= data.data.v3.*scale
+    return data
+end
+
+
 
 function stations(d::EHTObservation{T,A}) where {T,A<:EHTClosurePhaseDatum}
     bl = getdata(d, :triangle)
@@ -231,6 +251,19 @@ Base.@kwdef struct EHTLogClosureAmplitudeDatum{T<:Number} <: ClosureProducts{T}
     time::T
     quadrangle::NTuple{4,Symbol}
 end
+
+function rescaleuv!(data::EHTObservation{T,D}, scale) where {T,D<:EHTLogClosureAmplitudeDatum}
+    data.data.u1 .= data.data.u1.*scale
+    data.data.v1 .= data.data.v1.*scale
+    data.data.u2 .= data.data.u2.*scale
+    data.data.v2 .= data.data.v2.*scale
+    data.data.u3 .= data.data.u3.*scale
+    data.data.v3 .= data.data.v3.*scale
+    data.data.u4 .= data.data.u4.*scale
+    data.data.v4 .= data.data.v4.*scale
+    return data
+end
+
 
 function baselines(CP::EHTLogClosureAmplitudeDatum)
     quad = CP.quadrangle
