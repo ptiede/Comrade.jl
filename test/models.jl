@@ -1,20 +1,21 @@
 
-function testmodel(m::Comrade.AbstractModel, atol=1e-4)
-    img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), 1024, 1024)
+function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
+    img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), npix, npix)
     img2 = similar(img)
     intensitymap!(img2, m)
+    @test typeof(ComradeBase.intensity_point(m, 0.0, 0.0)) === Float64
     @test isapprox(flux(m), flux(img), atol=atol)
     @test isapprox(mean(img .- img2), 0, atol=1e-8)
-    cache = Comrade.create_cache(Comrade.FFT(padfac=3), img)
-    u = fftshift(fftfreq(size(img,1), 1/img.psizex))./10
-    @test isapprox(mean(abs.(visibility.(Ref(m), u', u) .- cache.sitp.(u', u))), 0.0, atol=1e-3)
+    cache = Comrade.create_cache(Comrade.FFT(padfac=3), img./flux(img)*flux(m))
+    u = fftshift(fftfreq(size(img,1), 1/img.psizex))./20
+    @test isapprox(mean(abs.(visibility.(Ref(m), u', u) .- cache.sitp.(u', u))), 0.0, atol=atol*10)
 end
 
 @testset "Primitive models" begin
 
     @testset "Gaussian" begin
         m = Gaussian()
-        testmodel(m, 1e-5)
+        testmodel(m, 1024, 1e-5)
     end
 
     @testset "Disk" begin
@@ -27,6 +28,14 @@ end
         m = smoothed(Ring(), 0.25)
         ComradeBase.intensity_point(Ring(), 0.0, 0.0)
         testmodel(m)
+    end
+
+    @testset "ParabolicSegment" begin
+        m = ParabolicSegment()
+        m2 = ParabolicSegment(2.0, 2.0)
+        @test stretched(m, 2.0, 2.0) == m2
+        @test ComradeBase.intensity_point(m, 0.0, 1.0) != 0.0
+        testmodel(m, 2424, 1e-3)
     end
 
 
@@ -59,7 +68,7 @@ end
 
     @testset "Crescent" begin
         m = smoothed(Crescent(5.0, 2.0, 1.0, 0.5), 1.0)
-        testmodel(m,1e-3)
+        testmodel(m,1024,1e-3)
     end
 
     @testset "ExtendedRing" begin

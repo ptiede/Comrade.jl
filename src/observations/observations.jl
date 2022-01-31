@@ -94,11 +94,6 @@ getdata(obs::Observation, s::Symbol) = getproperty(obs.data, s)
 Base.getindex(obs::Observation, i) = getindex(obs.data, i)
 
 
-function rescaleuv!(data::EHTObservation{T,D}, scale) where {T,D<:Union{EHTVisibilityAmplitudeDatum,EHTVisibilityDatum}}
-    data.data.u .= data.data.u.*scale
-    data.data.v .= data.data.v.*scale
-    return data
-end
 
 
 
@@ -157,6 +152,13 @@ end
 @inline function bispectrum(D1::EHTVisibilityDatum, D2::EHTVisibilityDatum, D3::EHTVisibilityDatum)
     visibility(D1)*visibility(D2)*visibility(D3)
 end
+
+function rescaleuv!(data::EHTObservation{T,D}, scale) where {T,D<:Union{EHTVisibilityAmplitudeDatum,EHTVisibilityDatum}}
+    data.data.u .= data.data.u.*scale
+    data.data.v .= data.data.v.*scale
+    return data
+end
+
 
 
 """
