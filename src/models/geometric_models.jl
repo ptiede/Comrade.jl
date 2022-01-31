@@ -285,13 +285,19 @@ The segment is centered at zero, with roots ±1 and a yintercept of 1.
 """
 struct ParabolicSegment{F} <: GeometricModel end
 ParabolicSegment() = ParabolicSegment{Float64}()
+radialextent(::ParabolicSegment{T}) where {T} = one(T)*sqrt(2)
 
+"""
+    ParabolicSegment(a, h)
+A parabolic segment with x-intercepts `±a`` and a yintercept of `h``.
 
-function ParabolicSegment(a, h)
+# Note
+This is just a convenience function for `stretched(ParabolicSegment(), a, h)`
+"""
+@inline function ParabolicSegment(a, h)
     # Define stretched model from unital model
     stretched(ParabolicSegment(), a, h)
 end
-radialextent(::ParabolicSegment{T}) where {T} = one(T)*sqrt(2)
 
 function intensity_point(::ParabolicSegment{T}, x, y) where {T}
     #length = (√5 + asinh(2)/2)
