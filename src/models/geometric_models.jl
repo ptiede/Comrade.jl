@@ -82,7 +82,7 @@ radialextent(::Ring) = 1.5
     r = hypot(x,y)
     θ = atan(x,y)
     dr = 0.1
-    if (abs(r-1) < dr)
+    if (abs(r-1) < dr/2)
         acc = one(T)
         return acc/(2π*dr)
     else
@@ -291,20 +291,20 @@ function ParabolicSegment(a, h)
     # Define stretched model from unital model
     stretched(ParabolicSegment(), a, h)
 end
-radialextent(::ParabolicSegment{T}) where {T} = one(T)
+radialextent(::ParabolicSegment{T}) where {T} = one(T)*sqrt(2)
 
-function intensity_point(::ParabolicSegment, x, y)
-    length = (√5 + asinh(2)/2)
+function intensity_point(::ParabolicSegment{T}, x, y) where {T}
+    #length = (√5 + asinh(2)/2)
     yw = (1-x^2)
-    if abs(y - yw) < 0.1 && abs(x) < 1
-        return 1/(length*0.1)
+    if abs(y - yw) < 0.01/2 && abs(x) < 1
+        return 1/(2*0.01)
     else
-        return 0
+        return zero(T)
     end
 end
 
 function visibility_point(::ParabolicSegment{T}, u, v) where {T}
-    ϵ = eps(T)
+    ϵ = sqrt(eps(T))
     vϵ = v + ϵ + 0im
     phase = exp(1im*π*(3/4 + 2*vϵ + u^2/(2vϵ)))
     #length = (√5 + asinh(2)/2)
