@@ -15,7 +15,7 @@ end
 
     @testset "Gaussian" begin
         m = Gaussian()
-        testmodel(m, 1e-5)
+        testmodel(m, 1024, 1e-5)
     end
 
     @testset "Disk" begin
@@ -68,7 +68,7 @@ end
 
     @testset "Crescent" begin
         m = smoothed(Crescent(5.0, 2.0, 1.0, 0.5), 1.0)
-        testmodel(m,1e-3)
+        testmodel(m,1024,1e-3)
     end
 
     @testset "ExtendedRing" begin
