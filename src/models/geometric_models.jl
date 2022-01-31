@@ -1,4 +1,12 @@
-export Gaussian, Disk, MRing, Crescent, ConcordanceCrescent, ExtendedRing, Ring
+export Gaussian,
+        Disk,
+        MRing,
+        Crescent,
+        ConcordanceCrescent,
+        ExtendedRing,
+        Ring,
+        ParabolicSegment,
+        Wisp
 
 """
 $(TYPEDEF)
@@ -74,7 +82,7 @@ radialextent(::Ring) = 1.5
     r = hypot(x,y)
     θ = atan(x,y)
     dr = 0.1
-    if (abs(r-1) < dr)
+    if (abs(r-1) < dr/2)
         acc = one(T)
         return acc/(2π*dr)
     else
@@ -272,25 +280,87 @@ end
 
 """
     $(TYPEDEF)
-A delta parabolic wisp in the image domain.
-The wisp is a parabolic line segment centered at zero, with roots ±1 and a yintercept of 1.
+A delta parabolic segment in the image domain.
+The segment is centered at zero, with roots ±1 and a yintercept of 1.
 """
-struct Wisp{F} <: GeometricModel end
-Wisp() = Wisp{Float64}()
-function Wisp(a, h) end
-radialextent(m::Wisp) = 1
+struct ParabolicSegment{F} <: GeometricModel end
+ParabolicSegment() = ParabolicSegment{Float64}()
+radialextent(::ParabolicSegment{T}) where {T} = one(T)*sqrt(2)
 
-function intensity_point(::Wisp, x, y)
-    yw = (x-1)^2
-    if (y - yw) < 0.1 && abs(x) < 1
-        N = sqrt(5) + 1/2*asinh(2h/a)
-        return inv(n)/(0.1)^2
+"""
+    ParabolicSegment(a, h)
+A parabolic segment with x-intercepts `±a`` and a yintercept of `h``.
+
+# Note
+This is just a convenience function for `stretched(ParabolicSegment(), a, h)`
+"""
+@inline function ParabolicSegment(a, h)
+    # Define stretched model from unital model
+    stretched(ParabolicSegment(), a, h)
+end
+
+function intensity_point(::ParabolicSegment{T}, x, y) where {T}
+    #length = (√5 + asinh(2)/2)
+    yw = (1-x^2)
+    if abs(y - yw) < 0.01/2 && abs(x) < 1
+        return 1/(2*0.01)
     else
-        return 0
+        return zero(T)
     end
 end
 
-function visibility_point(::Wisp, u, v)
-    phase = exp(1im*π*(3/4 + 2*v + u^2/(2v)))
-    Δ1 = erf((π/(2v)))
+function visibility_point(::ParabolicSegment{T}, u, v) where {T}
+    ϵ = sqrt(eps(T))
+    vϵ = v + ϵ + 0im
+    phase = exp(1im*π*(3/4 + 2*vϵ + u^2/(2vϵ)))
+    #length = (√5 + asinh(2)/2)
+    Δ1 = erf(√(π/(2vϵ))*exp(π*im/4)*(u-2vϵ))
+    Δ2 = erf(√(π/(2vϵ))*exp(π*im/4)*(u+2vϵ))
+    return phase/(√(2vϵ))*(Δ1-Δ2)/4
 end
+
+# """
+#     $(TYPEDEF)
+# A delta wisp in the image domain.
+# The wisp is a prabolic segment, with roots at x=0,d and a yintercept of h.
+# """
+# struct Wisp{F} <: GeometricModel
+#     """width"""
+#     d::F
+#     """height"""
+#     h::F
+# end
+# function Wisp(d, h)
+#     T = promote_type(d, h)
+#     dt, ht = promote(d, h)
+#     return Wisp{T}(dt, ht)
+# end
+
+# radialextent(m::Wisp) = m.d
+
+# function intensity_point(m::Wisp, x, y)
+#     a = m.d / 2.
+#     h = m.h
+
+#     length = √(a^2 + 4h^2) + (a^2/(2h))*asinh(2h/a)
+#     yw = h*(1-x^2/a^2)
+#     if abs(y - yw) < 0.1 && (x-a) < a
+#         return 1/(length*0.1)
+#     else
+#         return 0
+#     end
+# end
+
+# function visibility_point(m::Wisp, u, v)
+#     a = m.d / 2.
+#     h = m.h
+
+#     length = √(a^2 + 4h^2) + (a^2/(2h))*asinh(2h/a)
+#     fac = 1 / (2*length*√(2*h*v))
+
+#     phase = exp(1im*π*(3/4 + 2*h*v + (a*u)^2/(2*h*v)))
+#     Δ1 = erf(√(π/(2h*v))*exp(π*im/4)*(a*u-2*h*v))
+#     Δ2 = erf(√(π/(2h*v))*exp(π*im/4)*(a*u+2*h*v))
+
+#     return phase*fac*(Δ1-Δ2)*exp(2a*π*u*im)
+# end
