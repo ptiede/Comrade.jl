@@ -77,9 +77,12 @@ visibilties. This is an internal type and is not part of the public API
 # Fields
 $(FIELDS)
 """
-struct FFTCache{P,I} <: AbstractCache
+struct FFTCache{A<:FFT,P,I} <: AbstractCache
+    alg::A
     """ FFTW Plan"""
     plan::P
+    """ Phase Matrix"""
+    phases::M
     """FFT interpolator function"""
     sitp::I
 end
@@ -122,6 +125,27 @@ function Base.:*(p::AbstractFFTs.Plan, x::PaddedView{<:ForwardDiff.Dual{T,V,P},N
     return out
 end
 
+function padimage(img, alg::FFT)
+    padfac = alg.padfac
+    ny,nx = size(img)
+    nnx = nextpow(2, padfac*nx)
+    nny = nextpow(2, padfac*ny)
+    PaddedView(zero(eltype(img)), img, (nny, nnx))
+end
+
+function update_cache(cache::FFTCache, img)
+    plan = cache.plan
+    padfac = alg.padfac
+    pimg = padimage(img, padfac)
+
+    dx,dy = pixelsizes(img)
+    vis = fftshift(plan*pimg)
+    x0,y0 = first.(imagepixels(img))
+    vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
+    sitp = create_interpolator(uu, vv, vispc)
+    return FFTCache(cache.alg, plan, sitp)
+end
+
 
 """
     $(SIGNATURES)
@@ -130,13 +154,7 @@ using the `model` and a image cache `image`
 """
 function create_cache(alg::FFT, img)
     #intensitymap!(img, model)
-    dx,dy = pixelsizes(img)
-    ny,nx = size(img)
-    padfac = alg.padfac
-    nnx = nextpow(2, padfac*nx)
-    nny = nextpow(2, padfac*ny)
-    pimg = PaddedView(zero(eltype(img)), img, (nny, nnx))
-
+    pimg = padimage(img, alg.padfac)
 
     # Do the plan and then fft because currently just fft(img) gives crap
     plan = plan_fft(pimg)
@@ -150,7 +168,7 @@ function create_cache(alg::FFT, img)
     x0,y0 = first.(imagepixels(img))
     vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
     sitp = create_interpolator(uu, vv, vispc)
-    return FFTCache(nothing, sitp)
+    return FFTCache(alg, plan, sitp)
 end
 
 """
