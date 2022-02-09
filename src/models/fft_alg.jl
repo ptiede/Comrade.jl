@@ -1,11 +1,7 @@
-"""
-    $(TYPEDEF)
+export FFTAlg
 
-Abstract type that specified which fourier transform to use
-"""
 abstract type FourierTransform end
-
-struct DFT <: FourierTransform end
+struct DFT <: FourierTransform  end
 
 """
     $(TYPEDEF)
@@ -13,13 +9,6 @@ This defines an abstract cache that can be used to
 hold or precompute some computations.
 """
 abstract type AbstractCache end
-
-"""
-    $(TYPEDEF)
-No cache is used. This is typically used when the model is
-analytic in the Fourier domain.
-"""
-struct NoCache <: AbstractCache end
 
 
 """
@@ -31,7 +20,7 @@ the FFTW package to compute the Fourier transform.
 $(FIELDS)
 
 """
-Base.@kwdef struct FFT <: FourierTransform
+Base.@kwdef struct FFTAlg <: FourierTransform
     """
     The amount to pad the image by.
     Note we actually round up to the nearest factor
@@ -46,10 +35,6 @@ function create_interpolator(u, v, vis)
     #itp = interpolate(vis, BSpline(Cubic(Line(OnGrid()))))
     #etp = extrapolate(itp, zero(eltype(vis)))
     #scale(etp, u, v)
-    # #uc = chebygrid(first(u), last(u), length(u))
-    # #vc = chebygrid(first(v), last(v), length(v))
-    # #println(u)
-    # The transposes are because of how I defined the images.
     p1 = BicubicInterpolator(u, v, real(vis'), NoBoundaries())
     p2 = BicubicInterpolator(u, v, imag(vis'), NoBoundaries())
     return (u,v)->(p1(u,v) - 1im*p2(u,v))
@@ -77,12 +62,10 @@ visibilties. This is an internal type and is not part of the public API
 # Fields
 $(FIELDS)
 """
-struct FFTCache{A<:FFT,P,I} <: AbstractCache
+struct FFTCache{A<:FFTAlg,P,I} <: AbstractCache
     alg::A
     """ FFTW Plan"""
     plan::P
-    """ Phase Matrix"""
-    phases::M
     """FFT interpolator function"""
     sitp::I
 end
@@ -125,7 +108,7 @@ function Base.:*(p::AbstractFFTs.Plan, x::PaddedView{<:ForwardDiff.Dual{T,V,P},N
     return out
 end
 
-function padimage(img, alg::FFT)
+function padimage(img, alg::FFTAlg)
     padfac = alg.padfac
     ny,nx = size(img)
     nnx = nextpow(2, padfac*nx)
@@ -152,9 +135,9 @@ end
 Creates the model cache given for the algorithm `alg`
 using the `model` and a image cache `image`
 """
-function create_cache(alg::FFT, img)
+function create_cache(alg::FFTAlg, img)
     #intensitymap!(img, model)
-    pimg = padimage(img, alg.padfac)
+    pimg = padimage(img, alg)
 
     # Do the plan and then fft because currently just fft(img) gives crap
     plan = plan_fft(pimg)
@@ -163,6 +146,8 @@ function create_cache(alg::FFT, img)
     #println(sum(pimg)*dx*dy)
 
     #Construct the uv grid
+    dx,dy = pixelsizes(img)
+    nny, nnx = size(pimg)
     uu, vv = uviterator(dx, dy, nnx, nny)
 
     x0,y0 = first.(imagepixels(img))
@@ -192,7 +177,7 @@ end
 function phasecenter(vis, uu, vv, x0, y0, dx, dy)
     map(CartesianIndices((eachindex(uu), eachindex((vv))))) do I
         iy,ix = Tuple(I)
-        return conj(vis[I])*dx*dy*exp(2im*π*(uu[ix]*x0 + vv[iy]*y0))
+        return conj(vis[I])*dx*dy*cispi(2*(uu[ix]*x0 + vv[iy]*y0))
     end
     #@inbounds @fastmath for I in CartesianIndices(vis)
     #    iy, ix = Tuple(I)
