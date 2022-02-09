@@ -47,10 +47,17 @@ radialextent(m::AbstractModifier) = radialextent(basemodel(m))
 
 function modelimage(::NotAnalytic,
     model::AbstractModifier,
-    image; alg=FFT())
+    image::ComradeBase.AbstractIntensityMap, alg::FFTAlg)
 
-    @set model.model = modelimage(model.model, image; alg)
+    @set model.model = modelimage(model.model, image, alg)
 end
+
+function modelimage(::NotAnalytic,
+    model::AbstractModifier,
+    image::ComradeBase.AbstractIntensityMap, alg::NFFTAlg)
+    _modelimage(model, image, alg)
+end
+
 
 function apply_uv_transform(m, u::AbstractVector, v::AbstractVector)
     ut = similar(u)
