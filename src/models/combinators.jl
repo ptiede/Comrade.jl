@@ -23,11 +23,20 @@ abstract type CompositeModel{M1,M2} <: AbstractModel end
 
 function modelimage(::NotAnalytic,
     model::CompositeModel,
-    image; alg=FFT())
+    image::ComradeBase.AbstractIntensityMap, alg::FourierTransform=FFTAlg())
 
     m1 = @set model.m1 = modelimage(model.m1, image; alg)
-    @set m1.m2 = modelimage(m1.m2, image; alg)
+    @set m1.m2 = modelimage(m1.m2, copy(image); alg)
 end
+
+function modelimage(::NotAnalytic,
+    model::CompositeModel,
+    cache::AbstractCache)
+
+    m1 = @set model.m1 = modelimage(model.m1, cache)
+    @set m1.m2 = modelimage(m1.m2, cache)
+end
+
 
 radialextent(m::CompositeModel) = max(radialextent(m.m1), radialextent(m.m2))
 

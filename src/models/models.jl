@@ -121,6 +121,8 @@ function visibilities(m, ac::ArrayConfiguration)
     return visibilities(m, u, v)
 end
 
+
+
 #isibilities(::IsAnalytic, m, u, v) = _visibilities(m, u, v)
 
 #function create_mimg(m::AbstractModel, u, v)
@@ -241,6 +243,7 @@ end
 
 include(joinpath(@__DIR__, "fft_alg.jl"))
 include(joinpath(@__DIR__, "modelimage.jl"))
+include(joinpath(@__DIR__, "nfft.jl"))
 include(joinpath(@__DIR__, "modifiers.jl"))
 include(joinpath(@__DIR__, "combinators.jl"))
 include(joinpath(@__DIR__, "geometric_models.jl"))
