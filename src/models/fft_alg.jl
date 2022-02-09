@@ -66,8 +66,6 @@ struct FFTCache{A<:FFTAlg,P,I} <: AbstractCache
     alg::A
     """ FFTW Plan"""
     plan::P
-    """ Phase Matrix"""
-    phases::M
     """FFT interpolator function"""
     sitp::I
 end
