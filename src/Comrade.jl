@@ -67,7 +67,7 @@ include("observations/observations.jl")
 include("models/models.jl")
 include("distributions/distributions.jl")
 include("distributions/radiolikelihood.jl")
-include("visualizations/intensitymap.jl")
+include("visualizations/visualizations.jl")
 
 function __init__()
     # try
