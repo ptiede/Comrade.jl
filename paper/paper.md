@@ -11,9 +11,9 @@ authors:
     orcid: 0000-0000-0000-0000
     affiliation: "1, 2" # (Multiple affiliations must be quoted)
 affiliations:
- - name: 
+ - name: Black Hole Initiative at Harvard University
    index: 1
- - name: Institution Name
+ - name: Center for Astrophysics | Harvard & Smithsonian
    index: 2
 date: 9 Feb 2022
 bibliography: paper.bib
@@ -26,7 +26,9 @@ Very-long-baseline interfeometry (VLBI) is capable of producing the highest reso
 
 # Statement of need
 
-`Comrade` is a Julia package for modeling radio emissison. 
+`Comrade` is a Julia package for modeling radio emission. Julia is a high performance dynamic language that bridges the "two-language problem". This allows for users to easily extend `Comrade` while maintaining the speed of a lower-level language (e.g. C). The API for `Comrade` was designed to allow the user to easily add their own emission models whether the image has an analytic Fourier transform. Additionally, `Comrade` is a differentiable emission modeling library. This allows for the use of gradient information to be passed to optimization and Bayesian inference algorithms. 
+
+`Comrade` was designed to be used by radio astronomers during analysis of VLBI data. It has already been used in a number of analyses for the Event Horizon Telescope that soon lead to publications. Additionally, it has been used for 
 
 # Mathematics
 
@@ -59,20 +61,13 @@ scientific explorations of forthcoming data releases from the *Gaia* mission
 
 # Mathematics
 
-Single dollars ($) are required for inline mathematics e.g. $f(x) = e^{\pi/x}$
 
-Double dollars make self-standing equations:
+# Similar Packages
 
-$$\Theta(x) = \left\{\begin{array}{l}
-0\textrm{ if } x < 0\cr
-1\textrm{ else}
-\end{array}\right.$$
-
-You can also use plain \LaTeX for equations
-\begin{equation}\label{eq:fourier}
-\hat f(\omega) = \int_{-\infty}^{\infty} f(x) e^{i\omega x} dx
-\end{equation}
-and refer to \autoref{eq:fourier} from text.
+- <span style="font-variant:small-caps;">Themis</span>: A C++ parameter estimation package used by the EHT. It is currently a private GitHub repo
+- `eht-imaging`: Python general purpose EHT imaging package. It currently has a modeling submodule. Requires hand written gradients.
+- `Galifrey`: Python modeling package that uses emcee and not gradients for model fitting
+- `eht-dmc`: Python Bayesian imaging package that also fits calibration systematics by solving the RIME [@Hamaker:1996].
 
 # Citations
 
