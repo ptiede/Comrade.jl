@@ -13,7 +13,7 @@ authors:
 affiliations:
  - name: Black Hole Initiative at Harvard University
    index: 1
- - name: Center for Astrophysics | Harvard & SmithsonianS
+ - name: Center for Astrophysics | Harvard & Smithsonian
    index: 2
 date: 9 Feb 2022
 bibliography: paper.bib
