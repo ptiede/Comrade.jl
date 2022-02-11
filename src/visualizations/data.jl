@@ -41,7 +41,39 @@
     uvdist, hcat(real.(vmod), imag.(vmod))
 end
 
+@recipe function f(dvis::EHTObservation{T,A};) where {T,A<:EHTVisibilityAmplitudeDatum}
+    xguide --> "uv-distance (λ)"
+    yguide --> "|V| (Jy)"
+    markershape --> :diamond
 
+    u = getdata(dvis, :u)
+    v = getdata(dvis, :v)
+    uvdist = hypot.(u,v)
+    amp = amplitude.(dvis.data)
+    error = getdata(dvis, :error)
+    #add data errorbars
+    seriestype --> :scatter
+    alpha --> 0.5
+    yerr := error
+    linecolor --> nothing
+    label := "Data"
+    uvdist, amp
+end
+
+@recipe function f(acc::ArrayConfiguration)
+    xguide --> "u (λ)"
+    yguide --> "v (λ)"
+    markershape --> :circle
+
+    u, v = getuv(acc)
+    #add data errorbars
+    seriestype --> :scatter
+    linecolor --> nothing
+    aspect_ratio --> :equal
+    label := "Data"
+    title --> "Frequency: $(acc.frequency/1e9) GHz"
+    vcat(u,-u), vcat(v,-v)
+end
 
 @recipe function f(m::AbstractModel, dvis::EHTObservation{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTVisibilityAmplitudeDatum}
     xguide --> "uv-distance (λ)"
@@ -128,6 +160,27 @@ end
     area,amod
 end
 
+@recipe function f(dcp::EHTObservation{T,A}) where {T, A<:EHTClosurePhaseDatum}
+    xguide --> "√(triangle area) (λ)"
+    yguide --> "Phase (rad)"
+    markershape --> :circle
+    u1 = getdata(dcp, :u1)
+    v1 = getdata(dcp, :v1)
+    u2 = getdata(dcp, :u2)
+    v2 = getdata(dcp, :v2)
+    u3 = getdata(dcp, :u3)
+    v3 = getdata(dcp, :v3)
+    area = sqrt.(uvarea.(dcp.data))
+    phase = getdata(dcp, :phase)
+    error = getdata(dcp, :error)
+    seriestype := :scatter
+    alpha --> 0.5
+    yerr := error
+    linecolor --> nothing
+    label := "Data"
+    area, phase
+end
+
 @recipe function f(m::AbstractModel, dcp::EHTObservation{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTClosurePhaseDatum}
     xguide --> "√(triangle area) (λ)"
     yguide --> "Phase (rad)"
@@ -157,4 +210,53 @@ end
     amod = closure_phases(m, u1, v1, u2, v2, u3, v3)
     labels --> "Model"
     area,amod
+end
+
+@userplot Residual
+
+@recipe function f(h::Residual)
+    if length(h.args) != 2 || !(typeof(h.args[1]) <: AbstractModel) ||
+        !(typeof(h.args[2]) <: EHTObservation)
+        error("Residual should be given a model and data product.  Got: $(typeof(h.args))")
+    end
+    m, damp = h.args
+
+    uvdist, res = residuals(m, damp)
+    chi2 = sum(abs2, res)
+    xguide --> "uv-distance (λ)"
+    yguide --> "Normalized Residual"
+    markershape --> :circle
+    linecolor --> nothing
+    legend --> false
+
+    title --> @sprintf "<χ²> = %.2f" chi2/length(damp)
+    uvdist, res
+end
+
+
+function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityAmplitudeDatum}
+    amp = getdata(damp, :amp)
+    u = getdata(damp, :u)
+    v = getdata(damp, :v)
+
+    mamp = amplitudes(m, u, v)
+    res = (amp - mamp)./getdata(damp, :error)
+    return hypot.(u, v), res
+end
+
+
+function residuals(m, dcp::EHTObservation{T, A}) where {T, A<:EHTClosurePhaseDatum}
+    u1 = getdata(dcp, :u1)
+    v1 = getdata(dcp, :v1)
+    u2 = getdata(dcp, :u2)
+    v2 = getdata(dcp, :v2)
+    u3 = getdata(dcp, :u3)
+    v3 = getdata(dcp, :v3)
+    area = sqrt.(uvarea.(dcp.data))
+    phase = getdata(dcp, :phase)
+    error = getdata(dcp, :error)
+
+    mphase = closure_phases(m, u1, v1, u2, v2, u3, v3)
+    res = (phase- mphase)./error
+    return area, res
 end

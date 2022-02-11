@@ -61,12 +61,11 @@ Note that is does not save the figure.
 
     ny, nx = dim
     image = intensitymap(m, fovx, fovy, nx, ny)
-
+    psizex,psizey = pixelsizes(image)
     #Define some constants
     #Construct the image grid in μas
-    fovx, fovy = fov(image)
-    xitr, yitr = imagepixels(image)
-
+    fovx, fovy = rad2μas.(fov(image))
+    xitr, yitr = rad2μas.(imagepixels(image))
     tickfontsize --> 11
     guidefontsize --> 14
     size --> (500,400)
@@ -79,10 +78,10 @@ Note that is does not save the figure.
     ylims --> (-fovy/2,fovy/2)
     #left_margin --> -2mm
     #right_margin --> 5mm
-    z = image
+    z = image/rad2μas(1)^2
     seriestype := :heatmap
     #fontfamily --> "sans serif"
-    colorbar_title --> "Jy/str"
+    colorbar_title --> "Jy/μas²"
     xflip --> true
     widen := false
     #framestyle --> :box
