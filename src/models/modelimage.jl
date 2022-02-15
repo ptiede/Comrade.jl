@@ -50,7 +50,7 @@ flux(mimg::ModelImage) = flux(mimg.image)
 #     mimg.image
 # end
 
-radialextent(m::ModelImage) = fov(m.image)[1]/2
+radialextent(m::ModelImage) = hypot(fov(m.image)...)/2
 
 #@inline visibility_point(m::AbstractModelImage, u, v) = visibility_point(model(m), u, v)
 
@@ -93,9 +93,9 @@ end
 end
 
 @inline function modelimage(::NotAnalytic, model, cache::AbstractCache)
-    img = cache.pimg
+    img = cache.image
     intensitymap!(img, model)
-    newcache = updatecache(cache, img)
+    newcache = update_cache(cache, img)
     return ModelImage(model, img, newcache)
 end
 
