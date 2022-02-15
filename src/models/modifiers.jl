@@ -206,12 +206,12 @@ posangle(model::RotatedModel) = atan(model.s, model.c)
 
 @inline function transform_image(model::RotatedModel, x, y)
     s,c = model.s, model.c
-    return c*x - s*y, s*x + c*y
+    return c*x + s*y, -s*x + c*y
 end
 
 @inline function transform_uv(model::RotatedModel, u, v)
     s,c = model.s, model.c
-    return c*u - s*v, s*u + c*v
+    return c*u + s*v, -s*u + c*v
 end
 
 @inline scale_image(model::RotatedModel, x, y) = 1.0
