@@ -92,7 +92,7 @@ end
 
 
 
-@inline function visibility_point(m::Ring{T}, u, v, args...) where {T}
+@inline function visibility_point(::Ring{T}, u, v, args...) where {T}
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     vis = besselj0(k) + zero(T)*im
     return vis

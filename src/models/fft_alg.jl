@@ -62,10 +62,12 @@ visibilties. This is an internal type and is not part of the public API
 # Fields
 $(FIELDS)
 """
-struct FFTCache{A<:FFTAlg,P,I} <: AbstractCache
+struct FFTCache{A<:FFTAlg,P,M,I} <: AbstractCache
     alg::A
     """ FFTW Plan"""
     plan::P
+    """ Image """
+    image::M
     """FFT interpolator function"""
     sitp::I
 end
@@ -118,15 +120,19 @@ end
 
 function update_cache(cache::FFTCache, img)
     plan = cache.plan
-    padfac = alg.padfac
-    pimg = padimage(img, padfac)
+    pimg = padimage(img, cache.alg)
+
+    dx,dy = pixelsizes(img)
+    nny, nnx = size(pimg)
+    uu, vv = uviterator(dx, dy, nnx, nny)
+
 
     dx,dy = pixelsizes(img)
     vis = fftshift(plan*pimg)
     x0,y0 = first.(imagepixels(img))
     vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
     sitp = create_interpolator(uu, vv, vispc)
-    return FFTCache(cache.alg, plan, sitp)
+    return FFTCache(cache.alg, plan, img, sitp)
 end
 
 
@@ -153,7 +159,7 @@ function create_cache(alg::FFTAlg, img)
     x0,y0 = first.(imagepixels(img))
     vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
     sitp = create_interpolator(uu, vv, vispc)
-    return FFTCache(alg, plan, sitp)
+    return FFTCache(alg, plan, img, sitp)
 end
 
 """
@@ -179,11 +185,7 @@ function phasecenter(vis, uu, vv, x0, y0, dx, dy)
         iy,ix = Tuple(I)
         return conj(vis[I])*dx*dy*cispi(2*(uu[ix]*x0 + vv[iy]*y0))
     end
-    #@inbounds @fastmath for I in CartesianIndices(vis)
-    #    iy, ix = Tuple(I)
-    #    vis[I] = conj(vis[I])*dx*dy*exp(2im*π*(uu[ix]*x0 + vv[iy]*y0))
-    #end
-    #return vis
+    return vis
 end
 
 #function ChainRulesCore.rrule(::typeof(phasecenter!), vis, uu, vv, x0, y0, dx, dy)

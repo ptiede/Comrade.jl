@@ -34,7 +34,7 @@ function padimage(img, alg::NFFTAlg)
                      )
 end
 
-function create_cache(alg::NFFTAlg, img)
+@fastmath function create_cache(alg::NFFTAlg, img)
     pimg = padimage(img, alg)
 
     # No supplied uv positions so can't plan NFFT
