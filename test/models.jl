@@ -8,9 +8,9 @@ function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     @test typeof(ComradeBase.intensity_point(m, 0.0, 0.0)) === Float64
     @test isapprox(flux(m), flux(img), atol=atol)
     @test isapprox(mean(img .- img2), 0, atol=1e-8)
-    cache = Comrade.create_cache(Comrade.FFT(padfac=3), img./flux(img)*flux(m))
+    cache = Comrade.create_cache(Comrade.FFTAlg(padfac=3), img./flux(img)*flux(m))
     u = fftshift(fftfreq(size(img,1), 1/img.psizex))./20
-    @test isapprox(mean(abs.(visibility.(Ref(m), u', u) .- cache.sitp.(u', u))), 0.0, atol=atol*10)
+    @test isapprox(maximum(abs.(visibility.(Ref(m), u', u) .- cache.sitp.(u', u))), 0.0, atol=atol*10)
 end
 
 @testset "Primitive models" begin
