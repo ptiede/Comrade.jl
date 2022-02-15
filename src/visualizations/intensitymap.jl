@@ -32,10 +32,10 @@ Note that is does not save the figure.
     ylims --> (-fovy/2,fovy/2)
     #left_margin --> -2mm
     #right_margin --> 5mm
-    z = image
+    z = image/rad2μas(1)^2
     seriestype := :heatmap
     #fontfamily --> "sans serif"
-    colorbar_title --> "Jy/str"
+    colorbar_title --> "Jy/μas²"
     xflip --> true
     widen := false
     #framestyle --> :box

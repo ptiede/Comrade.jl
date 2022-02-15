@@ -41,6 +41,41 @@
     uvdist, hcat(real.(vmod), imag.(vmod))
 end
 
+@recipe function f(dvis::EHTObservation{T,A};) where {T,A<:EHTVisibilityDatum}
+    xguide --> "uv-distance (λ)"
+    yguide --> "V (Jy)"
+    markershape --> :circle
+
+    u = getdata(dvis, :u)
+    v = getdata(dvis, :v)
+    uvdist = hypot.(u,v)
+    vis = visibility.(dvis.data)
+    error = getdata(dvis, :error)
+    vre = real.(vis)
+    vim = imag.(vis)
+    #add data errorbars
+    @series begin
+        seriestype := :scatter
+        alpha := 0.5
+        yerr := error
+        linecolor := nothing
+        label := "Real"
+        uvdist, vre
+    end
+
+    @series begin
+        seriestype := :scatter
+        markeralpha := 0.01
+        markerstrokecolor := :black
+        markerstrokealpha := 1.0
+        linecolor :=nothing
+        label := nothing
+        yerr := error
+        label := "Imag"
+        uvdist, vim
+    end
+end
+
 @recipe function f(dvis::EHTObservation{T,A};) where {T,A<:EHTVisibilityAmplitudeDatum}
     xguide --> "uv-distance (λ)"
     yguide --> "|V| (Jy)"
@@ -126,6 +161,22 @@ function uvarea(d::EHTLogClosureAmplitudeDatum)
     h = hypot(u1-u3, v1-v3)
     return heron(a,b,h)+heron(c,d,h)
 end
+
+@recipe function f(dlca::EHTObservation{T,A}) where {T,A<:EHTLogClosureAmplitudeDatum}
+    xguide --> "√(quadrangle area) (λ)"
+    yguide --> "Log Clos. Amp."
+    markershape --> :diamond
+    area = sqrt.(uvarea.(dlca.data))
+    phase = getdata(dlca, :amp)
+    error = getdata(dlca, :error)
+    #add data errorbars
+    seriestype --> :scatter
+    alpha := 0.5
+    yerr := error
+    linecolor --> nothing
+    area, phase
+end
+
 
 @recipe function f(m::AbstractModel, dlca::EHTObservation{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTLogClosureAmplitudeDatum}
     xguide --> "√(quadrangle area) (λ)"

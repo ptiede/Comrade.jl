@@ -9,6 +9,7 @@ using Comrade
 using FFTW
 using Statistics
 using Test
+using Plots
 
 #include("test_util.jl")
 

@@ -8,13 +8,21 @@
     obsavg = obs.avg_coherent(0.0, scan_avg=true)
 
     vis = extract_vis(obsavg)
+    plot(vis)
     show(vis)
     amp = extract_amp(obsavg)
+    plot(amp)
     show(amp)
     cphase = extract_cphase(obsavg)
+    plot(cphase)
     show(cphase)
     lcamp = extract_lcamp(obsavg)
+    plot(lcamp)
     show(lcamp)
+
+    plot(stretched(Gaussian(), 1e-10, 1e-10), amp)
+    residual(stretched(Gaussian(), 1e-10, 1e-10), amp)
+    residual(stretched(Gaussian(), 1e-10, 1e-10), cphase)
 
     @test length(vis) == length(obsavg.data)
     @test length(amp) == length(obsavg.amp)

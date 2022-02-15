@@ -1,6 +1,8 @@
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
+    plot(m)
     img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), npix, npix)
+    plot(img)
     img2 = similar(img)
     intensitymap!(img2, m)
     @test typeof(ComradeBase.intensity_point(m, 0.0, 0.0)) === Float64
