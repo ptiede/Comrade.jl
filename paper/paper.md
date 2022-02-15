@@ -26,38 +26,20 @@ Very-long-baseline interfeometry (VLBI) is capable of producing the highest reso
 
 # Statement of need
 
-`Comrade` is a Julia package for modeling radio emission. Julia is a high performance dynamic language that bridges the "two-language problem". This allows for users to easily extend `Comrade` while maintaining the speed of a lower-level language (e.g. C). The API for `Comrade` was designed to allow the user to easily add their own emission models whether the image has an analytic Fourier transform. Additionally, `Comrade` is a differentiable emission modeling library. This allows for the use of gradient information to be passed to optimization and Bayesian inference algorithms. 
+`Comrade` is a Julia package for modeling radio emission. Julia is a high performance dynamic language that bridges the "two-language problem". This allows for users to easily extend `Comrade` while maintaining the speed of a lower-level language (e.g. C). The API for `Comrade` was designed to allow the user to easily add their own emission models whether the image has an analytic Fourier transform. Additionally, `Comrade` is a differentiable emission modeling library. This allows for the use of gradient information to be passed to optimization and Bayesian inference algorithms.
 
-`Comrade` was designed to be used by radio astronomers during analysis of VLBI data. It has already been used in a number of analyses for the Event Horizon Telescope that soon lead to publications. Additionally, it has been used for 
+This ability to differentiate models natively is important when considering complicated source morphologies commonly seen in VLBI datasets. In such datasets models with large numbers of parameters are needed. Therefore, gradient accelerated optimization/sampling algorithms are needed to efficiently solve the problem. 
+
+`Comrade` was designed to be used by radio astronomers during analysis of VLBI data. It has already been used in a number of analyses for the Event Horizon Telescope that will soon lead to publications. 
 
 # Mathematics
 
-Currently `Comrade` assumes that the field of view of small enough that ignoring telescope systematics, are given by the Fourier transform
+`Comrade` was written with VLBI in mind. In particular, we assume that the image size $\ll 1$rad. In this limit the ideal visibilities are given by the Fourier transform of the image specific intensity $I_\nu(\alpha, \beta)$ :
 $$
     \mathcal{V}(u,v) = \int e^{2\pi i (u\alpha + v\beta)}I(\alpha, \beta)\mathrm{d}\alpha\mathrm{d}\beta.
 $$
 
-
-
-`Gala` is an Astropy-affiliated Python package for galactic dynamics. Python
-enables wrapping low-level languages (e.g., C) for speed without losing
-flexibility or ease-of-use in the user-interface. The API for `Gala` was
-designed to provide a class-based and user-friendly interface to fast (C or
-Cython-optimized) implementations of common operations such as gravitational
-potential and force evaluation, orbit integration, dynamical transformations,
-and chaos indicators for nonlinear dynamics. `Gala` also relies heavily on and
-interfaces well with the implementations of physical units and astronomical
-coordinate systems in the `Astropy` package [@astropy] (`astropy.units` and
-`astropy.coordinates`).
-
-`Gala` was designed to be used by both astronomical researchers and by
-students in courses on gravitational dynamics or astronomy. It has already been
-used in a number of scientific publications [@Pearson:2017] and has also been
-used in graduate courses on Galactic dynamics to, e.g., provide interactive
-visualizations of textbook material [@Binney:2008]. The combination of speed,
-design, and support for Astropy functionality in `Gala` will enable exciting
-scientific explorations of forthcoming data releases from the *Gaia* mission
-[@gaia] by students and experts alike.
+`Comrade` provides an interface to quickly specify an image structure and it's resulting Fourier transform. The general problem of VLBI is then inverting this relation. That is, moving from a set of measured visibilities $V(u, v)$ to an image structure. This is complicated by the fact that 
 
 # Mathematics
 
