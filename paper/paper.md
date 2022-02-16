@@ -22,7 +22,11 @@ bibliography: paper.bib
 
 # Summary
 
-Very-long-baseline interfeometry (VLBI) is capable of producing the highest resolution images ever produced.  
+`Comrade` is a package for modeling different radio astronomy source structures. It has been designed to allow for complicated source structures to be constructed from simple geometric models, and then be compared to data. `Comrade` is targeted to very-long-baseline-interferometry researchers. It will be valuable for analyzing what source structures are supported by the data, in a Bayesian modeling framework. By modeling the VLBI imaging problem as a Bayesian inverse problem, `Comrade` can provide uncertainty quantification of image structures, that are not typically possible with typical tools. 
+
+`Comrade` is written in Julia and is designed to take advantage of Julia's differentiable programming, and 
+
+Very-long-baseline interfeometry (VLBI) is capable of producing the highest resolution images ever produced. In 2019 the first ever image of a black hole was presented in 
 
 # Statement of need
 
@@ -39,16 +43,22 @@ $$
     \mathcal{V}(u,v) = \int e^{2\pi i (u\alpha + v\beta)}I(\alpha, \beta)\mathrm{d}\alpha\mathrm{d}\beta.
 $$
 
-`Comrade` provides an interface to quickly specify an image structure and it's resulting Fourier transform. The general problem of VLBI is then inverting this relation. That is, moving from a set of measured visibilities $V(u, v)$ to an image structure. This is complicated by the fact that 
+`Comrade` provides an interface to quickly specify an image structure and it's resulting Fourier transform. The general problem of VLBI is then inverting this relation. That is, moving from a set of measured visibilities $V(u, v)$ to an image structure. This is complicated by the fact that visibility measurements are sparse. This makes the inverse problem degenerate, and variety of source structures are possible. 
 
-# Mathematics
+To solve this problem, `Comrade` uses views the problem as a Bayesian inverse problem. Therefore, `Comrade` provides a variety of source model classes and likelihood functions applicable for VLBI data analysis.
+
+To solve the Bayesian inverse problem `Comrade` has a number of small interfaces with different Julia probabilistic programming packages. Currently the most developed version is `ComradeSoss`, which defines a minimal interface between `Comrade` and `Soss`. In addition, an interface with `Turing` and `BAT` is planned. 
+
+However, `Comrade` can be used by itself. Some examples of this are given in its documentation.
+
+
 
 
 # Similar Packages
 
 - <span style="font-variant:small-caps;">Themis</span>: A C++ parameter estimation package used by the EHT. It is currently a private GitHub repo
 - `eht-imaging`: Python general purpose EHT imaging package. It currently has a modeling submodule. Requires hand written gradients.
-- `Galifrey`: Python modeling package that uses emcee and not gradients for model fitting
+- `Galifrey`: Python modeling package that uses emcee and no gradients for model fitting
 - `eht-dmc`: Python Bayesian imaging package that also fits calibration systematics by solving the RIME [@Hamaker:1996].
 
 # Citations
@@ -76,7 +86,6 @@ Figure sizes can be customized by adding an optional second parameter:
 
 # Acknowledgements
 
-We acknowledge contributions from Brigitta Sipocz, Syrtis Major, and Semyeong
-Oh, and support from Kathryn Johnston during the genesis of this project.
+
 
 # References
