@@ -24,9 +24,7 @@ bibliography: paper.bib
 
 `Comrade` is a package for modeling different radio astronomy source structures. It has been designed to allow for complicated source structures to be constructed from simple geometric models, and then be compared to data. `Comrade` is targeted to very-long-baseline-interferometry researchers. It will be valuable for analyzing what source structures are supported by the data, in a Bayesian modeling framework. By modeling the VLBI imaging problem as a Bayesian inverse problem, `Comrade` can provide uncertainty quantification of image structures, that are not typically possible with typical tools. 
 
-`Comrade` is written in Julia and is designed to take advantage of Julia's differentiable programming, and 
-
-Very-long-baseline interfeometry (VLBI) is capable of producing the highest resolution images ever produced. In 2019 the first ever image of a black hole was presented in 
+`Comrade` is written in Julia and is designed to take advantage of Julia's differentiable programming, and high-performance nature. Julia was chosen to allow for end-users to incorporate their own source structure models, while maintaining high-performance. 
 
 # Statement of need
 
@@ -46,12 +44,69 @@ $$
 `Comrade` provides an interface to quickly specify an image structure and it's resulting Fourier transform. The general problem of VLBI is then inverting this relation. That is, moving from a set of measured visibilities $V(u, v)$ to an image structure. This is complicated by the fact that visibility measurements are sparse. This makes the inverse problem degenerate, and variety of source structures are possible. 
 
 To solve this problem, `Comrade` uses views the problem as a Bayesian inverse problem. Therefore, `Comrade` provides a variety of source model classes and likelihood functions applicable for VLBI data analysis.
+Comrade itself does not explicity include any optimizers or samplers to find the optimal images. This is by design. Selecting the appropriate sampler often depends on the best the data set, image model, etc. Instead `Comrade` makes it easy to construct a log posterior density and then fit it with your preferred optimizer. 
+For instance if a user wants to use nested sampling to fit the problem they can do:
 
-To solve the Bayesian inverse problem `Comrade` has a number of small interfaces with different Julia probabilistic programming packages. Currently the most developed version is `ComradeSoss`, which defines a minimal interface between `Comrade` and `Soss`. In addition, an interface with `Turing` and `BAT` is planned. 
+```julia
+using Comrade
+using Distributions
+using NestedSamplers
+
+# load eht-imaging we use this to load eht data
+load_ehtim()
+obs = ehtim.obsdata.load_uvfits("data.uvfits")
+# remove zero baselines
+obsflg = obs.flag_uvdistance(uvmin=0.1e9)
+# Extract visibility amplitudes and closure phases
+dlcamp = extract_lcamp(obs; count="min")
+dcphase = extract_cphase(obs, count="min")
+
+# form the likelihood
+lklhd = RadioLikelihood(damp, dcphase)
+
+# build the model here we fit a ring with a azimuthal brightness variation and a Gaussian
+function model(θ)
+  (; radius, width, α, β, f1, σ1, τ1, ξ1, x1, y1) = θ
+  ring = f1*smoothed(stretched(MRing(α, β), radius, radius), width)
+  g1 = (1-f1)*shifted(rotated(stretched(Gaussian(), σ1/sqrt(1-τ), σ2*sqrt(1-τ)), ξ1), x1, y1)
+  return ring + g1
+end
+
+# defines my priors
+prior = ( 
+          radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
+          width = Uniform(μas2rad(1.0), μas2rad(20.0)),
+          α = Uniform(0.0, 0.5),
+          β = Uniform(0.0, 0.5),
+          f1 = Uniform(0.0, 1.0),
+          σ1 = Uniform(μas2rad(1.0), μas2rad(40.0)),
+          τ1 = Uniform(0.0, 0.75),
+          ξ1 = Uniform(-π/2, π/2),
+          x1 = Uniform(-μas2rad(60.0), μas2rad(60.0))
+          y1 = Uniform(-μas2rad(60.0), μas2rad(60.0))
+        )
+
+# Now form my posterior
+post = Posterior(lklhd, prior, model)
+
+# Now if we want to do some Nested sampling to we construct a unit-hypercube transformed version of the posterior density
+tpost = ascube(post)
+
+# To evaluate the logdensity we just do 
+x = rand(10) # this must live in the unit hypercube since we moved to that.
+logdensityof(tpost, x)
+
+
+```
+
 
 However, `Comrade` can be used by itself. Some examples of this are given in its documentation.
 
+# Exosystem
 
+`Comrade` is broken up into two main github repos: Comrade.jl and ComradeBase.jl. Comrade is the package non-developers can use, and includes plotting utilities, data management, and optimization/sampling interfaces. `ComradeBase` defines the inferface that Comrade uses, and is designed to be a low dependency package used mostly by developers. This allows someone to include their own radio source models without having to depend on the full `Comrade` package.
+
+To solve the Bayesian inverse problem `Comrade` has a number of small interfaces with different Julia probabilistic programming packages. Currently the most developed version is `ComradeSoss`, which defines a minimal interface between `Comrade` and `Soss`. In addition, an interface with `Turing` and `BAT` is planned. 
 
 
 # Similar Packages
