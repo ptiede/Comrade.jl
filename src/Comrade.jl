@@ -68,6 +68,7 @@ include("models/models.jl")
 include("distributions/distributions.jl")
 include("distributions/radiolikelihood.jl")
 include("visualizations/visualizations.jl")
+include("bayes/bayes.jl")
 
 function __init__()
     # try

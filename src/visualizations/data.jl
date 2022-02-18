@@ -1,3 +1,4 @@
+export residuals, χ²
 
 @recipe function f(m::AbstractModel, dvis::EHTObservation{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTVisibilityDatum}
     xguide --> "uv-distance (λ)"
@@ -285,6 +286,11 @@ end
 end
 
 
+function χ²(m, data)
+    return sum(abs2, last(residuals(m, data)))
+end
+
+
 function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityAmplitudeDatum}
     amp = getdata(damp, :amp)
     u = getdata(damp, :u)
@@ -308,6 +314,30 @@ function residuals(m, dcp::EHTObservation{T, A}) where {T, A<:EHTClosurePhaseDat
     error = getdata(dcp, :error)
 
     mphase = closure_phases(m, u1, v1, u2, v2, u3, v3)
+    res = zeros(length(phase))
+    for i in eachindex(res)
+        s,c  = sincos(phase[i] - mphase[i])
+        dθ = atan(s,c)
+        res[i] = dθ/error[i]
+    end
+return area, res
+end
+
+
+function residuals(m, dlca::EHTObservation{T, A}) where {T, A<:EHTLogClosureAmplitudeDatum}
+    u1 = getdata(dlca, :u1)
+    v1 = getdata(dlca, :v1)
+    u2 = getdata(dlca, :u2)
+    v2 = getdata(dlca, :v2)
+    u3 = getdata(dlca, :u3)
+    v3 = getdata(dlca, :v3)
+    u4 = getdata(dlca, :u4)
+    v4 = getdata(dlca, :v4)
+    area = sqrt.(uvarea.(dlca.data))
+    phase = getdata(dlca, :amp)
+    error = getdata(dlca, :error)
+
+    mphase = logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
     res = (phase- mphase)./error
     return area, res
 end

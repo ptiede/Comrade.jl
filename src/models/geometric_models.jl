@@ -122,6 +122,12 @@ function MRing{N}(α::T, β::T) where {N,T<:AbstractVector}
     return MRing{S, N}(NTuple{N,S}(α), NTuple{N,S}(β))
 end
 
+function MRing(c::NTuple{N, <:Complex}) where {N}
+    α = real.(c)
+    β = imag.(c)
+    return MRing(α, β)
+end
+
 radialextent(::MRing) = 1.5
 
 
