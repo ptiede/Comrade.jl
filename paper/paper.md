@@ -22,17 +22,32 @@ bibliography: paper.bib
 
 # Summary
 
-`Comrade` is a package for modeling different radio astronomy source structures. It has been designed to allow for complicated source structures to be constructed from simple geometric models, and then be compared to data. `Comrade` is targeted to very-long-baseline-interferometry researchers. It will be valuable for analyzing what source structures are supported by the data, in a Bayesian modeling framework. By modeling the VLBI imaging problem as a Bayesian inverse problem, `Comrade` can provide uncertainty quantification of image structures, that are not typically possible with typical tools. 
+- Mention VLBI
+- Fully Bayesian modeling of VLBI data (Bayesian modeling and inference of VLBI data)
+- Black holes mention them and 
 
-`Comrade` is written in Julia and is designed to take advantage of Julia's differentiable programming, and high-performance nature. Julia was chosen to allow for end-users to incorporate their own source structure models, while maintaining high-performance. 
+
+
+`Comrade` is a package for Bayesian modeling and inference using radio interferometric measurements. `Comrade` is targeted to very-long-baseline-interferometry researchers and has been widely used across the EHT. `Comrade` can model complicated source structures, either by composing simple geometric image models, or by physical modeling of emission in a curved spacetime. Through its Bayesian framework `Comrade` provides a posterior estimates for these geometric and physical parameters.
+ 
+
+<!-- `Comrade` is written in Julia and is designed to take advantage of Julia's differentiable programming, and high-performance nature. Julia was chosen to allow for end-users to incorporate their own models, while maintaining high-performance.  -->
+
+<!-- "and then to be fit directly to a flexible range of interferometric data products such as interferometric visibilities, visibility amplitudes, and closure quantities."  -->
 
 # Statement of need
 
-`Comrade` is a Julia package for modeling radio emission. Julia is a high performance dynamic language that bridges the "two-language problem". This allows for users to easily extend `Comrade` while maintaining the speed of a lower-level language (e.g. C). The API for `Comrade` was designed to allow the user to easily add their own emission models whether the image has an analytic Fourier transform. Additionally, `Comrade` is a differentiable emission modeling library. This allows for the use of gradient information to be passed to optimization and Bayesian inference algorithms.
+Radio interferometric measurement provide the highest resolution images every produced, culminating in the first image of a black hole. However, because interferometers such as the EHT, only provide sparse sampling in the Fourier domain, accurate quantification of uncertainty in the high-dimensional image space is both imperative and numerically demanding. 
 
-This ability to differentiate models natively is important when considering complicated source morphologies commonly seen in VLBI datasets. In such datasets models with large numbers of parameters are needed. Therefore, gradient accelerated optimization/sampling algorithms are needed to efficiently solve the problem. 
+`Comrade` is a Julia package designed to efficiently quantify the uncertainty in radio imaging, while remaining dynamic and modular. Julia is a natural language for this, due to its python-esque syntax and C-like performance. Additionally, due to Julia's extensive auto-differnetiation libraries, `Comrade` can provide gradients to optimization and sampling algorithms. 
+
+<!-- "Comrade is designed to be especially useful for VLBI studies of black holes, with tailored model classes..." 
+
+This ability to differentiate models natively is important when considering complicated source morphologies as expected . In such datasets models with large numbers of parameters are needed. Therefore, gradient accelerated optimization/sampling algorithms are needed to efficiently solve the problem. 
 
 `Comrade` was designed to be used by radio astronomers during analysis of VLBI data. It has already been used in a number of analyses for the Event Horizon Telescope that will soon lead to publications. 
+
+"It has already been used in a number of analyses for the Event Horizon Telescope that will soon lead to publications." << "It is used widely across the EHT Collaboration for analysis and interpretation." 
 
 # Mathematics
 
@@ -43,14 +58,16 @@ $$
 
 `Comrade` provides an interface to quickly specify an image structure and it's resulting Fourier transform. The general problem of VLBI is then inverting this relation. That is, moving from a set of measured visibilities $V(u, v)$ to an image structure. This is complicated by the fact that visibility measurements are sparse. This makes the inverse problem degenerate, and variety of source structures are possible. 
 
-To solve this problem, `Comrade` uses views the problem as a Bayesian inverse problem. Therefore, `Comrade` provides a variety of source model classes and likelihood functions applicable for VLBI data analysis.
+To solve this problem, `Comrade` views the problem as a Bayesian inverse problem. Therefore, `Comrade` provides a variety of source model classes and likelihood functions applicable for VLBI data analysis.
 Comrade itself does not explicity include any optimizers or samplers to find the optimal images. This is by design. Selecting the appropriate sampler often depends on the best the data set, image model, etc. Instead `Comrade` makes it easy to construct a log posterior density and then fit it with your preferred optimizer. 
 For instance if a user wants to use nested sampling to fit the problem they can do:
-
+ -->
 ```julia
 using Comrade
 using Distributions
-using NestedSamplers
+using ForwardDiff
+using Pathfinder
+using AdvancedHMC
 
 # load eht-imaging we use this to load eht data
 load_ehtim()
@@ -66,7 +83,7 @@ lklhd = RadioLikelihood(damp, dcphase)
 
 # build the model here we fit a ring with a azimuthal brightness variation and a Gaussian
 function model(θ)
-  (; radius, width, α, β, f1, σ1, τ1, ξ1, x1, y1) = θ
+  (; radius, width, α, β, fgauss, σ, τ1, ξ1, x1, y1) = θ
   ring = f1*smoothed(stretched(MRing(α, β), radius, radius), width)
   g1 = (1-f1)*shifted(rotated(stretched(Gaussian(), σ1/sqrt(1-τ), σ2*sqrt(1-τ)), ξ1), x1, y1)
   return ring + g1
@@ -76,8 +93,8 @@ end
 prior = ( 
           radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
           width = Uniform(μas2rad(1.0), μas2rad(20.0)),
-          α = Uniform(0.0, 0.5),
-          β = Uniform(0.0, 0.5),
+          α = Uniform(-0.5, 0.5),
+          β = Uniform(-0.5, 0.5),
           f1 = Uniform(0.0, 1.0),
           σ1 = Uniform(μas2rad(1.0), μas2rad(40.0)),
           τ1 = Uniform(0.0, 0.75),
@@ -85,16 +102,12 @@ prior = (
           x1 = Uniform(-μas2rad(60.0), μas2rad(60.0))
           y1 = Uniform(-μas2rad(60.0), μas2rad(60.0))
         )
-
 # Now form my posterior
 post = Posterior(lklhd, prior, model)
+# transform posterior to (-∞,∞) space 
+tpost = asflat(post)
+logp(x) = logdensity(tpost, x)
 
-# Now if we want to do some Nested sampling to we construct a unit-hypercube transformed version of the posterior density
-tpost = ascube(post)
-
-# To evaluate the logdensity we just do 
-x = rand(10) # this must live in the unit hypercube since we moved to that.
-logdensityof(tpost, x)
 
 
 ```
