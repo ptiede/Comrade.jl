@@ -117,6 +117,7 @@ struct FlatTransform{T}
 end
 
 HypercubeTransform.transform(t::FlatTransform, x) = t.transform(x)
+HypercubeTransform.inverse(::FlatTransform, x) = first(ParameterHandling.flatten(x))
 
 """
     flatten(post::Posterior)
