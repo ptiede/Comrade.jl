@@ -15,6 +15,9 @@ The expected arguments are:
 - lklhd: Which should be an intance of RadioLikelihood with whatever data products you want to fit
 - prior: This should be a `NamedTuple` with the priors for each model ParameterHandling
 - model: Function that takes a `NamedTuple` of parameters and constructs the `Comrade` model.
+
+To evaluate the logdensity of the posterior use can either use `DensityInterface.logdensityof`
+or `logdensity`.
 """
 struct Posterior{L,P,F}
     lklhd::L
@@ -34,7 +37,19 @@ function DensityInterface.logdensityof(post::Posterior, x)
     return logdensity(post.lklhd, post.model(x)) + pr
 end
 
+"""
+    `$(TYPDEF)`
+A transformed version of the posterior `lpost`. This is an internal type
+that an end user shouldn't have to directly construct.
 
+To construct a transformed posterior see the `asflat`, `ascube`, and `flatten`
+functions.
+
+When evaluating the `logdensity` of the `TransformedPosterior`, `logdenisty`
+will include any jacobian terms automatically, and expects the argument to be the
+vector of transformed quantities. This is usually easier to incorporate with
+samplers, and optimizers, which expect homogenous vectors as arguments.
+"""
 struct TransformedPosterior{P<:Posterior,T}
     lpost::P
     transform::T
@@ -45,6 +60,13 @@ end
 Transforms the value `x` into parameter space, i.e. usually a NamedTuple.
 """
 HypercubeTransform.transform(p::TransformedPosterior, x) = transform(p.transform, x)
+
+
+"""
+    inverse(posterior::TransformedPosterior, x)
+Transforms the value model parameters `x` into the flattened transformed space.
+"""
+HypercubeTransform.inverse(p::TransformedPosterior, y) = inverse(p.transform, x)
 
 
 @inline DensityInterface.DensityKind(::TransformedPosterior) = IsDensity()
@@ -100,8 +122,6 @@ function HypercubeTransform.ascube(post::Posterior)
     return TransformedPosterior(post, tr)
 end
 
-
-
 function DensityInterface.logdensityof(tpost::TransformedPosterior{P, T}, x) where {P, T<:HypercubeTransform.AbstractHypercubeTransform}
     # Check that x really is in the unit hypercube. If not return -Inf
     for xx in x
@@ -137,55 +157,3 @@ end
 function DensityInterface.logdensityof(post::TransformedPosterior{P,T}, x) where {P, T<: FlatTransform}
     return logdensity(post.lpost, transform(post.transform, x))
 end
-
-
-
-
-
-
-
-
-# abstract type SamplerType end
-
-# struct IsNested <: SamplerType end
-# struct IsMCMC <: SamplerType end
-
-# @inline sampler_type(::Type{<:AbstractMCMC.AbstractSampler}) = IsMCMC()
-# @inline sampler_type(::Type{<:Nested}) = IsNested()
-
-# Base.@kwdef struct DynestyStatic <: AbstractNested
-#     nlive::Int = 500
-#     bound::String = "multi"
-#     sample::String = "auto"
-#     walks::Int = 25
-#     slices::Int = 5
-#     max_move::Int = 100
-# end
-
-# @inline sampler_type(::Type{<:DynestyStatic}) = IsNested()
-
-# Base.@kwdef struct DynestyDynamic <: AbstractNested
-#     bound::String="multi"
-#     sample::String="auto"
-#     walks::Int = 25
-#     slices::Int = 5
-#     max_move::Int = 100
-# end
-
-# @inline sampler_type(::Type{<:DynestyDynamic}) = IsNested()
-
-
-
-# function StatsBase.sample(lpost::Posterior, sampler::S, N::Int; kwargs...) where {S}
-#     _sample(sampler_type(S), lpost, sampler, N::Int; kwargs...)
-# end
-
-# function _sample(::IsMCMC, lpost, sampler::AbstractMCMC.AbstractSampler, N::Int; kwargs...)
-#     tr = asflat(prior)
-#     function ℓ(x)
-#         y, logjac = tranform_and_logjac(tr, x)
-#         logdensityof(lpost,x) + logjac
-#     end
-
-
-# end
