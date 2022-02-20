@@ -1,4 +1,4 @@
-export Posterior, asflat, ascube, flatten, logdensity, transform, dimension
+export Posterior, asflat, ascube, flatten, logdensity, transform, inverse, dimension
 
 import DensityInterface
 import ParameterHandling
@@ -38,7 +38,7 @@ function DensityInterface.logdensityof(post::Posterior, x)
 end
 
 """
-    `$(TYPDEF)`
+    `$(TYPEDEF)`
 A transformed version of the posterior `lpost`. This is an internal type
 that an end user shouldn't have to directly construct.
 
@@ -66,7 +66,7 @@ HypercubeTransform.transform(p::TransformedPosterior, x) = transform(p.transform
     inverse(posterior::TransformedPosterior, x)
 Transforms the value model parameters `x` into the flattened transformed space.
 """
-HypercubeTransform.inverse(p::TransformedPosterior, y) = inverse(p.transform, x)
+HypercubeTransform.inverse(p::TransformedPosterior, y) = inverse(p.transform, y)
 
 
 @inline DensityInterface.DensityKind(::TransformedPosterior) = IsDensity()
