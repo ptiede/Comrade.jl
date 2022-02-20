@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 authors = ["Paul Tiede"]
-version = "0.2.1"
+version = "0.2.2"
 
 [deps]
 AbstractDifferentiation = "c29ec348-61ec-40c8-8164-b8c60e9d9f3d"
@@ -45,6 +45,8 @@ TupleVectors = "615932cf-77b6-4358-adcd-5b7eba981d7e"
 ValueShapes = "136a8f8c-c49b-4edb-8b98-f3d64d48be8f"
 
 [compat]
+AbstractDifferentiation = "0.4"
+AbstractMCMC = "3"
 AbstractFFTs = "1"
 Accessors = "0.1"
 AstroTime = "0.6,0.7"
@@ -57,13 +59,13 @@ DocStringExtensions = "0.6,0.7,0.8"
 FFTW = "^1"
 FillArrays = "0.12,0.13"
 ForwardDiff = "0.9, 0.10"
-HypercubeTransform = "0.2"
+HypercubeTransform = "^0.2.4"
 KeywordCalls = "0.2"
 LoopVectorization = "0.12"
 MappedArrays = "0.3,0.4"
 MeasureBase = "0.5"
 MeasureTheory = "0.13"
-NFFT = "0.5,0.6, 0.7, 0.8, 0.9, 0.10"
+NFFT = "0.10"
 PaddedViews = "0.5"
 PyCall = "^1"
 RecipesBase = "1"
@@ -73,6 +75,7 @@ StaticArrays = "1"
 StatsBase = "0.31,0.32,0.33"
 StructArrays = "0.3,0.4,0.5,0.6"
 TransformVariables = "0.3, 0.4"
+TupleVectors="0.1"
 julia = "^1.6"
 
 [extras]
