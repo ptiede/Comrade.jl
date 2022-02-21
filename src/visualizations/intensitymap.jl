@@ -17,7 +17,7 @@ Note that is does not save the figure.
 
     #Define some constants
     #Construct the image grid in μas
-    fovx, fovy = fov(image)
+    fovx, fovy = rad2μas.(fov(image))
     xitr, yitr = imagepixels(image)
 
     tickfontsize --> 11
@@ -42,7 +42,7 @@ Note that is does not save the figure.
     title --> @sprintf("flux = %.2f Jy", flux(image))
     linecolor-->:black
     tick_direction --> :out
-    collect(xitr),collect(yitr),z
+    rad2μas(collect(xitr)),rad2μas(collect(yitr)),z
 end
 
 

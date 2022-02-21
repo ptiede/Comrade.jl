@@ -5,3 +5,4 @@
 /docs/build/
 test/Manifest.toml
 examples/jukebox.jl
+examples/Manifest.toml
