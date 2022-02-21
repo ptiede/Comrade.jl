@@ -5,6 +5,7 @@ Radio Observation Sampling Exploration
 module Comrade
 
 using AbstractFFTs
+using AbstractMCMC
 using Accessors: @set
 using BasicInterpolators
 using DocStringExtensions
@@ -12,7 +13,6 @@ using ChainRulesCore
 using ComradeBase
 using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
-using LoopVectorization: @turbo
 using MappedArrays: mappedarray
 using MeasureBase
 using NFFT: nfft, plan_nfft
@@ -20,6 +20,7 @@ using PaddedViews
 using PyCall: pyimport, PyNULL, PyObject
 using SpecialFunctions
 using Reexport
+using Requires: @require
 using StructArrays: StructArray
 # Write your package code here.
 
@@ -69,13 +70,13 @@ include("distributions/distributions.jl")
 include("distributions/radiolikelihood.jl")
 include("visualizations/visualizations.jl")
 include("bayes/bayes.jl")
+include("inference/inference.jl")
 
 function __init__()
-    # try
-    #     copy!(ehtim, pyimport("ehtim"))
-    # catch
-    #     @warn "No ehtim installation found in python path. Some data functionality will not work"
-    # end
+    @require AdvancedHMC="0bf59076-c3b1-5ca4-86bd-e02cd72cde3d" include("inference/advancedhmc.jl")
+    @require NestedSamplers="41ceaf6f-1696-4a54-9b49-2e7a9ec3782e" include("inference/nested.jl")
+    @require Pathfinder="b1d3bc72-d0e7-4279-b92f-7fa5d6d2d454" include("inference/pathfinder.jl")
+    @require GalacticOptim="a75be94c-b780-496d-a8a9-0878b188d577" include("inference/galacticoptim.jl")
 end
 
 end
