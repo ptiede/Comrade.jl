@@ -2,6 +2,7 @@ export Posterior, asflat, ascube, flatten, logdensity, transform, inverse, dimen
 
 import DensityInterface
 import ParameterHandling
+import ParameterHandling: flatten
 using HypercubeTransform
 using TransformVariables
 using ValueShapes: NamedTupleDist
@@ -97,6 +98,8 @@ function DensityInterface.logdensityof(post::TransformedPosterior{P, T}, x) wher
     p, logjac = transform_and_logjac(post.transform, x)
     return DensityInterface.logdensityof(post.lpost, p) + logjac
 end
+
+dimension(t::FlatTransform) = t.transform.unflatten.sz[end]
 
 HypercubeTransform.dimension(post::TransformedPosterior) = dimension(post.transform)
 HypercubeTransform.dimension(post::Posterior) = length(rand(post.prior))

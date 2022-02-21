@@ -13,7 +13,6 @@ using ChainRulesCore
 using ComradeBase
 using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
-using LoopVectorization: @turbo
 using MappedArrays: mappedarray
 using MeasureBase
 using NFFT: nfft, plan_nfft

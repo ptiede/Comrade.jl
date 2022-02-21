@@ -172,7 +172,7 @@ function uviterator(dx, dy, nnx, nny)
 end
 
 function phasecenter(vis, uu, vv, x0, y0, dx, dy)
-    map(CartesianIndices((eachindex(uu), eachindex(reverse(vv))))) do I
+    map(CartesianIndices((eachindex(uu), eachindex((vv))))) do I
         iy,ix = Tuple(I)
         return conj(vis[I])*dx*dy*exp(2im*π*(uu[ix]*x0 + vv[iy]*y0))
     end
@@ -217,7 +217,7 @@ function phasedecenter!(vis, fovx, fovy, nx, ny)
 
     for I in CartesianIndices(vis)
         iy, ix = Tuple(I)
-        vis[I] = conj(vis[I])*exp(-2im*π*(uu[ix]*first(x) + vv[iy]*first(y)))*nx*ny/(dx*dy)
+        vis[I] = conj(vis[I]*exp(-2im*π*(uu[ix]*first(x) + vv[iy]*first(y))))*nx*ny/(dx*dy)
     end
     return vis
 end

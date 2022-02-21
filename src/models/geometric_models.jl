@@ -78,10 +78,10 @@ struct Ring{T} <: GeometricModel end
 Ring() = Ring{Float64}()
 radialextent(::Ring) = 1.5
 
-@inline function intensity_point(m::Ring{T}, x::Number, y::Number) where {T}
+@inline function intensity_point(::Ring{T}, x::Number, y::Number) where {T}
     r = hypot(x,y)
     θ = atan(x,y)
-    dr = 0.1
+    dr = 1e-2
     if (abs(r-1) < dr/2)
         acc = one(T)
         return acc/(2π*dr)
@@ -134,8 +134,8 @@ radialextent(::MRing) = 1.5
 @inline function intensity_point(m::MRing{T,N}, x::Number, y::Number) where {T,N}
     r = hypot(x,y)
     θ = atan(x,y)
-    dr = 0.1
-    if (abs(r-1) < dr)
+    dr = 0.025
+    if (abs(r-1) < dr/2)
         acc = one(T)
         for n in 1:N
             s,c = sincos(n*θ)

@@ -8,7 +8,7 @@ function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     @test typeof(ComradeBase.intensity_point(m, 0.0, 0.0)) === Float64
     @test isapprox(flux(m), flux(img), atol=atol)
     @test isapprox(mean(img .- img2), 0, atol=1e-8)
-    cache = Comrade.create_cache(Comrade.FFTAlg(padfac=3), img./flux(img)*flux(m))
+    cache = Comrade.create_cache(Comrade.FFT(padfac=3), img./flux(img)*flux(m))
     u = fftshift(fftfreq(size(img,1), 1/img.psizex))./20
     @test isapprox(maximum(abs.(visibility.(Ref(m), u', u) .- cache.sitp.(u', u))), 0.0, atol=atol*10)
 end
@@ -29,7 +29,7 @@ end
     @testset "Ring" begin
         m = smoothed(Ring(), 0.25)
         ComradeBase.intensity_point(Ring(), 0.0, 0.0)
-        testmodel(m)
+        testmodel(m, 2048)
     end
 
     @testset "ParabolicSegment" begin
@@ -49,7 +49,7 @@ end
         m = convolved(MRing(α, β), stretched(Gaussian(), 0.1, 0.1))
         m2 = convolved(MRing{1}(collect(α), collect(β)), stretched(Gaussian(), 0.1, 0.1))
         @test m == m2
-        testmodel(m)
+        testmodel(m, 2048, 1e-3)
     end
 
     @testset "MRing2" begin
@@ -58,7 +58,7 @@ end
 
         # We convolve it to remove some pixel effects
         m = convolved(MRing(α, β), stretched(Gaussian(), 0.1, 0.1))
-        testmodel(m)
+        testmodel(m, 2048, 1e-3)
     end
 
 
@@ -75,8 +75,8 @@ end
 
     @testset "ExtendedRing" begin
         mr = ExtendedRing(10.0, 0.5)
-        rad = Comrade.radialextent(mr)
-        m = modelimage(mr, IntensityMap(zeros(1024,1024), rad, rad))
+        rad = 2*Comrade.radialextent(mr)
+        m = modelimage(mr, IntensityMap(zeros(1024,1024), rad, rad); alg=Comrade.FFT(padfac=4))
         testmodel(m)
     end
 end
@@ -229,7 +229,8 @@ end
 end
 
 @testset "DImage SqExp" begin
-   mI = DImage(rand(8,8), SqExpPulse(5.0))
+   c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
+   mI = DImage(c.im, SqExpPulse(5.0))
    testmodel(mI)
 end
 #@testset "DImage Bspline0" begin
@@ -237,10 +238,12 @@ end
 #   testmodel(mI, 1e-2)
 #end
 @testset "DImage BSpline1" begin
-   mI = DImage(rand(8,8), BSplinePulse{1}())
+    c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
+   mI = DImage(c.im, BSplinePulse{1}())
    testmodel(mI)
 end
 @testset "DImage BSpline3" begin
-   mI = DImage(rand(8,8), BSplinePulse{3}())
+    c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
+   mI = DImage(c.im, BSplinePulse{3}())
    testmodel(mI)
 end
