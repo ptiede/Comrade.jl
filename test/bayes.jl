@@ -54,7 +54,7 @@ using StatsBase
     q1, ϕ1, logqϕ1 = multipathfinder(post, 10; init_params=2)
     q2, ϕ2, logqϕ2 = multipathfinder(post, 10, init_params=rand(post.prior, 2))
 
-    nchain, nstats = sample(post, Nested(dimension(post), 2_000); dlogz=1.0)
+    nchain, nstats = sample(post, Nested(dimension(post), 2_000); dlogz=1.0, progress=false)
     @test isapprox(collect(values(nchain[end])), collect(values(xopt)), rtol=1e-2)
     echain = Comrade.TupleVector(sample(nchain, Weights(nstats.weights), 100_000))
     mn = Comrade.rmap(mean, echain)[1]

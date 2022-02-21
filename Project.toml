@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 authors = ["Paul Tiede"]
-version = "0.2.2"
+version = "0.2.3"
 
 [deps]
 AbstractDifferentiation = "c29ec348-61ec-40c8-8164-b8c60e9d9f3d"
@@ -22,7 +22,6 @@ ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 HypercubeTransform = "9ec9aee3-0fd3-44c2-8e61-a50acc66f3c8"
 KeywordCalls = "4d827475-d3e4-43d6-abe3-9688362ede9f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 MappedArrays = "dbb5928d-eab1-5f90-85c2-b9b0edb7c900"
 MeasureBase = "fa1605e6-acd5-459c-a1e6-7e635759db14"
 MeasureTheory = "eadaa1a4-d27c-401d-8699-e962e1bbc33b"
@@ -46,8 +45,8 @@ ValueShapes = "136a8f8c-c49b-4edb-8b98-f3d64d48be8f"
 
 [compat]
 AbstractDifferentiation = "0.4"
-AbstractMCMC = "3"
 AbstractFFTs = "1"
+AbstractMCMC = "3"
 Accessors = "0.1"
 AstroTime = "0.6,0.7"
 BasicInterpolators = "0.6"
@@ -61,7 +60,6 @@ FillArrays = "0.12,0.13"
 ForwardDiff = "0.9, 0.10"
 HypercubeTransform = "^0.2.4"
 KeywordCalls = "0.2"
-LoopVectorization = "0.12"
 MappedArrays = "0.3,0.4"
 MeasureBase = "0.5"
 MeasureTheory = "0.13"
@@ -75,7 +73,7 @@ StaticArrays = "1"
 StatsBase = "0.31,0.32,0.33"
 StructArrays = "0.3,0.4,0.5,0.6"
 TransformVariables = "0.3, 0.4"
-TupleVectors="0.1"
+TupleVectors = "0.1"
 julia = "^1.6"
 
 [extras]
