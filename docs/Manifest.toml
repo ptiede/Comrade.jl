@@ -397,7 +397,7 @@ version = "0.9.17"
 
 [[HypercubeTransform]]
 deps = ["ArgCheck", "Distributions", "DocStringExtensions", "GeneralizedGenerated", "MLStyle", "MeasureTheory", "NamedTupleTools", "Requires", "TransformVariables", "Tricks"]
-path = "../../HypercubeTransform"
+git-tree-sha1 = "e416fc2675905db2169fc09ae06530f8c2045ca4"
 uuid = "9ec9aee3-0fd3-44c2-8e61-a50acc66f3c8"
 version = "0.2.4"
 
