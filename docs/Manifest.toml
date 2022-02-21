@@ -174,11 +174,11 @@ version = "0.1.1"
 deps = ["AbstractDifferentiation", "AbstractFFTs", "AbstractMCMC", "Accessors", "AstroTime", "BasicInterpolators", "ChainRulesCore", "ComradeBase", "DelimitedFiles", "DensityInterface", "Distributions", "DocStringExtensions", "FFTW", "FillArrays", "ForwardDiff", "HypercubeTransform", "KeywordCalls", "LinearAlgebra", "MappedArrays", "MeasureBase", "MeasureTheory", "NFFT", "PaddedViews", "ParameterHandling", "Printf", "PyCall", "Random", "RecipesBase", "Reexport", "Requires", "SpecialFunctions", "StaticArrays", "Statistics", "StatsBase", "StructArrays", "TransformVariables", "TupleVectors", "ValueShapes"]
 path = ".."
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
-version = "0.2.3"
+version = "0.2.2"
 
 [[ComradeBase]]
 deps = ["ChainRulesCore", "DocStringExtensions", "ImageAxes", "StaticArrays", "StructArrays"]
-path = "../../ComradeBase"
+git-tree-sha1 = "d1784c25acc487b013404f028884e35a92c6b36e"
 uuid = "6d8c423b-a35f-4ef1-850c-862fe21f82c4"
 version = "0.2.3"
 
