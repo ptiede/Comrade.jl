@@ -27,7 +27,7 @@ using StatsBase
 
     prior = (f=Uniform(0.8, 1.2),
              σ = Uniform(μas2rad(10.0), μas2rad(40.0)),
-             τ = Uniform(0.01, 0.99),
+             τ = Uniform(0.35, 0.65),
              ξ = Uniform(-π/2, π/2)
             )
 
@@ -51,6 +51,8 @@ using StatsBase
     @test isapprox(xopt.σ*xopt.τ*2*sqrt(2*log(2)), μas2rad(20.0), atol=1e-3)
     @test isapprox(-xopt.ξ, π/3, atol=1e-3)
 
+    pathfinder(post, 10)
+    pathfinder(post, 10; init_params=rand(post.prior))
     q1, ϕ1, logqϕ1 = multipathfinder(post, 10; init_params=2)
     q2, ϕ2, logqϕ2 = multipathfinder(post, 10, init_params=rand(post.prior, 2))
 
