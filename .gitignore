@@ -6,3 +6,5 @@
 test/Manifest.toml
 examples/jukebox.jl
 examples/Manifest.toml
+docs/Manifest.toml
+examples/Manifest.toml

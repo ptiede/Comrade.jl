@@ -37,4 +37,3 @@ function Comrade.visibility_point(m, u, v)
     return (1- )
 end
 ```
-

@@ -20,7 +20,8 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
-        "getting_started.md",
+        "vlbi_imaging_problem.md",
+        "interface.md",
         "api.md"
     ],
 )
