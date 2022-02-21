@@ -99,7 +99,6 @@ function DensityInterface.logdensityof(post::TransformedPosterior{P, T}, x) wher
     return DensityInterface.logdensityof(post.lpost, p) + logjac
 end
 
-
 HypercubeTransform.dimension(post::TransformedPosterior) = dimension(post.transform)
 HypercubeTransform.dimension(post::Posterior) = length(rand(post.prior))
 
@@ -140,8 +139,7 @@ end
 
 HypercubeTransform.transform(t::FlatTransform, x) = t.transform(x)
 HypercubeTransform.inverse(::FlatTransform, x) = first(ParameterHandling.flatten(x))
-dimension(t::FlatTransform) = t.transform.unflatten.sz[end]
-
+HypercubeTransform.dimension(t::FlatTransform) = t.transform.unflatten.sz[end]
 """
     flatten(post::Posterior)
 Flatten the representation of the posterior. Internally this uses ParameterHandling to

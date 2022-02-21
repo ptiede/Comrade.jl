@@ -25,8 +25,8 @@ using StatsBase
         θ.f*rotated(stretched(Gaussian(), θ.σ*θ.τ, θ.σ), θ.ξ)
     end
 
-    prior = (f=Uniform(0.1, 2.0),
-             σ = Uniform(μas2rad(1.0), μas2rad(60.0)),
+    prior = (f=Uniform(0.8, 1.2),
+             σ = Uniform(μas2rad(10.0), μas2rad(40.0)),
              τ = Uniform(0.01, 0.99),
              ξ = Uniform(-π/2, π/2)
             )
@@ -60,7 +60,8 @@ using StatsBase
     mn = Comrade.rmap(mean, echain)[1]
     sn = Comrade.rmap(std, echain)[1]
 
-    hchain, hstats = sample(post, HMC(metric=DiagEuclideanMetric(dimension(post))), 10_000; nadapts=2000, init_params=nchain[end])
+    hchain, hstats = sample(post, HMC(metric=DiagEuclideanMetric(dimension(post))),
+                            10_000; nadapts=2000, init_params=nchain[end], progress=false)
     mh = Comrade.rmap(mean, hchain)[1]
     sh = Comrade.rmap(std, hchain)[1]
 

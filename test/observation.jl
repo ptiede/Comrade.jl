@@ -28,7 +28,7 @@
     @test length(amp) == length(obsavg.amp)
     @test length(cphase) == length(obsavg.cphase)
     @test length(lcamp) == length(obsavg.logcamp)
-    @test Set(stations(vis)) == Set(Symbol.(collect(get(obsavg.tarr, "site"))))
+    #@test Set(stations(vis)) == Set(Symbol.(collect(get(obsavg.tarr, "site"))))
     @test mean(getdata(amp, :amp)) == mean(get(obsavg.amp, :amp))
 
     println("observation: ")
