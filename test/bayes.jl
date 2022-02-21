@@ -58,8 +58,8 @@ using StatsBase
     mn = Comrade.rmap(mean, echain)[1]
     sn = Comrade.rmap(std, echain)[1]
 
-    pathfinder(post, 10; init_params=chain[end])
-    q2, ϕ2, logqϕ2 = multipathfinder(post, 10, init_params=chain[end-1:end])
+    pathfinder(post, 10; init_params=nchain[end])
+    q2, ϕ2, logqϕ2 = multipathfinder(post, 10, init_params=nchain[end-1:end])
 
 
     hchain, hstats = sample(post, HMC(metric=DiagEuclideanMetric(dimension(post))),
