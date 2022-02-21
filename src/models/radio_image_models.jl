@@ -77,7 +77,7 @@ end
 
 @inline function flux(model::DImage{S,B,M}) where {S,B,M}
     sum = zero(S)
-    @turbo for i in eachindex(model.coeff)
+    @inbounds @fastmath for i in eachindex(model.coeff)
         sum += model.coeff[i]
     end
     # Divide by pixel number to convert properly

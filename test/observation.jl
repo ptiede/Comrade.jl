@@ -28,7 +28,7 @@
     @test length(amp) == length(obsavg.amp)
     @test length(cphase) == length(obsavg.cphase)
     @test length(lcamp) == length(obsavg.logcamp)
-    @test Set(stations(vis)) == Set(Symbol.(collect(get(obsavg.tarr, "site"))))
+    #@test Set(stations(vis)) == Set(Symbol.(collect(get(obsavg.tarr, "site"))))
     @test mean(getdata(amp, :amp)) == mean(get(obsavg.amp, :amp))
 
     println("observation: ")
@@ -41,7 +41,7 @@
     baselines(lcamp[1])
 
     #Test amplitude which is already debiased for very very dumb reasons
-    @test sqrt(abs(visibility(vis[1]))^2 - vis[1].error^2) == amplitude(amp[1])
+    @test sqrt(abs(visibility(vis[1]))^2 - vis[1].error^2) ≈ amplitude(amp[1])
     ac = arrayconfig(vis)
 
 

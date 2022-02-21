@@ -17,4 +17,5 @@ using Plots
     include("observation.jl")
     include("distributions.jl")
     include("models.jl")
+    include("bayes.jl")
 end
