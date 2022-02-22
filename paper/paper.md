@@ -39,7 +39,56 @@ However, because VLBI provide an incomplete sampling of $u_i, v_j$ in the Fourie
 Additionally, since Julia is a differentiable programming language, all `Comrade` models are natively differentiable. This is unique for an EHT modeling library where either gradients have to be hand-coded, or are calculated using finite difference. The use of gradient information is imperative for VLBI modeling where as data sets get larger so will observed source morphology. This implies that the number of parameters one needs to fit will grow as well. In high-dimensional settings the use of gradients is necessary to efficiently sample and explore the parameter space.
 
 To show the simplicity of `Comrade`'s interface we will reproduce results from @EHTCVI in under 50 lines of code which finishes in under 2 minutes.
-![](code.pdf)
+
+```julia
+    using Comrade
+    using Distributions
+    using Pathfinder
+    using AdvancedHMC
+    using Plots
+    # load eht-imaging we use this to load eht data
+    load_ehtim()
+    # To download the data visit https://doi.org/10.25739/g85n-f134
+    obs = ehtim.obsdata.load_uvfits("SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+    obs.add_scans()
+    # kill 0-baselines since we don't care about 
+    # large scale flux and make scan-average data
+    obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true)
+    # extract log closure amplitudes and closure phases
+    dlcamp = extract_lcamp(obs; count="min")
+    dcphase = extract_cphase(obs, count="min")
+    # form the likelihood
+    lklhd = RadioLikelihood(dlcamp, dcphase)
+    # build the model here we fit a ring with a azimuthal 
+    #brightness variation and a Gaussian
+    function model(θ)
+      (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
+      ring = f*smoothed(stretched(MRing((a,), (b,)), rad, rad), wid)
+      g = (1-f)*shifted(rotated(stretched(Gaussian(), sig*asy, sig), pa), x, y)
+      return ring + g
+    end
+    # define the priors
+  prior = (
+            rad = Uniform(μas2rad(10.0), μas2rad(30.0)),
+            wid = Uniform(μas2rad(1.0), μas2rad(10.0)),
+            a = Uniform(-0.5, 0.5), b = Uniform(-0.5, 0.5),
+            f = Uniform(0.0, 1.0),
+            sig = Uniform(μas2rad(1.0), μas2rad(40.0)),
+            asy = Uniform(0.0, 0.75),
+            pa = Uniform(0.0, 1π),
+            x = Uniform(-μas2rad(80.0), μas2rad(80.0)),
+            y = Uniform(-μas2rad(80.0), μas2rad(80.0))
+          )
+  # Now form the posterior
+  post = Posterior(lklhd, prior, model)
+  # We will use HMC to sample the posterior.
+  # First to reduce burn in we use pathfinder
+  q, phi, _ = multipathfinder(post, 100)
+  # now we sample using hmc
+  metric = DiagEuclideanMetric(dimension(post))
+  chain, stats = sample(post, HMC(;metric), 2000; nadapts=1000, init_params=phi[1])
+    plot(model(chain[end]))    
+```
 
 ![Image of M 87 from `Comrade`](blackhole.png)
 
