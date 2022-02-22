@@ -11,3 +11,7 @@ examples/Manifest.toml
 docs/src/examples/black_hole_image.md
 docs/src/examples/nonanalytic.md
 docs/src/examples/data.md
+paper/code.aux
+paper/code.log
+*.pygtex
+paper/_minted-code/default.pygstyle
