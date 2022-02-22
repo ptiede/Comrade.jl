@@ -31,7 +31,7 @@ This is pertinent for sparse interferometer, such as the Event Horizon Telescope
 
 # Statement of need
 
-Radio interferometric measurements provide the highest resolution images every produced, culminating in the first image of a black hole [EHTCI; EHTCIV; EHTCVI].
+Radio interferometric measurements provide the highest resolution images every produced, culminating in the first image of a black hole [@EHTCI; @EHTCIV; @EHTCVI].
 An ideal VLBI telescope measure the Fourier transform of the image, $I$
 
 $$
@@ -45,7 +45,7 @@ Additionally, since Julia is a differentiable programming language, all `Comrade
 `Comrade` itself does not implement any optimization or sampling techniques. Instead it creates an interface that allows for an easy construction of the un-normalized posterior density. Additionally, it handles typically error-prone and monotonous tasks of transforming the posterior density from parameter space $P$ to $\mathbb{R}^n$ and the unit hypercube, which is needed for Hamiltonian Monte Carlo and nested sampling respectively. Additionally, `Comrade` has an interface to the probabilistic programming language `Soss` [@Soss] for further Bayesian inference automation. To sample from the posterior `Comrade` has some interfaces to nested sampling algorithms `NestedSamplers.jl` [@NS] and `AdvancedHMC` [@AHMC] by default, but it is easy for users to use different samplers.
 
 
-Thanks to `Comrade`'s design and Julia it is possible to fit VLBI data with a compact user-friendly experience. Below is an example that reproduces an image of a black hole from [@EHTCVI2019] in under 50 lines of code and finishes in under 2 min:
+Thanks to `Comrade`'s design and Julia it is possible to fit VLBI data with a compact user-friendly experience. Below is an example that reproduces an image of a black hole from [@EHTCVI] in under 50 lines of code and finishes in under 2 min:
 ```julia
 using Comrade
 using Distributions
