@@ -8,3 +8,7 @@ examples/jukebox.jl
 examples/Manifest.toml
 docs/Manifest.toml
 examples/Manifest.toml
+paper/code.aux
+paper/code.log
+*.pygtex
+paper/_minted-code/default.pygstyle
