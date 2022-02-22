@@ -57,21 +57,24 @@ load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 obs = ehtim.obsdata.load_uvfits("SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
 obs.add_scans()
-# kill 0-baselines since we don't care about large scale flux and make scan-average data
+# kill 0-baselines since we don't care about 
+# large scale flux and make scan-average data
 obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true)
-# grab data products we want to fit: log closure amplitudes and closure phases
+# grab data products we want to fit: 
+# log closure amplitudes and closure phases
 dlcamp = extract_lcamp(obs; count="min")
 dcphase = extract_cphase(obs, count="min")
 # form the likelihood
 lklhd = RadioLikelihood(dlcamp, dcphase)
-# build the model here we fit a ring with a azimuthal brightness variation and a Gaussian
+# build the model here we fit a ring with a azimuthal 
+#brightness variation and a Gaussian
 function model(θ)
   (;radius, width, α, β, f, σG, τG, ξG, xG, yG) = θ
   ring = f*smoothed(stretched(MRing((α,), (β,)), radius, radius), width)
   g = (1-f)*shifted(rotated(stretched(Gaussian(), σG, σG*(1+τG)), ξG), xG, yG)
   return ring + g
 end
-# define my priors
+# define the priors
 prior = (
           radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
           width = Uniform(μas2rad(1.0), μas2rad(10.0)),
@@ -91,7 +94,8 @@ post = Posterior(lklhd, prior, model)
 q, ϕ, _ = multipathfinder(post, 100)
 # now we sample using hmc
 ndim = dimension(post)
-chain, stats = sample(post, HMC(metric=DiagEuclideanMetric(ndim)), 2000; nadapts=1000, init_params=ϕ[1])
+metric = DiagEuclideanMetric(ndim)
+chain, stats = sample(post, HMC(;metric), 2000; nadapts=1000, init_params=ϕ[1])
 # plot a draw from the posterior
 plot(model(chain[end]))
 ```
