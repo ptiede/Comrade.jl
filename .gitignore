@@ -21,3 +21,7 @@ lib/ComradeNested/Manifest.toml
 lib/ComradeOptimization/Manifest.toml
 lib/ComradeOptimization/Manifest.toml
 lib/ComradeOptimization/Manifest.toml
+paper/code.aux
+paper/code.log
+*.pygtex
+paper/_minted-code/default.pygstyle
