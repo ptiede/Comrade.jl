@@ -22,10 +22,6 @@ bibliography: paper.bib
 
 # Summary
 
-- Mention VLBI
-- Fully Bayesian modeling of VLBI data (Bayesian modeling and inference of VLBI data)
-- Black holes mention them and 
-
 `Comrade` is a Bayesian modeling package targeted for very-long-baseline interferometry written in the Julia programming language [@bezanson2015julia]. It's target audience is VLBI researchers and students who are interested in quantifying uncertainty in image reconstructions of VLBI data.
 This is pertinent for sparse interferometer, such as the Event Horizon Telescope, where `Comrade` has been widely used.
 
