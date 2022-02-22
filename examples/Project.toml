@@ -1,4 +1,5 @@
 [deps]
+AbstractDifferentiation = "c29ec348-61ec-40c8-8164-b8c60e9d9f3d"
 AdaptiveMCMC = "717c3277-546c-407d-8270-09a39a0919a0"
 AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
 AdvancedMH = "5b7e9947-ddc0-4b3f-9b55-0d8042f74170"
@@ -29,6 +30,7 @@ PairPlots = "43a3c2be-4208-490b-832a-a21dcd55d7da"
 ParameterHandling = "2412ca09-6db7-441c-8e3a-88d5709968c5"
 Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
 Pathfinder = "b1d3bc72-d0e7-4279-b92f-7fa5d6d2d454"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 SpeedMapping = "f1835b91-879b-4a3f-a438-e4baacf14412"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 StatsPlots = "f3b207a7-027a-5e70-b257-86293d7955fd"
