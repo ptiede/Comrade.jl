@@ -8,7 +8,7 @@ tags:
   - black holes
 authors:
   - name: Paul Tiede
-    orcid: 0000-0000-0000-0000
+    orcid: 0000-0003-3826-5648
     affiliation: "1, 2" # (Multiple affiliations must be quoted)
 affiliations:
  - name: Black Hole Initiative at Harvard University
@@ -42,10 +42,7 @@ However, because VLBI provide an incomplete sampling of $u_i, v_j$ in the Fourie
 
 Additionally, since Julia is a differentiable programming language, all `Comrade` models are natively differentiable. This is unique for an EHT modeling library where either gradients have to be hand-coded, or are calculated using finite difference. The use of gradient information is imperative for VLBI modeling where as data sets get larger so will observed source morphology. This implies that the number of parameters one needs to fit will grow as well. In high-dimensional settings the use of gradients is necessary to efficiently sample and explore the parameter space.
 
-`Comrade` itself does not implement any optimization or sampling techniques. Instead it creates an interface that allows for an easy construction of the un-normalized posterior density. Additionally, it handles typically error-prone and monotonous tasks of transforming the posterior density from parameter space $P$ to $\mathbb{R}^n$ and the unit hypercube, which is needed for Hamiltonian Monte Carlo and nested sampling respectively. Additionally, `Comrade` has an interface to the probabilistic programming language `Soss` [@Soss] for further Bayesian inference automation. To sample from the posterior `Comrade` has some interfaces to nested sampling algorithms `NestedSamplers.jl` [@NS] and `AdvancedHMC` [@AHMC] by default, but it is easy for users to use different samplers.
-
-
-Thanks to `Comrade`'s design and Julia it is possible to fit VLBI data with a compact user-friendly experience. Below is an example that reproduces an image of a black hole from [@EHTCVI] in under 50 lines of code and finishes in under 2 min:
+To show the simplicity of `Comrade`'s interface we will reproduce results from @EHTCVI in under 50 lines of code which finishes in under 2 minutes.
 ```julia
 using Comrade
 using Distributions
@@ -89,8 +86,8 @@ prior = (
         )
 # Now form my posterior
 post = Posterior(lklhd, prior, model)
-# We will use HMC to sample the posterior, first to reduce burn in we use pathfinder
-# to get a good starting location that is approximately drawn from the posterior
+# We will use HMC to sample the posterior.
+# First to reduce burn in we use pathfinder
 q, ϕ, _ = multipathfinder(post, 100)
 # now we sample using hmc
 ndim = dimension(post)
