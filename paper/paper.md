@@ -105,7 +105,7 @@ plot(model(chain[end]))
 - `eht-dmc` [@dmc]: Python Bayesian imaging package that also fits calibration systematics by solving the RIME [@Hamaker].
 - `Galifray` [@gal]: Python modeling package that uses emcee as it's backbone.
 - `InterferometricModels` [@in]: Recent Julia radio astronomy package with some similar features to `Comrade`
-- <span style="font-variant:small-caps;">Themis</span> [themis]: A C++ parameter estimation package used by the EHT. It is currently a private GitHub repo.
+- <span style="font-variant:small-caps;">Themis</span> [@themis]: A C++ parameter estimation package used by the EHT. It is currently a private GitHub repo.
 
 
 # Acknowledgements
