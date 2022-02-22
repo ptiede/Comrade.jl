@@ -51,7 +51,8 @@ using Plots
 # load eht-imaging we use this to load eht data
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits("SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+file = "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"
+obs = ehtim.obsdata.load_uvfits(file)
 obs.add_scans()
 # kill 0-baselines since we don't care about 
 # large scale flux and make scan-average data
@@ -89,7 +90,8 @@ post = Posterior(lklhd, prior, model)
 q, phi, _ = multipathfinder(post, 100)
 # now we sample using hmc
 metric = DiagEuclideanMetric(dimension(post))
-chain, stats = sample(post, HMC(;metric), 2000; nadapts=1000, init_params=phi[1])
+chain, stats = sample(post, HMC(;metric), 2000; 
+                      nadapts=1000, init_params=phi[1])
 # plot a draw from the posterior
 plot(model(chain[end]))    
 ```
