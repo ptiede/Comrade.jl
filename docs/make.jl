@@ -10,17 +10,11 @@ using Glob
 using Pathfinder
 using Plots
 
-# branch = "master"
-
-# demos, demos_cb, demo_assets = makedemos("src/examples"; branch = branch)
-
-# assets = []
-# isnothing(demo_assets) || push!(assets, demo_assets)
 
 # Make the examples using Literate
-#GENERATED = joinpath(@__DIR__, "src", "examples")
-#SOURCE_FILES = Glob.glob("*.jl", GENERATED)
-#foreach(fn -> Literate.markdown(fn, GENERATED), SOURCE_FILES)
+GENERATED = joinpath(@__DIR__, "src", "examples")
+SOURCE_FILES = Glob.glob("*.jl", GENERATED)
+foreach(fn -> Literate.markdown(fn, GENERATED), SOURCE_FILES)
 
 
 
@@ -43,11 +37,11 @@ makedocs(;
     pages=Any[
         "Home" => "index.md",
         "vlbi_imaging_problem.md",
-        #"Tutorials" => [
-        #               "examples/data.md",
-        #               "examples/black_hole_image.md",
-        #               "examples/nonanalytic.md"
-        #               ],
+        "Tutorials" => [
+                       "examples/data.md",
+                       "examples/black_hole_image.md",
+                       "examples/nonanalytic.md"
+                       ],
         "interface.md",
         "base_api.md",
         "api.md"
