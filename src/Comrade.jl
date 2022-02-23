@@ -25,6 +25,7 @@ using StructArrays: StructArray
 # Write your package code here.
 
 @reexport using ComradeBase
+using ComradeBase: visanalytic, imanalytic
 
 
 const ehtim = PyNULL()

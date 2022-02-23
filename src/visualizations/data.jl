@@ -66,7 +66,7 @@ end
 
     @series begin
         seriestype := :scatter
-        markeralpha := 0.01
+        markeralpha := 0.1
         markerstrokecolor := :black
         markerstrokealpha := 1.0
         linecolor :=nothing
@@ -174,6 +174,7 @@ end
     seriestype --> :scatter
     alpha := 0.5
     yerr := error
+    label --> "Data"
     linecolor --> nothing
     area, phase
 end

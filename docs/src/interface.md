@@ -5,6 +5,8 @@
 
 `Comrade` aims to be more modular and extensible than previous VLBI modeling packages. Namely, instead of making many different models, simple models are composed to construct complicated source morphologies. This is accomplished with a type, and trait based hierarchy.
 
+Additionally, [`ComradeBase`](https://github.com/ptiede/ComradeBase.jl) is a low dependency version of this package that defines this type and trait heirarchy, that people can more easily incorporate into their packages without the large `Comrade` dependency.
+
 To see how this works we will go through a simplified implementation the Gaussian model in `Comrade`. The Gaussian model is a simple compact emission structure model that can be used to constrain the typical characteristic size
 of a image feature from VLBI data. To construct a Gaussian model we will first a struct:
 
@@ -75,5 +77,4 @@ scatter!(hypot.(u, v), abs.(veg), label="Elliptical Gaussian")
 
 Now suppose your model does not have an analytic Fourier transform. In this case the procedure is very similar to the above, except you define `visanalytic(::Type{<:MyModel}) = NotAnalytic()`.
 However, everything else is the same. To compute visibilities
-you just then just create a `ModelImage` type using the `modelimage` function. For more information on how that works
-see the `modelimage` docstring. Or the [Introduction to the VLBI Imaging Problem](@ref) page.
+you just then just create a `ModelImage` type using the `modelimage` function. To see how this see [Modeling with non-analytic Fourier transforms](@ref).

@@ -31,7 +31,7 @@ obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true)
 dlcamp = extract_lcamp(obs; count="min")
 dcphase = extract_cphase(obs, count="min")
 
-#For this demo only consider closure products since these are invariant to station specific
+# For this demo only consider closure products since these are invariant to station specific
 # gain systematics. Given these data products we can then form our visibility likelihood:
 
 lklhd = RadioLikelihood(dlcamp, dcphase)
@@ -99,7 +99,7 @@ logdensity(post, (radius = μas2rad(20.0),
 
 q, ϕ, _ = multipathfinder(post, 100)
 
-# The q's are a un-weighted mixture of multivariate normal distributions, while
+# The q's are a uniformly weighted mixture of multivariate normal distributions, while
 # the `ϕ`'s are our approximate posterior draws. We can then start an HMC run by calling
 
 ndim = dimension(post)

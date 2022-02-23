@@ -17,16 +17,14 @@ to sample from the posterior predictive distributions. Other interfaces to e.g. 
 
 ## Requirements
 
-The minimum Julia version we require is 1.6, which is the current LTS release. In the
-future we may increase this as Julia advances.
+The minimum Julia version we require is 1.6, which is the current LTS release. In the future we may increase this as Julia advances.
 
 ```@contents
 Pages = [
     "index.md",
     "vlbi_imaging_problem.md",
-    "examples/data.md",
-    "examples/black_hole_image.md",
     "interface.md",
+    "base_api.md",
     "api.md"
 ]
 ```

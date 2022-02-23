@@ -11,4 +11,4 @@ p(I|V) = \frac{p(V|I)p(I)}{p(V)}.
 Here ``p(V|I)`` is known as the likelihood and describes the probability distribution of the data given some image `I`. The prior ``p(I)`` encodes prior knowledge of the image structure. This prior includes distributions of model parameters and even the model itself. Finally, the denominator ``p(V)`` is a normalization term and is known as the marginal likelihood or evidence and can be used to assess how well particular models fit the data.
 
 The goal of `Comrade` is therefore to construct the posterior of 
-a model. To see how to do that please see the [Tutorials](@ref).
+a model. To see how to do that please see the [Making an Image of a Black Hole](@ref) tutorial.

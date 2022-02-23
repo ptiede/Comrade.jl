@@ -100,7 +100,7 @@ function DensityInterface.logdensityof(post::TransformedPosterior{P, T}, x) wher
 end
 
 HypercubeTransform.dimension(post::TransformedPosterior) = dimension(post.transform)
-HypercubeTransform.dimension(post::Posterior) = length(rand(post.prior))
+HypercubeTransform.dimension(post::Posterior) = length(first(ParameterHandling.flatten(rand(post.prior))))
 
 """
     ascube(post::Posterior)

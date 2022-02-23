@@ -148,7 +148,6 @@ Extracts the visibility amplitudes from an ehtim observation object
 
 Returns an EHTObservation with visibility amplitude data
 """
-
 function extract_amp(obs; kwargs...)
     obs.add_amp(;kwargs...)
     data = getampfield(obs)
