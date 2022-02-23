@@ -22,29 +22,29 @@ bibliography: paper.bib
 
 # Summary
 
-`Comrade` is a Bayesian modeling package targeted for very-long-baseline interferometry written in the Julia programming language [@bezanson2015julia]. `Comrade` aims at providing VLBI modeling/image reconstructions of black holes and active galactic nuclei. Furthermore, it focuses on providing uncertainty quantification of image and physical source properties, such as the accretion state of the black hole. The package has already been widely used within the Event Horizon Telescope Collaboration and will generally be useful for VLBI researchers and students.
+`Comrade` is a Bayesian modeling package, targeted for very-long-baseline interferometry (VLBI) and written in the Julia programming language [@bezanson2015julia]. `Comrade` aims at producing VLBI image of black holes and active galactic nuclei. Furthermore, it focuses on providing uncertainty quantification of image and physical source properties, such as a black hole's accretion state. The package has already been widely used within the Event Horizon Telescope Collaboration and will be useful for expert and novice VLBI researchers.
 
 
 # Statement of need
 
 Radio interferometric measurements provide the highest resolution images ever produced, culminating in the first image of a black hole [@EHTCI; @EHTCIV; @EHTCVI]. However, producing VLBI images is not straightforward.
-An ideal VLBI telescope measures the Fourier transform of the image, $I$:
+An ideal VLBI array samples the Fourier transform of the image, $I$:
 
 $$
 V(u,v) = \int I(\alpha, \beta) e^{2\pi i (u\alpha + v\beta)}d\alpha d\beta.
 $$
 
-In general, VLBI data sets provide an incomplete sampling of $V(u_i, v_j)$ in the Fourier domain. Therefore, it is impossible to construct a single image $I$ given the measurements $V(u_i, v_j)$. Instead, infinitely many images are "consistent" with the data, or in other words, the image is uncertain. Quantifying this uncertainty is especially relevant for the Event Horizon Telescope, which typically has only 4-5 unique baselines^[ALMA/APEX and JCMT/SMA are essentially sampling the same image structure] before aperture synthesis. Therefore, to quantify what image structures are robust, a notion of uncertainty is required. To model this uncertainty, `Comrade` uses Bayesian inference and views the VLBI imaging problem as a Bayesian inverse problem. 
+In general, VLBI data sets provide an incomplete sampling of $V(u_i, v_i)$ in the Fourier domain. Therefore, VLBI images are inherently uncertain and quantifying this uncertainty is fundamental to the VLBI imaging problem. This quantification especially significant for the Event Horizon Telescope, which typically has only 5-8 distinct sites. To model this uncertainty, `Comrade` uses Bayesian inference and casts VLBI imaging as a Bayesian inverse problem.
 
-Given the diverse nature of AGN and black holes, `Comrade` includes geometric models, such as gaussian's, disks, rings, crescents to extract relevant features. For non-parametric modeling/imaging, `Comrade` includes a rasterized image model similar to the one described in @themaging. Finally, due to `Comrade`'s flexible model interface, we have used it with direct physical modeling of accretion flows and intrinsic spacetime.
+Given the diverse nature of AGN and black holes, `Comrade` includes geometric models, such as Gaussians, disks, rings, crescents to extract relevant features. For non-parametric modeling/imaging, `Comrade` includes a rasterized image model similar to the one described in @themaging. Finally,  `Comrade`'s flexible model interface, enables direct physical modeling of an accretion flow in curved spacetime.
 
-Bayesian inference is numerically demanding relative to traditional VLBI imaging methods. Traditionally the computational demands of Bayesian inference in VLBI modeling have required writing large sections of the code in a lower-level language, e.g., `C`/`C++`. However, this comes at a substantial cost to the end-user and makes it difficult for researchers to add their own models. One solution is to write an additional wrapper in a higher-level language like Python. However, this solution often doubles the amount of work for a developer and does not solve the extensibility issues. `Comrade` solves this problem by using the Julia programming language. Julia was designed to solve this two-language problem by having `C`-like performance while maintaining a Python-esque syntax and programming experience. Julia allows `Comrade` to have a simple user interface while maintaining the performance characteristics required for Bayesian analysis of VLBI data.
+Bayesian inference is numerically demanding relative to traditional VLBI imaging and modeling methods. Traditionally these computational demands have required writing large sections of the code in a lower-level language, e.g., `C`/`C++`. However, this approach comes at a substantial cost to the end-user makes it difficult for researchers to add their own models. `Comrade` solves this problem by using the Julia programming language. Julia was designed to solve this two-language problem by having `C`-like performance while maintaining a Python-esque syntax and programming experience.
 
-As Julia is a differentiable programming language, all `Comrade` models are natively differentiable. Automatic differentiability is unique for an EHT modeling library. Other libraries of similar scope require hand-coded gradients or use finite-difference methods. Utilizing gradient information to explore the parameter space quickly will be necessary to find reasonable image structures as image complexity grows. For images of the central black hole of AGN, this is the norm due to complicated accretion structure. `Comrade` is therefore well equipped to deal with the Bayesian VLBI imaging problem.
+As Julia is a differentiable programming language, all `Comrade` models are natively differentiable. Utilizing gradient information to explore the parameter space quickly will be necessary to find reasonable image structures as image complexity grows. For images of the central black hole of AGN, this is the norm due to complicated accretion structure. `Comrade` is therefore well equipped to deal with the Bayesian VLBI imaging problem, even for large VLBI arrays.
 
-To sample from the posterior `Comrade` has interfaces to nested sampling algorithms `NestedSamplers` [@ns] and `AdvancedHMC` [@AHMC] by default, but it is easy for users to use different samplers. To make it easy to use `Comrade` with other posterior samplers, the `Comrade` includes functionality that transforms the posterior density from the parameter space $P$ to $\mathbb{R}^n$, as well as the unit hypercube, which is needed for Hamiltonian Monte Carlo and nested sampling respectively.
+To sample from the posterior `Comrade` has interfaces to nested sampling algorithms, `NestedSamplers` [@ns] and `AdvancedHMC` [@AHMC] by default. Moreover, users can specify their own samplers. To make it easy to use `Comrade` with other posterior samplers, the `Comrade` includes functionality that transforms the posterior density from the parameter space $P$ to $\mathbb{R}^n$, as well as the unit hypercube, which is needed for Hamiltonian Monte Carlo and nested sampling respectively.
 
-As a result of `Comrade`'s design, it makes it easy to quickly produces posteriors of VLBI data. Here we show an example program that reproduces results from [@EHTCVI]. Namely and produces posterior of the image structure of the black hole in M 87^[On an Intel i5-7200U chip, this finishes in 165s].
+As a result of `Comrade`'s design, it makes it easy to quickly produce posteriors of VLBI data. Here we show an example program that reproduces results from @EHTCVI. Namely and produces posterior of the image structure of the black hole in M 87^[On an Intel i5-7200U chip, this finishes in 165s].
 
 ```julia
 using Comrade
@@ -59,15 +59,15 @@ file = "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"
 obs = ehtim.obsdata.load_uvfits(file)
 obs.add_scans()
 # kill 0-baselines since we don't care about 
-# large scale flux and make scan-average data
+# large scale structure and make scan-average data
 obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true)
 # extract log closure amplitudes and closure phases
 dlcamp = extract_lcamp(obs; count="min")
 dcphase = extract_cphase(obs, count="min")
 # form the likelihood
 lklhd = RadioLikelihood(dlcamp, dcphase)
-# build the model here we fit a ring with a azimuthal 
-#brightness variation and a Gaussian
+# build the model: here we fit a ring with a azimuthal 
+# brightness variation and a Gaussian
 function model(θ)
   (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
   ring = f*smoothed(stretched(MRing((a,), (b,)), rad, rad), wid)
@@ -75,7 +75,7 @@ function model(θ)
   return ring + g
 end
 # define the priors
-uas2rad = π/180.0/3600/1e6
+uas2rad = pi/180.0/3600/1e6
 prior = (
           rad = Uniform(uas2rad*(10.0), uas2rad*(30.0)),
           wid = Uniform(uas2rad*(1.0), uas2rad*(10.0)),
@@ -114,6 +114,14 @@ plot(model(chain[end]))
 
 # Acknowledgements
 
-PT thanks Michael Johnson, Dom Pesce, Lindy Blackburn, and Avery Broderick for their helpful discussions related to the development of this package and VLBI in general.
+P.T. thanks Michael Johnson, Dom Pesce, Lindy Blackburn, and Avery Broderick for their helpful discussions related to the development of this package and VLBI in general.
+
+This work was supported by the Black Hole Initiative at Harvard University, which is funded by grants from the John Templeton Foundation and the Gordon and Betty
+Moore Foundation to Harvard University. Additional support was provided by Perimeter Institute for Theoretical Physics. Research at Perimeter Institute is supported by the Government of Canada through the Department of Innovation, Science
+and Economic Development Canada and by the Province
+of Ontario through the Ministry of Economic Develop-
+ment, Job Creation and Trade.  PT's research is also supported by the National Science Foundation (AST-1935980 and AST-2034306) and additional financial support from
+the Natural Sciences and Engineering Research Council of
+Canada through a Discovery Grant.
 
 # References
