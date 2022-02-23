@@ -31,7 +31,7 @@ Radio interferometric measurements provide the highest resolution images ever pr
 An ideal VLBI array samples the Fourier transform of the image, $I$:
 
 $$
-V(u,v) = \int I(\alpha, \beta) e^{2\pi i (u\alpha + v\beta)}d\alpha d\beta.
+V(u,v) = \int I(\alpha, \beta) e^{-2\pi i (u\alpha + v\beta)}d\alpha d\beta.
 $$
 
 In general, VLBI data sets provide an incomplete sampling of $V(u_i, v_i)$ in the Fourier domain. Therefore, VLBI images are inherently uncertain and quantifying this uncertainty is fundamental to the VLBI imaging problem. This quantification especially significant for the Event Horizon Telescope, which typically has only 5-8 distinct sites. To model this uncertainty, `Comrade` uses Bayesian inference and casts VLBI imaging as a Bayesian inverse problem.
