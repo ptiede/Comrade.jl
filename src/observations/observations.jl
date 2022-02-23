@@ -210,6 +210,8 @@ Base.@kwdef struct EHTVisibilityDatum{T<:Number} <: AbstractVisibilityDatum{T}
     """
     station baseline codes
     """
+    baseline::NTuple{2,Symbol}
+end
 
 """
     $(SIGNATURES)
@@ -217,9 +219,8 @@ Return the complex visibility of the visibility datum
 """
 @inline function visibility(D::EHTVisibilityDatum{T}) where {T}
         return Complex{T}(D.visr, D.visi)
-    end
-     baseline::NTuple{2,Symbol}
 end
+
 
 """
     $(SIGNATURES)
