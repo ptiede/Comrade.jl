@@ -100,7 +100,7 @@ chain, stats = sample(post, HMC(;metric), 2000;
 plot(model(chain[end]))    
 ```
 
-![Image of M 87 from `Comrade`](blackhole.png)
+![Output of the above code. The image is a random posterior draw for an image of M 87.](blackhole.png)
 
 
 # Similar Packages
