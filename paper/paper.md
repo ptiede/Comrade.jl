@@ -1,7 +1,7 @@
 ---
 title: 'Comrade: Composable Modeling of Radio Emission'
 tags:
-  - Julia
+  - julia
   - astronomy
   - radio astronomy
   - vlbi
@@ -27,20 +27,20 @@ bibliography: paper.bib
 
 # Statement of need
 
-Radio interferometric measurements provide the highest resolution images every produced, culminating in the first image of a black hole [@EHTCI; @EHTCIV; @EHTCVI]. However, producing images is not straightforward.
+Radio interferometric measurements provide the highest resolution images every produced, culminating in the first image of a black hole [@EHTCI; @EHTCIV; @EHTCVI]. However, producing VLBI images is not straightforward.
 An ideal VLBI telescope measures the Fourier transform of the image, $I$
 
 $$
 V(u,v) = \int I(\alpha, \beta) e^{2\pi i (u\alpha + v\beta)}d\alpha d\beta.
 $$
 
-In general, VLBI data sets provide an incomplete sampling of $u_i, v_j$ in the Fourier domain. Therefore, it is impossible to construct a single image $I$ given the measurements $V(u_i, v_j)$. Instead, infinitely many images are "consistent" with the data. Quantifying this uncertainty is especially relevant for the Event Horizon Telescope, typically having only 4-5 unique baselines before aperture synthesis. Therefore, to quantify what image structures are robust, a notion of uncertainty is required. To model this uncertainty, `Comrade` uses Bayesian inference and views the VLBI imaging problem as a classical Bayesian inverse problem. However, Bayesian inference is numerically demanding relative to traditional VLBI imaging methods. Traditionally the computational demands motivate the need for a  high-performance language. However, having a dynamic and interactive language is also essential for day-to-day use and user-friendliness. Previous packages had separated this into two languages, where a high-performance language (e.g., C, C++) was used for Bayesian inference. All inspection and visualizations are usually written in a different high-level language (e.g., python). `Comrade` solves this problem by using the Julia programming language. Julia was designed to solve this two-language problem and is able to achieve `C`-like performance while maintaining a Python-esque syntax and programming experience.
+In general, VLBI data sets provide an incomplete sampling of $V(u_i, v_j)$ in the Fourier domain. Therefore, it is impossible to construct a single image $I$ given the measurements $V(u_i, v_j)$. Instead, infinitely many images are "consistent" with the data, or in other words the image is uncertain. Quantifying this uncertainty is especially relevant for the Event Horizon Telescope, typically having only 4-5 unique baselines[^1](ALMA/APEX and JCMT/SMA are essentially sampling the same image structure) before aperture synthesis. Therefore, to quantify what image structures are robust, a notion of uncertainty is required. To model this uncertainty, `Comrade` uses Bayesian inference and views the VLBI imaging problem as a Bayesian inverse problem. However, Bayesian inference is numerically demanding relative to traditional VLBI imaging methods. Traditionally the computational demands of Bayesian inference in VLBI modeling have required writing large sections of the code in a lower level language, e.g., `C`/`C++`. However, this comes at the substantial cost of the end user, and makes it difficult for a researcher to add their own model. One solution is to write an additional wrapper of post-processing language in a higher-level language like Python. However, this often doubles the amount of work for a developer and as such is more prone to errors. `Comrade` solves this problem by using the Julia programming language. Julia was designed to solve this two-language problem and is able to achieve `C`-like performance while maintaining a Python-esque syntax and programming experience. This allows `Comrade` to have a simple user-interface while remaining the performance characteristics required for Bayesian analysis of VLBI data. 
 
 As Julia is a differentiable programming language, all `Comrade` models are natively differentiable. This is unique for an EHT modeling library where either model gradients are hand-coded or are calculated using finite-difference. The use of gradient information is imperative for VLBI modeling. Utilizing gradient information to explore the parameter space quickly will be necessary to find reasonable image structures as image complexity grows. For images of the central black hole of AGN, this is the norm. `Comrade` is therefore well equipped to deal with the VLBI imaging problem in the next few years.
 
 To sample from the posterior `Comrade` has interfaces to nested sampling algorithms `NestedSamplers` [ @ns] and `AdvancedHMC` [@AHMC] by default, but it is easy for users to use different samplers. To make it easy to use `Comrade` with other posterior samplers, the `Comrade` includes functionality that transforms the posterior density from the parameter space $P$ to $\mathbb{R}^n$, as well as the unit hypercube, which is needed for Hamiltonian Monte Carlo and nested sampling respectively.
 
-As a result of `Comrade`'s design, it makes it easy to quickly produces posteriors of VLBI data. Here we show an example program that reproduces some of the results from [EHTCVI] and produces posterior of the image structure of the black hole in M 87
+As a result of `Comrade`'s design, it makes it easy to quickly produces posteriors of VLBI data. Here we show an example program that reproduces some of the results from [EHTCVI] and produces posterior of the image structure of the black hole in M 87[^2](On a Intel i5-7200U this finishes in 165s).
 
 ```julia
 using Comrade
@@ -105,7 +105,7 @@ plot(model(chain[end]))
 - `eht-dmc` [@dmc]: Python Bayesian imaging package that also fits calibration systematics by solving the RIME [@Hamaker].
 - `Galifray` [@gal]: Python modeling package that uses emcee as it's backbone.
 - `InterferometricModels` [@in]: Recent Julia radio astronomy package with some similar features to `Comrade`
-- <span style="font-variant:small-caps;">Themis</span> [@themis]: A C++ parameter estimation package used by the EHT. It is currently a private GitHub repo.
+- <span style="font-variant:small-caps;">Themis</span> [@themis]: A C++ parameter estimation package used by the EHT. It is currently a private repository for the EHT.
 
 
 # Acknowledgements
