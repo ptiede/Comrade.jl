@@ -37,7 +37,7 @@ function create_interpolator(u, v, vis)
     #scale(etp, u, v)
     p1 = BicubicInterpolator(u, v, real(vis'), NoBoundaries())
     p2 = BicubicInterpolator(u, v, imag(vis'), NoBoundaries())
-    return (u,v)->(p1(u,v) - 1im*p2(u,v))
+    return (u,v)->(p1(u,v) + 1im*p2(u,v))
 end
 
 #function ChainRulesCore.rrule(::typeof(create_interpolator), u, v, vis)
@@ -66,8 +66,8 @@ struct FFTCache{A<:FFTAlg,P,M,I} <: AbstractCache
     alg::A
     """ FFTW Plan"""
     plan::P
-    """ Image """
-    image::M
+    """ Phase centering """
+    phases::M
     """FFT interpolator function"""
     sitp::I
 end
@@ -118,6 +118,10 @@ function padimage(img, alg::FFTAlg)
     PaddedView(zero(eltype(img)), img, (nny, nnx))
 end
 
+function fftphases(uu, vv, x0, y0, dx, dy)
+    return @. dx*dy*cispi(-2*(uu'*x0 + vv*y0))
+end
+
 function update_cache(cache::FFTCache, img)
     plan = cache.plan
     pimg = padimage(img, cache.alg)
@@ -129,10 +133,9 @@ function update_cache(cache::FFTCache, img)
 
     dx,dy = pixelsizes(img)
     vis = fftshift(plan*pimg)
-    x0,y0 = first.(imagepixels(img))
-    vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
+    vispc = phasecenter(vis, cache)
     sitp = create_interpolator(uu, vv, vispc)
-    return FFTCache(cache.alg, plan, img, sitp)
+    return FFTCache(cache.alg, plan, cache.phase, sitp)
 end
 
 
@@ -157,9 +160,10 @@ function create_cache(alg::FFTAlg, img)
     uu, vv = uviterator(dx, dy, nnx, nny)
 
     x0,y0 = first.(imagepixels(img))
-    vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
+    phases = fftphases(uu, vv, x0, y0, dx, dy)
+    vispc = phasecenter(vis, phases)
     sitp = create_interpolator(uu, vv, vispc)
-    return FFTCache(alg, plan, img, sitp)
+    return FFTCache(alg, plan, phases, sitp)
 end
 
 """
@@ -180,12 +184,8 @@ function uviterator(dx, dy, nnx, nny)
     return uu, vv
 end
 
-function phasecenter(vis, uu, vv, x0, y0, dx, dy)
-    map(CartesianIndices((eachindex(uu), eachindex((vv))))) do I
-        iy,ix = Tuple(I)
-        return conj(vis[I])*dx*dy*cispi(2*(uu[ix]*x0 + vv[iy]*y0))
-    end
-    return vis
+function phasecenter(vis, phases)
+    return vis.*phases
 end
 
 #function ChainRulesCore.rrule(::typeof(phasecenter!), vis, uu, vv, x0, y0, dx, dy)
@@ -222,7 +222,7 @@ function phasedecenter!(vis, fovx, fovy, nx, ny)
 
     for I in CartesianIndices(vis)
         iy, ix = Tuple(I)
-        vis[I] = conj(vis[I]*exp(-2im*π*(uu[ix]*first(x) + vv[iy]*first(y))))*nx*ny/(dx*dy)
+        vis[I] = vis[I]*exp(-2im*π*(uu[ix]*first(x) + vv[iy]*first(y)))*nx*ny/(dx*dy)
     end
     return vis
 end

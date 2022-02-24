@@ -123,29 +123,6 @@ end
 
 
 
-#isibilities(::IsAnalytic, m, u, v) = _visibilities(m, u, v)
-
-#function create_mimg(m::AbstractModel, u, v)
-#    fovx = fovy = radialextent(m)*2
-#    ps = max(maximum(u), maximum(v))
-#    nx, ny = abs(Int(ceil(10*fovx*ps))), abs(Int(ceil(10*fovy*ps)))
-#    println(nx)
-#   img = intensitymap(m, fovx, fovy, nx, ny)
-#    return modelimage(m, img)
-#end
-
-#function create_mimg(m::AbstractModelImage, u, v)
-#    return m
-#end
-
-
-#function visibilities(::NotAnalytic, m, u, v)
-#   mimg = create_mimg(m, u, v)
-#    println("here")
-#    return _visibilities(mimg, u, v)
-#end
-
-
 """
     $(SIGNATURES)
 Computes the visibilities of the model `m` at the u,v positions `u`, `v`.
@@ -163,7 +140,9 @@ end
     $(SIGNATURES)
 Computes the amplitudes of the model `m` at the u,v positions `u`, `v`.
 
-Note this is done lazily so the visibility is only computed when accessed.
+# Notes
+If this is a analytic model this is done lazily so the visibilites are only computed
+when accessed. Otherwise for numerical model computed with NFFT this is eager.
 """
 function amplitudes(m, u::AbstractArray, v::AbstractArray)
     f(x,y) = amplitude(m, x, y)
@@ -249,3 +228,4 @@ include(joinpath(@__DIR__, "combinators.jl"))
 include(joinpath(@__DIR__, "geometric_models.jl"))
 include(joinpath(@__DIR__, "radio_image_models.jl"))
 include(joinpath(@__DIR__, "polarized.jl"))
+include(joinpath(@__DIR__, "test.jl"))

@@ -50,7 +50,7 @@ flux(mimg::ModelImage) = flux(mimg.image)
 #     mimg.image
 # end
 
-radialextent(m::ModelImage) = hypot(fov(m.image)...)/2
+radialextent(m::ModelImage) = hypot(fov(m.image)...)
 
 #@inline visibility_point(m::AbstractModelImage, u, v) = visibility_point(model(m), u, v)
 
