@@ -13,7 +13,7 @@ function create_interpolator(u, v, vis, img)
     dx,dy = pixelsizes(img)
     x0, y0 = first.(imagepixels(img))
     function (u,v)
-        phase = 1#dx*dy*cispi(-2*(u*x0 + v*y0))
+        phase = cispi(-(u*dx + v*dx))
         pl = visibility_point(img.pulse, u*dx, v*dy)
         return phase*pl*(p1(u,v) + 1im*p2(u,v))
     end
@@ -94,11 +94,13 @@ function padimage(img, alg::FFTAlg)
     ny,nx = size(img)
     nnx = nextpow(2, padfac*nx)
     nny = nextpow(2, padfac*ny)
-    PaddedView(zero(eltype(img)), img, (nny, nnx))
-end
-
-function fftphases(uu, vv, x0, y0, dx, dy)
-    return @. dx*dy*cispi(-2*(uu'.*x0 + vv.*y0))
+    nsx = nnx÷2-nx÷2
+    nsy = nny÷2-ny÷2
+    cimg = convert(Matrix{Complex{eltype(img)}}, img)
+    return PaddedView(zero(eltype(cimg)), cimg,
+                      (1:nnx, 1:nny),
+                      (nsx+1:nsx+nx, nsy+1:nsy+ny)
+                     )
 end
 
 function update_cache(cache::FFTCache, img)
@@ -129,7 +131,7 @@ function create_cache(alg::FFTAlg, img)
 
     # Do the plan and then fft because currently just fft(img) gives crap
     plan = plan_fft(pimg)
-    vis = fftshift(plan*pimg)
+    vis = fftshift(plan*ifftshift(pimg))
     #println(sum(img)*dx*dy)
     #println(sum(pimg)*dx*dy)
 
@@ -138,11 +140,9 @@ function create_cache(alg::FFTAlg, img)
     nny, nnx = size(pimg)
     uu, vv = uviterator(dx, dy, nnx, nny)
 
-    x0,y0 = first.(imagepixels(img))
-    phases = fftphases(uu, vv, x0, y0, dx, dy)
-    vispc = phasecenter(vis, phases)
-    sitp = create_interpolator(uu, vv, vispc, img)
-    return FFTCache(alg, plan, phases, sitp)
+    vis .= vis.*dx.*dy
+    sitp = create_interpolator(uu, vv, vis, img)
+    return FFTCache(alg, plan, LinearAlgebra.I, sitp)
 end
 
 """
@@ -161,10 +161,6 @@ function uviterator(dx, dy, nnx, nny)
     uu = range(-uM, step=du, length=nnx)
     vv = range(-vM, step=dv, length=nny)
     return uu, vv
-end
-
-function phasecenter(vis, phases)
-    return vis.*phases
 end
 
 #function ChainRulesCore.rrule(::typeof(phasecenter!), vis, uu, vv, x0, y0, dx, dy)

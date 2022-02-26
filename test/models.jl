@@ -10,7 +10,57 @@ function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     @test isapprox(mean(img .- img2), 0, atol=1e-8)
     cache = Comrade.create_cache(Comrade.FFTAlg(padfac=3), img./flux(img)*flux(m))
     u = fftshift(fftfreq(size(img,1), 1/img.psizex))./30
-    @test isapprox(maximum(abs.(visibility.(Ref(m), u', u) .- cache.sitp.(u', u))), 0.0, atol=atol*10)
+    Plots.closeall()
+    @test isapprox(maximum(abs, (visibility.(Ref(m), u', u) .- cache.sitp.(u', u))), 0.0, atol=atol*10)
+    img = nothing
+    img2 =nothing
+    cache = nothing
+    u = nothing
+    GC.gc()
+end
+
+function testft(m, npix=256, atol=1e-4)
+    mn = Comrade.NonAnalyticTest(m)
+    uu = 0.25*randn(1000)
+    vv = 0.25*randn(1000)
+    img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), npix, npix, pulse=DeltaPulse())
+    mimg_ff = modelimage(mn, img, FFTAlg(padfac=3))
+    mimg_nf = modelimage(mn, img, NFFTAlg())
+    mimg_df = modelimage(mn, img, DFTAlg())
+
+    va = visibilities(m, uu, vv)
+    vff = visibilities(mimg_ff, uu, vv)
+    vnf = visibilities(mimg_nf, uu, vv)
+    vdf = visibilities(mimg_df, uu, vv)
+
+    @test isapprox(maximum(abs, va-vff), 0, atol=atol*5)
+    @test isapprox(maximum(abs, va-vnf), 0, atol=atol)
+    @test isapprox(maximum(abs, va-vdf), 0, atol=atol)
+    img = nothing
+    mimg_ff = nothing
+    mimg_nf = nothing
+    mimg_df = nothing
+    GC.gc()
+end
+
+
+@testset "FFTTest" begin
+    @testset "Base" begin
+        m = Gaussian()
+        testft(m)
+    end
+
+    @testset "Mod" begin
+        m = rotated(stretched(Gaussian(), 0.5, 1.0), π/3)
+        testft(m)
+        ms = shifted(m, 1.0,1.0)
+        testft(ms)
+    end
+
+    @testset "Add" begin
+        m1 = rotated(stretched(Gaussian(), 0.5, 1.0), π/3) + shifted(Gaussian(), 1.0, 1.0)
+        testft(m1)
+    end
 end
 
 @testset "Primitive models" begin

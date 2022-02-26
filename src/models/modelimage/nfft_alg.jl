@@ -47,5 +47,5 @@ function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img)
 end
 
 @inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img)
-    return NUFTCache(alg, plan, phases, img)
+    return NUFTCache(alg, plan, phases, transpose(img))
 end
