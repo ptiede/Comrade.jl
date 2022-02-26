@@ -50,11 +50,16 @@ flux(mimg::ModelImage) = flux(mimg.image)
 #     mimg.image
 # end
 
-radialextent(m::ModelImage) = fov(m.image)[1]/2
+radialextent(m::ModelImage) = hypot(fov(m.image)...)
 
 #@inline visibility_point(m::AbstractModelImage, u, v) = visibility_point(model(m), u, v)
 
 @inline intensity_point(m::AbstractModelImage, x, y) = intensity_point(model(m), x, y)
+
+
+
+include(joinpath(@__DIR__, "cache.jl"))
+
 
 """
     $(SIGNATURES)
@@ -66,18 +71,42 @@ For analytic models this is a no-op and just return the model.
 For non-analytic models this wraps the model in a object with an image
 and precomputes the fourier transform using `alg`.
 """
-@inline function modelimage(model::M, image::ComradeBase.AbstractIntensityMap; alg=FFT()) where {M}
-    return modelimage(visanalytic(M), model, image; alg)
+@inline function modelimage(model::M, image::ComradeBase.AbstractIntensityMap, alg::FourierTransform=FFTAlg()) where {M}
+    return modelimage(visanalytic(M), model, image, alg)
 end
 
-@inline function modelimage(::IsAnalytic, model, image; alg=FFT())
+@inline function modelimage(::IsAnalytic, model, image, args...; kwargs...)
     return model
 end
 
-@inline function modelimage(::NotAnalytic, model, image; alg=FFT())
+function _modelimage(model, image, alg)
     intensitymap!(image, model)
     cache = create_cache(alg, image)
     return ModelImage(model, image, cache)
+end
+
+@inline function modelimage(::NotAnalytic, model, image::ComradeBase.AbstractIntensityMap, alg::FourierTransform=FFTAlg())
+    _modelimage(model, image, alg)
+end
+
+@inline function modelimage(model::M, cache::AbstractCache) where {M}
+    return modelimage(visanalytic(M), model, cache)
+end
+
+@inline function modelimage(::IsAnalytic, model, cache::AbstractCache)
+    return model
+end
+
+@inline function modelimage(::NotAnalytic, model, cache::AbstractCache)
+    img = cache.image
+    intensitymap!(img, model)
+    newcache = update_cache(cache, img)
+    return ModelImage(model, img, newcache)
+end
+
+@inline function modelimage(img::IntensityMap, alg=NFFTAlg())
+    cache = create_cache(alg, img)
+    return ModelImage(img, img, cache)
 end
 
 """
@@ -95,12 +124,12 @@ function modelimage(m::M;
                     nx=512,
                     ny=512,
                     pulse=ComradeBase.DeltaPulse(),
-                    alg=FFT()) where {M}
+                    alg=FFTAlg()) where {M}
     if visanalytic(M) == IsAnalytic()
         return m
     else
         T = typeof(intensity_point(m, 0.0, 0.0))
         img = IntensityMap(zeros(T,ny,nx), fovx, fovy, pulse)
-        modelimage(m, img; alg)
+        modelimage(m, img, alg)
     end
 end

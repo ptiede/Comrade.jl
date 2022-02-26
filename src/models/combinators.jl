@@ -23,11 +23,20 @@ abstract type CompositeModel{M1,M2} <: AbstractModel end
 
 function modelimage(::NotAnalytic,
     model::CompositeModel,
-    image; alg=FFT())
+    image::ComradeBase.AbstractIntensityMap, alg::FourierTransform=FFTAlg())
 
-    m1 = @set model.m1 = modelimage(model.m1, image; alg)
-    @set m1.m2 = modelimage(m1.m2, image; alg)
+    m1 = @set model.m1 = modelimage(model.m1, image, alg)
+    @set m1.m2 = modelimage(m1.m2, copy(image), alg)
 end
+
+function modelimage(::NotAnalytic,
+    model::CompositeModel,
+    cache::AbstractCache)
+
+    m1 = @set model.m1 = modelimage(model.m1, cache)
+    @set m1.m2 = modelimage(m1.m2, cache)
+end
+
 
 radialextent(m::CompositeModel) = max(radialextent(m.m1), radialextent(m.m2))
 
@@ -80,10 +89,16 @@ function intensitymap!(sim::IntensityMap, m::AddModel)
 end
 
 @inline uv_combinator(::AddModel) = Base.:+
+@inline xy_combinator(::AddModel) = Base.:+
 
 # @inline function _visibilities(model::CompositeModel{M1,M2}, u, v, t, ν, cache) where {M1,M2}
 #     _combinatorvis(visanalytic(M1), visanalytic(M2), uv_combinator(model), model, u, v, t, ν, cache)
 # end
+
+function visibilities(model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
+    f = uv_combinator(model)
+    return f.(visibilities(model.m1, u, v), visibilities(model.m2, u, v))
+end
 
 @inline function visibility_point(model::CompositeModel{M1,M2}, u, v, args...) where {M1,M2}
     f = uv_combinator(model)
@@ -93,7 +108,7 @@ end
 end
 
 @inline function intensity_point(model::CompositeModel, u, v)
-    f = uv_combinator(model)
+    f = xy_combinator(model)
     v1 = intensity_point(model.m1, u, v)
     v2 = intensity_point(model.m2, u, v)
     return f(v1,v2)
@@ -135,26 +150,26 @@ smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 
 flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
-function intensitymap(::NotAnalytic, model::ConvolvedModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
-    T = typeof(visibility(model, 0.0, 0.0))
-    vis1 = fouriermap(model.m1, fovx, fovy, nx, ny)
-    vis2 = fouriermap(model.m2, fovx, fovy, nx, ny)
-    vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, nx, ny))
-    img = ifft(vis)
-    return IntensityMap(real.(img)./(nx*ny), fovx, fovy, pulse)
-end
+# function intensitymap(::NotAnalytic, model::ConvolvedModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
+#     T = typeof(visibility(model, 0.0, 0.0))
+#     vis1 = fouriermap(model.m1, fovx, fovy, nx, ny)
+#     vis2 = fouriermap(model.m2, fovx, fovy, nx, ny)
+#     vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, nx, ny))
+#     img = ifft(vis)
+#     return IntensityMap(real.(img)./(nx*ny), fovx, fovy, pulse)
+# end
 
-function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel)
-    ny, nx = size(sim)
-    fovx, fovy = sim.fovx, sim.fovy
-    vis1 = fouriermap(model.m1, fovx, fovy, nx, ny)
-    vis2 = fouriermap(model.m2, fovx, fovy, nx, ny)
-    vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, nx, ny))
-    ifft!(vis)
-    for I in eachindex(sim)
-        sim[I] = real(vis[I])/(nx*ny)
-    end
-end
+# function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel)
+#     ny, nx = size(sim)
+#     fovx, fovy = sim.fovx, sim.fovy
+#     vis1 = fouriermap(model.m1, fovx, fovy, nx, ny)
+#     vis2 = fouriermap(model.m2, fovx, fovy, nx, ny)
+#     vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, nx, ny))
+#     ifft!(vis)
+#     for I in eachindex(sim)
+#         sim[I] = real(vis[I])/(nx*ny)
+#     end
+# end
 
 
 # function _combinatorvis(::IsAnalytic, ::IsAnalytic, f::F, m, u, v, t, ν, cache) where {F}

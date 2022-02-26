@@ -47,10 +47,17 @@ radialextent(m::AbstractModifier) = radialextent(basemodel(m))
 
 function modelimage(::NotAnalytic,
     model::AbstractModifier,
-    image; alg=FFT())
+    image::ComradeBase.AbstractIntensityMap, alg::FFTAlg)
 
-    @set model.model = modelimage(model.model, image; alg)
+    @set model.model = modelimage(model.model, image, alg)
 end
+
+function modelimage(::NotAnalytic,
+    model::AbstractModifier,
+    image::ComradeBase.AbstractIntensityMap, alg::NFFTAlg)
+    _modelimage(model, image, alg)
+end
+
 
 function apply_uv_transform(m, u::AbstractVector, v::AbstractVector)
     ut = similar(u)
@@ -99,13 +106,13 @@ Shifts the model `m` in the image domain by an amount `Δx,Δy`.
 shifted(model, Δx, Δy) = ShiftedModel(model, Δx, Δy)
 # This is a simple overload to simplify the type system
 shifted(model::ShiftedModel, Δx, Δy) = ShiftedModel(basemodel(model), Δx+model.Δx, Δy+model.Δy)
-radialextent(model::ShiftedModel, Δx, Δy) = radialextent(model.model) + max(abs(Δx), abs(Δy))
+radialextent(model::ShiftedModel, Δx, Δy) = radialextent(model.model) + hypot(abs(Δx), abs(Δy))
 
 @inline transform_image(model::ShiftedModel, x, y) = (x-model.Δx, y-model.Δy)
 @inline transform_uv(model::ShiftedModel, u, v) = (u, v)
 
 @inline scale_image(model::ShiftedModel, x, y) = 1.0
-@inline scale_uv(model::ShiftedModel, u, v) = exp(2im*π*(u*model.Δx + v*model.Δy))
+@inline scale_uv(model::ShiftedModel, u, v) = exp(-2im*π*(u*model.Δx + v*model.Δy))
 
 
 """

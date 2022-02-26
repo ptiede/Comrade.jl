@@ -7,6 +7,7 @@ module Comrade
 using AbstractFFTs
 using AbstractMCMC
 using Accessors: @set
+using ArgCheck: @argcheck
 using BasicInterpolators
 using DocStringExtensions
 using ChainRulesCore
@@ -65,6 +66,7 @@ Converts a number from μas to rad
 #include("interface.jl")
 #include("images/images.jl")
 import ComradeBase: flux, radialextent, intensitymap, intensitymap!
+export create_cache
 include("observations/observations.jl")
 include("models/models.jl")
 include("distributions/distributions.jl")

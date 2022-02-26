@@ -20,9 +20,15 @@
     plot(lcamp)
     show(lcamp)
 
-    plot(stretched(Gaussian(), 1e-10, 1e-10), amp)
-    residual(stretched(Gaussian(), 1e-10, 1e-10), amp)
-    residual(stretched(Gaussian(), 1e-10, 1e-10), cphase)
+    m = stretched(Gaussian(), 1e-10,1e-10)
+    plot(m, vis)
+    plot(m, amp)
+    plot(m, lcamp)
+    plot(m,cphase)
+    #residual(m, vis)
+    residual(m, amp)
+    residual(m, cphase)
+    residual(m, lcamp)
 
     @test length(vis) == length(obsavg.data)
     @test length(amp) == length(obsavg.amp)
@@ -43,9 +49,21 @@
     #Test amplitude which is already debiased for very very dumb reasons
     @test sqrt(abs(visibility(vis[1]))^2 - vis[1].error^2) ≈ amplitude(amp[1])
     ac = arrayconfig(vis)
+    plot(ac)
+
+    u,v = getuv(ac)
+    @test visibilities(m, ac) ≈ visibilities(m, u, v)
+
+    @test visibility(m, ac.uvsamples[1]) ≈ visibility(m, u[1], v[1])
 
 
-
+    u1 = getdata(cphase, :u1)
+    v1 = getdata(cphase, :v1)
+    u2 = getdata(cphase, :u2)
+    v2 = getdata(cphase, :v2)
+    u3 = getdata(cphase, :u3)
+    v3 = getdata(cphase, :v3)
+    bispectra(m, u1, v1, u2, v2, u3, v3)
 
     @testset "RadioLikelihood" begin
         lamp = RadioLikelihood(amp)

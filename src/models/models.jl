@@ -121,27 +121,6 @@ function visibilities(m, ac::ArrayConfiguration)
     return visibilities(m, u, v)
 end
 
-#isibilities(::IsAnalytic, m, u, v) = _visibilities(m, u, v)
-
-#function create_mimg(m::AbstractModel, u, v)
-#    fovx = fovy = radialextent(m)*2
-#    ps = max(maximum(u), maximum(v))
-#    nx, ny = abs(Int(ceil(10*fovx*ps))), abs(Int(ceil(10*fovy*ps)))
-#    println(nx)
-#   img = intensitymap(m, fovx, fovy, nx, ny)
-#    return modelimage(m, img)
-#end
-
-#function create_mimg(m::AbstractModelImage, u, v)
-#    return m
-#end
-
-
-#function visibilities(::NotAnalytic, m, u, v)
-#   mimg = create_mimg(m, u, v)
-#    println("here")
-#    return _visibilities(mimg, u, v)
-#end
 
 
 """
@@ -161,7 +140,9 @@ end
     $(SIGNATURES)
 Computes the amplitudes of the model `m` at the u,v positions `u`, `v`.
 
-Note this is done lazily so the visibility is only computed when accessed.
+# Notes
+If this is a analytic model this is done lazily so the visibilites are only computed
+when accessed. Otherwise for numerical model computed with NFFT this is eager.
 """
 function amplitudes(m, u::AbstractArray, v::AbstractArray)
     f(x,y) = amplitude(m, x, y)
@@ -217,10 +198,11 @@ function logclosure_amplitudes(m,
     return mappedarray(f, u1, v1, u2, v2, u3, v3, u4, v4)
 end
 
-
 function intensitymap!(::NotAnalytic, img::IntensityMap, m)
     ny, nx = size(img)
-    vis = ifftshift(phasedecenter!(fouriermap(m, img), img))
+    fovx, fovy = fov(img)
+    vis = fouriermap(m, fovx, fovy, nx, ny)
+    vis = ifftshift(phasedecenter!(vis, fovx, fovy, nx, ny))
     ifft!(vis)
     for I in CartesianIndices(img)
         img[I] = real(vis[I])/(nx*ny)
@@ -239,10 +221,9 @@ function intensitymap(::NotAnalytic, m, fovx::Real, fovy::Real, nx::Int, ny::Int
 end
 
 
-include(joinpath(@__DIR__, "fft_alg.jl"))
-include(joinpath(@__DIR__, "modelimage.jl"))
+include(joinpath(@__DIR__, "modelimage/modelimage.jl"))
 include(joinpath(@__DIR__, "modifiers.jl"))
 include(joinpath(@__DIR__, "combinators.jl"))
 include(joinpath(@__DIR__, "geometric_models.jl"))
-include(joinpath(@__DIR__, "radio_image_models.jl"))
 include(joinpath(@__DIR__, "polarized.jl"))
+include(joinpath(@__DIR__, "test.jl"))
