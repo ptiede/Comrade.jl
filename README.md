@@ -6,7 +6,7 @@
 
 Composable Modeling of Radio Emission
 
-This is a alpha version of a potential EHT/ngEHT modeling/imaging software written in pure Julia. The objectives are in order of importance
+This is a alpha version of a potential EHT/ngEHT modeling/imaging software written in Julia. The objectives are in order of importance
 
 1. Simple to define and adjust models and parameterizations
 2. Everything must be differentiable with Julia's autodifferentation libraries
