@@ -48,6 +48,9 @@
     u,v = getuv(ac)
     @test visibilities(m, ac) ≈ visibilities(m, u, v)
 
+    @test visibility(m, ac.uvsamples[1]) ≈ visibility(m, u[1], v[1])
+
+
     u1 = getdata(cphase, :u1)
     v1 = getdata(cphase, :v1)
     u2 = getdata(cphase, :u2)

@@ -198,7 +198,7 @@ function logclosure_amplitudes(m,
     return mappedarray(f, u1, v1, u2, v2, u3, v3, u4, v4)
 end
 
-
+# These aren't needed right now
 function intensitymap!(::NotAnalytic, img::IntensityMap, m)
     ny, nx = size(img)
     vis = ifftshift(phasedecenter!(fouriermap(m, img), img))
