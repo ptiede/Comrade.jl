@@ -20,9 +20,15 @@
     plot(lcamp)
     show(lcamp)
 
-    plot(stretched(Gaussian(), 1e-10, 1e-10), amp)
-    residual(stretched(Gaussian(), 1e-10, 1e-10), amp)
-    residual(stretched(Gaussian(), 1e-10, 1e-10), cphase)
+    m = stretched(Gaussian(), 1e-10,1e-10)
+    plot(m, vis)
+    plot(m, amp)
+    plot(m, lcamp)
+    plot(m,cphase)
+    #residual(m, vis)
+    residual(m, amp)
+    residual(m, cphase)
+    residual(m, lcamp)
 
     @test length(vis) == length(obsavg.data)
     @test length(amp) == length(obsavg.amp)
@@ -43,8 +49,8 @@
     #Test amplitude which is already debiased for very very dumb reasons
     @test sqrt(abs(visibility(vis[1]))^2 - vis[1].error^2) ≈ amplitude(amp[1])
     ac = arrayconfig(vis)
+    plot(ac)
 
-    m = stretched(Gaussian(), 1e-10,1e-10)
     u,v = getuv(ac)
     @test visibilities(m, ac) ≈ visibilities(m, u, v)
 
