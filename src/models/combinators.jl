@@ -25,8 +25,8 @@ function modelimage(::NotAnalytic,
     model::CompositeModel,
     image::ComradeBase.AbstractIntensityMap, alg::FourierTransform=FFTAlg())
 
-    m1 = @set model.m1 = modelimage(model.m1, image; alg)
-    @set m1.m2 = modelimage(m1.m2, copy(image); alg)
+    m1 = @set model.m1 = modelimage(model.m1, image, alg)
+    @set m1.m2 = modelimage(m1.m2, copy(image), alg)
 end
 
 function modelimage(::NotAnalytic,
@@ -89,10 +89,16 @@ function intensitymap!(sim::IntensityMap, m::AddModel)
 end
 
 @inline uv_combinator(::AddModel) = Base.:+
+@inline xy_combinator(::AddModel) = Base.:+
 
 # @inline function _visibilities(model::CompositeModel{M1,M2}, u, v, t, ν, cache) where {M1,M2}
 #     _combinatorvis(visanalytic(M1), visanalytic(M2), uv_combinator(model), model, u, v, t, ν, cache)
 # end
+
+function visibilities(model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
+    f = uv_combinator(model)
+    return f.(visibilities(model.m1, u, v), visibilities(model.m2, u, v))
+end
 
 @inline function visibility_point(model::CompositeModel{M1,M2}, u, v, args...) where {M1,M2}
     f = uv_combinator(model)
@@ -102,7 +108,7 @@ end
 end
 
 @inline function intensity_point(model::CompositeModel, u, v)
-    f = uv_combinator(model)
+    f = xy_combinator(model)
     v1 = intensity_point(model.m1, u, v)
     v2 = intensity_point(model.m2, u, v)
     return f(v1,v2)

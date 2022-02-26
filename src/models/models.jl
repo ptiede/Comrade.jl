@@ -220,9 +220,7 @@ function intensitymap(::NotAnalytic, m, fovx::Real, fovy::Real, nx::Int, ny::Int
 end
 
 
-include(joinpath(@__DIR__, "fft_alg.jl"))
-include(joinpath(@__DIR__, "modelimage.jl"))
-include(joinpath(@__DIR__, "nfft.jl"))
+include(joinpath(@__DIR__, "modelimage/modelimage.jl"))
 include(joinpath(@__DIR__, "modifiers.jl"))
 include(joinpath(@__DIR__, "combinators.jl"))
 include(joinpath(@__DIR__, "geometric_models.jl"))

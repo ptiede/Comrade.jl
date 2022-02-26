@@ -1,43 +1,22 @@
 export FFTAlg
 
-abstract type FourierTransform end
-struct DFT <: FourierTransform  end
-
-"""
-    $(TYPEDEF)
-This defines an abstract cache that can be used to
-hold or precompute some computations.
-"""
-abstract type AbstractCache end
 
 
-"""
-    $(TYPEDEF)
-Fourier transform type that specifies we will use
-the FFTW package to compute the Fourier transform.
 
-# Fields
-$(FIELDS)
-
-"""
-Base.@kwdef struct FFTAlg <: FourierTransform
-    """
-    The amount to pad the image by.
-    Note we actually round up to the nearest factor
-    of 2, but this will be improved in the future to use
-    small primes
-    """
-    padfac::Int = 2
-end
-
-function create_interpolator(u, v, vis)
+function create_interpolator(u, v, vis, img)
     # Construct the interpolator
     #itp = interpolate(vis, BSpline(Cubic(Line(OnGrid()))))
     #etp = extrapolate(itp, zero(eltype(vis)))
     #scale(etp, u, v)
-    p1 = BicubicInterpolator(u, v, real(vis'), NoBoundaries())
-    p2 = BicubicInterpolator(u, v, imag(vis'), NoBoundaries())
-    return (u,v)->(p1(u,v) + 1im*p2(u,v))
+    p1 = BicubicInterpolator(u, v, real(vis)', NoBoundaries())
+    p2 = BicubicInterpolator(u, v, imag(vis)', NoBoundaries())
+    dx,dy = pixelsizes(img)
+    x0, y0 = first.(imagepixels(img))
+    function (u,v)
+        phase = 1#dx*dy*cispi(-2*(u*x0 + v*y0))
+        pl = visibility_point(img.pulse, u*dx, v*dy)
+        return phase*pl*(p1(u,v) + 1im*p2(u,v))
+    end
 end
 
 #function ChainRulesCore.rrule(::typeof(create_interpolator), u, v, vis)
@@ -119,7 +98,7 @@ function padimage(img, alg::FFTAlg)
 end
 
 function fftphases(uu, vv, x0, y0, dx, dy)
-    return @. dx*dy*cispi(-2*(uu'*x0 + vv*y0))
+    return @. dx*dy*cispi(-2*(uu'.*x0 + vv.*y0))
 end
 
 function update_cache(cache::FFTCache, img)
@@ -134,7 +113,7 @@ function update_cache(cache::FFTCache, img)
     dx,dy = pixelsizes(img)
     vis = fftshift(plan*pimg)
     vispc = phasecenter(vis, cache)
-    sitp = create_interpolator(uu, vv, vispc)
+    sitp = create_interpolator(uu, vv, vispc, img)
     return FFTCache(cache.alg, plan, cache.phase, sitp)
 end
 
@@ -162,7 +141,7 @@ function create_cache(alg::FFTAlg, img)
     x0,y0 = first.(imagepixels(img))
     phases = fftphases(uu, vv, x0, y0, dx, dy)
     vispc = phasecenter(vis, phases)
-    sitp = create_interpolator(uu, vv, vispc)
+    sitp = create_interpolator(uu, vv, vispc, img)
     return FFTCache(alg, plan, phases, sitp)
 end
 
@@ -219,10 +198,11 @@ function phasedecenter!(vis, fovx, fovy, nx, ny)
     x,y = imagepixels(fovx, fovy, nx, ny)
     dx = step(x); dy = step(y)
     uu,vv = uviterator(dx, dy, nx, ny)
-
+    x0 = first(x)
+    y0 = first(y)
     for I in CartesianIndices(vis)
         iy, ix = Tuple(I)
-        vis[I] = vis[I]*exp(-2im*π*(uu[ix]*first(x) + vv[iy]*first(y)))*nx*ny/(dx*dy)
+        vis[I] = vis[I]*cispi(2*(uu[ix]*x0 + vv[iy]*y0))*nx*ny/(dx*dy)
     end
     return vis
 end

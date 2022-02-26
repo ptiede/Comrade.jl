@@ -7,6 +7,7 @@ module Comrade
 using AbstractFFTs
 using AbstractMCMC
 using Accessors: @set
+using ArgCheck: @argcheck
 using BasicInterpolators
 using DocStringExtensions
 using ChainRulesCore

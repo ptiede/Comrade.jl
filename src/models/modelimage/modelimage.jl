@@ -56,6 +56,11 @@ radialextent(m::ModelImage) = hypot(fov(m.image)...)
 
 @inline intensity_point(m::AbstractModelImage, x, y) = intensity_point(model(m), x, y)
 
+
+
+include(joinpath(@__DIR__, "cache.jl"))
+
+
 """
     $(SIGNATURES)
 Construct a `ModelImage` from a `model`, `image` and the optionally
@@ -97,6 +102,11 @@ end
     intensitymap!(img, model)
     newcache = update_cache(cache, img)
     return ModelImage(model, img, newcache)
+end
+
+@inline function modelimage(img::IntensityMap, alg=NFFTAlg())
+    cache = create_cache(alg, img)
+    return ModelImage(img, img, cache)
 end
 
 """
