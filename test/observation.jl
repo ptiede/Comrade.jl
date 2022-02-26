@@ -44,8 +44,17 @@
     @test sqrt(abs(visibility(vis[1]))^2 - vis[1].error^2) ≈ amplitude(amp[1])
     ac = arrayconfig(vis)
 
+    m = stretched(Gaussian(), 1e-10,1e-10)
+    u,v = getuv(ac)
+    @test visibilities(m, ac) ≈ visibilities(m, u, v)
 
-
+    u1 = getdata(cphase, :u1)
+    v1 = getdata(cphase, :v1)
+    u2 = getdata(cphase, :u2)
+    v2 = getdata(cphase, :v2)
+    u3 = getdata(cphase, :u3)
+    v3 = getdata(cphase, :v3)
+    bispectra(m, u1, v1, u2, v2, u3, v3)
 
     @testset "RadioLikelihood" begin
         lamp = RadioLikelihood(amp)
