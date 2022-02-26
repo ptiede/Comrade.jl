@@ -201,7 +201,8 @@ end
 # These aren't needed right now
 function intensitymap!(::NotAnalytic, img::IntensityMap, m)
     ny, nx = size(img)
-    vis = ifftshift(phasedecenter!(fouriermap(m, img), img))
+    fovx, fovy = fov(img)
+    vis = ifftshift(phasedecenter!(fouriermap(model.m1, fovx, fovy, nx, ny), img))
     ifft!(vis)
     for I in CartesianIndices(img)
         img[I] = real(vis[I])/(nx*ny)
