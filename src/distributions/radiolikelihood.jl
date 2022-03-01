@@ -38,10 +38,10 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
     u2, v2 = getdata(data, :u2), getdata(data, :v2)
     u3, v3 = getdata(data, :u3), getdata(data, :v3)
     u4, v4 = getdata(data, :u4), getdata(data, :v4)
-    τ = Diagonal(getdata(data, :error))
+    τ = inv.(getdata(data, :error))
     f(m) = logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
-    k = kernel(MvNormal{(:μ, :σ)},
-                σ = x->τ,
+    k = kernel(AmpNormal{(:μ, :τ)},
+                τ = x->τ,
                 μ = x->f(x)
               )
 

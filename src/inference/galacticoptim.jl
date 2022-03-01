@@ -20,7 +20,7 @@ will transform the solution to parameter space, and the return will be
 a tuple with the galactic optim solution in the first element and the optimum
 location in model space in the second argument
 """
-function GalacticOptim.solve(prob::OptimizationProblem, opt, transform, args...; kwargs...)
+function GalacticOptim.solve(prob::OptimizationProblem, opt, transform::Union{Nothing, HypercubeTransform.AbstractHypercubeTransform, HypercubeTransform.TransformVariables.AbstractTransform}, args...; kwargs...)
     sol = solve(prob, opt, args...; kwargs...)
     if isnothing(transform)
         return sol

@@ -54,8 +54,8 @@ function visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       v::AbstractArray) where {M,I,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
     vis =  m.cache.plan*m.cache.img
-    vis .= vis.*m.cache.phases
-    return vis
+    vis.*m.cache.phases
+    #return vis
 end
 
 function visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
@@ -125,7 +125,7 @@ function logclosure_amplitudes(m::ModelImage{M,I,C},
     amp3 = @view vis[2n+1:3n]
     amp4 = @view vis[3n+1:4n]
 
-    lcamp = @. log(amp1*amp2/(amp3*amp4))
+    lcamp = @. log(abs(amp1)*abs(amp2)/(abs(amp3)*abs(amp4)))
     return lcamp
 end
 
