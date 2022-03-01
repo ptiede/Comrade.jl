@@ -36,10 +36,6 @@ model visibilities.
 """
 struct EHTArrayConfiguration{S,F,T<:AbstractArray} <: ArrayConfiguration
     """
-    List of stations in the array
-    """
-    stations::S
-    """
     Observing frequency (Hz)
     """
     frequency::F
@@ -50,7 +46,7 @@ struct EHTArrayConfiguration{S,F,T<:AbstractArray} <: ArrayConfiguration
     """
     A struct array of `ArrayBaselineDatum` holding time, u, v, baselines.
     """
-    uvsamples::T
+    data::T
 end
 
 """
@@ -134,7 +130,24 @@ Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructA
     timetype::Symbol = :UTC
 end
 
+getdata(obs::Observation, s::Symbol) = getproperty(obs.data, s)
+
+
+# Implement the tables interface
+Tables.istable(::Type{<:EHTObservation}) = true
+Tables.columnaccess(::Type{<:EHTObservation}) = true
+Tables.columns(t::EHTObservation) = t.data
+
+Tables.getcolumn(t::EHTObservation, ::Type{T}, col::Int, nm::Symbol) where {T} = getdata(t, nm)
+Tables.getcolumn(t::EHTObservation, nm::Symbol) = getdata(t, nm)
+Tables.getcolumn(t::EHTObservation, i::Int) = Tables.getcolumn(t, Tables.columnames(t)[i])
+Tables.columnnames(t::EHTObservation) = propertynames(t.data)
+
+
+
+
 Base.getindex(data::EHTObservation, i::Int) = data.data[i]
+Base.getindex(data::EHTObservation, I...) = getindex(data.data, I...)
 Base.length(data::EHTObservation) = length(data.data)
 
 """
@@ -168,8 +181,6 @@ say you want the times of all measurement then
 getdata(obs, :time)
 ```
 """
-getdata(obs::Observation, s::Symbol) = getproperty(obs.data, s)
-Base.getindex(obs::Observation, i) = getindex(obs.data, i)
 
 
 
