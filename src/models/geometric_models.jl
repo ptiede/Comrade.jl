@@ -155,7 +155,7 @@ end
     θ = atan(u, v)
     @inbounds for n in 1:N
         s,c = sincos(n*θ)
-        vis += 2*(m.α[n]*c - m.β[n]*s)*(-1im)^n*besselj(n, k)
+        vis += 2*(m.α[n]*c - m.β[n]*s)*(1im)^n*besselj(n, k)
     end
     return vis
 end

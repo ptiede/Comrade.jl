@@ -32,9 +32,9 @@ function padimage(img, alg::NFFTAlg)
 end
 
 function plan_nuft(alg::ObservedNUFT{<:NFFTAlg}, img, dx, dy)
-    uv2 = copy(alg.uv)
-    uv2[1,:] .= uv2[1,:]*dx
-    uv2[2,:] .= uv2[2,:]*dy
+    uv2 = similar(alg.uv)
+    uv2[1,:] .= alg.uv[1,:]*dx
+    uv2[2,:] .= alg.uv[2,:]*dy
     plan = plan_nfft(uv2, size(img); precompute=NFFT.POLYNOMIAL)
     return plan
 end
@@ -43,7 +43,7 @@ function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img)
     dx, dy = pixelsizes(img)
     u = @view alg.uv[1,:]
     v = @view alg.uv[2,:]
-    return cispi.(-(u.*dx .+ v.*dy)).*visibility_point.(Ref(img.pulse), u.*dx, v.*dy).*dx.*dy
+    return cispi.((u.*dx .+ v.*dy)).*visibility_point.(Ref(img.pulse), u.*dx, v.*dy).*dx.*dy
 end
 
 @inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img)
