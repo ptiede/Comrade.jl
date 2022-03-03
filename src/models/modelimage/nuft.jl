@@ -54,8 +54,44 @@ function visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       v::AbstractArray) where {M,I,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
     vis =  m.cache.plan*m.cache.img
-    vis.*m.cache.phases
+    conj.(vis).*m.cache.phases
     #return vis
+end
+
+function _frule_vis(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{A}}) where {M,T,V,P,A<:ObservedNUFT}
+    S = typeof(ForwardDiff.value(first(m.cache.img)))
+    p = m.cache.plan
+    # Compute the fft
+    buffer = similar(m.cache.img, S)
+    buffer .= ForwardDiff.value.(m.cache.img)
+    xtil = p*buffer
+    out = similar(buffer, Complex{ForwardDiff.Dual{T,V,P}})
+    # Now take the deriv of nuft
+    ndxs = ForwardDiff.npartials(first(m.cache.img))
+    dxtils = ntuple(ndxs) do n
+        buffer .= ForwardDiff.partials.(m.cache.img, n)
+        p * buffer
+    end
+    out = similar(xtil, Complex{ForwardDiff.Dual{T,V,P}})
+    for i in eachindex(out)
+        dual = getindex.(dxtils, i)
+        prim = xtil[i]
+        red = ForwardDiff.Dual{T,V,P}(real(prim), ForwardDiff.Partials(real.(dual)))
+        imd = ForwardDiff.Dual{T,V,P}(imag(prim), ForwardDiff.Partials(imag.(dual)))
+        out[i] = Complex(red, imd)
+    end
+    return out
+end
+
+function visibilities(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{A}},
+    u::AbstractArray,
+    v::AbstractArray) where {M,T,V,P,A<:ObservedNUFT}
+    checkuv(m.cache.alg.uv, u, v)
+    # Now reconstruct everything
+
+    vis = _frule_vis(m)
+    conj.(vis).*m.cache.phases
+#return vis
 end
 
 function visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
