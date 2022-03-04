@@ -16,7 +16,7 @@ using DelimitedFiles
 using AstroTime: modified_julian
 
 export uvpositions, stations, getdata, arrayconfig,
-       getuv, baselines, rescaleuv!
+       getuv, baselines, rescaleuv!, scantable
 
 
 
@@ -130,22 +130,20 @@ Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructA
     timetype::Symbol = :UTC
 end
 
-getdata(obs::Observation, s::Symbol) = getproperty(obs.data, s)
+getdata(obs::Observation, s::Symbol) = getproperty(getfield(obs, :data), s)
 
 
 # Implement the tables interface
 Tables.istable(::Type{<:EHTObservation}) = true
 Tables.columnaccess(::Type{<:EHTObservation}) = true
-Tables.columns(t::EHTObservation) = t.data
+Tables.columns(t::EHTObservation) = getfield(t, :data)
 
 Tables.getcolumn(t::EHTObservation, ::Type{T}, col::Int, nm::Symbol) where {T} = getdata(t, nm)
 Tables.getcolumn(t::EHTObservation, nm::Symbol) = getdata(t, nm)
 Tables.getcolumn(t::EHTObservation, i::Int) = Tables.getcolumn(t, Tables.columnames(t)[i])
-Tables.columnnames(t::EHTObservation) = propertynames(t.data)
+Tables.columnnames(t::EHTObservation) = propertynames(getfield(t, :data))
 
-
-
-
+Base.getindex(data::EHTObservation, s::Symbol) = Tables.getcolumn(data, s)
 Base.getindex(data::EHTObservation, i::Int) = data.data[i]
 Base.getindex(data::EHTObservation, I...) = getindex(data.data, I...)
 Base.length(data::EHTObservation) = length(data.data)
@@ -583,6 +581,89 @@ function arrayconfig(vis::EHTObservation{F,A}) where {F,A<:Union{EHTVisibilityDa
                                     )
     return EHTArrayConfiguration(st, frequency, bandwidth, uvsamples)
 end
+
+struct ScanTable{O<:Union{Observation,ArrayConfiguration}, T, S}
+    obs::O
+    times::T
+    scanind::S
+end
+
+Base.length(st::ScanTable) = length(st.times)
+stations(st::ScanTable) = stations(st.obs)
+
+struct Scan{T,I,S}
+    time::T
+    index::I
+    scan::S
+end
+
+function stations(s::Scan)
+    bl = s.scan.baseline
+    a1 = first.(bl)
+    a2 = last.(bl)
+    stat = unique(vcat(a1, a2))
+    return stat
+end
+
+function Base.show(io::IO, s::Scan)
+    println(io, "VLBI Scan")
+    println(io, "\tscan index: ", s.index)
+    println(io, "\tscan time:  ", s.time)
+    println(io, "\tstations: ", stations(s))
+end
+
+function Base.getindex(st::ScanTable, i::Int)
+    istart = st.scanind[i]
+    if i < length(st.scanind)
+        iend = st.scanind[i+1]-1
+    else
+        iend = length(st.obs)
+    end
+    return Scan(st.times[i], (i, istart, iend), @view st.obs.data[istart:iend])
+end
+
+function Base.getindex(scan::Scan, s::Symbol)
+    getproperty(scan.scan, s)
+end
+
+function Base.getindex(scan::Scan, i::Int)
+    scan.scan[i]
+end
+
+
+Base.first(st::ScanTable) = st[1]
+
+"""
+    `scantable(obs)`
+Reorganizes the observation into a table of scans, where scan are defined by unique timestamps.
+To access the data you can use scalar indexing
+
+# Example
+
+```julia
+st = scantable(obs)
+# Grab the first scan
+scan1 = st[1]
+
+# Acess the detections in the scan
+scan1[1]
+
+# grab e.g. the baselines
+scan1[:baseline]
+```
+
+"""
+function scantable(obs)
+    times = obs[:time]
+    scantimes = unique(times)
+    scanind = Int[]
+    for t in scantimes
+        ind = findfirst(==(t), times)
+        append!(scanind, ind)
+    end
+    return ScanTable(obs, scantimes, scanind)
+end
+
 
 include(joinpath(@__DIR__, "io.jl"))
 include(joinpath(@__DIR__, "ehtim.jl"))
