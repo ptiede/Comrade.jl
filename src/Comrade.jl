@@ -23,6 +23,7 @@ using SpecialFunctions
 using Reexport
 using Requires: @require
 using StructArrays: StructArray
+using Tables
 # Write your package code here.
 
 @reexport using ComradeBase
@@ -74,6 +75,7 @@ include("distributions/radiolikelihood.jl")
 include("visualizations/visualizations.jl")
 include("bayes/bayes.jl")
 include("inference/inference.jl")
+include("calibration/gains.jl")
 
 function __init__()
     @require AdvancedHMC="0bf59076-c3b1-5ca4-86bd-e02cd72cde3d" include("inference/advancedhmc.jl")

@@ -566,7 +566,6 @@ Extract the array configuration from a visibility EHT observation.
 function arrayconfig(vis::EHTObservation{F,A}) where {F,A<:Union{EHTVisibilityDatum, EHTVisibilityAmplitudeDatum}}
     u = getdata(vis, :u)
     v = getdata(vis, :v)
-    st = stations(vis)
     times = getdata(vis, :time)
     bandwidth = vis.bandwidth
     frequency = vis.frequency
@@ -579,7 +578,7 @@ function arrayconfig(vis::EHTObservation{F,A}) where {F,A<:Union{EHTVisibilityDa
                                         error_real=error,
                                         error_imag=error
                                     )
-    return EHTArrayConfiguration(st, frequency, bandwidth, uvsamples)
+    return EHTArrayConfiguration(frequency, bandwidth, uvsamples)
 end
 
 struct ScanTable{O<:Union{Observation,ArrayConfiguration}, T, S}
