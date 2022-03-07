@@ -291,6 +291,16 @@ function χ²(m, data)
     return sum(abs2, last(residuals(m, data)))
 end
 
+function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityDatum}
+    u = getdata(damp, :u)
+    v = getdata(damp, :v)
+    vis = StructArray{Complex{Float64}}((damp[:visr], damp[:visi]))
+    mvis = visibilities(m, u, v)
+    res = (vis - mvis)./getdata(damp, :error)
+    re = real.(res)
+    im = imag.(res)
+    return hypot.(u, v), hcat(re, im)
+end
 
 function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityAmplitudeDatum}
     amp = getdata(damp, :amp)
