@@ -14,6 +14,8 @@ function padimage(alg::NUFT, img)
                      )
 end
 
+padimage(alg::ObservedNUFT, img) = padimage(alg.alg, img)
+
 
 
 function create_cache(alg::ObservedNUFT, img)
@@ -33,8 +35,8 @@ function create_cache(alg::NUFT, img)
 end
 
 function update_cache(cache::NUFTCache, img)
-    pimg = padimage(img, cache.alg)
-    return @set cache.img = pimg
+    pimg = padimage(cache.alg, img)
+    create_cache(cache.alg, cache.plan, cache.phases, pimg)
 end
 
 function nocachevis(m::ModelImage{M,I,<:NUFTCache}, u, v) where {M,I}
