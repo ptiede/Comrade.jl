@@ -145,9 +145,22 @@ If this is a analytic model this is done lazily so the visibilites are only comp
 when accessed. Otherwise for numerical model computed with NFFT this is eager.
 """
 function amplitudes(m, u::AbstractArray, v::AbstractArray)
+    _amplitudes(m, u, v)
+end
+
+function _amplitudes(m::S, u::AbstractArray, v::AbstractArray) where {S}
+    _amplitudes(visanalytic(S), m, u, v)
+end
+
+function _amplitudes(::IsAnalytic, m, u::AbstractArray, v::AbstractArray)
     f(x,y) = amplitude(m, x, y)
     return mappedarray(f, u, v)
 end
+
+function _amplitudes(::NotAnalytic, m, u::AbstractArray, v::AbstractArray)
+    abs.(visibilities(m, u, v))
+end
+
 
 """
     $(SIGNATURES)
