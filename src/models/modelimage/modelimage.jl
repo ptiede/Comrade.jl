@@ -109,6 +109,11 @@ end
     return ModelImage(img, img, cache)
 end
 
+@inline function modelimage(img::IntensityMap, cache::AbstractCache)
+    newcache = update_cache(cache, img)
+    return ModelImage(img, img, newcache)
+end
+
 """
     $(SIGNATURES)
 Construct a `ModelImage` where just the model `m` is specified
