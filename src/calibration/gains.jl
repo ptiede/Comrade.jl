@@ -41,10 +41,13 @@ function GainPrior(dists, st::ScanTable)
     return GainPrior(gstat, gtimes, gprior)
 end
 
+HypercubeTransform.asflat(d::GainPrior) = asflat(d.dist)
+HypercubeTransform.ascube(d::GainPrior) = ascube(d.dist)
+
 Distributions.sampler(d::GainPrior) = Distributions.sampler(d.dist)
 Base.length(d::GainPrior) = length(d.dist)
 Base.eltype(d::GainPrior) = eltype(d.dist)
-function Distributions._rand!(rng::AbstractRNG, d::GainPrior, x::AbstractArray)
+function Distributions._rand!(rng::AbstractRNG, d::GainPrior, x::AbstractVector)
     Distributions._rand!(rng, d.dist, x)
 end
 
@@ -75,7 +78,7 @@ end
     `GainModel`
 Construct the corruption model for the telescope gains
 """
-struct GainModel{C, G, M}
+struct GainModel{C, G, M} <: AbstractModel
     cache::C
     gains::G
     model::M
@@ -93,7 +96,7 @@ end
 function corrupt(vis::AbstractArray, g::GainCache, gains::AbstractArray)
     g1 = g.m1*gains
     g2 = g.m2*gains
-    return vis.*g1.*g2
+    return @. g1*vis*conj(g2)
 end
 
 
