@@ -16,7 +16,21 @@ function Base.show(io::IO, d::RadioLikelihood{T}) where {T}
 end
 
 
+
 @inline MeasureBase.logdensity(d::RadioLikelihood, m) = sum(x->logdensity(x, m), d.lklhds)
+
+function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
+    u = data[:u]
+    v = data[:v]
+    err = data[:error]
+    f(m) = visibilities(m, u, v)
+    k = kernel(ComplexNormal{(:μ, :σ)},
+                σ = x->err,
+                μ = x->f(x)
+            )
+    vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
+    return Likelihood(k, vis)
+end
 
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
