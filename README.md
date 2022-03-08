@@ -15,10 +15,8 @@ This is a alpha version of a potential EHT/ngEHT modeling/imaging software writt
 # Installation
 To install Comrade.jl you must use Julia's package manager. For example you can launch your Julia session with then type `]` to move into Pkg mode. Once in pkg mode type
 ```julia
-add "https://github.com/ptiede/Comrade.jl"
+add Comrade
 ```
-to install the main branch of Comrade.jl. Eventually this will be push to the official Julia repo's but the name of the package may change before that happens.
-
 
 # Roadmap
 
