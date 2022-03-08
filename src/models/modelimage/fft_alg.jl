@@ -74,7 +74,7 @@ function Base.:*(p::AbstractFFTs.Plan, x::PaddedView{<:ForwardDiff.Dual{T,V,P},N
     xtil = p * cache
     ndxs = ForwardDiff.npartials(first(x))
     dxtils = ntuple(ndxs) do n
-        cache[:,:] .= ForwardDiff.partials.(x, n)
+        cache .= ForwardDiff.partials.(x, n)
         p * cache
     end
     out = similar(cache, Complex{ForwardDiff.Dual{T,V,P}})
@@ -203,6 +203,24 @@ function fouriermap(m, fovx, fovy, nx, ny)
         vis[I] = vp
     end
     return vis
+end
+
+function fouriermap(m::ModelImage, fovx, fovy, nx, ny)
+    cache = create_cache(FFTAlg(), m.image)
+    x,y = imagepixels(fovx, fovy, nx, ny)
+    dx = step(x); dy = step(y)
+    uu,vv = uviterator(dx, dy, nx, ny)
+
+    T = Complex{eltype(m.image)}
+    vis = Matrix{T}(undef, ny, nx)
+
+    @inbounds for I in CartesianIndices(vis)
+        iy, ix = Tuple(I)
+        vp = cache.sitp(uu[ix], vv[iy])
+        vis[I] = vp
+    end
+    return vis
+
 end
 
 function phasedecenter!(vis, fovx, fovy, nx, ny)
