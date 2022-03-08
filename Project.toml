@@ -47,7 +47,7 @@ ValueShapes = "136a8f8c-c49b-4edb-8b98-f3d64d48be8f"
 [compat]
 AbstractDifferentiation = "0.4"
 AbstractFFTs = "1"
-AbstractMCMC = "3"
+AbstractMCMC = "3, 4"
 Accessors = "0.1"
 ArgCheck = "2"
 AstroTime = "0.6,0.7"
