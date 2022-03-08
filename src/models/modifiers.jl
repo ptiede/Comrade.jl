@@ -19,6 +19,7 @@ basemodel(model::AbstractModel) = model
 unmodified(model::AbstractModel) = basemodel(model)
 unmodified(model::AbstractModifier) = unmodified(basemodel(model))
 
+
 flux(m::AbstractModifier) = flux(m.model)
 
 @inline visanalytic(::Type{<:AbstractModifier{M}}) where {M} = visanalytic(M)
@@ -27,54 +28,52 @@ flux(m::AbstractModifier) = flux(m.model)
 radialextent(m::AbstractModifier) = radialextent(basemodel(m))
 
 
-# @inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number)
+# @inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number, scale::Number)
 #     ut, vt = transform_uv(m, u, v)
-#     return apply_uv_transform(basemodel(m), ut, vt)
+#     scale *= scale_uv(m, u, v)
+#     return apply_uv_transform(basemodel(m), ut, vt, scale)
 # end
 
-# @inline function apply_uv_transform(m::AbstractModel, u::Number, v::Number)
-#     return u, v
+# @inline function apply_uv_transform(::AbstractModel, u::Number, v::Number, scale::Number)
+#     return u, v, scale
 # end
 
-# @inline function apply_uv_scaling(m::AbstractModifier, u, v)
-#     scale = scale_uv(m, u, v)
-#     return scale*apply_uv_scaling(basemodel(m), u, v)
+# function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
+#     ut = similar(u)
+#     vt = similar(v)
+#     T = typeof(scale_uv(m, 0.0, 0.0))
+#     scale = ones(T, size(ut))
+#     @inbounds for i in eachindex(u,v)
+#         up, vp, sp = apply_uv_transform(m, u[i], v[i], scale[i])
+#         ut[i] = up
+#         vt[i] = vp
+#         scale[i] = sp
+#     end
+#     return ut, vt, scale
 # end
 
-# @inline function apply_uv_scaling(m::AbstractModel, u, v)
-#     return one(eltype(u))
-# end
-
-function modelimage(::NotAnalytic,
-    model::AbstractModifier,
-    image::ComradeBase.AbstractIntensityMap, alg::FFTAlg)
-
-    @set model.model = modelimage(model.model, image, alg)
-end
-
-function modelimage(::NotAnalytic,
-    model::AbstractModifier,
-    image::ComradeBase.AbstractIntensityMap, alg::NFFTAlg)
-    _modelimage(model, image, alg)
-end
-
-
-function apply_uv_transform(m, u::AbstractVector, v::AbstractVector)
-    ut = similar(u)
-    vt = similar(v)
-    @inbounds for i in eachindex(u,v)
-        up, vp = apply_uv_transform(m, u[i], v[i])
-        ut[i] = up
-        vt[i] = vp
-    end
-    return ut, vt
-end
-
-#@inline function _visibilities(m::AbstractModifier, u, v, args...)
-#    ut, vt = apply_uv_transform(m, u, v)
-#    scales = apply_uv_scaling.(Ref(m), u, v)
+#@inline function _visibilities(m::AbstractModifier, u::AbstractArray, v::AbstractArray, args...)
+#    ut, vt, scales = apply_uv_transform(m, u, v)
 #    scales.*visibilities(unmodified(m), ut, vt, args...)
 #end
+
+
+
+function modelimage(::NotAnalytic,
+    model::AbstractModifier,
+    image::ComradeBase.AbstractIntensityMap, alg::FFTAlg, executor=SequentialEx())
+
+    @set model.model = modelimage(model.model, image, alg, executor)
+end
+
+function modelimage(::NotAnalytic,
+    model::AbstractModifier,
+    image::ComradeBase.AbstractIntensityMap, alg::NUFT,
+    executor=SequentialEx())
+    _modelimage(model, image, alg, executor)
+end
+
+
 
 @inline function visibility_point(m::AbstractModifier, u, v, args...)
     ut, vt = transform_uv(m, u, v)
@@ -85,7 +84,7 @@ end
 @inline function ComradeBase.intensity_point(m::AbstractModifier, x, y)
     xt, yt = transform_image(m, x, y)
     scale = scale_image(m, x, y)
-    return ComradeBase.intensity_point(basemodel(m), xt, yt)*scale
+    scale*ComradeBase.intensity_point(basemodel(m), xt, yt)
 end
 
 """
@@ -143,11 +142,15 @@ Base.:*(model::RenormalizedModel, f::Real) = renormed(model.model, model.scale*f
 Base.:-(model::AbstractModel) = renormed(model, -1.0)
 flux(m::RenormalizedModel) = m.scale*flux(m.model)
 
-@inline transform_image(model::RenormalizedModel, x, y) = (x, y)
-@inline transform_uv(model::RenormalizedModel, u, v) = (u, v)
+@inline transform_image(::RenormalizedModel, x, y) = (x, y)
+@inline transform_uv(::RenormalizedModel, u, v) = (u, v)
 
 @inline scale_image(model::RenormalizedModel, x, y) = model.scale
 @inline scale_uv(model::RenormalizedModel, u, v) = model.scale
+
+function _visibilities(m::RenormalizedModel, u::AbstractArray, v::AbstractArray)
+    m.scale*visibilities(basemodel(m), u, v)
+end
 
 
 

@@ -14,6 +14,7 @@ using ChainRulesCore
 using ComradeBase
 using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
+using FLoops
 using MappedArrays: mappedarray
 using MeasureBase
 using NFFT: nfft, plan_nfft
@@ -28,6 +29,7 @@ using StructArrays: StructArray
 @reexport using ComradeBase
 using ComradeBase: visanalytic, imanalytic
 
+export SequentialEx, ThreadedEx
 
 const ehtim = PyNULL()
 

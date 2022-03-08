@@ -14,10 +14,10 @@ function NFFTAlg(ac::ArrayConfiguration; padfac=1, m=10)
 end
 
 
-function padimage(img, alg::NFFTAlg)
+function padimage(alg::NFFTAlg, img)
     padfac = alg.padfac
     # if no padding exit now
-    (padfac == 1) && return img
+    (padfac == 1) && return convert(Matrix{Complex{eltype(img)}}, img)
 
     ny,nx = size(img)
     nnx = nextpow(2, padfac*nx)

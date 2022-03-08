@@ -23,18 +23,21 @@ abstract type CompositeModel{M1,M2} <: AbstractModel end
 
 function modelimage(::NotAnalytic,
     model::CompositeModel,
-    image::ComradeBase.AbstractIntensityMap, alg::FourierTransform=FFTAlg())
+    image::ComradeBase.AbstractIntensityMap,
+    alg::FourierTransform=FFTAlg(),
+    executor=SequentialEx())
 
-    m1 = @set model.m1 = modelimage(model.m1, image, alg)
-    @set m1.m2 = modelimage(m1.m2, copy(image), alg)
+    m1 = @set model.m1 = modelimage(model.m1, image, alg, executor)
+    @set m1.m2 = modelimage(m1.m2, copy(image), alg, executor)
 end
 
 function modelimage(::NotAnalytic,
     model::CompositeModel,
-    cache::AbstractCache)
+    cache::AbstractCache,
+    executor=SequentialEx())
 
-    m1 = @set model.m1 = modelimage(model.m1, cache)
-    @set m1.m2 = modelimage(m1.m2, cache)
+    m1 = @set model.m1 = modelimage(model.m1, cache, executor)
+    @set m1.m2 = modelimage(m1.m2, cache, executor)
 end
 
 

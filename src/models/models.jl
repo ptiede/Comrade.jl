@@ -123,12 +123,6 @@ end
 
 
 
-"""
-    $(SIGNATURES)
-Computes the visibilities of the model `m` at the u,v positions `u`, `v`.
-
-Note this is done lazily so the visibility is only computed when accessed.
-"""
 function _visibilities(m, u::AbstractArray, v::AbstractArray)
     f(x,y) = visibility(m, x, y)
     return mappedarray(f, u, v)
@@ -198,7 +192,7 @@ function logclosure_amplitudes(m,
     return mappedarray(f, u1, v1, u2, v2, u3, v3, u4, v4)
 end
 
-function intensitymap!(::NotAnalytic, img::IntensityMap, m)
+function intensitymap!(::NotAnalytic, img::IntensityMap, m, executor=SequentialEx())
     ny, nx = size(img)
     fovx, fovy = fov(img)
     vis = fouriermap(m, fovx, fovy, nx, ny)
@@ -210,7 +204,7 @@ function intensitymap!(::NotAnalytic, img::IntensityMap, m)
 end
 
 
-function intensitymap(::NotAnalytic, m, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
+function intensitymap(::NotAnalytic, m, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse(), executor=SequentialEx())
     img = IntensityMap(zeros(ny, nx), fovx, fovy, pulse)
     vis = ifftshift(phasedecenter!(fouriermap(m, fovx, fovy, nx, ny), fovx, fovy, nx, ny))
     ifft!(vis)

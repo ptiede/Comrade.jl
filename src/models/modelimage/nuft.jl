@@ -49,7 +49,7 @@ function checkuv(uv, u, v)
     @assert v == @view(uv[2,:]) "Specified v don't match uv in cache. Did you pass the correct u,v?"
 end
 
-function visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
+function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       u::AbstractArray,
                       v::AbstractArray) where {M,I,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
@@ -83,7 +83,7 @@ function _frule_vis(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:
     return out
 end
 
-function visibilities(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{A}},
+function _visibilities(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{A}},
     u::AbstractArray,
     v::AbstractArray) where {M,T,V,P,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
@@ -94,7 +94,7 @@ function visibilities(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},
 #return vis
 end
 
-function visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
+function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       u::AbstractArray,
                       v::AbstractArray) where {M,I,A<:NUFT}
     return nocachevis(m, u, v)

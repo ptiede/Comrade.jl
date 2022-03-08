@@ -71,33 +71,36 @@ For analytic models this is a no-op and just return the model.
 For non-analytic models this wraps the model in a object with an image
 and precomputes the fourier transform using `alg`.
 """
-@inline function modelimage(model::M, image::ComradeBase.AbstractIntensityMap, alg::FourierTransform=FFTAlg()) where {M}
-    return modelimage(visanalytic(M), model, image, alg)
+@inline function modelimage(model::M, image::ComradeBase.AbstractIntensityMap, alg::FourierTransform=FFTAlg(), executor=SequentialEx()) where {M}
+    return modelimage(visanalytic(M), model, image, alg, executor)
 end
 
-@inline function modelimage(::IsAnalytic, model, image, args...; kwargs...)
+@inline function modelimage(::IsAnalytic, model, args...; kwargs...)
     return model
 end
 
-function _modelimage(model, image, alg)
-    intensitymap!(image, model)
+function _modelimage(model, image, alg, executor)
+    intensitymap!(image, model, executor)
     cache = create_cache(alg, image)
     return ModelImage(model, image, cache)
 end
 
-@inline function modelimage(::NotAnalytic, model, image::ComradeBase.AbstractIntensityMap, alg::FourierTransform=FFTAlg())
-    _modelimage(model, image, alg)
+@inline function modelimage(::NotAnalytic, model,
+                            image::ComradeBase.AbstractIntensityMap,
+                            alg::FourierTransform=FFTAlg(),
+                            executor=SequentialEx())
+    _modelimage(model, image, alg, executor)
 end
 
-@inline function modelimage(model::M, cache::AbstractCache) where {M}
-    return modelimage(visanalytic(M), model, cache)
+@inline function modelimage(model::M, cache::AbstractCache, executor=SequentialEx()) where {M}
+    return modelimage(visanalytic(M), model, cache, executor)
 end
 
-@inline function modelimage(::IsAnalytic, model, cache::AbstractCache)
+@inline function modelimage(::IsAnalytic, model, cache::AbstractCache, args...)
     return model
 end
 
-@inline function modelimage(::NotAnalytic, model, cache::AbstractCache)
+@inline function modelimage(::NotAnalytic, model, cache::AbstractCache, executor=SequentialEx())
     img = cache.image
     intensitymap!(img, model)
     newcache = update_cache(cache, img)
@@ -124,12 +127,13 @@ function modelimage(m::M;
                     nx=512,
                     ny=512,
                     pulse=ComradeBase.DeltaPulse(),
-                    alg=FFTAlg()) where {M}
+                    alg=FFTAlg(),
+                    executor=SequentialEx()) where {M}
     if visanalytic(M) == IsAnalytic()
         return m
     else
         T = typeof(intensity_point(m, 0.0, 0.0))
         img = IntensityMap(zeros(T,ny,nx), fovx, fovy, pulse)
-        modelimage(m, img, alg)
+        modelimage(m, img, alg, executor)
     end
 end

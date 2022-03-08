@@ -88,18 +88,18 @@ function Base.:*(p::AbstractFFTs.Plan, x::PaddedView{<:ForwardDiff.Dual{T,V,P},N
     return out
 end
 
-function padimage(alg::FFTAlg, img)
-    padfac = alg.padfac
-    ny,nx = size(img)
-    nnx = nextpow(2, padfac*nx)
-    nny = nextpow(2, padfac*ny)
-    nsx = nnx÷2-nx÷2
-    nsy = nny÷2-ny÷2
-    return PaddedView(zero(eltype(img)), img,
-                      (1:nnx, 1:nny),
-                      (nsx+1:nsx+nx, nsy+1:nsy+ny)
-                     )
-end
+# function padimage(alg::FFTAlg, img)
+#     padfac = alg.padfac
+#     ny,nx = size(img)
+#     nnx = nextpow(2, padfac*nx)
+#     nny = nextpow(2, padfac*ny)
+#     nsx = nnx÷2-nx÷2
+#     nsy = nny÷2-ny÷2
+#     return PaddedView(zero(eltype(img)), img,
+#                       (1:nnx, 1:nny),
+#                       (nsx+1:nsx+nx, nsy+1:nsy+ny)
+#                      )
+# end
 
 function padimage(img, alg::FFTAlg)
     padfac = alg.padfac

@@ -233,7 +233,7 @@ end
 function visibility_point(m::ConcordanceCrescent{T}, u, v, args...) where {T}
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     norm = π*_crescentnorm(m)/k
-    phaseshift = cispi(-2*m.shift*u)
+    phaseshift = cispi(2*m.shift*u)
     b0outer,b0inner = besselj0(k*m.router), besselj0(k*m.rinner)
     b1outer,b1inner = besselj1(k*m.router), besselj1(k*m.rinner)
     b2outer,b2inner = besselj(2,k*m.router), besselj(2, k*m.rinner)
@@ -241,11 +241,11 @@ function visibility_point(m::ConcordanceCrescent{T}, u, v, args...) where {T}
     v1 = (1+m.slash)*m.router*b1outer
     v2 = ((1+m.slash) + (1-m.slash)*m.shift/m.router)*
             phaseshift*m.rinner*b1inner
-    v3 = 2im*π*u*(1-m.slash)*(m.router*b0outer -
+    v3 = -2im*π*u*(1-m.slash)*(m.router*b0outer -
                            m.router*b2outer -
                            2*b1outer/k
                           )/(2*k)
-    v4 = 2im*π*u*(1-m.slash)*(m.rinner*b0inner -
+    v4 = -2im*π*u*(1-m.slash)*(m.rinner*b0inner -
                           m.rinner*b2inner -
                           2*b1inner/k
                          )/(2*k)*(m.rinner/m.router)*phaseshift
@@ -320,5 +320,5 @@ function visibility_point(::ParabolicSegment{T}, u, v) where {T}
     #length = (√5 + asinh(2)/2)
     Δ1 = erf(√(π/(2vϵ))*cispi(1/4)*(u-2vϵ))
     Δ2 = erf(√(π/(2vϵ))*cispi(1/4)*(u+2vϵ))
-    return conj(phase/(√(2vϵ))*(Δ1-Δ2)/4)
+    return phase/(√(2vϵ))*(Δ1-Δ2)/4
 end
