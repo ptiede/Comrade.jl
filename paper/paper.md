@@ -24,7 +24,7 @@ bibliography: paper.bib
 
 `Comrade` is a Bayesian modeling package, targeted for very-long-baseline interferometry (VLBI) and written in the Julia[^1] programming language [@bezanson2015julia]. `Comrade` aims at producing VLBI image of black holes and active galactic nuclei. Furthermore, it focuses on providing uncertainty quantification of image and physical source properties, such as a black hole's accretion state. The package has already been widely used within the Event Horizon Telescope Collaboration and will be useful for expert and novice VLBI researchers.
 
-[^1]: [https://julialang.org]
+[^1]: https://julialang.org
 
 
 # Statement of need
