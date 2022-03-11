@@ -85,7 +85,7 @@ prior = (
           f = Uniform(0.0, 1.0),
           sig = Uniform(uas2rad*(1.0), uas2rad*(40.0)),
           asy = Uniform(0.0, 0.75),
-          pa = Uniform(0.0, 1π),
+          pa = Uniform(0.0, 1pi),
           x = Uniform(-uas2rad*(80.0), uas2rad*(80.0)),
           y = Uniform(-uas2rad*(80.0), uas2rad*(80.0))
         )
