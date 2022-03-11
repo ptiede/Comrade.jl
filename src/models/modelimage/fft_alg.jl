@@ -112,7 +112,7 @@ end
 function phasecenter(vis, uu, vv, x0, y0, dx, dy)
     map(CartesianIndices((eachindex(uu), eachindex((vv))))) do I
         iy,ix = Tuple(I)
-        return conj(vis[I])*dx*dy*cispi(2*(uu[ix]*x0 + vv[iy]*y0))
+        return conj(vis[I])*cispi(2*(uu[ix]*x0 + vv[iy]*y0))
     end
 end
 
@@ -231,7 +231,7 @@ function phasedecenter!(vis, fovx, fovy, nx, ny)
     y0 = first(y)
     for I in CartesianIndices(vis)
         iy, ix = Tuple(I)
-        vis[I] = conj(vis[I]*cispi(-2*(uu[ix]*x0 + vv[iy]*y0)))*nx*ny/(dx*dy)
+        vis[I] = conj(vis[I]*cispi(-2*(uu[ix]*x0 + vv[iy]*y0)))*nx*ny
     end
     return vis
 end

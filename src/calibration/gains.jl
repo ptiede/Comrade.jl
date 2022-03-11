@@ -3,6 +3,12 @@ using SparseArrays
 import Distributions
 using Statistics
 
+abstract type RIMEModel <: AbstractModel end
+
+vismodel(m::RIMEModel) = m.model
+flux(m::RIMEModel) = flux(vismodel(m))
+radialextent(m::RIMEModel) = radialextent(vismodel(m))
+
 struct DesignMatrix{X,M<:AbstractMatrix{X},T,S} <: AbstractMatrix{X}
     matrix::M
     times::T
@@ -16,7 +22,7 @@ Base.getindex(m::DesignMatrix, I::Vararg{Int,N}) where {N} = getindex(m.matrix, 
 Base.setindex!(m::DesignMatrix, v, i::Int) = setindex!(m.matrix, v, i)
 Base.setindex!(m::DesignMatrix, v, i::Vararg{Int, N}) where {N} = setindex!(m.matrix, v, i)
 
-similar(m::DesignMatrix, ::Type{S}, dims::Dims) where {S} = DesignMatrix(similar(m.matrix, S, dims), m.times, m.stations)
+Base.similar(m::DesignMatrix, ::Type{S}, dims::Dims) where {S} = DesignMatrix(similar(m.matrix, S, dims), m.times, m.stations)
 
 
 const VisAmpDatum = Union{EHTVisibilityAmplitudeDatum, EHTVisibilityDatum}
@@ -78,11 +84,12 @@ end
     `GainModel`
 Construct the corruption model for the telescope gains
 """
-struct GainModel{C, G, M} <: AbstractModel
+struct GainModel{C, G, M} <: RIMEModel
     cache::C
     gains::G
     model::M
 end
+
 
 function intensitymap!(img::IntensityMap, model::GainModel)
     return intensitymap!(img, model.model)
@@ -96,7 +103,7 @@ end
 function corrupt(vis::AbstractArray, g::GainCache, gains::AbstractArray)
     g1 = g.m1*gains
     g2 = g.m2*gains
-    return @. g1*vis*conj(g2)
+    return vis
 end
 
 

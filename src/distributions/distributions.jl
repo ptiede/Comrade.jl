@@ -13,12 +13,23 @@ export Rice, CPVonMises, CPNormal, CMvNormal, AmpNormal
 
 @parameterized ComplexNormal(μ, σ)
 @kwstruct ComplexNormal(μ, σ)
+@kwstruct ComplexNormal(μ, τ)
 
 function MeasureBase.logdensity(d::ComplexNormal{(:μ, :σ)}, x)
     sum = zero(eltype(d.σ))
-    for i in eachindex(x)
+    @inbounds @fastmath for i in eachindex(x)
         sum += abs2((x[i] - d.μ[i])/d.σ[i])
     end
+    #return -sum(abs2, (x .- d.μ)./d.σ)/2
+    return -sum/2
+end
+
+function MeasureBase.logdensity(d::ComplexNormal{(:μ, :τ)}, x)
+    sum = zero(eltype(real(d.μ)))
+    @inbounds @fastmath for i in eachindex(x)
+        sum += abs2((x[i] - d.μ[i])*d.τ[i])
+    end
+    #return -sum(abs2, (x .- d.μ).*d.τ)/2
     return -sum/2
 end
 
@@ -27,6 +38,13 @@ function Base.rand(rng::AbstractRNG, T::Type, d::ComplexNormal{(:μ, :σ)})
     x2 = randn(rng, T)*d.σ + imag(d.μ)
     return x1 + 1im*x2
 end
+
+function Base.rand(rng::AbstractRNG, T::Type, d::ComplexNormal{(:μ, :τ)})
+    x1 = randn(rng, T)/d.τ + real(d.μ)
+    x2 = randn(rng, T)/d.τ + imag(d.μ)
+    return x1 + 1im*x2
+end
+
 
 
 function MeasureBase.logdensity(d::Rice{(:ν, :σ)}, x)

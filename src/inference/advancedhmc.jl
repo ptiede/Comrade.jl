@@ -13,15 +13,25 @@ end
 
 samplertype(::Type{<:HMC}) = IsMCMC()
 
+function make_pullback(ℓ, autodiff::AD.AbstractBackend)
+    function ∇ℓ(x)
+        res = AD.value_and_gradient(autodiff, ℓ, x)
+        return (first(res), first(last(res)))
+    end
+end
+
+function make_pullback(ℓ, autodiff::Function)
+    function ∇ℓ(x)
+        return (ℓ(x), autodiff(x))
+    end
+end
+
 function AbstractMCMC.sample(tpost::TransformedPosterior, sampler::HMC, nsamples, args...;
                              init_params=nothing,
                              kwargs...)
     ℓ(x) = logdensity(tpost, x)
 
-    function ∇ℓ(x)
-        res = AD.value_and_gradient(sampler.autodiff, ℓ, x)
-        return (first(res), first(last(res)))
-    end
+    ∇ℓ = make_pullback(ℓ, sampler.autodiff)
 
     θ0 = init_params
     if isnothing(init_params)

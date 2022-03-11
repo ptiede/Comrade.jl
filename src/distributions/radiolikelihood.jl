@@ -22,10 +22,10 @@ end
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
     u = data[:u]
     v = data[:v]
-    err = data[:error]
+    errinv = inv.(data[:error])
     f(m) = visibilities(m, u, v)
-    k = kernel(ComplexNormal{(:μ, :σ)},
-                σ = x->err,
+    k = kernel(ComplexNormal{(:μ, :τ)},
+                τ = x->errinv,
                 μ = x->f(x)
             )
     vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
@@ -36,7 +36,7 @@ end
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     u,v = getdata(data, :u), getdata(data, :v)
     τ = inv.(getdata(data, :error))
-    f(m) = amplitude.(Ref(m), u, v)
+    f(m) = amplitudes(Ref(m), u, v)
 
     k = kernel(AmpNormal{(:μ, :τ)},
                    τ = x->τ,

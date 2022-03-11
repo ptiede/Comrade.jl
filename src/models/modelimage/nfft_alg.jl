@@ -43,9 +43,45 @@ function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img)
     dx, dy = pixelsizes(img)
     u = @view alg.uv[1,:]
     v = @view alg.uv[2,:]
-    return cispi.((u.*dx .+ v.*dy)).*visibility_point.(Ref(img.pulse), u.*dx, v.*dy).*dx.*dy
+    return cispi.((u.*dx .+ v.*dy)).*visibility_point.(Ref(img.pulse), u.*dx, v.*dy)
 end
 
 @inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img)
     return NUFTCache(alg, plan, phases, transpose(img))
+end
+
+function _frule_vis(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{O}}) where {M,T,V,P,A<:NFFTAlg,O<:ObservedNUFT{A}}
+    S = typeof(ForwardDiff.value(first(m.cache.img)))
+    p = m.cache.plan
+    # Compute the fft
+    buffer = similar(m.cache.img, S)
+    buffer .= ForwardDiff.value.(m.cache.img)
+    xtil = p*buffer
+    out = similar(buffer, Complex{ForwardDiff.Dual{T,V,P}})
+    # Now take the deriv of nuft
+    ndxs = ForwardDiff.npartials(first(m.cache.img))
+    dxtils = ntuple(ndxs) do n
+        buffer .= ForwardDiff.partials.(m.cache.img, n)
+        p * buffer
+    end
+    out = similar(xtil, Complex{ForwardDiff.Dual{T,V,P}})
+    for i in eachindex(out)
+        dual = getindex.(dxtils, i)
+        prim = xtil[i]
+        red = ForwardDiff.Dual{T,V,P}(real(prim), ForwardDiff.Partials(real.(dual)))
+        imd = ForwardDiff.Dual{T,V,P}(imag(prim), ForwardDiff.Partials(imag.(dual)))
+        out[i] = Complex(red, imd)
+    end
+    return out
+end
+
+function _visibilities(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{O}},
+    u::AbstractArray,
+    v::AbstractArray) where {M,T,V,P,A<:NFFTAlg,O<:ObservedNUFT{A}}
+    checkuv(m.cache.alg.uv, u, v)
+    # Now reconstruct everything
+
+    vis = _frule_vis(m)
+    conj.(vis).*m.cache.phases
+#return vis
 end
