@@ -22,7 +22,7 @@ bibliography: paper.bib
 
 # Summary
 
-`Comrade` is a Bayesian modeling package, targeted for very-long-baseline interferometry (VLBI) and written in the Julia programming language [@bezanson2015julia]. `Comrade` aims at producing VLBI image of black holes and active galactic nuclei. Furthermore, it focuses on providing uncertainty quantification of image and physical source properties, such as a black hole's accretion state. The package has already been widely used within the Event Horizon Telescope Collaboration and will be useful for expert and novice VLBI researchers.
+`Comrade`[^1](https://github.com/ptiede/Comrade.jl) is a Bayesian modeling package, targeted for very-long-baseline interferometry (VLBI) and written in the Julia[^2](https://julialang.org/) programming language [@bezanson2015julia]. `Comrade` aims at producing VLBI image of black holes and active galactic nuclei. Furthermore, it focuses on providing uncertainty quantification of image and physical source properties, such as a black hole's accretion state. The package has already been widely used within the Event Horizon Telescope Collaboration and will be useful for expert and novice VLBI researchers.
 
 
 # Statement of need
@@ -34,11 +34,11 @@ $$
 V(u,v) = \int I(\alpha, \beta) e^{-2\pi i (u\alpha + v\beta)}d\alpha d\beta.
 $$
 
-In general, VLBI data sets provide an incomplete sampling of $V(u_i, v_i)$ in the Fourier domain. Therefore, VLBI images are inherently uncertain and quantifying this uncertainty is fundamental to the VLBI imaging problem. This quantification especially significant for the Event Horizon Telescope, which typically has only 5-8 distinct sites. To model this uncertainty, `Comrade` uses Bayesian inference and casts VLBI imaging as a Bayesian inverse problem.
+In general, VLBI data sets provide an incomplete sampling of $V(u_i, v_i)$ in the Fourier domain. Therefore, VLBI images are inherently uncertain and quantifying this uncertainty is fundamental to the VLBI imaging problem. This quantification is especially significant for the Event Horizon Telescope, which typically has only 5-8 distinct observing sites. To model this uncertainty, `Comrade` uses Bayesian inference and casts VLBI imaging as a Bayesian inverse problem.
 
 Given the diverse nature of AGN and black holes, `Comrade` includes geometric models, such as Gaussians, disks, rings, crescents to extract relevant features. For non-parametric modeling/imaging, `Comrade` includes a rasterized image model similar to the one described in @themaging. Finally,  `Comrade`'s flexible model interface, enables direct physical modeling of an accretion flow in curved spacetime.
 
-Bayesian inference is numerically demanding relative to traditional VLBI imaging and modeling methods. Traditionally these computational demands have required writing large sections of the code in a lower-level language, e.g., `C`/`C++`. However, this approach comes at a productivity cost to the end-user and makes it difficult for researchers to add their own models. `Comrade` solves this problem by using the Julia programming language. Julia was designed to solve this two-language problem by having `C`-like performance while maintaining a Python-esque syntax and programming experience [@bezanson2015julia]. Julia achieves these features using a just-ahead-of-time compiler, and code specialization based on multiple dispatch. The effectiveness of this approach has been demonstrated in, e.g, the Celeste project [@celeste], where Julia was the first dynamically typed language to break the petaflops barrier.
+Bayesian inference is numerically demanding relative to traditional VLBI imaging and modeling methods. Traditionally these computational demands have required writing large sections of the code in a lower-level language, e.g., `C`/`C++`. However, this approach comes at a productivity cost to the end-user and makes it difficult for researchers to add their own models. `Comrade` solves this problem by using the Julia programming language. Julia was designed to solve this two-language problem by having `C`-like performance while maintaining a Python-esque syntax and programming experience [@juliafast]. Julia achieves these features using a just-ahead-of-time compiler, and code specialization based on multiple dispatch. The effectiveness of this approach has been demonstrated in, e.g, the Celeste project [@celeste], where Julia was the first dynamically typed language to break the petaflops barrier.
 
 As Julia is a differentiable programming language, most `Comrade` models are natively differentiable. Utilizing gradient information to explore the parameter space quickly will be necessary to find reasonable image structures as image complexity grows. For images of the central black hole of AGN, this is the norm due to complicated accretion structure. `Comrade` is therefore well equipped to deal with the Bayesian VLBI imaging problem, even for large VLBI arrays.
 
@@ -68,8 +68,8 @@ dcphase = extract_cphase(obs, count="min")
 lklhd = RadioLikelihood(dlcamp, dcphase)
 # build the model: here we fit a ring with a azimuthal 
 # brightness variation and a Gaussian
-function model(θ)
-  (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
+function model(params)
+  (;rad, wid, a, b, f, sig, asy, pa, x, y) = params
   ring = f*smoothed(stretched(MRing((a,), (b,)), rad, rad), wid)
   g = (1-f)*shifted(rotated(stretched(Gaussian(), sig*asy, sig), pa), x, y)
   return ring + g
