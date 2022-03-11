@@ -1,0 +1,23 @@
+{
+  "@context": "https://raw.githubusercontent.com/codemeta/codemeta/master/codemeta.jsonld",
+  "@type": "Code",
+  "author": [
+    {
+      "@id": "http://orcid.org/0000-0003-3826-5648",
+      "@type": "Person",
+      "email": "ptiede91@gmail.com",
+      "name": "Paul Tiede",
+      "affiliation": "Center for Astrophysics | Harvard & Smithsonian"
+    }
+  ],
+  "identifier": "",
+  "codeRepository": "https://github.com/ptiede/Comrade.jl",
+  "datePublished": "2022-03-11",
+  "dateModified": "2022-03-11",
+  "dateCreated": "2022-03-11",
+  "description": "Composable Modeling of Radio Emission",
+  "keywords": "Black holes, VLBI, Bayesian, Astronomy",
+  "license": "MIT",
+  "title": "Comrade.jl",
+  "version": "0.3.0"
+}
