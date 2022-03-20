@@ -79,7 +79,7 @@ Note that is does not save the figure.
     ylims --> (-fovy/2,fovy/2)
     #left_margin --> -2mm
     #right_margin --> 5mm
-    z = image*psizex*psizey
+    z = image
     seriestype := :heatmap
     #fontfamily --> "sans serif"
     colorbar_title --> "Jy/px²"

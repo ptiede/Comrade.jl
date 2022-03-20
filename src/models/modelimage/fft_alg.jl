@@ -40,14 +40,14 @@ visibilties. This is an internal type and is not part of the public API
 # Fields
 $(FIELDS)
 """
-struct FFTCache{A<:FFTAlg,P,M,I} <: AbstractCache
+struct FFTCache{A<:FFTAlg,P,I,S} <: AbstractCache
     alg::A
     """ FFTW Plan"""
     plan::P
-    """ Phase centering """
-    phases::M
+    """ image cache """
+    img::I
     """FFT interpolator function"""
-    sitp::I
+    sitp::S
 end
 
 # @edit fft(x_plus_dx, 1:1) points me here:
@@ -140,7 +140,7 @@ function create_cache(alg::FFTAlg, img)
     #phases = fftphases(uu, vv, x0, y0, dx, dy)
     vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
     sitp = create_interpolator(uu, vv, vispc, img)
-    return FFTCache(alg, plan, LinearAlgebra.I, sitp)
+    return FFTCache(alg, plan, img, sitp)
 end
 
 function update_cache(cache::FFTCache, img)
@@ -156,7 +156,7 @@ function update_cache(cache::FFTCache, img)
     vis = fftshift(plan*pimg)
     vispc = phasecenter(vis, cache)
     sitp = create_interpolator(uu, vv, vispc, img)
-    return FFTCache(cache.alg, plan, cache.phase, sitp)
+    return FFTCache(cache.alg, plan, img, sitp)
 end
 
 

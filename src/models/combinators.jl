@@ -98,7 +98,7 @@ end
 #     _combinatorvis(visanalytic(M1), visanalytic(M2), uv_combinator(model), model, u, v, t, ν, cache)
 # end
 
-function visibilities(model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
+function _visibilities(model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
     f = uv_combinator(model)
     return f.(visibilities(model.m1, u, v), visibilities(model.m2, u, v))
 end

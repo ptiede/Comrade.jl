@@ -44,14 +44,13 @@ function nocachevis(m::ModelImage{M,I,<:NUFTCache}, u::AbstractArray, v::Abstrac
     alg = ObservedNUFT(m.cache.alg, vcat(u', v'))
     cache = create_cache(alg, m.image)
     m = @set m.cache = cache
-    return visibilities(m, u, v)
+    return _visibilities(m, u, v)
 end
 
 function checkuv(uv, u, v)
     @assert u == @view(uv[1,:]) "Specified u don't match uv in cache. Did you pass the correct u,v?"
     @assert v == @view(uv[2,:]) "Specified v don't match uv in cache. Did you pass the correct u,v?"
 end
-using ReverseDiff
 
 
 function nuft(A, b)
@@ -111,12 +110,12 @@ function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
     return nocachevis(m, u, v)
 end
 
-function amplitudes(m::ModelImage{M,I,C}, u::AbstractArray, v::AbstractArray) where {M,I,C<:NUFTCache}
+function _amplitudes(m::ModelImage{M,I,C}, u::AbstractArray, v::AbstractArray) where {M,I,C<:NUFTCache}
     vis = visibilities(m, u, v)
     return map(abs, vis)
 end
 
-function bispectra(m::ModelImage{M,I,C},
+function _bispectra(m::ModelImage{M,I,C},
                     u1::AbstractArray,
                     v1::AbstractArray,
                     u2::AbstractArray,
@@ -133,7 +132,7 @@ function bispectra(m::ModelImage{M,I,C},
     @inbounds (@view(vis[1:n])).*(@view(vis[n+1:2n])).*(@view vis[2n+1:3n])
 end
 
-function closure_phases(m::ModelImage{M,I,C},
+function _closure_phases(m::ModelImage{M,I,C},
                         u1::AbstractArray,
                         v1::AbstractArray,
                         u2::AbstractArray,
@@ -151,7 +150,7 @@ function closure_phases(m::ModelImage{M,I,C},
     return phase
 end
 
-function logclosure_amplitudes(m::ModelImage{M,I,C},
+function _logclosure_amplitudes(m::ModelImage{M,I,C},
                                u1::AbstractArray,
                                v1::AbstractArray,
                                u2::AbstractArray,
@@ -170,7 +169,6 @@ function logclosure_amplitudes(m::ModelImage{M,I,C},
     amp2 = @view vis[n+1:2n]
     amp3 = @view vis[2n+1:3n]
     amp4 = @view vis[3n+1:4n]
-
     lcamp = @. log(abs(amp1)*abs(amp2)/(abs(amp3)*abs(amp4)))
     return lcamp
 end

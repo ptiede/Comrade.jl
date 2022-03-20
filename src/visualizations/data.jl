@@ -327,9 +327,9 @@ function residuals(m, dcp::EHTObservation{T, A}) where {T, A<:EHTClosurePhaseDat
     mphase = closure_phases(m, u1, v1, u2, v2, u3, v3)
     res = zeros(length(phase))
     for i in eachindex(res)
-        s,c  = sincos(phase[i] - mphase[i])
-        dθ = atan(s,c)
-        res[i] = dθ/error[i]
+        #s,c  = sincos(phase[i] - mphase[i])
+        #dθ = atan(s,c)
+        res[i] = abs(cis(phase[i]) - cis(mphase[i]))/error[i]
     end
 return area, res
 end
