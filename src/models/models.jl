@@ -113,7 +113,6 @@ end
 
 @inline function visibilities(m::M, u::AbstractArray, v::AbstractArray) where {M}
     _visibilities(m, u, v)
-    #visibilities(visanalytic(M), m, u, v)
 end
 
 function visibilities(m, ac::ArrayConfiguration)
@@ -125,7 +124,7 @@ end
 
 function _visibilities(m, u::AbstractArray, v::AbstractArray)
     f(x,y) = visibility(m, x, y)
-    return mappedarray(f, u, v)
+    return map(f, u, v)
 end
 
 
@@ -167,9 +166,37 @@ function bispectra(m,
                     u1::AbstractArray, v1::AbstractArray,
                     u2::AbstractArray, v2::AbstractArray,
                     u3::AbstractArray, v3::AbstractArray
+                    )
+    _bispectra(m, u1, v1, u2, v2, u3, v3)
+end
+
+function _bispectra(m::M,
+                    u1::AbstractArray, v1::AbstractArray,
+                    u2::AbstractArray, v2::AbstractArray,
+                    u3::AbstractArray, v3::AbstractArray
+                    ) where {M}
+    _bispectra(visanalytic(M), m, u1, v1, u2, v2, u3, v3)
+end
+
+
+function _bispectra(::IsAnalytic, m,
+                    u1::AbstractArray, v1::AbstractArray,
+                    u2::AbstractArray, v2::AbstractArray,
+                    u3::AbstractArray, v3::AbstractArray
                    )
     f(x1,y1,x2,y2,x3,y3) = bispectra(m, x1, y1, x2, y2, x3, y3)
-    return mappedarray(f, u1, v1, u2, v2, u3, v3)
+    return map(f, u1, v1, u2, v2, u3, v3)
+end
+
+function _bispectra(::NotAnalytic, m,
+                    u1::AbstractArray, v1::AbstractArray,
+                    u2::AbstractArray, v2::AbstractArray,
+                    u3::AbstractArray, v3::AbstractArray
+                   )
+    vis1 = _visibilities(m, u1, v1)
+    vis2 = _visibilities(m, u2, v2)
+    vis3 = _visibilities(m, u3, v3)
+    return @. vis1*vis2*vis3
 end
 
 """
@@ -179,13 +206,38 @@ triangles (u1,v1), (u2,v2), (u3,v3).
 
 Note this is done lazily so the closure_phases is only computed when accessed.
 """
-function closure_phases(m,
+@inline function closure_phases(m,
+                        u1::AbstractArray, v1::AbstractArray,
+                        u2::AbstractArray, v2::AbstractArray,
+                        u3::AbstractArray, v3::AbstractArray
+                        )
+    _closure_phases(m, u1, v1, u2, v2, u3, v3)
+end
+
+@inline function _closure_phases(m::M,
+                        u1::AbstractArray, v1::AbstractArray,
+                        u2::AbstractArray, v2::AbstractArray,
+                        u3::AbstractArray, v3::AbstractArray
+                       ) where {M}
+    _closure_phases(visanalytic(M), m, u1, v1, u2, v2, u3, v3)
+end
+
+
+@inline function _closure_phases(::IsAnalytic, m,
                         u1::AbstractArray, v1::AbstractArray,
                         u2::AbstractArray, v2::AbstractArray,
                         u3::AbstractArray, v3::AbstractArray
                        )
     f(x1,y1,x2,y2,x3,y3) = closure_phase(m, x1, y1, x2, y2, x3, y3)
-    return mappedarray(f, u1, v1, u2, v2, u3, v3)
+    return map(f, u1, v1, u2, v2, u3, v3)
+end
+
+function _closure_phases(::NotAnalytic, m,
+                        u1::AbstractArray, v1::AbstractArray,
+                        u2::AbstractArray, v2::AbstractArray,
+                        u3::AbstractArray, v3::AbstractArray
+                       )
+    return angle.(bispectra(m, u1, v1, u2, v2, u3, v3))
 end
 
 """
@@ -201,9 +253,43 @@ function logclosure_amplitudes(m,
                                u3::AbstractArray, v3::AbstractArray,
                                u4::AbstractArray, v4::AbstractArray
                               )
-    f(x1,y1,x2,y2,x3,y3,x4,y4) = logclosure_amplitude(m, x1, y1, x2, y2, x3, y3, x4, y4)
-    return mappedarray(f, u1, v1, u2, v2, u3, v3, u4, v4)
+    _logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
 end
+
+@inline function _logclosure_amplitudes(m::M,
+                        u1::AbstractArray, v1::AbstractArray,
+                        u2::AbstractArray, v2::AbstractArray,
+                        u3::AbstractArray, v3::AbstractArray,
+                        u4::AbstractArray, v4::AbstractArray
+                       ) where {M}
+    _logclosure_amplitudes(visanalytic(M), m, u1, v1, u2, v2, u3, v3, u4, v4)
+end
+
+
+@inline function _logclosure_amplitudes(::IsAnalytic, m,
+                        u1::AbstractArray, v1::AbstractArray,
+                        u2::AbstractArray, v2::AbstractArray,
+                        u3::AbstractArray, v3::AbstractArray,
+                        u4::AbstractArray, v4::AbstractArray)
+
+    f(x1,y1,x2,y2,x3,y3,x4,y4) = logclosure_amplitude(m, x1, y1, x2, y2, x3, y3, x4, y4)
+    return map(f, u1, v1, u2, v2, u3, v3, u4, v4)
+end
+
+@inline function _logclosure_amplitudes(::NotAnalytic, m,
+                        u1::AbstractArray, v1::AbstractArray,
+                        u2::AbstractArray, v2::AbstractArray,
+                        u3::AbstractArray, v3::AbstractArray,
+                        u4::AbstractArray, v4::AbstractArray
+                       )
+    amp1 = amplitudes(m, u1, v1)
+    amp2 = amplitudes(m, u2, v2)
+    amp3 = amplitudes(m, u3, v3)
+    amp4 = amplitudes(m, u4, v4)
+    return @. log(amp1*amp2*inv(amp3*amp4))
+end
+
+
 
 function intensitymap!(::NotAnalytic, img::IntensityMap, m, executor=SequentialEx())
     ny, nx = size(img)
