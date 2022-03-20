@@ -1,7 +1,6 @@
 authors = ["Paul Tiede"]
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
-authors = ["Paul Tiede"]
 version = "0.3.1"
 
 [deps]
