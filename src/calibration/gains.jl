@@ -91,8 +91,8 @@ struct GainModel{C, G, M} <: RIMEModel
 end
 
 
-function intensitymap!(img::IntensityMap, model::GainModel)
-    return intensitymap!(img, model.model)
+function intensitymap!(img::IntensityMap, model::GainModel, args...)
+    return intensitymap!(img, model.model, args...)
 end
 
 function visibilities(model::GainModel, u::AbstractArray, v::AbstractArray)
@@ -100,10 +100,25 @@ function visibilities(model::GainModel, u::AbstractArray, v::AbstractArray)
     return corrupt(vis, model.cache, model.gains)
 end
 
+function amplitudes(model::GainModel, u::AbstractArray, v::AbstractArray)
+    amp = amplitudes(model.model, u, v)
+    return corrupt(amp, model.cache, model.gains)
+end
+
+function closure_phases(model::GainModel, args::Vararg{<:AbstractArray, N}) where {N}
+    return closure_phases(model.model, args...)
+end
+
+
+
+function logclosure_amplitudes(model::GainModel, args::Vararg{<:AbstractArray, N}) where {N}
+    return logclosure_amplitudes(model.model, args...)
+end
+
 function corrupt(vis::AbstractArray, g::GainCache, gains::AbstractArray)
     g1 = g.m1*gains
     g2 = g.m2*gains
-    return vis
+    return @. g1*vis*conj(g2)
 end
 
 

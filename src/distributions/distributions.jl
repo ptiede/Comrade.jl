@@ -45,8 +45,6 @@ function Base.rand(rng::AbstractRNG, T::Type, d::ComplexNormal{(:μ, :τ)})
     return x1 + 1im*x2
 end
 
-
-
 function MeasureBase.logdensity(d::Rice{(:ν, :σ)}, x)
     li0 = log(besselix(0, x*d.ν/d.σ^2)) + abs(x*d.ν/d.σ^2)
     log(x/d.σ^2) + li0 - (x^2 + d.ν^2)/(2*d.σ^2)
@@ -72,7 +70,7 @@ function MeasureBase.logdensity(d::CPVonMises{(:μ, :κ)}, x)
     T = eltype(d.μ)
     sum = zero(T)
     @inbounds for i = eachindex(x)
-        sum += d.κ[i]*(cos(x[i]-d.μ[i])-1)
+        sum += d.κ[i]*(cos(x[i]-d.μ[i])-1) #- log(besselix(0.0, d.κ[i])) - log2π
     end
     return sum
 end
@@ -80,7 +78,7 @@ end
 function MeasureBase.logdensity(d::CPVonMises{(:μ, :σ)},x)
     sum = zero(eltype(d.μ))
     @inbounds for i = eachindex(x)
-        sum += (cos(x[i]-d.μ[i])-1)/d.σ[i]^2
+        sum += (cos(x[i]-d.μ[i])-1)/d.σ[i]^2 #- log(besselix(0.0, d.κ[i])) - log2π
     end
     return sum
 end
