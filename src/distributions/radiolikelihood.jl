@@ -21,12 +21,17 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
     u = data[:u]
     v = data[:v]
     errinv = inv.(data[:error])
-    f(m) = visibilities(m, u, v)
+    τ = let errinv = errinv
+        x->errinv
+    end
+    f = let u=u, v=v
+        m->visibilities(m, u, v)
+    end
     k = kernel(ComplexNormal{(:μ, :τ)},
-                τ = x->errinv,
-                μ = x->f(x)
+                τ = τ,
+                μ = f
             )
-    vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
+    vis = data[:visr] .+ 1im*data[:visi]#StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
     return Likelihood(k, vis)
 end
 

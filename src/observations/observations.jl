@@ -34,7 +34,7 @@ model visibilities.
 
 # $(FIELDS)
 """
-struct EHTArrayConfiguration{S,F,T<:AbstractArray} <: ArrayConfiguration
+struct EHTArrayConfiguration{F,T<:AbstractArray} <: ArrayConfiguration
     """
     Observing frequency (Hz)
     """
