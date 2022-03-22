@@ -31,7 +31,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
                 τ = τ,
                 μ = f
             )
-    vis = data[:visr] .+ 1im*data[:visi]#StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
+    vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
     return Likelihood(k, vis)
 end
 

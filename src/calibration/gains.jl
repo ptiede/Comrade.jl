@@ -102,7 +102,7 @@ end
 
 function amplitudes(model::GainModel, u::AbstractArray, v::AbstractArray)
     amp = amplitudes(model.model, u, v)
-    return corrupt(amp, model.cache, model.gains)
+    return abs.(corrupt(amp, model.cache, model.gains))
 end
 
 function closure_phases(model::GainModel, args::Vararg{<:AbstractArray, N}) where {N}
