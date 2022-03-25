@@ -581,6 +581,9 @@ function arrayconfig(vis::EHTObservation{F,A}) where {F,A<:Union{EHTVisibilityDa
     return EHTArrayConfiguration(frequency, bandwidth, uvsamples)
 end
 
+const VisAmpDatum = Union{EHTVisibilityAmplitudeDatum, EHTVisibilityDatum}
+
+
 struct ScanTable{O<:Union{Observation,ArrayConfiguration}, T, S}
     obs::O
     times::T
@@ -596,11 +599,38 @@ struct Scan{T,I,S}
     scan::S
 end
 
+Base.length(s::Scan) = length(s.scan)
+
+function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTClosurePhaseDatum}}
+    tri = scancp.scan.triangle
+    # organize the closure phase stations
+    ant1 = getindex.(tri, 1)
+    ant2 = getindex.(tri, 2)
+    ant3 = getindex.(tri, 3)
+    return ant1, ant2, ant3
+end
+
+function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTLogClosureAmplitudeDatum}}
+    tri = scancp.scan.quadrangle
+    # organize the closure phase stations
+    ant1 = getindex.(tri, 1)
+    ant2 = getindex.(tri, 2)
+    ant3 = getindex.(tri, 3)
+    ant4 = getindex.(tri, 4)
+    return ant1, ant2, ant3, ant4
+end
+
+function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTVisibilityDatum}}
+    bl = scancp.scan.baseline
+    # organize the closure phase stations
+    ant1 = first.(bl)
+    ant2 = last.(bl)
+    return ant1, ant2
+end
+
 function stations(s::Scan)
-    bl = s.scan.baseline
-    a1 = first.(bl)
-    a2 = last.(bl)
-    stat = unique(vcat(a1, a2))
+    ants = baselines(s)
+    stat = unique(vcat(ants...))
     return stat
 end
 
@@ -621,12 +651,20 @@ function Base.getindex(st::ScanTable, i::Int)
     return Scan(st.times[i], (i, istart, iend), @view st.obs.data[istart:iend])
 end
 
+function Base.getindex(st::ScanTable, I)
+    [getindex(st, i) for i in I]
+end
+
 function Base.getindex(scan::Scan, s::Symbol)
     getproperty(scan.scan, s)
 end
 
 function Base.getindex(scan::Scan, i::Int)
     scan.scan[i]
+end
+
+function Base.getindex(scan::Scan, i::AbstractVector{<:Union{Bool,Int}})
+    Scan(scan.time, scan.index, scan.scan[i])
 end
 
 

@@ -23,7 +23,7 @@ using PyCall: pyimport, PyNULL, PyObject
 using SpecialFunctions
 using Reexport
 using Requires: @require
-using StructArrays: StructArray
+using StructArrays: StructVector, StructArray, append!!
 using Tables
 # Write your package code here.
 

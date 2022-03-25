@@ -25,7 +25,6 @@ Base.setindex!(m::DesignMatrix, v, i::Vararg{Int, N}) where {N} = setindex!(m.ma
 Base.similar(m::DesignMatrix, ::Type{S}, dims::Dims) where {S} = DesignMatrix(similar(m.matrix, S, dims), m.times, m.stations)
 
 
-const VisAmpDatum = Union{EHTVisibilityAmplitudeDatum, EHTVisibilityDatum}
 
 
 function LinearAlgebra.mul!(y::AbstractArray, M::DesignMatrix, x::AbstractArray)
