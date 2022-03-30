@@ -156,9 +156,10 @@ function extract_amp(obs; kwargs...)
     source = getsource(obs)
     bw = obs.bw
     rf = obs.rf
-
+    ac = _arrayconfig(data, bw, rf)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
+                   config = ac,
                    bandwidth=bw, frequency=rf,
                    source = source,
     )
@@ -171,15 +172,20 @@ Extracts the complex visibilities from an ehtim observation object
 
 Returns an EHTObservation with complex visibility data
 """
-function extract_vis(obs)
+function extract_vis(obsc; kwargs...)
+    obs = obsc.copy()
+    obs.reorder_tarr_snr()
+
     data = getvisfield(obs)
     ra, dec = getradec(obs)
     mjd = getmjd(obs)
     source = getsource(obs)
     bw = obs.bw
     rf = obs.rf
+    ac = _arrayconfig(data, bw, rf)
     return Comrade.EHTObservation(
                    data = data, mjd = mjd,
+                   config=ac,
                    ra = ra, dec= dec,
                    bandwidth=bw, frequency=rf,
                    source = source,
@@ -191,12 +197,12 @@ function closure_designmat(scancp::Scan{A,B,C}, scanvis) where {A,B,C<:StructArr
     ant1, ant2, ant3 = baselines(scancp)
     antvis1, antvis2 = baselines(scanvis)
     design_mat = zeros(length(scancp), length(scanvis))
+    #throw("here")
     # fill in each row of the design matrix
     for i in axes(design_mat, 2), j in axes(design_mat,1)
         a1 = ant1[j]
         a2 = ant2[j]
         a3 = ant3[j]
-
         # check leg 1
         ((antvis1[i] == a1) & (antvis2[i] == a2)) && (design_mat[j,i] = 1.0)
         ((antvis1[i] == a2) & (antvis2[i] == a1)) && (design_mat[j,i] = -1.0)
@@ -247,14 +253,14 @@ function minimal_lcamp(obsc; kwargs...)
     # reorder to maximize the snr
     obs.reorder_tarr_snr()
 
-    lcamp = extract_lcamp(obs; count="max")
+    lcamp = _ehtim_lcamp(obs; count="max", kwargs...)
     stlca = scantable(lcamp)
 
     #Now make the vis obs
-    dvis = extract_vis(obs)
+    dvis = extract_vis(obsc)
     st = scantable(dvis)
 
-    minset = _minimal_closure(stlca, st)
+    minset, dmat = _minimal_closure(stlca, st)
 
     # now create EHTObservation
     ra, dec = getradec(obs)
@@ -262,13 +268,144 @@ function minimal_lcamp(obsc; kwargs...)
     source = getsource(obs)
     bw = obs.bw
     rf = obs.rf
+    ac = arrayconfig(dvis)
+    clac = ClosureConfig(ac, dmat)
     return EHTObservation(data = minset, mjd = mjd,
+                          config=clac,
                           ra = ra, dec= dec,
                           bandwidth=bw, frequency=rf,
-                          source = source
+                          source = source,
                         )
 
 end
+
+
+function _ehtim_cphase(obsc; count="max", kwargs...)
+    obs = obsc.copy()
+
+    obs.reorder_tarr_snr()
+
+    obs.add_cphase(;count=count, kwargs...)
+    data = getcpfield(obs)
+    ra, dec = getradec(obs)
+    mjd = getmjd(obs)
+    source = getsource(obs)
+    bw = obs.bw
+    rf = obs.rf
+
+
+    cphase = EHTObservation(data = data, mjd = mjd,
+                   config=nothing,
+                   ra = ra, dec= dec,
+                   bandwidth=bw, frequency=rf,
+                   source = source,
+    )
+
+    stcp = scantable(cphase)
+
+    #Now make the vis obs
+    dvis = extract_vis(obsc)
+    st = scantable(dvis)
+    S = eltype(dvis[:visr])
+
+    dmat = Matrix{S}[]
+    for i in 1:length(st)
+        scanvis = st[i]
+        ind = findfirst(==(scanvis.time), stcp.times)
+        if isnothing(ind)
+            inow = length(dmat)
+            # I want to construct block diagonal matrices for efficienty but we need
+            # to be careful with scan that can't form closures. This hack moves these
+            # scans into the preceding scan but fills it with zeros
+            if i > 1
+                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow],1), length(scanvis.scan)))
+            else
+                push!(dmat, zeros(S, 1, length(scanvis.scan)))
+            end
+            continue
+        end
+        dmatscan = closure_designmat(stcp[ind], st[i])
+        push!(dmat, dmatscan)
+    end
+
+    if iszero(dmat[1])
+        dmat[2] = hcat(zeros(S, size(dmat[2],1), size(dmat[1],2)), dmat[2])
+        dmat = dmat[2:end]
+    end
+
+    ac = arrayconfig(dvis)
+    clac = ClosureConfig(ac, BlockDiagonal(dmat))
+    return  EHTObservation(data = data, mjd = mjd,
+                           config=clac,
+                           ra = ra, dec= dec,
+                           bandwidth=bw, frequency=rf,
+                           source = source
+                          )
+end
+
+function _ehtim_lcamp(obsc; count="max", kwargs...)
+    obs = obsc.copy()
+
+    obs.reorder_tarr_snr()
+
+    obs.add_logcamp(;count=count, kwargs...)
+    data = getlcampfield(obs)
+    ra, dec = getradec(obs)
+    mjd = getmjd(obs)
+    source = getsource(obs)
+    bw = obs.bw
+    rf = obs.rf
+
+    lcamp = EHTObservation(data = data, mjd = mjd,
+                   config=nothing,
+                   ra = ra, dec= dec,
+                   bandwidth=bw, frequency=rf,
+                   source = source,
+    )
+
+    stlca = scantable(lcamp)
+
+    #Now make the vis obs
+    dvis = extract_vis(obsc)
+    st = scantable(dvis)
+    S = eltype(dvis[:visr])
+
+    dmat = Matrix{S}[]
+    for i in 1:length(st)
+        scanvis = st[i]
+        ind = findfirst(==(scanvis.time), stlca.times)
+        if isnothing(ind)
+            inow = length(dmat)
+            # I want to construct block diagonal matrices for efficienty but we need
+            # to be careful with scan that can't form closures. This hack moves these
+            # scans into the preceding scan but fills it with zeros
+            if i > 1
+                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow],1), length(scanvis.scan)))
+            else
+                push!(dmat, zeros(S, 1, length(scanvis.scan)))
+            end
+            continue
+        end
+        dmatscan = closure_designmat(stlca[ind], st[i])
+        push!(dmat, dmatscan)
+    end
+
+    if iszero(dmat[1])
+        dmat[2] = hcat(zeros(S, size(dmat[2],1), size(dmat[1],2)), dmat[2])
+        dmat = dmat[2:end]
+    end
+
+
+    ac = arrayconfig(dvis)
+    clac = ClosureConfig(ac, BlockDiagonal(dmat))
+    return  EHTObservation(data = data, mjd = mjd,
+                           config=clac,
+                           ra = ra, dec= dec,
+                           bandwidth=bw, frequency=rf,
+                           source = source
+                          )
+end
+
 
 function minimal_cphase(obsc; kwargs...)
     # compute a maximum set of closure phases
@@ -277,49 +414,67 @@ function minimal_cphase(obsc; kwargs...)
     # reorder to maximize the snr
     obs.reorder_tarr_snr()
 
-
-    cphase = extract_cphase(obs; count="max")
+    cphase = _ehtim_cphase(obs; count="max", kwargs...)
     stcp = scantable(cphase)
 
     #Now make the vis obs
-    dvis = extract_vis(obs)
+    dvis = extract_vis(obsc)
     st = scantable(dvis)
 
-    minset = _minimal_closure(stcp, st)
+    minset, dmat = _minimal_closure(stcp, st)
     # now create EHTObservation
     ra, dec = getradec(obs)
     mjd = getmjd(obs)
     source = getsource(obs)
     bw = obs.bw
     rf = obs.rf
+    ac = arrayconfig(dvis)
+    clac = ClosureConfig(ac, dmat)
     return EHTObservation(data = minset, mjd = mjd,
+                          config=clac,
                           ra = ra, dec= dec,
                           bandwidth=bw, frequency=rf,
-                          source = source
+                          source = source,
                         )
 end
+
 
 function _minimal_closure(stcl, st)
 
     # Determine the number of timestamps containing a closure triangle
-    N_times_cl = length(stcl)
     T = typeof(stcl[1][1])
+    S = typeof(stcl[1][1].u1)
     # loop over all timestamps
     minset = StructVector{T}(undef, 0)
-    for i in 1:N_times_cl
+    dmat = Matrix{S}[]
+    for i in 1:length(st.times)
 
-        # Get our clhase scan
-        scancl = stcl[i]
+        scanvis = st[i]
+        # find closure scan that matches time
+        ind = findfirst(==(scanvis.time), stcl.times)
+        if isnothing(ind)
+            inow = length(dmat)
+            # I want to construct block diagonal matrices for efficiency but we need
+            # to be careful with scan that can't form closures. This hack moves these
+            # scans into the preceding scan but fills it with zeros
+            if i > 1
+                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow],1), length(scanvis.scan)))
+            else
+                push!(dmat, zeros(S, 1, length(scanvis.scan)))
+            end
+            continue
+        end
 
-        # sort by clhase SNR to we form a nice minimal set
+        # Get our cphase scan
+        scancl = stcl[ind]
+
+        # sort by closure SNR so we form a nice minimal set
         snr = inv.(scancl.scan.error)
         ind_snr = sortperm(snr)
         scancl = scancl[ind_snr]
         snr = snr[ind_snr]
 
         # now find the visibility scan that matches the closure one based on timestamps
-        ind_here_bl = findfirst(==(scancl.time), st.times)
-        scanvis = st[ind_here_bl]
 
 
         # initialize the design matrix
@@ -335,18 +490,27 @@ function _minimal_closure(stcl, st)
         # get the current stations
         #println("Observing stations are $(stations(scancl))")
 
-        println("Size of maximal set of closure products = $(length(scancl))")
-        println("Size of minimal set of closure products = $(nmin)")
-        println("...")
+        #println("Size of maximal set of closure products = $(length(scancl))")
+        #println("Size of minimal set of closure products = $(nmin)")
+        #println("...")
 
         ##########################################################
         # start of loop to recover minimal set
         ##########################################################
-        minset_scan = minimal_closure_scan(scancl, scanvis, nmin)
+        minset_scan, dmat_min = minimal_closure_scan(scancl, scanvis, nmin)
         minset = append!!(minset, minset_scan.scan)
+        push!(dmat, dmat_min)
     end
-    return minset
+
+    # Now if the first scan can't form a closure we will have an extra row of zeros
+    # kill this
+    if iszero(dmat[1])
+        dmat[2] = hcat(zeros(S, size(dmat[2],1), size(dmat[1],2)), dmat[2])
+        dmat = dmat[2:end]
+    end
+    return minset, BlockDiagonal(dmat)
 end
+
 
 function minimal_closure_scan(scancl0, scanvis, nmin::Int)
     # make a mask to keep track of which clhases will stick around
@@ -388,11 +552,12 @@ function minimal_closure_scan(scancl0, scanvis, nmin::Int)
 
     # print out the size of the recovered set for double-checking
     scankeep = scancl[keep]
+    dmat = closure_designmat(scankeep, scanvis)
     if length(scankeep) != nmin
         @error "minimal set not found $(length(scankeep)) $(nmin)"
         throw("No minimal set found at time $(scancl.time)")
     end
-    return scankeep
+    return scankeep, dmat
 end
 
 """
@@ -401,27 +566,14 @@ Extracts the closure phases from an ehtim observation object
 
 Returns an EHTObservation with closure phases datums
 """
-function extract_cphase(obs; count="min", kwargs...)
-
-    if count == "min"
+function extract_cphase(obs; count="min-correct", kwargs...)
+    if count == "min-correct"
         return minimal_cphase(obs; kwargs...)
     else
-        obs.add_cphase(;count, kwargs...)
-        data = getcpfield(obs)
-        ra, dec = getradec(obs)
-        mjd = getmjd(obs)
-        source = getsource(obs)
-        bw = obs.bw
-        rf = obs.rf
-
-        return Comrade.EHTObservation(data = data, mjd = mjd,
-                       ra = ra, dec= dec,
-                       bandwidth=bw, frequency=rf,
-                       source = source,
-        )
-    #end
-
+        return _ehtim_cphase(obs; count=count, kwargs...)
+    end
 end
+
 
 
 """
@@ -430,23 +582,10 @@ Extracts the log-closure amp. from an ehtim observation object
 
 Returns an EHTObservation with closure amp. datums
 """
-function extract_lcamp(obs; count="min", kwargs...)
-    if count == "min"
-        return minimal_cphase(obs; kwargs...)
+function extract_lcamp(obs; count="min-correct", kwargs...)
+    if count == "min-correct"
+        return minimal_lcamp(obs; kwargs...)
     else
-
-        obs.add_logcamp(;count, kwargs...)
-        data = getlcampfield(obs)
-        ra, dec = getradec(obs)
-        mjd = getmjd(obs)
-        source = getsource(obs)
-        bw = obs.bw
-        rf = obs.rf
-
-        return Comrade.EHTObservation(data = data, mjd = mjd,
-                       ra = ra, dec= dec,
-                       bandwidth=bw, frequency=rf,
-                       source = source,
-        )
+        return _ehtim_lcamp(obs; count=count, kwargs...)
     end
 end

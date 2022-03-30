@@ -20,9 +20,9 @@ If you want to compute the visibilities at a large number of positions
 consider using the `visibilities` function which uses MappedArrays to
 compute a lazy, no allocation vector.
 """
-@inline function visibility(mimg::M, u, v) where {M}
+@inline function visibility(mimg::M, args...) where {M}
     #first we split based on whether the model is primitive
-    _visibility(isprimitive(M), mimg, u, v)
+    _visibility(isprimitive(M), mimg, args...)
 end
 
 @inline function visibility(mimg, uv::ArrayBaselineDatum)
@@ -37,8 +37,8 @@ If you want to compute the amplitudes at a large number of positions
 consider using the `amplitudes` function which uses MappedArrays to
 compute a lazy, no allocation vector.
 """
-@inline function amplitude(model, u, v)
-    return abs(visibility(model, u, v))
+@inline function amplitude(model, args...)
+    return abs(visibility(model, args...))
 end
 
 """
@@ -141,6 +141,11 @@ function amplitudes(m, u::AbstractArray, v::AbstractArray)
     _amplitudes(m, u, v)
 end
 
+function amplitudes(m, ac::ArrayConfiguration)
+    u, v = getuv(ac)
+    return amplitudes(m, u, v)
+end
+
 function _amplitudes(m::S, u::AbstractArray, v::AbstractArray) where {S}
     _amplitudes(visanalytic(S), m, u, v)
 end
@@ -214,6 +219,11 @@ Note this is done lazily so the closure_phases is only computed when accessed.
     _closure_phases(m, u1, v1, u2, v2, u3, v3)
 end
 
+function closure_phases(m, ac::ClosureConfig)
+    vis = visibilities(m, ac.ac)
+    return ac.designmat*angle.(vis)
+end
+
 @inline function _closure_phases(m::M,
                         u1::AbstractArray, v1::AbstractArray,
                         u2::AbstractArray, v2::AbstractArray,
@@ -255,6 +265,12 @@ function logclosure_amplitudes(m,
                               )
     _logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
 end
+
+function logclosure_amplitudes(m, ac::ClosureConfig)
+    vis = visibilities(m, ac.ac)
+    return ac.designmat*log.(abs.(vis))
+end
+
 
 @inline function _logclosure_amplitudes(m::M,
                         u1::AbstractArray, v1::AbstractArray,

@@ -1,8 +1,10 @@
+using Pkg; Pkg.activate(@__DIR__)
 using Comrade
 using Distributions
 using Pathfinder
 using AdvancedHMC
 using Plots
+
 # load eht-imaging we use this to load eht data
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
@@ -19,7 +21,7 @@ lklhd = RadioLikelihood(dlcamp, dcphase)
 # build the model here we fit a ring with a azimuthal
 #brightness variation and a Gaussian
 function model(θ)
-  @unpack rad, wid, a, b, f, sig, asy, pa, x, y = θ
+  (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
   ring = f*smoothed(stretched(MRing((a,), (b,)), rad, rad), wid)
   g = (1-f)*shifted(rotated(stretched(Gaussian(), sig*asy, sig), pa), x, y)
   return ring + g
@@ -43,6 +45,6 @@ post = Posterior(lklhd, prior, model)
 q, phi, _ = multipathfinder(post, 100)
 # now we sample using hmc
 metric = DiagEuclideanMetric(dimension(post))
-chain, stats = sample(post, HMC(;metric), 2000; nadapts=1000, init_params=phi[1])
+chain, stats = sample(post, HMC(;metric), 2000; nadapts=1000, init_params=chain[end])
 # plot a draw from the posterior
-plot(model(chain[end-1]), xlims=(-80.0, 80.0), ylims=(-80.0,80.0), colorbar=nothing)
+plot(model(chain[rand(1:length(chain))]), xlims=(-80.0, 80.0), ylims=(-80.0,80.0), colorbar=nothing)

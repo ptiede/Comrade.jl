@@ -314,17 +314,11 @@ end
 
 
 function residuals(m, dcp::EHTObservation{T, A}) where {T, A<:EHTClosurePhaseDatum}
-    u1 = getdata(dcp, :u1)
-    v1 = getdata(dcp, :v1)
-    u2 = getdata(dcp, :u2)
-    v2 = getdata(dcp, :v2)
-    u3 = getdata(dcp, :u3)
-    v3 = getdata(dcp, :v3)
     area = sqrt.(uvarea.(dcp.data))
     phase = getdata(dcp, :phase)
     error = getdata(dcp, :error)
 
-    mphase = closure_phases(m, u1, v1, u2, v2, u3, v3)
+    mphase = closure_phases(m, dcp.config)
     res = zeros(length(phase))
     for i in eachindex(res)
         #s,c  = sincos(phase[i] - mphase[i])
@@ -336,19 +330,11 @@ end
 
 
 function residuals(m, dlca::EHTObservation{T, A}) where {T, A<:EHTLogClosureAmplitudeDatum}
-    u1 = getdata(dlca, :u1)
-    v1 = getdata(dlca, :v1)
-    u2 = getdata(dlca, :u2)
-    v2 = getdata(dlca, :v2)
-    u3 = getdata(dlca, :u3)
-    v3 = getdata(dlca, :v3)
-    u4 = getdata(dlca, :u4)
-    v4 = getdata(dlca, :v4)
     area = sqrt.(uvarea.(dlca.data))
     phase = getdata(dlca, :amp)
     error = getdata(dlca, :error)
 
-    mphase = logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
+    mphase = logclosure_amplitudes(m, dlca.config)
     res = (phase- mphase)./error
     return area, res
 end

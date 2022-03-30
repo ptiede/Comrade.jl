@@ -9,6 +9,7 @@ using AbstractMCMC
 using Accessors: @set
 using ArgCheck: @argcheck
 using BasicInterpolators
+using BlockDiagonals
 using DocStringExtensions
 using ChainRulesCore
 using ComradeBase

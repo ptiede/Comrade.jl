@@ -78,7 +78,7 @@ end
 function MeasureBase.logdensity(d::CPVonMises{(:μ, :σ)},x)
     sum = zero(eltype(d.μ))
     @inbounds for i = eachindex(x)
-        sum += (cos(x[i]-d.μ[i])-1)/d.σ[i]^2 #- log(besselix(0.0, d.κ[i])) - log2π
+        sum += (cos(x[i]-d.μ[i])-1)/d.σ[i]^2 #- log(besselix(0.0, 1/d.σ[i]^2)) - log2π
     end
     return sum
 end
@@ -98,12 +98,12 @@ end
 @kwstruct AmpNormal(μ, τ)
 
 function MeasureBase.logdensity(d::AmpNormal{(:μ, :τ)}, x)
-    T = eltype(d.μ)
-    sum = zero(T)
-    @inbounds for i = eachindex(x)
-        sum += -(d.τ[i]*(d.μ[i] - x[i]))^2/2.0
-    end
-    return sum
+    #T = eltype(d.μ)
+    #sum = zero(T)
+    #@inbounds for i = eachindex(x)
+    #    sum += -(d.τ[i]*(d.μ[i] - x[i]))^2/2.0 #-0.5*log2π + log(d.τ[i])
+    #end
+    return -sum(abs2, d.τ.*(d.μ .- x))/2
 end
 
 function Base.rand(rng::AbstractRNG, T::Type, d::AmpNormal{(:μ, :τ)})

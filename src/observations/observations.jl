@@ -50,11 +50,32 @@ struct EHTArrayConfiguration{F,T<:AbstractArray} <: ArrayConfiguration
 end
 
 """
+    $(TYPEDEF)
+Array config file for closure quantities. This stores the design matrix `designmat`
+that transforms from visibilties to closure products.
+"""
+struct ClosureConfig{A,D} <: ArrayConfiguration
+    ac::A
+    designmat::D
+function ClosureConfig(ac, dmat)
+    A = typeof(ac)
+    sdmat = sparse(dmat)
+    D = typeof(sdmat)
+    return new{A,D}(ac, sdmat)
+end
+end
+
+
+"""
     $(SIGNATURES)
 Get the u, v positions of the array.
 """
 function getuv(ac::ArrayConfiguration)
-    return ac.uvsamples.u, ac.uvsamples.v
+    return ac.data.u, ac.data.v
+end
+
+function getuv(ac::ClosureConfig)
+    return getuv(ac.ac)
 end
 
 """
@@ -63,7 +84,7 @@ Get the u, v, time, freq of the array as a tuple.
 """
 function uvtimefreq(ac::EHTArrayConfiguration)
     u,v = getuv(ac)
-    t = ac.uvsamples.time
+    t = ac.data.time
     ν = ac.frequency
     return u, v, t, fill(ν, length(u))
 end
@@ -95,11 +116,15 @@ of any `AbstractInterferometryDatum` type.
 
 # ($FIELDS)
 """
-Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructArray{T}, N} <: Observation{F}
+Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructArray{T}, A, N} <: Observation{F}
     """
     StructArray of data productts
     """
     data::S
+    """
+    Array config holds ancillary information about array
+    """
+    config::A
     """
     modified julia date of the observation
     """
@@ -563,14 +588,16 @@ uvpositions(datum::EHTLogClosureAmplitudeDatum) = (datum.u1, datum.v1, datum.u2,
     $(SIGNATURES)
 Extract the array configuration from a visibility EHT observation.
 """
-function arrayconfig(vis::EHTObservation{F,A}) where {F,A<:Union{EHTVisibilityDatum, EHTVisibilityAmplitudeDatum}}
-    u = getdata(vis, :u)
-    v = getdata(vis, :v)
-    times = getdata(vis, :time)
-    bandwidth = vis.bandwidth
-    frequency = vis.frequency
-    error = getdata(vis, :error)
-    baseline = getdata(vis, :baseline)
+function arrayconfig(vis::EHTObservation)
+    vis.config
+end
+
+function _arrayconfig(data, bandwidth, frequency)
+    u = getproperty(data, :u)
+    v = getproperty(data, :v)
+    times = getproperty(data, :time)
+    error = getproperty(data, :error)
+    baseline = getproperty(data, :baseline)
     uvsamples = StructArray{ArrayBaselineDatum}(time=times,
                                         u=u,
                                         v=v,
