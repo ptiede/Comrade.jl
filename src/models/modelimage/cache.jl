@@ -52,10 +52,11 @@ struct ObservedNUFT{A<:NUFT, T} <: NUFT
 end
 padfac(a::ObservedNUFT) = padfac(a.alg)
 
-struct NUFTCache{A,P,M,I} <: AbstractCache
+struct NUFTCache{A,P,M,PI,I} <: AbstractCache
     alg::A
     plan::P
     phases::M
+    pulse::PI
     img::I
 end
 include(joinpath(@__DIR__, "nuft.jl"))

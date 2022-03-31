@@ -1,6 +1,12 @@
 export NFFTAlg
 
 using NFFT
+
+function NFFTAlg(obs::EHTObservation; kwargs...)
+    u, v = getuv(arrayconfig(obs))
+    return NFFTAlg(u, v; kwargs...)
+end
+
 function NFFTAlg(u::AbstractArray, v::AbstractArray; padfac=1, m=10)
     uv = Matrix{eltype(u)}(undef, 2, length(u))
     uv[1,:] .= u
@@ -47,7 +53,7 @@ function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img)
 end
 
 @inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img)
-    return NUFTCache(alg, plan, phases, transpose(img))
+    return NUFTCache(alg, plan, phases, img.pulse, transpose(img))
 end
 
 function _frule_vis(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{O}}) where {M,T,V,P,A<:NFFTAlg,O<:ObservedNUFT{A}}

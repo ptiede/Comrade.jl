@@ -6,6 +6,9 @@
     obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "test_data.uvfits"))
     obs.add_scans()
     obsavg = obs.avg_coherent(0.0, scan_avg=true)
+    obsavg.add_cphase(count="min")
+    obsavg.add_amp()
+    obsavg.add_logcamp(count="min")
 
     vis = extract_vis(obsavg)
     plot(vis)
@@ -32,8 +35,8 @@
 
     @test length(vis) == length(obsavg.data)
     @test length(amp) == length(obsavg.amp)
-    @test length(cphase) == length(obsavg.cphase)
-    @test length(lcamp) == length(obsavg.logcamp)
+    @test length(extract_cphase(obsavg; count="min")) == length(obsavg.cphase)
+    @test length(extract_lcamp(obsavg; count="min")) == length(obsavg.logcamp)
     #@test Set(stations(vis)) == Set(Symbol.(collect(get(obsavg.tarr, "site"))))
     @test mean(getdata(amp, :amp)) == mean(get(obsavg.amp, :amp))
 
@@ -54,15 +57,15 @@
     u,v = getuv(ac)
     @test visibilities(m, ac) ≈ visibilities(m, u, v)
 
-    @test visibility(m, ac.uvsamples[1]) ≈ visibility(m, u[1], v[1])
+    @test visibility(m, ac.data[1]) ≈ visibility(m, u[1], v[1])
 
 
-    u1 = getdata(cphase, :u1)
-    v1 = getdata(cphase, :v1)
-    u2 = getdata(cphase, :u2)
-    v2 = getdata(cphase, :v2)
-    u3 = getdata(cphase, :u3)
-    v3 = getdata(cphase, :v3)
+    u1 = cphase[:u1]
+    v1 = cphase[:v1]
+    u2 = cphase[:u2]
+    v2 = cphase[:v2]
+    u3 = cphase[:u3]
+    v3 = cphase[:v3]
     bispectra(m, u1, v1, u2, v2, u3, v3)
 
     @testset "RadioLikelihood" begin
@@ -79,6 +82,9 @@
 
         @test logdensity(lclose1,m) ≈ logdensity(lclose2,m)
         @test logdensity(lclose1,m ) ≈ logdensity(lcphase, m) + logdensity(llcamp, m)
+        @inferred logdensity(lclose1, m)
+        @inferred logdensity(lclose2, m)
+        @inferred logdensity(lamp, m)
 
     end
 

@@ -151,10 +151,16 @@ function update_cache(cache::FFTCache, img)
     nny, nnx = size(pimg)
     uu, vv = uviterator(dx, dy, nnx, nny)
 
+    dx,dy = pixelsizes(img)
+    nny, nnx = size(pimg)
+    uu, vv = uviterator(dx, dy, nnx, nny)
+
+    x0,y0 = first.(imagepixels(img))
+
 
     dx,dy = pixelsizes(img)
     vis = fftshift(plan*pimg)
-    vispc = phasecenter(vis, cache)
+    vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
     sitp = create_interpolator(uu, vv, vispc, img)
     return FFTCache(cache.alg, plan, img, sitp)
 end

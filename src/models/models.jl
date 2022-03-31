@@ -189,7 +189,7 @@ function _bispectra(::IsAnalytic, m,
                     u2::AbstractArray, v2::AbstractArray,
                     u3::AbstractArray, v3::AbstractArray
                    )
-    f(x1,y1,x2,y2,x3,y3) = bispectra(m, x1, y1, x2, y2, x3, y3)
+    f(x1,y1,x2,y2,x3,y3) = bispectrum(m, x1, y1, x2, y2, x3, y3)
     return map(f, u1, v1, u2, v2, u3, v3)
 end
 

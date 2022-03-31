@@ -144,7 +144,9 @@ end
 
 """
     extract_amp(obs)
-Extracts the visibility amplitudes from an ehtim observation object
+Extracts the visibility amplitudes from an ehtim observation object.
+
+Any valid keyword arguments to `add_amp` in ehtim can be passed through extract_amp.
 
 Returns an EHTObservation with visibility amplitude data
 """
@@ -169,6 +171,8 @@ end
 """
     extract_vis(obs)
 Extracts the complex visibilities from an ehtim observation object
+
+This grabs the raw `data` object from the obs object. Any keyword arguments are ignored.
 
 Returns an EHTObservation with complex visibility data
 """
@@ -564,7 +568,19 @@ end
     extract_cphase(obs)
 Extracts the closure phases from an ehtim observation object
 
+Any valid keyword arguments to `add_cphase` in ehtim can be passed through extract_cphase.
+
 Returns an EHTObservation with closure phases datums
+
+
+# Warning
+The `count` keyword argument is treated specially in `Comrade`. The default option
+is "min-correct" and should almost always be used.
+This option construct a minimal set of closure phases that is valid even when
+the array isn't fully connected. For testing and legacy reasons we `ehtim` other count
+options are also included. However, the current `ehtim` count="min" option is broken
+and does construct proper minimal sets of closure quantities if the array isn't fully connected.
+
 """
 function extract_cphase(obs; count="min-correct", kwargs...)
     if count == "min-correct"
@@ -580,7 +596,19 @@ end
     extract_lcamp(obs)
 Extracts the log-closure amp. from an ehtim observation object
 
-Returns an EHTObservation with closure amp. datums
+Any valid keyword arguments to `add_logcamp` in ehtim can be passed through extract_lcamp.
+
+
+Returns an EHTObservation with log-closure amp. datums
+
+# Warning
+The `count` keyword argument is treated specially in `Comrade`. The default option
+is "min-correct" and should almost always be used.
+This option construct a minimal set of closure phases that is valid even when
+the array isn't fully connected. For testing and legacy reasons we `ehtim` other count
+options are also included. However, the current `ehtim` count="min" option is broken
+and does construct proper minimal sets of closure quantities if the array isn't fully connected.
+
 """
 function extract_lcamp(obs; count="min-correct", kwargs...)
     if count == "min-correct"

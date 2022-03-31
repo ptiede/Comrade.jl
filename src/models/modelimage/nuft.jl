@@ -32,12 +32,22 @@ end
 
 function create_cache(alg::NUFT, img)
     pimg = padimage(alg, img)
-    return NUFTCache(alg, nothing, nothing, pimg)
+    return NUFTCache(alg, nothing, nothing, img.pulse, pimg)
 end
 
 function update_cache(cache::NUFTCache, img)
     pimg = padimage(cache.alg, img)
+    cache = update_phases(cache, img)
     create_cache(cache.alg, cache.plan, cache.phases, pimg)
+end
+
+function update_phases(cache::NUFTCache, img)
+    if cache.pulse !== img.pulse
+        phases = make_phases(cache.alg, img)
+        return @set cache.phases = phases
+    else
+        return cache
+    end
 end
 
 function nocachevis(m::ModelImage{M,I,<:NUFTCache}, u::AbstractArray, v::AbstractArray) where {M,I}

@@ -3,6 +3,12 @@ padfac(::DFTAlg) = 1
 # We don't pad a DFT since it is already correct
 padimage(::DFTAlg, img) = img
 
+
+function DFTAlg(obs::EHTObservation)
+    u,v = getuv(obs.config)
+    return DFTAlg(u, v)
+end
+
 function DFTAlg(u::AbstractArray, v::AbstractArray)
     @argcheck length(u) == length(v)
     uv = Matrix{eltype(u)}(undef, 2, length(u))
@@ -32,6 +38,6 @@ function make_phases(alg::ObservedNUFT{<:DFTAlg}, img)
     visibilities(img.pulse, u*dx, v*dy)
 end
 
-@inline function create_cache(alg::ObservedNUFT{<:DFTAlg}, plan, phases, img)
-    return NUFTCache(alg, plan, phases, reshape(img.im, :))
+function create_cache(alg::ObservedNUFT{<:DFTAlg}, plan, phases, img)
+    return NUFTCache(alg, plan, phases, img.pulse, reshape(img.im, :))
 end
