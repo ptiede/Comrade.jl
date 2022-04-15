@@ -12,7 +12,6 @@ using NLopt
 using BlackBoxOptim
 using Dynesty
 using AdaptiveMCMC
-using DistributionsAD
 
 # load eht-imaging we use this to load eht data
 load_ehtim()
@@ -38,17 +37,30 @@ end
 
 
 function (model::Model)(θ)
-    c  = θ.c
-    cmat = reshape(c, model.npix, model.npix)
+    ;c, f, r, σ, τ, ξ, ma, mp, x, y = θ
+    cmat = f*reshape(c, model.npix, model.npix)
     img = IntensityMap(cmat, model.fov, model.fov, BSplinePulse{3}())
-    return modelimage(img, model.cache)
+    mimg = modelimage(img, model.cache)
+    s,c = sincos(mp)
+    α = ma*c
+    β = ma*s
+    ring = (1-f)*rotated(smoothed(stretched(MRing((α,), (β,)), r, r*τ),σ), ξ)
+    return shifted(ring, x, y) + mimg
 end
 
-fovxy = μas2rad(65.0)
-npix = 8
+fovxy = μas2rad(90.0)
+npix = 7
 prior = (
-          c = DistributionsAD.TuringDirichlet(npix*npix, 0.5),
-          #c = MvLogNormal(fill(-4.0, npix*npix), 2.0),
+          c = Dirichlet(npix*npix, 0.5),
+          f = Uniform(0.0, 1.0),
+          r = Uniform(μas2rad(10.0), μas2rad(30.0)),
+          σ = truncated(Normal(0.0, μas2rad(0.5)), μas2rad(0.01), μas2rad(20.0)),
+          τ = Uniform(0.5, 1.0),
+          ξ = Uniform(-π/2, π/2),
+          ma = Uniform(0.0, 0.5),
+          mp = Uniform(-π, π),
+          x = Uniform(-fovxy/2, fovxy/2),
+          y = Uniform(-fovxy/2, fovxy/2)
         )
 # Now form the posterior
 cache = create_cache(Comrade.DFTAlg(dlcamp), IntensityMap(rand(npix,npix), fovxy, fovxy, BSplinePulse{3}()))
@@ -59,36 +71,26 @@ tpost = asflat(post)
 # We will use HMC to sample the posterior.
 # First to reduce burn in we use pathfinder
 ndim = dimension(tpost)
-f, tr = GalacticOptim.OptimizationFunction(post, GalacticOptim.AutoZygote())
+f, tr = GalacticOptim.OptimizationFunction(post, GalacticOptim.AutoForwardDiff{25}())
 x0 = inverse(tr, rand(post.prior))
 prob = GalacticOptim.OptimizationProblem(f, x0, nothing, lb=fill(-5.0, dimension(tr)), ub=fill(5.0, dimension(tr)))
 sol, xopt = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(), tr; maxiters=1000_000)
 
+prob = GalacticOptim.OptimizationProblem(f, 3*randn(ndim), nothing)
+sol, xopt = solve(prob, LBFGS(), tr; show_trace=true, iterations=4000, g_tol=1e-2)
 
 
-prob = GalacticOptim.OptimizationProblem(f, randn(ndim), nothing)
-sol, xopt = solve(prob, LBFGS(), tr; show_trace=true, show_every=50, iterations=4000, g_tol=1e-2)
 
+start = [transform(tr, 3*randn(ndim)) for _ in 1:50]
+q, ϕ, compinds = multipathfinder(post, 50; init_params=start, importance=true, iterations=2000)
 
 residual(mms(xopt), dlcamp)
 residual(mms(xopt), dcphase)
-plot(mms(xopt), fovx=1.2*fovxy, fovy=1.2*fovxy)
-
-using AdaptiveMCMC
-cacc, sacc = sample(post, Comrade.AdaptMCMC(ntemp=5), 500_000, 250_000; init_params=xopt, thin=50)
+img = intensitymap(mms(xopt), μas2rad(160.0), μas2rad(160.0), 512, 512)
+plot(abs.(img) , xlims=(-60.0,60.0), ylims=(-60.0,60.0), colorbar_scale=:log10, clims=(maximum(img)/100, maximum(img)),)
 
 # now we sample using hmc
-metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, HMC(;metric, autodiff=AD.ZygoteBackend()), 4500; nadapts=2500, init_params=xopt)
+metric = DenseEuclideanMetric(ndim)
+chain, stats = sample(post, HMC(;metric, autodiff=Comrade.AD.ForwardDiffBackend(;chunksize=Val(25))), 10000; nadapts=7000, init_params=xopt)
 
-using Serialization
-serialize(joinpath(@__DIR__, "m87_closure_fits.jls"), Dict(:chain => chain, :stats => stats, :model=>model, :post=>post))
-
-foox = let dc=dc, dd=dd, pr=tpost.lpost.prior, tr=tpost.transform, plan = cache.plan, phases=cache.phases, dmat=dlcamp.config.designmat, dmatc=dcphase.config.designmat
-    x->begin
-        y = transform(tr, x)
-        lp = logdensity(pr, y)
-        vis = conj.(plan*y.c).*phases
-        logdensity(dd, dmat*log.(abs.(vis))) + logdensity(dc, dmatc*angle.(vis)) + lp
-    end
-end
+serialize("m87hybrid_fits.jls", Dict(:chain=>chain, :stats=>stats, :fov=>fovxy, :npix=>npix, :prior=>priors))

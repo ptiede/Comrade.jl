@@ -4,6 +4,8 @@ using Distributions
 using Pathfinder
 using AdvancedHMC
 using Plots
+using TupleVectors
+using StatsBase
 
 # load eht-imaging we use this to load eht data
 load_ehtim()
@@ -14,8 +16,8 @@ obs.add_scans()
 # large scale flux and make scan-average data
 obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true)
 # extract log closure amplitudes and closure phases
-dlcamp = extract_lcamp(obs; count="min")
-dcphase = extract_cphase(obs, count="min")
+dlcamp = extract_lcamp(obs)
+dcphase = extract_cphase(obs; cutmin)
 # form the likelihood
 lklhd = RadioLikelihood(dlcamp, dcphase)
 # build the model here we fit a ring with a azimuthal
@@ -42,6 +44,13 @@ prior = (
 post = Posterior(lklhd, prior, model)
 # We will use HMC to sample the posterior.
 # First to reduce burn in we use pathfinder
+using Dynesty
+chain, stats = sample(post, NestedSampler(dimension(post)))
+echain = sample(chain, Weights(stats.weights), 10_000)|> TupleVector
+
+residual(model(chain[end]), dlcamp)
+plot(model(echain[rand(eachindex(echain))]), xlims=(-50.0,50.0), ylims=(-50.0,50.0))
+
 q, phi, _ = multipathfinder(post, 100)
 # now we sample using hmc
 metric = DiagEuclideanMetric(dimension(post))

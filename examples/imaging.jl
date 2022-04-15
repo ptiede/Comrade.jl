@@ -61,7 +61,7 @@ distphase = (AA = VonMises(0.0, 10000.0),
              SM = VonMises(0.0, 1/π^2))
 
 npix = 8
-fov = μas2rad(70.0)
+fov = μas2rad(80.0)
 prior = (
           c = Dirichlet(npix*npix, 1.0),
           f = Uniform(0.2, 0.9),
