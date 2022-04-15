@@ -284,8 +284,13 @@ function minimal_lcamp(obsc; kwargs...)
 end
 
 
-function _ehtim_cphase(obsc; count="max", kwargs...)
+function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs...)
     obs = obsc.copy()
+
+    # cut 0 baselines since these are trivial triangles
+    if cut_trivial
+        obs = obs.flag_uvdist(uv_min=uvmin)
+    end
 
     obs.reorder_tarr_snr()
 
@@ -459,7 +464,7 @@ function _minimal_closure(stcl, st)
         if isnothing(ind)
             inow = length(dmat)
             # I want to construct block diagonal matrices for efficiency but we need
-            # to be careful with scan that can't form closures. This hack moves these
+            # to be careful with scans that can't form closures. This hack moves these
             # scans into the preceding scan but fills it with zeros
             if i > 1
                 dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow],1), length(scanvis.scan)))
@@ -572,8 +577,14 @@ Any valid keyword arguments to `add_cphase` in ehtim can be passed through extra
 
 Returns an EHTObservation with closure phases datums
 
+# Keyword arguments:
+ - count: How the closures are formed, the available options are "min-correct", "min", "max"
+ - cut_trivial: Cut the trivial triangles from the closures
+ - uvmin: The flag to decide what are trivial triangles. Any baseline with ||(u,v)|| < uvmin
+          are removed.
 
 # Warning
+
 The `count` keyword argument is treated specially in `Comrade`. The default option
 is "min-correct" and should almost always be used.
 This option construct a minimal set of closure phases that is valid even when
@@ -582,11 +593,11 @@ options are also included. However, the current `ehtim` count="min" option is br
 and does construct proper minimal sets of closure quantities if the array isn't fully connected.
 
 """
-function extract_cphase(obs; count="min-correct", kwargs...)
+function extract_cphase(obs; count="min-correct", cut_trivial=false, uvmin=0.1e9,  kwargs...)
     if count == "min-correct"
-        return minimal_cphase(obs; kwargs...)
+        return minimal_cphase(obs; cut_trivial, uvmin, kwargs...)
     else
-        return _ehtim_cphase(obs; count=count, kwargs...)
+        return _ehtim_cphase(obs; count=count, cut_trivial=cut_trivial, uvmin=uvmin, kwargs...)
     end
 end
 

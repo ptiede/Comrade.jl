@@ -40,6 +40,13 @@ function modelimage(::NotAnalytic,
     @set m1.m2 = modelimage(m1.m2, cache, executor)
 end
 
+function fouriermap(m::CompositeModel, fovx, fovy, nx, ny)
+    m1 = fouriermap(m.m1, fovx, fovy, nx, ny)
+    m2 = fouriermap(m.m2, fovx, fovy, nx, ny)
+    return uv_combinator(m).(m1,m2)
+end
+
+
 
 radialextent(m::CompositeModel) = max(radialextent(m.m1), radialextent(m.m2))
 

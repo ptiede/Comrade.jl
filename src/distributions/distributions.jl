@@ -67,20 +67,23 @@ Statistics.var(d::Rice{(:ν, :σ)}) = 2*d.σ^2 + d.ν^2 - π*d.σ^2/2*L12(-0.5*(
 @kwstruct CPVonMises(μ, σ)
 const log2π = log(2π)
 function MeasureBase.logdensity(d::CPVonMises{(:μ, :κ)}, x)
-    T = eltype(d.μ)
-    sum = zero(T)
-    @inbounds for i = eachindex(x)
-        sum += d.κ[i]*(cos(x[i]-d.μ[i])-1) #- log(besselix(0.0, d.κ[i])) - log2π
-    end
-    return sum
+    #T = eltype(d.μ)
+    #sum = zero(T)
+    #@inbounds for i = eachindex(x)
+    #    sum += d.κ[i]*(cos(x[i]-d.μ[i])-1) #- log(besselix(0.0, d.κ[i])) - log2π
+    #end
+    #return sum
+    dθ = @. d.κ*(cos(x - d.μ) - 1)
+    return sum(dθ)
 end
 
 function MeasureBase.logdensity(d::CPVonMises{(:μ, :σ)},x)
-    sum = zero(eltype(d.μ))
-    @inbounds for i = eachindex(x)
-        sum += (cos(x[i]-d.μ[i])-1)/d.σ[i]^2 #- log(besselix(0.0, 1/d.σ[i]^2)) - log2π
-    end
-    return sum
+    #sum = zero(eltype(d.μ))
+    #@inbounds for i = eachindex(x)
+    #    sum += (cos(x[i]-d.μ[i])-1)/d.σ[i]^2 #- log(besselix(0.0, 1/d.σ[i]^2)) - log2π
+    #end
+    dθ = @. inv(d.σ)^2*(cos(x-d.μ) - 1)
+    return sum(dθ)
 end
 
 function Base.rand(rng::AbstractRNG, T::Type, d::CPVonMises{(:μ, :κ)})

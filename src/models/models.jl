@@ -115,14 +115,14 @@ end
     _visibilities(m, u, v)
 end
 
-function visibilities(m, ac::ArrayConfiguration)
+@inline function visibilities(m, ac::ArrayConfiguration)
     u, v = getuv(ac)
     return visibilities(m, u, v)
 end
 
 
 
-function _visibilities(m, u::AbstractArray, v::AbstractArray)
+@inline function _visibilities(m, u::AbstractArray, v::AbstractArray)
     f(x,y) = visibility(m, x, y)
     return map(f, u, v)
 end

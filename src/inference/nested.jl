@@ -1,7 +1,7 @@
 using .NestedSamplers
 
 
-samplertype(::Type{<:Nested}) = IsNested()
+samplertype(::Type{<:Nested}) = IsCube()
 
 function AbstractMCMC.sample(post::TransformedPosterior, sampler::Nested, args...; kwargs...)
     ℓ(x) = logdensity(post, x)

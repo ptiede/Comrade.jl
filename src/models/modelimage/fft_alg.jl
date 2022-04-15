@@ -211,6 +211,7 @@ function fouriermap(m, fovx, fovy, nx, ny)
     return vis
 end
 
+
 function fouriermap(m::ModelImage, fovx, fovy, nx, ny)
     cache = create_cache(FFTAlg(), m.image)
     x,y = imagepixels(fovx, fovy, nx, ny)

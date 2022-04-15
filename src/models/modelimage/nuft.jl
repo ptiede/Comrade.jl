@@ -37,8 +37,8 @@ end
 
 function update_cache(cache::NUFTCache, img)
     pimg = padimage(cache.alg, img)
-    cache = update_phases(cache, img)
-    create_cache(cache.alg, cache.plan, cache.phases, pimg)
+    cache2 = update_phases(cache, img)
+    create_cache(cache2.alg, cache2.plan, cache2.phases, pimg)
 end
 
 function update_phases(cache::NUFTCache, img)

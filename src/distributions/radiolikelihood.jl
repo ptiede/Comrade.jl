@@ -6,7 +6,7 @@ struct RadioLikelihood{T,A} <: MeasureBase.AbstractMeasure
     lklhds::T
     ac::A
     function RadioLikelihood(data...)
-        ls = map(makelikelihood, data)
+        ls = Tuple(map(makelikelihood, data))
         ac = arrayconfig(first(data))
         new{typeof(ls), typeof(ac)}(ls, ac)
     end
@@ -25,12 +25,17 @@ phase(vis::AbstractArray{<:Complex}) = angle.(vis)
 
 function MeasureBase.logdensity(d::RadioLikelihood, m)
     ac = d.ac
-    vis = visibilities(m, ac)
+    vis = visibilities(m, ac.ac.data.u, ac.ac.data.v)
     return MeasureBase.logdensity(d, vis)
 end
 
 function MeasureBase.logdensity(d::RadioLikelihood, vis::AbstractArray)
-    sum(x->logdensity(x, vis), d.lklhds)
+    # We use a for loop here since Zygote plays nice with this
+    acc = logdensity(first(d.lklhds), vis)
+    @inbounds for i in 2:length(d.lklhds)
+        acc += logdensity(d.lklhds[i], vis)
+    end
+    return acc
 end
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
@@ -62,15 +67,18 @@ end
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
     dmat = data.config.designmat
+    #σ   = diag(data[:error])
+    #covm = σ*dmat*transpose(σ)
     τ = inv.(data[:error])
     τf(x) = τ
     f(vis) = dmat*log.(abs.(vis))
     k = kernel(AmpNormal{(:μ, :τ)},
-                τ = τf,
-                μ = f
+                vis->(τ = τ,
+                      μ = f(vis))
               )
 
     amp = data[:amp]
+    #return AmpNormal{(:μ, :τ)}(amp, τ)
     return Likelihood(k, amp)
 end
 
@@ -81,10 +89,11 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosur
     f(vis) = dmat*angle.(vis)
     d = CPVonMises{(:μ, :κ)}
     k = kernel(d,
-                κ = τf,
-                μ = f
+                vis->(κ = τ,
+                      μ = f(vis))
               )
 
-    amp = getdata(data, :phase)
-    return Likelihood(k, amp)
+    phase = data[:phase]
+    #return CPVonMises{(:μ, :κ)}(phase, τ)
+    return Likelihood(k, phase)
 end
