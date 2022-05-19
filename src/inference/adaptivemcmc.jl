@@ -12,7 +12,7 @@ end
 samplertype(::Type{<:AdaptMCMC}) = IsCube()
 
 function AbstractMCMC.sample(post::TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; init_params=nothing, kwargs...)
-    ℓ(x) = logdensity(post, x)
+    ℓ(x) = logdensityof(post, x)
     function lpr(xx)
         for x in xx
             (x > 1.0 || x < 0.0) && return -Inf
@@ -25,7 +25,8 @@ function AbstractMCMC.sample(post::TransformedPosterior, sampler::AdaptMCMC, nsa
         @warn "No starting location chosen, picking start from random"
         θ0 = transform(tpost, rand(tpost.prior))
     end
-    apt = adaptive_rwm(θ0, ℓ, nsamples;
+
+    apt = adaptive_rwm(HypercubeTransform.inverse(post, θ0), ℓ, nsamples;
                        algorithm = sampler.algorithm,
                        b = burnin,
                        fulladapt=sampler.fulladapt,

@@ -46,6 +46,7 @@ function GainPrior(dists, st::ScanTable)
     return GainPrior(gstat, gtimes, gprior)
 end
 
+HypercubeTransform.bijector(d::GainPrior) = HypercubeTransform.bijector(d.dist)
 HypercubeTransform.asflat(d::GainPrior) = asflat(d.dist)
 HypercubeTransform.ascube(d::GainPrior) = ascube(d.dist)
 
@@ -88,7 +89,6 @@ struct GainModel{C, G, M} <: RIMEModel
     gains::G
     model::M
 end
-
 
 function intensitymap!(img::IntensityMap, model::GainModel, args...)
     return intensitymap!(img, model.model, args...)

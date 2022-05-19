@@ -76,15 +76,15 @@
         lclose2 = RadioLikelihood(lcamp, cphase)
 
         m = stretched(Gaussian(), μas2rad(20.0), μas2rad(20.0))
-        logdensity(lcphase, m)
-        logdensity(llcamp, m)
-        logdensity(lamp, m)
+        logdensityof(lcphase, m)
+        logdensityof(llcamp, m)
+        logdensityof(lamp, m)
 
-        @test logdensity(lclose1,m) ≈ logdensity(lclose2,m)
-        @test logdensity(lclose1,m ) ≈ logdensity(lcphase, m) + logdensity(llcamp, m)
-        @inferred logdensity(lclose1, m)
-        @inferred logdensity(lclose2, m)
-        @inferred logdensity(lamp, m)
+        @test logdensityof(lclose1,m) ≈ logdensityof(lclose2,m)
+        @test logdensityof(lclose1,m ) ≈ logdensityof(lcphase, m) + logdensityof(llcamp, m)
+        @inferred logdensityof(lclose1, m)
+        @inferred logdensityof(lclose2, m)
+        @inferred logdensityof(lamp, m)
 
     end
 

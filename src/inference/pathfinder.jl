@@ -36,8 +36,8 @@ function Pathfinder.pathfinder(post::Posterior,
     if isnothing(p0)
         p0 = rand(post.prior)
     end
-    θ0 = inverse(tpost.transform, p0)
-    ℓ(x) = logdensity(tpost, x)
+    θ0 = HypercubeTransform.inverse(tpost, p0)
+    ℓ(x) = logdensityof(tpost, x)
 
     q, ϕ, logqϕ = pathfinder(ℓ, θ0, ndraws; kwargs...)
     out = transform_and_logjac.(Ref(tpost.transform), eachcol(ϕ))
@@ -75,13 +75,13 @@ documentation.
 """
 function Pathfinder.multipathfinder(post::Posterior, ndraws::Int; init_params=50, kwargs...)
     tpost = asflat(post)
-    ℓ(x) = logdensity(tpost, x)
+    ℓ(x) = logdensityof(tpost, x)
 
     # if init_params is an integer then we draw init_params from the prior
     if init_params isa Integer
-        θ0 = inverse.(Ref(tpost.transform), rand(post.prior, init_params))
+        θ0 = HypercubeTransform.inverse.(Ref(tpost.transform), rand(post.prior, init_params))
     else
-        θ0 = inverse.(Ref(tpost.transform), init_params)
+        θ0 = HypercubeTransform.inverse.(Ref(tpost.transform), init_params)
     end
 
 
@@ -118,7 +118,7 @@ For a list of potential keyword arguments please the the [Pathfinder.jl](https:/
 documentation.
 """
 function Pathfinder.multipathfinder(tpost::TransformedPosterior, ndraws::Int; init_params=50, kwargs...)
-    ℓ(x) = logdensity(tpost, x)
+    ℓ(x) = logdensityof(tpost, x)
 
     # if init_params is an integer then we draw init_params from the prior
     if init_params isa Integer

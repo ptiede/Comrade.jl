@@ -2,12 +2,12 @@ using .GalacticOptim
 
 function GalacticOptim.OptimizationFunction(post::Posterior, args...; kwargs...)
     tpost = asflat(post)
-    ℓ(x,p) = -logdensity(tpost, x)
+    ℓ(x,p) = -logdensityof(tpost, x)
     return OptimizationFunction(ℓ, args...; kwargs...), tpost.transform
 end
 
 function GalacticOptim.OptimizationFunction(post::TransformedPosterior, args...; kwargs...)
-    ℓ(x,p) = -logdensity(post, x)
+    ℓ(x,p) = -logdensityof(post, x)
     return OptimizationFunction(ℓ, args...; kwargs...), post.transform
 end
 

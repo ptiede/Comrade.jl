@@ -5,6 +5,8 @@ using GalacticOptim
 using NestedSamplers
 using BlackBoxOptim
 using StatsBase
+using Plots
+using Optim
 
 @testset "bayes" begin
     load_ehtim()
@@ -18,9 +20,9 @@ using StatsBase
     obsm = m.observe_same_nonoise(obsavg)
 
     amp = extract_lcamp(obsm)
-    cphase = extract_cphase(obsm)
+    cphase = extract_cphase(obsm, cut_trivial=true)
 
-    lklhd = RadioLikelihood(cphase)
+    lklhd = RadioLikelihood(amp, cphase)
 
     function model(θ)
         m1 = θ.f1*rotated(stretched(Gaussian(), θ.σ1*θ.τ1, θ.σ1), θ.ξ1)
@@ -55,24 +57,29 @@ using StatsBase
 
     xtest = transform(tr, sol.u)
     @test collect(values(xtest)) ≈ collect(values(xopt))
-    @test isapprox(xopt.f, 1.0, atol=1e-3)
-    @test isapprox(xopt.σ*2*sqrt(2*log(2)), μas2rad(40.0), atol=1e-3)
-    @test isapprox(xopt.σ*xopt.τ*2*sqrt(2*log(2)), μas2rad(20.0), atol=1e-3)
-    @test isapprox(-xopt.ξ, π/3, atol=1e-3)
+    @test isapprox(xopt.f1-xopt.f2, 0.5, atol=1e-3)
+    @test isapprox(xopt.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-3)
+    @test isapprox(xopt.σ1*xopt.τ1*2*sqrt(2*log(2)), μas2rad(20.0), rtol=1e-3)
+    @test isapprox(-xopt.ξ1, π/3, atol=1e-3)
+    @test isapprox(xopt.σ2*2*sqrt(2*log(2)), μas2rad(20.0), atol=1e-3)
+    @test isapprox(xopt.σ2*xopt.τ2*2*sqrt(2*log(2)), μas2rad(10.0), rtol=1e-3)
+    @test isapprox(-xopt.ξ2, π/6, atol=1e-3)
+    @test isapprox(xopt.x, μas2rad(30.0), rtol=1e-3)
+    @test isapprox(xopt.y, μas2rad(30.0), rtol=1e-3)
 
 
-    nchain, nstats = sample(post, Nested(dimension(post), 2_000); dlogz=1.0, progress=false)
+    nchain, nstats = sample(post, Nested(dimension(post), 2_000); dlogz=0.01, progress=true)
     @test isapprox(collect(values(nchain[end])), collect(values(xopt)), rtol=1e-2)
     echain = Comrade.TupleVector(sample(nchain, Weights(nstats.weights), 500_000))
     mn = Comrade.rmap(mean, echain)[1]
     sn = Comrade.rmap(std, echain)[1]
 
-    pathfinder(post, 10; init_params=nchain[end])
-    q2, ϕ2, logqϕ2 = multipathfinder(post, 10, init_params=nchain[end-1:end])
+    res = pathfinder(post, 10; init_params=xopt)
+    q2, ϕ2, logqϕ2 = multipathfinder(post, 10, init_params=nchain[end:-1:end-5])
 
 
-    hchain, hstats = sample(post, HMC(metric=DiagEuclideanMetric(dimension(post))),
-                            10_000; nadapts=2000, init_params=nchain[end], progress=false)
+    hchain, hstats, res = sample(post, HMC(metric=DiagEuclideanMetric(dimension(post))),
+                            10_000; nadapts=2000, init_params=nchain[end], progress=true)
     mh = Comrade.rmap(mean, hchain)[1]
     sh = Comrade.rmap(std, hchain)[1]
 

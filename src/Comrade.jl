@@ -52,7 +52,7 @@ function load_ehtim()
 end
 
 
-export rad2μas, μas2rad, ehtim, load_ehtim
+export rad2μas, μas2rad, ehtim, load_ehtim, logdensity_def, logdensityof
 
 """
     rad2μas(x)

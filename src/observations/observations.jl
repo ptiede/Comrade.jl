@@ -655,6 +655,15 @@ function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTVisibilit
     return ant1, ant2
 end
 
+function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTVisibilityAmplitudeDatum}}
+    bl = scancp.scan.baseline
+    # organize the closure phase stations
+    ant1 = first.(bl)
+    ant2 = last.(bl)
+    return ant1, ant2
+end
+
+
 function stations(s::Scan)
     ants = baselines(s)
     stat = unique(vcat(ants...))

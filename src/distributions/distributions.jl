@@ -15,7 +15,7 @@ export Rice, CPVonMises, CPNormal, CMvNormal, AmpNormal
 @kwstruct ComplexNormal(μ, σ)
 @kwstruct ComplexNormal(μ, τ)
 
-function MeasureBase.logdensity(d::ComplexNormal{(:μ, :σ)}, x)
+function MeasureBase.logdensity_def(d::ComplexNormal{(:μ, :σ)}, x)
     #sum = zero(eltype(d.σ))
     #@inbounds @fastmath for i in eachindex(x)
     #    sum += abs2((x[i] - d.μ[i])/d.σ[i])
@@ -24,7 +24,7 @@ function MeasureBase.logdensity(d::ComplexNormal{(:μ, :σ)}, x)
     #return -sum/2
 end
 
-function MeasureBase.logdensity(d::ComplexNormal{(:μ, :τ)}, x)
+function MeasureBase.logdensity_def(d::ComplexNormal{(:μ, :τ)}, x)
     #sum = zero(eltype(real(d.μ)))
     #@inbounds @fastmath for i in eachindex(x)
     #    sum += abs2((x[i] - d.μ[i])*d.τ[i])
@@ -45,7 +45,7 @@ function Base.rand(rng::AbstractRNG, T::Type, d::ComplexNormal{(:μ, :τ)})
     return x1 + 1im*x2
 end
 
-function MeasureBase.logdensity(d::Rice{(:ν, :σ)}, x)
+function MeasureBase.logdensity_def(d::Rice{(:ν, :σ)}, x)
     li0 = log(besselix(0, x*d.ν/d.σ^2)) + abs(x*d.ν/d.σ^2)
     log(x/d.σ^2) + li0 - (x^2 + d.ν^2)/(2*d.σ^2)
 end
@@ -66,7 +66,7 @@ Statistics.var(d::Rice{(:ν, :σ)}) = 2*d.σ^2 + d.ν^2 - π*d.σ^2/2*L12(-0.5*(
 @kwstruct CPVonMises(μ, κ)
 @kwstruct CPVonMises(μ, σ)
 const log2π = log(2π)
-function MeasureBase.logdensity(d::CPVonMises{(:μ, :κ)}, x)
+function MeasureBase.logdensity_def(d::CPVonMises{(:μ, :κ)}, x)
     #T = eltype(d.μ)
     #sum = zero(T)
     #@inbounds for i = eachindex(x)
@@ -77,7 +77,7 @@ function MeasureBase.logdensity(d::CPVonMises{(:μ, :κ)}, x)
     return sum(dθ)
 end
 
-function MeasureBase.logdensity(d::CPVonMises{(:μ, :σ)},x)
+function MeasureBase.logdensity_def(d::CPVonMises{(:μ, :σ)},x)
     #sum = zero(eltype(d.μ))
     #@inbounds for i = eachindex(x)
     #    sum += (cos(x[i]-d.μ[i])-1)/d.σ[i]^2 #- log(besselix(0.0, 1/d.σ[i]^2)) - log2π
@@ -100,7 +100,7 @@ end
 
 @kwstruct AmpNormal(μ, τ)
 
-function MeasureBase.logdensity(d::AmpNormal{(:μ, :τ)}, x)
+function MeasureBase.logdensity_def(d::AmpNormal{(:μ, :τ)}, x)
     #T = eltype(d.μ)
     #sum = zero(T)
     #@inbounds for i = eachindex(x)
@@ -120,7 +120,7 @@ Base.minimum(::CPNormal) = -Inf
 Base.maximum(::CPNormal) = Inf
 
 const log2π = log(2π)
-function MeasureBase.logdensity(dist::CPNormal{(:μ, :σ)}, x::Real)
+function MeasureBase.logdensity_def(dist::CPNormal{(:μ, :σ)}, x::Real)
     μ,σ = dist.μ, dist.σ
     s,c = sincos(x)
     dθ = atan(s, c)

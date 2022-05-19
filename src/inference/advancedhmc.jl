@@ -39,7 +39,7 @@ end
 function _initialize_hmc(tpost::TransformedPosterior, init_params, nchains)
     isnothing(init_params) && return inverse.(Ref(tpost.transform), rand(tpost.lpost.prior, nchains))
     @argcheck length(init_params) == nchains
-    return init_params
+    return inverse.(Ref(tpost), init_params)
 end
 
 
@@ -50,7 +50,7 @@ function AbstractMCMC.sample(tpost::TransformedPosterior,
                              init_params=nothing, kwargs...
                              )
 
-    ℓ(x) = logdensity(tpost, x)
+    ℓ(x) = logdensityof(tpost, x)
 
     ∇ℓ = make_pullback(ℓ, sampler.autodiff)
     θ0 = _initialize_hmc(tpost, init_params, nchains)
@@ -79,16 +79,16 @@ end
 function AbstractMCMC.sample(tpost::TransformedPosterior, sampler::HMC, nsamples, args...;
                              init_params=nothing,
                              kwargs...)
-    ℓ(x) = logdensity(tpost, x)
+    ℓ(x) = logdensityof(tpost, x)
 
     ∇ℓ = make_pullback(ℓ, sampler.autodiff)
 
-    θ0 = init_params
+    p0 = init_params
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from random"
-        θ0 = transform(tpost.transform, rand(tpost.prior))
+        p0 = transform(tpost.transform, rand(tpost.prior))
     end
-
+    θ0 = HypercubeTransform.inverse(tpost, p0)
     model = AdvancedHMC.DifferentiableDensityModel(ℓ, ∇ℓ)
     metric = sampler.metric
     # This is a hack to get a good initial step size
