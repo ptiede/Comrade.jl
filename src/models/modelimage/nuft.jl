@@ -2,7 +2,9 @@ padfac(alg::NUFT) = alg.padfac
 
 function padimage(::NUFT, img)
     #pf = padfac(alg)
-    return convert(Matrix{Complex{eltype(img)}}, img)
+    println("Here")
+    #cimg = convert(Matrix{Complex{eltype(img)}}, img.img)
+    return IntensityMap(img, img.fovx, img.fovy, img.pulse)
     # ny,nx = size(img)
     # nnx = nextpow(2, pf*nx)
     # nny = nextpow(2, pf*ny)
@@ -20,7 +22,8 @@ padimage(alg::ObservedNUFT, img) = padimage(alg.alg, img)
 
 
 function create_cache(alg::ObservedNUFT, img)
-    pimg = padimage(alg.alg, img)
+    pimg = padimage(alg, img)
+
     # make nuft plan
     dx, dy = pixelsizes(img)
     plan = plan_nuft(alg, pimg, dx, dy)
@@ -64,7 +67,7 @@ end
 
 
 function nuft(A, b)
-    return A*b
+    return A*(b .+ 0im)
 end
 
 # function ChainRulesCore.rrule(::typeof(nuft), A, b)

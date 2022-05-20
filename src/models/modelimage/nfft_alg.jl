@@ -23,15 +23,14 @@ end
 function padimage(alg::NFFTAlg, img)
     padfac = alg.padfac
     # if no padding exit now
-    (padfac == 1) && return convert(Matrix{Complex{eltype(img)}}, img)
+    (padfac == 1) && return img
 
     ny,nx = size(img)
     nnx = nextpow(2, padfac*nx)
     nny = nextpow(2, padfac*ny)
     nsx = nnx÷2-nx÷2
     nsy = nny÷2-ny÷2
-    cimg = convert(Matrix{Complex{eltype(img)}}, img)
-    return PaddedView(zero(eltype(cimg)), cimg,
+    return PaddedView(zero(eltype(img)), img,
                       (1:nnx, 1:nny),
                       (nsx+1:nsx+nx, nsy+1:nsy+ny)
                      )
@@ -53,7 +52,8 @@ function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img)
 end
 
 @inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img)
-    return NUFTCache(alg, plan, phases, img.pulse, transpose(img))
+    timg = IntensityMap(transpose(img.im), img.fovx, img.fovy, img.pulse)
+    return NUFTCache(alg, plan, phases, img.pulse, timg)
 end
 
 function _frule_vis(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{O}}) where {M,T,V,P,A<:NFFTAlg,O<:ObservedNUFT{A}}

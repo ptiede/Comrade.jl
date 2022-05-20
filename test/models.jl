@@ -23,7 +23,7 @@ function testft(m, npix=256, atol=1e-4)
     mn = Comrade.NonAnalyticTest(m)
     uu = 0.25*randn(1000)
     vv = 0.25*randn(1000)
-    img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), npix, npix, DeltaPulse())
+    img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), npix, npix; pulse=DeltaPulse())
     mimg_ff = modelimage(mn, img, FFTAlg(padfac=3))
     mimg_nf = modelimage(mn, img, NFFTAlg())
     mimg_df = modelimage(mn, img, DFTAlg())
@@ -279,7 +279,7 @@ end
 end
 
 @testset "Image SqExp" begin
-   c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12, SqExpPulse(3.0))
+   c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12; pulse=SqExpPulse(3.0))
    #mI = DImage(c.im, SqExpPulse(5.0))
    testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
 end
@@ -288,11 +288,11 @@ end
 #   testmodel(mI, 1e-2)
 #end
 @testset "DImage BSpline1" begin
-    c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12, BSplinePulse{1}())
+    c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12; pulse=BSplinePulse{1}())
     testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
 end
 
 @testset "DImage BSpline3" begin
-    c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12, BSplinePulse{3}())
+    c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12; pulse=BSplinePulse{3}())
     testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
 end

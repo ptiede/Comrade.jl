@@ -37,15 +37,15 @@ end
 
 
 function (model::Model)(θ)
-    ;c, f, r, σ, τ, ξ, ma, mp, x, y = θ
-    cmat = f*reshape(c, model.npix, model.npix)
-    img = IntensityMap(cmat, model.fov, model.fov, BSplinePulse{3}())
-    mimg = modelimage(img, model.cache)
+    (;c, f, r, σ, τ, ξ, ma, mp, x, y) = θ
+    #cmat = f*reshape(c, model.npix, model.npix)
+    #img = IntensityMap(cmat, model.fov, model.fov, BSplinePulse{3}())
+    #mimg = modelimage(img, model.cache)
     s,c = sincos(mp)
     α = ma*c
     β = ma*s
-    ring = (1-f)*rotated(smoothed(stretched(MRing((α,), (β,)), r, r*τ),σ), ξ)
-    return shifted(ring, x, y) + mimg
+    #ring = (1-f)*rotated(smoothed(stretched(MRing((α,), (β,)), r, r*τ),σ), ξ)
+    return MRing((α,), (β,))#stretched(MRing((α,), (β,)), r, r)#shifted(ring, x, y) #+ mimg
 end
 
 fovxy = μas2rad(90.0)
