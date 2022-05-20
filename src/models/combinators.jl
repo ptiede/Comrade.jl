@@ -40,6 +40,13 @@ function modelimage(::NotAnalytic,
     @set m1.m2 = modelimage(m1.m2, cache, executor)
 end
 
+function fouriermap(m::CompositeModel, fovx, fovy, nx, ny)
+    m1 = fouriermap(m.m1, fovx, fovy, nx, ny)
+    m2 = fouriermap(m.m2, fovx, fovy, nx, ny)
+    return uv_combinator(m).(m1,m2)
+end
+
+
 
 radialextent(m::CompositeModel) = max(radialextent(m.m1), radialextent(m.m2))
 
@@ -98,10 +105,31 @@ end
 #     _combinatorvis(visanalytic(M1), visanalytic(M2), uv_combinator(model), model, u, v, t, ν, cache)
 # end
 
-function visibilities(model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
+function _visibilities(model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
     f = uv_combinator(model)
     return f.(visibilities(model.m1, u, v), visibilities(model.m2, u, v))
 end
+
+#function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_visibilities), model::AddModel, u::AbstractArray, v::AbstractArray, args...)
+#    v1_and_vdot = rrule_via_ad(config, _visibilities, model.m1, u, v, args...)
+#    v2_and_vdot = rrule_via_ad(config, _visibilities, model.m2, u, v, args...)
+#
+#    vdot1 = last(v1_and_vdot)
+#    vdot2 = last(v2_and_vdot)
+#    project_model = ProjectTo(model)
+#    function _addmodel_visibilities_pullback(Δy)
+#        vd1 = vdot1(Δy)
+#        vd2 = vdot2(Δy)
+#        println(project_model(vd1[2],vd2[2]))
+#        return (NoTangent(), project_model())
+#    end
+#    return first(v1_and_vdot) + first(v2_and_vdot), _addmodel_visibilities_pullback
+#end
+
+function _visibilities(model::AddModel, u::AbstractArray, v::AbstractArray, args...)
+    return visibilities(model.m1, u, v) + visibilities(model.m2, u, v)
+end
+
 
 @inline function visibility_point(model::CompositeModel{M1,M2}, u, v, args...) where {M1,M2}
     f = uv_combinator(model)

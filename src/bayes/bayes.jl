@@ -33,9 +33,9 @@ end
 @inline DensityInterface.DensityKind(::Posterior) = IsDensity()
 
 function DensityInterface.logdensityof(post::Posterior, x)
-    pr = logdensity(post.prior, x)
+    pr = logdensityof(post.prior, x)
     !isfinite(pr) && return -Inf
-    return logdensity(post.lklhd, post.model(x)) + pr
+    return logdensityof(post.lklhd, post.model(x)) + pr
 end
 
 """
@@ -67,12 +67,12 @@ HypercubeTransform.transform(p::TransformedPosterior, x) = transform(p.transform
     inverse(posterior::TransformedPosterior, x)
 Transforms the value model parameters `x` into the flattened transformed space.
 """
-HypercubeTransform.inverse(p::TransformedPosterior, y) = inverse(p.transform, y)
+HypercubeTransform.inverse(p::TransformedPosterior, y) = HypercubeTransform.inverse(p.transform, y)
 
 
-@inline DensityInterface.DensityKind(::TransformedPosterior) = IsDensity()
+@inline DensityInterface.DensityKind(::TransformedPosterior) = DensityInterface.IsDensity()
 
-MeasureBase.logdensity(tpost::Union{Posterior,TransformedPosterior}, x) = DensityInterface.logdensityof(tpost, x)
+# MeasureBase.logdensityof(tpost::Union{Posterior,TransformedPosterior}, x) = DensityInterface.logdensityof(tpost, x)
 
 
 """
@@ -94,9 +94,9 @@ function HypercubeTransform.asflat(post::Posterior)
     return TransformedPosterior(post, tr)
 end
 
-function DensityInterface.logdensityof(post::TransformedPosterior{P, T}, x) where {P, T<:TransformVariables.AbstractTransform}
+@inline function DensityInterface.logdensityof(post::TransformedPosterior{P, T}, x::AbstractArray) where {P, T<:HypercubeTransform.NamedFlatTransform}
     p, logjac = transform_and_logjac(post.transform, x)
-    return DensityInterface.logdensityof(post.lpost, p) + logjac
+    return logdensityof(post.lpost, p) + logjac
 end
 
 HypercubeTransform.dimension(post::TransformedPosterior) = dimension(post.transform)
@@ -123,14 +123,14 @@ function HypercubeTransform.ascube(post::Posterior)
     return TransformedPosterior(post, tr)
 end
 
-function DensityInterface.logdensityof(tpost::TransformedPosterior{P, T}, x) where {P, T<:HypercubeTransform.AbstractHypercubeTransform}
+function DensityInterface.logdensityof(tpost::TransformedPosterior{P, T}, x::AbstractArray) where {P, T<:HypercubeTransform.AbstractHypercubeTransform}
     # Check that x really is in the unit hypercube. If not return -Inf
     for xx in x
         (xx > 1 || xx < 0) && return -Inf
     end
     p = transform(tpost.transform, x)
     post = tpost.lpost
-    return logdensity(post.lklhd, post.model(p))
+    return logdensityof(post.lklhd, post.model(p))
 end
 
 struct FlatTransform{T}
@@ -155,6 +155,6 @@ function ParameterHandling.flatten(post::Posterior)
     return TransformedPosterior(post, FlatTransform(unflatten))
 end
 
-function DensityInterface.logdensityof(post::TransformedPosterior{P,T}, x) where {P, T<: FlatTransform}
-    return logdensity(post.lpost, transform(post.transform, x))
-end
+# function DensityInterface.logdensityof(post::TransformedPosterior{P,T}, x) where {P, T<: HypercubeTransform.NamedFlatTransform}
+#     return logdensity(post.lpost, transform(post.transform, x))
+# end

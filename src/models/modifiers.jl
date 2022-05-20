@@ -149,7 +149,7 @@ flux(m::RenormalizedModel) = m.scale*flux(m.model)
 @inline scale_uv(model::RenormalizedModel, u, v) = model.scale
 
 function _visibilities(m::RenormalizedModel, u::AbstractArray, v::AbstractArray)
-    m.scale*visibilities(basemodel(m), u, v)
+    m.scale*_visibilities(basemodel(m), u, v)
 end
 
 

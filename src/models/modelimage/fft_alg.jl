@@ -40,14 +40,14 @@ visibilties. This is an internal type and is not part of the public API
 # Fields
 $(FIELDS)
 """
-struct FFTCache{A<:FFTAlg,P,M,I} <: AbstractCache
+struct FFTCache{A<:FFTAlg,P,I,S} <: AbstractCache
     alg::A
     """ FFTW Plan"""
     plan::P
-    """ Phase centering """
-    phases::M
+    """ image cache """
+    img::I
     """FFT interpolator function"""
-    sitp::I
+    sitp::S
 end
 
 # @edit fft(x_plus_dx, 1:1) points me here:
@@ -112,7 +112,7 @@ end
 function phasecenter(vis, uu, vv, x0, y0, dx, dy)
     map(CartesianIndices((eachindex(uu), eachindex((vv))))) do I
         iy,ix = Tuple(I)
-        return conj(vis[I])*dx*dy*cispi(2*(uu[ix]*x0 + vv[iy]*y0))
+        return conj(vis[I])*cispi(2*(uu[ix]*x0 + vv[iy]*y0))
     end
 end
 
@@ -140,7 +140,7 @@ function create_cache(alg::FFTAlg, img)
     #phases = fftphases(uu, vv, x0, y0, dx, dy)
     vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
     sitp = create_interpolator(uu, vv, vispc, img)
-    return FFTCache(alg, plan, LinearAlgebra.I, sitp)
+    return FFTCache(alg, plan, img, sitp)
 end
 
 function update_cache(cache::FFTCache, img)
@@ -151,12 +151,18 @@ function update_cache(cache::FFTCache, img)
     nny, nnx = size(pimg)
     uu, vv = uviterator(dx, dy, nnx, nny)
 
+    dx,dy = pixelsizes(img)
+    nny, nnx = size(pimg)
+    uu, vv = uviterator(dx, dy, nnx, nny)
+
+    x0,y0 = first.(imagepixels(img))
+
 
     dx,dy = pixelsizes(img)
     vis = fftshift(plan*pimg)
-    vispc = phasecenter(vis, cache)
+    vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
     sitp = create_interpolator(uu, vv, vispc, img)
-    return FFTCache(cache.alg, plan, cache.phase, sitp)
+    return FFTCache(cache.alg, plan, img, sitp)
 end
 
 
@@ -205,6 +211,7 @@ function fouriermap(m, fovx, fovy, nx, ny)
     return vis
 end
 
+
 function fouriermap(m::ModelImage, fovx, fovy, nx, ny)
     cache = create_cache(FFTAlg(), m.image)
     x,y = imagepixels(fovx, fovy, nx, ny)
@@ -231,7 +238,7 @@ function phasedecenter!(vis, fovx, fovy, nx, ny)
     y0 = first(y)
     for I in CartesianIndices(vis)
         iy, ix = Tuple(I)
-        vis[I] = conj(vis[I]*cispi(-2*(uu[ix]*x0 + vv[iy]*y0)))*nx*ny/(dx*dy)
+        vis[I] = conj(vis[I]*cispi(-2*(uu[ix]*x0 + vv[iy]*y0)))*nx*ny
     end
     return vis
 end

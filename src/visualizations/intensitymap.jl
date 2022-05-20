@@ -31,14 +31,14 @@ Note that is does not save the figure.
     xlims --> (-fovx/2,fovx/2)
     ylims --> (-fovy/2,fovy/2)
     #left_margin --> -2mm
-    #right_margin --> 5mm
-    z = image/uvscale.(1)^2
+    #right_margin --> 5
+    z = image
     seriestype := :heatmap
     #fontfamily --> "sans serif"
-    colorbar_title --> "Jy/μas²"
+    colorbar_title --> "Jy/px"
     xflip --> true
     widen := false
-    #framestyle --> :box
+    framestyle --> :box
     title --> @sprintf("flux = %.2f Jy", flux(image))
     linecolor-->:black
     tick_direction --> :out
@@ -79,7 +79,7 @@ Note that is does not save the figure.
     ylims --> (-fovy/2,fovy/2)
     #left_margin --> -2mm
     #right_margin --> 5mm
-    z = image*psizex*psizey
+    z = image
     seriestype := :heatmap
     #fontfamily --> "sans serif"
     colorbar_title --> "Jy/px²"

@@ -1,23 +1,29 @@
 padfac(alg::NUFT) = alg.padfac
 
-function padimage(alg::NUFT, img)
-    pf = padfac(alg)
-    ny,nx = size(img)
-    nnx = nextpow(2, pf*nx)
-    nny = nextpow(2, pf*ny)
-    nsx = nnx÷2-nx÷2
-    nsy = nny÷2-ny÷2
-    cimg = convert(Matrix{Complex{eltype(img)}}, img)
-    return PaddedView(zero(eltype(cimg)), cimg,
-                      (1:nnx, 1:nny),
-                      (nsx+1:nsx+nx, nsy+1:nsy+ny)
-                     )
+function padimage(::NUFT, img)
+    #pf = padfac(alg)
+    println("Here")
+    #cimg = convert(Matrix{Complex{eltype(img)}}, img.img)
+    return IntensityMap(img, img.fovx, img.fovy, img.pulse)
+    # ny,nx = size(img)
+    # nnx = nextpow(2, pf*nx)
+    # nny = nextpow(2, pf*ny)
+    # nsx = nnx÷2-nx÷2
+    # nsy = nny÷2-ny÷2
+    # cimg = convert(Matrix{Complex{eltype(img)}}, img)
+    # return PaddedView(zero(eltype(cimg)), cimg,
+    #                   (1:nnx, 1:nny),
+    #                   (nsx+1:nsx+nx, nsy+1:nsy+ny)
+    #                  )
 end
+
+padimage(alg::ObservedNUFT, img) = padimage(alg.alg, img)
 
 
 
 function create_cache(alg::ObservedNUFT, img)
-    pimg = padimage(alg.alg, img)
+    pimg = padimage(alg, img)
+
     # make nuft plan
     dx, dy = pixelsizes(img)
     plan = plan_nuft(alg, pimg, dx, dy)
@@ -29,19 +35,29 @@ end
 
 function create_cache(alg::NUFT, img)
     pimg = padimage(alg, img)
-    return NUFTCache(alg, nothing, nothing, pimg)
+    return NUFTCache(alg, nothing, nothing, img.pulse, pimg)
 end
 
 function update_cache(cache::NUFTCache, img)
-    pimg = padimage(img, cache.alg)
-    return @set cache.img = pimg
+    pimg = padimage(cache.alg, img)
+    cache2 = update_phases(cache, img)
+    create_cache(cache2.alg, cache2.plan, cache2.phases, pimg)
 end
 
-function nocachevis(m::ModelImage{M,I,<:NUFTCache}, u, v) where {M,I}
+function update_phases(cache::NUFTCache, img)
+    if cache.pulse !== img.pulse
+        phases = make_phases(cache.alg, img)
+        return @set cache.phases = phases
+    else
+        return cache
+    end
+end
+
+function nocachevis(m::ModelImage{M,I,<:NUFTCache}, u::AbstractArray, v::AbstractArray) where {M,I}
     alg = ObservedNUFT(m.cache.alg, vcat(u', v'))
     cache = create_cache(alg, m.image)
     m = @set m.cache = cache
-    return visibilities(m, u, v)
+    return _visibilities(m, u, v)
 end
 
 function checkuv(uv, u, v)
@@ -49,50 +65,57 @@ function checkuv(uv, u, v)
     @assert v == @view(uv[2,:]) "Specified v don't match uv in cache. Did you pass the correct u,v?"
 end
 
+
+function nuft(A, b)
+    return A*(b .+ 0im)
+end
+
+# function ChainRulesCore.rrule(::typeof(nuft), A, b)
+#     vis = A*b
+#     println("Pld")
+#     function nuft_pullback(Δy)
+#         Δf = NoTangent()
+#         ΔA = @thunk(A'*Δy)
+#         Δb = @thunk(Δy*b')
+#         return Δf, ΔA, Δb
+#     end
+#     return vis, nuft_pullback
+# end
+
+
+# ReverseDiff.@grad_from_chainrules nuft(A::ReverseDiff.TrackedArray, b::ReverseDiff.TrackedArray)
+# ReverseDiff.@grad_from_chainrules nuft(A, b::ReverseDiff.TrackedArray)
+# ReverseDiff.@grad_from_chainrules nuft(A::ReverseDiff.TrackedArray, b)
+# ReverseDiff.@grad_from_chainrules nuft(A, b::Vector{<:ReverseDiff.TrackedReal})
+
+
+
 function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       u::AbstractArray,
                       v::AbstractArray) where {M,I,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
-    vis =  m.cache.plan*m.cache.img
+    #vr = real.(m.cache.plan)
+    #vi = imag.(m.cache.plan)
+    vis =  nuft(m.cache.plan, m.cache.img)
     conj.(vis).*m.cache.phases
     #return vis
 end
 
-function _frule_vis(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{A}}) where {M,T,V,P,A<:ObservedNUFT}
-    S = typeof(ForwardDiff.value(first(m.cache.img)))
-    p = m.cache.plan
-    # Compute the fft
-    buffer = similar(m.cache.img, S)
-    buffer .= ForwardDiff.value.(m.cache.img)
-    xtil = p*buffer
-    out = similar(buffer, Complex{ForwardDiff.Dual{T,V,P}})
-    # Now take the deriv of nuft
-    ndxs = ForwardDiff.npartials(first(m.cache.img))
-    dxtils = ntuple(ndxs) do n
-        buffer .= ForwardDiff.partials.(m.cache.img, n)
-        p * buffer
-    end
-    out = similar(xtil, Complex{ForwardDiff.Dual{T,V,P}})
-    for i in eachindex(out)
-        dual = getindex.(dxtils, i)
-        prim = xtil[i]
-        red = ForwardDiff.Dual{T,V,P}(real(prim), ForwardDiff.Partials(real.(dual)))
-        imd = ForwardDiff.Dual{T,V,P}(imag(prim), ForwardDiff.Partials(imag.(dual)))
-        out[i] = Complex(red, imd)
-    end
-    return out
-end
+# function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
+#                        u::AbstractArray,
+#                        v::AbstractArray) where {M,I,G<:DFTAlg,A<:ObservedNUFT{G}}
+#     checkuv(m.cache.alg.uv, u, v)
+#     #vr = real.(m.cache.plan)
+#     #vi = imag.(m.cache.plan)
+#     visr = nuft(m.cache.plan.re, m.cache.img)
+#     visi = nuft(m.cache.plan.im, m.cache.img)
+#     vis =  StructArray{Complex{eltype(visr)}}((visr, visi))
+#     #vis = m.cache.plan*m.cache.img
+#     conj.(vis).*m.cache.phases
+#     #return vis
+# end
 
-function _visibilities(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{A}},
-    u::AbstractArray,
-    v::AbstractArray) where {M,T,V,P,A<:ObservedNUFT}
-    checkuv(m.cache.alg.uv, u, v)
-    # Now reconstruct everything
 
-    vis = _frule_vis(m)
-    conj.(vis).*m.cache.phases
-#return vis
-end
 
 function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       u::AbstractArray,
@@ -100,13 +123,12 @@ function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
     return nocachevis(m, u, v)
 end
 
-function amplitudes(m::ModelImage{M,I,C}, u::AbstractArray, v::AbstractArray) where {M,I,C<:NUFTCache}
+function _amplitudes(m::ModelImage{M,I,C}, u::AbstractArray, v::AbstractArray) where {M,I,C<:NUFTCache}
     vis = visibilities(m, u, v)
-    vis .= abs.(v)
-    return vis
+    return map(abs, vis)
 end
 
-function bispectra(m::ModelImage{M,I,C},
+function _bispectra(m::ModelImage{M,I,C},
                     u1::AbstractArray,
                     v1::AbstractArray,
                     u2::AbstractArray,
@@ -123,7 +145,7 @@ function bispectra(m::ModelImage{M,I,C},
     @inbounds (@view(vis[1:n])).*(@view(vis[n+1:2n])).*(@view vis[2n+1:3n])
 end
 
-function closure_phases(m::ModelImage{M,I,C},
+function _closure_phases(m::ModelImage{M,I,C},
                         u1::AbstractArray,
                         v1::AbstractArray,
                         u2::AbstractArray,
@@ -141,7 +163,7 @@ function closure_phases(m::ModelImage{M,I,C},
     return phase
 end
 
-function logclosure_amplitudes(m::ModelImage{M,I,C},
+function _logclosure_amplitudes(m::ModelImage{M,I,C},
                                u1::AbstractArray,
                                v1::AbstractArray,
                                u2::AbstractArray,
@@ -160,7 +182,6 @@ function logclosure_amplitudes(m::ModelImage{M,I,C},
     amp2 = @view vis[n+1:2n]
     amp3 = @view vis[2n+1:3n]
     amp4 = @view vis[3n+1:4n]
-
     lcamp = @. log(abs(amp1)*abs(amp2)/(abs(amp3)*abs(amp4)))
     return lcamp
 end

@@ -2,11 +2,13 @@ using MeasureTheory
 export RadioLikelihood, logdensity
 using LinearAlgebra
 
-struct RadioLikelihood{T} <: MeasureBase.AbstractMeasure
+struct RadioLikelihood{T,A} <: MeasureBase.AbstractMeasure
     lklhds::T
+    ac::A
     function RadioLikelihood(data...)
-        ls = map(makelikelihood, data)
-        new{typeof(ls)}(ls)
+        ls = Tuple(map(makelikelihood, data))
+        ac = arrayconfig(first(data))
+        new{typeof(ls), typeof(ac)}(ls, ac)
     end
 end
 
@@ -16,51 +18,94 @@ function Base.show(io::IO, d::RadioLikelihood{T}) where {T}
 end
 
 
-@inline MeasureBase.logdensity(d::RadioLikelihood, m) = sum(x->logdensity(x, m), d.lklhds)
+amplitudes(vis::AbstractArray{<:Complex}) = abs.(vis)
+phase(vis::AbstractArray{<:Complex}) = angle.(vis)
+
+
+
+function MeasureBase.logdensityof(d::RadioLikelihood, m)
+    ac = d.ac
+    vis = visibilities(m, ac)
+    return MeasureBase.logdensityof(d, vis)
+end
+
+function MeasureBase.logdensityof(d::RadioLikelihood, vis::AbstractArray)
+    # We use a for loop here since Zygote plays nice with this
+    acc = logdensityof(first(d.lklhds), vis)
+    @inbounds for i in 2:length(d.lklhds)
+        acc += logdensityof(d.lklhds[i], vis)
+    end
+    return acc
+end
+
+function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
+    errinv = inv.(data[:error])
+    #k = kernel(ComplexNormal{(:μ, :τ)},
+    #            τ = τ,
+    #            μ = μ
+    #        )
+#
+    vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
+    ℓ = Likelihood(vis) do (μ, )
+        ComplexNormal{(:μ, :τ)}(μ, errinv)
+    end
+    return ℓ
+end
 
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
-    u,v = getdata(data, :u), getdata(data, :v)
-    τ = inv.(getdata(data, :error))
-    f(m) = amplitude.(Ref(m), u, v)
+    τ = inv.(data[:error])
+    #τf(_) = τ
+    #f(v) = abs.(v)
 
-    k = kernel(AmpNormal{(:μ, :τ)},
-                   τ = x->τ,
-                   μ = x->f(x)
-             )
+    #k = kernel(AmpNormal{(:μ, :τ)},
+    #               τ = τf,
+    #               μ = f
+    #         )
     amp = getdata(data, :amp)
-    return Likelihood(k, amp)
+    ℓ = Likelihood(amp) do (μ, )
+        AmpNormal{(:μ, :τ)}(abs.(μ), τ)
+    end
+    return ℓ
 end
 
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
-    u1, v1 = getdata(data, :u1), getdata(data, :v1)
-    u2, v2 = getdata(data, :u2), getdata(data, :v2)
-    u3, v3 = getdata(data, :u3), getdata(data, :v3)
-    u4, v4 = getdata(data, :u4), getdata(data, :v4)
-    τ = inv.(getdata(data, :error))
-    f(m) = logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
-    k = kernel(AmpNormal{(:μ, :τ)},
-                τ = x->τ,
-                μ = x->f(x)
-              )
+    dmat = data.config.designmat
+    τ  = inv.(data[:error])
+    #covm = σvis*dmat*transpose(σvis)
 
-    amp = getdata(data, :amp)
-    return Likelihood(k, amp)
+    #C = Cholesky(Symmetric(covm))
+    #σ = C.L
+    f = let dmat=dmat
+        vis->dmat*log.(abs.(vis))
+    end
+    #k = kernel(AmpNormal{(:μ, :τ)},
+    #            vis->(τ = τ,
+    #                  μ = f(vis))
+    #          )
+
+    amp = data[:amp]
+    ℓ = Likelihood(amp) do (μ,)
+        AmpNormal{(:μ, :τ)}(f(μ), τ)
+    end
+    #return AmpNormal{(:μ, :τ)}(amp, τ)
+    return ℓ
 end
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosurePhaseDatum})
-    u1, v1 = getdata(data, :u1), getdata(data, :v1)
-    u2, v2 = getdata(data, :u2), getdata(data, :v2)
-    u3, v3 = getdata(data, :u3), getdata(data, :v3)
     τ = inv.(getdata(data, :error)).^2
-    f(m) = closure_phases(m, u1, v1, u2, v2, u3, v3)
-    d = CPVonMises{(:μ, :κ)}
-    k = kernel(d,
-                κ = x->τ,
-                μ = x->f(x)
-              )
+    dmat = data.config.designmat
+    f(vis) = dmat*angle.(vis)
+    #d = CPVonMises{(:μ, :κ)}
+    #k = kernel(d,
+    #            vis->(κ = τ,
+    #                  μ = f(vis))
+    #          )
+    phase = data[:phase]
+    ℓ = Likelihood(phase) do (μ,)
+        CPVonMises{(:μ, :κ)}(f(μ), τ)
+    end
 
-    amp = getdata(data, :phase)
-    return Likelihood(k, amp)
+    return ℓ
 end

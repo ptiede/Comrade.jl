@@ -16,7 +16,7 @@ using DelimitedFiles
 using AstroTime: modified_julian
 
 export uvpositions, stations, getdata, arrayconfig,
-       getuv, baselines, rescaleuv!
+       getuv, baselines, rescaleuv!, scantable
 
 
 
@@ -34,11 +34,7 @@ model visibilities.
 
 # $(FIELDS)
 """
-struct EHTArrayConfiguration{S,F,T<:AbstractArray} <: ArrayConfiguration
-    """
-    List of stations in the array
-    """
-    stations::S
+struct EHTArrayConfiguration{F,T<:AbstractArray} <: ArrayConfiguration
     """
     Observing frequency (Hz)
     """
@@ -50,15 +46,36 @@ struct EHTArrayConfiguration{S,F,T<:AbstractArray} <: ArrayConfiguration
     """
     A struct array of `ArrayBaselineDatum` holding time, u, v, baselines.
     """
-    uvsamples::T
+    data::T
 end
+
+"""
+    $(TYPEDEF)
+Array config file for closure quantities. This stores the design matrix `designmat`
+that transforms from visibilties to closure products.
+"""
+struct ClosureConfig{A,D} <: ArrayConfiguration
+    ac::A
+    designmat::D
+function ClosureConfig(ac, dmat)
+    A = typeof(ac)
+    sdmat = sparse(dmat)
+    D = typeof(sdmat)
+    return new{A,D}(ac, sdmat)
+end
+end
+
 
 """
     $(SIGNATURES)
 Get the u, v positions of the array.
 """
 function getuv(ac::ArrayConfiguration)
-    return ac.uvsamples.u, ac.uvsamples.v
+    return ac.data.u, ac.data.v
+end
+
+function getuv(ac::ClosureConfig)
+    return getuv(ac.ac)
 end
 
 """
@@ -67,7 +84,7 @@ Get the u, v, time, freq of the array as a tuple.
 """
 function uvtimefreq(ac::EHTArrayConfiguration)
     u,v = getuv(ac)
-    t = ac.uvsamples.time
+    t = ac.data.time
     ν = ac.frequency
     return u, v, t, fill(ν, length(u))
 end
@@ -99,11 +116,15 @@ of any `AbstractInterferometryDatum` type.
 
 # ($FIELDS)
 """
-Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructArray{T}, N} <: Observation{F}
+Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructArray{T}, A, N} <: Observation{F}
     """
     StructArray of data productts
     """
     data::S
+    """
+    Array config holds ancillary information about array
+    """
+    config::A
     """
     modified julia date of the observation
     """
@@ -134,7 +155,22 @@ Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructA
     timetype::Symbol = :UTC
 end
 
+getdata(obs::Observation, s::Symbol) = getproperty(getfield(obs, :data), s)
+
+
+# Implement the tables interface
+Tables.istable(::Type{<:EHTObservation}) = true
+Tables.columnaccess(::Type{<:EHTObservation}) = true
+Tables.columns(t::EHTObservation) = getfield(t, :data)
+
+Tables.getcolumn(t::EHTObservation, ::Type{T}, col::Int, nm::Symbol) where {T} = getdata(t, nm)
+Tables.getcolumn(t::EHTObservation, nm::Symbol) = getdata(t, nm)
+Tables.getcolumn(t::EHTObservation, i::Int) = Tables.getcolumn(t, Tables.columnames(t)[i])
+Tables.columnnames(t::EHTObservation) = propertynames(getfield(t, :data))
+
+Base.getindex(data::EHTObservation, s::Symbol) = Tables.getcolumn(data, s)
 Base.getindex(data::EHTObservation, i::Int) = data.data[i]
+Base.getindex(data::EHTObservation, I...) = getindex(data.data, I...)
 Base.length(data::EHTObservation) = length(data.data)
 
 """
@@ -168,8 +204,6 @@ say you want the times of all measurement then
 getdata(obs, :time)
 ```
 """
-getdata(obs::Observation, s::Symbol) = getproperty(obs.data, s)
-Base.getindex(obs::Observation, i) = getindex(obs.data, i)
 
 
 
@@ -554,15 +588,16 @@ uvpositions(datum::EHTLogClosureAmplitudeDatum) = (datum.u1, datum.v1, datum.u2,
     $(SIGNATURES)
 Extract the array configuration from a visibility EHT observation.
 """
-function arrayconfig(vis::EHTObservation{F,A}) where {F,A<:Union{EHTVisibilityDatum, EHTVisibilityAmplitudeDatum}}
-    u = getdata(vis, :u)
-    v = getdata(vis, :v)
-    st = stations(vis)
-    times = getdata(vis, :time)
-    bandwidth = vis.bandwidth
-    frequency = vis.frequency
-    error = getdata(vis, :error)
-    baseline = getdata(vis, :baseline)
+function arrayconfig(vis::EHTObservation)
+    vis.config
+end
+
+function _arrayconfig(data, bandwidth, frequency)
+    u = getproperty(data, :u)
+    v = getproperty(data, :v)
+    times = getproperty(data, :time)
+    error = getproperty(data, :error)
+    baseline = getproperty(data, :baseline)
     uvsamples = StructArray{ArrayBaselineDatum}(time=times,
                                         u=u,
                                         v=v,
@@ -570,8 +605,138 @@ function arrayconfig(vis::EHTObservation{F,A}) where {F,A<:Union{EHTVisibilityDa
                                         error_real=error,
                                         error_imag=error
                                     )
-    return EHTArrayConfiguration(st, frequency, bandwidth, uvsamples)
+    return EHTArrayConfiguration(frequency, bandwidth, uvsamples)
 end
+
+const VisAmpDatum = Union{EHTVisibilityAmplitudeDatum, EHTVisibilityDatum}
+
+
+struct ScanTable{O<:Union{Observation,ArrayConfiguration}, T, S}
+    obs::O
+    times::T
+    scanind::S
+end
+
+Base.length(st::ScanTable) = length(st.times)
+stations(st::ScanTable) = stations(st.obs)
+
+struct Scan{T,I,S}
+    time::T
+    index::I
+    scan::S
+end
+
+Base.length(s::Scan) = length(s.scan)
+
+function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTClosurePhaseDatum}}
+    tri = scancp.scan.triangle
+    # organize the closure phase stations
+    ant1 = getindex.(tri, 1)
+    ant2 = getindex.(tri, 2)
+    ant3 = getindex.(tri, 3)
+    return ant1, ant2, ant3
+end
+
+function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTLogClosureAmplitudeDatum}}
+    tri = scancp.scan.quadrangle
+    # organize the closure phase stations
+    ant1 = getindex.(tri, 1)
+    ant2 = getindex.(tri, 2)
+    ant3 = getindex.(tri, 3)
+    ant4 = getindex.(tri, 4)
+    return ant1, ant2, ant3, ant4
+end
+
+function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTVisibilityDatum}}
+    bl = scancp.scan.baseline
+    # organize the closure phase stations
+    ant1 = first.(bl)
+    ant2 = last.(bl)
+    return ant1, ant2
+end
+
+function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTVisibilityAmplitudeDatum}}
+    bl = scancp.scan.baseline
+    # organize the closure phase stations
+    ant1 = first.(bl)
+    ant2 = last.(bl)
+    return ant1, ant2
+end
+
+
+function stations(s::Scan)
+    ants = baselines(s)
+    stat = unique(vcat(ants...))
+    return stat
+end
+
+function Base.show(io::IO, s::Scan)
+    println(io, "VLBI Scan")
+    println(io, "\tscan index: ", s.index)
+    println(io, "\tscan time:  ", s.time)
+    println(io, "\tstations: ", stations(s))
+end
+
+function Base.getindex(st::ScanTable, i::Int)
+    istart = st.scanind[i]
+    if i < length(st.scanind)
+        iend = st.scanind[i+1]-1
+    else
+        iend = length(st.obs)
+    end
+    return Scan(st.times[i], (i, istart, iend), @view st.obs.data[istart:iend])
+end
+
+function Base.getindex(st::ScanTable, I)
+    [getindex(st, i) for i in I]
+end
+
+function Base.getindex(scan::Scan, s::Symbol)
+    getproperty(scan.scan, s)
+end
+
+function Base.getindex(scan::Scan, i::Int)
+    scan.scan[i]
+end
+
+function Base.getindex(scan::Scan, i::AbstractVector{<:Union{Bool,Int}})
+    Scan(scan.time, scan.index, scan.scan[i])
+end
+
+
+Base.first(st::ScanTable) = st[1]
+
+"""
+    `scantable(obs)`
+Reorganizes the observation into a table of scans, where scan are defined by unique timestamps.
+To access the data you can use scalar indexing
+
+# Example
+
+```julia
+st = scantable(obs)
+# Grab the first scan
+scan1 = st[1]
+
+# Acess the detections in the scan
+scan1[1]
+
+# grab e.g. the baselines
+scan1[:baseline]
+```
+
+"""
+function scantable(obs)
+    times = obs[:time]
+    scantimes = unique(times)
+    scanind = Int[]
+    for t in scantimes
+        ind = findfirst(==(t), times)
+        append!(scanind, ind)
+    end
+    return ScanTable(obs, scantimes, scanind)
+end
+
 
 include(joinpath(@__DIR__, "io.jl"))
 include(joinpath(@__DIR__, "ehtim.jl"))

@@ -101,7 +101,7 @@ end
 end
 
 @inline function modelimage(::NotAnalytic, model, cache::AbstractCache, executor=SequentialEx())
-    img = cache.image
+    img = cache.img
     intensitymap!(img, model)
     newcache = update_cache(cache, img)
     return ModelImage(model, img, newcache)
@@ -110,6 +110,11 @@ end
 @inline function modelimage(img::IntensityMap, alg=NFFTAlg())
     cache = create_cache(alg, img)
     return ModelImage(img, img, cache)
+end
+
+@inline function modelimage(img::IntensityMap, cache::AbstractCache)
+    newcache = update_cache(cache, img)
+    return ModelImage(img, img, newcache)
 end
 
 """

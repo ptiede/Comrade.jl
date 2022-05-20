@@ -184,6 +184,8 @@ unit flux. If you want a different flux please use the `renomed`
 modifier.
 
 ## Fields
+$(FIELDS)
+
 ## Notes
 Unlike the Gaussian and Disk models this does not create the
 unit version. In fact, this model could have been created using

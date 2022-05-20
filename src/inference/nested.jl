@@ -1,10 +1,10 @@
 using .NestedSamplers
 
 
-samplertype(::Type{<:Nested}) = IsNested()
+samplertype(::Type{<:Nested}) = IsCube()
 
 function AbstractMCMC.sample(post::TransformedPosterior, sampler::Nested, args...; kwargs...)
-    ℓ(x) = logdensity(post, x)
+    ℓ(x) = logdensityof(post, x)
     model = NestedModel(ℓ, identity)
 
     samples, stats = sample(model, sampler, args...; chain_type=Array, kwargs...)

@@ -291,6 +291,16 @@ function χ²(m, data)
     return sum(abs2, last(residuals(m, data)))
 end
 
+function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityDatum}
+    u = getdata(damp, :u)
+    v = getdata(damp, :v)
+    vis = StructArray{Complex{Float64}}((damp[:visr], damp[:visi]))
+    mvis = visibilities(m, u, v)
+    res = (vis - mvis)./getdata(damp, :error)
+    re = real.(res)
+    im = imag.(res)
+    return hypot.(u, v), hcat(re, im)
+end
 
 function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityAmplitudeDatum}
     amp = getdata(damp, :amp)
@@ -304,41 +314,27 @@ end
 
 
 function residuals(m, dcp::EHTObservation{T, A}) where {T, A<:EHTClosurePhaseDatum}
-    u1 = getdata(dcp, :u1)
-    v1 = getdata(dcp, :v1)
-    u2 = getdata(dcp, :u2)
-    v2 = getdata(dcp, :v2)
-    u3 = getdata(dcp, :u3)
-    v3 = getdata(dcp, :v3)
     area = sqrt.(uvarea.(dcp.data))
     phase = getdata(dcp, :phase)
     error = getdata(dcp, :error)
 
-    mphase = closure_phases(m, u1, v1, u2, v2, u3, v3)
+    mphase = closure_phases(m, dcp.config)
     res = zeros(length(phase))
     for i in eachindex(res)
-        s,c  = sincos(phase[i] - mphase[i])
-        dθ = atan(s,c)
-        res[i] = dθ/error[i]
+        #s,c  = sincos(phase[i] - mphase[i])
+        #dθ = atan(s,c)
+        res[i] = abs(cis(phase[i]) - cis(mphase[i]))/error[i]
     end
 return area, res
 end
 
 
 function residuals(m, dlca::EHTObservation{T, A}) where {T, A<:EHTLogClosureAmplitudeDatum}
-    u1 = getdata(dlca, :u1)
-    v1 = getdata(dlca, :v1)
-    u2 = getdata(dlca, :u2)
-    v2 = getdata(dlca, :v2)
-    u3 = getdata(dlca, :u3)
-    v3 = getdata(dlca, :v3)
-    u4 = getdata(dlca, :u4)
-    v4 = getdata(dlca, :v4)
     area = sqrt.(uvarea.(dlca.data))
     phase = getdata(dlca, :amp)
     error = getdata(dlca, :error)
 
-    mphase = logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
+    mphase = logclosure_amplitudes(m, dlca.config)
     res = (phase- mphase)./error
     return area, res
 end

@@ -2,12 +2,12 @@ using .GalacticOptim
 
 function GalacticOptim.OptimizationFunction(post::Posterior, args...; kwargs...)
     tpost = asflat(post)
-    ℓ(x,p) = -logdensity(tpost, x)
+    ℓ(x,p) = -logdensityof(tpost, x)
     return OptimizationFunction(ℓ, args...; kwargs...), tpost.transform
 end
 
 function GalacticOptim.OptimizationFunction(post::TransformedPosterior, args...; kwargs...)
-    ℓ(x,p) = -logdensity(post, x)
+    ℓ(x,p) = -logdensityof(post, x)
     return OptimizationFunction(ℓ, args...; kwargs...), post.transform
 end
 
@@ -20,7 +20,7 @@ will transform the solution to parameter space, and the return will be
 a tuple with the galactic optim solution in the first element and the optimum
 location in model space in the second argument
 """
-function GalacticOptim.solve(prob::OptimizationProblem, opt, transform::Union{Nothing, HypercubeTransform.AbstractHypercubeTransform, HypercubeTransform.TransformVariables.AbstractTransform}, args...; kwargs...)
+function GalacticOptim.solve(prob::OptimizationProblem, opt, transform::Union{Nothing, HypercubeTransform.AbstractHypercubeTransform, HypercubeTransform.TransformVariables.AbstractTransform, HypercubeTransform.NamedFlatTransform}, args...; kwargs...)
     sol = solve(prob, opt, args...; kwargs...)
     if isnothing(transform)
         return sol

@@ -77,7 +77,7 @@ post = Posterior(lklhd, prior, model)
 # This constructs a posterior density that can be evaluated by calling `logdensity`.
 # For example
 
-logdensity(post, (radius = μas2rad(20.0),
+logdensityof(post, (radius = μas2rad(20.0),
                   width = μas2rad(10.0),
                   α = 0.3,
                   β = 0.3,
