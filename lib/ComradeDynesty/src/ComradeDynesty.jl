@@ -1,9 +1,11 @@
-using .Dynesty
+module ComradeDynesty
 
+using Comrade
+using Dynesty
 
-samplertype(::Type{<:NestedSampler}) = IsCube()
+Comrade.samplertype(::Type{<:NestedSampler}) = IsCube()
 
-function AbstractMCMC.sample(post::TransformedPosterior, sampler::NestedSampler, args...; kwargs...)
+function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::NestedSampler, args...; kwargs...)
     ℓ(x) = logdensityof(post, x)
     kw = delete!(Dict(kwargs), :init_params)
     res = sample(ℓ, identity, sampler, args...; kw...)
@@ -15,4 +17,7 @@ function AbstractMCMC.sample(post::TransformedPosterior, sampler::NestedSampler,
              weights = weights,
             ) |> TupleVector
     return chain, stats
+end
+
+
 end
