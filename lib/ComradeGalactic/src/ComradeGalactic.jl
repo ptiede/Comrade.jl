@@ -3,11 +3,11 @@ module ComradeGalactic
 using Comrade
 using GalacticOptim
 
-function GalacticOptim.OptimizationFunction(post::Posterior, args...; kwargs...)
+function GalacticOptim.OptimizationFunction(post::Comrade.Posterior, args...; kwargs...)
     throw("Transform the posterior first using `asflat` or `ascube`")
 end
 
-function GalacticOptim.OptimizationFunction(post::TransformedPosterior, args...; kwargs...)
+function GalacticOptim.OptimizationFunction(post::Comrade.TransformedPosterior, args...; kwargs...)
     ℓ(x,p) = -logdensityof(post, x)
     return OptimizationFunction(ℓ, args...; kwargs...)
 end

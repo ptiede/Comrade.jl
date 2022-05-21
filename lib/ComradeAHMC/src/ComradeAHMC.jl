@@ -5,6 +5,7 @@ using AbstractMCMC
 using AdvancedHMC
 using Comrade
 using TupleVectors
+using ArgCheck: @argcheck
 
 export sample, AHMC
 
@@ -19,7 +20,7 @@ Base.@kwdef struct AHMC{S,I,P,T,A,D}
     autodiff::D = AD.ForwardDiffBackend()
 end
 
-Comrade.samplertype(::Type{<:HMC}) = IsFlat()
+Comrade.samplertype(::Type{<:AHMC}) = Comrade.IsFlat()
 
 function _initialize_hmc(tpost::Comrade.TransformedPosterior, init_params, nchains)
     isnothing(init_params) && return inverse.(Ref(tpost.transform), rand(tpost.lpost.prior, nchains))
@@ -30,7 +31,7 @@ end
 
 
 function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior,
-                             sampler::HMC, parallel::AbstractMCMC.AbstractMCMCEnsemble,
+                             sampler::AHMC, parallel::AbstractMCMC.AbstractMCMCEnsemble,
                              nsamples, nchains, args...;
                              init_params=nothing, kwargs...
                              )
@@ -61,7 +62,7 @@ function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior,
 
 end
 
-function AbstractMCMC.sample(tpost::TransformedPosterior, sampler::HMC, nsamples, args...;
+function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior, sampler::AHMC, nsamples, args...;
                              init_params=nothing,
                              kwargs...)
     ℓ(x) = logdensityof(tpost, x)

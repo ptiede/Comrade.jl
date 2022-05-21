@@ -13,6 +13,7 @@ struct NoDeriv end
 export sample
 
 
+samplertype(::Type) = ArgumentError("samplertype not specified")
 
 include(joinpath(@__DIR__, "pullbacks.jl"))
 

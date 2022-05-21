@@ -3,6 +3,7 @@ module ComradeAdaptMCMC
 using AdaptiveMCMC
 using Comrade
 using TupleVectors
+using AbstractMCMC
 
 export AdaptMCMC
 
@@ -15,10 +16,10 @@ Base.@kwdef struct AdaptMCMC
     all_levels::Bool = false
 end
 
-Comrade.samplertype(::Type{<:AdaptMCMC}) = IsCube()
+Comrade.samplertype(::Type{<:AdaptMCMC}) = Comrade.IsCube()
 
-function AbstractMCMC.sample(post::TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; init_params=nothing, kwargs...)
-    ℓ(x) = logdensityof(post, x)
+function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; init_params=nothing, kwargs...)
+    ℓ = logdensityof(post)
     function lpr(xx)
         for x in xx
             (x > 1.0 || x < 0.0) && return -Inf

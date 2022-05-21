@@ -4,8 +4,10 @@ authors = ["Paul Tiede <ptiede91@gmail.com> and contributors"]
 version = "0.1.0"
 
 [deps]
-AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
+AbstractDifferentiation = "c29ec348-61ec-40c8-8164-b8c60e9d9f3d"
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
+AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
+ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 TupleVectors = "615932cf-77b6-4358-adcd-5b7eba981d7e"
 
@@ -15,7 +17,6 @@ AdvancedHMC = "0.3"
 Comrade = "0.3"
 TupleVectors = "0.1"
 julia = "1.6"
-
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

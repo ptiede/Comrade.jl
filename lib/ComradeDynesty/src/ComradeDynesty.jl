@@ -1,10 +1,16 @@
 module ComradeDynesty
 
 using Comrade
+
+using AbstractMCMC
 using Dynesty
 using TupleVectors
+using Reexport
 
-Comrade.samplertype(::Type{<:NestedSampler}) = IsCube()
+@reexport Dynesty
+
+
+Comrade.samplertype(::Type{<:NestedSampler}) = Comrade.IsCube()
 
 function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::NestedSampler, args...; kwargs...)
     ℓ(x) = logdensityof(post, x)

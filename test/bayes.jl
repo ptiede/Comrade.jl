@@ -2,7 +2,6 @@ using Distributions
 using AdvancedHMC
 using Pathfinder
 using GalacticOptim
-using NestedSamplers
 using BlackBoxOptim
 using StatsBase
 using Plots
@@ -43,6 +42,8 @@ using Optim
             )
 
     post = Posterior(lklhd, prior, model)
+    prior_sample(post, 1)
+    prior_sample(post, 2)
     tpostf = asflat(post)
     tpostc = ascube(post)
     tpost = Comrade.flatten(post)
