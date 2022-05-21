@@ -2,6 +2,7 @@ module ComradeAdaptMCMC
 
 using AdaptiveMCMC
 using Comrade
+using TupleVectors
 
 export AdaptMCMC
 

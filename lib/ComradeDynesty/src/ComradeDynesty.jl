@@ -2,6 +2,7 @@ module ComradeDynesty
 
 using Comrade
 using Dynesty
+using TupleVectors
 
 Comrade.samplertype(::Type{<:NestedSampler}) = IsCube()
 
