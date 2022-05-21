@@ -1,4 +1,9 @@
-using .AdaptiveMCMC
+module ComradeAdaptMCMC
+
+using AdaptiveMCMC
+using Comrade
+
+export AdaptMCMC
 
 Base.@kwdef struct AdaptMCMC
     ntemp::Int
@@ -9,7 +14,7 @@ Base.@kwdef struct AdaptMCMC
     all_levels::Bool = false
 end
 
-samplertype(::Type{<:AdaptMCMC}) = IsCube()
+Comrade.samplertype(::Type{<:AdaptMCMC}) = IsCube()
 
 function AbstractMCMC.sample(post::TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; init_params=nothing, kwargs...)
     ℓ(x) = logdensityof(post, x)
@@ -40,4 +45,7 @@ function AbstractMCMC.sample(post::TransformedPosterior, sampler::AdaptMCMC, nsa
     chain = transform.(Ref(post), eachcol(apt.X)) |> TupleVector
     stats = (logl = apt.D, state = apt.R, accexp = apt.accRWM, accswp=apt.accSW)
     return chain, stats
+end
+
+
 end
