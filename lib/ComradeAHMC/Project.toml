@@ -1,0 +1,24 @@
+name = "ComradeAHMC"
+uuid = "a4336a5c-78bc-4363-8a90-ce3fa9d3abe4"
+authors = ["Paul Tiede <ptiede91@gmail.com> and contributors"]
+version = "0.1.0"
+
+[deps]
+AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
+AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
+Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+TupleVectors = "615932cf-77b6-4358-adcd-5b7eba981d7e"
+
+[compat]
+AbstractMCMC = "3,4"
+AdvancedHMC = "0.3"
+Comrade = "0.3"
+TupleVectors = "0.1"
+julia = "1.6"
+
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

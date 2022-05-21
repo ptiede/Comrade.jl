@@ -14,7 +14,7 @@ export sample
 
 
 
-
+include(joinpath(@__DIR__, "pullbacks.jl"))
 
 function AbstractMCMC.sample(post::Posterior, sampler::S, args...; init_params=nothing, kwargs...) where {S}
     return _sample(samplertype(S), post, sampler, args...; init_params, kwargs...)
