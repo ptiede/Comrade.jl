@@ -2,6 +2,11 @@ module ComradeGalactic
 
 using Comrade
 using GalacticOptim
+using Reexport
+
+@reexport GalacticOptim
+
+
 
 function GalacticOptim.OptimizationFunction(post::Comrade.Posterior, args...; kwargs...)
     throw("Transform the posterior first using `asflat` or `ascube`")
