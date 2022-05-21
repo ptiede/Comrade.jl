@@ -5,11 +5,8 @@ using KeywordCalls
 import Statistics
 import Distributions as Dists
 
-export Rice, CPVonMises, CPNormal, CMvNormal, AmpNormal
+export CPVonMises, CPNormal, CMvNormal, AmpNormal
 
-@parameterized Rice(ν, σ) ≃ Lebesgue(ℝ₊)
-
-@kwstruct Rice(ν, σ)
 
 @parameterized ComplexNormal(μ, σ)
 @kwstruct ComplexNormal(μ, σ)
@@ -45,21 +42,6 @@ function Base.rand(rng::AbstractRNG, T::Type, d::ComplexNormal{(:μ, :τ)})
     return x1 + 1im*x2
 end
 
-function MeasureBase.logdensity_def(d::Rice{(:ν, :σ)}, x)
-    li0 = log(besselix(0, x*d.ν/d.σ^2)) + abs(x*d.ν/d.σ^2)
-    log(x/d.σ^2) + li0 - (x^2 + d.ν^2)/(2*d.σ^2)
-end
-
-function Base.rand(rng::AbstractRNG, T::Type, d::Rice{(:ν, :σ)})
-    x1 = randn(rng, T)*d.σ + d.ν
-    x2 = randn(rng, T)*d.σ
-    return hypot(x1,x2)
-end
-
-#### Statistics
-L12(x) = exp(x/2)*( (1-x)*besseli(0,-x/2) - x*besseli(1,-x/2) )
-Statistics.mean(d::Rice{(:ν,:σ)}) = d.σ*sqrt(π/2)*L12(-0.5*(d.ν/(d.σ))^2)
-Statistics.var(d::Rice{(:ν, :σ)}) = 2*d.σ^2 + d.ν^2 - π*d.σ^2/2*L12(-0.5*(d.ν/(d.σ))^2)^2
 
 @parameterized CPVonMises(μ, κ)
 
