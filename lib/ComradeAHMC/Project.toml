@@ -9,6 +9,8 @@ AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
 AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
 ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+HypercubeTransform = "9ec9aee3-0fd3-44c2-8e61-a50acc66f3c8"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 TupleVectors = "615932cf-77b6-4358-adcd-5b7eba981d7e"
 
 [compat]

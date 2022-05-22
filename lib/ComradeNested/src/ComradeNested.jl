@@ -2,11 +2,10 @@ module ComradeNested
 
 using Comrade
 using AbstractMCMC
-using NestedSamplers
 using TupleVectors
 using Reexport
 
-@reexport NestedSamplers
+@reexport using NestedSamplers
 
 Comrade.samplertype(::Type{<:Nested}) = Comrade.IsCube()
 

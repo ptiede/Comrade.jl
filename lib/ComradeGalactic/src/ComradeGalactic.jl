@@ -1,10 +1,9 @@
 module ComradeGalactic
 
 using Comrade
-using GalacticOptim
 using Reexport
 
-@reexport GalacticOptim
+@reexport using GalacticOptim
 
 
 

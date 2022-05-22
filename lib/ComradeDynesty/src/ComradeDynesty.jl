@@ -3,11 +3,10 @@ module ComradeDynesty
 using Comrade
 
 using AbstractMCMC
-using Dynesty
 using TupleVectors
 using Reexport
 
-@reexport Dynesty
+@reexport using Dynesty
 
 
 Comrade.samplertype(::Type{<:NestedSampler}) = Comrade.IsCube()

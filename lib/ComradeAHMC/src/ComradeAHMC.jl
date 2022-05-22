@@ -2,7 +2,8 @@ module ComradeAHMC
 
 using AbstractDifferentiation
 using AbstractMCMC
-using AdvancedHMC
+using Reexport
+@reexport using AdvancedHMC
 using Comrade
 using TupleVectors
 using ArgCheck: @argcheck
@@ -23,7 +24,7 @@ end
 Comrade.samplertype(::Type{<:AHMC}) = Comrade.IsFlat()
 
 function _initialize_hmc(tpost::Comrade.TransformedPosterior, init_params, nchains)
-    isnothing(init_params) && return inverse.(Ref(tpost.transform), rand(tpost.lpost.prior, nchains))
+    isnothing(init_params) && return Comrade.HypercubeTransform.inverse.(Ref(tpost.transform), rand(tpost.lpost.prior, nchains))
     @argcheck length(init_params) == nchains
     return inverse.(Ref(tpost), init_params)
 end
@@ -36,9 +37,9 @@ function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior,
                              init_params=nothing, kwargs...
                              )
 
-    ℓ(x) = logdensityof(tpost, x)
+    ℓ = logdensityof(tpost, x)
 
-    ∇ℓ = make_pullback(ℓ, sampler.autodiff)
+    ∇ℓ = Comrade.make_pullback(ℓ, sampler.autodiff)
     θ0 = _initialize_hmc(tpost, init_params, nchains)
 
 
@@ -65,16 +66,16 @@ end
 function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior, sampler::AHMC, nsamples, args...;
                              init_params=nothing,
                              kwargs...)
-    ℓ(x) = logdensityof(tpost, x)
+    ℓ = logdensityof(tpost)
 
-    ∇ℓ = make_pullback(ℓ, sampler.autodiff)
+    ∇ℓ = Comrade.make_pullback(ℓ, sampler.autodiff)
 
     p0 = init_params
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from random"
         p0 = transform(tpost.transform, rand(tpost.prior))
     end
-    θ0 = HypercubeTransform.inverse(tpost, p0)
+    θ0 = Comrade.HypercubeTransform.inverse(tpost, p0)
     model = AdvancedHMC.DifferentiableDensityModel(ℓ, ∇ℓ)
     metric = sampler.metric
     # This is a hack to get a good initial step size

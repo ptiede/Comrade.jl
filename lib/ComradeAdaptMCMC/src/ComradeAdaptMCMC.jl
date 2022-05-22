@@ -33,7 +33,7 @@ function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::AdaptM
         θ0 = transform(tpost, rand(tpost.prior))
     end
 
-    apt = adaptive_rwm(HypercubeTransform.inverse(post, θ0), ℓ, nsamples;
+    apt = adaptive_rwm(Comrade.HypercubeTransform.inverse(post, θ0), ℓ, nsamples;
                        algorithm = sampler.algorithm,
                        b = burnin,
                        fulladapt=sampler.fulladapt,
@@ -41,7 +41,8 @@ function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::AdaptM
                        acc_sw = sampler.acc_sw,
                        log_pr = lpr,
                        all_levels=sampler.all_levels,
-                       swaps = sampler.swap
+                       swaps = sampler.swap,
+                       kwargs...
                        )
 
     chain = transform.(Ref(post), eachcol(apt.X)) |> TupleVector
