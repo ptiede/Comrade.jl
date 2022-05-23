@@ -10,7 +10,7 @@ using Reexport
 Comrade.samplertype(::Type{<:Nested}) = Comrade.IsCube()
 
 function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::Nested, args...; kwargs...)
-    ℓ(x) = logdensityof(post, x)
+    ℓ = logdensityof(post)
     model = NestedModel(ℓ, identity)
 
     samples, stats = sample(model, sampler, args...; chain_type=Array, kwargs...)
