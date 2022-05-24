@@ -15,13 +15,13 @@ function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::Nested
     ℓ(x) = logdensityof(post, x)
     kw = delete!(Dict(kwargs), :init_params)
     res = sample(ℓ, identity, sampler, args...; kw...)
-    samples, weights = res["samples"], exp.(res["logwt"] .- res["logz"][end])
-    chain = transform.(Ref(post), eachrow(samples)) |> TupleVector
-    stats = (logl = res["logl"],
+    samples, weights = res["samples"].T, exp.(res["logwt"].T .- res["logz"][end])
+    chain = transform.(Ref(post), eachcol(samples)) |> TupleVector
+    stats = (logl = res["logl"].T,
              logz = res["logz"][end],
              logzerr = res["logz"][end],
              weights = weights,
-            ) |> TupleVector
+            )
     return chain, stats
 end
 

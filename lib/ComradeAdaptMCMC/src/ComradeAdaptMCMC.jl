@@ -30,7 +30,7 @@ function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::AdaptM
     θ0 = init_params
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from random"
-        θ0 = transform(tpost, rand(tpost.prior))
+        θ0 = transform(post, rand(post.lpost.prior))
     end
 
     apt = adaptive_rwm(Comrade.HypercubeTransform.inverse(post, θ0), ℓ, nsamples;
@@ -45,9 +45,13 @@ function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::AdaptM
                        kwargs...
                        )
 
-    chain = transform.(Ref(post), eachcol(apt.X)) |> TupleVector
     stats = (logl = apt.D, state = apt.R, accexp = apt.accRWM, accswp=apt.accSW)
-    return chain, stats
+    if sampler.all_levels
+        chains = Tuple(TupleVector(transform.(Ref(post), eachcol(apt.allX[i]))) for i in eachindex(apt.allX))
+    else
+        chains = transform.(Ref(post), eachcol(apt.X)) |> TupleVector
+    end
+    return chains, stats
 end
 
 

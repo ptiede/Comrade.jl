@@ -5,12 +5,18 @@ using LinearAlgebra
 struct RadioLikelihood{T,A} <: MeasureBase.AbstractMeasure
     lklhds::T
     ac::A
-    function RadioLikelihood(data...)
-        ls = Tuple(map(makelikelihood, data))
-        ac = arrayconfig(first(data))
-        new{typeof(ls), typeof(ac)}(ls, ac)
-    end
 end
+
+function RadioLikelihood(data::EHTObservation...)
+    ls = Tuple(map(makelikelihood, data))
+    ac = arrayconfig(first(data))
+    RadioLikelihood{typeof(ls), typeof(ac)}(ls, ac)
+end
+
+function RadioLikelihood(data::Likelihood...)
+    return RadioLikelihood{typeof(data), Nothing}(data, nothing)
+end
+
 
 function Base.show(io::IO, d::RadioLikelihood{T}) where {T}
     println(io, "RadioLikelihood{$T}")
@@ -23,7 +29,7 @@ phase(vis::AbstractArray{<:Complex}) = angle.(vis)
 
 
 
-function MeasureBase.logdensityof(d::RadioLikelihood, m)
+function MeasureBase.logdensityof(d::RadioLikelihood, m::ComradeBase.AbstractModel)
     ac = d.ac
     vis = visibilities(m, ac)
     return MeasureBase.logdensityof(d, vis)
@@ -32,11 +38,19 @@ end
 function MeasureBase.logdensityof(d::RadioLikelihood, vis::AbstractArray)
     # We use a for loop here since Zygote plays nice with this
     acc = logdensityof(first(d.lklhds), vis)
-    @inbounds for i in 2:length(d.lklhds)
-        acc += logdensityof(d.lklhds[i], vis)
+    @inbounds for l in d.lklhds[begin+1:end]
+        acc += logdensityof(l, vis)
     end
     return acc
 end
+
+#function MeasureBase.logdensityof(d::RadioLikelihood, m::ComradeBase.AbstractModel)
+#    acc = logdensityof(first(d.lklhds), m)
+#    @inbounds for i in 2:length(d.lklhds)
+#        acc += logdensityof(d.lklhds[i], m)
+#    end
+#    return acc
+#end
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
     errinv = inv.(data[:error])
