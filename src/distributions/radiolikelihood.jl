@@ -2,8 +2,29 @@ using MeasureTheory
 export RadioLikelihood, logdensityof, MultiRadioLikelihood
 using LinearAlgebra
 
+
+struct RadioLikelihood{T,A} <: MeasureBase.AbstractMeasure
+    lklhds::T
+    ac::A
+end
+
+
+struct MultiRadioLikelihood{L} <: MeasureBase.AbstractMeasure
+    lklhds::L
+end
+
 """
-    $(TYPEDEF)
+    `MultiRadioLikelihood(lklhd1, lklhd2, ...)`
+Combines multiple likelihoods into one object that is useful for fitting multiple days/frequencies.
+"""
+MultiRadioLikelihood(lklhds::RadioLikelihood...) = MultiRadioLikelihood(lklhds)
+
+function MeasureBase.logdensityof(lklhds::MultiRadioLikelihood, m)
+    sum(x->logdensityof(x, m), lklhds.lklhds)
+end
+
+"""
+    `RadioLikelihood(data1, data2, ...)`
 Forms a radio likelihood from a set of data products. These data products must share
 the same array data/configuration. If you want to form a likelihood from multiple arrays
 such as when fitting different wavelengths or days, you can combine them using
@@ -16,25 +37,6 @@ lklhd2 = RadioLikelihood(dcphase2, dlcamp2)
 lklhd = MultiRadioLikelihood(lklhd1, lklhd2)
 ```
 """
-struct RadioLikelihood{T,A} <: MeasureBase.AbstractMeasure
-    lklhds::T
-    ac::A
-end
-
-"""
-    $(TYPDEF)
-Combines multiple likelihoods into one object that is useful for fitting multiple days/frequencies.
-"""
-struct MultiRadioLikelihood{L} <: MeasureBase.AbstractMeasure
-    lklhds::L
-end
-
-MultiRadioLikelihood(lklhds::RadioLikelihood...) = MultiRadioLikelihood(lklhds)
-
-function MeasureBase.logdensityof(lklhds::MultiRadioLikelihood, m)
-    sum(x->logdensityof(x, m), lklhds.lklhds)
-end
-
 function RadioLikelihood(data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
