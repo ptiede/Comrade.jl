@@ -13,8 +13,8 @@ end
 
 MultiRadioLikelihood(lklhds::RadioLikelihood...) = MultiRadioLikelihood(lklhds)
 
-function logdensityof(lklhds::MultiRadioLikelihood, m)
-    sum(x->logdensityof(l, m), lklhds)
+function MeasureBase.logdensityof(lklhds::MultiRadioLikelihood, m)
+    sum(x->logdensityof(x, m), lklhds.lklhds)
 end
 
 function RadioLikelihood(data::EHTObservation...)
@@ -48,7 +48,7 @@ end
 function MeasureBase.logdensityof(d::RadioLikelihood, vis::AbstractArray)
     # We use a for loop here since Zygote plays nice with this
     acc = logdensityof(first(d.lklhds), vis)
-    @inbounds for l in @view(d.lklhds[begin+1:end])
+    @inbounds for l in d.lklhds[begin+1:end]
         acc += logdensityof(l, vis)
     end
     return acc
