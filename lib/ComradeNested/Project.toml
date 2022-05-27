@@ -11,7 +11,7 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 TupleVectors = "615932cf-77b6-4358-adcd-5b7eba981d7e"
 
 [compat]
-Comrade = "0.3"
+Comrade = "0.3,0.4"
 NestedSamplers = "0.8"
 TupleVectors = "0.1"
 

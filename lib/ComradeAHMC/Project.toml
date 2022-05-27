@@ -16,7 +16,7 @@ TupleVectors = "615932cf-77b6-4358-adcd-5b7eba981d7e"
 [compat]
 AbstractMCMC = "3,4"
 AdvancedHMC = "0.3"
-Comrade = "0.3"
+Comrade = "0.3,0.4"
 TupleVectors = "0.1"
 julia = "1.6"
 
