@@ -40,7 +40,7 @@ lklhd = MultiRadioLikelihood(lklhd1, lklhd2)
 function RadioLikelihood(data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
-    @argcheck acs[1] == acs[2]
+    #@argcheck acs[1] == acs[2]
     RadioLikelihood{typeof(ls), typeof(acs[1])}(ls, acs[1])
 end
 
