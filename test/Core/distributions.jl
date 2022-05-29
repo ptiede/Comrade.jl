@@ -2,18 +2,18 @@ using MeasureBase
 using Distributions
 
 @testset "distributions" begin
-    d = Rice(ν=2.0, σ=0.5)
-    logdensityof(d, 1.0)
+    # d = Rice(ν=2.0, σ=0.5)
+    # logdensityof(d, 1.0)
 
-    samples = [rand(d) for _ in 1:100_000]
-    ms = mean(samples)
-    vs = var(samples)
-    @test isapprox(ms, mean(d); atol=1e-2)
-    @test isapprox(vs, var(d); atol=1e-2)
+    # samples = [rand(d) for _ in 1:100_000]
+    # ms = mean(samples)
+    # vs = var(samples)
+    # @test isapprox(ms, mean(d); atol=1e-2)
+    # @test isapprox(vs, var(d); atol=1e-2)
 
-    dhsnr = Rice(ν=5.0, σ=1e-3)
-    μ = sqrt(dhsnr.ν^2 - dhsnr.σ^2)
-    @test isapprox(logdensityof(dhsnr, 4.9), logpdf(Normal(μ, dhsnr.σ), 4.9); atol=1e-1)
+    # dhsnr = Rice(ν=5.0, σ=1e-3)
+    # μ = sqrt(dhsnr.ν^2 - dhsnr.σ^2)
+    # @test isapprox(logdensityof(dhsnr, 4.9), logpdf(Normal(μ, dhsnr.σ), 4.9); atol=1e-1)
 
     dvm1 = CPVonMises(μ=0.0, σ=0.1)
     dvm2 = CPVonMises(μ=0.0, κ=1/0.1^2)
