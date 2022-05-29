@@ -1,4 +1,3 @@
-Pkg.build("PyCall")
 #println(PyCall.libpython)
 using Comrade
 using FFTW
