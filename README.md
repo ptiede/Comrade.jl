@@ -17,16 +17,13 @@ To install Comrade.jl you must use Julia's package manager. For example you can 
 ```julia
 add Comrade
 ```
+To perform inference i.e. parameter estimation you should look at the `lib` packages. 
 
 # Roadmap
 
 1. Settle on model interface
 2. Design a better data maniuplation interface and native uvfits reading (or spin up the EHTIM.jl package)
 2. ~Full gain~ and polarization implemented, including DTERM modeling ala DMC, and approximate methods such as pseudo-marginal, particle MCMC methods, or laplace approximations
-3. Include a trait the defines whether the model is image and visibility analytic, and have this pass through composite models 
-4. Write model adjoints when needed for additional speed (and define a may to define AD backends like Zygote, Enzyme, Diffractor, etc.)
-5. Hook up into PPL's?
-   - Already have something like this for Soss.jl at [ComradeSoss.jl](https://github.com/ptiede/ComradeSoss.jl)
-   - Add something for Turing and Gen?
-6. GPU support when its a good idea (maybe for gain solves?)
+3. Write model adjoints when needed for additional speed (and define a may to define AD backends like Zygote, Enzyme, Diffractor, etc.)
+4. GPU support when its a good idea (maybe for gain solves?)
 
