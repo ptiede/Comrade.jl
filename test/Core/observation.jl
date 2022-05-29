@@ -3,7 +3,7 @@
     println("ehtim:")
 
     load_ehtim()
-    obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "test_data.uvfits"))
+    obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../test_data.uvfits"))
     obs.add_scans()
     obsavg = obs.avg_coherent(0.0, scan_avg=true)
     obsavg.add_cphase(count="min")
