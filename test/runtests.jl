@@ -23,10 +23,10 @@ function activate_subpkg_env(subpkg)
 end
 
 # Now split depending on what kind of test we are doing
-if GROUP == "All" || GROUP == "CORE"
+if GROUP == "All" || GROUP == "Core"
     dev_subpkg("ComradeGalactic")
     @safetestset "CORE Comrade.jl" begin
-        include("Core/core.jl")
+        include(joinpath(@__DIR__, "Core/core.jl"))
     end
 else
     dev_subpkg(GROUP)
