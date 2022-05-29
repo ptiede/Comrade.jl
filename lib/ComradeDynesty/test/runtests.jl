@@ -16,7 +16,6 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
     chain, stats = sample(post, a2)
 
     cpost = ascube(post)
-    l0 = logdensityof(cpost, Comrade.HypercubeTransform.inverse(cpost, x0))
     xopt = chain[end]
     @test isapprox(xopt.f1/xopt.f2, 2.0, atol=1e-2)
     @test isapprox(xopt.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-3)
