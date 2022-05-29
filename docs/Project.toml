@@ -10,3 +10,6 @@ HypercubeTransform = "9ec9aee3-0fd3-44c2-8e61-a50acc66f3c8"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
 Pathfinder = "b1d3bc72-d0e7-4279-b92f-7fa5d6d2d454"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+
+[compat]
+Pathfinder = "0.4"
