@@ -29,6 +29,7 @@ using Tables
 # Write your package code here.
 
 @reexport using ComradeBase
+export AD
 using ComradeBase: visanalytic, imanalytic
 
 export SequentialEx, ThreadedEx
@@ -81,12 +82,12 @@ include("inference/inference.jl")
 include("calibration/gains.jl")
 
 function __init__()
-    @require AdvancedHMC="0bf59076-c3b1-5ca4-86bd-e02cd72cde3d" include("inference/advancedhmc.jl")
-    @require AdaptiveMCMC="717c3277-546c-407d-8270-09a39a0919a0" include("inference/adaptivemcmc.jl")
-    @require NestedSamplers="41ceaf6f-1696-4a54-9b49-2e7a9ec3782e" include("inference/nested.jl")
-    @require Dynesty="eb527566-0f3e-4aab-bb5f-9d2e403dba70" include("inference/dynesty.jl")
-    @require Pathfinder="b1d3bc72-d0e7-4279-b92f-7fa5d6d2d454" include("inference/pathfinder.jl")
-    @require GalacticOptim="a75be94c-b780-496d-a8a9-0878b188d577" include("inference/galacticoptim.jl")
+    # @require AdvancedHMC="0bf59076-c3b1-5ca4-86bd-e02cd72cde3d" include("inference/advancedhmc.jl")
+    # @require AdaptiveMCMC="717c3277-546c-407d-8270-09a39a0919a0" include("inference/adaptivemcmc.jl")
+    # @require NestedSamplers="41ceaf6f-1696-4a54-9b49-2e7a9ec3782e" include("inference/nested.jl")
+    # @require Dynesty="eb527566-0f3e-4aab-bb5f-9d2e403dba70" include("inference/dynesty.jl")
+    # @require Pathfinder="b1d3bc72-d0e7-4279-b92f-7fa5d6d2d454" include("inference/pathfinder.jl")
+    # @require GalacticOptim="a75be94c-b780-496d-a8a9-0878b188d577" include("inference/galacticoptim.jl")
 end
 
 end

@@ -13,19 +13,26 @@ struct NoDeriv end
 export sample
 
 
+samplertype(::Type) = ArgumentError("samplertype not specified")
 
-
+include(joinpath(@__DIR__, "pullbacks.jl"))
 
 function AbstractMCMC.sample(post::Posterior, sampler::S, args...; init_params=nothing, kwargs...) where {S}
-    return _sample(samplertype(S), post, sampler, args...; init_params, kwargs...)
+    θ0 = init_params
+    if isnothing(init_params)
+        θ0 = prior_sample(post)
+    end
+    return _sample(samplertype(S), post, sampler, args...; init_params=θ0, kwargs...)
 end
 
 function _sample(::IsFlat, post, sampler, args...; init_params, kwargs...)
     tpost = asflat(post)
-    return sample(tpost, sampler, args...; init_params, kwargs...)
+    θ0 = HypercubeTransform.inverse(tpost, init_params)
+    return sample(tpost, sampler, args...; init_params=θ0, kwargs...)
 end
 
 function _sample(::IsCube, post, sampler, args...; init_params, kwargs...)
     tpost = ascube(post)
-    return sample(tpost, sampler, args...; init_params, kwargs...)
+    θ0 = HypercubeTransform.inverse(tpost, init_params)
+    return sample(tpost, sampler, args...; init_params=θ0, kwargs...)
 end

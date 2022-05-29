@@ -236,16 +236,16 @@ function closure_designmat(scanlca::Scan{A,B,C}, scanvis) where {A,B,C<:StructAr
         av1 = antvis1[i]
         av2 = antvis2[i]
         # check leg 1
-        (((av1 == a1)&(av2 == a2)) | (av1 == a2)&(av2 == a1))&& (design_mat[j,i] = 1.0)
+        (((av1 == a1)&(av2 == a2)) || (av1 == a2)&(av2 == a1))&& (design_mat[j,i] = 1.0)
 
         #check leg 2
-        (((av1 == a3)&(av2 == a4)) | (av1 == a4)&(av2 == a3))&& (design_mat[j,i] = 1.0)
+        (((av1 == a3)&(av2 == a4)) || (av1 == a4)&(av2 == a3))&& (design_mat[j,i] = 1.0)
 
         #check leg 3
-        (((av1 == a1)&(av2 == a4)) | (av1 == a4)&(av2 == a1))&& (design_mat[j,i] = -1.0)
+        (((av1 == a1)&(av2 == a4)) || (av1 == a4)&(av2 == a1))&& (design_mat[j,i] = -1.0)
 
         #check leg 4
-        (((av1 == a2)&(av2 == a3)) | (av1 == a3)&(av2 == a2))&& (design_mat[j,i] = -1.0)
+        (((av1 == a2)&(av2 == a3)) || (av1 == a3)&(av2 == a2))&& (design_mat[j,i] = -1.0)
 
     end
     return design_mat

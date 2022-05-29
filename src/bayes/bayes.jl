@@ -1,4 +1,4 @@
-export Posterior, asflat, ascube, flatten, logdensity, transform, inverse, dimension
+export Posterior, prior_sample, asflat, ascube, flatten, logdensityof, transform, inverse, dimension
 
 import DensityInterface
 import ParameterHandling
@@ -39,6 +39,20 @@ function DensityInterface.logdensityof(post::Posterior, x)
 end
 
 """
+    $(SIGNATURES)
+Samples the prior distribution from the posterior `nsamples` times.
+
+Returns a Vector{NamedTuple} that can be used to initialize optimization and sample algorithms
+"""
+function prior_sample(post::Posterior, args...)
+    return rand(post.prior, args...)
+end
+
+function prior_sample(post::Posterior)
+    return rand(post.prior)
+end
+
+"""
     `$(TYPEDEF)`
 A transformed version of the posterior `lpost`. This is an internal type
 that an end user shouldn't have to directly construct.
@@ -55,6 +69,18 @@ struct TransformedPosterior{P<:Posterior,T}
     lpost::P
     transform::T
 end
+
+function prior_sample(tpost::TransformedPosterior, args...)
+    inv = Base.Fix1(HypercubeTransform.inverse, tpost)
+    map(inv, prior_sample(tpost.lpost, args...))
+end
+
+function prior_sample(tpost::TransformedPosterior)
+    inv = Base.Fix1(HypercubeTransform.inverse, post)
+    inv(prior_sample(tpost.lpost))
+end
+
+
 
 """
     transform(posterior::TransformedPosterior, x)
@@ -100,7 +126,7 @@ end
 end
 
 HypercubeTransform.dimension(post::TransformedPosterior) = dimension(post.transform)
-HypercubeTransform.dimension(post::Posterior) = length(first(ParameterHandling.flatten(rand(post.prior))))
+HypercubeTransform.dimension(post::Posterior) = dimension(asflat(post))
 
 """
     ascube(post::Posterior)
