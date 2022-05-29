@@ -25,7 +25,6 @@ end
 # Now split depending on what kind of test we are doing
 if GROUP == "All" || GROUP == "CORE"
     dev_subpkg("ComradeGalactic")
-    dev_subpkg("ComradeAHMC")
     @safetestset "CORE Comrade.jl" begin
         include("Core/core.jl")
     end
