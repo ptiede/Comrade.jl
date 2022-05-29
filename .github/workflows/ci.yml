@@ -12,11 +12,11 @@ jobs:
       matrix:
         group:
           - Core 
-          - ComradeAdaptMCMC
-          - ComradeAHMC
-          - ComradeDynesty
-          - ComradeGalactic
-          - ComradeNested
+          #- ComradeAdaptMCMC
+          #- ComradeAHMC
+          #- ComradeDynesty
+          #- ComradeGalactic
+          #- ComradeNested
         version:
           - '1.7'
         os:
