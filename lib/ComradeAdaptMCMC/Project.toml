@@ -1,0 +1,22 @@
+name = "ComradeAdaptMCMC"
+uuid = "5a6518a2-e6ab-4020-97b8-110ebf16b849"
+authors = ["Paul Tiede <ptiede91@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
+AdaptiveMCMC = "717c3277-546c-407d-8270-09a39a0919a0"
+Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+TupleVectors = "615932cf-77b6-4358-adcd-5b7eba981d7e"
+
+[compat]
+AdaptiveMCMC = "0.1"
+Comrade = "0.3,0.4"
+TupleVectors = "0.1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

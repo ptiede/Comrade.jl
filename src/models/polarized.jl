@@ -36,6 +36,14 @@ Computes the visibility in the stokes basis of the polarized model
     return StokesVector(si, sq, su, sv)
 end
 
+function visibilities(pimg::PolarizedModel, u, v)
+    si = visibilities(pimg.I, u, v)
+    sq = visibilities(pimg.Q, u, v)
+    su = visibilities(pimg.U, u, v)
+    sv = visibilities(pimg.V, u, v)
+    return StructArray{StokesVector{eltype(si)}}((si, sq, su, sv))
+end
+
 """
     $(SIGNATURES)
 Finds the polarized intensity map of the polarized model pmodel.
@@ -89,3 +97,5 @@ Computes the fractional linear polarization in the visibility domain
     I = visibility(pimg.I, u, v)
     return (Q+1im*U)/I
 end
+
+mbreve(pimg, u, v) = m̆(pimg, u, v)

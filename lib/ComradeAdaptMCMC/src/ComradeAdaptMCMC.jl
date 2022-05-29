@@ -1,4 +1,11 @@
-using .AdaptiveMCMC
+module ComradeAdaptMCMC
+
+using AdaptiveMCMC
+using Comrade
+using TupleVectors
+using AbstractMCMC
+
+export AdaptMCMC
 
 Base.@kwdef struct AdaptMCMC
     ntemp::Int
@@ -9,10 +16,10 @@ Base.@kwdef struct AdaptMCMC
     all_levels::Bool = false
 end
 
-samplertype(::Type{<:AdaptMCMC}) = IsCube()
+Comrade.samplertype(::Type{<:AdaptMCMC}) = Comrade.IsCube()
 
-function AbstractMCMC.sample(post::TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; init_params=nothing, kwargs...)
-    ℓ(x) = logdensityof(post, x)
+function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; init_params=nothing, kwargs...)
+    ℓ = logdensityof(post)
     function lpr(xx)
         for x in xx
             (x > 1.0 || x < 0.0) && return -Inf
@@ -23,10 +30,10 @@ function AbstractMCMC.sample(post::TransformedPosterior, sampler::AdaptMCMC, nsa
     θ0 = init_params
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from random"
-        θ0 = transform(tpost, rand(tpost.prior))
+        θ0 = prior_sample(post)
     end
 
-    apt = adaptive_rwm(HypercubeTransform.inverse(post, θ0), ℓ, nsamples;
+    apt = adaptive_rwm(θ0, ℓ, nsamples;
                        algorithm = sampler.algorithm,
                        b = burnin,
                        fulladapt=sampler.fulladapt,
@@ -34,10 +41,18 @@ function AbstractMCMC.sample(post::TransformedPosterior, sampler::AdaptMCMC, nsa
                        acc_sw = sampler.acc_sw,
                        log_pr = lpr,
                        all_levels=sampler.all_levels,
-                       swaps = sampler.swap
+                       swaps = sampler.swap,
+                       kwargs...
                        )
 
-    chain = transform.(Ref(post), eachcol(apt.X)) |> TupleVector
     stats = (logl = apt.D, state = apt.R, accexp = apt.accRWM, accswp=apt.accSW)
-    return chain, stats
+    if sampler.all_levels
+        chains = Tuple(TupleVector(transform.(Ref(post), eachcol(apt.allX[i]))) for i in eachindex(apt.allX))
+    else
+        chains = transform.(Ref(post), eachcol(apt.X)) |> TupleVector
+    end
+    return chains, stats
+end
+
+
 end

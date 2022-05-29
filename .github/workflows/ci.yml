@@ -6,15 +6,21 @@ jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.group == 'Downstream'}}
     strategy:
       fail-fast: false
       matrix:
+        group:
+          - Core 
+          - ComradeAdaptMCMC
+          - ComradeAHMC
+          - ComradeDynesty
+          - ComradeGalactic
+          - ComradeNested
         version:
-          - '1.6'
           - '1.7'
         os:
           - ubuntu-latest
-          - macOS-latest
         arch:
           - x64
         python-version:
@@ -55,6 +61,8 @@ jobs:
             ${{ runner.os }}-
 
       - uses: julia-actions/julia-runtest@v1
+        env:
+          GROUP: ${{ matrix.group }}
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v1
         with:
@@ -75,7 +83,7 @@ jobs:
 
       - uses: julia-actions/setup-julia@v1
         with:
-          version: '1.7'
+          version: '1'
       - run: |
           julia --project=docs -e '
             using Pkg

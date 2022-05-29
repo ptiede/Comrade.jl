@@ -1,0 +1,19 @@
+name = "ComradeGalactic"
+uuid = "47701775-187b-49a4-b924-794639d71cdc"
+authors = ["Paul Tiede <ptiede91@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+GalacticOptim = "a75be94c-b780-496d-a8a9-0878b188d577"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+
+[compat]
+Comrade = "0.3,0.4"
+GalacticOptim = "3"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

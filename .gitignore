@@ -13,3 +13,8 @@ docs/src/examples/nonanalytic.md
 docs/src/examples/data.md
 LocalPreferences.toml
 examples/Manifest.toml
+lib/ComradeAHMC/Manifest.toml
+lib/ComradeAdaptMCMC/Manifest.toml
+lib/ComradeDynesty/Manifest.toml
+lib/ComradeGalactic/Manifest.toml
+lib/ComradeNested/Manifest.toml

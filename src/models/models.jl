@@ -123,8 +123,7 @@ end
 
 
 @inline function _visibilities(m, u::AbstractArray, v::AbstractArray)
-    f(x,y) = visibility(m, x, y)
-    return map(f, u, v)
+    return visibility.(Ref(m), u, v)
 end
 
 
@@ -189,8 +188,7 @@ function _bispectra(::IsAnalytic, m,
                     u2::AbstractArray, v2::AbstractArray,
                     u3::AbstractArray, v3::AbstractArray
                    )
-    f(x1,y1,x2,y2,x3,y3) = bispectrum(m, x1, y1, x2, y2, x3, y3)
-    return map(f, u1, v1, u2, v2, u3, v3)
+    return bispectrum.(Ref(m), u1, v1, u2, v2, u3, v3)
 end
 
 function _bispectra(::NotAnalytic, m,
@@ -238,8 +236,7 @@ end
                         u2::AbstractArray, v2::AbstractArray,
                         u3::AbstractArray, v3::AbstractArray
                        )
-    f(x1,y1,x2,y2,x3,y3) = closure_phase(m, x1, y1, x2, y2, x3, y3)
-    return map(f, u1, v1, u2, v2, u3, v3)
+    return closure_phase.(Ref(m), u1, v1, u2, v2, u3, v3)
 end
 
 function _closure_phases(::NotAnalytic, m,
@@ -288,8 +285,7 @@ end
                         u3::AbstractArray, v3::AbstractArray,
                         u4::AbstractArray, v4::AbstractArray)
 
-    f(x1,y1,x2,y2,x3,y3,x4,y4) = logclosure_amplitude(m, x1, y1, x2, y2, x3, y3, x4, y4)
-    return map(f, u1, v1, u2, v2, u3, v3, u4, v4)
+    return logclosure_amplitude.(Ref(m), u1, v1, u2, v2, u3, v3, u4, v4)
 end
 
 @inline function _logclosure_amplitudes(::NotAnalytic, m,

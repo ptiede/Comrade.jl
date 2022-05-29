@@ -62,13 +62,13 @@ function _frule_vis(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:
     # Compute the fft
     buffer = similar(m.cache.img, S)
     buffer .= ForwardDiff.value.(m.cache.img)
-    xtil = p*buffer
+    xtil = p*(buffer .+ 0.0im)
     out = similar(buffer, Complex{ForwardDiff.Dual{T,V,P}})
     # Now take the deriv of nuft
     ndxs = ForwardDiff.npartials(first(m.cache.img))
     dxtils = ntuple(ndxs) do n
         buffer .= ForwardDiff.partials.(m.cache.img, n)
-        p * buffer
+        p * (buffer .+ 0.0im)
     end
     out = similar(xtil, Complex{ForwardDiff.Dual{T,V,P}})
     for i in eachindex(out)
