@@ -30,10 +30,10 @@ function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::AdaptM
     θ0 = init_params
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from random"
-        θ0 = transform(post, rand(post.lpost.prior))
+        θ0 = prior_sample(post)
     end
 
-    apt = adaptive_rwm(Comrade.HypercubeTransform.inverse(post, θ0), ℓ, nsamples;
+    apt = adaptive_rwm(θ0, ℓ, nsamples;
                        algorithm = sampler.algorithm,
                        b = burnin,
                        fulladapt=sampler.fulladapt,

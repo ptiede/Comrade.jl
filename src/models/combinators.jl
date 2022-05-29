@@ -70,6 +70,19 @@ Base.:-(m1, m2) = AddModel(m1, -1.0*m2)
 add(m1::M1, m2::M2) where {M1<:AbstractModel, M2<:AbstractModel} = AddModel(m1, m2)
 
 
+# struct NModel{V<:AbstractVector, M<:AbstractModel}
+#     m::V{M}
+# end
+
+# function visibilities(m::NModel, u, v)
+#     f(x) = visibilities(x, u, v)
+#     return sum(f, m.m)
+# end
+
+# function intensitymap(m::NModel, fov, dims)
+
+# end
+
 
 """
     $(SIGNATURES)

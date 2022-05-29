@@ -26,7 +26,7 @@ Comrade.samplertype(::Type{<:AHMC}) = Comrade.IsFlat()
 function _initialize_hmc(tpost::Comrade.TransformedPosterior, init_params, nchains)
     isnothing(init_params) && return Comrade.HypercubeTransform.inverse.(Ref(tpost.transform), rand(tpost.lpost.prior, nchains))
     @argcheck length(init_params) == nchains
-    return inverse.(Ref(tpost), init_params)
+    return Comrade.HypercubeTransform.inverse.(Ref(tpost), init_params)
 end
 
 

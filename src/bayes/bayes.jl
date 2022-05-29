@@ -44,8 +44,12 @@ Samples the prior distribution from the posterior `nsamples` times.
 
 Returns a Vector{NamedTuple} that can be used to initialize optimization and sample algorithms
 """
-function prior_sample(post, nsamples::Int = 1)
-    return rand(post.prior, nsamples)
+function prior_sample(post::Posterior, args...)
+    return rand(post.prior, args...)
+end
+
+function prior_sample(post::Posterior)
+    return rand(post.prior)
 end
 
 """
@@ -65,6 +69,18 @@ struct TransformedPosterior{P<:Posterior,T}
     lpost::P
     transform::T
 end
+
+function prior_sample(tpost::TransformedPosterior, args...)
+    inv = Base.Fix1(HypercubeTransform.inverse, post)
+    map(inv, prior_sample(tpost.lpost, args...))
+end
+
+function prior_sample(tpost::TransformedPosterior)
+    inv = Base.Fix1(HypercubeTransform.inverse, post)
+    inv(prior_sample(tpost.lpost))
+end
+
+
 
 """
     transform(posterior::TransformedPosterior, x)

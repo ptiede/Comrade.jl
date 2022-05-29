@@ -1,5 +1,4 @@
 function load_data()
-    load_ehtim()
     obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "test_data.uvfits"))
     obs.add_scans()
     obsavg = obs.avg_coherent(0.0, scan_avg=true)
@@ -14,7 +13,7 @@ function load_data()
     lcamp = extract_lcamp(obsm)
     cphase = extract_cphase(obsm, cut_trivial=true)
 
-    return vis, amp, lcamp, cphase
+    return m, vis, amp, lcamp, cphase
 end
 
 
