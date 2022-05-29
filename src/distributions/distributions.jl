@@ -12,6 +12,8 @@ export CPVonMises, CPNormal, CMvNormal, AmpNormal
 @kwstruct ComplexNormal(μ, σ)
 @kwstruct ComplexNormal(μ, τ)
 
+MeasureBase.basemeasure(::ComplexNormal) = Lebesgue()
+
 function MeasureBase.logdensity_def(d::ComplexNormal{(:μ, :σ)}, x)
     #sum = zero(eltype(d.σ))
     #@inbounds @fastmath for i in eachindex(x)
@@ -20,6 +22,10 @@ function MeasureBase.logdensity_def(d::ComplexNormal{(:μ, :σ)}, x)
     return -sum(abs2, (x .- d.μ)./d.σ)/2
     #return -sum/2
 end
+
+MeasureBase.insupport(::ComplexNormal, x) = true
+MeasureBase.insupport(::ComplexNormal) = MeasureBase.Returns(true)
+
 
 function MeasureBase.logdensity_def(d::ComplexNormal{(:μ, :τ)}, x)
     #sum = zero(eltype(real(d.μ)))
@@ -47,6 +53,9 @@ end
 
 @kwstruct CPVonMises(μ, κ)
 @kwstruct CPVonMises(μ, σ)
+
+MeasureBase.basemeasure(::CPVonMises) = Lebesgue()
+
 const log2π = log(2π)
 function MeasureBase.logdensity_def(d::CPVonMises{(:μ, :κ)}, x)
     #T = eltype(d.μ)
@@ -58,6 +67,10 @@ function MeasureBase.logdensity_def(d::CPVonMises{(:μ, :κ)}, x)
     dθ = @. d.κ*(cos(x - d.μ) - 1)
     return sum(dθ)
 end
+
+MeasureBase.insupport(::CPVonMises, x) = true
+MeasureBase.insupport(::CPVonMises) = MeasureBase.Returns(true)
+
 
 function MeasureBase.logdensity_def(d::CPVonMises{(:μ, :σ)},x)
     #sum = zero(eltype(d.μ))
@@ -79,8 +92,9 @@ function Base.rand(rng::AbstractRNG, T::Type, d::CPVonMises{(:μ, :σ)})
 end
 
 @parameterized AmpNormal(μ, τ)
-
 @kwstruct AmpNormal(μ, τ)
+MeasureBase.basemeasure(::AmpNormal) = Lebesgue()
+
 
 function MeasureBase.logdensity_def(d::AmpNormal{(:μ, :τ)}, x)
     #T = eltype(d.μ)
@@ -96,10 +110,15 @@ function Base.rand(rng::AbstractRNG, T::Type, d::AmpNormal{(:μ, :τ)})
     return randn(rng, T, nd)./d.τ + d.μ
 end
 
+MeasureBase.insupport(::AmpNormal, x) = true
+MeasureBase.insupport(::AmpNormal) = MeasureBase.Returns(true)
+
+
 @parameterized CPNormal(μ, σ)
 
 Base.minimum(::CPNormal) = -Inf
 Base.maximum(::CPNormal) = Inf
+MeasureBase.basemeasure(::CPNormal) = Lebesgue()
 
 const log2π = log(2π)
 function MeasureBase.logdensity_def(dist::CPNormal{(:μ, :σ)}, x::Real)

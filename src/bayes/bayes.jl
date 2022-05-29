@@ -76,7 +76,7 @@ function prior_sample(tpost::TransformedPosterior, args...)
 end
 
 function prior_sample(tpost::TransformedPosterior)
-    inv = Base.Fix1(HypercubeTransform.inverse, post)
+    inv = Base.Fix1(HypercubeTransform.inverse, tpost)
     inv(prior_sample(tpost.lpost))
 end
 
