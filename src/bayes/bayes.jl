@@ -71,7 +71,7 @@ struct TransformedPosterior{P<:Posterior,T}
 end
 
 function prior_sample(tpost::TransformedPosterior, args...)
-    inv = Base.Fix1(HypercubeTransform.inverse, post)
+    inv = Base.Fix1(HypercubeTransform.inverse, tpost)
     map(inv, prior_sample(tpost.lpost, args...))
 end
 

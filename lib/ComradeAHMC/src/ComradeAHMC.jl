@@ -7,6 +7,7 @@ using Reexport
 using Comrade
 using TupleVectors
 using ArgCheck: @argcheck
+using Random
 
 export sample, AHMC
 
@@ -26,23 +27,41 @@ Comrade.samplertype(::Type{<:AHMC}) = Comrade.IsFlat()
 function _initialize_hmc(tpost::Comrade.TransformedPosterior, init_params, nchains)
     isnothing(init_params) && return Comrade.HypercubeTransform.inverse.(Ref(tpost.transform), rand(tpost.lpost.prior, nchains))
     @argcheck length(init_params) == nchains
-    return Comrade.HypercubeTransform.inverse.(Ref(tpost), init_params)
+    return init_params
+end
+
+function AbstractMCMC.sample(post::Comrade.Posterior,
+    sampler::A, parallel::AbstractMCMC.AbstractMCMCEnsemble,
+    nsamples, nchains;
+    init_params=nothing, kwargs...
+    ) where {A<:AHMC}
+    tpost = asflat(post)
+    if isnothing(init_params)
+        θ0 = prior_sample(tpost, nchains)
+    else
+        θ0 = Comrade.HypercubeTransform.inverse.(Ref(tpost), init_params)
+    end
+    return Comrade.sample(tpost,
+                            sampler,
+                            parallel,
+                            nsamples,
+                            nchains;
+                            init_params=θ0,
+                            kwargs...)
 end
 
 
 
 function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior,
                              sampler::AHMC, parallel::AbstractMCMC.AbstractMCMCEnsemble,
-                             nsamples, nchains, args...;
+                             nsamples, nchains;
                              init_params=nothing, kwargs...
                              )
 
-    ℓ = logdensityof(tpost, x)
+    ℓ = logdensityof(tpost)
 
     ∇ℓ = Comrade.make_pullback(ℓ, sampler.autodiff)
     θ0 = _initialize_hmc(tpost, init_params, nchains)
-
-
     model = AdvancedHMC.DifferentiableDensityModel(ℓ, ∇ℓ)
     metric = sampler.metric
     # This is a hack to get a good initial step size
@@ -54,7 +73,7 @@ function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior,
     kernel = HMCKernel(Trajectory{sampler.trajectory}(integrator, sampler.termination))
     adaptor = sampler.adaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(sampler.targetacc, integrator))
 
-    res = AbstractMCMC.sample(Random.GLOBAL_RNG, model, kernel, metric, adaptor, parallel, nsamples, nchains, args...; init_params=θ0, chain_type=Array, kwargs...)
+    res = AbstractMCMC.sample(Random.GLOBAL_RNG, model, kernel, metric, adaptor, parallel, nsamples, nchains; init_params=θ0, chain_type=Array, kwargs...)
 
     stats = [TupleVector(getproperty.(r, :stat)) for r in res]
     samples = [getproperty.(getproperty.(r, :z), :θ) for r in res]
@@ -70,12 +89,11 @@ function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior, sampler::AHMC,
 
     ∇ℓ = Comrade.make_pullback(ℓ, sampler.autodiff)
 
-    p0 = init_params
+    θ0 = init_params
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from random"
-        p0 = transform(tpost.transform, rand(tpost.prior))
+        θ0 = prior_sample(post)
     end
-    θ0 = Comrade.HypercubeTransform.inverse(tpost, p0)
     model = AdvancedHMC.DifferentiableDensityModel(ℓ, ∇ℓ)
     metric = sampler.metric
     # This is a hack to get a good initial step size
@@ -92,7 +110,7 @@ function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior, sampler::AHMC,
     stats = TupleVector(getproperty.(res, :stat))
     samples = getproperty.(getproperty.(res, :z), :θ)
     chain = transform.(Ref(tpost), samples)
-    return TupleVector(chain), stats, res
+    return TupleVector(chain), stats
 end
 
 
