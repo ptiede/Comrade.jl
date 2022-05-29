@@ -10,9 +10,13 @@ using Reexport
 
 
 Comrade.samplertype(::Type{<:NestedSampler}) = Comrade.IsCube()
+Comrade.samplertype(::Type{<:DynamicNestedSampler}) = Comrade.IsCube()
 
-function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::NestedSampler, args...; kwargs...)
-    ℓ(x) = logdensityof(post, x)
+function AbstractMCMC.sample(post::Comrade.TransformedPosterior,
+                             sampler::Union{NestedSampler, DynamicNestedSampler},
+                             args...;
+                             kwargs...)
+    ℓ = logdensityof(post)
     kw = delete!(Dict(kwargs), :init_params)
     res = sample(ℓ, identity, sampler, args...; kw...)
     samples, weights = res["samples"].T, exp.(res["logwt"].T .- res["logz"][end])
@@ -22,7 +26,7 @@ function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::Nested
              logzerr = res["logz"][end],
              weights = weights,
             )
-    return chain, stats
+    return TupleVector(chain), stats
 end
 
 
