@@ -17,7 +17,8 @@ TupleVectors = "0.1"
 julia = "1.6"
 
 [extras]
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["Test", "Distributions"]

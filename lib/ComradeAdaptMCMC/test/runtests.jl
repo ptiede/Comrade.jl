@@ -1,4 +1,4 @@
-using Comrade, ComradeAdaptMCMC
+using Comrade, ComradeAdaptMCMC, Distributions
 using Test
 
 load_ehtim()

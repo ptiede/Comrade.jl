@@ -1,4 +1,4 @@
-using Comrade, ComradeDynesty
+using Comrade, ComradeDynesty, Distributions
 using Test
 
 load_ehtim()

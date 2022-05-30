@@ -1,4 +1,4 @@
-using Comrade, ComradeAHMC
+using Comrade, ComradeAHMC, Distributions
 using Test
 
 load_ehtim()
