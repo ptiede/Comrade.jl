@@ -9,11 +9,11 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
     prior = test_prior()
     lklhd = RadioLikelihood(lcamp, cphase)
     post = Posterior(lklhd, prior, test_model)
-    a1 = NestedSampler(dimension(post); print_progress=false)
-    a2 = DynamicNestedSampler(dimension(post); print_progress=false)
+    a1 = NestedSampler(dimension(post))
+    a2 = DynamicNestedSampler(dimension(post))
 
-    chain, stats = sample(post, a1; dlogz=0.1)
-    chain, stats = sample(post, a2)
+    chain, stats = sample(post, a1; dlogz=0.1, print_progress=false)
+    chain, stats = sample(post, a2; print_progress=false)
 
     cpost = ascube(post)
     xopt = chain[end]
