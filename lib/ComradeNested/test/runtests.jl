@@ -11,7 +11,7 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
     post = Posterior(lklhd, prior, test_model)
     a1 = Nested(dimension(post), 1000)
 
-    chain, stats = sample(post, a1; dlogz=0.01)
+    chain, stats = sample(post, a1; dlogz=0.01, progress=false)
 
     cpost = ascube(post)
     xopt = chain[end]
