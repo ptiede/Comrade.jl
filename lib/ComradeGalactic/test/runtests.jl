@@ -11,7 +11,7 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
     post = Posterior(lklhd, prior, test_model)
 
     tpost = ascube(post)
-    f = OptimizationFunction(tpostc, GalacticOptim.AutoForwardDiff{4}())
+    f = OptimizationFunction(tpost, GalacticOptim.AutoForwardDiff{4}())
     prob = GalacticOptim.OptimizationProblem(f, prior_sample(tpost), nothing, lb=fill(0.001, 10), ub=fill(0.999,10))
     sol = solve(prob, BBO_adaptive_de_rand_1_bin(); maxiters=100_000)
 #
