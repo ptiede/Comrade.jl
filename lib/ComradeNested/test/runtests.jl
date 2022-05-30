@@ -1,4 +1,4 @@
-using Comrade, ComradeNested, Distributions
+using Comrade, ComradeNested
 using Test
 
 load_ehtim()
