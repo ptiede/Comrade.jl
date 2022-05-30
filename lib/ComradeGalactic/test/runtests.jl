@@ -1,4 +1,4 @@
-using Comrade, ComradeGalactic, Distributions
+using Comrade, ComradeGalactic, GalacticBBO, Distributions
 using Test
 
 load_ehtim()
