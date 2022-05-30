@@ -10,7 +10,7 @@ Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 TupleVectors = "615932cf-77b6-4358-adcd-5b7eba981d7e"
 
 [compat]
-AbstractMCMC = "4.0"
+AbstractMCMC = "3, 4"
 AdaptiveMCMC = "0.1"
 Comrade = "0.3,0.4"
 TupleVectors = "0.1"
