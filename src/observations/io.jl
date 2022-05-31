@@ -1,4 +1,152 @@
+export load, save
 
+"""
+        `load(fitsfile::String, IntensityMap)`
+
+This loads in a fits file that is more robust to the various imaging algorithms
+in the EHT, i.e. is works with clean, smili, eht-imaging.
+The function returns an tuple with an intensitymap and a second named tuple with ancillary
+information about the image, like the source name, location, mjd, and radio frequency.
+"""
+function fileio_load(file::File{format"FITS"}, T::Type{IntensityMap})
+    return _load_fits(file.filename, T)
+end
+
+function _load_fits(fname, ::Type{IntensityMap})
+    img, head = FITS(fname, "r") do f
+        if ndims(f[1])==2
+            image = copy(read(f[1])')[:,end:-1:1]
+        else
+            @warn "Currently only stokes I is loaded"
+            image = Matrix{Float64}(read(f[1])[:,:,1,1]')
+        end
+
+        header = read_header(f[1])
+        nx = Int(header["NAXIS1"])
+        ny = Int(header["NAXIS2"])
+        psizex = abs(float(header["CDELT1"]))*π/180
+        psizey = abs(float(header["CDELT2"]))*π/180
+
+        ra = float(header["OBSRA"])
+        dec = float(header["OBSDEC"])
+        #Get frequency
+        freq = 0.0
+        if haskey(header, "FREQ")
+            freq = parse(Float64, string(header["FREQ"]))
+        elseif "CRVAL3" in keys(header)
+            freq = float(header["CRVAL3"])
+        end
+
+        mjd = 0.0
+        if haskey(header, "MJD")
+            mjd = parse(Float64, string(header["MJD"]))
+        end
+
+        source = "NA"
+        if haskey(header,"OBJECT")
+            source = string(header["OBJECT"])
+        end
+
+        bmaj = 1.0 #Nominal values
+        bmin = 1.0
+        if haskey(header, "BUNIT")
+            if header["BUNIT"] == "JY/BEAM"
+                @info "Converting Jy/Beam => Jy/pixel"
+                bmaj = header["BMAJ"]*π/180
+                bmin = header["BMIN"]*π/180
+                beamarea = (2.0*π*bmaj*bmin)/(8*log(2))
+                image .= image.*(psizex*psizey/beamarea)
+            end
+        end
+
+        imap = IntensityMap(image, psizex*nx, psizey*ny)
+        info = (source=source, RA=ra, DEC=dec, mjd=mjd, ν=freq)
+        return imap, info
+    end
+end
+
+"""
+    `$(SIGNATURES)`
+Saves an image to a fits file. You can optionally pass an EHTObservation so that ancillary information
+will be added.
+"""
+function fileio_save(fname::File{format"FITS"}, img::IntensityMap, obs = nothing)
+    head = make_header(obs)
+    _save_fits(fname.filename, img, head)
+end
+
+function make_header(obs)
+    if isnothing(obs)
+        return (source="NA", RA=0.0, DEC=0.0, mjd=0, freq=0.0)
+    else
+        return (source=String(obs.source), RA=obs.ra, DEC=obs.dec, mjd=obs.mjd, freq=obs.frequency)
+    end
+end
+
+function _save_fits(fname::String, image::IntensityMap, head)
+    headerkeys = ["SIMPLE",
+                  "BITPIX",
+                  "NAXIS",
+                  "NAXIS1",
+                  "NAXIS2",
+                  "OBJECT",
+                  "CTYPE1",
+                  "CTYPE2",
+                  "CDELT1",
+                  "CDELT2",
+                  "OBSRA",
+                  "OBSDEC",
+                  "FREQ",
+                  "CRPIX1",
+                  "CRPIX2",
+                  "MJD",
+                  "TELESCOP",
+                  "BUNIT",
+                  "STOKES"]
+    values = [true,
+              -64,
+              2,
+              size(image, 1),
+              size(image, 2),
+              head.source,
+              "RA---SIN",
+              "DEC---SIN",
+              rad2deg(image.psizex),
+              rad2deg(image.psizey),
+              head.RA,
+              head.DEC,
+              head.freq,
+              size(image,1)/2+0.5,
+              size(image,2)/2+0.5,
+              head.mjd,
+              "VLBI",
+              "JY/PIXEL",
+              "STOKES"]
+    comments = ["conforms to FITS standard",
+                "array data type",
+                "number of array dimensions",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""]
+    FITS(fname, "w") do hdu
+        hdeheader = FITSHeader(headerkeys, values, comments)
+        img = copy(image[:,end:-1:1]')
+        write(hdu, img, header=hdeheader)
+    end
+end
 
 
 """

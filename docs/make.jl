@@ -4,10 +4,10 @@ using ComradeBase
 
 using Literate
 
-using AdvancedHMC
-using GalacticOptim
+using ComradeAHMC
+using ComradeGalactic
+using GalacticBBO
 using Glob
-using Pathfinder
 using Plots
 
 

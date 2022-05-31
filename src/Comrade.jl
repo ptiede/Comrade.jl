@@ -13,6 +13,8 @@ using BlockDiagonals
 using DocStringExtensions
 using ChainRulesCore
 using ComradeBase
+using FITSIO
+using FileIO
 using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
 using FLoops
@@ -26,6 +28,7 @@ using Reexport
 using Requires: @require
 using StructArrays: StructVector, StructArray, append!!
 using Tables
+using UUIDs
 # Write your package code here.
 
 @reexport using ComradeBase
@@ -88,6 +91,17 @@ function __init__()
     # @require Dynesty="eb527566-0f3e-4aab-bb5f-9d2e403dba70" include("inference/dynesty.jl")
     # @require Pathfinder="b1d3bc72-d0e7-4279-b92f-7fa5d6d2d454" include("inference/pathfinder.jl")
     # @require GalacticOptim="a75be94c-b780-496d-a8a9-0878b188d577" include("inference/galacticoptim.jl")
+    # FIX THIS
+    del_format(format"FITS")
+    add_format(format"FITS",
+        # See https://www.loc.gov/preservation/digital/formats/fdd/fdd000317.shtml#sign
+        [0x53,0x49,0x4d,0x50,0x4c,0x45,0x20,0x20,0x3d,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x54],
+        [".fit", ".fits", ".fts", ".FIT", ".FITS", ".FTS", ".fit",],
+        [:FITSIO => UUID("525bcba6-941b-5504-bd06-fd0dc1a4d2eb")],
+        [:AstroImages => UUID("fe3fc30c-9b16-11e9-1c73-17dabf39f4ad")],
+        [:Comrade => UUID("99d987ce-9a1e-4df8-bc0b-1ea019aa547b")]
+    )
+
 end
 
 end
