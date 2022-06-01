@@ -6,7 +6,6 @@ using Plots
 
 load_ehtim()
 
-include(joinpath(@__DIR__, "../test_util.jl"))
 
 @testset "bayes" begin
     _,_, _, amp, cphase = load_data()
