@@ -1,17 +1,12 @@
 using Pkg; Pkg.activate(@__DIR__)
 using Comrade
 using Distributions
-using Pathfinder
-using AdvancedHMC
+using ComradeGalactic
+using ComradeAHMC
+using GalacticBBO
 using Plots
-using Zygote
-using Parameters
-using GalacticOptim
-using Optim
-using NLopt
-using BlackBoxOptim
-using Dynesty
-using AdaptiveMCMC
+using StatsBase
+using GalacticOptimJL
 using DistributionsAD
 
 # load eht-imaging we use this to load eht data
@@ -21,69 +16,64 @@ obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_net
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obs = obs.avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.01)
+obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.02)
 # extract log closure amplitudes and closure phases
 dlcamp = extract_lcamp(obs)
-dcphase = extract_cphase(obs; cut_trivial=true)
+dcphase = extract_cphase(obs)
 lklhd = RadioLikelihood(dlcamp, dcphase)
 
-# build the model here we fit a ring with a azimuthal
-#brightness variation and a Gaussian
-
-struct Model{C,F}
+# Build the Model. Here we we a struct to hold some caches
+# which will speed up imaging
+struct ImModel{C}
     cache::C
-    fov::F
+    fov::Float64
     npix::Int
 end
 
-
-function (model::Model)(θ)
-    c  = θ.c
+# For our model we will be using a rasterized image. This can be viewed as something like a
+# non-parametric model. As a result of this we will need to use a `modelimage` object to
+# store cache information we will need to compute the numerical FT.
+function (model::ImModel)(θ)
+    (;c) = θ
+    #Construct the image model
     cmat = reshape(c, model.npix, model.npix)
     img = IntensityMap(cmat, model.fov, model.fov, BSplinePulse{3}())
-    return modelimage(img, model.cache) + stretched(Gaussian(), μas2rad(250.0), μas2rad(250.0))
+    #Create the modelimage object that will use a cache to compute the DFT
+    m = modelimage(img, cache)
 end
-
-fovxy = μas2rad(80.0)
-npix = 15
-prior = (
-          #c = DistributionsAD.TuringDirichlet(npix*npix, 0.5),
-          c = MvLogNormal(fill(log(inv(4*npix^2)), npix*npix), 3.0),
-        )
-# Now form the posterior
-u, v = getuv(dlcamp.config)
+const npix = 10
+const fovxy = μas2rad(65.0)
+# Now we can feed in the array information to form the cache. We will be using a DFT since
+# it is efficient for so few pixels
 cache = create_cache(Comrade.DFTAlg(dlcamp), IntensityMap(rand(npix,npix), fovxy, fovxy, BSplinePulse{3}()))
-mms = Model(cache, fovxy, npix)
+mms = ImModel(cache, fovxy, npix)
+# We will use a Dirichlet prior to enforce that the flux sums to unity since closures are
+# degenerate to total flux.
+prior = (c = DistributionsAD.TuringDirichlet(npix*npix, 1.0),)
 
 post = Posterior(lklhd, prior, mms)
 tpost = asflat(post)
-# We will use HMC to sample the posterior.
-# First to reduce burn in we use pathfinder
+
+# Let's run an optimizer to get a nice starting location
+# It turns out that gradients are really helpful here
 ndim = dimension(tpost)
-f, tr = GalacticOptim.OptimizationFunction(post, GalacticOptim.AutoZygote())
-x0 = HypercubeTransform.inverse(tr, rand(post.prior))
-prob = GalacticOptim.OptimizationProblem(f, x0, nothing, lb=fill(-5.0, dimension(tr)), ub=fill(5.0, dimension(tr)))
-sol, xopt = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(), tr; maxiters=1000_000)
+f = OptimizationFunction(tpost, GalacticOptim.AutoZygote())
+x0 = randn(ndim)
+prob = OptimizationProblem(f, x0, nothing)
+sol = solve(prob, LBFGS(); maxiters=4_000, show_trace=true, show_every=50, g_tol=1e-2)
 
+xopt = transform(tpost, sol)
 
-
-prob = GalacticOptim.OptimizationProblem(f, randn(ndim), nothing)
-sol, xopt = solve(prob, LBFGS(), tr; show_trace=true, show_every=50, iterations=4000, g_tol=1e-2)
-@info sol.minimum
-
+# Let's see how the fit looks
 residual(mms(xopt), dlcamp)
 residual(mms(xopt), dcphase)
 plot(mms(xopt), fovx=1.2*fovxy, fovy=1.2*fovxy)
 
-using AdaptiveMCMC
-cacc, sacc = sample(post, Comrade.AdaptMCMC(ntemp=5), 500_000, 250_000; init_params=xopt, thin=50)
 
 # now we sample using hmc
 metric = DenseEuclideanMetric(ndim)
-hchain, stats = sample(post, HMC(;metric, autodiff=AD.ZygoteBackend()), 7000; nadapts=5000, init_params=xopt)
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 3000; nadapts=2000, init_params=xopt)
 
-using Serialization
-serialize(joinpath(@__DIR__, "m87_closure_fits.jls"), Dict(:chain => chain, :stats => stats, :model=>model, :post=>post))
 
 foox = let dc=dc, dd=dd, pr=tpost.lpost.prior, tr=tpost.transform, plan = cache.plan, phases=cache.phases, dmat=dlcamp.config.designmat, dmatc=dcphase.config.designmat
     x->begin

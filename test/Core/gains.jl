@@ -1,3 +1,5 @@
+using Distributions
+
 @testset "gains" begin
     _,vis, amp, lcamp, cphase = load_data()
 
@@ -19,6 +21,4 @@
     rph = rand(gpha)
     @inferred logdensityof(gamp, rga)
     @inferred logdensityof(gpha, rph)
-
-
 end

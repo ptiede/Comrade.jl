@@ -3,9 +3,11 @@ using SparseArrays
 import Distributions
 using Statistics
 
+export GainCache, GainPrior
+
 abstract type RIMEModel <: AbstractModel end
 
-vismodel(m::RIMEModel) = m.model
+basemodel(m::RIMEModel) = m.model
 flux(m::RIMEModel) = flux(vismodel(m))
 radialextent(m::RIMEModel) = radialextent(vismodel(m))
 
