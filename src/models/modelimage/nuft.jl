@@ -2,7 +2,6 @@ padfac(alg::NUFT) = alg.padfac
 
 function padimage(::NUFT, img)
     #pf = padfac(alg)
-    println("Here")
     #cimg = convert(Matrix{Complex{eltype(img)}}, img.img)
     return IntensityMap(img, img.fovx, img.fovy, img.pulse)
     # ny,nx = size(img)
@@ -125,66 +124,66 @@ end
 
 function _amplitudes(m::ModelImage{M,I,C}, u::AbstractArray, v::AbstractArray) where {M,I,C<:NUFTCache}
     vis = visibilities(m, u, v)
-    return map(abs, vis)
+    return abs.(vis)
 end
 
-function _bispectra(m::ModelImage{M,I,C},
-                    u1::AbstractArray,
-                    v1::AbstractArray,
-                    u2::AbstractArray,
-                    v2::AbstractArray,
-                    u3::AbstractArray,
-                    v3::AbstractArray) where {M,I,C<:NUFTCache}
-    # TODO: Fix this so we can actually use a stored cache for closures
-    n = length(u1)
-    # In testing it is faster to concatenate everything into 1 vector and then
-    # take an NFFT of that
-    u = vcat(u1,u2,u3)
-    v = vcat(v1,v2,v3)
-    vis = nocachevis(m, u, v)
-    @inbounds (@view(vis[1:n])).*(@view(vis[n+1:2n])).*(@view vis[2n+1:3n])
-end
+# function _bispectra(m::ModelImage{M,I,C},
+#                     u1::AbstractArray,
+#                     v1::AbstractArray,
+#                     u2::AbstractArray,
+#                     v2::AbstractArray,
+#                     u3::AbstractArray,
+#                     v3::AbstractArray) where {M,I,C<:NUFTCache}
+#     # TODO: Fix this so we can actually use a stored cache for closures
+#     n = length(u1)
+#     # In testing it is faster to concatenate everything into 1 vector and then
+#     # take an NFFT of that
+#     u = vcat(u1,u2,u3)
+#     v = vcat(v1,v2,v3)
+#     vis = nocachevis(m, u, v)
+#     @inbounds (@view(vis[1:n])).*(@view(vis[n+1:2n])).*(@view vis[2n+1:3n])
+# end
 
-function _closure_phases(m::ModelImage{M,I,C},
-                        u1::AbstractArray,
-                        v1::AbstractArray,
-                        u2::AbstractArray,
-                        v2::AbstractArray,
-                        u3::AbstractArray,
-                        v3::AbstractArray) where {M,I,C<:NUFTCache}
-    # TODO: Fix this so we can actually use a stored cache for closures
-    n = length(u1)
-    # In testing it is faster to concatenate everything into 1 vector and then
-    # take an NFFT of that
-    u = vcat(u1,u2,u3)
-    v = vcat(v1,v2,v3)
-    vis = nocachevis(m, u, v)
-    phase = @inbounds angle.(@view(vis[1:n])) .+ angle.(@view(vis[n+1:2n])) .+ angle.(@view vis[2n+1:3n])
-    return phase
-end
+# function _closure_phases(m::ModelImage{M,I,C},
+#                         u1::AbstractArray,
+#                         v1::AbstractArray,
+#                         u2::AbstractArray,
+#                         v2::AbstractArray,
+#                         u3::AbstractArray,
+#                         v3::AbstractArray) where {M,I,C<:NUFTCache}
+#     # TODO: Fix this so we can actually use a stored cache for closures
+#     n = length(u1)
+#     # In testing it is faster to concatenate everything into 1 vector and then
+#     # take an NFFT of that
+#     u = vcat(u1,u2,u3)
+#     v = vcat(v1,v2,v3)
+#     vis = nocachevis(m, u, v)
+#     phase = @inbounds angle.(@view(vis[1:n])) .+ angle.(@view(vis[n+1:2n])) .+ angle.(@view vis[2n+1:3n])
+#     return phase
+# end
 
-function _logclosure_amplitudes(m::ModelImage{M,I,C},
-                               u1::AbstractArray,
-                               v1::AbstractArray,
-                               u2::AbstractArray,
-                               v2::AbstractArray,
-                               u3::AbstractArray,
-                               v3::AbstractArray,
-                               u4::AbstractArray,
-                               v4::AbstractArray,
-                               ) where {M,I,C<:NUFTCache}
-    # TODO: Fix this so we can actually use a stored cache for closures
-    n = length(u1)
-    u = vcat(u1,u2,u3,u4)
-    v = vcat(v1,v2,v3,v4)
-    vis = nocachevis(m, u, v)
-    amp1 = @view vis[1:n]
-    amp2 = @view vis[n+1:2n]
-    amp3 = @view vis[2n+1:3n]
-    amp4 = @view vis[3n+1:4n]
-    lcamp = @. log(abs(amp1)*abs(amp2)/(abs(amp3)*abs(amp4)))
-    return lcamp
-end
+# function _logclosure_amplitudes(m::ModelImage{M,I,C},
+#                                u1::AbstractArray,
+#                                v1::AbstractArray,
+#                                u2::AbstractArray,
+#                                v2::AbstractArray,
+#                                u3::AbstractArray,
+#                                v3::AbstractArray,
+#                                u4::AbstractArray,
+#                                v4::AbstractArray,
+#                                ) where {M,I,C<:NUFTCache}
+#     # TODO: Fix this so we can actually use a stored cache for closures
+#     n = length(u1)
+#     u = vcat(u1,u2,u3,u4)
+#     v = vcat(v1,v2,v3,v4)
+#     vis = nocachevis(m, u, v)
+#     amp1 = @view vis[1:n]
+#     amp2 = @view vis[n+1:2n]
+#     amp3 = @view vis[2n+1:3n]
+#     amp4 = @view vis[3n+1:4n]
+#     lcamp = @. log(abs(amp1)*abs(amp2)/(abs(amp3)*abs(amp4)))
+#     return lcamp
+# end
 
 
 
