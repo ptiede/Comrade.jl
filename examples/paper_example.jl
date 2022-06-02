@@ -23,10 +23,10 @@ lklhd = RadioLikelihood(dlcamp, dcphase)
 # build the model here we fit a ring with a azimuthal
 #brightness variation and a Gaussian
 function model(θ)
-  (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
-  ring = f*smoothed(stretched(MRing((a,), (b,)), rad, rad), wid)
-  g = (1-f)*shifted(rotated(stretched(Gaussian(), sig*asy, sig), pa), x, y)
-  return ring + g
+    (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
+    ring = f*smoothed(stretched(MRing((a,), (b,)), rad, rad), wid)
+    g = (1-f)*shifted(rotated(stretched(Gaussian(), sig*asy, sig), pa), x, y)
+    return ring + g
 end
 # define the priors
 prior = (
