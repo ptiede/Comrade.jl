@@ -1,5 +1,4 @@
 [deps]
-AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
 ComradeAHMC = "a4336a5c-78bc-4363-8a90-ce3fa9d3abe4"
 ComradeBase = "6d8c423b-a35f-4ef1-850c-862fe21f82c4"
 ComradeGalactic = "47701775-187b-49a4-b924-794639d71cdc"
@@ -12,11 +11,20 @@ GalacticOptimJL = "9d3c5eb1-403b-401b-8c0f-c11105342e6b"
 Glob = "c27321d9-0574-5035-807b-f59d2c89b15c"
 HypercubeTransform = "9ec9aee3-0fd3-44c2-8e61-a50acc66f3c8"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
-Pathfinder = "b1d3bc72-d0e7-4279-b92f-7fa5d6d2d454"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 
 [compat]
+ComradeAHMC = "0.1"
+ComradeBase = "0.3.1"
 ComradeGalactic = "0.1"
 Distributions = "0.25"
+Documenter = "0.27"
+ForwardDiff = "0.10"
+GalacticBBO = "0.1"
+GalacticOptim = "3"
 GalacticOptimJL = "0.1"
-HypercubeTransform = "0.2"
+Glob = "1"
+HypercubeTransform = "^0.2.7"
+Literate = "2"
+Plots = "1"
+
