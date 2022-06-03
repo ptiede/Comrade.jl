@@ -17,8 +17,7 @@ abstract type AbstractModelImage{M} <: ComradeBase.AbstractModel end
 Computes the complex visibility of model `m` at u,v positions `u,v`
 
 If you want to compute the visibilities at a large number of positions
-consider using the `visibilities` function which uses MappedArrays to
-compute a lazy, no allocation vector.
+consider using the `visibilities` function
 """
 @inline function visibility(mimg::M, args...) where {M}
     #first we split based on whether the model is primitive
@@ -34,8 +33,7 @@ end
 Computes the visibility amplitude of model `m` at u,v positions `u,v`
 
 If you want to compute the amplitudes at a large number of positions
-consider using the `amplitudes` function which uses MappedArrays to
-compute a lazy, no allocation vector.
+consider using the `amplitudes` function.
 """
 @inline function amplitude(model, args...)
     return abs(visibility(model, args...))
@@ -47,8 +45,7 @@ Computes the complex bispectrum of model `m` at the uv-triangle
 u1,v1 -> u2,v2 -> u3,v3
 
 If you want to compute the bispectrum over a number of triangles
-consider using the `bispectra` function which uses MappedArrays to
-compute a lazy, no allocation vector.
+consider using the `bispectra` function.
 """
 @inline function bispectrum(model, u1, v1, u2, v2, u3, v3)
     return visibility(model, u1, v1)*visibility(model, u2, v2)*visibility(model, u3, v3)
@@ -60,8 +57,7 @@ Computes the closure phase of model `m` at the uv-triangle
 u1,v1 -> u2,v2 -> u3,v3
 
 If you want to compute closure phases over a number of triangles
-consider using the `closure_phases` function which uses MappedArrays to
-compute a lazy, no allocation vector.
+consider using the `closure_phases` function.
 """
 @inline function closure_phase(model, u1, v1, u2, v2, u3, v3)
     return angle(bispectrum(model, u1, v1, u2, v2, u3, v3))
@@ -77,8 +73,7 @@ C = \\log\\left|\\frac{V(u1,v1)V(u2,v2)}{V(u3,v3)V(u4,v4)}\\right|
 ```
 
 If you want to compute log closure amplitudes over a number of triangles
-consider using the `logclosure_amplitudes` function which uses MappedArrays to
-compute a lazy, no allocation vector.
+consider using the `logclosure_amplitudes` function.
 """
 @inline function logclosure_amplitude(model, u1, v1, u2, v2, u3, v3, u4, v4)
     a1 = amplitude(model, u1, v1)
@@ -150,8 +145,8 @@ function _amplitudes(m::S, u::AbstractArray, v::AbstractArray) where {S}
 end
 
 function _amplitudes(::IsAnalytic, m, u::AbstractArray, v::AbstractArray)
-    f(x,y) = amplitude(m, x, y)
-    return mappedarray(f, u, v)
+    #f(x,y) = amplitude(m, x, y)
+    return amplitude.(Ref(m), u, v)
 end
 
 function _amplitudes(::NotAnalytic, m, u::AbstractArray, v::AbstractArray)

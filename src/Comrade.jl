@@ -9,7 +9,6 @@ using AbstractMCMC
 using Accessors: @set
 using ArgCheck: @argcheck
 using BasicInterpolators
-using BlockDiagonals
 using DocStringExtensions
 using ChainRulesCore
 using ComradeBase
@@ -18,7 +17,7 @@ using FileIO
 using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
 using FLoops
-using MappedArrays: mappedarray
+#using MappedArrays: mappedarray
 using MeasureBase, MeasureTheory
 using NFFT: nfft, plan_nfft
 using PaddedViews

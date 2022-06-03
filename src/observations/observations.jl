@@ -59,7 +59,7 @@ struct ClosureConfig{A,D} <: ArrayConfiguration
     designmat::D
 function ClosureConfig(ac, dmat)
     A = typeof(ac)
-    sdmat = sparse(dmat)
+    sdmat = blockdiag(sparse.(dmat)...)
     D = typeof(sdmat)
     return new{A,D}(ac, sdmat)
 end

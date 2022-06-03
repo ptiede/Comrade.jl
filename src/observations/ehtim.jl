@@ -90,23 +90,23 @@ end
 
 function getlcampfield(obs)
     obslcamp = obs.logcamp::PyObject
-    u1 = deepcopy((get(obslcamp, Vector{Float64}, "u1")))
-    v1 = deepcopy((get(obslcamp, Vector{Float64}, "v1")))
-    u2 = deepcopy((get(obslcamp, Vector{Float64}, "u2")))
-    v2 = deepcopy((get(obslcamp, Vector{Float64}, "v2")))
-    u3 = deepcopy((get(obslcamp, Vector{Float64}, "u3")))
-    v3 = deepcopy((get(obslcamp, Vector{Float64}, "v3")))
-    u4 = deepcopy((get(obslcamp, Vector{Float64}, "u4")))
-    v4 = deepcopy((get(obslcamp, Vector{Float64}, "v4")))
-    camp = deepcopy((get(obslcamp, Vector{Float64}, "camp")))
-    errcamp = deepcopy((get(obslcamp, Vector{Float64}, "sigmaca")))
+    u1 = get(obslcamp, Vector{Float64}, "u1")
+    v1 = get(obslcamp, Vector{Float64}, "v1")
+    u2 = get(obslcamp, Vector{Float64}, "u2")
+    v2 = get(obslcamp, Vector{Float64}, "v2")
+    u3 = get(obslcamp, Vector{Float64}, "u3")
+    v3 = get(obslcamp, Vector{Float64}, "v3")
+    u4 = get(obslcamp, Vector{Float64}, "u4")
+    v4 = get(obslcamp, Vector{Float64}, "v4")
+    camp = ((get(obslcamp, Vector{Float64}, "camp")))
+    errcamp = ((get(obslcamp, Vector{Float64}, "sigmaca")))
 
-    t1 = Symbol.(deepcopy((get(obslcamp, Vector{String}, "t1"))))
-    t2 = Symbol.(deepcopy((get(obslcamp, Vector{String}, "t2"))))
-    t3 = Symbol.(deepcopy((get(obslcamp, Vector{String}, "t3"))))
-    t4 = Symbol.(deepcopy((get(obslcamp, Vector{String}, "t4"))))
+    t1 = Symbol.(((get(obslcamp, Vector{String}, "t1"))))
+    t2 = Symbol.(((get(obslcamp, Vector{String}, "t2"))))
+    t3 = Symbol.(((get(obslcamp, Vector{String}, "t3"))))
+    t4 = Symbol.(((get(obslcamp, Vector{String}, "t4"))))
     baseline = tuple.(t1, t2, t3, t4)
-    time = deepcopy(get(obslcamp, Vector{Float64}, "time"))
+    time = (get(obslcamp, Vector{Float64}, "time"))
     freq = zeros(length(time))
     bw = zeros(length(time))
 
@@ -343,7 +343,7 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
     end
 
     ac = arrayconfig(dvis)
-    clac = ClosureConfig(ac, BlockDiagonal(dmat))
+    clac = ClosureConfig(ac, dmat)
     return  EHTObservation(data = data, mjd = mjd,
                            config=clac,
                            ra = ra, dec= dec,
@@ -352,7 +352,7 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
                           )
 end
 
-function _ehtim_lcamp(obsc; count="max", kwargs...)
+function _make_lcamp(obsc, count="max"; kwargs...)
     obs = obsc.copy()
 
     obs.reorder_tarr_snr()
@@ -365,12 +365,18 @@ function _ehtim_lcamp(obsc; count="max", kwargs...)
     bw = obs.bw
     rf = obs.rf
 
-    lcamp = EHTObservation(data = data, mjd = mjd,
+    return EHTObservation(data = data, mjd = mjd,
                    config=nothing,
                    ra = ra, dec= dec,
                    bandwidth=bw, frequency=rf,
                    source = source,
     )
+
+end
+
+function _ehtim_lcamp(obsc; count="max", kwargs...)
+
+    lcamp = _make_lcamp(obsc; count, kwargs...)
 
     stlca = scantable(lcamp)
 
@@ -406,12 +412,12 @@ function _ehtim_lcamp(obsc; count="max", kwargs...)
 
 
     ac = arrayconfig(dvis)
-    clac = ClosureConfig(ac, BlockDiagonal(dmat))
-    return  EHTObservation(data = data, mjd = mjd,
+    clac = ClosureConfig(ac, dmat)
+    return  EHTObservation(data = lcamp.data, mjd = lcamp.mjd,
                            config=clac,
-                           ra = ra, dec= dec,
-                           bandwidth=bw, frequency=rf,
-                           source = source
+                           ra = lcamp.ra, dec= lcamp.dec,
+                           bandwidth=lcamp.bandwidth, frequency=lcamp.frequency,
+                           source = lcamp.source
                           )
 end
 
@@ -517,7 +523,7 @@ function _minimal_closure(stcl, st)
         dmat[2] = hcat(zeros(S, size(dmat[2],1), size(dmat[1],2)), dmat[2])
         dmat = dmat[2:end]
     end
-    return minset, BlockDiagonal(dmat)
+    return minset, dmat
 end
 
 
