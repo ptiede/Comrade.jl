@@ -18,4 +18,5 @@ Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 [compat]
 ComradeGalactic = "0.1"
 Distributions = "0.25"
+GalacticOptimJL = "0.1"
 HypercubeTransform = "0.2"
