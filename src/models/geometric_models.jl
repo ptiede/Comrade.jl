@@ -306,7 +306,6 @@ This is just a convenience function for `stretched(ParabolicSegment(), a, h)`
 end
 
 function intensity_point(::ParabolicSegment{T}, x, y) where {T}
-    #length = (√5 + asinh(2)/2)
     yw = (1-x^2)
     if abs(y - yw) < 0.01/2 && abs(x) < 1
         return 1/(2*0.01)
@@ -319,7 +318,6 @@ function visibility_point(::ParabolicSegment{T}, u, v) where {T}
     ϵ = sqrt(eps(T))
     vϵ = v + ϵ + 0im
     phase = cispi(3/4 + 2*vϵ + u^2/(2vϵ))
-    #length = (√5 + asinh(2)/2)
     Δ1 = erf(√(π/(2vϵ))*cispi(1/4)*(u-2vϵ))
     Δ2 = erf(√(π/(2vϵ))*cispi(1/4)*(u+2vϵ))
     return phase/(√(2vϵ))*(Δ1-Δ2)/4

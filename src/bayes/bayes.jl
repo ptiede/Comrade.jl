@@ -30,7 +30,7 @@ function Posterior(lklhd, prior::NamedTuple, model)
     return Posterior(lklhd, NamedTupleDist(prior), model)
 end
 
-@inline DensityInterface.DensityKind(::Posterior) = IsDensity()
+@inline DensityInterface.DensityKind(::Posterior) = DensityInterface.IsDensity()
 
 function DensityInterface.logdensityof(post::Posterior, x)
     pr = logdensityof(post.prior, x)

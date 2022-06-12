@@ -86,7 +86,7 @@ end
 
 
 #=
-    Welcome to the trait jungle. What is below is
+    Welcome to the trait jungle. Below is
     how we specify how to evaluate the model
 =#
 @inline function _visibility(::NotPrimitive, m, u, v)

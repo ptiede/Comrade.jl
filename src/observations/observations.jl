@@ -610,7 +610,12 @@ end
 
 const VisAmpDatum = Union{EHTVisibilityAmplitudeDatum, EHTVisibilityDatum}
 
-
+"""
+    `$(TYPEDEF)`
+Wraps EHTObservation in a table that separates the observation into scans.
+This implements the table interface and is used primarly for keeping track of
+gains and closure information.
+"""
 struct ScanTable{O<:Union{Observation,ArrayConfiguration}, T, S}
     obs::O
     times::T

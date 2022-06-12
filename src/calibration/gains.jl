@@ -3,13 +3,18 @@ using SparseArrays
 import Distributions
 using Statistics
 
-export GainCache, GainPrior
+export GainCache, GainPrior, GainModel
 
 abstract type RIMEModel <: AbstractModel end
 
 basemodel(m::RIMEModel) = m.model
-flux(m::RIMEModel) = flux(vismodel(m))
-radialextent(m::RIMEModel) = radialextent(vismodel(m))
+flux(m::RIMEModel) = flux(basemodel(m))
+radialextent(m::RIMEModel) = radialextent(basemodel(m))
+
+function intensitymap(model::RIMEModel, fovx::Number, fovy::Number, nx::Int, ny::Int, args...; kwargs...)
+    return intensitymap(basemodel(model), fovx, fovy, nx, ny, args...; kwargs...)
+end
+
 
 struct DesignMatrix{X,M<:AbstractMatrix{X},T,S} <: AbstractMatrix{X}
     matrix::M
@@ -91,6 +96,7 @@ struct GainModel{C, G, M} <: RIMEModel
     gains::G
     model::M
 end
+
 
 function intensitymap!(img::IntensityMap, model::GainModel, args...)
     return intensitymap!(img, model.model, args...)

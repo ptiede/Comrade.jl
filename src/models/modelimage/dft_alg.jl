@@ -9,6 +9,11 @@ function DFTAlg(obs::EHTObservation)
     return DFTAlg(u, v)
 end
 
+function DFTAlg(ac::ArrayConfiguration)
+    u,v = getuv(ac)
+    return DFTAlg(u, v)
+end
+
 function DFTAlg(u::AbstractArray, v::AbstractArray)
     @argcheck length(u) == length(v)
     uv = Matrix{eltype(u)}(undef, 2, length(u))
