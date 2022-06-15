@@ -1,7 +1,7 @@
 name = "ComradeGalactic"
 uuid = "47701775-187b-49a4-b924-794639d71cdc"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
