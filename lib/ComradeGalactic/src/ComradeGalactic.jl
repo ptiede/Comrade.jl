@@ -4,6 +4,7 @@ using Comrade
 using Reexport
 using Distributions
 using ForwardDiff
+using LinearAlgebra
 
 @reexport using GalacticOptim
 
@@ -29,10 +30,10 @@ not the usual parameter space. This is better for constrained problems where
 we may run up against a boundary.
 """
 function laplace(prob::OptimizationProblem, opt, args...; kwargs...)
-    sol = solve(prov, opt, args...; kwargs...)
-    f = prob.f.f
-    J = -ForwardDiff.hessian(f, sol)
-    h = hess*sol
+    sol = solve(prob, opt, args...; kwargs...)
+    f = Base.Fix2(prob.f, nothing)
+    J = ForwardDiff.hessian(f, sol)
+    h = J*sol
     return MvNormalCanon(h, Symmetric(J))
 end
 
