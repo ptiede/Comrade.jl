@@ -23,6 +23,11 @@
     plot(lcamp)
     show(lcamp)
 
+    @test getuv(arrayconfig(lcamp))[1] == getuv(arrayconfig(cphase))[1]
+    @test getuv(arrayconfig(amp))[1] == getuv(arrayconfig(cphase))[1]
+    @test getuv(arrayconfig(vis))[1] == getuv(arrayconfig(cphase))[1]
+
+
     m = stretched(Gaussian(), 1e-10,1e-10)
     plot(m, vis)
     plot(m, amp)
