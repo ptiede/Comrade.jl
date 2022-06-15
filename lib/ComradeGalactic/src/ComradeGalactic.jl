@@ -33,6 +33,7 @@ function laplace(prob::OptimizationProblem, opt, args...; kwargs...)
     sol = solve(prob, opt, args...; kwargs...)
     f = Base.Fix2(prob.f, nothing)
     J = ForwardDiff.hessian(f, sol)
+    @. J += 1e-5 # add noise to help with positive definitness
     h = J*sol
     return MvNormalCanon(h, Symmetric(J))
 end
