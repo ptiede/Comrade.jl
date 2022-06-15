@@ -1,0 +1,27 @@
+name = "ComradeBase"
+uuid = "6d8c423b-a35f-4ef1-850c-862fe21f82c4"
+authors = ["Paul Tiede <ptiede91@gmail.com> and contributors"]
+version = "0.3.1"
+
+[deps]
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
+FLoops = "cc61a311-1640-44b5-9fba-1b764f453329"
+ImageAxes = "2803e5a7-5153-5ecf-9a86-9b4c37f5f5ac"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+
+[compat]
+ChainRulesCore = "1"
+DocStringExtensions = "0.8"
+FLoops = "0.2"
+ImageAxes = "0.6"
+StaticArrays = "1"
+StructArrays = "0.6"
+julia = "1.6"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
