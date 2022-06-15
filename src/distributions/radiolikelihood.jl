@@ -55,8 +55,6 @@ function Base.show(io::IO, d::RadioLikelihood{T}) where {T}
 end
 
 
-amplitudes(vis::AbstractArray{<:Complex}, ac::ArrayConfiguration) = abs.(vis)
-
 """
     `logclosure_amplitudes(vis, ac::ArrayConfiguration)`
 

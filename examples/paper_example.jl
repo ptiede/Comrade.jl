@@ -4,6 +4,7 @@ using Distributions
 using ComradeGalactic
 using ComradeAHMC
 using GalacticBBO
+using GalacticOptimJL
 using Plots
 using StatsBase
 
@@ -24,21 +25,21 @@ lklhd = RadioLikelihood(dlcamp, dcphase)
 #brightness variation and a Gaussian
 function model(θ)
     (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
-    ring = f*smoothed(stretched(MRing((a,), (b,)), rad, rad), wid)
-    g = (1-f)*shifted(rotated(stretched(Gaussian(), sig*asy, sig), pa), x, y)
+    ring = f*smoothed(stretched(MRing((a,), (b,)), μas2rad(rad), μas2rad(rad)), μas2rad(wid))
+    g = (1-f)*shifted(rotated(stretched(Gaussian(), μas2rad(sig)*asy, μas2rad(sig)), pa), μas2rad(x), μas2rad(y))
     return ring + g
 end
 # define the priors
 prior = (
-          rad = Uniform(μas2rad(10.0), μas2rad(30.0)),
-          wid = Uniform(μas2rad(1.0), μas2rad(10.0)),
+          rad = Uniform(10.0, 30.0),
+          wid = Uniform(1.0, 10.0),
           a = Uniform(-0.5, 0.5), b = Uniform(-0.5, 0.5),
           f = Uniform(0.0, 1.0),
-          sig = Uniform(μas2rad(1.0), μas2rad(40.0)),
+          sig = Uniform((1.0), (60.0)),
           asy = Uniform(0.0, 0.9),
           pa = Uniform(0.0, 1π),
-          x = Uniform(-μas2rad(80.0), μas2rad(80.0)),
-          y = Uniform(-μas2rad(80.0), μas2rad(80.0))
+          x = Uniform(-(80.0), (80.0)),
+          y = Uniform(-(80.0), (80.0))
         )
 # Now form the posterior
 post = Posterior(lklhd, prior, model)
@@ -46,11 +47,15 @@ post = Posterior(lklhd, prior, model)
 # First we will find a reasonable starting location using GalacticOptim
 # For optimization we need to specify what transform to use. Here we will transform to
 # the unit hypercube
-tpost = ascube(post)
+tpost = asflat(post)
 ndim = dimension(tpost)
-f = OptimizationFunction(tpost)
-prob = OptimizationProblem(f, rand(ndim), nothing, lb=fill(0.01, ndim), ub = fill(0.99, ndim))
+f = OptimizationFunction(tpost, GalacticOptim.AutoForwardDiff())
+prob = OptimizationProblem(f, rand(ndim), nothing, lb=fill(-5.0, ndim), ub = fill(5.0, ndim))
 sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000)
+
+# Now let's get the Laplace approximation since it is cheap!
+prob = OptimizationProblem(f, sol.u, nothing)
+ldist = laplace(prob, LBFGS(); show_trace=true)
 
 # transform the solution back to regular space
 xopt = transform(tpost, sol)
@@ -63,7 +68,7 @@ plot(model(xopt), xlims=(-80.0,80.0),ylims=(-80.0,80.0), colorbar=nothing, title
 # Comrade is all about uncertainty quantification so now let's find the posterior!
 # To do this we will use the `AdvancedHMC` package or rather its interface to Comrade.
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric), 2000; nadapts=1000, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric), 2000; nadapts=8000, init_params=xopt)
 # Now let's find the mean image
 images = intensitymap.(model.(sample(chain, 200)), μas2rad(160.0), μas2rad(160.0), 256, 256)
 plot(mean(images), xlims=(-80.0, 80.0), ylims=(-80.0,80.0), colorbar=nothing, title="Mean M87")

@@ -28,7 +28,7 @@ gainp = Dict("AA"=> 0.01,
              "PV" => 0.1,
              "SM" => 0.1,
              "SR" => 0.1)
-obsim = img.observe_same(ehtim.obsdata.merge_obs(obslist[1:15]), ttype="fast",  gainp=gainp, gain_offset=gainoff, ampcal=false, phasecal=false, stabilize_scan_phase=true, stabilize_scan_amp=true)
+obsim = img.observe_same(ehtim.obsdata.merge_obs(obslist), ttype="fast",  gainp=gainp, gain_offset=gainoff, ampcal=false, phasecal=false, stabilize_scan_phase=true, stabilize_scan_amp=true)
 # now get cal table
 ctable = ehtim.calibrating.self_cal.self_cal(obsim, img, caltable=true)
 ehtim.caltable.save_caltable(ctable, obsim, datadir=joinpath(@__DIR__ ,"CaltableTest"))
@@ -54,8 +54,8 @@ end
 function (mod::Test)(θ)
     (;f, σ, τ, ξ,  gamp, gphase) = θ
     g = exp.(gamp).*cis.(gphase)
-    m = f*Comrade.rotate(stretch(Gaussian(), σ*τ, σ), ξ)
-    Comrade.GainModel(mod.gcache, g, m)
+    m = f*rotated(stretched(Gaussian(), σ*τ, σ), ξ)
+    return GainModel(mod.gcache, g, m)
 end
 
 # define the priors
