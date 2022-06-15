@@ -150,7 +150,9 @@ Any valid keyword arguments to `add_amp` in ehtim can be passed through extract_
 
 Returns an EHTObservation with visibility amplitude data
 """
-function extract_amp(obs; kwargs...)
+function extract_amp(obsc; kwargs...)
+    obs = obsc.copy()
+    obs.reorder_tarr_snr()
     obs.add_amp(;kwargs...)
     data = getampfield(obs)
     ra, dec = getradec(obs)

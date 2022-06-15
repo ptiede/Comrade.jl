@@ -204,7 +204,7 @@ triangles (u1,v1), (u2,v2), (u3,v3).
 
 Note this is done lazily so the closure_phases is only computed when accessed.
 """
-@inline function closure_phases(m,
+@inline function closure_phases(m::AbstractModel,
                         u1::AbstractArray, v1::AbstractArray,
                         u2::AbstractArray, v2::AbstractArray,
                         u3::AbstractArray, v3::AbstractArray
@@ -212,7 +212,7 @@ Note this is done lazily so the closure_phases is only computed when accessed.
     _closure_phases(m, u1, v1, u2, v2, u3, v3)
 end
 
-function closure_phases(m, ac::ClosureConfig)
+function closure_phases(m::AbstractModel, ac::ClosureConfig)
     vis = visibilities(m, ac.ac)
     return ac.designmat*angle.(vis)
 end
@@ -221,7 +221,7 @@ end
                         u1::AbstractArray, v1::AbstractArray,
                         u2::AbstractArray, v2::AbstractArray,
                         u3::AbstractArray, v3::AbstractArray
-                       ) where {M}
+                       ) where {M<:AbstractModel}
     _closure_phases(visanalytic(M), m, u1, v1, u2, v2, u3, v3)
 end
 
@@ -249,7 +249,7 @@ quadrangles (u1,v1), (u2,v2), (u3,v3), (u4, v4).
 
 Note this is done lazily so the log closure amplitude is only computed when accessed.
 """
-function logclosure_amplitudes(m,
+function logclosure_amplitudes(m::AbstractModel,
                                u1::AbstractArray, v1::AbstractArray,
                                u2::AbstractArray, v2::AbstractArray,
                                u3::AbstractArray, v3::AbstractArray,
@@ -258,7 +258,7 @@ function logclosure_amplitudes(m,
     _logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
 end
 
-function logclosure_amplitudes(m, ac::ClosureConfig)
+function logclosure_amplitudes(m::AbstractModel, ac::ClosureConfig)
     vis = visibilities(m, ac.ac)
     return ac.designmat*log.(abs.(vis))
 end
@@ -269,7 +269,7 @@ end
                         u2::AbstractArray, v2::AbstractArray,
                         u3::AbstractArray, v3::AbstractArray,
                         u4::AbstractArray, v4::AbstractArray
-                       ) where {M}
+                       ) where {M<:AbstractModel}
     _logclosure_amplitudes(visanalytic(M), m, u1, v1, u2, v2, u3, v3, u4, v4)
 end
 

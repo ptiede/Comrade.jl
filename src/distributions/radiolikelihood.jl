@@ -20,7 +20,7 @@ Combines multiple likelihoods into one object that is useful for fitting multipl
 MultiRadioLikelihood(lklhds::RadioLikelihood...) = MultiRadioLikelihood(lklhds)
 
 function MeasureBase.logdensityof(lklhds::MultiRadioLikelihood, m)
-    sum(x->logdensityof(x, m), lklhds.lklhds)
+    sum(Base.Fix2(logdensityof, m), lklhds.lklhds)
 end
 
 """
@@ -55,7 +55,35 @@ function Base.show(io::IO, d::RadioLikelihood{T}) where {T}
 end
 
 
-amplitudes(vis::AbstractArray{<:Complex}) = abs.(vis)
+amplitudes(vis::AbstractArray{<:Complex}, ac::ArrayConfiguration) = abs.(vis)
+
+"""
+    `logclosure_amplitudes(vis, ac::ArrayConfiguration)`
+
+Compute the log-closure amplitudes for a set of visibilities and an array configuration
+
+# Notes
+This uses a closure design matrix for the computation.
+"""
+function logclosure_amplitudes(vis::AbstractArray{<:Complex}, ac::ArrayConfiguration)
+    lva = log.(abs.(vis))
+    return ac.designmat*lva
+end
+
+"""
+    `closure_phases(vis, ac::ArrayConfiguration)`
+
+Compute the closure phases for a set of visibilities and an array configuration
+
+# Notes
+This uses a closure design matrix for the computation.
+"""
+function closure_phases(vis::AbstractArray{<:Complex}, ac::ArrayConfiguration)
+    ph = angle.(vis)
+    return ac.designmat*ph
+end
+
+amplitudes(vis::AbstractArray{<:Complex}, ac::ArrayConfiguration) = abs.(vis)
 phase(vis::AbstractArray{<:Complex}) = angle.(vis)
 
 
@@ -85,11 +113,6 @@ end
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
     errinv = inv.(data[:error])
-    #k = kernel(ComplexNormal{(:μ, :τ)},
-    #            τ = τ,
-    #            μ = μ
-    #        )
-#
     vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
     ℓ = Likelihood(vis) do (μ, )
         ComplexNormal{(:μ, :τ)}(μ, errinv)
@@ -100,13 +123,6 @@ end
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     τ = inv.(data[:error])
-    #τf(_) = τ
-    #f(v) = abs.(v)
-
-    #k = kernel(AmpNormal{(:μ, :τ)},
-    #               τ = τf,
-    #               μ = f
-    #         )
     amp = getdata(data, :amp)
     ℓ = Likelihood(amp) do (μ, )
         AmpNormal{(:μ, :τ)}(abs.(μ), τ)
@@ -122,14 +138,8 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
 
     #C = Cholesky(Symmetric(covm))
     #σ = C.L
-    f = let dmat=dmat
-        vis->dmat*log.(abs.(vis))
-    end
-    #k = kernel(AmpNormal{(:μ, :τ)},
-    #            vis->(τ = τ,
-    #                  μ = f(vis))
-    #          )
 
+    f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:amp]
     ℓ = Likelihood(amp) do (μ,)
         AmpNormal{(:μ, :τ)}(f(μ), τ)
@@ -140,13 +150,7 @@ end
 
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosurePhaseDatum})
     τ = inv.(getdata(data, :error)).^2
-    dmat = data.config.designmat
-    f(vis) = dmat*angle.(vis)
-    #d = CPVonMises{(:μ, :κ)}
-    #k = kernel(d,
-    #            vis->(κ = τ,
-    #                  μ = f(vis))
-    #          )
+    f = Base.Fix2(closure_phases, data.config)
     phase = data[:phase]
     ℓ = Likelihood(phase) do (μ,)
         CPVonMises{(:μ, :κ)}(f(μ), τ)
