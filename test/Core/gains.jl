@@ -10,10 +10,6 @@ using Distributions
 
     gcache = GainCache(st)
 
-    prior = test_prior()
-
-    post = Posterior(lklhd, prior, test_model)
-    prior_sample(post)
 
     θ = (f1 = 1.0,
          σ1 = 1.2e-10,
