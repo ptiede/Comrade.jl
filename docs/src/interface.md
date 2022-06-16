@@ -19,17 +19,18 @@ Now a `Gaussian` is the simplest model structure we can consider. In some sense 
 an existing model. To tell `Comrade` that this is the case we define the following method:
 
 ```julia
-# Tell Comrade Gamma is a primitive model
+# Tell Comrade Gaussian is a primitive model
 Comrade.isprimitive(::Type{<:Gaussian}) = IsPrimitive()
 ```
 
-In the actual Gaussian implementation we define `Gaussian <: Comrade.GeometricModel` which defines this automatically. Note, that if the Gaussian wasn't a primitive model we could've used `NotPrimitive()` instead.
+In the actual Gaussian implementation we define `Gaussian <: Comrade.GeometricModel` which assumes the model is analytic and primitive by default. 
+Note, that if the Gaussian wasn't a primitive model we could've used `NotPrimitive()` instead.
 Now a Gaussian has an analytic expression in the image and Fourier domain. We can tell `Comrade` this by setting:
 
 ```julia
 # Fourier and image domain are analytic
-Comrade.visanalytic(::Type{<:Gamma}) = IsAnalytic()
-Comrade.imanalytic(::Type{<:Gamma}) = IsAnalytic()
+Comrade.visanalytic(::Type{<:Gaussian}) = IsAnalytic()
+Comrade.imanalytic(::Type{<:Gaussian}) = IsAnalytic()
 ```
 
 **Note** that again for `<: Comrade.GeometricModel` this is again automatically defined. However, for models that aren't a subtype of `GeometricModel` we assume the image domain `IsAnalytic()` and the Fourier domain is `NotAnalytic()`.
