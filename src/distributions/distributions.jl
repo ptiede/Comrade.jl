@@ -1,4 +1,3 @@
-using MeasureBase
 using SpecialFunctions: besseli
 using Random
 using KeywordCalls
@@ -8,13 +7,13 @@ import Distributions as Dists
 export CPVonMises, CPNormal, CMvNormal, AmpNormal
 
 
-@parameterized ComplexNormal(μ, σ)
-@kwstruct ComplexNormal(μ, σ)
-@kwstruct ComplexNormal(μ, τ)
+MT.@parameterized ComplexNormal(μ, σ)
+MT.@kwstruct ComplexNormal(μ, σ)
+MT.@kwstruct ComplexNormal(μ, τ)
 
-MeasureBase.basemeasure(::ComplexNormal) = Lebesgue()
+MB.basemeasure(::ComplexNormal) = MT.Lebesgue()
 
-function MeasureBase.logdensity_def(d::ComplexNormal{(:μ, :σ)}, x)
+function MB.logdensity_def(d::ComplexNormal{(:μ, :σ)}, x)
     #sum = zero(eltype(d.σ))
     #@inbounds @fastmath for i in eachindex(x)
     #    sum += abs2((x[i] - d.μ[i])/d.σ[i])
@@ -23,11 +22,11 @@ function MeasureBase.logdensity_def(d::ComplexNormal{(:μ, :σ)}, x)
     #return -sum/2
 end
 
-MeasureBase.insupport(::ComplexNormal, x) = true
-MeasureBase.insupport(::ComplexNormal) = MeasureBase.Returns(true)
+MB.insupport(::ComplexNormal, x) = true
+MB.insupport(::ComplexNormal) = MB.Returns(true)
 
 
-function MeasureBase.logdensity_def(d::ComplexNormal{(:μ, :τ)}, x)
+function MB.logdensity_def(d::ComplexNormal{(:μ, :τ)}, x)
     #sum = zero(eltype(real(d.μ)))
     #@inbounds @fastmath for i in eachindex(x)
     #    sum += abs2((x[i] - d.μ[i])*d.τ[i])
@@ -49,15 +48,15 @@ function Base.rand(rng::AbstractRNG, T::Type, d::ComplexNormal{(:μ, :τ)})
 end
 
 
-@parameterized CPVonMises(μ, κ)
+MT.@parameterized CPVonMises(μ, κ)
 
-@kwstruct CPVonMises(μ, κ)
-@kwstruct CPVonMises(μ, σ)
+MT.@kwstruct CPVonMises(μ, κ)
+MT.@kwstruct CPVonMises(μ, σ)
 
-MeasureBase.basemeasure(::CPVonMises) = Lebesgue()
+MB.basemeasure(::CPVonMises) = MT.Lebesgue()
 
 const log2π = log(2π)
-function MeasureBase.logdensity_def(d::CPVonMises{(:μ, :κ)}, x)
+function MB.logdensity_def(d::CPVonMises{(:μ, :κ)}, x)
     #T = eltype(d.μ)
     #sum = zero(T)
     #@inbounds for i = eachindex(x)
@@ -68,11 +67,11 @@ function MeasureBase.logdensity_def(d::CPVonMises{(:μ, :κ)}, x)
     return sum(dθ)
 end
 
-MeasureBase.insupport(::CPVonMises, x) = true
-MeasureBase.insupport(::CPVonMises) = MeasureBase.Returns(true)
+MB.insupport(::CPVonMises, x) = true
+MB.insupport(::CPVonMises) = MB.Returns(true)
 
 
-function MeasureBase.logdensity_def(d::CPVonMises{(:μ, :σ)},x)
+function MB.logdensity_def(d::CPVonMises{(:μ, :σ)},x)
     #sum = zero(eltype(d.μ))
     #@inbounds for i = eachindex(x)
     #    sum += (cos(x[i]-d.μ[i])-1)/d.σ[i]^2 #- log(besselix(0.0, 1/d.σ[i]^2)) - log2π
@@ -91,12 +90,12 @@ function Base.rand(rng::AbstractRNG, T::Type, d::CPVonMises{(:μ, :σ)})
     return rand.(Ref(rng), Ref(T), d)
 end
 
-@parameterized AmpNormal(μ, τ)
-@kwstruct AmpNormal(μ, τ)
-MeasureBase.basemeasure(::AmpNormal) = Lebesgue()
+MT.@parameterized AmpNormal(μ, τ)
+MT.@kwstruct AmpNormal(μ, τ)
+MB.basemeasure(::AmpNormal) = MT.Lebesgue()
 
 
-function MeasureBase.logdensity_def(d::AmpNormal{(:μ, :τ)}, x)
+function MB.logdensity_def(d::AmpNormal{(:μ, :τ)}, x)
     #T = eltype(d.μ)
     #sum = zero(T)
     #@inbounds for i = eachindex(x)
@@ -110,20 +109,19 @@ function Base.rand(rng::AbstractRNG, T::Type, d::AmpNormal{(:μ, :τ)})
     return randn(rng, T, nd)./d.τ + d.μ
 end
 
-MeasureBase.insupport(::AmpNormal, x) = true
-MeasureBase.insupport(::AmpNormal) = MeasureBase.Returns(true)
+MB.insupport(::AmpNormal, x) = true
+MB.insupport(::AmpNormal) = MB.Returns(true)
 
 
-@parameterized CPNormal(μ, σ)
+MT.@parameterized CPNormal(μ, σ)
 
 Base.minimum(::CPNormal) = -Inf
 Base.maximum(::CPNormal) = Inf
-MeasureBase.basemeasure(::CPNormal) = Lebesgue()
+MB.basemeasure(::CPNormal) = MT.Lebesgue()
 
-const log2π = log(2π)
-function MeasureBase.logdensity_def(dist::CPNormal{(:μ, :σ)}, x::Real)
+function MB.logdensity_def(dist::CPNormal{(:μ, :σ)}, x::Real)
     μ,σ = dist.μ, dist.σ
-    s,c = sincos(x)
+    s,c = sincos(x-μ)
     dθ = atan(s, c)
     return  -(abs2(dθ/σ) + log2π)/2
 end

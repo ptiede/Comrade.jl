@@ -18,7 +18,8 @@ using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
 using FLoops
 #using MappedArrays: mappedarray
-using MeasureBase, MeasureTheory
+import MeasureBase as MB
+import MeasureTheory as MT
 using NFFT: nfft, plan_nfft
 using PaddedViews
 using PyCall: pyimport, PyNULL, PyObject

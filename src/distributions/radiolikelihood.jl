@@ -1,25 +1,33 @@
-using MeasureTheory
+using MeasureBase: logdensityof, Likelihood
 export RadioLikelihood, logdensityof, MultiRadioLikelihood
 using LinearAlgebra
 
 
-struct RadioLikelihood{T,A} <: MeasureBase.AbstractMeasure
+struct RadioLikelihood{T,A} <: MB.AbstractMeasure
     lklhds::T
     ac::A
 end
 
 
-struct MultiRadioLikelihood{L} <: MeasureBase.AbstractMeasure
+struct MultiRadioLikelihood{L} <: MB.AbstractMeasure
     lklhds::L
 end
 
 """
     `MultiRadioLikelihood(lklhd1, lklhd2, ...)`
 Combines multiple likelihoods into one object that is useful for fitting multiple days/frequencies.
+
+```julia
+lklhd1 = RadioLikelihood(dcphase1, dlcamp1)
+lklhd2 = RadioLikelihood(dcphase2, dlcamp2)
+
+lklhd = MultiRadioLikelihood(lklhd1, lklhd2)
+```
+
 """
 MultiRadioLikelihood(lklhds::RadioLikelihood...) = MultiRadioLikelihood(lklhds)
 
-function MeasureBase.logdensityof(lklhds::MultiRadioLikelihood, m)
+function MB.logdensityof(lklhds::MultiRadioLikelihood, m)
     sum(Base.Fix2(logdensityof, m), lklhds.lklhds)
 end
 
@@ -44,7 +52,7 @@ function RadioLikelihood(data::EHTObservation...)
     RadioLikelihood{typeof(ls), typeof(acs[1])}(ls, acs[1])
 end
 
-function RadioLikelihood(data::Likelihood...)
+function RadioLikelihood(data::MT.Likelihood...)
     return RadioLikelihood{typeof(data), Nothing}(data, nothing)
 end
 
@@ -86,13 +94,13 @@ phase(vis::AbstractArray{<:Complex}) = angle.(vis)
 
 
 
-function MeasureBase.logdensityof(d::RadioLikelihood, m::ComradeBase.AbstractModel)
+function MB.logdensityof(d::RadioLikelihood, m::ComradeBase.AbstractModel)
     ac = d.ac
     vis = visibilities(m, ac)
     return logdensityof(d, vis)
 end
 
-function MeasureBase.logdensityof(d::RadioLikelihood, vis::AbstractArray)
+function MB.logdensityof(d::RadioLikelihood, vis::AbstractArray)
     # We use a for loop here since Zygote plays nice with this
     acc = logdensityof(first(d.lklhds), vis)
     @inbounds for l in d.lklhds[begin+1:end]
@@ -101,7 +109,7 @@ function MeasureBase.logdensityof(d::RadioLikelihood, vis::AbstractArray)
     return acc
 end
 
-#function MeasureBase.logdensityof(d::RadioLikelihood, m::ComradeBase.AbstractModel)
+#function MB.logdensityof(d::RadioLikelihood, m::ComradeBase.AbstractModel)
 #    acc = logdensityof(first(d.lklhds), m)
 #    @inbounds for i in 2:length(d.lklhds)
 #        acc += logdensityof(d.lklhds[i], m)
