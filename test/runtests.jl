@@ -8,7 +8,7 @@ const GROUP = get(ENV, "GROUP", "ALL")
 #using PyCall
 
 
-# add develop to subpkg
+# add subpkg
 function dev_subpkg(subpkg)
     subpkg_path = joinpath(dirname(@__DIR__), "lib", subpkg)
     Pkg.develop(PackageSpec(path=subpkg_path))

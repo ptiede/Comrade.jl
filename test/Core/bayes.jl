@@ -31,9 +31,9 @@ load_ehtim()
     @test dimension(post) == dimension(tpostc)
 
     f = OptimizationFunction(tpostc, GalacticOptim.AutoForwardDiff{4}())
-    prob = GalacticOptim.OptimizationProblem(f, prior_sample(tpostc), nothing, lb=fill(0.001, 10), ub=fill(0.999,10))
+    prob = GalacticOptim.OptimizationProblem(f, fill(0.5, 10), nothing, lb=fill(0.001, 10), ub=fill(0.999,10))
     sol = solve(prob, BBO_adaptive_de_rand_1_bin(); maxiters=100_000)
-#
+
     xopt = transform(tpostc, sol)
     @test isapprox(xopt.f1/xopt.f2, 2.0, atol=1e-3)
     @test isapprox(xopt.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-3)
