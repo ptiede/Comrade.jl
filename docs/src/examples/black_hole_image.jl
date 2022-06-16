@@ -157,5 +157,5 @@ residual(model(xopt), dlcamp)
 
 # These residuals are a little ratty which suggests our model is missing some emission.
 # In fact, this model is slightly too simple to explain the data.
-# Check out [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141).
+# Check out [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141)
 # for some ideas what features need to be added to the model to get a better fit!
