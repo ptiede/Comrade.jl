@@ -22,7 +22,8 @@ julia = "1.6"
 [extras]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 GalacticBBO = "80c49c3a-6557-47d9-8f5b-13d0a2920315"
+GalacticOptimJL = "9d3c5eb1-403b-401b-8c0f-c11105342e6b"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "GalacticBBO", "Distributions"]
+test = ["Test", "GalacticBBO", "GalacticOptimJL", "Distributions"]
