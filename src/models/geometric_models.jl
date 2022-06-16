@@ -268,7 +268,7 @@ We mainly use this as an example of a non-analytic Fourier transform
 $(FIELDS)
 
 """
-struct ExtendedRing{F} <: GeometricModel
+struct ExtendedRing{F<:Number} <: GeometricModel
     """shape of the radial distribution"""
     shape::F
 end

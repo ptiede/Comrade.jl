@@ -16,14 +16,14 @@ using Plots
 
 # This can be created as follows
 
-m = ExtendedRing(10.0, 8.0)
-# The first argument is the radius ``r_0`` of the ring and the second is ``\alpha`` in the above
-# equation. The ``beta`` in the above equation is then given by ``r_0(1+\alpha)``.
+m = ExtendedRing(8.0)
+# The argument is `\alpha` in the above
+# equation. `beta` is given by ``(1+\alpha)``.
 
 
 # This is an example of a ring model that has a substantially different flux profile.
 
-plot(m, xlims=(-40.0, 40.0), ylims=(-40.0, 40.0), uvscale=identity)
+plot(m, xlims=(-5.0, 5.0), ylims=(-5.0, 5.0), uvscale=identity)
 
 # This function does not have a simple analytic Fourier transform, e.g.
 
@@ -34,13 +34,13 @@ Comrade.visanalytic(ExtendedRing)
 # use FFTW. To compute a numerical Fourier transform we first need to specify the image.
 
 
-image = IntensityMap(zeros(256, 256), 50.0, 50.0)
+image = IntensityMap(zeros(256, 256), 10.0, 10.0)
 
 # This will serve as our cache to store the image going forward. The next step is to create
 # a model wrapper that holds the model and the image. `Comrade` provides the `modelimage`
 # function to do exactly that
 
-mimage = modelimage(m, image; alg=Comrade.FFT())
+mimage = modelimage(m, image, Comrade.FFTAlg())
 
 # the `alg` keyword argument then specifies that we want to use an FFT to compute the
 # Fourier transform. When `modelimage` is called, the FFT is performed and then we use
