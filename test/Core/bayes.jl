@@ -1,6 +1,6 @@
 using Distributions
 using ComradeGalactic
-using GalacticBBO
+using GalacticOptimJL
 using StatsBase
 using Plots
 
@@ -31,8 +31,18 @@ load_ehtim()
     @test dimension(post) == dimension(tpostc)
 
     f = OptimizationFunction(tpostc, GalacticOptim.AutoForwardDiff{4}())
-    prob = GalacticOptim.OptimizationProblem(f, fill(0.5, 10), nothing, lb=fill(0.001, 10), ub=fill(0.999,10))
-    sol = solve(prob, BBO_adaptive_de_rand_1_bin(); maxiters=100_000)
+    x0 = [ 0.1,
+           0.4,
+           0.5,
+           0.1,
+           0.3,
+           0.1,
+           0.4,
+           0.3,
+           0.8,
+           0.8]
+    prob = GalacticOptim.OptimizationProblem(f, x0, nothing, lb=fill(0.001, 10), ub=fill(0.999,10))
+    sol = solve(prob, LBFGS(); maxiters=100_000)
 
     xopt = transform(tpostc, sol)
     @test isapprox(xopt.f1/xopt.f2, 2.0, atol=1e-3)
