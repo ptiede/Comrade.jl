@@ -10,15 +10,7 @@
 # 50 lines of code (sans comments). To start we load some packages we will need
 
 using Comrade
-using Plots
-using Distributions
-using GalacticOptim
-using GalacticBBO
-using ComradeGalactic
-using ComradeAHMC
 
-# Pathfinder and AdvancedHMC will be required for sampling the posterior.
-# Distributions is a general purpose probability distribution package in Julia.
 # The next step is to load the data. For this we will use the publically
 # available M 87 data which can be downloaded
 # from [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019).
@@ -59,6 +51,7 @@ end
 # We now need to specify the priors for our model. The easiest way to do this is to
 # specify a NamedTuple of distributions:
 
+using Distributions
 prior = (
           radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
           width = Uniform(μas2rad(1.0), μas2rad(10.0)),
@@ -119,6 +112,9 @@ logdensityof(fpost, randn(dimension(fpost)))
 # we will first use an optimizer to find a reasonable starting location. Since this is a lower
 # dimensional problem we will use BlackboxOptim or the GalacticBBO package
 
+using ComradeGalactic
+using GalacticBBO
+
 ndim = dimension(fpost)
 f = OptimizationFunction(fpost)
 prob = OptimizationProblem(f, randn(ndim), nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
@@ -130,19 +126,21 @@ xopt = transform(fpost, sol)
 
 # And we can also plot the map
 
+using Plots
 plot(model(xopt), title="MAP image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
 
+# The main goal of `Comrade` is to explore the posterior of the model parameters.
+# Currently the go to tool is [AdvancedHMC.jl](https://github.com/TuringLang/AdvancedHMC.jl).
+# To sample from the posterior you can use the following:
 
-# To see what is in the output I suggest looking at the [Pathfinder.jl](https://sethaxen.github.io/Pathfinder.jl/stable/lib/public/)
-# docs. Here all we really need are the draws from the variational approximation
-
+using ComradeAHMC
 chain, stats = sample(post, AHMC(metric=DiagEuclideanMetric(ndim)), 2000; nadapts=1000, init_params=xopt)
 
-# That's it! We now have a converged chain. To finish it up we can then plot some diagnostics.
+# That's it! To finish it up we can then plot some simple visual fit diagnostics.
 
 # First to plot the image we call
 
-plot(model(xopt), title="Random image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
+plot(model(chain[end]), title="Random image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
 
 # What about the mean image? Well let's grab 100 images from the chain
 meanimg = mean(intensitymap.(model.(sample(chain, 100)), μas2rad(120.0), μas2rad(120.0), 128, 128))
@@ -157,7 +155,7 @@ plot(model(xopt), dlcamp)
 
 residual(model(xopt), dlcamp)
 
-# These residuals are a little high which suggests we are missing some structure.
-# In fact this model is slightly too simple to explain the data.
-# Check out # from [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141).
-# for some ideas on how to make this better!
+# These residuals are a little ratty which suggests our model is missing some emission.
+# In fact, this model is slightly too simple to explain the data.
+# Check out [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141).
+# for some ideas what features need to be added to the model to get a better fit!
