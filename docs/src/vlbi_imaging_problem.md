@@ -1,7 +1,7 @@
 # Introduction to the VLBI Imaging Problem
 
-Very-long baseline interferometry (VLBI) is capable of taking the highest resolution images in the world, achieving angular resolutions of ~20 μas. In 2019, the first ever image of a black hole was produced by the Event Horizon Telescope (EHT). However, while the EHT has unprecedented resolution it is also a very sparse interferometer. As a result, the sampling in the uv or Fourier space of the image is incomplete. This makes the imaging problem uncertain. Namely, infinitely many images are possible given the data. `Comrade` is a 
-imaging/modeling package that aims to quantify this uncertainty using 
+Very-long baseline interferometry (VLBI) is capable of taking the highest resolution images in the world, achieving angular resolutions of ~20 μas. In 2019, the first ever image of a black hole was produced by the Event Horizon Telescope (EHT). However, while the EHT has unprecedented resolution it is also a very sparse interferometer. As a result, the sampling in the uv or Fourier space of the image is incomplete. This makes the imaging problem uncertain. Namely, infinitely many images are possible given the data. `Comrade` is a
+imaging/modeling package that aims to quantify this uncertainty using
 Bayesian inference.
 
 If we denote visibilities by `V` and the image structure/model by `I`, `Comrade` will then compute the posterior or the probability of an image given the visibility data, or in an equation
