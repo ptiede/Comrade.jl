@@ -122,6 +122,7 @@ function MRing{N}(α::T, β::T) where {N,T<:AbstractVector}
     return MRing{S, N}(NTuple{N,S}(α), NTuple{N,S}(β))
 end
 
+
 function MRing(c::NTuple{N, <:Complex}) where {N}
     α = real.(c)
     β = imag.(c)
@@ -153,7 +154,7 @@ end
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     vis = besselj0(k) + zero(T)*im
     θ = atan(u, v)
-    @inbounds for n in 1:N
+    for n in eachindex(m.α, m.β)
         s,c = sincos(n*θ)
         vis += 2*(m.α[n]*c - m.β[n]*s)*(1im)^n*besselj(n, k)
     end

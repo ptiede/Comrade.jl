@@ -22,8 +22,8 @@ unmodified(model::AbstractModifier) = unmodified(basemodel(model))
 
 flux(m::AbstractModifier) = flux(m.model)
 
-@inline visanalytic(::Type{<:AbstractModifier{M}}) where {M} = visanalytic(M)
-@inline imanalytic(::Type{<:AbstractModifier{M}}) where {M} = imanalytic(M)
+Base.@aggressive_constprop @inline visanalytic(::Type{<:AbstractModifier{M}}) where {M} = visanalytic(M)
+Base.@aggressive_constprop @inline imanalytic(::Type{<:AbstractModifier{M}}) where {M} = imanalytic(M)
 
 radialextent(m::AbstractModifier) = radialextent(basemodel(m))
 
@@ -92,7 +92,7 @@ end
 Shifts the model by `Δx` units in the x-direction and `Δy` units
 in the y-direction.
 """
-struct ShiftedModel{T,M<:AbstractModel} <: AbstractModifier{M}
+struct ShiftedModel{M<:AbstractModel,T} <: AbstractModifier{M}
     model::M
     Δx::T
     Δy::T
@@ -112,6 +112,8 @@ radialextent(model::ShiftedModel, Δx, Δy) = radialextent(model.model) + hypot(
 
 @inline scale_image(model::ShiftedModel, x, y) = 1.0
 @inline scale_uv(model::ShiftedModel, u, v) = exp(2im*π*(u*model.Δx + v*model.Δy))
+
+@inline visanalytic(::Type{<:ShiftedModel{M}}) where {M} = visanalytic(M)
 
 
 """
@@ -148,10 +150,11 @@ flux(m::RenormalizedModel) = m.scale*flux(m.model)
 @inline scale_image(model::RenormalizedModel, x, y) = model.scale
 @inline scale_uv(model::RenormalizedModel, u, v) = model.scale
 
-function _visibilities(m::RenormalizedModel, u::AbstractArray, v::AbstractArray)
-    m.scale*_visibilities(basemodel(m), u, v)
-end
+#function _visibilities(m::RenormalizedModel, u::AbstractArray, v::AbstractArray)
+#    m.scale*_visibilities(basemodel(m), u, v)
+#end
 
+@inline visanalytic(::Type{<:RenormalizedModel{M}}) where {M} = visanalytic(M)
 
 
 """
@@ -185,6 +188,7 @@ radialextent(model::StretchedModel) = hypot(model.α, model.β)*radialextent(bas
 @inline scale_image(model::StretchedModel, x, y) = inv(model.α*model.β)
 @inline scale_uv(::StretchedModel, u, v) = one(eltype(u))
 
+@inline visanalytic(::Type{<:StretchedModel{M}}) where {M} = visanalytic(M)
 
 
 """
@@ -206,6 +210,8 @@ function RotatedModel(model::T, ξ::F) where {T, F}
     s,c = sincos(ξ)
     return RotatedModel(model, s, c)
 end
+
+@inline visanalytic(::Type{<:RotatedModel{M}}) where {M} = visanalytic(M)
 
 """
     $(SIGNATURES)

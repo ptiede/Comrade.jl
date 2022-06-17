@@ -50,7 +50,7 @@ end
 
 radialextent(m::CompositeModel) = max(radialextent(m.m1), radialextent(m.m2))
 
-@inline visanalytic(::Type{<:CompositeModel{M1,M2}}) where {M1,M2} = visanalytic(M1)*visanalytic(M2)
+@inline visanalytic(::Type{<:CompositeModel{M1,M2}}) where {M1,M2} = ComradeBase.twoanalytic(visanalytic(M1),visanalytic(M2))
 @inline imanalytic(::Type{<:CompositeModel{M1,M2}}) where {M1,M2} = imanalytic(M1)*imanalytic(M2)
 
 
@@ -118,10 +118,22 @@ end
 #     _combinatorvis(visanalytic(M1), visanalytic(M2), uv_combinator(model), model, u, v, t, ν, cache)
 # end
 
-function _visibilities(model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
-    f = uv_combinator(model)
-    return f.(visibilities(model.m1, u, v), visibilities(model.m2, u, v))
+function _visibilities(model::M, u::AbstractArray, v::AbstractArray, args...) where {M <: CompositeModel}
+    return _visibilities(visanalytic(M), model, u, v, args...)
 end
+
+
+function _visibilities(::NotAnalytic, model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
+    f = uv_combinator(model)
+    return f.(_visibilities(model.m1, u, v), _visibilities(model.m2, u, v))
+end
+
+function _visibilities(::IsAnalytic, model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
+    f = uv_combinator(model)
+    return f.(visibility_point.(Ref(model.m1), u, v), visibility_point.(Ref(model.m2), u, v))
+end
+
+
 
 #function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_visibilities), model::AddModel, u::AbstractArray, v::AbstractArray, args...)
 #    v1_and_vdot = rrule_via_ad(config, _visibilities, model.m1, u, v, args...)
@@ -139,9 +151,9 @@ end
 #    return first(v1_and_vdot) + first(v2_and_vdot), _addmodel_visibilities_pullback
 #end
 
-function _visibilities(model::AddModel, u::AbstractArray, v::AbstractArray, args...)
-    return visibilities(model.m1, u, v) + visibilities(model.m2, u, v)
-end
+# function _visibilities(model::AddModel, u::AbstractArray, v::AbstractArray, args...)
+#     return visibilities(model.m1, u, v) + visibilities(model.m2, u, v)
+# end
 
 
 @inline function visibility_point(model::CompositeModel{M1,M2}, u, v, args...) where {M1,M2}

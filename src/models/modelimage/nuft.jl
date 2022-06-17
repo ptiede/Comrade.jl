@@ -122,10 +122,10 @@ function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
     return nocachevis(m, u, v)
 end
 
-function _amplitudes(m::ModelImage{M,I,C}, u::AbstractArray, v::AbstractArray) where {M,I,C<:NUFTCache}
-    vis = visibilities(m, u, v)
-    return abs.(vis)
-end
+# function _amplitudes(m::ModelImage{M,I,C}, u::AbstractArray, v::AbstractArray) where {M,I,C<:NUFTCache}
+#     vis = visibilities(m, u, v)
+#     return abs.(vis)
+# end
 
 # function _bispectra(m::ModelImage{M,I,C},
 #                     u1::AbstractArray,

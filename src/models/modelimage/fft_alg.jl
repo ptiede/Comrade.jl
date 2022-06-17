@@ -242,3 +242,7 @@ function phasedecenter!(vis, fovx, fovy, nx, ny)
     end
     return vis
 end
+
+# function _visibilities(mimg::ModelImage{M, I, <:FFTCache}, u, v, args...) where {M,I}
+#     return visibility.(Ref(mimg), u, v, args...)
+# end

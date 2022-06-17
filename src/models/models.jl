@@ -106,14 +106,19 @@ end
     return mimg.cache.sitp(u, v)
 end
 
-@inline function visibilities(m::M, u::AbstractArray, v::AbstractArray) where {M}
-    _visibilities(m, u, v)
-end
+# @inline function visibilities(m::M, u::AbstractArray, v::AbstractArray) where {M}
+#     _visibilities(m, u, v)
+# end
 
 @inline function visibilities(m, ac::ArrayConfiguration)
     u, v = getuv(ac)
     return visibilities(m, u, v)
 end
+
+@inline function visibilities(m::M, u::AbstractArray, v::AbstractArray) where {M}
+    return _visibilities(m, u, v)
+end
+
 
 
 
