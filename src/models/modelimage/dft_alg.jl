@@ -25,8 +25,8 @@ end
 function plan_nuft(alg::ObservedNUFT{<:DFTAlg}, img, args...)
     uv = alg.uv
     xitr, yitr = imagepixels(img)
-    #dft = Array{Complex{eltype(img)},3}(undef, size(uv,2), size(img)...)
-    dft = StructArray{Complex{eltype(uv)}}(undef, size(uv,2), size(img)...)
+    dft = Array{Complex{eltype(img)},3}(undef, size(uv,2), size(img)...)
+    #dft = StructArray{Complex{eltype(uv)}}(undef, size(uv,2), size(img)...)
     @fastmath for i in axes(img,2), j in axes(img,1), k in axes(uv,2)
         u = uv[1,k]
         v = uv[2,k]

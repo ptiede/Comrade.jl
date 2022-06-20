@@ -50,7 +50,7 @@ end
 
 radialextent(m::CompositeModel) = max(radialextent(m.m1), radialextent(m.m2))
 
-@inline visanalytic(::Type{<:CompositeModel{M1,M2}}) where {M1,M2} = ComradeBase.twoanalytic(visanalytic(M1),visanalytic(M2))
+@inline visanalytic(::Type{<:CompositeModel{M1,M2}}) where {M1,M2} = visanalytic(M1)*visanalytic(M2)
 @inline imanalytic(::Type{<:CompositeModel{M1,M2}}) where {M1,M2} = imanalytic(M1)*imanalytic(M2)
 
 
