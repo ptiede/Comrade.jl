@@ -15,6 +15,11 @@ Currently there are two main ways to construct and sample from the posterior. Th
 native interface. To see how this works see the [Making an Image of a Black Hole](@ref) tutorial. The other method is [ComradeSoss.jl](https://github.com/ptiede/ComradeSoss.jl) which combines Comrade with `Soss` a probabilistic programming language. This allows for easier composition of models, and provides a more complete Bayesian workflow, including the ability
 to sample from the posterior predictive distributions. Other interfaces to e.g. [Turing](https://turing.ml/stable/), [BAT](https://github.com/bat/BAT.jl) are planned.
 
+## Contributing
+
+This repository has recently moved to [ColPrac](https://github.com/SciML/ColPrac). If you would like to contribute please feel free to open a issue or pull-request.
+
+
 ## Requirements
 
 The minimum Julia version we require is 1.6, which is the current LTS release. In the future we may increase this as Julia advances.
