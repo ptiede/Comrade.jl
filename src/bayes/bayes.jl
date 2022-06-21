@@ -7,25 +7,33 @@ using HypercubeTransform
 using TransformVariables
 using ValueShapes: NamedTupleDist
 
-"""
-    Posterior(lklhd, prior, model)
-Posterior density that follows obeys the [DensityInferface](https://github.com/JuliaMath/DensityInferface.jl)
-
-The expected arguments are:
-
-- lklhd: Which should be an intance of RadioLikelihood with whatever data products you want to fit
-- prior: This should be a `NamedTuple` with the priors for each model ParameterHandling
-- model: Function that takes a `NamedTuple` of parameters and constructs the `Comrade` model.
-
-To evaluate the logdensity of the posterior use can either use `DensityInterface.logdensityof`
-or `logdensity`.
-"""
 struct Posterior{L,P,F}
     lklhd::L
     prior::P
     model::F
 end
 
+"""
+    Posterior(lklhd, prior, model)
+Creates a Posterior density that follows obeys [DensityInferface](https://github.com/JuliaMath/DensityInferface.jl).
+The `lklhd` object is expected to be a `MeasureBase.Likelihood` object. For instance, these can be
+created using [`RadioLikelihood](@ref RadioLikelihood). `prior` is expected to be a `NamedTuple`
+of distributions that reflect the priors on the parameters you are considering. `model` is a function
+that takes in a `NamedTuple` of parameters and returns a `Comrade` `<:AbstractModel`.
+
+# Notes
+Since this function obeys [`DensityInferface`](@ref DensityInterface) you can evaluate it with
+```julia
+ℓ = logdensityof(post)
+ℓ(x)
+```
+or using the 2-argument version directly
+```julia
+logdensityof(post, x)
+```
+
+To generate random draws from the prior see the [`prior_sample`](@ref prior_sample) function.
+"""
 function Posterior(lklhd, prior::NamedTuple, model)
     return Posterior(lklhd, NamedTupleDist(prior), model)
 end
@@ -39,31 +47,30 @@ function DensityInterface.logdensityof(post::Posterior, x)
 end
 
 """
-    $(SIGNATURES)
-Samples the prior distribution from the posterior `nsamples` times.
+    prior_sample(post::Posterior, args...)
 
-Returns a Vector{NamedTuple} that can be used to initialize optimization and sample algorithms
+Samples the prior distribution from the posterior. The `args...` are forwarded to the
+[`Base.rand`](@ref Base.rand) method.
 """
 function prior_sample(post::Posterior, args...)
     return rand(post.prior, args...)
 end
 
+"""
+    prior_sample(post::Posterior)
+
+Returns a single sample from the prior distribution.
+"""
 function prior_sample(post::Posterior)
     return rand(post.prior)
 end
 
 """
-    `$(TYPEDEF)`
-A transformed version of the posterior `lpost`. This is an internal type
-that an end user shouldn't have to directly construct.
-
-To construct a transformed posterior see the `asflat`, `ascube`, and `flatten`
-functions.
-
-When evaluating the `logdensity` of the `TransformedPosterior`, `logdenisty`
-will include any jacobian terms automatically, and expects the argument to be the
-vector of transformed quantities. This is usually easier to incorporate with
-samplers, and optimizers, which expect homogenous vectors as arguments.
+    $(TYPEDEF)
+A transformed version of a `Posterior` object.
+This is an internal type that an end user shouldn't have to directly construct.
+To construct a transformed posterior see the [`asflat`](@ref asflat), [`ascube`](@ref ascube),
+and [`flatten`](@ref Comrade.flatten) docstrings.
 """
 struct TransformedPosterior{P<:Posterior,T}
     lpost::P
@@ -81,38 +88,57 @@ function prior_sample(tpost::TransformedPosterior)
 end
 
 
+@inline DensityInterface.DensityKind(::TransformedPosterior) = DensityInterface.IsDensity()
+
+
 
 """
     transform(posterior::TransformedPosterior, x)
-Transforms the value `x` into parameter space, i.e. usually a NamedTuple.
+
+Transforms the value `x` from the transformed space (e.g. unit hypercube if using [`ascube`](@ref ascube))
+to parameter space which is usually encoded as a `NamedTuple`.
+
+For the inverse transform see [`inverse`](@ref HypercubeTransform.inverse)
 """
 HypercubeTransform.transform(p::TransformedPosterior, x) = transform(p.transform, x)
 
 
 """
     inverse(posterior::TransformedPosterior, x)
-Transforms the value model parameters `x` into the flattened transformed space.
+
+Transforms the value `y` from parameter space to the transformed space
+(e.g. unit hypercube if using [`ascube`](@ref ascube)).
+
+For the inverse transform see [`transform`](@ref HypbercubeTransform.transform)
 """
 HypercubeTransform.inverse(p::TransformedPosterior, y) = HypercubeTransform.inverse(p.transform, y)
 
 
-@inline DensityInterface.DensityKind(::TransformedPosterior) = DensityInterface.IsDensity()
 
 # MeasureBase.logdensityof(tpost::Union{Posterior,TransformedPosterior}, x) = DensityInterface.logdensityof(tpost, x)
 
 
 """
     asflat(post::Posterior)
-Construct a flattened version of the posterior, where the parameters are transformed so that
-their support is from (-∞, ∞). This uses [TransformVariables](https://github.com/tpapp/TransformVariables.jl)
 
-The transformed posterior can then be evaluated by the `logdensityof(transformed_posterior,x)`
-method following the `DensityInterface`, where `x` is a flattened vector of the infinite support
-variables. **Note** this already includes the jacobian of the transformation so this does
-not need to be added.
+Construct a flattened version of the posterior where the parameters are transformed to live in
+(-∞, ∞).
 
-This is useful for optimization and sampling algorithms such as HMC that will use gradients
-to explore the posterior surface.
+This returns a `TransformedPosterior` that obeys the `DensityInterface` and can be evaluated
+in the usual manner, i.e. `logdensityof`. Note that the transformed posterior automatically
+includes the terms log-jacobian terms of the transformation.
+
+# Example
+```julia
+tpost = ascube(post)
+x0 = prior_sample(tpost)
+logdensityof(tpost, x0)
+```
+
+# Notes
+This is the transform that should be used if using typical MCMC methods, i.e. `ComradeAHMC`.
+For the transformation to the unit hypercube see [`ascube`](@ref ascube)
+
 """
 function HypercubeTransform.asflat(post::Posterior)
     pr = getfield(post.prior, :_internal_distributions)
@@ -130,18 +156,24 @@ HypercubeTransform.dimension(post::Posterior) = dimension(asflat(post))
 
 """
     ascube(post::Posterior)
-Construct a flattened version of the posterior, where the parameters are transformed to live
-in the unit hypercube. In astronomy parlance, we are transforming the variables to the unit
-hypercube. This is done using the [HypercubeTransform](https://github.com/ptiede/HypercubeTransform.jl)
-package.
 
-The transformed posterior can then be evaluated by the `logdensityof(transformed_posterior,x)`
-method following the `DensityInterface`, where `x` vector that lives in the unit hypercube.
-**Note** this already includes the jacobian of the transformation so this does
-not need to be added.
+Construct a flattened version of the posterior where the parameters are transformed to live in
+(0, 1), i.e. the unit hypercube.
 
-This transform is useful for NestedSampling methods that often assume that the model is written
-to live in the unit hypercube.
+This returns a `TransformedPosterior` that obeys the `DensityInterface` and can be evaluated
+in the usual manner, i.e. `logdensityof`. Note that the transformed posterior automatically
+includes the terms log-jacobian terms of the transformation.
+
+# Example
+```julia
+tpost = ascube(post)
+x0 = prior_sample(tpost)
+logdensityof(tpost, x0)
+```
+
+# Notes
+This is the transform that should be used if using typical NestedSampling methods,
+i.e. `ComradeNested`. For the transformation to unconstrained space see [`asflat`](@ref asflat)
 """
 function HypercubeTransform.ascube(post::Posterior)
     pr = getfield(post.prior, :_internal_distributions)
@@ -166,14 +198,27 @@ end
 HypercubeTransform.transform(t::FlatTransform, x) = t.transform(x)
 HypercubeTransform.inverse(::FlatTransform, x) = first(ParameterHandling.flatten(x))
 HypercubeTransform.dimension(t::FlatTransform) = t.transform.unflatten.sz[end]
+
 """
     flatten(post::Posterior)
-Flatten the representation of the posterior. Internally this uses ParameterHandling to
-construct a flattened version of the posterior.
 
-Note this is distinct from `asflat` that transforms the variables to live in (-∞,∞).
-Instead this method just flattens the repsentation of the model from a NamedTuple to a vector.
-This allows the easier integration to optimization and sampling algorithms.
+Construct a flattened version of the posterior but **do not** transform to any space, i.e.
+use the support specified by the prior.
+
+This returns a `TransformedPosterior` that obeys the `DensityInterface` and can be evaluated
+in the usual manner, i.e. `logdensityof`. Note that the transformed posterior automatically
+includes the terms log-jacobian terms of the transformation.
+
+# Example
+```julia
+tpost = flatten(post)
+x0 = prior_sample(tpost)
+logdensityof(tpost, x0)
+```
+
+# Notes
+This is the transform that should be used if using typical MCMC methods, i.e. `ComradeAHMC`.
+For the transformation to the unit hypercube see [`ascube`](@ref ascube)
 """
 function ParameterHandling.flatten(post::Posterior)
     x0 = rand(post.prior)
