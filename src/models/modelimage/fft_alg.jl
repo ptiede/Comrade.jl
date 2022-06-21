@@ -104,8 +104,8 @@ end
 function padimage(img, alg::FFTAlg)
     padfac = alg.padfac
     ny,nx = size(img)
-    nnx = nextpow(2, padfac*nx)
-    nny = nextpow(2, padfac*ny)
+    nnx = nextprod((2,3,5,7), padfac*nx)
+    nny = nextprod((2,3,5,7), padfac*ny)
     PaddedView(zero(eltype(img)), img, (nny, nnx))
 end
 

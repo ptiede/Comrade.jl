@@ -26,8 +26,8 @@ function padimage(alg::NFFTAlg, img)
     (padfac == 1) && return img
 
     ny,nx = size(img)
-    nnx = nextpow(2, padfac*nx)
-    nny = nextpow(2, padfac*ny)
+    nnx = nextprod((2,3,5,7), padfac*nx)
+    nny = nextprod((2,3,5,7), padfac*ny)
     nsx = nnx÷2-nx÷2
     nsy = nny÷2-ny÷2
     return PaddedView(zero(eltype(img)), img,
