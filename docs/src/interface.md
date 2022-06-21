@@ -11,7 +11,7 @@ To see how this works we will go through a simplified implementation the Gaussia
 of a image feature from VLBI data. To construct a Gaussian model we will first a struct:
 
 ```julia
-struct Gaussian <: Comrade.AbstractModel end
+struct MyGaussian <: Comrade.AbstractModel end
 ```
 
 Notice that we don't provide any more information about the model, e.g. *size, shape, flux* etc. This is because below we will use `Comrade`'s extensive modifier to change the structure of the model.
@@ -20,7 +20,7 @@ an existing model. To tell `Comrade` that this is the case we define the followi
 
 ```julia
 # Tell Comrade Gaussian is a primitive model
-Comrade.isprimitive(::Type{<:Gaussian}) = IsPrimitive()
+Comrade.isprimitive(::Type{<:MyGaussian}) = IsPrimitive()
 ```
 
 In the actual Gaussian implementation we define `Gaussian <: Comrade.GeometricModel` which assumes the model is analytic and primitive by default. 
@@ -29,8 +29,8 @@ Now a Gaussian has an analytic expression in the image and Fourier domain. We ca
 
 ```julia
 # Fourier and image domain are analytic
-Comrade.visanalytic(::Type{<:Gaussian}) = IsAnalytic()
-Comrade.imanalytic(::Type{<:Gaussian}) = IsAnalytic()
+Comrade.visanalytic(::Type{<:MyGaussian}) = IsAnalytic()
+Comrade.imanalytic(::Type{<:MyGaussian}) = IsAnalytic()
 ```
 
 **Note** that again for `<: Comrade.GeometricModel` this is again automatically defined. However, for models that aren't a subtype of `GeometricModel` we assume the image domain `IsAnalytic()` and the Fourier domain is `NotAnalytic()`.
@@ -38,25 +38,25 @@ Comrade.imanalytic(::Type{<:Gaussian}) = IsAnalytic()
 Since both the image and visibility domain representation of the Gaussian are analytic we need to define a `intensity_point` and `visibility_point` method. For a Gaussian these are given by
 
 ```julia
-function intensity_point(::Gaussian, x,y)
+function intensity_point(::MyGaussian, x,y)
     return exp(-(x^2+y^2)/2)/2π
 end
 
-function visibility_point(::Gaussian, u, v, args...) where {T}
+function visibility_point(::MyGaussian, u, v, args...) where {T}
     return exp(-2π^2*(u^2 + v^2)) + 0im
 end
 ```
 
 Additionally, most models in `Comrade` has two additional functions one can implement if possible:
 
-1. `flux(m::Gaussian)`: This defines the flux of a model. If this isn't defined the model won't have a flux until an image is created. For a Gaussian the definition is `flux(::Gaussian) = 1.0`.
-2. `radialextent(::Gaussian)`: This defines roughly the default radial extent of the model. For a Gaussian we will consider the radial extent to be $5σ$, so `radialextent(::Gaussian) = 5.0`.
+1. `flux(m::MyGaussian)`: This defines the flux of a model. If this isn't defined the model won't have a flux until an image is created. For a Gaussian the definition is `flux(::MyGaussian) = 1.0`.
+2. `radialextent(::MyGaussian)`: This defines roughly the default radial extent of the model. For a Gaussian we will consider the radial extent to be $5σ$, so `radialextent(::MyGaussian) = 5.0`.
 
 This completely defines the model interface for `Comrade`. With this you can call the usual forward facing API to evaluate, fit, and plot the model. Additionally, we can now start talking about
 adding multiple Gaussians, and modifying them. For instance suppose you want a elliptical Gaussian with a flux of 2 Jy. This can be created by `Comrade` as follows:
 
 ```julia
-gauss = Gaussian()
+gauss = MyGaussian()
 ellgauss = 2.0*rotated(stretched(gauss, 1.0, 0.5), π/4)
 fig = plot(gauss, layout=(1,2), size=(800,300))
 plot!(fig[2], ellgauss, size=(800,350))
