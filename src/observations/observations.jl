@@ -22,6 +22,7 @@ export uvpositions, stations, getdata, arrayconfig,
 
 """
     $(TYPEDEF)
+
 This defined the abstract type for an array configuration. Namely, baseline
 times, SEFD's, bandwidth, observation frequencies, etc.
 """
@@ -29,10 +30,12 @@ abstract type ArrayConfiguration end
 
 """
     $(TYPEDEF)
+
 Stores all the non-visibility data products for an EHT array. This is useful when evaluating
 model visibilities.
 
-# $(FIELDS)
+# Fields
+$(FIELDS)
 """
 struct EHTArrayConfiguration{F,T<:AbstractArray} <: ArrayConfiguration
     """
@@ -44,7 +47,7 @@ struct EHTArrayConfiguration{F,T<:AbstractArray} <: ArrayConfiguration
     """
     bandwidth::F
     """
-    A struct array of `ArrayBaselineDatum` holding time, u, v, baselines.
+    A struct array of `ArrayBaselineDatum` holding time, freq, u, v, baselines.
     """
     data::T
 end
@@ -91,14 +94,38 @@ end
 
 """
     $(TYPEDEF)
-A single datum of an observing array.
+
+A single datum of an `ArrayConfiguration`
 """
 struct ArrayBaselineDatum{T}
+    """
+    time of the data point in (Hr)
+    """
     time::T
+    """
+    frequency of the data point (Hz)
+    """
+    freq::T
+    """
+    u position of the data point in λ
+    """
     u::T
+    """
+    v position of the data point in λ
+    """
     v::T
+    """
+    Station codes of the baseline (u,v)
+    """
     baseline::Tuple{Symbol, Symbol}
+    function ArrayBaselineDatum(time, freq, u, v, baseline)
+        tt, ft, ut, vt = promote(time, freq, u, v)
+        T = typeof(tt)
+        return new{T}(tt, ft, ut, vt, baseline)
+    end
 end
+
+
 
 const ArrayQuadrangleDatum = NTuple{4, ArrayBaselineDatum{T}} where {T}
 const ArrayTriangleDatum = NTuple{3, ArrayBaselineDatum{T}} where {T}
@@ -114,7 +141,8 @@ uvpositions(D::AbstractVisibilityDatum) = D.u, D.v
 The main data product type in `Comrade` this stores the `data` which can be a StructArray
 of any `AbstractInterferometryDatum` type.
 
-# ($FIELDS)
+# Fields
+$FIELDS
 """
 Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructArray{T}, A, N} <: Observation{F}
     """
@@ -601,6 +629,7 @@ function _arrayconfig(data, bandwidth, frequency)
     uvsamples = StructArray{ArrayBaselineDatum}(time=times,
                                         u=u,
                                         v=v,
+                                        freq = fill(frequency, length(u)),
                                         baseline=baseline,
                                         error_real=error,
                                         error_imag=error

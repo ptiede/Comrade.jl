@@ -22,7 +22,7 @@ of distributions that reflect the priors on the parameters you are considering. 
 that takes in a `NamedTuple` of parameters and returns a `Comrade` `<:AbstractModel`.
 
 # Notes
-Since this function obeys [`DensityInferface`](@ref DensityInterface) you can evaluate it with
+Since this function obeys `DensityInferface` you can evaluate it with
 ```julia
 ℓ = logdensityof(post)
 ℓ(x)
@@ -50,7 +50,7 @@ end
     prior_sample(post::Posterior, args...)
 
 Samples the prior distribution from the posterior. The `args...` are forwarded to the
-[`Base.rand`](@ref Base.rand) method.
+`Base.rand` method.
 """
 function prior_sample(post::Posterior, args...)
     return rand(post.prior, args...)
@@ -109,7 +109,7 @@ HypercubeTransform.transform(p::TransformedPosterior, x) = transform(p.transform
 Transforms the value `y` from parameter space to the transformed space
 (e.g. unit hypercube if using [`ascube`](@ref ascube)).
 
-For the inverse transform see [`transform`](@ref HypbercubeTransform.transform)
+For the inverse transform see [`transform`](@ref HypercubeTransform.transform)
 """
 HypercubeTransform.inverse(p::TransformedPosterior, y) = HypercubeTransform.inverse(p.transform, y)
 

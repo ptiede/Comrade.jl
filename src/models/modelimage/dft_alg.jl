@@ -3,17 +3,36 @@ padfac(::DFTAlg) = 1
 # We don't pad a DFT since it is already correct
 padimage(::DFTAlg, img) = img
 
+"""
+    $(SIGNATURES)
 
+Create an algorithm object using the direct Fourier transform object from the observation
+`obs`. This will extract the uv positions from the observation to allow for a more efficient
+FT cache.
+"""
 function DFTAlg(obs::EHTObservation)
     u,v = getuv(obs.config)
     return DFTAlg(u, v)
 end
 
+"""
+    $(SIGNATURES)
+
+Create an algorithm object using the direct Fourier transform object from the array configuration
+`ac`. This will extract the uv positions from the observation to allow for a more efficient
+FT cache.
+"""
 function DFTAlg(ac::ArrayConfiguration)
     u,v = getuv(ac)
     return DFTAlg(u, v)
 end
 
+"""
+    $(SIGNATURES)
+
+Create an algorithm object using the direct Fourier transform object using the uv positions
+`u`, `v` allowing for a more efficient transform.
+"""
 function DFTAlg(u::AbstractArray, v::AbstractArray)
     @argcheck length(u) == length(v)
     uv = Matrix{eltype(u)}(undef, 2, length(u))
@@ -22,6 +41,7 @@ function DFTAlg(u::AbstractArray, v::AbstractArray)
     return ObservedNUFT(DFTAlg(), uv)
 end
 
+# internal function that creates an DFT matrix/plan to use used for the img.
 function plan_nuft(alg::ObservedNUFT{<:DFTAlg}, img, args...)
     uv = alg.uv
     xitr, yitr = imagepixels(img)
@@ -36,6 +56,7 @@ function plan_nuft(alg::ObservedNUFT{<:DFTAlg}, img, args...)
     return reshape(dft, size(uv,2), :)
 end
 
+# internal function to make the phases to phase center the image.
 function make_phases(alg::ObservedNUFT{<:DFTAlg}, img)
     u = @view alg.uv[1,:]
     v = @view alg.uv[2,:]
@@ -43,6 +64,12 @@ function make_phases(alg::ObservedNUFT{<:DFTAlg}, img)
     visibilities(img.pulse, u*dx, v*dy)
 end
 
+"""
+    $(SIGNATURES)
+
+Create a cache for the DFT algorithm with precomputed `plan`, `phases` and `img`.
+This is an internal version.
+"""
 function create_cache(alg::ObservedNUFT{<:DFTAlg}, plan, phases, img)
     return NUFTCache(alg, plan, phases, img.pulse, reshape(img.im, :))
 end

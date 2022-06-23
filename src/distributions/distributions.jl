@@ -7,6 +7,13 @@ import Distributions as Dists
 export CPVonMises, CPNormal, CMvNormal, AmpNormal
 
 
+"""
+    ComplexNormal
+
+Uncorrelated complex Normal Measure. This is the default likelihood used for visibilties.
+"""
+ComplexNormal
+
 MT.@parameterized ComplexNormal(μ, σ)
 MT.@kwstruct ComplexNormal(μ, σ)
 MT.@kwstruct ComplexNormal(μ, τ)
@@ -47,6 +54,14 @@ function Base.rand(rng::AbstractRNG, T::Type, d::ComplexNormal{(:μ, :τ)})
     return x1 + 1im*x2
 end
 
+
+"""
+    CPVonMises
+
+The von Mises distribution used for closure phases. Typically μ and κ=1/σ² are vectors
+to allow for simpler derivative rules.
+"""
+CPVonMises
 
 MT.@parameterized CPVonMises(μ, κ)
 
@@ -89,6 +104,16 @@ function Base.rand(rng::AbstractRNG, T::Type, d::CPVonMises{(:μ, :σ)})
     d = @. Dists.VonMises(d.μ, 1/d.σ^2)
     return rand.(Ref(rng), Ref(T), d)
 end
+
+
+"""
+    AmpNormal
+
+Visibility amplitude likelihood distribution. Typically μ, τ=1/σ are vectors to allow for
+more efficient derivatives.
+"""
+AmpNormal
+
 
 MT.@parameterized AmpNormal(μ, τ)
 MT.@kwstruct AmpNormal(μ, τ)

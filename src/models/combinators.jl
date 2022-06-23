@@ -16,7 +16,8 @@ Any implementation of a composite type must define the following methods:
 - intensitymap! if model intensity is `NotAnalytic`
 - intensitymap if model intensity is `NotAnalytic`
 - flux
-
+- radialextent
+- visibilities (optional)
 """
 abstract type CompositeModel{M1,M2} <: AbstractModel end
 
@@ -56,10 +57,17 @@ radialextent(m::CompositeModel) = max(radialextent(m.m1), radialextent(m.m2))
 
 """
     $(TYPEDEF)
-Adds two models together to create composite models. Note that
-I may change this in the future so make it easier on the compiler,
-i.e. make the composite model a fancy model vector and heap allocate
-stuff. This should help when combining multiple models together.
+
+Pointwise addition of two models in the image and visibility domain.
+An end user should instead call [`add`](@ref add) or `Base.+` when
+constructing a model
+
+# Example
+
+```julia-repl
+julia> m1 = Disk() + Gaussian()
+julia> m2 = add(Disk(), Gaussian()) + Ring()
+```
 """
 struct AddModel{T1,T2} <: CompositeModel{T1,T2}
     m1::T1
@@ -67,6 +75,19 @@ struct AddModel{T1,T2} <: CompositeModel{T1,T2}
 end
 Base.:+(m1::T1, m2::T2) where {T1<:AbstractModel, T2<:AbstractModel} = AddModel(m1, m2)
 Base.:-(m1, m2) = AddModel(m1, -1.0*m2)
+
+"""
+    $(SIGNATURES)
+
+Combine two models to create a composite [`AddModel`](@ref Comrade.AddModel).
+This adds two models pointwise, i.e.
+``julia-repl
+julia> m1 = Gaussian()
+julia> m2 = Disk()
+julia> visibility(m1+m2, 1.0, 1.0) == visibility(m1, 1.0, 1.0) + visibility(m2, 1.0, 1.0)
+true
+```
+"""
 add(m1::M1, m2::M2) where {M1<:AbstractModel, M2<:AbstractModel} = AddModel(m1, m2)
 
 
@@ -86,8 +107,17 @@ add(m1::M1, m2::M2) where {M1<:AbstractModel, M2<:AbstractModel} = AddModel(m1, 
 
 """
     $(SIGNATURES)
-Returns the components for a composite model. This
+
+Returns the model components for a composite model. This
 will return a Tuple with all the models you have constructed.
+
+# Example
+
+```julia-repl
+julia> m = Gaussian() + Disk()
+julia> components(m)
+(Gaussian{Float64}(), Disk{Float64}())
+```
 """
 components(m::AbstractModel) = (m,)
 components(m::CompositeModel{M1,M2}) where
@@ -173,11 +203,19 @@ end
 
 
 """
-    $(TYPEDEF)
-Convolves two models `m1` and `m2`.
+$(TYPEDEF)
 
-# Notes
-This is the non-exported constructor. The user should call the `convolved` function during use
+Pointwise addition of two models in the image and visibility domain.
+An end user should instead call [`convolved`](@ref convolved).
+Also see [`smoothed(m, σ)`](@ref smoothed) for a simplified function that convolves
+a model `m` with a Gaussian with standard deviation `σ`.
+
+# Example
+
+```julia-repl
+julia> m1 = convolved(Disk(),Gaussian())
+julia> m2 = smoothed()
+```
 """
 struct ConvolvedModel{M1, M2} <: CompositeModel{M1,M2}
     m1::M1
@@ -186,7 +224,14 @@ end
 
 """
     $(SIGNATURES)
-Convolves two models `m1` and `m2`. This is done lazily.
+
+Convolve two models to create a composite [`ConvolvedModel`](@ref Comrade.ConvolvedModel).
+
+``julia-repl
+julia> m1 = Ring()
+julia> m2 = Disk()
+julia> convolved(m1, m2)
+```
 """
 convolved(m1, m2) = ConvolvedModel(m1, m2)
 
@@ -195,7 +240,13 @@ convolved(m1, m2) = ConvolvedModel(m1, m2)
 Smooths a model `m` with a Gaussian kernel with standard deviation `σ`.
 
 # Notes
-This will created a convolved model under the hood.
+This uses [`convolved`](@ref) to created the model, i.e.
+```julia-repl
+julia> m1 = Disk()
+julia> m2 = Gaussian()
+julia> convolved(m1, m2) == smoothed(m1, 1.0)
+true
+```
 """
 smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 

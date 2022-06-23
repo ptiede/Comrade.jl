@@ -42,5 +42,4 @@ ComradeBase.CoherencyMatrix
 ComradeBase.evpa
 ComradeBase.m̆
 ComradeBase.SingleStokes
-ComradeBase.ThreadedModel
 ```

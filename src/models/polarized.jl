@@ -13,8 +13,8 @@ struct PolarizedModel{TI,TQ,TU,TV} <: AbstractPolarizedModel
     V::TV
 end
 
-@inline visanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = visanalytic(I)*visanalytic(Q)*visanalytic(U)*visanalytic(V)
-@inline imanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = imanalytic(I)*imanalytic(Q)*imanalytic(U)*imanalytic(V)
+Base.Base.@aggressive_constprop @inline visanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = visanalytic(I)*visanalytic(Q)*visanalytic(U)*visanalytic(V)
+Base.Base.@aggressive_constprop @inline imanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = imanalytic(I)*imanalytic(Q)*imanalytic(U)*imanalytic(V)
 
 @inline function intensity_point(pmodel::PolarizedModel, u, v)
     I = intensity_point(pmodel.I, u, v)
@@ -46,7 +46,8 @@ end
 
 """
     $(SIGNATURES)
-Finds the polarized intensity map of the polarized model pmodel.
+
+Finds the polarized intensity map of the polarized model `pmodel`.
 """
 function intensitymap!(pimg::IntensityMap{<:StokesVector}, pmodel::PolarizedModel)
     intensitymap!(stokes(pimg, :I), pmodel.I)
@@ -55,6 +56,11 @@ function intensitymap!(pimg::IntensityMap{<:StokesVector}, pmodel::PolarizedMode
     intensitymap!(stokes(pimg, :V), pmodel.V)
 end
 
+"""
+    $(SIGNATURES)
+
+Finds the polarized intensity map of the polarized model `pmodel`.
+"""
 function intensitymap(pmodel::PolarizedModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
     imgI = intensitymap(pmodel.I, fovx, fovy, nx, ny)
     imgQ = intensitymap(pmodel.Q, fovx, fovy, nx, ny)
@@ -66,7 +72,8 @@ end
 
 """
     $(SIGNATURES)
-Computes the coherency matrix of the polarized model.
+
+Computes the coherency matrix of the polarized model `pimg` at `u` and `v`
 """
 @inline function coherencymatrix(pimg::PolarizedModel, u, v)
     si = visibility(pimg, u, v)
@@ -75,7 +82,8 @@ end
 
 """
     $(SIGNATURES)
-electric vector position angle or EVPA of the polarized model
+
+electric vector position angle or EVPA of the polarized model `pimg` at `u` and `v`
 """
 @inline function evpa(pimg, u, v)
     sq = visibility(pimg.Q, u, v)
@@ -84,12 +92,15 @@ electric vector position angle or EVPA of the polarized model
 end
 
 
-"""
+raw"""
     $(SIGNATURES)
 Computes the fractional linear polarization in the visibility domain
 ```math
     \\breve{m} = \\frac{Q + iU}{I}
 ```
+
+To create the symbol type `m\breve` in the REPL or use the
+[`mbreve`](@ref) function.
 """
 @inline function m̆(pimg, u, v)
     Q = visibility(pimg.Q, u, v)

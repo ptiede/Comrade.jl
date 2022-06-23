@@ -12,6 +12,14 @@ export Gaussian,
 $(TYPEDEF)
 A type that defines it is a geometric model. These are usually
 primitive models, and are usually analytic in Fourier and the image domain.
+As a result a user only needs to implement the following methods
+
+- `visibility_point`
+- `intensity_point`
+- `radialextent`
+
+Note that if the geometric model isn't **analytic** then the usual methods listed
+in [`Comrade.AbstractModel`](@ref) for non-analytic models need to be implemented.
 """
 abstract type GeometricModel <: AbstractModel end
 @inline flux(::GeometricModel) = 1.0
@@ -25,11 +33,10 @@ abstract type GeometricModel <: AbstractModel end
 
 """
     $(TYPEDEF)
-Gaussian geometrical model.
-This is a Gaussian with unit flux and standard deviation.
 
-## Notes
-To change the Gaussian flux, and shape please use the modifier functions
+Gaussian with unit standard deviation and flux.
+
+By default if T isn't given, `Gaussian` defaults to `Float64`
 """
 struct Gaussian{T} <: GeometricModel end
 Gaussian() = Gaussian{Float64}()
@@ -49,10 +56,14 @@ end
 
 raw"""
     $(TYPEDEF)
-Tophat disk geometrical model. The model is given by
+
+Tophat disk geometrical model, i.e. the intensity profile
 ```math
     I(x,y) = \begin{cases} \pi^{-1} & x^2+y^2 < 1 \\ 0 & x^2+y^2 \geq 0 \end{cases}
 ```
+i.e. a unit radius and unit flux disk.
+
+By default if T isn't given, `Disk` defaults to `Float64`
 """
 struct Disk{T} <: GeometricModel end
 Disk() = Disk{Float64}()
@@ -71,8 +82,12 @@ radialextent(::Disk) = 3.0
 
 """
     $(TYPEDEF)
-m-ring geometric model. This corresponds to a delta ring with a fourier expansion
-in θ. The m in m-ring refers to the order of the Fourier expansion. The radius is unity.
+
+A infinitely thin ring model, whose expression in the image domain is
+    I(r,θ) = δ(r - 1)/2π
+i.e. a unit radius and flux delta ring.
+
+By default if `T` isn't given, `Gaussian` defaults to `Float64`
 """
 struct Ring{T} <: GeometricModel end
 Ring() = Ring{Float64}()
@@ -102,8 +117,17 @@ end
 
 """
     $(TYPEDEF)
-m-ring geometric model. This corresponds to a delta ring with a fourier expansion
-in θ. The m in m-ring refers to the order of the Fourier expansion. The radius is unity.
+m-ring geometric model. This is a infinitely thin unit flux delta ring
+whose angular structure is given by a Fourier expansion. That is,
+
+    I(r,θ) = (2π)⁻¹δ(r-1)∑ₙ(αₙcos(nθ) - βₙsin(nθ))
+
+The `N` in the type defines the order of the Fourier expansion.
+
+By default if `T` isn't given, `MRing` defaults to `Float64`
+
+# Fields
+$(FIELDS)
 """
 struct MRing{T,N} <: GeometricModel
     """
@@ -116,13 +140,29 @@ struct MRing{T,N} <: GeometricModel
     β::NTuple{N,T}
 end
 
+"""
+    MRing{N}(α::AbstractVector, β::AbstractVector)
+
+Construct an MRing geometric model from two vectors `α` and `β`
+that correspond to the real and imaginary (or cos and sin) coefficients
+of the Fourier expansion. The length of the vectors correspond to the
+order of the expansion and must equal `N`.
+"""
 function MRing{N}(α::T, β::T) where {N,T<:AbstractVector}
     (N != length(α)) && throw("N must be the length of the vector")
     S = promote_type(eltype(α), eltype(β))
     return MRing{S, N}(NTuple{N,S}(α), NTuple{N,S}(β))
 end
 
+"""
+    MRing(c::NTuple{N, <:Complex})
 
+Construct an MRing geometric model from a complex tuple `c`
+that correspond to the real and imaginary (or cos and sin) coefficients
+of the Fourier expansion. The `N` in the type defines the order of
+the Fourier expansion.
+
+"""
 function MRing(c::NTuple{N, <:Complex}) where {N}
     α = real.(c)
     β = imag.(c)
@@ -163,14 +203,15 @@ end
 
 """
     $(TYPEDEF)
+
 Creates a [Kamruddin and Dexter](https://academic.oup.com/mnras/article/434/1/765/1005984)
 crescent model. This works by composing two disk models together.
 
 # Arguments
-- router: The radius of the outer disk
-- rinner: The radius of the inner disk
-- shift: How much the inner disk radius is shifted (positive is to the right)
-- floor: The floor of the inner disk 0 means the inner intensity is zero and 1 means it is a large disk.
+- `router`: The radius of the outer disk
+- `rinner`: The radius of the inner disk
+- `shift`: How much the inner disk radius is shifted (positive is to the right)
+- `floor`: The floor of the inner disk 0 means the inner intensity is zero and 1 means it is a large disk.
 """
 function Crescent(router, rinner, shift, floor)
     m = stretched(Disk(), router, router)*(π*router^2) - shifted(stretched(Disk(), rinner, rinner)*((1-floor)*π*rinner^2), shift, zero(typeof(shift)))
@@ -260,14 +301,20 @@ end
 A symmetric extended ring whose radial profile follows an inverse
 gamma distributions.
 
+The formula in the image domain is given by
+
+    I(r,θ) = βᵅrᵅ⁻²exp(-β/r)/2πΓ(α)
+
+where `α = shape` and `β = shape+1`
+
 # Note
 We mainly use this as an example of a non-analytic Fourier transform
 (although it has a complicated expression)
 
 # Fields
-
 $(FIELDS)
 
+Note that if `T` isn't specified at construction then it defaults to `Float64`.
 """
 struct ExtendedRing{F<:Number} <: GeometricModel
     """shape of the radial distribution"""
@@ -287,21 +334,25 @@ end
 
 """
     $(TYPEDEF)
-A delta parabolic segment in the image domain.
+
+A infinitely thin parabolic segment in the image domain.
 The segment is centered at zero, with roots ±1 and a yintercept of 1.
+
+Note that if `T` isn't specified at construction then it defaults to `Float64`.
 """
-struct ParabolicSegment{F} <: GeometricModel end
+struct ParabolicSegment{T} <: GeometricModel end
 ParabolicSegment() = ParabolicSegment{Float64}()
 radialextent(::ParabolicSegment{T}) where {T} = one(T)*sqrt(2)
 
 """
-    ParabolicSegment(a, h)
-A parabolic segment with x-intercepts `±a`` and a yintercept of `h``.
+    ParabolicSegment(a::Number, h::Number)
+
+A parabolic segment with x-intercepts `±a` and a yintercept of `h`.
 
 # Note
 This is just a convenience function for `stretched(ParabolicSegment(), a, h)`
 """
-@inline function ParabolicSegment(a, h)
+@inline function ParabolicSegment(a::Number, h::Number)
     # Define stretched model from unital model
     stretched(ParabolicSegment(), a, h)
 end

@@ -2,11 +2,31 @@ export NFFTAlg
 
 using NFFT
 
-function NFFTAlg(obs::EHTObservation; kwargs...)
+"""
+    $(SIGNATURES)
+
+Create an algorithm object using the non-unform Fourier transform object from the observation
+`obs`. This will extract the uv positions from the observation to allow for a more efficient
+FT cache.
+
+The optional arguments are: `padfac` specifies how much to pad the image by, and `m`
+is an internal variable for `NFFT.jl`.
+"""
+function NFFTAlg(obs::EHTObservation; padfac=1, m=10)
     u, v = getuv(arrayconfig(obs))
-    return NFFTAlg(u, v; kwargs...)
+    return NFFTAlg(u, v; padfac, m)
 end
 
+"""
+    $(SIGNATURES)
+
+Create an algorithm object using the non-unform Fourier transform object from uv positions
+`u`, `v`. This will extract the uv positions from the observation to allow for a more efficient
+FT cache.
+
+The optional arguments are: `padfac` specifies how much to pad the image by, and `m`
+is an internal variable for `NFFT.jl`.
+"""
 function NFFTAlg(u::AbstractArray, v::AbstractArray; padfac=1, m=10)
     uv = Matrix{eltype(u)}(undef, 2, length(u))
     uv[1,:] .= u
@@ -14,20 +34,31 @@ function NFFTAlg(u::AbstractArray, v::AbstractArray; padfac=1, m=10)
     return ObservedNUFT(NFFTAlg(;padfac, m), uv)
 end
 
+"""
+    $(SIGNATURES)
+
+Create an algorithm object using the non-unform Fourier transform object from the array
+configuration `ac`. This will extract the uv positions from the observation to allow
+for a more efficient FT cache.
+
+The optional arguments are: `padfac` specifies how much to pad the image by, and `m`
+is an internal variable for `NFFT.jl`.
+"""
 function NFFTAlg(ac::ArrayConfiguration; padfac=1, m=10)
     u, v = getuv(ac)
     return NFFTAlg(u, v; padfac, m)
 end
 
 
+# pad from the center of the position.
 function padimage(alg::NFFTAlg, img)
     padfac = alg.padfac
     # if no padding exit now
     (padfac == 1) && return img
 
     ny,nx = size(img)
-    nnx = nextpow(2, padfac*nx)
-    nny = nextpow(2, padfac*ny)
+    nnx = nextprod((2,3,5,7), padfac*nx)
+    nny = nextprod((2,3,5,7), padfac*ny)
     nsx = nnx÷2-nx÷2
     nsy = nny÷2-ny÷2
     return PaddedView(zero(eltype(img)), img,
@@ -56,6 +87,7 @@ end
     return NUFTCache(alg, plan, phases, img.pulse, timg)
 end
 
+# Allow NFFT to work with ForwardDiff.
 function _frule_vis(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{O}}) where {M,T,V,P,A<:NFFTAlg,O<:ObservedNUFT{A}}
     S = typeof(ForwardDiff.value(first(m.cache.img)))
     p = m.cache.plan
@@ -88,6 +120,5 @@ function _visibilities(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}}
     # Now reconstruct everything
 
     vis = _frule_vis(m)
-    conj.(vis).*m.cache.phases
-#return vis
+    return conj.(vis).*m.cache.phases
 end
