@@ -54,8 +54,8 @@ end
 
 
 
-raw"""
-    $(TYPEDEF)
+@doc raw"""
+    Disk{T}() where {T}
 
 Tophat disk geometrical model, i.e. the intensity profile
 ```math

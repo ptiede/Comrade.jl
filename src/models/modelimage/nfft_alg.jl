@@ -3,7 +3,7 @@ export NFFTAlg
 using NFFT
 
 """
-    $(SIGNATURES)
+    NFFTAlg(obs::EHTObservation; padfac=1, m=10)
 
 Create an algorithm object using the non-unform Fourier transform object from the observation
 `obs`. This will extract the uv positions from the observation to allow for a more efficient
@@ -18,7 +18,7 @@ function NFFTAlg(obs::EHTObservation; padfac=1, m=10)
 end
 
 """
-    $(SIGNATURES)
+    NFFTAlg(u::AbstractArray, v::AbstractArray; padfac=1, m=10)
 
 Create an algorithm object using the non-unform Fourier transform object from uv positions
 `u`, `v`. This will extract the uv positions from the observation to allow for a more efficient
@@ -35,7 +35,7 @@ function NFFTAlg(u::AbstractArray, v::AbstractArray; padfac=1, m=10)
 end
 
 """
-    $(SIGNATURES)
+    NFFTAlg(ac::ArrayConfiguration; padfac=1, m=10)
 
 Create an algorithm object using the non-unform Fourier transform object from the array
 configuration `ac`. This will extract the uv positions from the observation to allow

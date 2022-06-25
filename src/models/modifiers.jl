@@ -40,9 +40,10 @@ See those docstrings for guidance on implementation details.
 abstract type AbstractModifier{M<:AbstractModel} <: AbstractModel end
 
 """
-    $(SIGNATURES)
+    basemodel(model::AbstractModel)
 
-Returns the base model from a modified model.
+Returns the base model from a modified `model`. If there is no basemodel
+this just return the `model` itself.
 
 # Example
 ```julia-repl
@@ -59,8 +60,8 @@ unmodified(model::AbstractModifier) = unmodified(basemodel(model))
 
 flux(m::AbstractModifier) = flux(m.model)
 
-Base.@aggressive_constprop @inline visanalytic(::Type{<:AbstractModifier{M}}) where {M} = visanalytic(M)
-Base.@aggressive_constprop @inline imanalytic(::Type{<:AbstractModifier{M}}) where {M} = imanalytic(M)
+Base.@constprop :aggressive @inline visanalytic(::Type{<:AbstractModifier{M}}) where {M} = visanalytic(M)
+Base.@constprop :aggressive @inline imanalytic(::Type{<:AbstractModifier{M}}) where {M} = imanalytic(M)
 
 radialextent(m::AbstractModifier) = radialextent(basemodel(m))
 
@@ -75,7 +76,7 @@ function scale_image end
 """
     transform_image(model::AbstractModifier, x, y)
 
-Returns a tuple on how to transform the input `x` and `y`
+Returns a transformed `x` and `y` according to the `model` modifier
 """
 function transform_image end
 
@@ -86,6 +87,12 @@ Returns a number on how to scale the image visibility at `u` `v` for an modified
 """
 function scale_uv end
 
+"""
+    transform_uv(model::AbstractModifier, u, u)
+
+Returns a transformed `u` and `v` according to the `model` modifier
+"""
+function transform_uv end
 
 
 
@@ -153,6 +160,7 @@ end
 
 """
     $(TYPEDEF)
+
 Shifts the model by `Δx` units in the x-direction and `Δy` units
 in the y-direction.
 
@@ -167,6 +175,7 @@ end
 
 """
     $(SIGNATURES)
+
 Shifts the model `m` in the image domain by an amount `Δx,Δy`
 in the x and y directions respectively.
 """
@@ -186,6 +195,7 @@ radialextent(model::ShiftedModel, Δx, Δy) = radialextent(model.model) + hypot(
 
 """
     $(TYPEDEF)
+
 Renormalizes the flux of the model to the new value `scale*flux(model)`.
 We have also overloaded the Base.:* operator as syntactic sugar
 although I may get rid of this.
@@ -207,6 +217,7 @@ end
 
 """
     $(SIGNATURES)
+
 Renormalizes the model `m` to have total flux `f*flux(m)`.
 This can also be done directly by calling `Base.:*` i.e.,
 
@@ -242,6 +253,7 @@ flux(m::RenormalizedModel) = m.scale*flux(m.model)
 
 """
     $(TYPEDEF)
+
 Stretched the model in the x and y directions, i.e. the new intensity is
     Iₛ(x,y) = 1/(αβ) I(x/α, y/β),
 where were renormalize the intensity to preserve the models flux.
@@ -257,6 +269,7 @@ end
 
 """
     $(SIGNATURES)
+
 Stretches the model `m` according to the formula
     Iₛ(x,y) = 1/(αβ) I(x/α, y/β),
 where were renormalize the intensity to preserve the models flux.
@@ -275,6 +288,7 @@ radialextent(model::StretchedModel) = hypot(model.α, model.β)*radialextent(bas
 
 """
     $(TYPEDEF)
+
 Type for the rotated model. This is more fine grained constrol of
 rotated model.
 
@@ -295,6 +309,7 @@ end
 
 """
     $(SIGNATURES)
+
 Rotates the model by an amount `ξ` in radians in the clockwise direction.
 """
 rotated(model, ξ) = RotatedModel(model, ξ)

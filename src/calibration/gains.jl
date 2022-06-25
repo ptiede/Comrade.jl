@@ -6,7 +6,7 @@ using Statistics
 export GainCache, GainPrior, GainModel
 
 """
-    RIMEModel
+    $(TYPEDEF)
 
 Abstract type that encompasses all RIME style corruptions.
 """
@@ -21,7 +21,7 @@ function intensitymap(model::RIMEModel, fovx::Number, fovy::Number, nx::Int, ny:
 end
 
 """
-    DesignMatrix
+    $(TYPEDEF)
 
 Internal type that holds the gain design matrices for visibility corruption.
 See [`GainCache`](@ref GainCache).
@@ -56,7 +56,7 @@ struct GainPrior{S,T,G} <: Distributions.ContinuousMultivariateDistribution
 end
 
 """
-    GainPrior(dists, st)
+    GainPrior(dists, st::ScanTable)
 
 Creates a distribution for the gain priors for scan table `st`. The `dists` should be
 a NamedTuple of `Distributions`, where each name corresponds to a telescope or station
@@ -67,8 +67,8 @@ should work.
 # Example
 
 For the 2017 observations of M87 a common GainPrior call is:
-```julia
-gdist = GainPrior((AA = LogNormal(0.0, 0.1),
+```julia-repl
+julia> gdist = GainPrior((AA = LogNormal(0.0, 0.1),
                    AP = LogNormal(0.0, 0.1),
                    JC = LogNormal(0.0, 0.1),
                    SM = LogNormal(0.0, 0.1),
@@ -77,8 +77,8 @@ gdist = GainPrior((AA = LogNormal(0.0, 0.1),
                    PV = LogNormal(0.0, 0.1)
                 ), st)
 
-x = rand(gdist)
-logdensityof(gdist, x)
+julia> x = rand(gdist)
+julia> logdensityof(gdist, x)
 ```
 """
 function GainPrior(dists, st::ScanTable)
@@ -139,7 +139,7 @@ struct GainCache{D1<:DesignMatrix, D2<:DesignMatrix, T, S}
 end
 
 """
-    $(SIGNATURES)
+    GainCache(st::ScanTable)
 
 Creates a cache for the application of gain corruptions to the model visibilities.
 This cache consists of the gain design matrices for each station and the set of times
@@ -205,7 +205,7 @@ function logclosure_amplitudes(model::GainModel, args::Vararg{<:AbstractArray, N
 end
 
 """
-    $(SIGNATURES)
+    corrupt(vis::AbstractArray, cache::GainCache, gains::AbstractArray)
 
 Corrupt the visibilities `vis` with the gains `gains` using a `cache`.
 

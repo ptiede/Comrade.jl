@@ -40,7 +40,8 @@ export SequentialEx, ThreadedEx
 const ehtim = PyNULL()
 
 """
-    $(SIGNATURES)
+    load_ehtim()
+
 Loads the [eht-imaging](https://github.com/achael/eht-imaging) library and stores it in the
 exported `ehtim` variable.
 

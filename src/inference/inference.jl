@@ -24,7 +24,7 @@ export sample
 
 
 """
-    $(SIGNATURES)
+    samplertype(::Type)
 
 Sampler type specifies whether to use a unit hypercube or unconstrained transformation.
 """

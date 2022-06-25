@@ -2,13 +2,8 @@ using MeasureBase: logdensityof, Likelihood
 export RadioLikelihood, logdensityof, MultiRadioLikelihood
 using LinearAlgebra
 
-struct RadioLikelihood{T,A} <: MB.AbstractMeasure
-    lklhds::T
-    ac::A
-end
-
 """
-    `RadioLikelihood(data1, data2, ...)`
+    RadioLikelihood(data1, data2, ...)
 
 Forms a radio likelihood from a set of data products. These data products must share
 the same array data/configuration. If you want to form a likelihood from multiple arrays
@@ -17,10 +12,16 @@ such as when fitting different wavelengths or days, you can combine them using
 
 # Example
 
-```julia
-lklhd1 = RadioLikelihood(dcphase1, dlcamp1)
+```julia-repl
+julia> RadioLikelihood(dcphase1, dlcamp1)
 ```
 """
+struct RadioLikelihood{T,A} <: MB.AbstractMeasure
+    lklhds::T
+    ac::A
+end
+
+
 function RadioLikelihood(data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
@@ -28,23 +29,21 @@ function RadioLikelihood(data::EHTObservation...)
     RadioLikelihood{typeof(ls), typeof(acs[1])}(ls, acs[1])
 end
 
+"""
+    MultiRadioLikelihood(lklhd1, lklhd2, ...)
+Combines multiple likelihoods into one object that is useful for fitting multiple days/frequencies.
 
+```julia-repl
+julia> lklhd1 = RadioLikelihood(dcphase1, dlcamp1)
+julia> lklhd2 = RadioLikelihood(dcphase2, dlcamp2)
+julia> MultiRadioLikelihood(lklhd1, lklhd2)
+```
+
+"""
 struct MultiRadioLikelihood{L} <: MB.AbstractMeasure
     lklhds::L
 end
 
-"""
-    `MultiRadioLikelihood(lklhd1, lklhd2, ...)`
-Combines multiple likelihoods into one object that is useful for fitting multiple days/frequencies.
-
-```julia
-lklhd1 = RadioLikelihood(dcphase1, dlcamp1)
-lklhd2 = RadioLikelihood(dcphase2, dlcamp2)
-
-lklhd = MultiRadioLikelihood(lklhd1, lklhd2)
-```
-
-"""
 MultiRadioLikelihood(lklhds::RadioLikelihood...) = MultiRadioLikelihood(lklhds)
 
 function MB.logdensityof(lklhds::MultiRadioLikelihood, m)
@@ -64,7 +63,7 @@ end
 
 
 """
-    $(SIGNATURES)
+    logclosure_amplitudes(vis::AbstractArray, ac::ArrayConfiguration)
 
 Compute the log-closure amplitudes for a set of visibilities and an array configuration
 
@@ -77,7 +76,7 @@ function logclosure_amplitudes(vis::AbstractArray{<:Complex}, ac::ArrayConfigura
 end
 
 """
-    $(SIGNATURES)
+    closure_phases(vis::AbstractArray, ac::ArrayConfiguration)
 
 Compute the closure phases for a set of visibilities and an array configuration
 

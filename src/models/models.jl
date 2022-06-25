@@ -13,7 +13,7 @@ abstract type AbstractModelImage{M} <: ComradeBase.AbstractModel end
 
 
 """
-    $(SIGNATURES)
+    visibility(mimg, u, v, args...)
 
 Computes the complex visibility of model `m` at u,v positions `u,v` and
 other `args...` (e.g., frequency, time, etc.)
@@ -29,7 +29,7 @@ end
 
 
 """
-    $(SIGNATURES)
+    visibility(mimg, uv::ArrayBaselineDatum)
 
 Computes the complex visibility of a model `m` at the `uv` array baseline datum.
 
@@ -42,7 +42,8 @@ consider using the [`visibilities`](@ref visibilities).
 end
 
 """
-    $(SIGNATURES)
+    amplitude(model, args...)
+
 Computes the visibility amplitude of model `m` at u,v positions `u,v`
 
 If you want to compute the amplitudes at a large number of positions
@@ -53,7 +54,8 @@ consider using the `amplitudes` function.
 end
 
 """
-    $(SIGNATURES)
+    bispectrum(model, u1, v1, u2, v2, u3, v3)
+
 Computes the complex bispectrum of model `m` at the uv-triangle
 u1,v1 -> u2,v2 -> u3,v3
 
@@ -65,7 +67,8 @@ consider using the `bispectra` function.
 end
 
 """
-    $(SIGNATURES)
+    closure_phase(model. u1, v1, u2, v2, u3, v3)
+
 Computes the closure phase of model `m` at the uv-triangle
 u1,v1 -> u2,v2 -> u3,v3
 
@@ -77,7 +80,8 @@ consider using the `closure_phases` function.
 end
 
 """
-    $(SIGNATURES)
+    logclosure_amplitude(model, u1, v1, u2, v2, u3, v3, u4, v4)
+
 Computes the log-closure amplitude of model `m` at the uv-quadrangle
 u1,v1 -> u2,v2 -> u3,v3 -> u4,v4 using the formula
 
@@ -124,7 +128,7 @@ end
 # end
 
 """
-    $(SIGNATURES)
+    visibilities(m, ac::ArrayConfiguration)
 
 Computes the visibilities of the model `m` using the array configuration `ac`.
 If you want to compute a single visibility you should call [`visibility`](@ref visibility).
@@ -135,7 +139,7 @@ If you want to compute a single visibility you should call [`visibility`](@ref v
 end
 
 """
-    $(SIGNATURES)
+    visibilities(m, u::AbstractArray, v::AbstractArray, args...)
 
 Computes the visibilities of the model `m` at `u` `v` and `args...`.
 If you want to compute a single visibility you should call [`visibility`](@ref visibility).
@@ -155,7 +159,7 @@ end
 
 
 """
-    $(SIGNATURES)
+    amplitudes(m::AbstractModel, u::AbstractArray, v::AbstractArray)
 
 Computes the amplitudes of the model `m` at the u,v positions `u`, `v`.
 """
@@ -183,7 +187,11 @@ end
 
 
 """
-    $(SIGNATURES)
+    bispectra(m,
+              u1::AbstractArray, v1::AbstractArray,
+              u2::AbstractArray, v2::AbstractArray,
+              u3::AbstractArray, v3::AbstractArray,
+            )
 
 Computes the bispectra of the model `m` at the
 triangles (u1,v1), (u2,v2), (u3,v3).
@@ -227,7 +235,11 @@ function _bispectra(::NotAnalytic, m,
 end
 
 """
-    $(SIGNATURES)
+    closure_phases(m,
+                   u1::AbstractArray, v1::AbstractArray,
+                   u2::AbstractArray, v2::AbstractArray,
+                   u3::AbstractArray, v3::AbstractArray,
+                   )
 
 Computes the closure phases of the model `m` at the
 triangles (u1,v1), (u2,v2), (u3,v3).
@@ -241,14 +253,16 @@ triangles (u1,v1), (u2,v2), (u3,v3).
 end
 
 """
-    $(SIGNATURES)
+    closure_phases(m::AbstractModel, ac::ClosureConfig)
 
 Computes the closure phases of the model `m` using the array configuration `ac`.
 
 # Notes
 This is faster than the `closure_phases(m, u1, v1, ...)` method since it only
 computes as many visibilities as required thanks to the closure design matrix formalism
-from [`Blackburn et al.`]()
+from Blackburn et al.[^1]
+
+[^1]: Blackburn L., et al "Closure Statistics in Interferometric Data" ApJ 2020
 """
 function closure_phases(m::AbstractModel, ac::ClosureConfig)
     vis = visibilities(m, ac.ac)
@@ -283,7 +297,12 @@ function _closure_phases(::NotAnalytic, m,
 end
 
 """
-    $(SIGNATURES)
+    logclosure_amplitudes(m::AbstractModel,
+                          u1::AbstractArray, v1::AbstractArray,
+                          u2::AbstractArray, v2::AbstractArray,
+                          u3::AbstractArray, v3::AbstractArray,
+                          u4::AbstractArray, v4::AbstractArray,
+                         )
 
 Computes the log closure amplitudes of the model `m` at the
 quadrangles (u1,v1), (u2,v2), (u3,v3), (u4, v4).
@@ -298,14 +317,16 @@ function logclosure_amplitudes(m::AbstractModel,
 end
 
 """
-    $(SIGNATURES)
+    logclosure_amplitudes(m::AbstractModel, ac::ClosureConfig)
 
 Computes the log closure amplitudes of the model `m` using the array configuration `ac`.
 
 # Notes
 This is faster than the `logclosure_amplitudes(m, u1, v1, ...)` method since it only
 computes as many visibilities as required thanks to the closure design matrix formalism
-from [`Blackburn et al.`]()
+from Blackburn et al.[^1]
+
+[^1]: Blackburn L., et al "Closure Statistics in Interferometric Data" ApJ 2020
 """
 function logclosure_amplitudes(m::AbstractModel, ac::ClosureConfig)
     vis = visibilities(m, ac.ac)

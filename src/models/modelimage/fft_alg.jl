@@ -159,7 +159,8 @@ end
 
 
 """
-    $(SIGNATURES)
+    uviterator(dx, dy, nnx, nny)
+
 Construct the u,v iterators for the Fourier transform of the image
 with pixel sizes `dx, dy` and number of pixels `nx, ny`
 
@@ -186,7 +187,13 @@ end
 #    end
 #end
 
+"""
+    fouriermap(m, fovx, fovy, nx, ny)
 
+Create a Fourier or visibility map of a model `m`
+assuming a image with a field of view `fovx/fovy` and
+`nx/ny` pixels in the x/y direction respectively.
+"""
 function fouriermap(m, fovx, fovy, nx, ny)
     x,y = imagepixels(fovx, fovy, nx, ny)
     dx = step(x); dy = step(y)

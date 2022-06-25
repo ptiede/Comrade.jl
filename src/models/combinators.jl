@@ -59,36 +59,51 @@ radialextent(m::CompositeModel) = max(radialextent(m.m1), radialextent(m.m2))
     $(TYPEDEF)
 
 Pointwise addition of two models in the image and visibility domain.
-An end user should instead call [`add`](@ref add) or `Base.+` when
+An end user should instead call [`added`](@ref added) or `Base.+` when
 constructing a model
 
 # Example
 
 ```julia-repl
 julia> m1 = Disk() + Gaussian()
-julia> m2 = add(Disk(), Gaussian()) + Ring()
+julia> m2 = added(Disk(), Gaussian()) + Ring()
 ```
 """
 struct AddModel{T1,T2} <: CompositeModel{T1,T2}
     m1::T1
     m2::T2
 end
-Base.:+(m1::T1, m2::T2) where {T1<:AbstractModel, T2<:AbstractModel} = AddModel(m1, m2)
-Base.:-(m1, m2) = AddModel(m1, -1.0*m2)
 
 """
-    $(SIGNATURES)
+    Base.:+(m1::AbstractModel, m2::AbstractModel)
 
 Combine two models to create a composite [`AddModel`](@ref Comrade.AddModel).
 This adds two models pointwise, i.e.
-``julia-repl
+
+```julia-repl
 julia> m1 = Gaussian()
 julia> m2 = Disk()
 julia> visibility(m1+m2, 1.0, 1.0) == visibility(m1, 1.0, 1.0) + visibility(m2, 1.0, 1.0)
 true
 ```
+
 """
-add(m1::M1, m2::M2) where {M1<:AbstractModel, M2<:AbstractModel} = AddModel(m1, m2)
+Base.:+(m1::AbstractModel, m2::AbstractModel) = AddModel(m1, m2)
+Base.:-(m1, m2) = AddModel(m1, -1.0*m2)
+
+"""
+    added(m1::AbstractModel, m2::AbstractModel)
+
+Combine two models to create a composite [`AddModel`](@ref Comrade.AddModel).
+This adds two models pointwise, i.e.
+```julia-repl
+julia> m1 = Gaussian()
+julia> m2 = Disk()
+julia> visibility(added(m1,m2), 1.0, 1.0) == visibility(m1, 1.0, 1.0) + visibility(m2, 1.0, 1.0)
+true
+```
+"""
+added(m1::AbstractModel, m2::AbstractModel) = AddModel(m1, m2)
 
 
 # struct NModel{V<:AbstractVector, M<:AbstractModel}
@@ -106,7 +121,7 @@ add(m1::M1, m2::M2) where {M1<:AbstractModel, M2<:AbstractModel} = AddModel(m1, 
 
 
 """
-    $(SIGNATURES)
+    components(m::AbstractModel)
 
 Returns the model components for a composite model. This
 will return a Tuple with all the models you have constructed.
@@ -203,19 +218,12 @@ end
 
 
 """
-$(TYPEDEF)
+    $(TYPEDEF)
 
 Pointwise addition of two models in the image and visibility domain.
 An end user should instead call [`convolved`](@ref convolved).
 Also see [`smoothed(m, σ)`](@ref smoothed) for a simplified function that convolves
 a model `m` with a Gaussian with standard deviation `σ`.
-
-# Example
-
-```julia-repl
-julia> m1 = convolved(Disk(),Gaussian())
-julia> m2 = smoothed()
-```
 """
 struct ConvolvedModel{M1, M2} <: CompositeModel{M1,M2}
     m1::M1
@@ -223,20 +231,20 @@ struct ConvolvedModel{M1, M2} <: CompositeModel{M1,M2}
 end
 
 """
-    $(SIGNATURES)
+    convolved(m1::AbstractModel, m2::AbstractModel)
 
 Convolve two models to create a composite [`ConvolvedModel`](@ref Comrade.ConvolvedModel).
 
-``julia-repl
+```julia-repl
 julia> m1 = Ring()
 julia> m2 = Disk()
 julia> convolved(m1, m2)
 ```
 """
-convolved(m1, m2) = ConvolvedModel(m1, m2)
+convolved(m1::AbstractModel, m2::AbstractModel) = ConvolvedModel(m1, m2)
 
 """
-    $(SIGNATURES)
+    smoothed(m::AbstractModel, σ::Number)
 Smooths a model `m` with a Gaussian kernel with standard deviation `σ`.
 
 # Notes

@@ -21,11 +21,11 @@ can significantly speed up computations.
 
 # Examples
 
-```julia
-u,v = rand(100), rand(100)
-cache = create_cache(DFTAlg(u, v), IntensityMap(randn(50,50), 10.0, 10.0))
-cache = create_cache(NFFTAlg(u, v), IntensityMap(randn(50,50), 10.0, 10.0))
-cache = create_cache(FFTAlg(), IntensityMap(randn(50,50), 10.0, 10.0))
+```julia-repl
+julia> u,v = rand(100), rand(100)
+julia> cache = create_cache(DFTAlg(u, v), IntensityMap(randn(50,50), 10.0, 10.0))
+julia> cache = create_cache(NFFTAlg(u, v), IntensityMap(randn(50,50), 10.0, 10.0))
+julia> cache = create_cache(FFTAlg(), IntensityMap(randn(50,50), 10.0, 10.0))
 ```
 """
 function create_cache end

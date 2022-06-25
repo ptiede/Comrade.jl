@@ -67,7 +67,8 @@ include(joinpath(@__DIR__, "cache.jl"))
 
 
 """
-    $(SIGNATURES)
+    modelimage(model::AbstractIntensityMap, image::AbstractIntensityMap, alg=FFTAlg(), executor=SequentialEx())
+
 Construct a `ModelImage` from a `model`, `image` and the optionally
 specified visibility algorithm `alg` and `executor` which uses Folds.jl
 parallelism formalism.
@@ -99,7 +100,7 @@ end
 end
 
 """
-    $(SIGNATURES)
+    modelimage(model, cache::AbstractCache, executor=SequentialEx())
 
 Construct a `ModelImage` from the `model` and using a precompute Fourier transform `cache`.
 You can optionally specify the executor which will compute the internal image buffer using
@@ -107,10 +108,10 @@ the `executor`.
 
 # Example
 
-```julia
-m = ExtendedRing(10.0)
-cache = create_cache(DFTAlg(), IntensityMap(zeros(128, 128), 50.0, 50.0)) # used threads to make the image
-mimg = modelimage(m, cache, ThreadedEx())
+```julia-repl
+julia> m = ExtendedRing(10.0)
+julia> cache = create_cache(DFTAlg(), IntensityMap(zeros(128, 128), 50.0, 50.0)) # used threads to make the image
+julia> mimg = modelimage(m, cache, ThreadedEx())
 ```
 
 # Notes
@@ -130,7 +131,7 @@ end
 end
 
 """
-    $(SIGNATURES)
+    modelimage(img::IntensityMap, alg=NFFTAlg())
 
 Create a model image directly using an image, i.e. treating it as the model. You
 can optionally specify the Fourier transform algorithm using `alg`
@@ -145,7 +146,7 @@ For analytic models this is a no-op and returns the model.
 end
 
 """
-    $(SIGNATURES)
+    modelimage(img::IntensityMap, cache::AbstractCache)
 
 Create a model image directly using an image, i.e. treating it as the model. Additionally
 reuse a previously compute image `cache`. This can be used when directly modeling an
@@ -161,7 +162,15 @@ For analytic models this is a no-op and returns the model.
 end
 
 """
-    $(SIGNATURES)
+    modelimage(m;
+               fovx=2*radialextent(m),
+               fovy=2*radialextent(m),
+               nx=512,
+               ny=512,
+               pulse=ComradeBase.DeltaPulse(),
+               alg=FFTAlg(),
+               executor=SequentialEx()
+                )
 
 Construct a `ModelImage` where just the model `m` is specified.
 

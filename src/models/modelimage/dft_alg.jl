@@ -4,7 +4,7 @@ padfac(::DFTAlg) = 1
 padimage(::DFTAlg, img) = img
 
 """
-    $(SIGNATURES)
+    DFTAlg(obs::EHTObservation)
 
 Create an algorithm object using the direct Fourier transform object from the observation
 `obs`. This will extract the uv positions from the observation to allow for a more efficient
@@ -16,7 +16,7 @@ function DFTAlg(obs::EHTObservation)
 end
 
 """
-    $(SIGNATURES)
+    DFTAlg(ac::ArrayConfiguration)
 
 Create an algorithm object using the direct Fourier transform object from the array configuration
 `ac`. This will extract the uv positions from the observation to allow for a more efficient
@@ -28,7 +28,7 @@ function DFTAlg(ac::ArrayConfiguration)
 end
 
 """
-    $(SIGNATURES)
+    DFTAlg(u::AbstractArray, v::AbstractArray)
 
 Create an algorithm object using the direct Fourier transform object using the uv positions
 `u`, `v` allowing for a more efficient transform.
@@ -65,7 +65,7 @@ function make_phases(alg::ObservedNUFT{<:DFTAlg}, img)
 end
 
 """
-    $(SIGNATURES)
+    create_cache(alg::ObservedNUFT, plan , phases, img)
 
 Create a cache for the DFT algorithm with precomputed `plan`, `phases` and `img`.
 This is an internal version.

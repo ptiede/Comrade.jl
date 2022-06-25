@@ -18,25 +18,39 @@ Pages = ["base_api.md"]
 CurrentModule = ComradeBase
 ```
 
+## Model API
+
 ```@docs
+ComradeBase.AbstractModel
+ComradeBase.flux
+ComradeBase.isprimitive
+ComradeBase.visanalytic
+ComradeBase.imanalytic
+ComradeBase.intensitymap!
+ComradeBase.intensitymap
+ComradeBase.radialextent
+ComradeBase.visibility_point
+ComradeBase.intensity_point
 ComradeBase.PrimitiveTrait
 ComradeBase.IsPrimitive
 ComradeBase.NotPrimitive
-ComradeBase.isprimitive
 ComradeBase.DensityAnalytic
 ComradeBase.IsAnalytic
 ComradeBase.NotAnalytic
-ComradeBase.visanalytic
-ComradeBase.imanalytic
-ComradeBase.visibility_point
-ComradeBase.intensity_point
 ComradeBase.IntensityMap
-ComradeBase.intensitymap!
-ComradeBase.intensitymap
+```
+
+## Image Pulses
+```@docs
 ComradeBase.Pulse
 ComradeBase.DeltaPulse
 ComradeBase.SqExpPulse
 ComradeBase.BSplinePulse
+```
+
+## Polarization
+
+```@docs
 ComradeBase.StokesVector
 ComradeBase.CoherencyMatrix
 ComradeBase.evpa

@@ -17,20 +17,21 @@ end
     Posterior(lklhd, prior, model)
 Creates a Posterior density that follows obeys [DensityInferface](https://github.com/JuliaMath/DensityInferface.jl).
 The `lklhd` object is expected to be a `MeasureBase.Likelihood` object. For instance, these can be
-created using [`RadioLikelihood](@ref RadioLikelihood). `prior` is expected to be a `NamedTuple`
+created using [`RadioLikelihood`](@ref). `prior` is expected to be a `NamedTuple`
 of distributions that reflect the priors on the parameters you are considering. `model` is a function
 that takes in a `NamedTuple` of parameters and returns a `Comrade` `<:AbstractModel`.
 
 # Notes
 Since this function obeys `DensityInferface` you can evaluate it with
-```julia
-ℓ = logdensityof(post)
-ℓ(x)
+```julia-repl
+julia> ℓ = logdensityof(post)
+julia> ℓ(x)
 ```
 or using the 2-argument version directly
-```julia
-logdensityof(post, x)
+```julia-repl
+julia> logdensityof(post, x)
 ```
+where `post::Posterior`.
 
 To generate random draws from the prior see the [`prior_sample`](@ref prior_sample) function.
 """
@@ -129,10 +130,10 @@ in the usual manner, i.e. `logdensityof`. Note that the transformed posterior au
 includes the terms log-jacobian terms of the transformation.
 
 # Example
-```julia
-tpost = ascube(post)
-x0 = prior_sample(tpost)
-logdensityof(tpost, x0)
+```julia-repl
+julia> tpost = ascube(post)
+julia> x0 = prior_sample(tpost)
+julia> logdensityof(tpost, x0)
 ```
 
 # Notes
@@ -165,10 +166,10 @@ in the usual manner, i.e. `logdensityof`. Note that the transformed posterior au
 includes the terms log-jacobian terms of the transformation.
 
 # Example
-```julia
-tpost = ascube(post)
-x0 = prior_sample(tpost)
-logdensityof(tpost, x0)
+```julia-repl
+julia> tpost = ascube(post)
+julia> x0 = prior_sample(tpost)
+julia> logdensityof(tpost, x0)
 ```
 
 # Notes
@@ -210,10 +211,10 @@ in the usual manner, i.e. `logdensityof`. Note that the transformed posterior au
 includes the terms log-jacobian terms of the transformation.
 
 # Example
-```julia
-tpost = flatten(post)
-x0 = prior_sample(tpost)
-logdensityof(tpost, x0)
+```julia-repl
+julia> tpost = flatten(post)
+julia> x0 = prior_sample(tpost)
+julia> logdensityof(tpost, x0)
 ```
 
 # Notes
