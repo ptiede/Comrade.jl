@@ -20,7 +20,7 @@ AdvancedHMC = "0.3"
 ArgCheck = "2"
 Comrade = "0.3,0.4"
 Reexport = "1"
-TupleVectors = "0.1"
+TupleVectors = "0.1, 0.2"
 julia = "1.6"
 
 [extras]
