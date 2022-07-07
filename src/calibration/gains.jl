@@ -5,6 +5,11 @@ using Statistics
 
 export GainCache, GainPrior, GainModel
 
+"""
+    $(TYPEDEF)
+
+Abstract type that encompasses all RIME style corruptions.
+"""
 abstract type RIMEModel <: AbstractModel end
 
 basemodel(m::RIMEModel) = m.model
@@ -15,7 +20,12 @@ function intensitymap(model::RIMEModel, fovx::Number, fovy::Number, nx::Int, ny:
     return intensitymap(basemodel(model), fovx, fovy, nx, ny, args...; kwargs...)
 end
 
+"""
+    $(TYPEDEF)
 
+Internal type that holds the gain design matrices for visibility corruption.
+See [`GainCache`](@ref GainCache).
+"""
 struct DesignMatrix{X,M<:AbstractMatrix{X},T,S} <: AbstractMatrix{X}
     matrix::M
     times::T
@@ -38,12 +48,39 @@ function LinearAlgebra.mul!(y::AbstractArray, M::DesignMatrix, x::AbstractArray)
     LinearAlgebra.mul!(y, M.matrix, x)
 end
 
+
 struct GainPrior{S,T,G} <: Distributions.ContinuousMultivariateDistribution
     stations::S
     times::T
     dist::G
 end
 
+"""
+    GainPrior(dists, st::ScanTable)
+
+Creates a distribution for the gain priors for scan table `st`. The `dists` should be
+a NamedTuple of `Distributions`, where each name corresponds to a telescope or station
+in the scan table. See [`scantable`](@ref scantable). The resulting type if a subtype
+of the `Distributions.AbstractDistribution` so the usual `Distributions` interface
+should work.
+
+# Example
+
+For the 2017 observations of M87 a common GainPrior call is:
+```julia-repl
+julia> gdist = GainPrior((AA = LogNormal(0.0, 0.1),
+                   AP = LogNormal(0.0, 0.1),
+                   JC = LogNormal(0.0, 0.1),
+                   SM = LogNormal(0.0, 0.1),
+                   AZ = LogNormal(0.0, 0.1),
+                   LM = LogNormal(0.0, 1.0),
+                   PV = LogNormal(0.0, 0.1)
+                ), st)
+
+julia> x = rand(gdist)
+julia> logdensityof(gdist, x)
+```
+"""
 function GainPrior(dists, st::ScanTable)
     @argcheck Set(keys(dists)) == Set(stations(st))
 
@@ -73,14 +110,42 @@ Statistics.var(d::GainPrior) = var(d.dist)
 Distributions.entropy(d::GainPrior) = entropy(d.dist)
 Statistics.cov(d::GainPrior) = cov(d.dist)
 
+"""
+    $(TYPEDEF)
 
+# Fields
+$(FIELDS)
+
+# Notes
+Internal type. This should be created using the [`GainCache(st::ScanTable)`](@ref GainCache) method.
+"""
 struct GainCache{D1<:DesignMatrix, D2<:DesignMatrix, T, S}
+    """
+    Gain design matrix for the first station
+    """
     m1::D1
+    """
+    Gain design matrix for the second station
+    """
     m2::D2
+    """
+    Set of times for each gain
+    """
     times::T
+    """
+    Set of stations for each gain
+    """
     stations::S
 end
 
+"""
+    GainCache(st::ScanTable)
+
+Creates a cache for the application of gain corruptions to the model visibilities.
+This cache consists of the gain design matrices for each station and the set of times
+and stations for each gain.
+
+"""
 function GainCache(st::ScanTable)
     gtime, gstat = gain_stations(st)
     m1, m2 = gain_design(st)
@@ -88,12 +153,28 @@ function GainCache(st::ScanTable)
 end
 
 """
-    `GainModel`
-Construct the corruption model for the telescope gains
+    $(TYPEDEF)
+
+A model that applies gain corruptions to a `Comrade` `model`.
+This obeys the usual `Comrade` interface and can be evaluated using
+`visibilities`.
+
+# Fields
+$(FIELDS)
 """
-struct GainModel{C, G, M} <: RIMEModel
+struct GainModel{C, G<:AbstractArray, M} <: RIMEModel
+    """
+    Cache for the application of gain. This can be constructed with
+    [`GainCache`](@ref GainCache).
+    """
     cache::C
+    """
+    Array of the specific gains that are to be applied to the visibilities.
+    """
     gains::G
+    """
+    Base model that will be used to compute the uncorrupted visibilities.
+    """
     model::M
 end
 
@@ -112,24 +193,33 @@ function amplitudes(model::GainModel, u::AbstractArray, v::AbstractArray)
     return abs.(corrupt(amp, model.cache, model.gains))
 end
 
+# Pass through since closure phases are independent of gains
 function closure_phases(model::GainModel, args::Vararg{<:AbstractArray, N}) where {N}
     return closure_phases(model.model, args...)
 end
 
 
-
+# Pass through since log-closure amplitudes are independent of gains
 function logclosure_amplitudes(model::GainModel, args::Vararg{<:AbstractArray, N}) where {N}
     return logclosure_amplitudes(model.model, args...)
 end
 
-function corrupt(vis::AbstractArray, g::GainCache, gains::AbstractArray)
-    g1 = g.m1*gains
-    g2 = g.m2*gains
+"""
+    corrupt(vis::AbstractArray, cache::GainCache, gains::AbstractArray)
+
+Corrupt the visibilities `vis` with the gains `gains` using a `cache`.
+
+This returns an array of corrupted visibilties. This is called internally
+by the `GainModel` when producing the visibilties.
+"""
+function corrupt(vis::AbstractArray, cache::GainCache, gains::AbstractArray)
+    g1 = cache.m1*gains
+    g2 = cache.m2*gains
     return @. g1*vis*conj(g2)
 end
 
 
-
+# This is an internal function that computes the set of stations from a ScanTable
 function gain_stations(st::ScanTable)
     gainstat = Symbol[]
     times = eltype(st.times)[]
@@ -141,6 +231,8 @@ function gain_stations(st::ScanTable)
     return times, gainstat
 end
 
+
+# Construct a gain design matrices for each baseline station in a scan table
 function gain_design(st::ScanTable)
 
     # Construct the indices that will tag where gains are

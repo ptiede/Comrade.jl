@@ -1,3 +1,12 @@
+"""
+    make_pullback(ℓ, autodiff::AD.AbstractBackend)
+
+Create the pullback function using the autodiff backend `autodiff`.
+
+# Note
+
+This is an internal function and shouldn't be typically used by an end-user.
+"""
 function make_pullback(ℓ, autodiff::AD.AbstractBackend)
     function ∇ℓ(x)
         res = AD.value_and_gradient(autodiff, ℓ, x)
@@ -13,8 +22,18 @@ function make_pullback(ℓ, ::AD.ReverseRuleConfigBackend)
     end
 end
 
+"""
+    make_pullback(ℓ, grad::Function)
+
+Create the pullback function using the function `grad` which should return the gradient
+of ℓ.
+
+# Note
+
+This is an internal function and shouldn't be typically used by an end-user.
+"""
 function make_pullback(ℓ, autodiff::Function)
     function ∇ℓ(x)
-        return (ℓ(x), autodiff(x))
+        return (ℓ(x), grad(x))
     end
 end

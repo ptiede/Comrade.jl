@@ -1,7 +1,7 @@
 export load, save
 
 """
-        `load(fitsfile::String, IntensityMap)`
+    load(fitsfile::String, IntensityMap)
 
 This loads in a fits file that is more robust to the various imaging algorithms
 in the EHT, i.e. is works with clean, smili, eht-imaging.
@@ -66,7 +66,8 @@ function _load_fits(fname, ::Type{IntensityMap})
 end
 
 """
-    `$(SIGNATURES)`
+    save(file::String, img::IntensityMap, obs)
+
 Saves an image to a fits file. You can optionally pass an EHTObservation so that ancillary information
 will be added.
 """
@@ -150,7 +151,8 @@ end
 
 
 """
-$(SIGNATURES)
+    $(SIGNATURES)
+
 Load a ThemisPy style ascii EHT observation file.
 """
 function load_tpy(file)

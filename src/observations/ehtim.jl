@@ -585,11 +585,12 @@ Any valid keyword arguments to `add_cphase` in ehtim can be passed through extra
 
 Returns an EHTObservation with closure phases datums
 
-# Keyword arguments:
+# Special Keyword arguments:
  - count: How the closures are formed, the available options are "min-correct", "min", "max"
  - cut_trivial: Cut the trivial triangles from the closures
  - uvmin: The flag to decide what are trivial triangles. Any baseline with ||(u,v)|| < uvmin
           are removed.
+ - kwargs...: Other arguments are forwarded to eht-imaging.
 
 # Warning
 
@@ -617,6 +618,9 @@ Extracts the log-closure amp. from an ehtim observation object
 
 Any valid keyword arguments to `add_logcamp` in ehtim can be passed through extract_lcamp.
 
+# Special Keyword arguments:
+ - count: How the closures are formed, the available options are "min-correct", "min", "max"
+ - kwargs...: Other arguments are forwarded to eht-imaging.
 
 Returns an EHTObservation with log-closure amp. datums
 

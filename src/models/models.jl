@@ -13,23 +13,37 @@ abstract type AbstractModelImage{M} <: ComradeBase.AbstractModel end
 
 
 """
-    $(SIGNATURES)
-Computes the complex visibility of model `m` at u,v positions `u,v`
+    visibility(mimg, u, v, args...)
 
+Computes the complex visibility of model `m` at u,v positions `u,v` and
+other `args...` (e.g., frequency, time, etc.)
+
+# Notes
 If you want to compute the visibilities at a large number of positions
-consider using the `visibilities` function
+consider using the [`visibilities`](@ref visibilities).
 """
-@inline function visibility(mimg::M, args...) where {M}
+@inline function visibility(mimg::M, u, v, args...) where {M}
     #first we split based on whether the model is primitive
-    _visibility(isprimitive(M), mimg, args...)
+    _visibility(isprimitive(M), mimg, u, v, args...)
 end
 
+
+"""
+    visibility(mimg, uv::ArrayBaselineDatum)
+
+Computes the complex visibility of a model `m` at the `uv` array baseline datum.
+
+# Notes
+If you want to compute the visibilities at a large number of positions
+consider using the [`visibilities`](@ref visibilities).
+"""
 @inline function visibility(mimg, uv::ArrayBaselineDatum)
-    return visibility(mimg, uv.u, uv.v)
+    return visibility(mimg, uv.u, uv.v, )
 end
 
 """
-    $(SIGNATURES)
+    amplitude(model, args...)
+
 Computes the visibility amplitude of model `m` at u,v positions `u,v`
 
 If you want to compute the amplitudes at a large number of positions
@@ -40,7 +54,8 @@ consider using the `amplitudes` function.
 end
 
 """
-    $(SIGNATURES)
+    bispectrum(model, u1, v1, u2, v2, u3, v3)
+
 Computes the complex bispectrum of model `m` at the uv-triangle
 u1,v1 -> u2,v2 -> u3,v3
 
@@ -52,7 +67,8 @@ consider using the `bispectra` function.
 end
 
 """
-    $(SIGNATURES)
+    closure_phase(model. u1, v1, u2, v2, u3, v3)
+
 Computes the closure phase of model `m` at the uv-triangle
 u1,v1 -> u2,v2 -> u3,v3
 
@@ -64,9 +80,10 @@ consider using the `closure_phases` function.
 end
 
 """
-    $(SIGNATURES)
+    logclosure_amplitude(model, u1, v1, u2, v2, u3, v3, u4, v4)
+
 Computes the log-closure amplitude of model `m` at the uv-quadrangle
-u1,v1 -> u2,v2 -> u3,v3 -> u4,v3 using the formula
+u1,v1 -> u2,v2 -> u3,v3 -> u4,v4 using the formula
 
 ```math
 C = \\log\\left|\\frac{V(u1,v1)V(u2,v2)}{V(u3,v3)V(u4,v4)}\\right|
@@ -110,18 +127,31 @@ end
 #     _visibilities(m, u, v)
 # end
 
+"""
+    visibilities(m, ac::ArrayConfiguration)
+
+Computes the visibilities of the model `m` using the array configuration `ac`.
+If you want to compute a single visibility you should call [`visibility`](@ref visibility).
+"""
 @inline function visibilities(m, ac::ArrayConfiguration)
     u, v = getuv(ac)
     return visibilities(m, u, v)
 end
 
-@inline function visibilities(m::M, u::AbstractArray, v::AbstractArray) where {M}
-    return _visibilities(m, u, v)
+"""
+    visibilities(m, u::AbstractArray, v::AbstractArray, args...)
+
+Computes the visibilities of the model `m` at `u` `v` and `args...`.
+If you want to compute a single visibility you should call [`visibility`](@ref visibility).
+"""
+@inline function visibilities(m::M, u::AbstractArray, v::AbstractArray, args...) where {M}
+    return _visibilities(m, u, v, args...)
 end
 
 
 
-
+# Internal function required for dispatch. This is a fallback method if
+# visibilities doesn't have a direct implementation.
 @inline function _visibilities(m, u::AbstractArray, v::AbstractArray)
     return visibility.(Ref(m), u, v)
 end
@@ -129,12 +159,9 @@ end
 
 
 """
-    $(SIGNATURES)
-Computes the amplitudes of the model `m` at the u,v positions `u`, `v`.
+    amplitudes(m::AbstractModel, u::AbstractArray, v::AbstractArray)
 
-# Notes
-If this is a analytic model this is done lazily so the visibilites are only computed
-when accessed. Otherwise for numerical model computed with NFFT this is eager.
+Computes the amplitudes of the model `m` at the u,v positions `u`, `v`.
 """
 function amplitudes(m, u::AbstractArray, v::AbstractArray)
     _amplitudes(m, u, v)
@@ -160,11 +187,14 @@ end
 
 
 """
-    $(SIGNATURES)
+    bispectra(m,
+              u1::AbstractArray, v1::AbstractArray,
+              u2::AbstractArray, v2::AbstractArray,
+              u3::AbstractArray, v3::AbstractArray,
+            )
+
 Computes the bispectra of the model `m` at the
 triangles (u1,v1), (u2,v2), (u3,v3).
-
-Note this is done lazily so the bispectra is only computed when accessed.
 """
 function bispectra(m,
                     u1::AbstractArray, v1::AbstractArray,
@@ -174,6 +204,7 @@ function bispectra(m,
     _bispectra(m, u1, v1, u2, v2, u3, v3)
 end
 
+# internal method used for trait dispatch
 function _bispectra(m::M,
                     u1::AbstractArray, v1::AbstractArray,
                     u2::AbstractArray, v2::AbstractArray,
@@ -182,7 +213,7 @@ function _bispectra(m::M,
     _bispectra(visanalytic(M), m, u1, v1, u2, v2, u3, v3)
 end
 
-
+# internal method used for trait dispatch for analytic visibilities
 function _bispectra(::IsAnalytic, m,
                     u1::AbstractArray, v1::AbstractArray,
                     u2::AbstractArray, v2::AbstractArray,
@@ -191,6 +222,7 @@ function _bispectra(::IsAnalytic, m,
     return bispectrum.(Ref(m), u1, v1, u2, v2, u3, v3)
 end
 
+# internal method used for trait dispatch for non-analytic visibilities
 function _bispectra(::NotAnalytic, m,
                     u1::AbstractArray, v1::AbstractArray,
                     u2::AbstractArray, v2::AbstractArray,
@@ -203,11 +235,14 @@ function _bispectra(::NotAnalytic, m,
 end
 
 """
-    $(SIGNATURES)
+    closure_phases(m,
+                   u1::AbstractArray, v1::AbstractArray,
+                   u2::AbstractArray, v2::AbstractArray,
+                   u3::AbstractArray, v3::AbstractArray,
+                   )
+
 Computes the closure phases of the model `m` at the
 triangles (u1,v1), (u2,v2), (u3,v3).
-
-Note this is done lazily so the closure_phases is only computed when accessed.
 """
 @inline function closure_phases(m::AbstractModel,
                         u1::AbstractArray, v1::AbstractArray,
@@ -217,11 +252,24 @@ Note this is done lazily so the closure_phases is only computed when accessed.
     _closure_phases(m, u1, v1, u2, v2, u3, v3)
 end
 
+"""
+    closure_phases(m::AbstractModel, ac::ClosureConfig)
+
+Computes the closure phases of the model `m` using the array configuration `ac`.
+
+# Notes
+This is faster than the `closure_phases(m, u1, v1, ...)` method since it only
+computes as many visibilities as required thanks to the closure design matrix formalism
+from Blackburn et al.[^1]
+
+[^1]: Blackburn L., et al "Closure Statistics in Interferometric Data" ApJ 2020
+"""
 function closure_phases(m::AbstractModel, ac::ClosureConfig)
     vis = visibilities(m, ac.ac)
     return ac.designmat*angle.(vis)
 end
 
+# internal method used for trait dispatch
 @inline function _closure_phases(m::M,
                         u1::AbstractArray, v1::AbstractArray,
                         u2::AbstractArray, v2::AbstractArray,
@@ -230,7 +278,7 @@ end
     _closure_phases(visanalytic(M), m, u1, v1, u2, v2, u3, v3)
 end
 
-
+# internal method used for trait dispatch for analytic visibilities
 @inline function _closure_phases(::IsAnalytic, m,
                         u1::AbstractArray, v1::AbstractArray,
                         u2::AbstractArray, v2::AbstractArray,
@@ -239,6 +287,7 @@ end
     return closure_phase.(Ref(m), u1, v1, u2, v2, u3, v3)
 end
 
+# internal method used for trait dispatch for non-analytic visibilities
 function _closure_phases(::NotAnalytic, m,
                         u1::AbstractArray, v1::AbstractArray,
                         u2::AbstractArray, v2::AbstractArray,
@@ -248,11 +297,15 @@ function _closure_phases(::NotAnalytic, m,
 end
 
 """
-    $(SIGNATURES)
+    logclosure_amplitudes(m::AbstractModel,
+                          u1::AbstractArray, v1::AbstractArray,
+                          u2::AbstractArray, v2::AbstractArray,
+                          u3::AbstractArray, v3::AbstractArray,
+                          u4::AbstractArray, v4::AbstractArray,
+                         )
+
 Computes the log closure amplitudes of the model `m` at the
 quadrangles (u1,v1), (u2,v2), (u3,v3), (u4, v4).
-
-Note this is done lazily so the log closure amplitude is only computed when accessed.
 """
 function logclosure_amplitudes(m::AbstractModel,
                                u1::AbstractArray, v1::AbstractArray,
@@ -263,12 +316,24 @@ function logclosure_amplitudes(m::AbstractModel,
     _logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
 end
 
+"""
+    logclosure_amplitudes(m::AbstractModel, ac::ClosureConfig)
+
+Computes the log closure amplitudes of the model `m` using the array configuration `ac`.
+
+# Notes
+This is faster than the `logclosure_amplitudes(m, u1, v1, ...)` method since it only
+computes as many visibilities as required thanks to the closure design matrix formalism
+from Blackburn et al.[^1]
+
+[^1]: Blackburn L., et al "Closure Statistics in Interferometric Data" ApJ 2020
+"""
 function logclosure_amplitudes(m::AbstractModel, ac::ClosureConfig)
     vis = visibilities(m, ac.ac)
     return ac.designmat*log.(abs.(vis))
 end
 
-
+# internal method used for trait dispatch
 @inline function _logclosure_amplitudes(m::M,
                         u1::AbstractArray, v1::AbstractArray,
                         u2::AbstractArray, v2::AbstractArray,
@@ -278,7 +343,7 @@ end
     _logclosure_amplitudes(visanalytic(M), m, u1, v1, u2, v2, u3, v3, u4, v4)
 end
 
-
+# internal method used for trait dispatch for analytic visibilities
 @inline function _logclosure_amplitudes(::IsAnalytic, m,
                         u1::AbstractArray, v1::AbstractArray,
                         u2::AbstractArray, v2::AbstractArray,
@@ -288,6 +353,7 @@ end
     return logclosure_amplitude.(Ref(m), u1, v1, u2, v2, u3, v3, u4, v4)
 end
 
+# internal method used for trait dispatch for non-analytic visibilities
 @inline function _logclosure_amplitudes(::NotAnalytic, m,
                         u1::AbstractArray, v1::AbstractArray,
                         u2::AbstractArray, v2::AbstractArray,
@@ -302,7 +368,8 @@ end
 end
 
 
-
+# internal method for computing an image of a non-analytic image model. The
+# `executor` if for parallelization but is not used for this method.
 function intensitymap!(::NotAnalytic, img::IntensityMap, m, executor=SequentialEx())
     ny, nx = size(img)
     fovx, fovy = fov(img)
@@ -314,7 +381,8 @@ function intensitymap!(::NotAnalytic, img::IntensityMap, m, executor=SequentialE
     end
 end
 
-
+# internal method for computing an image of a non-analytic image model. The
+# `executor` if for parallelization but is not used for this method.
 function intensitymap(::NotAnalytic, m, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse(), executor=SequentialEx())
     img = IntensityMap(zeros(ny, nx), fovx, fovy, pulse)
     vis = ifftshift(phasedecenter!(fouriermap(m, fovx, fovy, nx, ny), fovx, fovy, nx, ny))

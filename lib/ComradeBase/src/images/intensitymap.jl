@@ -92,17 +92,19 @@ fov(m::AbstractIntensityMap) = (m.fovx, m.fovy)
 
 
 """
-    $(SIGNATURES)
+    flux(img::AbstractIntensityMap)
+
 Computes the flux of a intensity map
 """
-function flux(im::AbstractIntensityMap{T,S}) where {T,S}
+function flux(im::AbstractIntensityMap)
     f = sum(im.im)#*(flux(im.pulse))^2
     return f#*prod(pixelsizes(im))
 end
 
 """
-    $(SIGNATURES)
-Computes the flux of a intensity map
+    flux(pim)
+
+Computes the flux of a polarized intensity map
 """
 function flux(im::AbstractIntensityMap{T,S}) where {F,T<:StokesVector{F},S}
     I = stokes(im, :I)

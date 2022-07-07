@@ -8,8 +8,8 @@ complex visibility
 To convert between a `StokesVector` and `CoherencyMatrix` use the `convert`
 function
 
-```julia
-convert(::CoherencyMatrix, StokesVector(1.0, 0.1, 0.1, 0.4))
+```julia-repl
+julia> convert(::CoherencyMatrix, StokesVector(1.0, 0.1, 0.1, 0.4))
 ```
 """
 struct StokesVector{T} <: FieldVector{4,T}
@@ -21,14 +21,15 @@ end
 
 """
     $(TYPEDEF)
+
 Static matrix that holds construct the coherency matrix of a polarized
 complex visibility
 
 To convert between a `StokesVector` and `CoherencyMatrix` use the `convert`
 function
 
-```julia
-convert(::StokesVector, CoherencyMatrix(1.0, 0.1, 0.1, 0.4))
+```julia-repl
+julia> convert(::StokesVector, CoherencyMatrix(1.0, 0.1, 0.1, 0.4))
 ```
 """
 struct CoherencyMatrix{T} <: FieldMatrix{2,2,T}
@@ -56,7 +57,8 @@ end
 end
 
 """
-    $(SIGNATURES)
+    m̆(m::Union{StokesVector, CoherencyMatrix})
+
 Compute the fractional linear polarization of a stokes vector
 or coherency matrix
 """
@@ -64,7 +66,8 @@ m̆(m::StokesVector) = (m.Q + 1im*m.U)/(m.I + eps())
 m̆(m::CoherencyMatrix) = 2*m.rl/(m.rr+m.ll)
 
 """
-    $(SIGNATURES)
+    evpa(m::Union{StokesVector, CoherencyMatrix})
+
 Compute the evpa of a stokes vector or cohereny matrix.
 """
 evpa(m::StokesVector) = 1/2*atan(m.U,m.Q)
@@ -74,7 +77,8 @@ evpa(m::CoherencyMatrix) = evpa(convert(StokesVector, m))
 
 """
     $(TYPEDEF)
-Helper function that converts a model from something that compute polarized images
+
+Helper type that converts a model from something that compute polarized images
 to just a single stokes parameter. This is useful if you just want to fit a single
 stokes parameter.
 """

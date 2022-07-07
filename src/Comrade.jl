@@ -1,6 +1,6 @@
 """
     Comrade
-Radio Observation Sampling Exploration
+Composable Modeling of Radio Emission
 """
 module Comrade
 
@@ -40,9 +40,10 @@ export SequentialEx, ThreadedEx
 const ehtim = PyNULL()
 
 """
-    $(SIGNATURES)
+    load_ehtim()
+
 Loads the [eht-imaging](https://github.com/achael/eht-imaging) library and stores it in the
-`ehtim` variable.
+exported `ehtim` variable.
 
 # Notes
 This will fail if ehtim isn't installed in the python installation that PyCall references.
@@ -60,13 +61,13 @@ export rad2μas, μas2rad, ehtim, load_ehtim, logdensity_def, logdensityof
 
 """
     rad2μas(x)
-Converts a number from radians to μas
+Converts a number from radians to micro-arcseconds (μas)
 """
 @inline rad2μas(x) = 180/π*3600*1e6*x
 
 """
     μas2rad(x)
-Converts a number from μas to rad
+Converts a number from micro-arcseconds (μas) to rad
 """
 @inline μas2rad(x) = x/(180/π*3600*1e6)
 
@@ -85,12 +86,6 @@ include("inference/inference.jl")
 include("calibration/gains.jl")
 
 function __init__()
-    # @require AdvancedHMC="0bf59076-c3b1-5ca4-86bd-e02cd72cde3d" include("inference/advancedhmc.jl")
-    # @require AdaptiveMCMC="717c3277-546c-407d-8270-09a39a0919a0" include("inference/adaptivemcmc.jl")
-    # @require NestedSamplers="41ceaf6f-1696-4a54-9b49-2e7a9ec3782e" include("inference/nested.jl")
-    # @require Dynesty="eb527566-0f3e-4aab-bb5f-9d2e403dba70" include("inference/dynesty.jl")
-    # @require Pathfinder="b1d3bc72-d0e7-4279-b92f-7fa5d6d2d454" include("inference/pathfinder.jl")
-    # @require GalacticOptim="a75be94c-b780-496d-a8a9-0878b188d577" include("inference/galacticoptim.jl")
     # FIX THIS
     del_format(format"FITS")
     add_format(format"FITS",

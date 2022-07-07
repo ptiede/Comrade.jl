@@ -2,55 +2,54 @@ using MeasureBase: logdensityof, Likelihood
 export RadioLikelihood, logdensityof, MultiRadioLikelihood
 using LinearAlgebra
 
+"""
+    RadioLikelihood(data1, data2, ...)
 
+Forms a radio likelihood from a set of data products. These data products must share
+the same array data/configuration. If you want to form a likelihood from multiple arrays
+such as when fitting different wavelengths or days, you can combine them using
+[`MultiRadioLikelihood`](@ref MultiRadioLikelihood)
+
+# Example
+
+```julia-repl
+julia> RadioLikelihood(dcphase1, dlcamp1)
+```
+"""
 struct RadioLikelihood{T,A} <: MB.AbstractMeasure
     lklhds::T
     ac::A
 end
 
 
-struct MultiRadioLikelihood{L} <: MB.AbstractMeasure
-    lklhds::L
-end
-
-"""
-    `MultiRadioLikelihood(lklhd1, lklhd2, ...)`
-Combines multiple likelihoods into one object that is useful for fitting multiple days/frequencies.
-
-```julia
-lklhd1 = RadioLikelihood(dcphase1, dlcamp1)
-lklhd2 = RadioLikelihood(dcphase2, dlcamp2)
-
-lklhd = MultiRadioLikelihood(lklhd1, lklhd2)
-```
-
-"""
-MultiRadioLikelihood(lklhds::RadioLikelihood...) = MultiRadioLikelihood(lklhds)
-
-function MB.logdensityof(lklhds::MultiRadioLikelihood, m)
-    sum(Base.Fix2(logdensityof, m), lklhds.lklhds)
-end
-
-"""
-    `RadioLikelihood(data1, data2, ...)`
-Forms a radio likelihood from a set of data products. These data products must share
-the same array data/configuration. If you want to form a likelihood from multiple arrays
-such as when fitting different wavelengths or days, you can combine them using
-`MultiRadioLikelihood`
-
-```julia
-lklhd1 = RadioLikelihood(dcphase1, dlcamp1)
-lklhd2 = RadioLikelihood(dcphase2, dlcamp2)
-
-lklhd = MultiRadioLikelihood(lklhd1, lklhd2)
-```
-"""
 function RadioLikelihood(data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
     #@argcheck acs[1] == acs[2]
     RadioLikelihood{typeof(ls), typeof(acs[1])}(ls, acs[1])
 end
+
+"""
+    MultiRadioLikelihood(lklhd1, lklhd2, ...)
+Combines multiple likelihoods into one object that is useful for fitting multiple days/frequencies.
+
+```julia-repl
+julia> lklhd1 = RadioLikelihood(dcphase1, dlcamp1)
+julia> lklhd2 = RadioLikelihood(dcphase2, dlcamp2)
+julia> MultiRadioLikelihood(lklhd1, lklhd2)
+```
+
+"""
+struct MultiRadioLikelihood{L} <: MB.AbstractMeasure
+    lklhds::L
+end
+
+MultiRadioLikelihood(lklhds::RadioLikelihood...) = MultiRadioLikelihood(lklhds)
+
+function MB.logdensityof(lklhds::MultiRadioLikelihood, m)
+    sum(Base.Fix2(logdensityof, m), lklhds.lklhds)
+end
+
 
 function RadioLikelihood(data::MT.Likelihood...)
     return RadioLikelihood{typeof(data), Nothing}(data, nothing)
@@ -64,7 +63,7 @@ end
 
 
 """
-    `logclosure_amplitudes(vis, ac::ArrayConfiguration)`
+    logclosure_amplitudes(vis::AbstractArray, ac::ArrayConfiguration)
 
 Compute the log-closure amplitudes for a set of visibilities and an array configuration
 
@@ -77,7 +76,7 @@ function logclosure_amplitudes(vis::AbstractArray{<:Complex}, ac::ArrayConfigura
 end
 
 """
-    `closure_phases(vis, ac::ArrayConfiguration)`
+    closure_phases(vis::AbstractArray, ac::ArrayConfiguration)
 
 Compute the closure phases for a set of visibilities and an array configuration
 
@@ -117,6 +116,7 @@ end
 #    return acc
 #end
 
+# internal function that creates the likelihood for a set of complex visibilities
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
     errinv = inv.(data[:error])
     vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
@@ -127,6 +127,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
 end
 
 
+# internal function that creates the likelihood for a set of visibility amplitudes
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     τ = inv.(data[:error])
     amp = getdata(data, :amp)
@@ -137,6 +138,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
 end
 
 
+# internal function that creates the likelihood for a set of log closure amplitudes
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
     dmat = data.config.designmat
     τ  = inv.(data[:error])
@@ -154,6 +156,8 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
     return ℓ
 end
 
+
+# internal function that creates the likelihood for a set of closure phase datum
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosurePhaseDatum})
     τ = inv.(getdata(data, :error)).^2
     f = Base.Fix2(closure_phases, data.config)

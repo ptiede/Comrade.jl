@@ -3,20 +3,7 @@ export FFTAlg
 
 
 
-function create_interpolator(u, v, vis, img)
-    # Construct the interpolator
-    #itp = interpolate(vis, BSpline(Cubic(Line(OnGrid()))))
-    #etp = extrapolate(itp, zero(eltype(vis)))
-    #scale(etp, u, v)
-    p1 = BicubicInterpolator(u, v, real(vis)', NoBoundaries())
-    p2 = BicubicInterpolator(u, v, imag(vis)', NoBoundaries())
-    dx,dy = pixelsizes(img)
-    function (u,v)
-        #phase = cispi(-(u*dx + v*dx))
-        pl = visibility_point(img.pulse, u*dx, v*dy)
-        return pl*(p1(u,v) + 1im*p2(u,v))
-    end
-end
+
 
 #function ChainRulesCore.rrule(::typeof(create_interpolator), u, v, vis)
 #    y = create_interpolator(u, v, vis)
@@ -36,33 +23,42 @@ end
     $(TYPEDEF)
 The cache used when the `FFT` algorithm is used to compute
 visibilties. This is an internal type and is not part of the public API
-
-# Fields
-$(FIELDS)
 """
 struct FFTCache{A<:FFTAlg,P,I,S} <: AbstractCache
-    alg::A
-    """ FFTW Plan"""
-    plan::P
-    """ image cache """
-    img::I
-    """FFT interpolator function"""
-    sitp::S
+    alg::A # FFT algorithm
+    plan::P # FFT plan or matrix
+    img::I # image buffer used for FT
+    sitp::S # interpolator function used to find vis at abritrary uv position.
 end
 
-# @edit fft(x_plus_dx, 1:1) points me here:
+# These are all overloads to allow us to forward propogate ForwardDiff dual numbers through
+# an abstract FFT.
 AbstractFFTs.complexfloat(x::AbstractArray{<:ForwardDiff.Dual}) = float.(ForwardDiff.value.(x) .+ 0.0im)
 
-# @edit fft(x_plus_dx .+ 0im, 1:1) # now this makes a plan, we need:
+# Make a plan with Dual numbers
 AbstractFFTs.plan_fft(x::AbstractArray{<:ForwardDiff.Dual}, region=1:ndims(x)) = plan_fft(zeros(ComplexF64, size(x)), region)
 AbstractFFTs.plan_fft(x::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, region=1:ndims(x)) = plan_fft(zeros(ComplexF64, size(x)), region)
 
-# Where I want value() to work on complex duals too:
+# Allow things to work with Complex Dual numbers.
 ForwardDiff.value(x::Complex{<:ForwardDiff.Dual}) = Complex(x.re.value, x.im.value)
 ForwardDiff.partials(x::Complex{<:ForwardDiff.Dual}, n::Int) = Complex(ForwardDiff.partials(x.re, n), ForwardDiff.partials(x.im, n))
 ForwardDiff.npartials(x::Complex{<:ForwardDiff.Dual}) = ForwardDiff.npartials(x.re)
 
-
+# internal function that creates the interpolator objector to evaluate the FT.
+function create_interpolator(u, v, vis, img)
+    # Construct the interpolator
+    #itp = interpolate(vis, BSpline(Cubic(Line(OnGrid()))))
+    #etp = extrapolate(itp, zero(eltype(vis)))
+    #scale(etp, u, v)
+    p1 = BicubicInterpolator(u, v, real(vis)', NoBoundaries())
+    p2 = BicubicInterpolator(u, v, imag(vis)', NoBoundaries())
+    dx,dy = pixelsizes(img)
+    function (u,v)
+        #phase = cispi(-(u*dx + v*dx))
+        pl = visibility_point(img.pulse, u*dx, v*dy)
+        return pl*(p1(u,v) + 1im*p2(u,v))
+    end
+end
 
 #=
 This is so ForwardDiff works with FFTW. I am very harsh on the `x` type because of type piracy.
@@ -109,6 +105,7 @@ function padimage(img, alg::FFTAlg)
     PaddedView(zero(eltype(img)), img, (nny, nnx))
 end
 
+# phasecenter the FFT.
 function phasecenter(vis, uu, vv, x0, y0, dx, dy)
     map(CartesianIndices((eachindex(uu), eachindex((vv))))) do I
         iy,ix = Tuple(I)
@@ -117,11 +114,6 @@ function phasecenter(vis, uu, vv, x0, y0, dx, dy)
 end
 
 
-"""
-    $(SIGNATURES)
-Creates the model cache given for the algorithm `alg`
-using the `model` and a image cache `image`
-"""
 function create_cache(alg::FFTAlg, img)
     #intensitymap!(img, model)
     pimg = padimage(img, alg)
@@ -167,7 +159,8 @@ end
 
 
 """
-    $(SIGNATURES)
+    uviterator(dx, dy, nnx, nny)
+
 Construct the u,v iterators for the Fourier transform of the image
 with pixel sizes `dx, dy` and number of pixels `nx, ny`
 
@@ -194,7 +187,13 @@ end
 #    end
 #end
 
+"""
+    fouriermap(m, fovx, fovy, nx, ny)
 
+Create a Fourier or visibility map of a model `m`
+assuming a image with a field of view `fovx/fovy` and
+`nx/ny` pixels in the x/y direction respectively.
+"""
 function fouriermap(m, fovx, fovy, nx, ny)
     x,y = imagepixels(fovx, fovy, nx, ny)
     dx = step(x); dy = step(y)

@@ -82,8 +82,8 @@ end
     yguide --> "|V| (Jy)"
     markershape --> :diamond
 
-    u = getdata(dvis, :u)
-    v = getdata(dvis, :v)
+    u = getdata(dvis, :u)/1e9
+    v = getdata(dvis, :v)/1e9
     uvdist = hypot.(u,v)
     amp = amplitude.(dvis.data)
     error = getdata(dvis, :error)
@@ -92,13 +92,13 @@ end
     alpha --> 0.5
     yerr := error
     linecolor --> nothing
-    label := "Data"
+    label --> "Data"
     uvdist, amp
 end
 
 @recipe function f(acc::ArrayConfiguration)
-    xguide --> "u (λ)"
-    yguide --> "v (λ)"
+    xguide --> "u (Gλ)"
+    yguide --> "v (Gλ)"
     markershape --> :circle
 
     u, v = getuv(acc)
@@ -106,9 +106,9 @@ end
     seriestype --> :scatter
     linecolor --> nothing
     aspect_ratio --> :equal
-    label := "Data"
+    label -->"Data"
     title --> "Frequency: $(acc.frequency/1e9) GHz"
-    vcat(u,-u), vcat(v,-v)
+    vcat(u/1e9,-u/1e9), vcat(v/1e9,-v/1e9)
 end
 
 @recipe function f(m::AbstractModel, dvis::EHTObservation{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTVisibilityAmplitudeDatum}
@@ -230,7 +230,7 @@ end
     alpha --> 0.5
     yerr := error
     linecolor --> nothing
-    label := "Data"
+    label --> "Data"
     area, phase
 end
 
@@ -255,7 +255,7 @@ end
         alpha := 0.5
         yerr := error
         linecolor := nothing
-        label := "Data"
+        label --> "Data"
         area, phase
     end
 

@@ -104,14 +104,16 @@ If `IsAnalytic()` then it will try to call `intensity_point` to calculate the in
 
 
 """
-    $(SIGNATURES)
+    visibility_point
+
 Function that computes the pointwise visibility if the model has the trait
 in the fourier domain `IsAnalytic()`. Otherwise it will use the FFTW fallback.
 """
 function visibility_point end
 
 """
-    $(SIGNATURES)
+    intensity_point
+
 Function that computes the pointwise intensity if the model has the trait
 in the image domain `IsAnalytic()`. Otherwise it will use construct the image in visibility
 space and invert it.
@@ -120,28 +122,26 @@ function intensity_point end
 
 
 """
-    $(SIGNATURES)
+    intensitymap!
+
 Computes the intensity map of model by modifying the input IntensityMap object
 """
 function intensitymap! end
 
 
 """
-    $(SIGNATURES)
+    intensitymap
+
 Computes the intensity map of model. This version requires additional information to
 construct the grid.
 
 # Example
 
-```julia
-m = Gaussian()
-# field of view
-fovx, fovy = 5.0
-fovy = 5.0
-# number of pixels
-nx, ny = 128
-
-img = intensitymap(m, fovx, fovy, nx, ny; pulse=DeltaPulse())
+```julia-repl
+julia> m = Gaussian()
+julia> fovx, fovy = 5.0
+julia> nx, ny = 128
+julia> img = intensitymap(m, fovx, fovy, nx, ny; pulse=DeltaPulse())
 ```
 """
 function intensitymap end
