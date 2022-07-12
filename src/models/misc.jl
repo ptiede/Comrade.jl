@@ -15,7 +15,7 @@ ZeroModel() = ZeroModel{Float64}()
 visanalytic(::Type{<:ZeroModel}) = IsAnalytic()
 imanalytic(::Type{<:ZeroModel}) = IsAnalytic()
 
-visibility_point(::ZeroModel{T}, args...) where {T} = zero(T)
+visibility_point(::ZeroModel{T}, args...) where {T} = complex(zero(T))
 intensity_point(::ZeroModel{T}, args...) where {T} = zero(T)
 
 _visibilities(::ZeroModel{T}, u, v, args...) where {T} = Fill(zero(T), length(u))

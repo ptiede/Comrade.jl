@@ -29,8 +29,16 @@ struct PolarizedModel{TI,TQ,TU,TV} <: AbstractPolarizedModel
     V::TV
 end
 
-Base.Base.@constprop :aggressive @inline visanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = visanalytic(I)*visanalytic(Q)*visanalytic(U)*visanalytic(V)
-Base.Base.@constprop :aggressive @inline imanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = imanalytic(I)*imanalytic(Q)*imanalytic(U)*imanalytic(V)
+function Base.show(io::IO, model::PolarizedModel)
+    println(io, "PolarizedModel")
+    println(io, "\tI: $(summary(model.I))")
+    println(io, "\tQ: $(summary(model.Q))")
+    println(io, "\tU: $(summary(model.U))")
+    print(io, "\tV: $(summary(model.V))")
+end
+
+Base.@constprop :aggressive @inline visanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = visanalytic(I)*visanalytic(Q)*visanalytic(U)*visanalytic(V)
+Base.@constprop :aggressive @inline imanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = imanalytic(I)*imanalytic(Q)*imanalytic(U)*imanalytic(V)
 
 @inline function intensity_point(pmodel::PolarizedModel, u, v)
     I = intensity_point(pmodel.I, u, v)
