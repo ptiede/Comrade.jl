@@ -14,6 +14,7 @@ using ChainRulesCore
 using ComradeBase
 using FITSIO
 using FileIO
+using FillArrays: Fill
 using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
 using FLoops

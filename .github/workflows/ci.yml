@@ -15,7 +15,7 @@ jobs:
           - ComradeAdaptMCMC
           - ComradeAHMC
           - ComradeDynesty
-          - ComradeGalactic
+          - ComradeOptimization
           - ComradeNested
         version:
           - '1.7'

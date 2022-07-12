@@ -173,6 +173,10 @@ struct ShiftedModel{M<:AbstractModel,T} <: AbstractModifier{M}
     Δy::T
 end
 
+function ShiftedModel(model::AbstractModel, Δx::Number, Δy::Number)
+    return ShiftedModel(model, promote(Δx, Δy)...)
+end
+
 """
     $(SIGNATURES)
 
@@ -214,6 +218,8 @@ struct RenormalizedModel{M<:AbstractModel,T} <: AbstractModifier{M}
     scale::T
     RenormalizedModel(model::M, f::T) where {M,T} = new{M,T}(model, f)
 end
+
+
 
 """
     $(SIGNATURES)
@@ -266,6 +272,11 @@ struct StretchedModel{M<:AbstractModel,T} <: AbstractModifier{M}
     α::T
     β::T
 end
+
+function Stretched(model::AbstractModel, a::Number, b::Number)
+    return Stretched(model, promote(a, b)...)
+end
+
 
 """
     $(SIGNATURES)
