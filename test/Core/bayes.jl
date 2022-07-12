@@ -1,5 +1,5 @@
 using Distributions
-using ComradeGalactic
+using ComradeOptimization
 using GalacticOptimJL
 using StatsBase
 using Plots

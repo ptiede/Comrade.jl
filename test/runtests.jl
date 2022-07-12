@@ -24,7 +24,7 @@ end
 
 # Now split depending on what kind of test we are doing
 if GROUP == "ALL" || GROUP == "Core"
-    dev_subpkg("ComradeGalactic")
+    dev_subpkg("ComradeOptimization")
     @safetestset "CORE Comrade.jl" begin
         include(joinpath(@__DIR__, "Core/core.jl"))
     end

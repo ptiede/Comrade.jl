@@ -1,10 +1,10 @@
-using Comrade, ComradeGalactic, GalacticOptimJL, Distributions
+using Comrade, ComradeOptimization, OptimizationOptimJL, Distributions
 using Test
 
 load_ehtim()
 include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
-@testset "ComradeGalactic.jl" begin
+@testset "ComradeOptimization.jl" begin
     m, vis, amp, lcamp, cphase = load_data()
     prior = test_prior()
     lklhd = RadioLikelihood(lcamp, cphase)
