@@ -1,4 +1,4 @@
-module ComradeGalactic
+module Optimization
 
 using Comrade
 using Reexport
@@ -6,7 +6,7 @@ using Distributions
 using ForwardDiff
 using LinearAlgebra
 
-@reexport using GalacticOptim
+@reexport using Optimziation
 
 export laplace
 
@@ -21,7 +21,8 @@ function GalacticOptim.OptimizationFunction(post::Comrade.TransformedPosterior, 
 end
 
 """
-    `laplace(prob, opt, args...; kwargs...)`
+    laplace(prob, opt, args...; kwargs...)
+
 Compute the Laplace or Quadratic approximation to the prob or posterior.
 The `args` and `kwargs` are passed the the GalacticOptim.solve function.
 
@@ -33,7 +34,7 @@ function laplace(prob::OptimizationProblem, opt, args...; kwargs...)
     sol = solve(prob, opt, args...; kwargs...)
     f = Base.Fix2(prob.f, nothing)
     J = ForwardDiff.hessian(f, sol)
-    @. J += 1e-5 # add noise to help with positive definitness
+    @. J += 1e-5 # add offset to help with positive definitness
     h = J*sol
     return MvNormalCanon(h, Symmetric(J))
 end
