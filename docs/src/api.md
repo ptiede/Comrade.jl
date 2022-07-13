@@ -123,10 +123,8 @@ Comrade.logclosure_amplitude
 Comrade.logclosure_amplitudes
 Comrade.visibilities
 Comrade.visibility
-Comrade.visibility_point
 Comrade.intensitymap
 Comrade.intensitymap!
-Comrade.intensity_point
 ```
 
 ## Data Types

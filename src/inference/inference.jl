@@ -30,7 +30,6 @@ Sampler type specifies whether to use a unit hypercube or unconstrained transfor
 """
 samplertype(::Type) = ArgumentError("samplertype not specified")
 
-include(joinpath(@__DIR__, "pullbacks.jl"))
 
 """
     sample(post::Posterior, sampler::S, args...; init_params=nothing, kwargs...)
@@ -57,3 +56,7 @@ function _sample(::IsCube, post, sampler, args...; init_params, kwargs...)
     θ0 = HypercubeTransform.inverse(tpost, init_params)
     return sample(tpost, sampler, args...; init_params=θ0, kwargs...)
 end
+
+
+include(joinpath(@__DIR__, "pullbacks.jl"))
+include(joinpath(@__DIR__, "fishermatrix.jl"))

@@ -11,7 +11,7 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
     post = Posterior(lklhd, prior, test_model)
 
     tpost = ascube(post)
-    f = OptimizationFunction(tpost, GalacticOptim.AutoForwardDiff{4}())
+    f = OptimizationFunction(tpost, AutoForwardDiff{4}())
     x0 = [ 0.1,
            0.4,
            0.5,
@@ -22,7 +22,7 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
            0.3,
            0.8,
            0.8]
-    prob = GalacticOptim.OptimizationProblem(f, x0, nothing, lb=fill(0.001, 10), ub=fill(0.999,10))
+    prob = OptimizationProblem(f, x0, nothing, lb=fill(0.001, 10), ub=fill(0.999,10))
     sol = solve(prob, LBFGS(); maxiters=100_000)
 
     xopt = transform(tpost, sol)

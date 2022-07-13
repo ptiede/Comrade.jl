@@ -173,9 +173,10 @@ struct ShiftedModel{M<:AbstractModel,T} <: AbstractModifier{M}
     Δy::T
 end
 
-function ShiftedModel(model::AbstractModel, Δx::Number, Δy::Number)
-    return ShiftedModel(model, promote(Δx, Δy)...)
-end
+#function ShiftedModel(model::AbstractModel, Δx::Number, Δy::Number)
+#    T =
+#    return ShiftedModel{(model, promote(Δx, Δy)...)
+#end
 
 """
     $(SIGNATURES)
@@ -273,9 +274,9 @@ struct StretchedModel{M<:AbstractModel,T} <: AbstractModifier{M}
     β::T
 end
 
-function Stretched(model::AbstractModel, a::Number, b::Number)
-    return Stretched(model, promote(a, b)...)
-end
+#function Stretched(model::AbstractModel, a::Number, b::Number)
+#    return Stretched(model, promote(a, b)...)
+#end
 
 
 """
