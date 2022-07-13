@@ -5,8 +5,8 @@ using ComradeBase
 using Literate
 
 using ComradeAHMC
-using ComradeGalactic
-using GalacticBBO
+using ComradeOptimization
+using OptimizationBBO
 using Glob
 using Plots
 
@@ -36,6 +36,7 @@ makedocs(;
     format=format,
     pages=Any[
         "Home" => "index.md",
+        "benchmarks.md",
         "vlbi_imaging_problem.md",
         "Tutorials" => [
                        "examples/data.md",

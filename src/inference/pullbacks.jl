@@ -5,7 +5,7 @@ Create the pullback function using the autodiff backend `autodiff`.
 
 # Note
 
-This is an internal function and shouldn't be typically used by an end-user.
+This is an internal function and not part of the public API.
 """
 function make_pullback(ℓ, autodiff::AD.AbstractBackend)
     function ∇ℓ(x)

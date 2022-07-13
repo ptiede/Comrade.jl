@@ -20,6 +20,7 @@ For our benchmarking problem we analyze a problem very similar to the problem ex
 
 All tests were run using the following Julia system
 
+```
 Julia Version 1.7.3
 Python Version 3.10.5
 Commit 742b9abb4d (2022-05-06 12:58 UTC)
@@ -29,6 +30,8 @@ Platform Info:
   WORD_SIZE: 64
   LIBM: libopenlibm
   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
+```
+
 
 Our benchmark results are the following:
 

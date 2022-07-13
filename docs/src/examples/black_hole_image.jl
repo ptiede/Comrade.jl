@@ -112,8 +112,8 @@ logdensityof(fpost, randn(dimension(fpost)))
 # we will first use an optimizer to find a reasonable starting location. Since this is a lower
 # dimensional problem we will use BlackboxOptim or the GalacticBBO package
 
-using ComradeGalactic
-using GalacticBBO
+using ComradeOptimization
+using OptimizationBBO
 
 ndim = dimension(fpost)
 f = OptimizationFunction(fpost)

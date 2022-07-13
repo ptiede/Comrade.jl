@@ -506,9 +506,7 @@ function closure_phase(D1::EHTVisibilityDatum,
 end
 
 """
-    ```julia
     baselines(CP::EHTClosurePhaseDatum)
-    ```
 
 Returns the baselines used for a single closure phase datum
 """
@@ -590,7 +588,11 @@ function rescaleuv!(data::EHTObservation{T,D}, scale) where {T,D<:EHTLogClosureA
     return data
 end
 
+"""
+    baselines(CP::EHTLogClosureAmplitudeDatum)
 
+Returns the baselines used for a single closure phase datum
+"""
 function baselines(CP::EHTLogClosureAmplitudeDatum)
     quad = CP.quadrangle
     return ((quad[1],quad[2]), (quad[3], quad[4]), (quad[1], quad[3]), (quad[2], quad[4]))
@@ -741,7 +743,7 @@ end
 Base.length(s::Scan) = length(s.scan)
 
 """
-    baselines(scan)
+    baselines(scan::Scan)
 
 Return the baselines for each datum in a scan
 """

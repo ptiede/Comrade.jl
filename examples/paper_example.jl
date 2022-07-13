@@ -1,7 +1,7 @@
 using Pkg; Pkg.activate(@__DIR__)
 using Comrade
 using Distributions
-using ComradeGalactic
+using ComradeOptimization
 using ComradeAHMC
 using GalacticBBO
 using GalacticOptimJL
@@ -49,7 +49,7 @@ post = Posterior(lklhd, prior, model)
 # the unit hypercube
 tpost = asflat(post)
 ndim = dimension(tpost)
-f = OptimizationFunction(tpost, GalacticOptim.AutoForwardDiff())
+f = OptimizationFunction(tpost, AutoForwardDiff())
 prob = OptimizationProblem(f, rand(ndim), nothing, lb=fill(-5.0, ndim), ub = fill(5.0, ndim))
 sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000)
 

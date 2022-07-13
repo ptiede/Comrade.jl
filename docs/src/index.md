@@ -28,11 +28,7 @@ The minimum Julia version we require is 1.6, which is the current LTS release. I
 Pages = [
     "index.md",
     "vlbi_imaging_problem.md",
-    "Tutorials" => [
-    "examples/data.md",
-    "examples/black_hole_image.md",
-    "examples/nonanalytic.md"
-    ]
+    "Tutorials",
     "interface.md",
     "base_api.md",
     "api.md"
