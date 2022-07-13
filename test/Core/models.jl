@@ -8,7 +8,7 @@ function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     @test eltype(img) === Float64
     @test isapprox(flux(m), flux(img), atol=atol)
     @test isapprox(mean(img .- img2), 0, atol=1e-8)
-    cache = Comrade.create_cache(Comrade.FFTAlg(padfac=3), img./flux(img)*flux(m))
+    cache = Comrade.create_cache(Comrade.FFTAlg(padfac=4), img./flux(img)*flux(m))
     u = fftshift(fftfreq(size(img,1), 1/img.psizex))./30
     Plots.closeall()
     @test isapprox(maximum(abs, (visibility.(Ref(m), u', u) .- cache.sitp.(u', u))), 0.0, atol=atol*10)
@@ -24,7 +24,7 @@ function testft(m, npix=256, atol=1e-4)
     uu = 0.25*randn(1000)
     vv = 0.25*randn(1000)
     img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), npix, npix; pulse=DeltaPulse())
-    mimg_ff = modelimage(mn, img, FFTAlg(padfac=3))
+    mimg_ff = modelimage(mn, img, FFTAlg(padfac=4))
     mimg_nf = modelimage(mn, img, NFFTAlg())
     mimg_df = modelimage(mn, img, DFTAlg())
 
