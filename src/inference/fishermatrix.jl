@@ -25,10 +25,10 @@ function fishermatrix(model, t, θ::NamedTuple, ac::ArrayConfiguration, ad_type=
     fr = real∘v∘model∘tr
     fi = imag∘v∘model∘tr
     x0 = inverse(t, θ)
-    vr = ForwardDiff.jacobian(fr, x0)
-    vi = ForwardDiff.jacobian(fi, x0)
+    vr = first(AD.jacobian(ad_type, fr, x0))
+    vi = first(AD.jacobian(ad_type, fi, x0))
     v1 = complex.(vr, vi)
-    M = Symmetric(real.(v1'*v1) .+ 1e-8)
+    M = Symmetric(real.(v1'*v1) .+ eps())
     h = M*x0
     return M, Dists.MvNormalCanon(h, M)
 end
