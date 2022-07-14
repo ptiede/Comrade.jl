@@ -15,6 +15,7 @@ OptimizationOptimJL = "36348300-93cb-4f02-beb5-3c3902f8871e"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 
 [compat]
+Comrade = "0.4"
 ComradeAHMC = "0.1"
 ComradeBase = "0.3"
 ComradeOptimization = "0.1"
