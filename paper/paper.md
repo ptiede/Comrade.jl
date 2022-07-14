@@ -51,8 +51,9 @@ As a result of `Comrade`'s design, it makes it easy to quickly produce posterior
 ```julia
 using Comrade
 using Distributions
-using Pathfinder
-using AdvancedHMC
+using ComradeAHMC
+using ComradeOptimization
+using OptimizationBBO
 using Plots
 # load eht-imaging we use this to load eht data
 load_ehtim()
@@ -64,8 +65,8 @@ obs.add_scans()
 # large scale structure and make scan-average data
 obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true)
 # extract log closure amplitudes and closure phases
-dlcamp = extract_lcamp(obs; count="min")
-dcphase = extract_cphase(obs, count="min")
+dlcamp = extract_lcamp(obs)
+dcphase = extract_cphase(obs)
 # form the likelihood
 lklhd = RadioLikelihood(dlcamp, dcphase)
 # build the model: here we fit a ring with a azimuthal 
@@ -92,14 +93,22 @@ prior = (
 # Now form the posterior
 post = Posterior(lklhd, prior, model)
 # We will use HMC to sample the posterior.
-# First to reduce burn in we use pathfinder
-q, phi, _ = multipathfinder(post, 100)
-# now we sample using hmc
-metric = DiagEuclideanMetric(dimension(post))
-chain, stats = sample(post, HMC(;metric), 2000; 
-                      nadapts=1000, init_params=phi[1])
-# plot a draw from the posterior
-plot(model(chain[end]))    
+# First we will find a reasonable starting location using Optimization
+# to have nice bounds we first transform to the unit hypercube
+tpost = ascube(post)
+ndim = dimension(tpost)
+f = OptimizationFunction(tpost)
+prob = OptimizationProblem(
+            f, rand(ndim), nothing;
+            lb=fill(1e-2, ndim), ub = fill(0.99, ndim)
+            )
+sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000)
+# transform the solution back to regular space
+xopt = transform(tpost, sol.u)
+# Comrade is all about uncertainty quantification so now let's find the posterior!
+# To do this we will use the `AdvancedHMC` package or rather its interface to Comrade.
+metric = DiagEuclideanMetric(ndim)
+chain, stats = sample(post, AHMC(;metric), 3000; nadapts=2000, init_params=xopt)
 ```
 
 ![Output of the above code. The image is a random posterior draw for an image of M 87.](blackhole.png)
