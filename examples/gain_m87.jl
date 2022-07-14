@@ -6,7 +6,7 @@ using Plots
 using Zygote
 using Distributions, DistributionsAD
 using ComradeAHMC
-using ComradeGalactic
+using ComradeOptimization
 using GalacticBBO
 using ForwardDiff
 using GalacticOptimJL

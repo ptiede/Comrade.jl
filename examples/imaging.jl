@@ -3,12 +3,11 @@
 using Pkg; Pkg.activate(@__DIR__)
 using Comrade
 using Distributions
-using Pathfinder
-using AdvancedHMC
+using ComradeAHMC
 using Plots
 using Zygote
-using Parameters
-using GalacticOptim
+using ComradeOptimization
+using OptimizationBBO
 using Optim
 using NLopt
 
