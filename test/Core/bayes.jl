@@ -1,6 +1,6 @@
 using Distributions
 using ComradeOptimization
-using GalacticOptimJL
+using OptimizationOptimJL
 using StatsBase
 using Plots
 
@@ -30,7 +30,7 @@ load_ehtim()
     @test dimension(post) == dimension(tpostf)
     @test dimension(post) == dimension(tpostc)
 
-    f = OptimizationFunction(tpostc, GalacticOptim.AutoForwardDiff{4}())
+    f = OptimizationFunction(tpostc, Optimization.AutoForwardDiff{4}())
     x0 = [ 0.1,
            0.4,
            0.5,
@@ -41,7 +41,7 @@ load_ehtim()
            0.3,
            0.8,
            0.8]
-    prob = GalacticOptim.OptimizationProblem(f, x0, nothing, lb=fill(0.001, 10), ub=fill(0.999,10))
+    prob = OptimizationProblem(f, x0, nothing, lb=fill(0.001, 10), ub=fill(0.999,10))
     sol = solve(prob, LBFGS(); maxiters=100_000)
 
     xopt = transform(tpostc, sol)
