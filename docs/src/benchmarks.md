@@ -16,13 +16,15 @@ Themis is a C++ package that is focused on providing Bayesian estimates of the i
 For our benchmarking problem we analyze a problem very similar to the problem explained in [Making an Image of a Black Hole](@ref). Namely we will consider fitting the 2017 M87 April 6 data using an m-ring and a single Gaussian component. To see the code we used for `Comrade` and `eht-imaging` please see the end of this page.
 
 
-# Results
+## Results
 
-All tests were run using the following Julia system
+All tests were run using the following system
 
 ```
 Julia Version 1.7.3
 Python Version 3.10.5
+Comrade Version 0.4.0
+eht-imaging Version 1.2.4
 Commit 742b9abb4d (2022-05-06 12:58 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
