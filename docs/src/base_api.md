@@ -26,8 +26,6 @@ ComradeBase.flux
 ComradeBase.isprimitive
 ComradeBase.visanalytic
 ComradeBase.imanalytic
-ComradeBase.intensitymap!
-ComradeBase.intensitymap
 ComradeBase.radialextent
 ComradeBase.visibility_point
 ComradeBase.intensity_point
