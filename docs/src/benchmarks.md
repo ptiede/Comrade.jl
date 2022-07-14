@@ -144,15 +144,93 @@ preh[2]["x0"] = Dict("prior_type"=>"flat", "min"=>-μas2rad(40.0), "max"=>μas2r
 preh[2]["y0"] = Dict("prior_type"=>"flat", "min"=>-μas2rad(40.0), "max"=>μas2rad(40.0))
 preh[2]["PA"] = Dict("prior_type"=>"flat", "min"=>-1π, "max"=>1π)
 
-# Now get the posterior function
-obj_func = 
+using PyCall
+py"""
+import ehtim
+import numpy as np
+transform_param = ehtim.modeling.modeling_utils.transform_param
+def make_paraminit(param_map, meh, trial_model, model_prior):
+    model_init = meh.copy()
+    param_init = []
+    for j in range(len(param_map)):
+        pm = param_map[j]
+        if param_map[j][1] in trial_model.params[param_map[j][0]].keys():
+            param_init.append(transform_param(model_init.params[pm[0]][pm[1]]/pm[2], model_prior[pm[0]][pm[1]],inverse=False))
+        else: # In this case, the parameter is a list of complex numbers, so the real/imaginary or abs/arg components need to be assigned
+            if param_map[j][1].find('cpol') != -1:
+                param_type = 'beta_list_cpol'
+                idx = int(param_map[j][1].split('_')[0][8:])
+            elif param_map[j][1].find('pol') != -1:
+                param_type = 'beta_list_pol'
+                idx = int(param_map[j][1].split('_')[0][7:]) + (len(trial_model.params[param_map[j][0]][param_type])-1)//2
+            elif param_map[j][1].find('beta') != -1:
+                param_type = 'beta_list'
+                idx = int(param_map[j][1].split('_')[0][4:]) - 1
+            else:
+                raise Exception('Unsure how to interpret ' + param_map[j][1])
 
+            curval = model_init.params[param_map[j][0]][param_type][idx]
+            if '_' not in param_map[j][1]:
+                param_init.append(transform_param(np.real( model_init.params[pm[0]][param_type][idx]/pm[2]), model_prior[pm[0]][pm[1]],inverse=False))
+            elif   param_map[j][1][-2:] == 're':
+                param_init.append(transform_param(np.real( model_init.params[pm[0]][param_type][idx]/pm[2]), model_prior[pm[0]][pm[1]],inverse=False))
+            elif param_map[j][1][-2:] == 'im':
+                param_init.append(transform_param(np.imag( model_init.params[pm[0]][param_type][idx]/pm[2]), model_prior[pm[0]][pm[1]],inverse=False))
+            elif param_map[j][1][-3:] == 'abs':
+                param_init.append(transform_param(np.abs(  model_init.params[pm[0]][param_type][idx]/pm[2]), model_prior[pm[0]][pm[1]],inverse=False))
+            elif param_map[j][1][-3:] == 'arg':
+                param_init.append(transform_param(np.angle(model_init.params[pm[0]][param_type][idx])/pm[2], model_prior[pm[0]][pm[1]],inverse=False))
+            else:
+                if not quiet: print('Parameter ' + param_map[j][1] + ' not understood!')
+    n_params = len(param_init)
+    return n_params, param_init
+"""
+
+# make the python param map and use optimize so we flatten the parameter space.
+pmap, pmask = ehtim.modeling.modeling_utils.make_param_map(meh, preh, "scipy.optimize.dual_annealing", fit_model=true)
+trial_model = meh.copy()
+
+# get initial parameters
+n_params, pinit = py"make_paraminit"(pmap, meh, trial_model, preh)
+
+# make data products for the globdict
+data1, sigma1, uv1, _ = ehtim.modeling.modeling_utils.chisqdata(obs, "amp")
+data2, sigma2, uv2, _ = ehtim.modeling.modeling_utils.chisqdata(obs, false)
+data3, sigma3, uv3, _ = ehtim.modeling.modeling_utils.chisqdata(obs, false)
+
+# now set the ehtim modeling globdict
+
+ehtim.modeling.modeling_utils.globdict = Dict("trial_model"=>trial_model,
+                "d1"=>"amp", "d2"=>false, "d3"=>false,
+                "pol1"=>"I", "pol2"=>"I", "pol3"=>"I",
+                "data1"=>data1, "sigma1"=>sigma1, "uv1"=>uv1, "jonesdict1"=>nothing,
+                "data2"=>data2, "sigma2"=>sigma2, "uv2"=>uv2, "jonesdict2"=>nothing,
+                "data3"=>data3, "sigma3"=>sigma3, "uv3"=>uv3, "jonesdict3"=>nothing,
+                "alpha_d1"=>0, "alpha_d2"=>0, "alpha_d3"=>0,
+                "n_params"=> n_params, "n_gains"=>0, "n_leakage"=>0,
+                "model_prior"=>preh, "param_map"=>pmap, "param_mask"=>pmask,
+                "gain_prior"=>nothing, "gain_list"=>[], "gain_init"=>nothing,
+                "fit_leakage"=>false, "leakage_init"=>[], "leakage_fit"=>[],
+                "station_leakages"=>nothing, "leakage_prior"=>nothing,
+                "show_updates"=>false, "update_interval"=>1,
+                "gains_t1"=>nothing, "gains_t2"=>nothing,
+                "minimizer_func"=>"scipy.optimize.dual_annealing",
+                "Obsdata"=>obs,
+                "fit_pol"=>false, "fit_cpol"=>false,
+                "flux"=>1.0, "alpha_flux"=>0, "fit_gains"=>false,
+                "marginalize_gains"=>false, "ln_norm"=>1314.33,
+                "param_init"=>pinit, "test_gradient"=>false
+            )
+
+# This is the negative log-posterior
+fobj = ehtim.modeling.modeling_utils.objfunc
+
+# This is the gradient of the negative log-posterior
+gfobj = ehtim.modeling.modeling_utils.objgrad
 
 # Lets benchmark the posterior evaluation
-ℓ = logdensityof(tpost)
-@benchmark ℓ($x0)
+@benchmark fobj($pinit)
 
 # Now we benchmark the gradient
-gℓ = ForwardDiff.gradient(ℓ, x0)
-@benchmark gℓ($x0)
+@benchmark gobj($x0)
 ```
