@@ -11,7 +11,7 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
     post = Posterior(lklhd, prior, test_model)
 
     tpost = ascube(post)
-    f = OptimizationFunction(tpost, AutoForwardDiff{4}())
+    f = OptimizationFunction(tpost, Optimization.AutoForwardDiff{4}())
     x0 = [ 0.1,
            0.4,
            0.5,
