@@ -120,10 +120,14 @@ function transform_uv end
 #     return ut, vt, scale
 # end
 
-#@inline function _visibilities(m::AbstractModifier, u::AbstractArray, v::AbstractArray, args...)
-#    ut, vt, scales = apply_uv_transform(m, u, v)
-#    scales.*visibilities(unmodified(m), ut, vt, args...)
-#end
+# @inline function _visibilities(m::M, u::AbstractArray, v::AbstractArray, args...) {M<:AbstractModifier}
+#     return _visibilities(visanalytic(M), m, u, v, args...)
+# end
+
+# @inline function _visibilities(::NotAnalytic, m::AbstractModifier, u::AbstractArray, v::AbstractArray, args...)
+#     ut, vt, scales = apply_uv_transform(m, u, v)
+#     scales.*visibilities(unmodified(m), ut, vt, args...)
+# end
 
 
 # I need some special pass-throughs for the non-analytic FFT transform
