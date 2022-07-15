@@ -1,20 +1,17 @@
 # Benchmarks
 
-`Comrade` was partially designed with performance in mind. Solving imaging inverse problem is traditionally very computational expensive, especially when using Bayesian inference. However, `Comrade` also was designed to allow a user to easily modify the image model and refit the data with few changes to any script or notebook. 
-
-To benchmark `Comrade` we will compare it to two of the most common modeling or imaging packages within the EHT:
+`Comrade` was partially designed with performance in mind. Solving imaging inverse problem is traditionally very computational expensive, especially when using Bayesian inference. To benchmark `Comrade` we will compare it to two of the most common modeling or imaging packages within the EHT:
 
 - [eht-imaging](https://github.com/achael/eht-imaging/)
 - [Themis](https://iopscience.iop.org/article/10.3847/1538-4357/ab91a4)
 
-`eht-imaging`[^1] or `ehtim` is a Python package that is widely used within the EHT for its imaging and modeling interfaces. It is easy to use and is reasonably fast due, however, this comes with the caveat that the user must specify each model separately, and provide handwritten gradient definitions. Additionally, `ehtim`'s modeling interface is rather new, since it is mostly used to produce images using a method called *regularized maximum likelihood*, which is similar to `Comrade`'s approach except it only characterizes the images using the maximum likelihood estimate.
+`eht-imaging`[^1] or `ehtim` is a Python package that is widely used within the EHT for its imaging and modeling interfaces. It is easy to use and is widely used in the EHT. However, to specify the model the user must specify how to calculate the models complex visibilities **and** its gradients. This allows eht-imaging's modeling package to achieve acceptable speeds.
 
-Themis is a C++ package that is focused on providing Bayesian estimates of the image structure. In fact, `Comrade` took some design queue's from `Themis`. However, `Themis` is quite challenging to use and requires a high level of knowledge from its users, requiring them to understand makefile, C++, and the MPI standard. Additionally, Themis was designed to solely work with distributed computing systems. Unfortunately, as of the writing of this document, Themis is still closed source software and it only available to members of the EHT.
+Themis is a C++ package that is focused on providing Bayesian estimates of the image structure. In fact, `Comrade` took some design queue's from `Themis`.  Additionally, Themis was designed to solely work with distributed computing systems. Themis however, has been used in a variety of EHT publications and is the standard Bayesian modeling tool used in the EHT. However, `Themis` is quite challenging to use and requires a high level of knowledge from its users, requiring them to understand makefile, C++, and the MPI standard.
 
 ## Benchmarking Problem
 
 For our benchmarking problem we analyze a problem very similar to the problem explained in [Making an Image of a Black Hole](@ref). Namely we will consider fitting the 2017 M87 April 6 data using an m-ring and a single Gaussian component. To see the code we used for `Comrade` and `eht-imaging` please see the end of this page.
-
 
 ## Results
 
@@ -33,7 +30,6 @@ Platform Info:
   LIBM: libopenlibm
   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
 ```
-
 
 Our benchmark results are the following:
 
