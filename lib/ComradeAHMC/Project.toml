@@ -1,7 +1,7 @@
 name = "ComradeAHMC"
 uuid = "a4336a5c-78bc-4363-8a90-ce3fa9d3abe4"
 authors = ["Paul Tiede <ptiede91@gmail.com> and contributors"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 AbstractDifferentiation = "c29ec348-61ec-40c8-8164-b8c60e9d9f3d"
@@ -18,10 +18,10 @@ AbstractDifferentiation = "0.4"
 AbstractMCMC = "3,4"
 AdvancedHMC = "0.3"
 ArgCheck = "2"
-Comrade = "0.3,0.4"
+Comrade = "0.5"
 Reexport = "1"
 TupleVectors = "0.1, 0.2"
-julia = "1.6"
+julia = "1.7"
 
 [extras]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
