@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.5.0"
+version = "0.6.0"
 
 [deps]
 AbstractDifferentiation = "c29ec348-61ec-40c8-8164-b8c60e9d9f3d"
@@ -69,7 +69,7 @@ FLoops = "0.2"
 FileIO = "1"
 FillArrays = "0.13"
 ForwardDiff = "0.9, 0.10"
-HypercubeTransform = "^0.2.7"
+HypercubeTransform = "0.3"
 KeywordCalls = "0.2"
 MeasureBase = "0.7, 0.8, 0.9"
 MeasureTheory = "0.15, 0.16"
