@@ -1,7 +1,7 @@
 name = "ComradeOptimization"
 uuid = "26988f03-70df-4135-959e-06268cc6415a"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
