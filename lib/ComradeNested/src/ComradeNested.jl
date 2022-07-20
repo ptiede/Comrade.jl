@@ -9,6 +9,23 @@ using Reexport
 
 Comrade.samplertype(::Type{<:Nested}) = Comrade.IsCube()
 
+"""
+    AbstractMCMC.sample(post::Comrade.Posterior, smplr::Nested, args...; kwargs...)
+
+Sample the posterior `post` using `NestedSamplers.jl` `Nested` sampler. The `args/kwargs`
+are forwarded to `NestedSampler` for more information see its [docs](https://github.com/TuringLang/NestedSamplers.jl)
+
+This returns a tuple where the first element are the weighted samples from dynesty in a TupleVector.
+The second element includes additional information about the samples, like the log-likelihood,
+evidence, evidence error, and the sample weights.
+
+To create equally weighted samples the user can use
+```julia
+using StatsBase
+chain, stats = sample(post, NestedSampler(dimension(post), 1000))
+equal_weighted_chain = sample(chain, Weights(stats.weights), 10_000)
+
+"""
 function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::Nested, args...; kwargs...)
     ℓ = logdensityof(post)
     model = NestedModel(ℓ, identity)

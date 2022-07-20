@@ -29,6 +29,7 @@ Pages = [
     "index.md",
     "vlbi_imaging_problem.md",
     "Tutorials",
+    "Libraries",
     "interface.md",
     "base_api.md",
     "api.md"

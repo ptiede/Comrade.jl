@@ -4,8 +4,18 @@ using ComradeBase
 
 using Literate
 
+using Pkg
+Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeAHMC"))
+Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeOptimization"))
+Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeAdaptMCMC"))
+Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeDynesty"))
+Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeNested"))
+
 using ComradeAHMC
 using ComradeOptimization
+using ComradeNested
+using ComradeDynesty
+using ComradeAdaptMCMC
 using OptimizationBBO
 using Glob
 using Plots
@@ -29,7 +39,10 @@ gr()
 
 
 makedocs(;
-    modules=[ComradeBase, Comrade],
+    modules=[ComradeBase, Comrade,
+             ComradeOptimization, ComradeAHMC,
+             ComradeNested, ComradeDynesty,
+             ComradeAdaptMCMC],
     authors="Paul Tiede",
     repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#L{line}",
     sitename="Comrade.jl",
@@ -42,6 +55,13 @@ makedocs(;
                        "examples/data.md",
                        "examples/black_hole_image.md",
                        "examples/nonanalytic.md"
+                       ],
+        "Libraries" => [
+                        "libs/optimization.md",
+                        "libs/ahmc.md",
+                        "libs/nested.md",
+                        "libs/dynesty.md",
+                        "libs/adaptmcmc.md"
                        ],
         "interface.md",
         "base_api.md",
