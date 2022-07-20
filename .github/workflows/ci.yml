@@ -81,6 +81,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install ipython requests
       - run: python -m pip install ehtim
+      - run: python -m pip install dynesty
 
       - uses: julia-actions/setup-julia@v1
         with:
