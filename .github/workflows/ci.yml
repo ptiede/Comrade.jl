@@ -94,6 +94,11 @@ jobs:
           julia --project=docs -e '
             using Documenter: doctest
             using Comrade
+            using ComradeOptimization
+            using ComradeAdaptMCMC
+            using ComradeAHMC
+            using ComradeDynesty
+            using ComradeNested
             doctest(Comrade)'
       - run: julia --project=docs docs/make.jl
         env:
