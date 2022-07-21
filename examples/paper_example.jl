@@ -72,3 +72,15 @@ chain, stats = sample(post, AHMC(;metric), 2000; nadapts=8000, init_params=xopt)
 # Now let's find the mean image
 images = intensitymap.(model.(sample(chain, 200)), μas2rad(160.0), μas2rad(160.0), 256, 256)
 plot(mean(images), xlims=(-80.0, 80.0), ylims=(-80.0,80.0), colorbar=nothing, title="Mean M87")
+
+# Computing information
+# ```
+# Julia Version 1.7.3
+# Commit 742b9abb4d (2022-05-06 12:58 UTC)
+# Platform Info:
+#   OS: Linux (x86_64-pc-linux-gnu)
+#   CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
+#   WORD_SIZE: 64
+#   LIBM: libopenlibm
+#   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
+# ```

@@ -110,7 +110,7 @@ logdensityof(fpost, randn(dimension(fpost)))
 
 # Our strategy here will be to use Hamiltonian Monte Carlo. However, to lower burn-in time
 # we will first use an optimizer to find a reasonable starting location. Since this is a lower
-# dimensional problem we will use BlackboxOptim or the GalacticBBO package
+# dimensional problem we will use BlackboxOptim or the OptimizationBBO package
 
 using ComradeOptimization
 using OptimizationBBO
@@ -159,3 +159,15 @@ residual(model(xopt), dlcamp)
 # In fact, this model is slightly too simple to explain the data.
 # Check out [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141)
 # for some ideas what features need to be added to the model to get a better fit!
+
+# Computing information
+# ```
+# Julia Version 1.7.3
+# Commit 742b9abb4d (2022-05-06 12:58 UTC)
+# Platform Info:
+#   OS: Linux (x86_64-pc-linux-gnu)
+#   CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
+#   WORD_SIZE: 64
+#   LIBM: libopenlibm
+#   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
+# ```
