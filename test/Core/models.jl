@@ -92,9 +92,9 @@ end
 
 
     @testset "MRing1" begin
-        α = (0.25,)
-        β = (0.1,)
-
+        α = [0.25,]
+        β = [0.1,]
+        test_rrule(Comrade.visibility_point, MRing(α, β), 0.5, 0.25)
         # We convolve it to remove some pixel effects
         m = convolved(MRing(α, β), stretched(Gaussian(), 0.1, 0.1))
         m2 = convolved(MRing{1}(collect(α), collect(β)), stretched(Gaussian(), 0.1, 0.1))
@@ -105,6 +105,7 @@ end
     @testset "MRing2" begin
         α = (0.25, -0.1)
         β = (0.1, 0.2)
+        test_rrule(Comrade.visibility_point, MRing(α, β), 0.5, 0.25)
 
         # We convolve it to remove some pixel effects
         m = convolved(MRing(α, β), stretched(Gaussian(), 0.1, 0.1))

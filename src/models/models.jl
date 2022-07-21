@@ -153,8 +153,15 @@ end
 # Internal function required for dispatch. This is a fallback method if
 # visibilities doesn't have a direct implementation.
 @inline function _visibilities(m, u::AbstractArray, v::AbstractArray, args...)
+    _visibilities_fallback(m, u, v, args...)
+end
+
+function _visibilities_fallback(m, u::AbstractArray, v::AbstractArray, args...)
+    #vm(u,v) = visibility(m, u, v)
+    #return map(vm, u, v)
     return visibility.(Ref(m), u, v, args...)
 end
+
 
 
 

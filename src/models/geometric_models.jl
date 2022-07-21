@@ -124,55 +124,51 @@ whose angular structure is given by a Fourier expansion. That is,
 
 The `N` in the type defines the order of the Fourier expansion.
 
-By default if `T` isn't given, `MRing` defaults to `Float64`
+
 
 # Fields
 $(FIELDS)
 """
-struct MRing{T,N} <: GeometricModel
+struct MRing{T, V<:AbstractVector{T}} <: GeometricModel
     """
     Real Fourier mode coefficients
     """
-    α::NTuple{N,T}
+    α::V
     """
     Imaginary Fourier mode coefficients
     """
-    β::NTuple{N,T}
+    β::V
+    function MRing(α::V, β::V) where {V <: AbstractVector}
+        @argcheck length(α) == length(β) "Lengths of real/imag components must be equal in MRing"
+        return new{eltype(α), V}(α, β)
+    end
 end
 
-"""
-    MRing{N}(α::AbstractVector, β::AbstractVector)
-
-Construct an MRing geometric model from two vectors `α` and `β`
-that correspond to the real and imaginary (or cos and sin) coefficients
-of the Fourier expansion. The length of the vectors correspond to the
-order of the expansion and must equal `N`.
-"""
-function MRing{N}(α::T, β::T) where {N,T<:AbstractVector}
-    (N != length(α)) && throw("N must be the length of the vector")
-    S = promote_type(eltype(α), eltype(β))
-    return MRing{S, N}(NTuple{N,S}(α), NTuple{N,S}(β))
-end
 
 """
-    MRing(c::NTuple{N, <:Complex})
+    MRing(c::AbstractVector{<:Complex})
 
-Construct an MRing geometric model from a complex tuple `c`
+Construct an MRing geometric model from a complex vector `c`
 that correspond to the real and imaginary (or cos and sin) coefficients
 of the Fourier expansion. The `N` in the type defines the order of
 the Fourier expansion.
 
 """
-function MRing(c::NTuple{N, <:Complex}) where {N}
+function MRing(c::AbstractVector{<:Complex}) where {N}
     α = real.(c)
     β = imag.(c)
     return MRing(α, β)
 end
 
+function MRing(a::Real, b::Real)
+    aT,bT = promote(a,b)
+    return MRing([aT], [bT])
+end
+
 radialextent(::MRing) = 1.5
 
 
-@inline function intensity_point(m::MRing{T,N}, x::Number, y::Number) where {T,N}
+@inline function intensity_point(m::MRing{T}, x::Number, y::Number) where {T}
     r = hypot(x,y)
     θ = atan(x,y)
     dr = 0.025
@@ -189,16 +185,70 @@ radialextent(::MRing) = 1.5
 end
 
 
-
-@inline function visibility_point(m::MRing{T,N}, u, v, args...) where {T,N}
+@inline function visibility_point(m::MRing{T}, u, v, args...) where {T}
+    (;α, β) = m
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     vis = besselj0(k) + zero(T)*im
     θ = atan(u, v)
-    for n in eachindex(m.α, m.β)
+    @inbounds for n in eachindex(α, β)
         s,c = sincos(n*θ)
-        vis += 2*(m.α[n]*c - m.β[n]*s)*(1im)^n*besselj(n, k)
+        vis += 2*(α[n]*c - β[n]*s)*(1im)^n*besselj(n, k)
     end
     return vis
+end
+
+function _mring_adjoint(α, β, u, v)
+    T = eltype(α)
+    ρ = hypot(u,v)
+    k = 2π*ρ + eps(T)
+    θ = atan(u,v)
+    vis = complex(besselj0(k))
+
+    j0 = besselj0(k)
+    j1 = besselj1(k)
+    #bj = Base.Fix2(besselj, k)
+    #jn = ntuple(bj, length(α))
+
+    ∂u = -complex(j1*2π*u/ρ)
+    ∂v = -complex(j1*2π*v/ρ)
+    ∂α = similar(α ,Complex{T})
+    ∂β = similar(α ,Complex{T})
+
+    ∂ku = 2π*u/ρ
+    ∂kv = 2π*v/ρ
+    ∂θu = v/ρ^2
+    ∂θv = -u/ρ^2
+
+    for n in eachindex(α, β)
+        s,c = sincos(n*θ)
+        imn = (1im)^n
+        jn = besselj(n,k)
+        ∂α[n] =  2*c*jn*imn
+        ∂β[n] = -2*s*jn*imn
+        dJ = j0 - n/k*jn
+        j0 = jn
+
+        visargc = 2*imn*(-α[n]*s - β[n]*c)
+        visarg  = 2*imn*(α[n]*c - β[n]*s)
+        vis += visarg*jn
+
+        ∂u +=  n*visargc*jn*∂θu + visarg*dJ*∂ku
+        ∂v +=  n*visargc*jn*∂θv + visarg*dJ*∂kv
+
+    end
+    return vis, ∂α, ∂β, ∂u, ∂v
+end
+
+function ChainRulesCore.rrule(::typeof(Comrade.visibility_point), m::MRing, u, v)
+    (;α, β) = m
+    vis, ∂α, ∂β, ∂u, ∂v = _mring_adjoint(α, β, u, v)
+
+    function _mring_pullback(Δv)
+        return (NoTangent(), Tangent{typeof(m)}(α=real(Δv'.*∂α), β=real(Δv'.*∂β)), real(Δv'.*∂u), real(Δv'.*∂v))
+    end
+
+    return vis, _mring_pullback
+
 end
 
 """
