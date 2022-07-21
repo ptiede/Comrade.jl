@@ -144,7 +144,7 @@ end
 Computes the visibilities of the model `m` at `u` `v` and `args...`.
 If you want to compute a single visibility you should call [`visibility`](@ref visibility).
 """
-@inline function visibilities(m::M, u::AbstractArray, v::AbstractArray, args...) where {M}
+@inline function visibilities(m, u::AbstractArray, v::AbstractArray, args...)
     return _visibilities(m, u, v, args...)
 end
 
@@ -152,8 +152,8 @@ end
 
 # Internal function required for dispatch. This is a fallback method if
 # visibilities doesn't have a direct implementation.
-@inline function _visibilities(m, u::AbstractArray, v::AbstractArray)
-    return visibility.(Ref(m), u, v)
+@inline function _visibilities(m, u::AbstractArray, v::AbstractArray, args...)
+    return visibility.(Ref(m), u, v, args...)
 end
 
 
