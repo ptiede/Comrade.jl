@@ -83,17 +83,18 @@ plot(mms(xopt), fovx=fovxy, fovy=fovxy)
 metric = DiagEuclideanMetric(ndim)
 hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 4000; nadapts=3000, init_params=xopt)
 
-# This takes about 2.5 hours on my laptop. Which isn't bad for a 575 dimensional model!
+# This takes about 1.75 hours on my laptop. Which isn't bad for a 575 dimensional model!
 
 # Plot the mean image and standard deviation image
 using StatsBase
 samples = mms.(sample(hchain, 500))
-imgs = intensitymap.(samples, fovx, fovy, 96, 96)
+imgs = intensitymap.(samples, fovxy, fovxy, 96, 96)
 
 mimg, simg = mean_and_std(imgs)
 
 p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)))
 p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)))
+p2 = plot(simg./mimg,  title="Fractional Error", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
 
 # Computing information
 # ```
