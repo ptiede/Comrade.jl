@@ -163,17 +163,17 @@ end
 #     _combinatorvis(visanalytic(M1), visanalytic(M2), uv_combinator(model), model, u, v, t, ν, cache)
 # end
 
-function _visibilities(model::M, u::AbstractArray, v::AbstractArray, args...) where {M <: CompositeModel}
+@inline function _visibilities(model::M, u::AbstractArray, v::AbstractArray, args...) where {M <: CompositeModel}
     return _visibilities(visanalytic(M), model, u, v, args...)
 end
 
 
-function _visibilities(::NotAnalytic, model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
+@inline function _visibilities(::NotAnalytic, model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
     f = uv_combinator(model)
     return f.(_visibilities(model.m1, u, v), _visibilities(model.m2, u, v))
 end
 
-function _visibilities(::IsAnalytic, model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
+@inline function _visibilities(::IsAnalytic, model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
     f = uv_combinator(model)
     return f.(visibility_point.(Ref(model.m1), u, v), visibility_point.(Ref(model.m2), u, v))
 end
