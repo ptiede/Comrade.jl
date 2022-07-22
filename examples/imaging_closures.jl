@@ -53,8 +53,7 @@ npix = 24
 fovxy = μas2rad(62.5)
 # Now we can feed in the array information to form the cache. We will be using a DFT since
 # it is efficient for so few pixels
-cache = create_cache(Comrade.DFTAlg(dlcamp), IntensityMap(rand(npix,npix), fovxy, fovxy, BSplinePulse{3}()))
-mms = ImModel(cache, fovxy, npix)
+mms = ImModel(dlcamp, fovxy, npix)
 # We will use a Dirichlet prior to enforce that the flux sums to unity since closures are
 # degenerate to total flux.
 prior = (c = ImageDirichlet(0.5, npix, npix),)
