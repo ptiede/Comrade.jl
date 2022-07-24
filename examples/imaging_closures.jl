@@ -5,9 +5,10 @@ using Distributions
 using ComradeOptimization
 using ComradeAHMC
 using OptimizationBBO
+using OptimizationOptimJL
+
 using Plots
 using StatsBase
-using OptimizationOptimJL
 using RadioImagePriors
 
 # load eht-imaging we use this to load eht data
@@ -21,7 +22,6 @@ obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true).add_fractio
 # extract log closure amplitudes and closure phases
 dlcamp = extract_lcamp(obs)
 dcphase = extract_cphase(obs)
-lklhd = RadioLikelihood(dlcamp, dcphase)
 
 # Build the Model. Here we we a struct to hold some caches
 # which will speed up imaging
@@ -53,30 +53,38 @@ npix = 24
 fovxy = μas2rad(62.5)
 # Now we can feed in the array information to form the cache. We will be using a DFT since
 # it is efficient for so few pixels
-cache = create_cache(Comrade.DFTAlg(dlcamp), IntensityMap(rand(npix,npix), fovxy, fovxy, BSplinePulse{3}()))
-mms = ImModel(cache, fovxy, npix)
+mms = ImModel(dlcamp, fovxy, npix)
 # We will use a Dirichlet prior to enforce that the flux sums to unity since closures are
 # degenerate to total flux.
 prior = (c = ImageDirichlet(0.5, npix, npix),)
 
-post = Posterior(lklhd, prior, mms)
+lklhd = RadioLikelihood(mms, dlcamp, dcphase)
+post = Posterior(lklhd, prior)
+
+# Transform from simplex space to the unconstrained
 tpost = asflat(post)
 
 # Let's run an optimizer to get a nice starting location
 # It turns out that gradients are really helpful here
 ndim = dimension(tpost)
 using Zygote
+# Creates optimization function using Optimization.jl
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
+# randn(ndim) is a random initialization guess
+# nothing just says there are no additional arguments to the optimization function.
 prob = OptimizationProblem(f, randn(ndim), nothing)
+
 ℓ = logdensityof(tpost)
+# Find the best fit image! Using LBFGS optimizaer.
 sol = solve(prob, LBFGS(); maxiters=2_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 
+# Move from unconstrained space to physical parameter space
 xopt = transform(tpost, sol)
 
 # Let's see how the fit looks
 residual(mms(xopt), dlcamp)
 residual(mms(xopt), dcphase)
-plot(mms(xopt), fovx=fovxy, fovy=fovxy)
+plot(mms(xopt), fovx=fovxy, fovy=fovxy, title="MAP")
 
 
 # now we sample using hmc

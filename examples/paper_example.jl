@@ -23,6 +23,14 @@ dcphase = extract_cphase(obs)
 lklhd = RadioLikelihood(dlcamp, dcphase)
 # build the model here we fit a ring with a azimuthal
 #brightness variation and a Gaussian
+
+Gaussian()
+Disk()
+MRing((a, ), (b, ))
+ParabolicSegment()
+Crescent
+ConcordanceCrescent
+
 function model(θ)
     (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
     ring = f*smoothed(stretched(MRing((a,), (b,)), μas2rad(rad), μas2rad(rad)), μas2rad(wid))
@@ -72,6 +80,8 @@ chain, stats = sample(post, AHMC(;metric), 2000; nadapts=8000, init_params=xopt)
 # Now let's find the mean image
 images = intensitymap.(model.(sample(chain, 200)), μas2rad(160.0), μas2rad(160.0), 256, 256)
 plot(mean(images), xlims=(-80.0, 80.0), ylims=(-80.0,80.0), colorbar=nothing, title="Mean M87")
+
+plot(mms(xopt), dcphase)
 
 # Computing information
 # ```
