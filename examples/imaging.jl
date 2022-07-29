@@ -1,5 +1,5 @@
 using Pkg; Pkg.activate(@__DIR__)
-Pkg.add(url="https://github.com/ptiede/RadioImagePriors.jl")
+#Pkg.add(url="https://github.com/ptiede/RadioImagePriors.jl")
 using Comrade
 using Distributions
 using ComradeOptimization
@@ -29,13 +29,14 @@ lklhd = RadioLikelihood(damp, dcphase)
 struct GModel{C,G}
     cache::C
     gcache::G
-    fov::Float64
+    fovx::Float64
+    fovy::Float64
     npix::Int
-    function GModel(obs::Comrade.EHTObservation, fov, npix)
-        buffer = IntensityMap(zeros(npix, npix), fov, fov, BSplinePulse{3}())
+    function GModel(obs::Comrade.EHTObservation, fovx, fovy, npix)
+        buffer = IntensityMap(zeros(npix, npix), fovx, fovy, BSplinePulse{3}())
         cache = create_cache(DFTAlg(obs), buffer)
         gcache = GainCache(scantable(obs))
-        return new{typeof(cache), typeof(gcache)}(cache, gcache, fov, npix)
+        return new{typeof(cache), typeof(gcache)}(cache, gcache, fovx, fovy, npix)
     end
 end
 
@@ -59,8 +60,8 @@ distamp = (AA = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1)
            )
 
-npix = 16
-fovxy = μas2rad(70.0)
+npix = 12
+fovxy = μas2rad(65.0)
 prior = (
           c = ImageDirichlet(0.5, npix, npix),
           f = Uniform(0.2, 0.9),
@@ -77,9 +78,10 @@ tpost = asflat(post)
 # We will use HMC to sample the posterior.
 # First to get in the right ballpark we will use `BlackBoxOptim.jl`
 ndim = dimension(tpost)
+using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, rand(ndim), nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
-sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=1000_000)
+#prob = OptimizationProblem(f, rand(ndim), nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
+#sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=1000_000)
 
 # Now lets zoom to the peak using LBFGS
 ndim = dimension(tpost)
@@ -92,9 +94,14 @@ sol = solve(prob, LBFGS(); maxiters=2_000, callback=(x,p)->(@info ℓ(x); false)
 xopt = transform(tpost, sol)
 
 # Let's see how the fit looks
-residual(mms(xopt), dlcamp)
+residual(mms(xopt), damp)
 residual(mms(xopt), dcphase)
 plot(mms(xopt), fovx=fovxy, fovy=fovxy, title="MAP")
+
+gt = Comrade.caltable(mms(xopt))
+plot(gt, layout=(3,3), size=(600,500))
+
+using Measurements
 
 
 # now we sample using hmc
