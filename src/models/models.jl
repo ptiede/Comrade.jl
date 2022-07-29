@@ -11,6 +11,10 @@ export visibility, amplitude, closure_phase, logclosure_amplitude, bispectrum,
 
 abstract type AbstractModelImage{M} <: ComradeBase.AbstractModel end
 
+ChainRulesCore.@non_differentiable visanalytic(M)
+ChainRulesCore.@non_differentiable imanalytic(M)
+ChainRulesCore.@non_differentiable isprimitive(M)
+
 
 """
     visibility(mimg, u, v, args...)
@@ -159,7 +163,7 @@ end
 function _visibilities_fallback(m, u::AbstractArray, v::AbstractArray, args...)
     #vm(u,v) = visibility(m, u, v)
     #return map(vm, u, v)
-    return visibility.(Ref(m), u, v, args...)
+    return visibility_point.(Ref(m), u, v, args...)
 end
 
 

@@ -155,33 +155,39 @@ end
 
 
     size --> (350, 150*length(sites))
-    lims = extrema(filter(!ismissing, gmat(gt))).*1.1
-    if !datagains
-        ylims --> lims
-    else
-        ylims --> inv.(lims)[end:-1:begin]
-    end
+    #lims = extrema(filter(!ismissing, gmat(gt))).*1.1
+    #if !datagains
+    #    ylims --> lims
+    #else
+    #    ylims --> inv.(lims)[end:-1:begin]
+    #end
+    time = gt[:time]
+    xlims --> (time[begin]*0.99, time[end]*1.01)
+    #ylims --> extrema(filter(!ismissing, Measurements.value.(gmat(gt))))
+
     for (i,s) in enumerate(sites)
         @series begin
             seriestype := :scatter
             subplot := i
-            label := :none
+            label --> :none
 
             if i == length(sites)
                 xguide --> "Time (UTC)"
             end
 
-            x := gt[:time]
+            inds = Base.:!.(ismissing.(gt[s]))
+
             if !datagains
-                yy = gt[s]
+                yy = filter(!ismissing, gt[s])
             else
-                yy = inv.(gt[s])
+                yy = inv.(filter(!ismissing, gt[s]))
             end
 
             title --> string(s)
 
-            yy
-
+            #x := gt[:,:time][inds]
+            #y :=
+            gt[:time][inds], nonmissingtype.(eltype(yy)).(yy)
         end
     end
 end
