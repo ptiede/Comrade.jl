@@ -120,6 +120,7 @@ chain, stats = sample(post, AHMC(;metric), 3000; nadapts=2000, init_params=xopt)
 - `eht-dmc` [@dmc]: Python Bayesian polarized imaging package that also fits calibration systematics by solving the radio interferometry measurement equation [@Hamaker].
 - `Galifray` [@gal]: Python modeling package that uses emcee as its sampler.
 - `InterferometricModels` [@in]: Recent Julia radio astronomy package with some similar features to `Comrade`
+- `Resolve`[@resolve]: Python-based imaging only package that uses Gaussian processes to model astronomical images.
 - <span style="font-variant:small-caps;">Themis</span> [@themis]: A C++ parameter estimation package used by the EHT. It is currently a private repository for the EHT.
 
 
