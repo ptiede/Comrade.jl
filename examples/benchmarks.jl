@@ -1,5 +1,6 @@
 using Comrade
 using Distributions
+using BenchmarkTools
 
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
@@ -29,9 +30,8 @@ prior = (
 # Now form the posterior
 post = Posterior(lklhd, prior, model)
 
-θ = (f=0.8, rad= 22.0, wid= 3.0, a = 0.0, b = 0.15, sig = 20.0, asy=0.2, pa=π/2, x=20.0, y=20.0)
+θ = (rad= 22.0, wid= 3.0, a = 0.0, b = 0.15, f=0.8, sig = 20.0, asy=0.2, pa=π/2, x=20.0, y=20.0)
 m = model(θ)
-plot(m)
 
 post = Posterior(lklhd, prior, model)
 tpost = asflat(post)
@@ -164,6 +164,4 @@ gfobj = ehtim.modeling.modeling_utils.objgrad
 using BenchmarkTools
 @benchmark fobj($pinit)
 
-@benchmark gobj($pinit)
-
-fobj, gobj, p0 = ehtim.modeler_func(obsavg, meh, preh, d1="amp")
+@benchmark gfobj($pinit)
