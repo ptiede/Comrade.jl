@@ -81,11 +81,11 @@ prior = (
 # Now form the posterior
 post = Posterior(lklhd, prior, model)
 
-# transform to parameter space
-tpost = asflat(post)
+θ = (rad= 22.0, wid= 3.0, a = 0.0, b = 0.15, f=0.8, sig = 20.0, asy=0.2, pa=π/2, x=20.0, y=20.0)
+m = model(θ)
 
-# We will use this random point in all tests
-θ = (f=0.8, rad= 22.0, wid= 3.0, a = 0.0, b = 0.15, sig = 20.0, asy=0.2, pa=π/2, x=20.0, y=20.0)
+post = Posterior(lklhd, prior, model)
+tpost = asflat(post)
 
 # Transform to the unconstrained space
 x0 = transform(tpost, θ)
@@ -230,5 +230,5 @@ gfobj = ehtim.modeling.modeling_utils.objgrad
 @benchmark fobj($pinit)
 
 # Now we benchmark the gradient
-@benchmark gobj($x0)
+@benchmark gfobj($x0)
 ```

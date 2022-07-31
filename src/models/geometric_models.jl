@@ -169,8 +169,8 @@ function MRing(a::Tuple, b::Tuple)
     return MRing(collect(a), collect(b))
 end
 
-# Depreciate this method since we are moving to vectors for simplicity.
-@deprecate MRing(a::Tuple, b::Tuple) MRing(a::AbstractVector, b::AbstractVector)
+# Depreciate this method since we are moving to vectors for simplificty
+#@deprecate MRing(a::Tuple, b::Tuple) MRing(a::AbstractVector, b::AbstractVector)
 
 radialextent(::MRing) = 1.5
 
