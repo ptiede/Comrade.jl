@@ -84,7 +84,7 @@ include("distributions/radiolikelihood.jl")
 include("visualizations/visualizations.jl")
 include("bayes/bayes.jl")
 include("inference/inference.jl")
-include("calibration/gains.jl")
+include("calibration/calibration.jl")
 
 function __init__()
     # FIX THIS

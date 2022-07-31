@@ -1,64 +1,13 @@
-# Benchmarks
-
-`Comrade` was partially designed with performance in mind. Solving imaging inverse problem is traditionally very computational expensive, especially when using Bayesian inference. To benchmark `Comrade` we will compare it to two of the most common modeling or imaging packages within the EHT:
-
-- [eht-imaging](https://github.com/achael/eht-imaging/)
-- [Themis](https://iopscience.iop.org/article/10.3847/1538-4357/ab91a4)
-
-`eht-imaging`[^1] or `ehtim` is a Python package that is widely used within the EHT for its imaging and modeling interfaces. It is easy to use and is widely used in the EHT. However, to specify the model the user must specify how to calculate the models complex visibilities **and** its gradients. This allows eht-imaging's modeling package to achieve acceptable speeds.
-
-Themis is a C++ package that is focused on providing Bayesian estimates of the image structure. In fact, `Comrade` took some design queue's from `Themis`.  Additionally, Themis was designed to solely work with distributed computing systems. Themis however, has been used in a variety of EHT publications and is the standard Bayesian modeling tool used in the EHT. However, `Themis` is quite challenging to use and requires a high level of knowledge from its users, requiring them to understand makefile, C++, and the MPI standard.
-
-## Benchmarking Problem
-
-For our benchmarking problem we analyze a problem very similar to the problem explained in [Making an Image of a Black Hole](@ref). Namely we will consider fitting the 2017 M87 April 6 data using an m-ring and a single Gaussian component. To see the code we used for `Comrade` and `eht-imaging` please see the end of this page.
-
-## Results
-
-All tests were run using the following system
-
-```
-Julia Version 1.7.3
-Python Version 3.10.5
-Comrade Version 0.4.0
-eht-imaging Version 1.2.4
-Commit 742b9abb4d (2022-05-06 12:58 UTC)
-Platform Info:
-  OS: Linux (x86_64-pc-linux-gnu)
-  CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
-  WORD_SIZE: 64
-  LIBM: libopenlibm
-  LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
-```
-
-Our benchmark results are the following:
-
-| | Comrade (micro sec) | eht-imaging (micro sec) | Themis (micro sec)|
-|---|---|---|---|
-| posterior eval (min) | 31  | 445  | 55  |
-| posterior eval (mean) | 36  | 476  | 60  |
-| grad posterior eval (min) |  105 (ForwardDiff) | 1898  | 1809  |
-| grad posterior eval (mean) |  119 (ForwardDiff) | 1971 |  1866  |
-
-Therefore, for this test we found that `Comrade` was the fastest method in all tests. For the posterior evaluation we found that Comrade is > 10x faster than `eht-imaging`, and 2x faster then `Themis`. For gradient evaluations we have `Comrade` is > 15x faster than both `eht-imaging` and `Themis`.
-
-[^1]: Chael A, et al. *Inteferometric Imaging Directly with Closure Phases* 2018 ApJ 857 1 arXiv:1803/07088
-
-## Code
-
-### Julia Code
-
-```julia
 using Comrade
 using Distributions
 using BenchmarkTools
 
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits("SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 obs.add_scans()
-obs = obs.avg_coherent(0.0, scan_avg=true)
-amp = extract_amp(obs)
+obsavg = obs.avg_coherent(0.0, scan_avg=true)
+amp = extract_amp(obsavg)
 lklhd = RadioLikelihood(amp)
 
 function model(θ)
@@ -87,30 +36,14 @@ m = model(θ)
 post = Posterior(lklhd, prior, model)
 tpost = asflat(post)
 
-# Transform to the unconstrained space
-x0 = transform(tpost, θ)
+x0 = inverse(tpost, θ)
 
-# Lets benchmark the posterior evaluation
 ℓ = logdensityof(tpost)
 @benchmark ℓ($x0)
 
-# Now we benchmark the gradient
-gℓ = ForwardDiff.gradient(ℓ, x0)
+using ForwardDiff
+gℓ = Base.Fix1(ForwardDiff.gradient, ℓ)
 @benchmark gℓ($x0)
-```
-
-### Python Code
-
-```julia
-using BenchmarkTools
-
-load_ehtim()
-# To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-obs.add_scans()
-obs = obs.avg_coherent(0.0, scan_avg=true)
-
-
 
 meh = ehtim.model.Model()
 meh = meh.add_thick_mring(F0=θ.f,
@@ -142,6 +75,8 @@ preh[2]["x0"] = Dict("prior_type"=>"flat", "min"=>-μas2rad(40.0), "max"=>μas2r
 preh[2]["y0"] = Dict("prior_type"=>"flat", "min"=>-μas2rad(40.0), "max"=>μas2rad(40.0))
 preh[2]["PA"] = Dict("prior_type"=>"flat", "min"=>-1π, "max"=>1π)
 
+# This is a hack to get the objective function and its gradient
+# we need to do this since the functions depend on some global variables
 using PyCall
 py"""
 import ehtim
@@ -192,9 +127,9 @@ trial_model = meh.copy()
 n_params, pinit = py"make_paraminit"(pmap, meh, trial_model, preh)
 
 # make data products for the globdict
-data1, sigma1, uv1, _ = ehtim.modeling.modeling_utils.chisqdata(obs, "amp")
-data2, sigma2, uv2, _ = ehtim.modeling.modeling_utils.chisqdata(obs, false)
-data3, sigma3, uv3, _ = ehtim.modeling.modeling_utils.chisqdata(obs, false)
+data1, sigma1, uv1, _ = ehtim.modeling.modeling_utils.chisqdata(obsavg, "amp", pol="I")
+data2, sigma2, uv2, _ = ehtim.modeling.modeling_utils.chisqdata(obsavg, false, pol="I")
+data3, sigma3, uv3, _ = ehtim.modeling.modeling_utils.chisqdata(obsavg, false, pol="I")
 
 # now set the ehtim modeling globdict
 
@@ -213,7 +148,7 @@ ehtim.modeling.modeling_utils.globdict = Dict("trial_model"=>trial_model,
                 "show_updates"=>false, "update_interval"=>1,
                 "gains_t1"=>nothing, "gains_t2"=>nothing,
                 "minimizer_func"=>"scipy.optimize.dual_annealing",
-                "Obsdata"=>obs,
+                "Obsdata"=>obsavg,
                 "fit_pol"=>false, "fit_cpol"=>false,
                 "flux"=>1.0, "alpha_flux"=>0, "fit_gains"=>false,
                 "marginalize_gains"=>false, "ln_norm"=>1314.33,
@@ -226,9 +161,7 @@ fobj = ehtim.modeling.modeling_utils.objfunc
 # This is the gradient of the negative log-posterior
 gfobj = ehtim.modeling.modeling_utils.objgrad
 
-# Lets benchmark the posterior evaluation
+using BenchmarkTools
 @benchmark fobj($pinit)
 
-# Now we benchmark the gradient
-@benchmark gfobj($x0)
-```
+@benchmark gfobj($pinit)

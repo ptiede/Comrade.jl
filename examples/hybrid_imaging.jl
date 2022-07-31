@@ -1,17 +1,13 @@
 using Pkg; Pkg.activate(@__DIR__)
+Pkg.add(url="https://github.com/ptiede/RadioImagePriors.jl")
 using Comrade
 using Distributions
-using Pathfinder
-using AdvancedHMC
 using Plots
-using Zygote
-using Parameters
-using GalacticOptim
-using Optim
-using NLopt
-using BlackBoxOptim
-using Dynesty
-using AdaptiveMCMC
+using ComradeOptimization
+using OptimizationOptimJL
+using OptimizationBBO
+using ComradeAHMC
+using RadioImagePriors
 
 # load eht-imaging we use this to load eht data
 load_ehtim()
@@ -26,71 +22,122 @@ dlcamp = extract_lcamp(obs)
 dcphase = extract_cphase(obs)
 lklhd = RadioLikelihood(dlcamp, dcphase)
 
-# build the model here we fit a ring with a azimuthal
-#brightness variation and a Gaussian
-
+# build the model here we will fit a hybrid image using a image and a
+# MRing that has been smoothed and stretched. We will create a
+# struct to hold some cached variables to help with imaging. Namely,
+# `create_cache` will be used to create the DTFT matrix and a image buffer.
+# This will prevent the DTFT matrix from being recomputed everytime try to evaluate the
+# model.
 struct Model{C,F}
     cache::C
     fov::F
     npix::Int
+    function Model(obs::Comrade.EHTObservation, fov::Real, npix::Int)
+        buffer = IntensityMap(zeros(npix, npix), fov, fov, BSplinePulse{3}())
+        cache = create_cache(DFTAlg(obs), buffer)
+        return new{typeof(cache), typeof(fov)}(cache, fov, npix)
+    end
 end
 
-
+# Now define the actual model creation using a Julia "functor".
 function (model::Model)(θ)
-    (;c, f, r, σ, τ, ξ, ma, mp, x, y) = θ
-    #cmat = f*reshape(c, model.npix, model.npix)
-    #img = IntensityMap(cmat, model.fov, model.fov, BSplinePulse{3}())
-    #mimg = modelimage(img, model.cache)
+    (;c, f, r, σ, τ, ξ, ma, mp) = θ
+    img = IntensityMap(f*c, model.fov, model.fov, BSplinePulse{3}())
+    mimg = modelimage(img, model.cache)
     s,c = sincos(mp)
     α = ma*c
     β = ma*s
-    #ring = (1-f)*rotated(smoothed(stretched(MRing((α,), (β,)), r, r*τ),σ), ξ)
-    return MRing((α,), (β,))#stretched(MRing((α,), (β,)), r, r)#shifted(ring, x, y) #+ mimg
+    ring = (1-f)*rotated(smoothed(stretched(MRing((α,), (β,)), r, r*τ),σ), ξ)
+    return ring + mimg
 end
 
-fovxy = μas2rad(90.0)
-npix = 7
+
+# Now form model we are going to fit
+fovxy = μas2rad(120.0)
+npix = 6
+mms = Model(dlcamp, fovxy, npix)
+
+
 prior = (
-          c = Dirichlet(npix*npix, 0.5),
+          c = ImageDirichlet(0.5, npix, npix),
           f = Uniform(0.0, 1.0),
           r = Uniform(μas2rad(10.0), μas2rad(30.0)),
-          σ = truncated(Normal(0.0, μas2rad(0.5)), μas2rad(0.01), μas2rad(20.0)),
+          σ = Uniform(μas2rad(0.5), μas2rad(20.0)),
           τ = Uniform(0.5, 1.0),
           ξ = Uniform(-π/2, π/2),
           ma = Uniform(0.0, 0.5),
-          mp = Uniform(-π, π),
-          x = Uniform(-fovxy/2, fovxy/2),
-          y = Uniform(-fovxy/2, fovxy/2)
+          mp = Uniform(0.0, 2π),
         )
-# Now form the posterior
-cache = create_cache(Comrade.DFTAlg(dlcamp), IntensityMap(rand(npix,npix), fovxy, fovxy, BSplinePulse{3}()))
-mms = Model(cache, fovxy, npix)
 
+# Now we can build the posterior
 post = Posterior(lklhd, prior, mms)
+
+# We will use HMC to explore the posterior. However, we can really help sampling if we first
+# get a good starting location. As such we will first optimize. First lets transform the
+# posterior parameters to the unconstrained space.
 tpost = asflat(post)
-# We will use HMC to sample the posterior.
-# First to reduce burn in we use pathfinder
+
+
 ndim = dimension(tpost)
-f, tr = GalacticOptim.OptimizationFunction(post, GalacticOptim.AutoForwardDiff{25}())
-x0 = inverse(tr, rand(post.prior))
-prob = GalacticOptim.OptimizationProblem(f, x0, nothing, lb=fill(-5.0, dimension(tr)), ub=fill(5.0, dimension(tr)))
-sol, xopt = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(), tr; maxiters=1000_000)
 
-prob = GalacticOptim.OptimizationProblem(f, 3*randn(ndim), nothing)
-sol, xopt = solve(prob, LBFGS(), tr; show_trace=true, iterations=4000, g_tol=1e-2)
+# Now we optimize. First we will use BlackBoxOptim which is a genetic algorithm to get us
+# in the region of the best fit model.
+f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
+prob = OptimizationProblem(f, randn(ndim), nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
+sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=100_000)
 
+# Alright now we can zoom to the peak! But we can even do better, we will also compute
+# the laplace approximation to the posterior as a byproduct.
+prob = OptimizationProblem(f, sol.u, nothing)
+ℓ = logdensityof(tpost)
+sol = solve(prob, LBFGS(), maxiters=1_000, callback=((x,p)->(@info ℓ(x);false)), g_tol=1e-1)
 
+# tranform back to parameter space
+xopt = transform(tpost, sol)
 
-start = [transform(tr, 3*randn(ndim)) for _ in 1:50]
-q, ϕ, compinds = multipathfinder(post, 50; init_params=start, importance=true, iterations=2000)
-
+# plot the residuals and the intensity map
 residual(mms(xopt), dlcamp)
 residual(mms(xopt), dcphase)
 img = intensitymap(mms(xopt), μas2rad(160.0), μas2rad(160.0), 512, 512)
-plot(abs.(img) , xlims=(-60.0,60.0), ylims=(-60.0,60.0), colorbar_scale=:log10, clims=(maximum(img)/100, maximum(img)),)
+plot(abs.(img) , xlims=(-60.0,60.0), ylims=(-60.0,60.0))
 
 # now we sample using hmc
 metric = DenseEuclideanMetric(ndim)
-chain, stats = sample(post, HMC(;metric, autodiff=Comrade.AD.ForwardDiffBackend(;chunksize=Val(25))), 10000; nadapts=7000, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric, autodiff=Comrade.AD.ForwardDiffBackend()), 4000; nadapts=3000, init_params=xopt)
 
-serialize("m87hybrid_fits.jls", Dict(:chain=>chain, :stats=>stats, :fov=>fovxy, :npix=>npix, :prior=>priors))
+# this took 25 minutes on my laptop which has a 11 gen core i7
+
+# Plot the mean image and standard deviation
+# Adaptation ruins detailed balance/reversibility in the chain!
+# We will also split the uncertainty and mean maps into ring and raster
+using StatsBase
+msamples = Comrade.components.(mms.(sample(chain, 500)))
+ring_samples = first.(msamples)
+rast_samples = last.(msamples)
+ring_imgs = intensitymap.(ring_samples, fovxy, fovxy, 256, 256)
+rast_imgs = intensitymap.(rast_samples, fovxy, fovxy, 256, 256)
+
+ring_mean, ring_std = mean_and_std(ring_imgs)
+rast_mean, rast_std = mean_and_std(rast_imgs)
+both_mean, both_std = mean_and_std(ring_imgs .+ rast_imgs)
+
+p1 = plot(ring_mean, title="Ring Mean", clims=(0.0, maximum(ring_mean)))
+p2 = plot(ring_std,  title="Ring Std. Dev.", clims=(0.0, maximum(ring_mean)))
+p3 = plot(rast_mean, title="Raster Mean", clims=(0.0, maximum(rast_mean)))
+p4 = plot(rast_std,  title="Raster Std. Dev.", clims=(0.0, maximum(rast_mean)))
+p5 = plot(both_mean, title="Both Mean", clims=(0.0, maximum(both_mean)))
+p6 = plot(both_std,  title="Both Std. Dev.", clims=(0.0, maximum(both_mean)))
+
+plot(p1,p2,p3,p4,p5,p6, layout=(3,2), size=(950,1000))
+
+# Computing information
+# ```
+# Julia Version 1.7.3
+# Commit 742b9abb4d (2022-05-06 12:58 UTC)
+# Platform Info:
+#   OS: Linux (x86_64-pc-linux-gnu)
+#   CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
+#   WORD_SIZE: 64
+#   LIBM: libopenlibm
+#   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
+# ```

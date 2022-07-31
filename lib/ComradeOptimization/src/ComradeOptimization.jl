@@ -16,6 +16,13 @@ function SciMLBase.OptimizationFunction(post::Comrade.Posterior, args...; kwargs
     throw("Transform the posterior first using `asflat` or `ascube`")
 end
 
+"""
+    SciMLBase.OptimizationFunction(post::Posterior, args...; kwargs...)
+
+Constructs a `OptimizationFunction` from a `Comrade.TransformedPosterior` object.
+Note that a user must **transform the posterior first**. This is so we know which
+space is most amenable to optimization.
+"""
 function SciMLBase.OptimizationFunction(post::Comrade.TransformedPosterior, args...; kwargs...)
     ℓ(x,p) = -logdensityof(post, x)
     return SciMLBase.OptimizationFunction(ℓ, args...; kwargs...)
@@ -26,6 +33,8 @@ end
 
 Compute the Laplace or Quadratic approximation to the prob or posterior.
 The `args` and `kwargs` are passed the the SciMLBase.solve function.
+This will return a `Distributions.MvNormal` object that approximates
+the posterior in the transformed space.
 
 Note the quadratic approximation is in the space of the transformed posterior
 not the usual parameter space. This is better for constrained problems where

@@ -1,4 +1,5 @@
 using Comrade, ComradeAHMC, Distributions
+using Zygote
 using Test
 
 load_ehtim()

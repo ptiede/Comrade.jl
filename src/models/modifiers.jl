@@ -149,7 +149,6 @@ function modelimage(::NotAnalytic,
 end
 
 
-
 @inline function visibility_point(m::AbstractModifier, u, v, args...)
     ut, vt = transform_uv(m, u, v)
     scale = scale_uv(m, u, v)

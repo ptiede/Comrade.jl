@@ -2,6 +2,7 @@ using LinearAlgebra
 using SparseArrays
 import Distributions
 using Statistics
+using PrettyTables
 
 export GainCache, GainPrior, GainModel
 
@@ -35,9 +36,9 @@ end
 Base.getindex(m::DesignMatrix, i::Int) = getindex(m.matrix, i)
 Base.size(m::DesignMatrix) = size(m.matrix)
 Base.IndexStyle(::Type{<:DesignMatrix{X,M}}) where {X,M} = Base.IndexStyle(M)
-Base.getindex(m::DesignMatrix, I::Vararg{Int,N}) where {N} = getindex(m.matrix, I)
+Base.getindex(m::DesignMatrix, I::Vararg{Int,N}) where {N} = getindex(m.matrix, I...)
 Base.setindex!(m::DesignMatrix, v, i::Int) = setindex!(m.matrix, v, i)
-Base.setindex!(m::DesignMatrix, v, i::Vararg{Int, N}) where {N} = setindex!(m.matrix, v, i)
+Base.setindex!(m::DesignMatrix, v, i::Vararg{Int, N}) where {N} = setindex!(m.matrix, v, i...)
 
 Base.similar(m::DesignMatrix, ::Type{S}, dims::Dims) where {S} = DesignMatrix(similar(m.matrix, S, dims), m.times, m.stations)
 
@@ -90,7 +91,7 @@ function GainPrior(dists, st::ScanTable)
     return GainPrior(gstat, gtimes, gprior)
 end
 
-HypercubeTransform.bijector(d::GainPrior) = HypercubeTransform.bijector(d.dist)
+#HypercubeTransform.bijector(d::GainPrior) = HypercubeTransform.asflat(d.dist)
 HypercubeTransform.asflat(d::GainPrior) = asflat(d.dist)
 HypercubeTransform.ascube(d::GainPrior) = ascube(d.dist)
 
@@ -138,6 +139,35 @@ struct GainCache{D1<:DesignMatrix, D2<:DesignMatrix, T, S}
     stations::S
 end
 
+function caltable(obs::EHTObservation, gains::AbstractVector)
+    st = scantable(obs)
+    gcache = GainCache(st)
+    return caltable(gcache, gains)
+end
+
+
+
+function caltable(g::GainCache, gains::AbstractVector)
+    @argcheck length(g.times) == length(gains)
+
+    stations = sort(unique(g.stations))
+    times = unique(g.times)
+    gmat = Matrix{Union{eltype(gains), Missing}}(missing, length(times), length(stations))
+
+    alltimes = g.times
+    allstations = g.stations
+    # Create the lookup dict
+    lookup = Dict(stations[i]=>i for i in eachindex(stations))
+    for i in eachindex(gains)
+        t = findfirst(t->(t==alltimes[i]), times)
+        c = lookup[allstations[i]]
+        gmat[t,c] = gains[i]
+    end
+
+    return CalTable(stations, lookup, times, gmat)
+end
+
+
 """
     GainCache(st::ScanTable)
 
@@ -178,6 +208,17 @@ struct GainModel{C, G<:AbstractArray, M} <: RIMEModel
     model::M
 end
 
+"""
+    caltable(g::GainModel)
+
+Compute the gain calibration table from the `GainModel` `g`. This will
+return a [`CalTable`](@ref) object, whose rows are different times,
+and columns are different telescopes.
+"""
+function caltable(g::GainModel)
+    return caltable(g.cache, g.gains)
+end
+
 
 function intensitymap!(img::IntensityMap, model::GainModel, args...)
     return intensitymap!(img, model.model, args...)
@@ -213,10 +254,30 @@ This returns an array of corrupted visibilties. This is called internally
 by the `GainModel` when producing the visibilties.
 """
 function corrupt(vis::AbstractArray, cache::GainCache, gains::AbstractArray)
-    g1 = cache.m1*gains
-    g2 = cache.m2*gains
+    g1 = cache.m1.matrix*gains
+    g2 = cache.m2.matrix*gains
     return @. g1*vis*conj(g2)
 end
+
+ChainRulesCore.@non_differentiable getproperty(cache::GainCache, s::Symbol)
+
+# function ChainRulesCore.rrule(::typeof(corrupt), vis::AbstractArray, cache::GainCache, gains::AbstractArray)
+#     g1 = cache.m1*gains
+#     cg2 = conj.(cache.m2*gains)
+#     viscor = @. g1*vis*cg2
+#     function _corrupt_pullback(ΔV)
+#         cΔV = conj.(ΔV)
+#         Δf = NoTangent()
+#         Δvis   = @thunk(cΔV.*g1.*cg2)
+#         Δcache = NoTangent()
+
+#         tmp1 = Diagonal(vis.*g1)*cache.m1
+#         tmp2 = Diagonal(vis.*cg2)*cache.m2
+#         Δgains = ΔV'*tmp1 + ΔV'*tmp2
+#         return (Δf, Δvis, Δcache, Δgains)
+#     end
+#     return viscor, _corrupt_pullback
+# end
 
 
 # This is an internal function that computes the set of stations from a ScanTable
@@ -255,7 +316,7 @@ function gain_design(st::ScanTable)
         append!(colInd2, c2)
         append!(rowInd2, fill(i, length(c2)))
     end
-    z = fill(1, length(rowInd1))
+    z = fill(1.0, length(rowInd1))
     m1 = sparse(rowInd1, colInd1, z, length(times), length(gaintime))
     m2 = sparse(rowInd2, colInd2, z, length(times), length(gaintime))
     return DesignMatrix(m1, gaintime, gainstat), DesignMatrix(m2, gaintime, gainstat)

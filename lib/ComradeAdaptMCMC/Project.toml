@@ -1,7 +1,7 @@
 name = "ComradeAdaptMCMC"
 uuid = "5a6518a2-e6ab-4020-97b8-110ebf16b849"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.2.0"
+version = "0.2.1"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -12,7 +12,7 @@ TupleVectors = "615932cf-77b6-4358-adcd-5b7eba981d7e"
 [compat]
 AbstractMCMC = "3, 4"
 AdaptiveMCMC = "0.1"
-Comrade = "0.5"
+Comrade = "0.5, 0.6"
 TupleVectors = "0.1, 0.2"
 julia = "1.7"
 

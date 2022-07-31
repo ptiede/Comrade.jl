@@ -1,13 +1,15 @@
 using Pkg; Pkg.activate(@__DIR__)
+Pkg.add(url="https://github.com/ptiede/RadioImagePriors.jl")
 using Comrade
 using Distributions
 using ComradeOptimization
 using ComradeAHMC
-using GalacticBBO
+using OptimizationBBO
+using OptimizationOptimJL
+
 using Plots
 using StatsBase
-using GalacticOptimJL
-using DistributionsAD
+using RadioImagePriors
 
 # load eht-imaging we use this to load eht data
 load_ehtim()
@@ -20,7 +22,6 @@ obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true).add_fractio
 # extract log closure amplitudes and closure phases
 dlcamp = extract_lcamp(obs)
 dcphase = extract_cphase(obs)
-lklhd = RadioLikelihood(dlcamp, dcphase)
 
 # Build the Model. Here we we a struct to hold some caches
 # which will speed up imaging
@@ -28,6 +29,12 @@ struct ImModel{C}
     cache::C
     fov::Float64
     npix::Int
+    function ImModel(obs::Comrade.EHTObservation, fov::Real, npix::Int)
+        buffer = IntensityMap(zeros(npix, npix), fov, fov, BSplinePulse{3}())
+        cache = create_cache(DFTAlg(obs), buffer)
+        return new{typeof(cache)}(cache, fov, npix)
+    end
+
 end
 
 # For our model we will be using a rasterized image. This can be viewed as something like a
@@ -36,249 +43,75 @@ end
 function (model::ImModel)(θ)
     (;c) = θ
     #Construct the image model
-    cmat = reshape(c, model.npix, model.npix)
-    img = IntensityMap(cmat, model.fov, model.fov, BSplinePulse{3}())
+    img = IntensityMap(c, model.fov, model.fov, BSplinePulse{3}())
     #Create the modelimage object that will use a cache to compute the DFT
-    m = modelimage(img, cache)
+    m = modelimage(img, model.cache)
 end
 
-npix = 32
-fovxy = μas2rad(65.0)
+
+npix = 24
+fovxy = μas2rad(62.5)
 # Now we can feed in the array information to form the cache. We will be using a DFT since
 # it is efficient for so few pixels
-cache = create_cache(Comrade.DFTAlg(dlcamp), IntensityMap(rand(npix,npix), fovxy, fovxy, BSplinePulse{3}()))
-mms = ImModel(cache, fovxy, npix)
+mms = ImModel(dlcamp, fovxy, npix)
 # We will use a Dirichlet prior to enforce that the flux sums to unity since closures are
 # degenerate to total flux.
-prior = (c = MvNormal(fill(-5.0, npix^2), 1.0),)
+prior = (c = ImageDirichlet(0.5, npix, npix),)
 
-post = Posterior(lklhd, prior, mms)
+lklhd = RadioLikelihood(mms, dlcamp, dcphase)
+post = Posterior(lklhd, prior)
+
+# Transform from simplex space to the unconstrained
 tpost = asflat(post)
 
 # Let's run an optimizer to get a nice starting location
 # It turns out that gradients are really helpful here
 ndim = dimension(tpost)
-f = OptimizationFunction(tpost, GalacticOptim.AutoZygote())
-x0 = rand(ndim)
-prob = OptimizationProblem(f, x0, nothing)
-sol = solve(prob, LBFGS(); maxiters=4_000, show_trace=true, show_every=50, g_tol=1e-2)
+using Zygote
+# Creates optimization function using Optimization.jl
+f = OptimizationFunction(tpost, Optimization.AutoZygote())
+# randn(ndim) is a random initialization guess
+# nothing just says there are no additional arguments to the optimization function.
+prob = OptimizationProblem(f, randn(ndim), nothing)
 
+ℓ = logdensityof(tpost)
+# Find the best fit image! Using LBFGS optimizaer.
+sol = solve(prob, LBFGS(); maxiters=2_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
+
+# Move from unconstrained space to physical parameter space
 xopt = transform(tpost, sol)
 
 # Let's see how the fit looks
 residual(mms(xopt), dlcamp)
 residual(mms(xopt), dcphase)
-plot(mms(xopt), fovx=1.2*fovxy, fovy=1.2*fovxy)
+plot(mms(xopt), fovx=fovxy, fovy=fovxy, title="MAP")
 
 
 # now we sample using hmc
-metric = DenseEuclideanMetric(ndim)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 3000; nadapts=2000, init_params=xopt)
+metric = DiagEuclideanMetric(ndim)
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 4000; nadapts=3000, init_params=xopt)
 
-lca = logdensityof(lklhd.lklhds[1])
-lcp = logdensityof(lklhd.lklhds[2])
+# This takes about 1.75 hours on my laptop. Which isn't bad for a 575 dimensional model!
 
-foox = let lca=lca, lcp=lcp, pr=tpost.lpost.prior, tr=tpost.transform, plan = cache.plan, phases=cache.phases, dmat=dlcamp.config.designmat, dmatc=dcphase.config.designmat
-    x->begin
-        y = transform(tr, x)
-        lp = logdensityof(pr, y)
-        vis = plan*exp.(y.c).*phases
-        return lca(vis) + lcp(vis) + lp
-    end
-end
+# Plot the mean image and standard deviation image
+using StatsBase
+samples = mms.(sample(hchain, 500))
+imgs = intensitymap.(samples, fovxy, fovxy, 96, 96)
 
+mimg, simg = mean_and_std(imgs)
 
+p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)))
+p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)))
+p2 = plot(simg./mimg,  title="Fractional Error", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
 
-
-function bench(npix, lklhd, dlcamp, )
-    fovxy = μas2rad(65.0)
-    # Now we can feed in the array information to form the cache. We will be using a DFT since
-    # it is efficient for so few pixels
-    cache = create_cache(Comrade.DFTAlg(dlcamp), IntensityMap(rand(npix,npix), fovxy, fovxy, BSplinePulse{3}()))
-    mms = ImModel(cache, fovxy, npix)
-    # We will use a Dirichlet prior to enforce that the flux sums to unity since closures are
-    # degenerate to total flux.
-    prior = (c = MvNormal(fill(-5.0, npix^2), 1.0),)
-
-    post = Posterior(lklhd, prior, mms)
-    tpost = asflat(post)
-
-    # Let's run an optimizer to get a nice starting location
-    # It turns out that gradients are really helpful here
-    ndim = dimension(tpost)
-
-    lca = logdensityof(lklhd.lklhds[1])
-    lcp = logdensityof(lklhd.lklhds[2])
-
-
-    foox = let lca=lca, lcp=lcp, pr=tpost.lpost.prior, tr=tpost.transform, plan = cache.plan, phases=cache.phases, dmat=dlcamp.config.designmat, dmatc=dcphase.config.designmat
-        x->begin
-            y = transform(tr, x)
-            lp = logdensityof(pr, y)
-            vis = plan*exp.(y.c).*phases
-            return lca(vis) + lcp(vis) + lp
-        end
-    end
-    x0 = randn(ndim)
-    ftime = @belapsed $(foox)($x0)
-    gftime = @belapsed Zygote.gradient($foox, $x0)
-    gfftime = @belapsed AD.gradient($(AD.ForwardDiffBackend{npix}()), $foox, $x0)
-    return npix, ftime, gftime, gftime/ftime, gfftime, gfftime/ftime
-end
-
-
-btimes = [bench(npix, lklhd, dlcamp) for npix in 4:2:32]
-
-using Plots
-
-f = scatter(getindex.(btimes, 1).^2, getindex.(btimes, 4), yscale=:log10, label="Reverse Mode")
-scatter!(f, getindex.(btimes, 1).^2, getindex.(btimes, 6), label="Forward Mode")
-
-ylabel!(f, "∇f/f")
-xlabel!(f, "npix²")
-xlims!(4, 512)
-ylims!(1.0, 10000.0)
-savefig(f, "image_scaling_grad_order.png")
-
-
-ndims = getindex.(btimes, 1).^2
-f2 = scatter(ndims, getindex.(btimes, 2), yscale=:log10, label="F(x)")
-scatter!(f2, ndims, getindex.(btimes, 3), label="Reverse ∇F(x)")
-scatter!(f2, ndims, getindex.(btimes, 5), label="Forward ∇F(x)")
-plot!(f2, ndims, ndims*btimes[1][2]/200 .+ ndims[1]*btimes[1][2]/20, color=:blue, label="O(npix²)")
-plot!(f2, ndims, ndims*btimes[1][2]/200*10 .+ ndims[1]*btimes[1][2]/20*10, color=:orange, label="10⋅O(npix²)")
-plot!(f2, ndims, ndims.*ndims*btimes[1][2]/50 .+ ndims[1]*ndims[1]*btimes[1][2]/10, color=:green, label="O(npix⁴)")
-ylabel!(f2, "Runtime (s)")
-xlabel!(f2, "npix²")
-xlims!(f2, 4, 512)
-savefig(f2, "image_scaling_grad_times.png")
-
-function logistic_logjac(x)
-    mx = -abs(x)
-    mx - 2*log1p(exp(mx))
-end
-
-
-
-function simplex_fwd(y)
-    x = similar(y, length(y)+1)
-    logjac = zero(eltype(y))
-    stick = one(eltype(y))
-    n = length(y)+1
-    @inbounds for i in eachindex(y)
-        z = logistic(y[i] + log(n-i))
-        x[i] = stick*(1-z)
-        stick *= z
-        logjac += log(abs(x[i]/(z-1))) - logistic_logjac(z)
-    end
-    x[end] = stick
-
-    return x, logjac
-end
-
-using ChainRulesCore
-
-function ChainRulesCore.rrule(::typeof(simplex_fwd), y)
-    x, ℓ = simplex_fwd(y)
-    function _simplex_fwd_pullback(ΔX)
-        f̄ = NoTangent()
-        (Δx, Δℓ) = ΔX
-        jx = similar(x, length(x), length(y))
-        for i in eachindex(y)
-
-        end
-    end
-end
-
-function mymul!(R, A, B)
-    @assert axes(A,2) == axes(B,1)
-    @inbounds @simd for i in eachindex(R)
-        R[i] = 0
-    end
-    @inbounds for j in axes(B, 2), i in axes(A, 1)
-        @inbounds @simd for k in axes(A,2)
-            R[i,j] += A[i,k] * B[k,j]
-        end
-    end
-    nothing
-end
-
-A = rand(5, 3)
-B = rand(3, 7)
-
-R = zeros(size(A,1), size(B,2))
-∂z_∂R = rand(size(R)...)  # Some gradient/tangent passed to us
-
-∂z_∂A = zero(A)
-∂z_∂B = zero(B)
-
-Enzyme.autodiff(mymul!, Const, Duplicated(R, ∂z_∂R), Duplicated(A, ∂z_∂A), Duplicated(B, ∂z_∂B))
-
-
-
-y0 = randn(16^2)
-∂y0 = zero(y0)
-
-x0 = zeros(length(y0)+2)
-∂x0 = zeros(size(x0)...)
-
-d = Dirichlet(npix^2, 1.0)
-
-
-fooE = let lca=dlcamp, cp=dcphase, pr=d, plan = cache.plan, phases=cache.phases, dmat=dlcamp.config.designmat, dmatc=dcphase.config.designmat
-    x->begin
-        y, lj = simplex_fwd(x)
-        lp = logdensityof(pr, y)
-        vis = plan*y.*phases
-        mlca = dmat*log.(abs.(vis))
-        mcp = dmatc*angle.(vis)
-        l1 = sum(abs2, (lca[:amp] .- mlca)./lca[:error])
-        l2 = sum(abs2, (cp[:phase] .- mcp)./cp[:error])
-        return -0.5*(l1 + l2) + lp + lj
-    end
-end
-
-
-Enzyme.autodiff(simplex_fwd!, Const, Duplicated(x0, ∂x0), Duplicated(y0, ∂y0))
-
-ℓ = logdensityof(d)
-
-struct LT{D}
-    ℓ::D
-end
-
-function (lt::LT)(z)
-    x, logjac = simplex_fwd(z)
-    return lt.ℓ(x) + logjac
-end
-
-ℓt = LT(ℓ)
-
-∂z0 = zero(z0)
-@benchmark Enzyme.gradient($(Enzyme.ReverseMode()), $ℓt, $z0)
-@benchmark Zygote.gradient(ℓt, z0)
-
-function mymul!(R, A, B)
-    @assert axes(A,2) == axes(B,1)
-    @inbounds @simd for i in eachindex(R)
-        R[i] = 0
-    end
-    @inbounds for j in axes(B, 2), i in axes(A, 1)
-        @inbounds @simd for k in axes(A,2)
-            R[i,j] += A[i,k] * B[k,j]
-        end
-    end
-    nothing
-end
-
-
-A = rand(5, 3)
-B = rand(3, 7)
-
-R = zeros(size(A,1), size(B,2))
-∂z_∂R = rand(size(R)...)  # Some gradient/tangent passed to us
-
-∂z_∂A = zero(A)
-∂z_∂B = zero(B)
-
-Enzyme.autodiff(mymul!, Const, Duplicated(R, ∂z_∂R), Duplicated(A, ∂z_∂A), Duplicated(B, ∂z_∂B))
+# Computing information
+# ```
+# Julia Version 1.7.3
+# Commit 742b9abb4d (2022-05-06 12:58 UTC)
+# Platform Info:
+#   OS: Linux (x86_64-pc-linux-gnu)
+#   CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
+#   WORD_SIZE: 64
+#   LIBM: libopenlibm
+#   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
+# ```

@@ -44,7 +44,8 @@ end
 function DensityInterface.logdensityof(post::Posterior, x)
     pr = logdensityof(post.prior, x)
     !isfinite(pr) && return -Inf
-    return logdensityof(post.lklhd, post.model(x)) + pr
+    vis = post.model(x)
+    return logdensityof(post.lklhd, vis) + pr
 end
 
 """
@@ -147,7 +148,7 @@ function HypercubeTransform.asflat(post::Posterior)
     return TransformedPosterior(post, tr)
 end
 
-@inline function DensityInterface.logdensityof(post::TransformedPosterior{P, T}, x::AbstractArray) where {P, T<:HypercubeTransform.NamedFlatTransform}
+@inline function DensityInterface.logdensityof(post::TransformedPosterior{P, T}, x::AbstractArray) where {P, T<:TransformVariables.AbstractTransform}
     p, logjac = transform_and_logjac(post.transform, x)
     return logdensityof(post.lpost, p) + logjac
 end
