@@ -1,3 +1,5 @@
+using ChainRulesTestUtils
+
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     plot(m)
