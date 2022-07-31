@@ -181,7 +181,7 @@ radialextent(::MRing) = 1.5
     dr = 0.025
     if (abs(r-1) < dr/2)
         acc = one(T)
-        for n in 1:N
+        for n in eachindex(m.α, m.β)
             s,c = sincos(n*θ)
             acc += m.α[n]*c - m.β[n]*s
         end
