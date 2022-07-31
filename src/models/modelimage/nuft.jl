@@ -66,16 +66,17 @@ end
 
 
 function nuft(A, b)
-    return A*(b .+ 0im)
+    return A*complex.(b)
 end
 
 # function ChainRulesCore.rrule(::typeof(nuft), A, b)
-#     vis = A*b
+#     bc = complex.(b)
+#     vis = A*bc
 #     println("Pld")
 #     function nuft_pullback(Δy)
 #         Δf = NoTangent()
 #         ΔA = @thunk(A'*Δy)
-#         Δb = @thunk(Δy*b')
+#         Δb = @thunk(Δy*bc')
 #         return Δf, ΔA, Δb
 #     end
 #     return vis, nuft_pullback

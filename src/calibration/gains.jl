@@ -2,6 +2,7 @@ using LinearAlgebra
 using SparseArrays
 import Distributions
 using Statistics
+using PrettyTables
 
 export GainCache, GainPrior, GainModel
 
@@ -138,6 +139,35 @@ struct GainCache{D1<:DesignMatrix, D2<:DesignMatrix, T, S}
     stations::S
 end
 
+function caltable(obs::EHTObservation, gains::AbstractVector)
+    st = scantable(obs)
+    gcache = GainCache(st)
+    return caltable(gcache, gains)
+end
+
+
+
+function caltable(g::GainCache, gains::AbstractVector)
+    @argcheck length(g.times) == length(gains)
+
+    stations = sort(unique(g.stations))
+    times = unique(g.times)
+    gmat = Matrix{Union{eltype(gains), Missing}}(missing, length(times), length(stations))
+
+    alltimes = g.times
+    allstations = g.stations
+    # Create the lookup dict
+    lookup = Dict(stations[i]=>i for i in eachindex(stations))
+    for i in eachindex(gains)
+        t = findfirst(t->(t==alltimes[i]), times)
+        c = lookup[allstations[i]]
+        gmat[t,c] = gains[i]
+    end
+
+    return CalTable(stations, lookup, times, gmat)
+end
+
+
 """
     GainCache(st::ScanTable)
 
@@ -176,6 +206,17 @@ struct GainModel{C, G<:AbstractArray, M} <: RIMEModel
     Base model that will be used to compute the uncorrupted visibilities.
     """
     model::M
+end
+
+"""
+    caltable(g::GainModel)
+
+Compute the gain calibration table from the `GainModel` `g`. This will
+return a [`CalTable`](@ref) object, whose rows are different times,
+and columns are different telescopes.
+"""
+function caltable(g::GainModel)
+    return caltable(g.cache, g.gains)
 end
 
 
@@ -218,11 +259,12 @@ function corrupt(vis::AbstractArray, cache::GainCache, gains::AbstractArray)
     return @. g1*vis*conj(g2)
 end
 
+ChainRulesCore.@non_differentiable getproperty(cache::GainCache, s::Symbol)
+
 # function ChainRulesCore.rrule(::typeof(corrupt), vis::AbstractArray, cache::GainCache, gains::AbstractArray)
 #     g1 = cache.m1*gains
 #     cg2 = conj.(cache.m2*gains)
 #     viscor = @. g1*vis*cg2
-
 #     function _corrupt_pullback(ΔV)
 #         cΔV = conj.(ΔV)
 #         Δf = NoTangent()

@@ -110,7 +110,7 @@ logdensityof(fpost, randn(dimension(fpost)))
 
 # Our strategy here will be to use Hamiltonian Monte Carlo. However, to lower burn-in time
 # we will first use an optimizer to find a reasonable starting location. Since this is a lower
-# dimensional problem we will use BlackboxOptim or the GalacticBBO package
+# dimensional problem we will use BlackboxOptim or the OptimizationBBO package
 
 using ComradeOptimization
 using OptimizationBBO
@@ -144,7 +144,7 @@ plot(model(chain[end]), title="Random image", xlims=(-60.0,50.0), ylims=(-60.0,5
 
 # What about the mean image? Well let's grab 100 images from the chain
 meanimg = mean(intensitymap.(model.(sample(chain, 100)), μas2rad(120.0), μas2rad(120.0), 128, 128))
-plot(sqrt.(meanimg), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
+plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
@@ -159,3 +159,15 @@ residual(model(xopt), dlcamp)
 # In fact, this model is slightly too simple to explain the data.
 # Check out [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141)
 # for some ideas what features need to be added to the model to get a better fit!
+
+# Computing information
+# ```
+# Julia Version 1.7.3
+# Commit 742b9abb4d (2022-05-06 12:58 UTC)
+# Platform Info:
+#   OS: Linux (x86_64-pc-linux-gnu)
+#   CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
+#   WORD_SIZE: 64
+#   LIBM: libopenlibm
+#   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
+# ```

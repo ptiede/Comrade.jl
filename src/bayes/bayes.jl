@@ -44,7 +44,8 @@ end
 function DensityInterface.logdensityof(post::Posterior, x)
     pr = logdensityof(post.prior, x)
     !isfinite(pr) && return -Inf
-    return logdensityof(post.lklhd, post.model(x)) + pr
+    vis = post.model(x)
+    return logdensityof(post.lklhd, vis) + pr
 end
 
 """

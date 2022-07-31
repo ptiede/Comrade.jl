@@ -97,12 +97,12 @@ end
 
 function Base.rand(rng::AbstractRNG, T::Type, d::CPVonMises{(:μ, :κ)})
     d = Dists.VonMises.(d.μ, d.κ)
-    return rand.(Ref(rng), Ref(T), d)
+    return rand.(Ref(rng), d)
 end
 
 function Base.rand(rng::AbstractRNG, T::Type, d::CPVonMises{(:μ, :σ)})
     d = @. Dists.VonMises(d.μ, 1/d.σ^2)
-    return rand.(Ref(rng), Ref(T), d)
+    return rand.(Ref(rng), d)
 end
 
 
