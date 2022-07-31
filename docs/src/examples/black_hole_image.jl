@@ -144,7 +144,7 @@ plot(model(chain[end]), title="Random image", xlims=(-60.0,50.0), ylims=(-60.0,5
 
 # What about the mean image? Well let's grab 100 images from the chain
 meanimg = mean(intensitymap.(model.(sample(chain, 100)), μas2rad(120.0), μas2rad(120.0), 128, 128))
-plot(sqrt.(meanimg), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
+plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
