@@ -160,6 +160,25 @@ residual(model(xopt), dlcamp)
 # Check out [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141)
 # for some ideas what features need to be added to the model to get a better fit!
 
+
+# For a real run we should also check that the MCMC chain has converged. For
+# this we can use MCMCDiagnostics
+using MCMCDiagnostics
+# First lets look at the effective sample size or ESS. This is important since
+# MCMC estimates converges as √ESS (for most problems).
+ess = [r=effective_sample_size(getproperty(chain, r)) for r in propertynames(chain)]
+# We can also calculate the split-rhat or potential scale reduction. For this we should actually
+# use at least 4 chains. However for demonstation purposes we will use one chain that we split in two
+rhats = NamedTuple{tuple(propertynames(chain))[1]}(map(propertynames(chain)) do n
+    c = getproperty(chain, n)
+    c1 = @view c[1001:1500]
+    c2 = @view c[1500:2000]
+    return potential_scale_reduction(c1, c2)
+end)
+# Ok we have a split-rhat < 1.01 on all parameters so we have success (in reality run more chains!).
+
+
+
 # Computing information
 # ```
 # Julia Version 1.7.3

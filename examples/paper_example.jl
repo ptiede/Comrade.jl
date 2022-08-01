@@ -3,8 +3,8 @@ using Comrade
 using Distributions
 using ComradeOptimization
 using ComradeAHMC
-using GalacticBBO
-using GalacticOptimJL
+using OptimizationBBO
+using OptimizationOptimJL
 using Plots
 using StatsBase
 
@@ -24,13 +24,6 @@ lklhd = RadioLikelihood(dlcamp, dcphase)
 # build the model here we fit a ring with a azimuthal
 #brightness variation and a Gaussian
 
-Gaussian()
-Disk()
-MRing((a, ), (b, ))
-ParabolicSegment()
-Crescent
-ConcordanceCrescent
-
 function model(θ)
     (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
     ring = f*smoothed(stretched(MRing((a,), (b,)), μas2rad(rad), μas2rad(rad)), μas2rad(wid))
@@ -44,7 +37,7 @@ prior = (
           a = Uniform(-0.5, 0.5), b = Uniform(-0.5, 0.5),
           f = Uniform(0.0, 1.0),
           sig = Uniform((1.0), (60.0)),
-          asy = Uniform(0.0, 0.9),
+          asy = Uniform(0.25, 1.0),
           pa = Uniform(0.0, 1π),
           x = Uniform(-(80.0), (80.0)),
           y = Uniform(-(80.0), (80.0))
@@ -57,7 +50,7 @@ post = Posterior(lklhd, prior, model)
 # the unit hypercube
 tpost = asflat(post)
 ndim = dimension(tpost)
-f = OptimizationFunction(tpost, AutoForwardDiff())
+f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
 prob = OptimizationProblem(f, rand(ndim), nothing, lb=fill(-5.0, ndim), ub = fill(5.0, ndim))
 sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000)
 
@@ -76,7 +69,21 @@ plot(model(xopt), xlims=(-80.0,80.0),ylims=(-80.0,80.0), colorbar=nothing, title
 # Comrade is all about uncertainty quantification so now let's find the posterior!
 # To do this we will use the `AdvancedHMC` package or rather its interface to Comrade.
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric), 2000; nadapts=8000, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric), 4000; nadapts=2000, init_params=xopt)
+# chain has the MCMC chain and stats includes ancilliary information
+# Now we should check that the chain acutally mixed well. To do that we can compute the ESS
+using MCMCDiagnostics
+ess = [r=effective_sample_size(getproperty(chain, r)) for r in propertynames(chain)]
+# We can also calculate the split-rhat or potential scale reduction. For this we should actually
+# use at least 4 chains. However for demonstation purposes we will use one chain that we split in two
+rhats = NamedTuple{tuple(propertynames(chain))[1]}(map(propertynames(chain)) do n
+    c = getproperty(chain, n)
+    c1 = @view c[2001:3000]
+    c2 = @view c[3001:4000]
+    return potential_scale_reduction(c1, c2)
+end)
+# Ok we have a split-rhat < 1.01 on all parameters so we have success (in reality run more chains!).
+
 # Now let's find the mean image
 images = intensitymap.(model.(sample(chain, 200)), μas2rad(160.0), μas2rad(160.0), 256, 256)
 plot(mean(images), xlims=(-80.0, 80.0), ylims=(-80.0,80.0), colorbar=nothing, title="Mean M87")
