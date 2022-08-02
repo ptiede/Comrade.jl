@@ -71,7 +71,7 @@ Comrade.fouriermap
 Comrade.ModelImage
 Comrade.DFTAlg
 Comrade.DFTAlg(::Comrade.EHTObservation)
-Comrade.DFTAlg(::AbstractArray. ::AbstractArray)
+Comrade.DFTAlg(::AbstractArray, ::AbstractArray)
 Comrade.DFTAlg(::Comrade.ArrayConfiguration)
 Comrade.FFTAlg
 Comrade.FFTCache
