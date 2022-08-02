@@ -1,4 +1,5 @@
 using Distributions
+using Plots
 
 @testset "gains" begin
     _,vis, amp, lcamp, cphase = load_data()
@@ -34,6 +35,16 @@ using Distributions
 
     ga = fill(1.0, size(rand(gamp))...)
     gm = GainModel(gcache, ga, m)
+
+    c1 = caltable(gm)
+    c2 = caltable(gcache, ga)
+    c3 = caltable(amp, ga)
+
+    @test prod(skipmissing(Comrade.gmat(c3) .== Comrade.gmat(c1)))
+    @test prod(skipmissing(Comrade.gmat(c3) .== Comrade.gmat(c2)))
+    @test prod(skipmissing(Comrade.gmat(c2) .== Comrade.gmat(c1)))
+
+    plot(c3, layout=(3,3), size=(600,500))
 
     ac = arrayconfig(vis)
     cpac = arrayconfig(cphase)
