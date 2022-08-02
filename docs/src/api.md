@@ -20,6 +20,8 @@ Pages = ["api.md"]
 
 ```@docs
 Comrade.corrupt
+Comrade.CalTable
+Comrade.caltable
 Comrade.DesignMatrix
 Comrade.GainCache
 Comrade.GainCache(::Comrade.ScanTable)
