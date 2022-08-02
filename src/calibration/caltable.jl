@@ -15,24 +15,10 @@ struct CalTable{T,G<:AbstractVecOrMat}
 end
 
 """
-    caltable(g::GainCache, gains::AbstractVector)
-    caltable(g::GainCache, gains::AbstractMatrix, reduction=StatsBase.mean_and_std)
+    caltable(args...)
 
-Convert the GainCache `g` and recovered `gains` into a `CalTable` which satisfies the
-`Tables.jl` interface. This table is very similar to the `DataFrames` interface.
-
-# Example
-
-```julia
-ct = caltable(gcache, gains)
-
-# Access a particular station (here ALMA)
-ct[:AA]
-ct.AA
-
-# Access a the first row
-ct[1, :]
-```
+Creates a calibration table from a set of arguments. The specific arguments
+depend on what calibration you are applying.
 """
 function caltable end
 
