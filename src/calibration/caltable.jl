@@ -128,15 +128,14 @@ end
 
 @recipe function f(gt::CalTable; sites=stations(gt), datagains=false)
 
-    if sites == :all
-        sites = sites(gt)
-    end
-
-    if !datagains
-        plot_title --> "Model Gain Amp."
-    else
-        plot_title --> "Data Gain Amp."
-    end
+    @argcheck prod(sites .∈ Ref(stations(gt))) "passed site isn't in array\n"*
+                                                "sites:     $(sites)\n"*
+                                                "telescope: $(stations(gt))"
+    #if !datagains
+    #    plot_title --> "Model Gain Amp."
+    #else
+    #    plot_title --> "Data Gain Amp."
+    #end
     layout --> (length(sites), 1)
 
 
