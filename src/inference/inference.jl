@@ -1,4 +1,3 @@
-using TupleVectors
 using AbstractMCMC
 
 using AbstractDifferentiation

@@ -2,7 +2,7 @@ module ComradeAdaptMCMC
 
 using AdaptiveMCMC
 using Comrade
-using TupleVectors
+using TypedTables
 using AbstractMCMC
 
 export AdaptMCMC
@@ -95,9 +95,9 @@ function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::AdaptM
 
     stats = (logl = apt.D, state = apt.R, accexp = apt.accRWM, accswp=apt.accSW)
     if sampler.all_levels
-        chains = Tuple(TupleVector(transform.(Ref(post), eachcol(apt.allX[i]))) for i in eachindex(apt.allX))
+        chains = Tuple(Table(transform.(Ref(post), eachcol(apt.allX[i]))) for i in eachindex(apt.allX))
     else
-        chains = transform.(Ref(post), eachcol(apt.X)) |> TupleVector
+        chains = transform.(Ref(post), eachcol(apt.X)) |> Table
     end
     return chains, stats
 end
