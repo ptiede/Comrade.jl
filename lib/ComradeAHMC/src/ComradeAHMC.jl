@@ -5,7 +5,7 @@ using AbstractMCMC
 using Reexport
 @reexport using AdvancedHMC
 using Comrade
-using TupleVectors
+using TypedTables
 using ArgCheck: @argcheck
 using Random
 
@@ -121,7 +121,7 @@ is specified `nchains` random samples from the prior will be chosen for the star
 
 For possible `kwargs` please see the [`AdvancedHMC.jl docs`](https://github.com/TuringLang/AdvancedHMC.jl)
 
-This returns a tuple where the first element is `nchains` of `TupleVector`'s
+This returns a tuple where the first element is `nchains` of `TypedTable`'s
 each which contains the MCMC samples of one of the parallel chain and the second argument
 is a set of ancilliary information about each set of samples.
 
@@ -174,9 +174,9 @@ function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior,
 
     res = AbstractMCMC.sample(Random.GLOBAL_RNG, model, kernel, metric, adaptor, parallel, nsamples, nchains; init_params=θ0, chain_type=Array, kwargs...)
 
-    stats = [TupleVector(getproperty.(r, :stat)) for r in res]
+    stats = [Table(getproperty.(r, :stat)) for r in res]
     samples = [getproperty.(getproperty.(r, :z), :θ) for r in res]
-    chains = [TupleVector(transform.(Ref(tpost), s)) for s in samples]
+    chains = [Table(transform.(Ref(tpost), s)) for s in samples]
     return chains, stats
 
 end
@@ -197,7 +197,7 @@ is specified `nchains` random samples from the prior will be chosen for the star
 
 For possible `kwargs` please see the [`AdvancedHMC.jl docs`](https://github.com/TuringLang/AdvancedHMC.jl)
 
-This returns a tuple where the first element is a `TupleVector` of the MCMC samples in parameter space
+This returns a tuple where the first element is a `TypedTable` of the MCMC samples in parameter space
 and the second argument is a set of ancilliary information about the sampler.
 
 
@@ -230,10 +230,10 @@ function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior, sampler::AHMC,
 
     res = AbstractMCMC.sample(model, kernel, metric, adaptor, nsamples, args...; init_params=θ0, chain_type=Array, kwargs...)
 
-    stats = TupleVector(getproperty.(res, :stat))
+    stats = Table(getproperty.(res, :stat))
     samples = getproperty.(getproperty.(res, :z), :θ)
     chain = transform.(Ref(tpost), samples)
-    return TupleVector(chain), stats
+    return Table(chain), stats
 end
 
 

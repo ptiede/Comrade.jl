@@ -1,7 +1,7 @@
 name = "ComradeAHMC"
 uuid = "a4336a5c-78bc-4363-8a90-ce3fa9d3abe4"
 authors = ["Paul Tiede <ptiede91@gmail.com> and contributors"]
-version = "0.2.1"
+version = "0.2.2"
 
 [deps]
 AbstractDifferentiation = "c29ec348-61ec-40c8-8164-b8c60e9d9f3d"
@@ -11,7 +11,7 @@ ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
-TupleVectors = "615932cf-77b6-4358-adcd-5b7eba981d7e"
+TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
 
 [compat]
 AbstractDifferentiation = "0.4"
@@ -20,7 +20,7 @@ AdvancedHMC = "0.3"
 ArgCheck = "2"
 Comrade = "0.5, 0.6"
 Reexport = "1"
-TupleVectors = "0.1, 0.2"
+TypedTables = "1"
 julia = "1.7"
 
 [extras]

@@ -3,7 +3,7 @@ module ComradeDynesty
 using Comrade
 
 using AbstractMCMC
-using TupleVectors
+using TypedTables
 using Reexport
 
 @reexport using Dynesty
@@ -20,7 +20,7 @@ Sample the posterior `post` using `Dynesty.jl` `NestedSampler/DynamicNestedSampl
 The `args/kwargs`
 are forwarded to `Dynesty` for more information see its [docs](https://github.com/ptiede/Dynesty.jl)
 
-This returns a tuple where the first element are the weighted samples from dynesty in a TupleVector.
+This returns a tuple where the first element are the weighted samples from dynesty in a TypedTable.
 The second element includes additional information about the samples, like the log-likelihood,
 evidence, evidence error, and the sample weights.
 
@@ -39,13 +39,13 @@ function AbstractMCMC.sample(post::Comrade.TransformedPosterior,
     kw = delete!(Dict(kwargs), :init_params)
     res = sample(ℓ, identity, sampler, args...; kw...)
     samples, weights = res["samples"].T, exp.(res["logwt"].T .- res["logz"][end])
-    chain = transform.(Ref(post), eachcol(samples)) |> TupleVector
+    chain = transform.(Ref(post), eachcol(samples)) |> Table
     stats = (logl = res["logl"].T,
              logz = res["logz"][end],
              logzerr = res["logz"][end],
              weights = weights,
             )
-    return TupleVector(chain), stats
+    return Table(chain), stats
 end
 
 
