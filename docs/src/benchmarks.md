@@ -52,10 +52,11 @@ Therefore, for this test we found that `Comrade` was the fastest method in all t
 using Comrade
 using Distributions
 using BenchmarkTools
+using ForwardDiff
 
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits("SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 obs.add_scans()
 obs = obs.avg_coherent(0.0, scan_avg=true)
 amp = extract_amp(obs)
@@ -88,25 +89,23 @@ post = Posterior(lklhd, prior, model)
 tpost = asflat(post)
 
 # Transform to the unconstrained space
-x0 = transform(tpost, θ)
+x0 = inverse(tpost, θ)
 
 # Lets benchmark the posterior evaluation
 ℓ = logdensityof(tpost)
 @benchmark ℓ($x0)
 
 # Now we benchmark the gradient
-gℓ = ForwardDiff.gradient(ℓ, x0)
+gℓ = Comrade.make_pullback(ℓ, AD.ForwardDiffBackend())
 @benchmark gℓ($x0)
 ```
 
-### Python Code
+### eht-imaging Code
 
 ```julia
-using BenchmarkTools
-
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 obs.add_scans()
 obs = obs.avg_coherent(0.0, scan_avg=true)
 
@@ -230,5 +229,5 @@ gfobj = ehtim.modeling.modeling_utils.objgrad
 @benchmark fobj($pinit)
 
 # Now we benchmark the gradient
-@benchmark gfobj($x0)
+@benchmark gfobj($pinit)
 ```

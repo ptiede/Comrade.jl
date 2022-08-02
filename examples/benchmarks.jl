@@ -42,8 +42,10 @@ x0 = inverse(tpost, θ)
 @benchmark ℓ($x0)
 
 using ForwardDiff
-gℓ = Base.Fix1(ForwardDiff.gradient, ℓ)
+gℓ = Comrade.make_pullback(ℓ, AD.ForwardDiffBackend())
 @benchmark gℓ($x0)
+
+# Now we do the eht-imaging benchmarks
 
 meh = ehtim.model.Model()
 meh = meh.add_thick_mring(F0=θ.f,
