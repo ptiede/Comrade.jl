@@ -62,12 +62,12 @@ distamp = (AA = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1)
            )
 
-fovx = μas2rad(75.0)
+fovx = μas2rad(85.0)
 fovy = μas2rad(75.0)
-nx = 24
+nx = 16
 ny = floor(Int, fovy/fovx*nx)
 prior = (
-          c = ImageDirichlet(0.1, ny, nx),
+          c = ImageDirichlet(1.0, ny, nx),
           f = Uniform(0.2, 0.9),
           lgamp = Comrade.GainPrior(distamp, scantable(damp)),
         )
@@ -91,9 +91,9 @@ f = OptimizationFunction(tpost, Optimization.AutoZygote())
 ndim = dimension(tpost)
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, zeros(ndim), nothing)
+prob = OptimizationProblem(f, rand(ndim).-0.5, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(); maxiters=2_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
+sol = solve(prob, LBFGS(); maxiters=1000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 
 xopt = transform(tpost, sol)
 
@@ -102,8 +102,9 @@ residual(mms(xopt), damp)
 residual(mms(xopt), dcphase)
 plot(mms(xopt), fovx=fovx, fovy=fovy, title="MAP")
 
+# Let's also plot the gain curves
 gt = Comrade.caltable(mms(xopt))
-plot(gt, layout=(3,3), size=(600,500))
+plot(gt, ylims=:none, layout=(3,3), size=(600,500))
 
 using Measurements
 
@@ -111,6 +112,16 @@ using Measurements
 # now we sample using hmc
 metric = DiagEuclideanMetric(ndim)
 hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 500; nadapts=400, init_params=xopt)
+
+# Now plot the gain table with error bars
+gamps = exp.(hcat(hchain.lgamp...))
+mga = mean(gamps, dims=2)
+sga = std(gamps, dims=2)
+
+using Measurements
+gmeas = measurement.(mga, sga)
+ctable = caltable(mms.gcache, vec(gmeas))
+plot(ctable)
 
 # This takes about 1.75 hours on my laptop. Which isn't bad for a 575 dimensional model!
 
@@ -136,18 +147,3 @@ p2 = plot(simg./mimg,  title="Fractional Error")
 #   LIBM: libopenlibm
 #   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
 # ```
-
-
-ℓ = logdensityof(tpost)
-prob = OptimizationProblem(f, randn(ndim), nothing)
-sol = solve(prob, LBFGS(); maxiters=2_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
-
-xopt = transform(tpost, sol)
-
-residual(mms(xopt), damp)
-residual(mms(xopt), dcphase)
-
-plot(mms(xopt), fovx=fovxy, fovy=fovxy)
-
-metric = DenseEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 4000; nadapts=3000, init_params=xopt)

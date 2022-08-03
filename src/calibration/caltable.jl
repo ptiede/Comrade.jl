@@ -101,7 +101,7 @@ Base.getindex(gt::CalTable, n::Symbol) = getproperty(gt, n)
 
 Base.eltype(::CalTable{T,G}) where {T,G} = CalTableRow{T,G}
 Base.length(g::CalTable) = size(gmat(g),1)
-Base.iterate(m::CalTable, st=1) = st > length(m) ? nothing : (MatrixRow(st, m), st + 1)
+Base.iterate(m::CalTable, st=1) = st > length(m) ? nothing : (CalTableRow(st, m), st + 1)
 
 function Tables.getrow(g::CalTable, i::Int)
     return CalTableRow(i, g)
@@ -140,12 +140,12 @@ end
 
 
     size --> (350, 150*length(sites))
-    lims = extrema(filter(!ismissing, gmat(gt))).*1.1
-    if !datagains
-        ylims --> lims
-    else
-        ylims --> inv.(lims)[end:-1:begin]
-    end
+    #lims = extrema(filter(!ismissing, gmat(gt))).*1.1
+    #if !datagains
+    #    ylims --> lims
+    #else
+    #    ylims --> inv.(lims)[end:-1:begin]
+    #end
     for (i,s) in enumerate(sites)
         @series begin
             seriestype := :scatter
@@ -156,17 +156,17 @@ end
                 xguide --> "Time (UTC)"
             end
 
-            x := gt[:time]
+            T = nonmissingtype(eltype(gt[s]))
+            ind = Base.:!.(ismissing.(gt[s]))
+            x := gt[:time][ind]
             if !datagains
-                yy = gt[s]
+                yy = gt[s][ind]
             else
-                yy = inv.(gt[s])
+                yy = inv.(gt[s])[ind]
             end
 
             title --> string(s)
-
-            yy
-
+            T.(yy)
         end
     end
 end
