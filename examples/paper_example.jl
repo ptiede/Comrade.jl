@@ -12,7 +12,7 @@ using StatsBase
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-obs.add_scans()
+ obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
 obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true)
@@ -73,22 +73,20 @@ chain, stats = sample(post, AHMC(;metric), 4000; nadapts=2000, init_params=xopt)
 # chain has the MCMC chain and stats includes ancilliary information
 # Now we should check that the chain acutally mixed well. To do that we can compute the ESS
 using MCMCDiagnostics
-ess = [r=effective_sample_size(getproperty(chain, r)) for r in propertynames(chain)]
+using Tables
+ess = map(effective_sample_size, Tables.columns(chain))
 # We can also calculate the split-rhat or potential scale reduction. For this we should actually
 # use at least 4 chains. However for demonstation purposes we will use one chain that we split in two
-rhats = NamedTuple{tuple(propertynames(chain))[1]}(map(propertynames(chain)) do n
-    c = getproperty(chain, n)
+rhats = map(Tables.columns(chain)) do c
     c1 = @view c[2001:3000]
     c2 = @view c[3001:4000]
     return potential_scale_reduction(c1, c2)
-end)
+end
 # Ok we have a split-rhat < 1.01 on all parameters so we have success (in reality run more chains!).
 
 # Now let's find the mean image
 images = intensitymap.(model.(sample(chain, 200)), μas2rad(160.0), μas2rad(160.0), 256, 256)
 plot(mean(images), xlims=(-80.0, 80.0), ylims=(-80.0,80.0), colorbar=nothing, title="Mean M87")
-
-plot(mms(xopt), dcphase)
 
 # Computing information
 # ```
