@@ -9,6 +9,7 @@ using Plots
 using StatsBase
 using OptimizationOptimJL
 using RadioImagePriors
+using DistributionsAD
 
 # load eht-imaging we use this to load eht data
 load_ehtim()
@@ -31,19 +32,20 @@ struct GModel{C,G}
     gcache::G
     fovx::Float64
     fovy::Float64
-    npix::Int
-    function GModel(obs::Comrade.EHTObservation, fovx, fovy, npix)
-        buffer = IntensityMap(zeros(npix, npix), fovx, fovy, BSplinePulse{3}())
+    nx::Int
+    ny::Int
+    function GModel(obs::Comrade.EHTObservation, fovx, fovy, nx, ny)
+        buffer = IntensityMap(zeros(ny, nx), fovx, fovy, BSplinePulse{3}())
         cache = create_cache(DFTAlg(obs), buffer)
         gcache = GainCache(scantable(obs))
-        return new{typeof(cache), typeof(gcache)}(cache, gcache, fovx, fovy, npix)
+        return new{typeof(cache), typeof(gcache)}(cache, gcache, fovx, fovy, nx, ny)
     end
 end
 
 function (model::GModel)(θ)
     (;c, f, lgamp) = θ
     # Construct the image model
-    img = IntensityMap(f*c, model.fov, model.fov, BSplinePulse{3}())
+    img = IntensityMap(f*c, model.fovx, model.fovy, BSplinePulse{3}())
     m = modelimage(img, model.cache)
     # Now corrupt the model with Gains
     g = exp.(lgamp)
@@ -60,16 +62,18 @@ distamp = (AA = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1)
            )
 
-npix = 12
-fovxy = μas2rad(65.0)
+fovx = μas2rad(75.0)
+fovy = μas2rad(75.0)
+nx = 24
+ny = floor(Int, fovy/fovx*nx)
 prior = (
-          c = ImageDirichlet(0.5, npix, npix),
+          c = ImageDirichlet(0.1, ny, nx),
           f = Uniform(0.2, 0.9),
           lgamp = Comrade.GainPrior(distamp, scantable(damp)),
         )
 
 
-mms = GModel(damp, fovxy, npix)
+mms = GModel(damp, fovx, fovy, nx, ny)
 
 post = Posterior(lklhd, prior, mms)
 
@@ -87,7 +91,7 @@ f = OptimizationFunction(tpost, Optimization.AutoZygote())
 ndim = dimension(tpost)
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, randn(ndim), nothing)
+prob = OptimizationProblem(f, zeros(ndim), nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(); maxiters=2_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 
@@ -96,7 +100,7 @@ xopt = transform(tpost, sol)
 # Let's see how the fit looks
 residual(mms(xopt), damp)
 residual(mms(xopt), dcphase)
-plot(mms(xopt), fovx=fovxy, fovy=fovxy, title="MAP")
+plot(mms(xopt), fovx=fovx, fovy=fovy, title="MAP")
 
 gt = Comrade.caltable(mms(xopt))
 plot(gt, layout=(3,3), size=(600,500))
@@ -106,20 +110,20 @@ using Measurements
 
 # now we sample using hmc
 metric = DiagEuclideanMetric(ndim)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 4000; nadapts=3000, init_params=xopt)
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 500; nadapts=400, init_params=xopt)
 
 # This takes about 1.75 hours on my laptop. Which isn't bad for a 575 dimensional model!
 
 # Plot the mean image and standard deviation image
 using StatsBase
-samples = mms.(sample(hchain, 500))
-imgs = intensitymap.(samples, fovxy, fovxy, 96, 96)
+samples = mms.(sample(hchain, 50))
+imgs = intensitymap.(samples, fovx*1.1, fovy*1.1, 96, 96)
 
 mimg, simg = mean_and_std(imgs)
 
 p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)))
 p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)))
-p2 = plot(simg./mimg,  title="Fractional Error", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
+p2 = plot(simg./mimg,  title="Fractional Error")
 
 # Computing information
 # ```

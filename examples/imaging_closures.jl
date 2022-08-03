@@ -1,5 +1,5 @@
 using Pkg; Pkg.activate(@__DIR__)
-Pkg.add(url="https://github.com/ptiede/RadioImagePriors.jl")
+#Pkg.add(url="https://github.com/ptiede/RadioImagePriors.jl")
 using Comrade
 using Distributions
 using ComradeOptimization
@@ -58,8 +58,8 @@ mms = ImModel(dlcamp, fovxy, npix)
 # degenerate to total flux.
 prior = (c = ImageDirichlet(0.5, npix, npix),)
 
-lklhd = RadioLikelihood(mms, dlcamp, dcphase)
-post = Posterior(lklhd, prior)
+lklhd = RadioLikelihood(dlcamp, dcphase)
+post = Posterior(lklhd, prior, mms)
 
 # Transform from simplex space to the unconstrained
 tpost = asflat(post)
