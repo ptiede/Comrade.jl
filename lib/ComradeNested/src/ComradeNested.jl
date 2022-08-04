@@ -2,7 +2,7 @@ module ComradeNested
 
 using Comrade
 using AbstractMCMC
-using TupleVectors
+using TypedTables
 using Reexport
 
 @reexport using NestedSamplers
@@ -15,7 +15,7 @@ Comrade.samplertype(::Type{<:Nested}) = Comrade.IsCube()
 Sample the posterior `post` using `NestedSamplers.jl` `Nested` sampler. The `args/kwargs`
 are forwarded to `NestedSampler` for more information see its [docs](https://github.com/TuringLang/NestedSamplers.jl)
 
-This returns a tuple where the first element are the weighted samples from dynesty in a TupleVector.
+This returns a tuple where the first element are the weighted samples from NestedSamplers in a TypedTable.
 The second element includes additional information about the samples, like the log-likelihood,
 evidence, evidence error, and the sample weights.
 
@@ -33,7 +33,7 @@ function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::Nested
     samples, stats = sample(model, sampler, args...; chain_type=Array, kwargs...)
     weights = samples[:, end]
     chain = transform.(Ref(post), eachrow(samples[:,1:end-1]))
-    return TupleVector(chain), merge((;weights,), stats)
+    return Table(chain), merge((;weights,), stats)
 end
 
 end

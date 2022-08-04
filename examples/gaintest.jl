@@ -1,24 +1,22 @@
 using Pkg;Pkg.activate(@__DIR__)
 using Comrade
-using PyCall
 using Plots
-
 using ComradeAHMC
+using ComradeOptimization
+using OptimizationBBO
 
 load_ehtim()
-@pyimport eht_dmc as ed
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 obs.add_scans()
-
 obsavg = obs.avg_coherent(0.0, scan_avg=true)
 
+# Lets make a gaussian image
 img = ehtim.image.make_empty(512, μas2rad(250.0), obs.ra, obs.dec, obs.rf, obs.source)
 img = img.add_gauss(1.0, [μas2rad(40.0), μas2rad(30.0), π/3, 0.0, 0.0])
 
-obslist = obsavg.split_obs()
-
+# Set the gain priors
 gainoff = 0.0
 gainp = Dict("AA"=> 0.01,
              "AP" => 0.1,
@@ -27,91 +25,84 @@ gainp = Dict("AA"=> 0.01,
              "LM" => 0.2,
              "PV" => 0.1,
              "SM" => 0.1,
-             "SR" => 0.1)
-obsim = img.observe_same(ehtim.obsdata.merge_obs(obslist), ttype="fast",  gainp=gainp, gain_offset=gainoff, ampcal=false, phasecal=false, stabilize_scan_phase=true, stabilize_scan_amp=true)
+             "SP" => 0.1)
+obsim = img.observe_same(obsavg, ttype="fast",  gainp=gainp, gain_offset=gainoff, ampcal=false, phasecal=false, stabilize_scan_phase=true, stabilize_scan_amp=true)
 # now get cal table
 ctable = ehtim.calibrating.self_cal.self_cal(obsim, img, caltable=true)
-ehtim.caltable.save_caltable(ctable, obsim, datadir=joinpath(@__DIR__ ,"CaltableTest"))
+#ehtim.caltable.save_caltable(ctable, obsim, datadir=joinpath(@__DIR__ ,"CaltableTest"))
 
 
-dvis = extract_vis(obsim)
-dlcamp = extract_lcamp(obsim)
 dcphase = extract_cphase(obsim)
 damp = extract_amp(obsim)
-st = scantable(dvis)
+st = scantable(damp)
 
 gcache = Comrade.GainCache(st)
 
-struct Test{G}
+# Now create the Comrade Gain model
+struct Model{G}
     gcache::G
 end
 
-function Test(st::Comrade.ScanTable)
+function Model(st::Comrade.ScanTable)
     gcache = Comrade.GainCache(st)
-    return Test{typeof(gcache)}(gcache)
+    return Model{typeof(gcache)}(gcache)
 end
 
-function (mod::Test)(θ)
-    (;f, σ, τ, ξ,  gamp, gphase) = θ
-    g = exp.(gamp).*cis.(gphase)
+function (mod::Model)(θ)
+    (;f, σ, τ, ξ,  gamp) = θ
+    g = exp.(gamp)
     m = f*rotated(stretched(Gaussian(), σ*τ, σ), ξ)
     return GainModel(mod.gcache, g, m)
 end
 
 # define the priors
-distamp = (AA = Normal(0.0, 0.1),
+distamp = (AA = Normal(0.0, 0.01),
            AP = Normal(0.0, 0.1),
            LM = Normal(0.0, 0.2),
            AZ = Normal(0.0, 0.1),
            JC = Normal(0.0, 0.1),
            PV = Normal(0.0, 0.1),
-           #SM = LogNormal(0.0, 0.1)
+           SM = Normal(0.0, 0.1)
          )
-distphase = (AA = Normal(0.0, 1e-4),
-             AP = Normal(0.0, π),
-             LM = Normal(0.0, π),
-             AZ = Normal(0.0, 1.0*π),
-             JC = Normal(0.0, 1.0*π),
-             PV = Normal(0.0, π),
-             #SM = Normal(0.0, 1.0*π),
-             )
 prior = (
           f = Uniform(0.9, 1.1),
           σ = Uniform(μas2rad(10.0), μas2rad(30.0)),
           τ = Uniform(0.1, 1.0),
           ξ = Uniform(-π/2, π/2),
           gamp = Comrade.GainPrior(distamp, st),
-          gphase = Comrade.GainPrior(distphase, st)
         )
 # Now form the posterior
 
-mms  = Test(st)
+mms  = Model(st)
 
-cllklhd = RadioLikelihood(dlcamp, dcphase)
-clpost = Posterior(cllklhd, prior, mms)
-
-lklhd = RadioLikelihood(dvis)#damp, dcphase)
+lklhd = RadioLikelihood(damp, dcphase)
 post = Posterior(lklhd, prior, mms)
+
 tpost = asflat(post)
 # We will use HMC to sample the posterior.
 # First to reduce burn in we use pathfinder
 
 ndim = dimension(tpost)
-f = OptimizationFunction(tpost, GalacticOptim.AutoForwardDiff())
+f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
 x0 = Comrade.HypercubeTransform.inverse(tpost, rand(post.prior))
 
-prob = OptimizationProblem(f, x0, nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
-sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=1_000_000)
-
-prob = GalacticOptim.OptimizationProblem(f, 0.1*randn(ndim), nothing)
-sol = solve(prob, LBFGS(); g_tol=1e-2, maxiters=2_000)
+using OptimizationOptimJL
+prob = OptimizationProblem(f, 0.1*randn(ndim), nothing)
+sol = solve(prob, LBFGS(); g_tol=1e-5, maxiters=2_000)
 
 @info sol.minimum
 
 xopt = transform(tpost, sol)
 
-residual(mms(xopt), dvis)
+residual(mms(xopt), damp)
 
+plot(caltable(mms(xopt)), layout=(3,3), size=(600,500))
 
-metric = DenseEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric), 7_000; nadapts=5_000, init_params=xopt)
+# Compare the results for LMT
+ctab = caltable(mms(xopt))
+scatter(ctab[:time], inv.(ctab[:LM]),
+        label="Comrade", size=(400,300),
+        xlabel="Time (hr)",
+        ylabel="LMT Gain Amp.",
+        )
+scatter!(get(ctable.data["LM"], "time"), abs.(get(ctable.data["LM"], "rscale")), label="eht-imaging")

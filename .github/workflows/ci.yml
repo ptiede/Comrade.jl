@@ -19,6 +19,7 @@ jobs:
           - ComradeNested
         version:
           - '1.7'
+          - 'nightly'
         os:
           - ubuntu-latest
         arch:

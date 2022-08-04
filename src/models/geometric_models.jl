@@ -165,6 +165,13 @@ function MRing(a::Real, b::Real)
     return MRing([aT], [bT])
 end
 
+function MRing(a::Tuple, b::Tuple)
+    return MRing(collect(a), collect(b))
+end
+
+# Depreciate this method since we are moving to vectors for simplificty
+#@deprecate MRing(a::Tuple, b::Tuple) MRing(a::AbstractVector, b::AbstractVector)
+
 radialextent(::MRing) = 1.5
 
 
@@ -174,7 +181,7 @@ radialextent(::MRing) = 1.5
     dr = 0.025
     if (abs(r-1) < dr/2)
         acc = one(T)
-        for n in 1:N
+        for n in eachindex(m.α, m.β)
             s,c = sincos(n*θ)
             acc += m.α[n]*c - m.β[n]*s
         end

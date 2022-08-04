@@ -139,14 +139,51 @@ struct GainCache{D1<:DesignMatrix, D2<:DesignMatrix, T, S}
     stations::S
 end
 
+"""
+    caltable(obs::EHTObservation, gains::AbstractVector)
+
+Create a calibration table for the observations `obs` with `gains`. This returns
+a [`CalTable`](@ref) object that satisfies the
+`Tables.jl` interface. This table is very similar to the `DataFrames` interface.
+
+# Example
+
+```julia
+ct = caltable(obs, gains)
+
+# Access a particular station (here ALMA)
+ct[:AA]
+ct.AA
+
+# Access a the first row
+ct[1, :]
+```
+"""
 function caltable(obs::EHTObservation, gains::AbstractVector)
     st = scantable(obs)
     gcache = GainCache(st)
     return caltable(gcache, gains)
 end
 
+"""
+    caltable(g::GainCache, gains::AbstractVector)
 
+Convert the GainCache `g` and recovered `gains` into a `CalTable` which satisfies the
+`Tables.jl` interface. This table is very similar to the `DataFrames` interface.
 
+# Example
+
+```julia
+ct = caltable(gcache, gains)
+
+# Access a particular station (here ALMA)
+ct[:AA]
+ct.AA
+
+# Access a the first row
+ct[1, :]
+```
+"""
 function caltable(g::GainCache, gains::AbstractVector)
     @argcheck length(g.times) == length(gains)
 
@@ -211,7 +248,7 @@ end
 """
     caltable(g::GainModel)
 
-Compute the gain calibration table from the `GainModel` `g`. This will
+Compute the gain calibration table from the [`GainModel`](@ref) `g`. This will
 return a [`CalTable`](@ref) object, whose rows are different times,
 and columns are different telescopes.
 """

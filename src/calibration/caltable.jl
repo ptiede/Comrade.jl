@@ -15,24 +15,10 @@ struct CalTable{T,G<:AbstractVecOrMat}
 end
 
 """
-    caltable(g::GainCache, gains::AbstractVector)
-    caltable(g::GainCache, gains::AbstractMatrix, reduction=StatsBase.mean_and_std)
+    caltable(args...)
 
-Convert the GainCache `g` and recovered `gains` into a `CalTable` which satisfies the
-`Tables.jl` interface. This table is very similar to the `DataFrames` interface.
-
-# Example
-
-```julia
-ct = caltable(gcache, gains)
-
-# Access a particular station (here ALMA)
-ct[:AA]
-ct.AA
-
-# Access a the first row
-ct[1, :]
-```
+Creates a calibration table from a set of arguments. The specific arguments
+depend on what calibration you are applying.
 """
 function caltable end
 
@@ -115,7 +101,7 @@ Base.getindex(gt::CalTable, n::Symbol) = getproperty(gt, n)
 
 Base.eltype(::CalTable{T,G}) where {T,G} = CalTableRow{T,G}
 Base.length(g::CalTable) = size(gmat(g),1)
-Base.iterate(m::CalTable, st=1) = st > length(m) ? nothing : (MatrixRow(st, m), st + 1)
+Base.iterate(m::CalTable, st=1) = st > length(m) ? nothing : (CalTableRow(st, m), st + 1)
 
 function Tables.getrow(g::CalTable, i::Int)
     return CalTableRow(i, g)
@@ -142,15 +128,14 @@ end
 
 @recipe function f(gt::CalTable; sites=stations(gt), datagains=false)
 
-    if sites == :all
-        sites = sites(gt)
-    end
-
-    if !datagains
-        plot_title --> "Model Gain Amp."
-    else
-        plot_title --> "Data Gain Amp."
-    end
+    @argcheck prod(sites .∈ Ref(stations(gt))) "passed site isn't in array\n"*
+                                                "sites:     $(sites)\n"*
+                                                "telescope: $(stations(gt))"
+    #if !datagains
+    #    plot_title --> "Model Gain Amp."
+    #else
+    #    plot_title --> "Data Gain Amp."
+    #end
     layout --> (length(sites), 1)
 
 
@@ -161,10 +146,6 @@ end
     #else
     #    ylims --> inv.(lims)[end:-1:begin]
     #end
-    time = gt[:time]
-    xlims --> (time[begin]*0.99, time[end]*1.01)
-    #ylims --> extrema(filter(!ismissing, Measurements.value.(gmat(gt))))
-
     for (i,s) in enumerate(sites)
         @series begin
             seriestype := :scatter
@@ -175,19 +156,17 @@ end
                 xguide --> "Time (UTC)"
             end
 
-            inds = Base.:!.(ismissing.(gt[s]))
-
+            T = nonmissingtype(eltype(gt[s]))
+            ind = Base.:!.(ismissing.(gt[s]))
+            x := gt[:time][ind]
             if !datagains
-                yy = filter(!ismissing, gt[s])
+                yy = gt[s][ind]
             else
-                yy = inv.(filter(!ismissing, gt[s]))
+                yy = inv.(gt[s])[ind]
             end
 
             title --> string(s)
-
-            #x := gt[:,:time][inds]
-            #y :=
-            gt[:time][inds], nonmissingtype.(eltype(yy)).(yy)
+            T.(yy)
         end
     end
 end

@@ -20,6 +20,10 @@ Pages = ["api.md"]
 
 ```@docs
 Comrade.corrupt
+Comrade.CalTable
+Comrade.caltable(::Comrade.GainCache, ::AbstractVector)
+Comrade.caltable(::Comrade.EHTObservation, ::AbstractVector)
+Comrade.caltable(::Comrade.GainModel)
 Comrade.DesignMatrix
 Comrade.GainCache
 Comrade.GainCache(::Comrade.ScanTable)
@@ -71,7 +75,7 @@ Comrade.fouriermap
 Comrade.ModelImage
 Comrade.DFTAlg
 Comrade.DFTAlg(::Comrade.EHTObservation)
-Comrade.DFTAlg(::AbstractArray. ::AbstractArray)
+Comrade.DFTAlg(::AbstractArray, ::AbstractArray)
 Comrade.DFTAlg(::Comrade.ArrayConfiguration)
 Comrade.FFTAlg
 Comrade.FFTCache

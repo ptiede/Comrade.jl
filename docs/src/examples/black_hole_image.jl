@@ -144,7 +144,7 @@ plot(model(chain[end]), title="Random image", xlims=(-60.0,50.0), ylims=(-60.0,5
 
 # What about the mean image? Well let's grab 100 images from the chain
 meanimg = mean(intensitymap.(model.(sample(chain, 100)), μas2rad(120.0), μas2rad(120.0), 128, 128))
-plot(sqrt.(meanimg), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
+plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
@@ -159,6 +159,24 @@ residual(model(xopt), dlcamp)
 # In fact, this model is slightly too simple to explain the data.
 # Check out [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141)
 # for some ideas what features need to be added to the model to get a better fit!
+
+
+# For a real run we should also check that the MCMC chain has converged. For
+# this we can use MCMCDiagnostics
+using MCMCDiagnostics, Tables
+# First lets look at the effective sample size or ESS. This is important since
+# MCMC estimates converges as √ESS (for most problems).
+ess = map(effective_sample_size, Tables.columns(chain))
+# We can also calculate the split-rhat or potential scale reduction. For this we should actually
+# use at least 4 chains. However for demonstation purposes we will use one chain that we split in two
+rhats = map(Tables.columns(chain)) do c
+    c1 = @view c[1001:1500]
+    c2 = @view c[1501:2000]
+    return potential_scale_reduction(c1, c2)
+end
+# Ok we have a split-rhat < 1.01 on all parameters so we have success (in reality run more chains!).
+
+
 
 # Computing information
 # ```
