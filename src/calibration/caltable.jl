@@ -43,7 +43,11 @@ function Tables.schema(g::CalTable{T,G}) where {T,G}
 end
 
 Tables.columns(g::CalTable) = [scantimes(g) gmat(g)]
-Tables.getcolumn(g::CalTable, ::Type{T}, col::Int, nm::Symbol) where {T} = gmat(g)[:, col]
+function Tables.getcolumn(g::CalTable, ::Type{T}, col::Int, nm::Symbol) where {T}
+    (i == 1 || nm == :time) && return scantimes(g)
+    gmat(g)[:, col-1]
+end
+
 function Tables.getcolumn(g::CalTable, nm::Symbol)
     nm == :time && return scantimes(g)
     return gmat(g)[:, lookup(g)[nm]]
@@ -113,11 +117,13 @@ end
 
 
 function Tables.getcolumn(g::CalTableRow, ::Type, col::Int, nm::Symbol)
-    gmat(getfield(g, :source))[getfield(m, :row), col]
+    (col == 1 || nm == :time) && return scantimes(getfield(g, :source))[getfield(g, :row)]
+    gmat(getfield(g, :source))[getfield(g, :row), col-1]
 end
 
 function Tables.getcolumn(g::CalTableRow, i::Int)
-    gmat(getfield(g, :source))[getfield(g, :row), i]
+    (i==1) && return scantimes(getfield(g, :source))[getfield(g, :row)]
+    gmat(getfield(g, :source))[getfield(g, :row), i-1]
 end
 
 function Tables.getcolumn(g::CalTableRow, nm::Symbol)
