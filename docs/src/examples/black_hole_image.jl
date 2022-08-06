@@ -161,9 +161,9 @@ for i in 1:10
 end
 display(p)
 
-# We can also put everything onto a common scale and plot the normalized residuals.
+# Finally, we can also put everything onto a common scale and plot the normalized residuals.
 # The normalied residuals are the difference between the data
-# and the model, divided by the data's error
+# and the model, divided by the data's error:
 
 residual(model(xopt), dlcamp)
 
