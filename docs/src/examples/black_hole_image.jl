@@ -177,7 +177,6 @@ residual(model(xopt), dlcamp)
 using MCMCDiagnostics, Tables
 # First lets look at the effective sample size or ESS. This is important since
 # the Monte Carlo standard error for MCMC estimates is proportional to 1/√ESS (for some problems).
-# To for more precise estimates we need a larger ESS.
 ess = map(effective_sample_size, Tables.columns(chain))
 # We can also calculate the split-rhat or potential scale reduction. For this we should actually
 # use at least 4 chains. However for demonstation purposes we will use one chain that we split in two
