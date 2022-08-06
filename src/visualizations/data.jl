@@ -287,9 +287,14 @@ end
 end
 
 
-function χ²(m, data)
+function χ²(m, data::EHTObservation)
     return sum(abs2, last(residuals(m, data)))
 end
+
+function χ²(m, data::EHTObservation...)
+    return mapreduce(d->χ²(m, d), +, data)
+end
+
 
 function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityDatum}
     u = getdata(damp, :u)
