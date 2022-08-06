@@ -156,10 +156,9 @@ p = plot(dlcamp)
 uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
 for i in 1:10
     m = logclosure_amplitudes(model(chain[rand(1000:2000)]), arrayconfig(dlcamp))
-    println(maximum(m))
     scatter!(uva, m, color=:grey, label=:none, alpha=0.1)
 end
-display(p)
+p
 
 # Finally, we can also put everything onto a common scale and plot the normalized residuals.
 # The normalied residuals are the difference between the data
