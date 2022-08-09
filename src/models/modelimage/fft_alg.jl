@@ -245,3 +245,7 @@ end
 # function _visibilities(mimg::ModelImage{M, I, <:FFTCache}, u, v, args...) where {M,I}
 #     return visibility.(Ref(mimg), u, v, args...)
 # end
+
+@inline function visibility_point(mimg::ModelImage{M,I,<:FFTCache}, u, v) where {M,I}
+    return mimg.cache.sitp(u, v)
+end

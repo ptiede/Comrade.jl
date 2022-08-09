@@ -208,7 +208,7 @@ end
     end
 
     seriestype-->:scatter
-    amod = logclosure_amplitudes(m, u1, v1, u2, v2, u3, v3, u4, v4)
+    amod = logclosure_amplitudes(m, dlca.config)
     labels --> "Model"
     area,amod
 end
@@ -260,7 +260,7 @@ end
     end
 
     seriestype-->:scatter
-    amod = closure_phases(m, u1, v1, u2, v2, u3, v3)
+    amod = closure_phases(m, dcp.config)
     labels --> "Model"
     area,amod
 end

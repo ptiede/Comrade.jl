@@ -42,7 +42,8 @@ function Tables.schema(g::CalTable{T,G}) where {T,G}
     return Tables.Schema(nms, types)
 end
 
-Tables.columns(g::CalTable) = [scantimes(g) gmat(g)]
+
+Tables.columns(g::CalTable) = Tables.table([scantimes(g) gmat(g)]; header=Tables.columnnames(g))
 function Tables.getcolumn(g::CalTable, ::Type{T}, col::Int, nm::Symbol) where {T}
     (i == 1 || nm == :time) && return scantimes(g)
     gmat(g)[:, col-1]
@@ -51,6 +52,11 @@ end
 function Tables.getcolumn(g::CalTable, nm::Symbol)
     nm == :time && return scantimes(g)
     return gmat(g)[:, lookup(g)[nm]]
+end
+
+function Tables.getcolumn(g::CalTable, i::Int)
+    i==1 && return scantimes(g)
+    return gmat(g)[:, i-1]
 end
 
 function viewcolumn(gt::CalTable, nm::Symbol)
@@ -85,7 +91,7 @@ function Base.getindex(gt::CalTable, ::typeof(Base.:!) , nm::Symbol)
     getproperty(gt, nm)
 end
 
-function Base.getindex(gt, I::AbstractUnitRange, nm::Symbol)
+function Base.getindex(gt::CalTable, I::AbstractUnitRange, nm::Symbol)
     getproperty(gt, nm)[I]
 end
 

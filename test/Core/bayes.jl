@@ -8,8 +8,8 @@ load_ehtim()
 
 
 @testset "bayes" begin
-    _,_, _, amp, cphase = load_data()
-    lklhd = RadioLikelihood(amp, cphase)
+    _,vis, amp, lcamp, cphase = load_data()
+    lklhd = RadioLikelihood(lcamp, cphase)
 
     prior = test_prior()
 
@@ -54,6 +54,23 @@ load_ehtim()
     @test isapprox(-xopt.ξ2, π/6, atol=1e-3)
     @test isapprox(xopt.x, μas2rad(30.0), rtol=1e-3)
     @test isapprox(xopt.y, μas2rad(30.0), rtol=1e-3)
+
+    mopt = test_model(xopt)
+
+    @testset "Plot model" begin
+        plot(mopt, vis)
+        plot(mopt, amp)
+        plot(mopt, lcamp)
+        plot(mopt, cphase)
+    end
+
+    @testset "Plot residuals" begin
+        residual(mopt, vis)
+        residual(mopt, amp)
+        residual(mopt, lcamp)
+        residual(mopt, cphase)
+    end
+
 
 
 end
