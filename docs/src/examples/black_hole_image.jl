@@ -143,19 +143,30 @@ chain, stats = sample(post, AHMC(metric=DiagEuclideanMetric(ndim)), 2000; nadapt
 plot(model(chain[end]), title="Random image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
 
 # What about the mean image? Well let's grab 100 images from the chain
-meanimg = mean(intensitymap.(model.(sample(chain, 100)), μas2rad(120.0), μas2rad(120.0), 128, 128))
+meanimg = mean(intensitymap.(model.(sample(chain[1000:end], 100)), μas2rad(120.0), μas2rad(120.0), 128, 128))
 plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
 
-plot(model(xopt), dlcamp)
+plot(model(xopt), dlcamp, label="MAP")
 
-# or even better the residuals
+# We can also plot what many draws from the posterior look like
+p = plot(dlcamp)
+uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
+for i in 1:10
+    m = logclosure_amplitudes(model(chain[rand(1000:2000)]), arrayconfig(dlcamp))
+    scatter!(uva, m, color=:grey, label=:none, alpha=0.1)
+end
+p
+
+# Finally, we can also put everything onto a common scale and plot the normalized residuals.
+# The normalied residuals are the difference between the data
+# and the model, divided by the data's error:
 
 residual(model(xopt), dlcamp)
 
-# These residuals are a little ratty which suggests our model is missing some emission.
+# All of the diagnostic plots suggest that the model is missing some emission.
 # In fact, this model is slightly too simple to explain the data.
 # Check out [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141)
 # for some ideas what features need to be added to the model to get a better fit!
@@ -165,7 +176,7 @@ residual(model(xopt), dlcamp)
 # this we can use MCMCDiagnostics
 using MCMCDiagnostics, Tables
 # First lets look at the effective sample size or ESS. This is important since
-# MCMC estimates converges as √ESS (for most problems).
+# the Monte Carlo standard error for MCMC estimates is proportional to 1/√ESS (for some problems).
 ess = map(effective_sample_size, Tables.columns(chain))
 # We can also calculate the split-rhat or potential scale reduction. For this we should actually
 # use at least 4 chains. However for demonstation purposes we will use one chain that we split in two
