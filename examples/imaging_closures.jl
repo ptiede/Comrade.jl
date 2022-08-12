@@ -62,6 +62,8 @@ prior = (c = ImageDirichlet(1.0, ny, nx),)
 
 lklhd = RadioLikelihood(mms, dlcamp, dcphase)
 post = Posterior(lklhd, prior)
+lklhd = RadioLikelihood(mms, dlcamp, dcphase)
+post = Posterior(lklhd, prior)
 
 # Transform from simplex space to the unconstrained
 tpost = asflat(post)
@@ -74,7 +76,7 @@ ndim = dimension(tpost)
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 # randn(ndim) is a random initialization guess
 # nothing just says there are no additional arguments to the optimization function.
-prob = OptimizationProblem(f, -rand(ndim), nothing)
+prob = OptimizationProblem(f, randn(ndim), nothing)
 
 ℓ = logdensityof(tpost)
 # Find the best fit image! Using LBFGS optimizaer.
