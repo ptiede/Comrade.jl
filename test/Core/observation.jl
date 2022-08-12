@@ -74,16 +74,18 @@
     bispectra(m, u1, v1, u2, v2, u3, v3)
 
     @testset "RadioLikelihood" begin
-        lamp = RadioLikelihood(amp)
-        lcphase = RadioLikelihood(cphase)
-        llcamp = RadioLikelihood(lcamp)
-        lclose1 = RadioLikelihood(cphase, lcamp)
-        lclose2 = RadioLikelihood(lcamp, cphase)
 
         m = stretched(Gaussian(), μas2rad(20.0), μas2rad(20.0))
         logdensityof(lcphase, m)
         logdensityof(llcamp, m)
         logdensityof(lamp, m)
+
+        lamp = RadioLikelihood(m, amp)
+        lcphase = RadioLikelihood(m, cphase)
+        llcamp = RadioLikelihood(m, lcamp)
+        lclose1 = RadioLikelihood(m, cphase, lcamp)
+        lclose2 = RadioLikelihood(m, lcamp, cphase)
+
 
         @test logdensityof(lclose1,m) ≈ logdensityof(lclose2,m)
         @test logdensityof(lclose1,m ) ≈ logdensityof(lcphase, m) + logdensityof(llcamp, m)

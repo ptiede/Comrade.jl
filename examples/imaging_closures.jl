@@ -63,8 +63,8 @@ mms = Model(dlcamp, fovx, fovy, nx, ny)
 # degenerate to total flux.
 prior = (c = ImageDirichlet(1.0, ny, nx),)
 
-lklhd = RadioLikelihood(dlcamp, dcphase)
-post = Posterior(lklhd, prior, mms)
+lklhd = RadioLikelihood(mms, dlcamp, dcphase)
+post = Posterior(lklhd, prior)
 
 # Transform from simplex space to the unconstrained
 tpost = asflat(post)
@@ -77,7 +77,9 @@ ndim = dimension(tpost)
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 # randn(ndim) is a random initialization guess
 # nothing just says there are no additional arguments to the optimization function.
-prob = OptimizationProblem(f, -rand(ndim), nothing)
+prob = OptimizationProblem(f, randn(ndim), nothing)
+
+ℓ = logdensityof(tpost)
 # Find the best fit image! Using LBFGS optimizaer.
 sol = solve(prob, LBFGS(); maxiters=2_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 
@@ -98,7 +100,7 @@ hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 5000; n
 
 
 # Plot the mean image and standard deviation image
-using StatsBase
+ using StatsBase
 samples = mms.(sample(hchain, 500))
 imgs = intensitymap.(samples, fovx, fovy, 256, 256)
 

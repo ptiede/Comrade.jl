@@ -261,8 +261,8 @@ function intensitymap!(img::IntensityMap, model::GainModel, args...)
     return intensitymap!(img, model.model, args...)
 end
 
-function visibilities(model::GainModel, u::AbstractArray, v::AbstractArray)
-    vis = visibilities(model.model, u, v)
+function _visibilities(model::GainModel, u::AbstractArray, v::AbstractArray)
+    vis = _visibilities(model.model, u, v)
     return corrupt(vis, model.cache, model.gains)
 end
 
