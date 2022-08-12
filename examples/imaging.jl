@@ -22,7 +22,6 @@ obs = obs.avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.02)
 # extract log closure amplitudes and closure phases
 damp = extract_amp(obs)
 dcphase = extract_cphase(obs)
-lklhd = RadioLikelihood(damp, dcphase)
 
 # Build the Model. Here we we a struct to hold some caches
 # This will be useful to hold precomputed caches
@@ -77,20 +76,20 @@ prior = (
 
 
 mms = GModel(damp, fovx, fovy, nx, ny)
+lklhd = RadioLikelihood(mms, damp, dcphase)
 
-post = Posterior(lklhd, prior, mms)
+post = Posterior(lklhd, prior)
 
 tpost = asflat(post)
 
 # We will use HMC to sample the posterior.
 
-# Now lets zoom to the peak using LBFGS
 ndim = dimension(tpost)
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = OptimizationProblem(f, -rand(ndim) .- 0.5, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(); maxiters=1000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
+sol = solve(prob, LBFGS(); maxiters=2000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 
 xopt = transform(tpost, sol)
 

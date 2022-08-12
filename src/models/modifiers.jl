@@ -107,17 +107,8 @@ end
 end
 
 # function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
-#     ut = similar(u)
-#     vt = similar(v)
-#     T = typeof(scale_uv(m, 0.0, 0.0))
-#     scale = ones(T, size(ut))
-#     @inbounds for i in eachindex(u,v)
-#         up, vp, sp = apply_uv_transform(m, u[i], v[i], scale[i])
-#         ut[i] = up
-#         vt[i] = vp
-#         scale[i] = sp
-#     end
-#     return ut, vt, scale
+#     res = apply_uv_transform.(Ref(m), u, v, 1.0)
+#     return getindex.(res,1), getindex.(res,2), getindex.(res,3)
 # end
 
 # @inline function _visibilities(m::M, u::AbstractArray, v::AbstractArray, args...) {M<:AbstractModifier}
