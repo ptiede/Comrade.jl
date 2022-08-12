@@ -49,17 +49,22 @@ function (model::ImModel)(θ)
 end
 
 
-npix = 24
-fovxy = μas2rad(62.5)
+npix = 16
+fovxy = μas2rad(70.0)
 # Now we can feed in the array information to form the cache. We will be using a DFT since
 # it is efficient for so few pixels
 mms = ImModel(dlcamp, fovxy, npix)
 # We will use a Dirichlet prior to enforce that the flux sums to unity since closures are
 # degenerate to total flux.
-prior = (c = ImageDirichlet(0.5, npix, npix),)
+img = IntensityMap(zeros(npix,npix), fovxy, fovxy)
+xitr, yitr = Comrade.imagepixels(img)
+prior = (c = CenteredImage(xitr, yitr, μas2rad(1.0),
+            ImageDirichlet(1.0, npix, npix)
+            )
+            ,)
 
-lklhd = RadioLikelihood(dlcamp, dcphase)
-post = Posterior(lklhd, prior, mms)
+lklhd = RadioLikelihood(mms, dlcamp, dcphase)
+post = Posterior(lklhd, prior)
 
 # Transform from simplex space to the unconstrained
 tpost = asflat(post)
@@ -72,7 +77,7 @@ using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 # randn(ndim) is a random initialization guess
 # nothing just says there are no additional arguments to the optimization function.
-prob = OptimizationProblem(f, randn(ndim), nothing)
+prob = OptimizationProblem(f, -rand(ndim), nothing)
 
 ℓ = logdensityof(tpost)
 # Find the best fit image! Using LBFGS optimizaer.
@@ -94,7 +99,7 @@ hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 4000; n
 # This takes about 1.75 hours on my laptop. Which isn't bad for a 575 dimensional model!
 
 # Plot the mean image and standard deviation image
-using StatsBase
+ using StatsBase
 samples = mms.(sample(hchain, 500))
 imgs = intensitymap.(samples, fovxy, fovxy, 96, 96)
 

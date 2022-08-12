@@ -22,7 +22,6 @@ obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true).add_fractio
 # extract log closure amplitudes and closure phases
 damp = extract_amp(obs)
 dcphase = extract_cphase(obs)
-lklhd = RadioLikelihood(damp, dcphase)
 
 # Build the Model. Here we we a struct to hold some caches
 # This will be useful to hold precomputed caches
@@ -63,37 +62,36 @@ distamp = (AA = Normal(0.0, 0.1),
            )
 
 fovx = μas2rad(85.0)
-fovy = μas2rad(75.0)
+fovy = μas2rad(85.0)
 nx = 16
 ny = floor(Int, fovy/fovx*nx)
-prior = (
-          c = ImageDirichlet(1.0, ny, nx),
+img = IntensityMap(zeros(ny,nx), fovx, fovy)
+xitr, yitr = Comrade.imagepixels(img)
+prior = (c = CenteredImage(xitr, yitr, μas2rad(0.1),
+            ImageDirichlet(1.0, ny, nx)),
           f = Uniform(0.2, 0.9),
           lgamp = Comrade.GainPrior(distamp, scantable(damp)),
         )
 
 
 mms = GModel(damp, fovx, fovy, nx, ny)
+lklhd = RadioLikelihood(mms, damp, dcphase)
 
-post = Posterior(lklhd, prior, mms)
+post = Posterior(lklhd, prior)
 
 tpost = asflat(post)
 
-# We will use HMC to sample the posterior.
-# First to get in the right ballpark we will use `BlackBoxOptim.jl`
-ndim = dimension(tpost)
-using Zygote
-f = OptimizationFunction(tpost, Optimization.AutoZygote())
-#prob = OptimizationProblem(f, rand(ndim), nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
-#sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=1000_000)
 
-# Now lets zoom to the peak using LBFGS
 ndim = dimension(tpost)
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, rand(ndim).-0.5, nothing)
+#x0 = intensitymap(stretched(Gaussian(), fovx/2.5, fovy/2.5), fovx, fovy, nx, ny)
+#y0 = inverse(tpost.transform.transformations.c , x0)
+#p0 = randn(ndim)
+#p0[begin:length(y0)] .= y0
+prob = OptimizationProblem(f, sol.u, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(); maxiters=1000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
+sol = solve(prob, LBFGS(); maxiters=2000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 
 xopt = transform(tpost, sol)
 
@@ -110,8 +108,8 @@ using Measurements
 
 
 # now we sample using hmc
-metric = DiagEuclideanMetric(ndim)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 500; nadapts=400, init_params=xopt)
+metric = DenseEuclideanMetric(ndim)
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 6000; nadapts=4000, init_params=xopt)
 
 # Now plot the gain table with error bars
 gamps = exp.(hcat(hchain.lgamp...))
