@@ -147,6 +147,8 @@ end
 # function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
 #     res = apply_uv_transform.(Ref(m), u, v, 1.0)
 #     return getindex.(res,1), getindex.(res,2), getindex.(res,3)
+#     res = apply_uv_transform.(Ref(m), u, v, 1.0)
+#     return getindex.(res,1), getindex.(res,2), getindex.(res,3)
 # end
 
 # @inline function _visibilities(m::M, p) {M<:AbstractModifier}

@@ -69,6 +69,7 @@ metadata = (;cache, fovx, fovy, gcache)
 lklhd = RadioLikelihood(model, metadata, damp, dcphase)
 
 post = Posterior(lklhd, prior)
+post = Posterior(lklhd, prior)
 
 tpost = asflat(post)
 
