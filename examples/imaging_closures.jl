@@ -77,7 +77,7 @@ ndim = dimension(tpost)
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 # randn(ndim) is a random initialization guess
 # nothing just says there are no additional arguments to the optimization function.
-prob = OptimizationProblem(f, randn(ndim), nothing)
+prob = OptimizationProblem(f, -rand(ndim), nothing)
 
 ℓ = logdensityof(tpost)
 # Find the best fit image! Using LBFGS optimizaer.
