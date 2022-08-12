@@ -83,12 +83,18 @@
         lclose1 = RadioLikelihood(f, cphase, lcamp)
         lclose2 = RadioLikelihood(f, lcamp, cphase)
 
-        θ = NamedTuple{()}(())
-        @test logdensityof(lclose1,θ) ≈ logdensityof(lclose2, θ)
-        @test logdensityof(lclose1, θ ) ≈ logdensityof(lcphase, θ) + logdensityof(llcamp, θ)
-        @inferred logdensityof(lclose1, θ)
-        @inferred logdensityof(lclose2, θ)
-        @inferred logdensityof(lamp, θ)
+        lamp = RadioLikelihood(m, amp)
+        lcphase = RadioLikelihood(m, cphase)
+        llcamp = RadioLikelihood(m, lcamp)
+        lclose1 = RadioLikelihood(m, cphase, lcamp)
+        lclose2 = RadioLikelihood(m, lcamp, cphase)
+
+
+        @test logdensityof(lclose1,m) ≈ logdensityof(lclose2,m)
+        @test logdensityof(lclose1,m ) ≈ logdensityof(lcphase, m) + logdensityof(llcamp, m)
+        @inferred logdensityof(lclose1, m)
+        @inferred logdensityof(lclose2, m)
+        @inferred logdensityof(lamp, m)
 
     end
 
