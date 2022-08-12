@@ -51,11 +51,8 @@ function (model::Model)(θ)
 end
 
 
-fovx = μas2rad(65.0)
-fovy = μas2rad(65.0)
-psize = μas2rad(5.0)
-nx = nextprod((2,4,6,8,10), fovx÷psize)
-ny = nextprod((2,4,6,8,10), fovy÷psize)
+npix = 16
+fovxy = μas2rad(70.0)
 # Now we can feed in the array information to form the cache. We will be using a DFT since
 # it is efficient for so few pixels
 mms = Model(dlcamp, fovx, fovy, nx, ny)
