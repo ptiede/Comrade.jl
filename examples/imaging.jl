@@ -66,7 +66,6 @@ fovx = μas2rad(80.0)
 fovy = μas2rad(80.0)
 nx = 10
 ny = floor(Int, fovy/fovx*nx)
-xitr, yitr = Comrade.imagepixels(fovx, fovy, nx, ny)
 prior = (
           c = ImageDirichlet(1.0, nx, ny),
           f = Uniform(0.5, 0.9),
