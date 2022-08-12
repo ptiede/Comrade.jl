@@ -139,7 +139,7 @@ If you want to compute a single visibility you should call [`visibility`](@ref v
 """
 @inline function visibilities(m, ac::ArrayConfiguration)
     u, v = getuv(ac)
-    return visibilities(m, u, v)
+    return _visibilities(m, u, v)
 end
 
 """
@@ -156,14 +156,14 @@ end
 
 # Internal function required for dispatch. This is a fallback method if
 # visibilities doesn't have a direct implementation.
-@inline function _visibilities(m, u::AbstractArray, v::AbstractArray, args...)
-    _visibilities_fallback(m, u, v, args...)
+@inline function _visibilities(m, u::AbstractArray, v::AbstractArray)
+    _visibilities_fallback(m, u, v)
 end
 
-function _visibilities_fallback(m, u::AbstractArray, v::AbstractArray, args...)
+function _visibilities_fallback(m, u::AbstractArray, v::AbstractArray)
     #vm(u,v) = visibility(m, u, v)
     #return map(vm, u, v)
-    return visibility_point.(Ref(m), u, v, args...)
+    return visibility_point.(Ref(m), u, v)
 end
 
 

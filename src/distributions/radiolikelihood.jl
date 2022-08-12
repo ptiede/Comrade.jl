@@ -3,7 +3,7 @@ export RadioLikelihood, logdensityof, MultiRadioLikelihood
 using LinearAlgebra
 
 """
-    RadioLikelihood(data1, data2, ...)
+    RadioLikelihood(model, data1, data2, ...)
 
 Forms a radio likelihood from a set of data products. These data products must share
 the same array data/configuration. If you want to form a likelihood from multiple arrays
@@ -16,17 +16,18 @@ such as when fitting different wavelengths or days, you can combine them using
 julia> RadioLikelihood(dcphase1, dlcamp1)
 ```
 """
-struct RadioLikelihood{T,A} <: MB.AbstractMeasure
+struct RadioLikelihood{M,T,A} <: MB.AbstractMeasure
+    model::M
     lklhds::T
     ac::A
 end
 
 
-function RadioLikelihood(data::EHTObservation...)
+function RadioLikelihood(model, data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
     #@argcheck acs[1] == acs[2]
-    RadioLikelihood{typeof(ls), typeof(acs[1])}(ls, acs[1])
+    RadioLikelihood{typeof(model), typeof(ls), typeof(acs[1])}(model, ls, acs[1])
 end
 
 """
@@ -51,8 +52,8 @@ function MB.logdensityof(lklhds::MultiRadioLikelihood, m)
 end
 
 
-function RadioLikelihood(data::MT.Likelihood...)
-    return RadioLikelihood{typeof(data), Nothing}(data, nothing)
+function RadioLikelihood(model, data::MT.Likelihood...)
+    return RadioLikelihood{typeof(model), typeof(data), Nothing}(model, data, nothing)
 end
 
 
@@ -93,13 +94,14 @@ phase(vis::AbstractArray{<:Complex}) = angle.(vis)
 
 
 
-function MB.logdensityof(d::RadioLikelihood, m::ComradeBase.AbstractModel)
+function MB.logdensityof(d::RadioLikelihood, θ::NamedTuple)
     ac = d.ac
+    m = d.model(θ)
     vis = visibilities(m, ac)
-    return logdensityof(d, vis)
+    return _logdensityofvis(d, vis)
 end
 
-function MB.logdensityof(d::RadioLikelihood, vis::AbstractArray)
+function _logdensityofvis(d::RadioLikelihood, vis::AbstractArray)
     # We use a for loop here since Zygote plays nice with this
     acc = logdensityof(first(d.lklhds), vis)
     @inbounds for l in d.lklhds[begin+1:end]

@@ -7,10 +7,9 @@ using HypercubeTransform
 using TransformVariables
 using ValueShapes: NamedTupleDist
 
-struct Posterior{L,P,F}
+struct Posterior{L,P}
     lklhd::L
     prior::P
-    model::F
 end
 
 """
@@ -35,8 +34,8 @@ where `post::Posterior`.
 
 To generate random draws from the prior see the [`prior_sample`](@ref prior_sample) function.
 """
-function Posterior(lklhd, prior::NamedTuple, model)
-    return Posterior(lklhd, NamedTupleDist(prior), model)
+function Posterior(lklhd, prior::NamedTuple)
+    return Posterior(lklhd, NamedTupleDist(prior))
 end
 
 @inline DensityInterface.DensityKind(::Posterior) = DensityInterface.IsDensity()
@@ -44,8 +43,7 @@ end
 function DensityInterface.logdensityof(post::Posterior, x)
     pr = logdensityof(post.prior, x)
     !isfinite(pr) && return -Inf
-    vis = post.model(x)
-    return logdensityof(post.lklhd, vis) + pr
+    return logdensityof(post.lklhd, x) + pr
 end
 
 """
@@ -190,7 +188,7 @@ function DensityInterface.logdensityof(tpost::TransformedPosterior{P, T}, x::Abs
     end
     p = transform(tpost.transform, x)
     post = tpost.lpost
-    return logdensityof(post.lklhd, post.model(p))
+    return logdensityof(post.lklhd, p)
 end
 
 struct FlatTransform{T}
