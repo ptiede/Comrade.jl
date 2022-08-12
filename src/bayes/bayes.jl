@@ -10,6 +10,7 @@ using ValueShapes: NamedTupleDist
 struct Posterior{L,P}
     lklhd::L
     prior::P
+    model::F
 end
 
 """
