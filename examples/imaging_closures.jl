@@ -58,10 +58,13 @@ fovxy = μas2rad(70.0)
 mms = Model(dlcamp, fovx, fovy, nx, ny)
 # We will use a Dirichlet prior to enforce that the flux sums to unity since closures are
 # degenerate to total flux.
-prior = (c = ImageDirichlet(1.0, ny, nx),)
+img = IntensityMap(zeros(npix,npix), fovxy, fovxy)
+xitr, yitr = Comrade.imagepixels(img)
+prior = (c = CenteredImage(xitr, yitr, μas2rad(1.0),
+            ImageDirichlet(1.0, npix, npix)
+            )
+            ,)
 
-lklhd = RadioLikelihood(mms, dlcamp, dcphase)
-post = Posterior(lklhd, prior)
 lklhd = RadioLikelihood(mms, dlcamp, dcphase)
 post = Posterior(lklhd, prior)
 
