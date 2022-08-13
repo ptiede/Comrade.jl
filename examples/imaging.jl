@@ -18,7 +18,7 @@ obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_net
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.02)
+obs = obs.avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.02)
 # extract log closure amplitudes and closure phases
 damp = extract_amp(obs)
 dcphase = extract_cphase(obs)
@@ -43,32 +43,35 @@ struct GModel{C,G}
 end
 
 function (model::GModel)(θ)
-    (;c, f, lgamp) = θ
+    (;c, f, fg, lgamp) = θ
     # Construct the image model
     img = IntensityMap(f*c, model.fovx, model.fovy, BSplinePulse{3}())
     m = modelimage(img, model.cache)
+    gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
     g = exp.(lgamp)
-    Comrade.GainModel(model.gcache, g, m)
+    Comrade.GainModel(model.gcache, g, m+gaussian)
 end
 
 # First we define the station gain priors
 distamp = (AA = Normal(0.0, 0.1),
            AP = Normal(0.0, 0.1),
-           LM = Normal(0.0, 0.9),
+           LM = Normal(-0.5, 0.9),
            AZ = Normal(0.0, 0.1),
            JC = Normal(0.0, 0.1),
            PV = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1)
            )
 
-fovx = μas2rad(85.0)
+fovx = μas2rad(75.0)
 fovy = μas2rad(75.0)
 nx = 16
 ny = floor(Int, fovy/fovx*nx)
+xitr, yitr = Comrade.imagepixels(fovx, fovy, nx, ny)
 prior = (
           c = ImageDirichlet(1.0, ny, nx),
           f = Uniform(0.2, 0.9),
+          fg = Uniform(0.0, 1.0),
           lgamp = Comrade.GainPrior(distamp, scantable(damp)),
         )
 
@@ -80,18 +83,12 @@ post = Posterior(lklhd, prior, mms)
 tpost = asflat(post)
 
 # We will use HMC to sample the posterior.
-# First to get in the right ballpark we will use `BlackBoxOptim.jl`
-ndim = dimension(tpost)
-using Zygote
-f = OptimizationFunction(tpost, Optimization.AutoZygote())
-#prob = OptimizationProblem(f, rand(ndim), nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
-#sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=1000_000)
 
 # Now lets zoom to the peak using LBFGS
 ndim = dimension(tpost)
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, rand(ndim).-0.5, nothing)
+prob = OptimizationProblem(f, -rand(ndim) .- 0.5, nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(); maxiters=1000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 
@@ -111,7 +108,7 @@ using Measurements
 
 # now we sample using hmc
 metric = DiagEuclideanMetric(ndim)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 500; nadapts=400, init_params=xopt)
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 5000; nadapts=4000, init_params=xopt)
 
 # Now plot the gain table with error bars
 gamps = exp.(hcat(hchain.lgamp...))
@@ -128,7 +125,7 @@ plot(ctable)
 # Plot the mean image and standard deviation image
 using StatsBase
 samples = mms.(sample(hchain, 50))
-imgs = intensitymap.(samples, fovx*1.1, fovy*1.1, 96, 96)
+imgs = intensitymap.(samples, fovx, fovy, 96, 96)
 
 mimg, simg = mean_and_std(imgs)
 
