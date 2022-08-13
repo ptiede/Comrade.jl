@@ -158,6 +158,7 @@ end
     #else
     #    ylims --> inv.(lims)[end:-1:begin]
     #end
+    xlims --> (gt[:time][begin], gt[:time][end])
     for (i,s) in enumerate(sites)
         @series begin
             seriestype := :scatter

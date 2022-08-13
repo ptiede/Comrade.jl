@@ -96,15 +96,15 @@ function transform_uv end
 
 
 
-# @inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number, scale::Number)
-#     ut, vt = transform_uv(m, u, v)
-#     scale *= scale_uv(m, u, v)
-#     return apply_uv_transform(basemodel(m), ut, vt, scale)
-# end
+@inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number, scale::Number)
+    ut, vt = transform_uv(m, u, v)
+    scale *= scale_uv(m, u, v)
+    return apply_uv_transform(basemodel(m), ut, vt, scale)
+end
 
-# @inline function apply_uv_transform(::AbstractModel, u::Number, v::Number, scale::Number)
-#     return u, v, scale
-# end
+@inline function apply_uv_transform(::AbstractModel, u::Number, v::Number, scale::Number)
+    return u, v, scale
+end
 
 # function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
 #     ut = similar(u)
@@ -124,10 +124,10 @@ function transform_uv end
 #     return _visibilities(visanalytic(M), m, u, v, args...)
 # end
 
-# @inline function _visibilities(::NotAnalytic, m::AbstractModifier, u::AbstractArray, v::AbstractArray, args...)
-#     ut, vt, scales = apply_uv_transform(m, u, v)
-#     scales.*visibilities(unmodified(m), ut, vt, args...)
-# end
+@inline function _visibilities(m::AbstractModifier, u::AbstractArray, v::AbstractArray, args...)
+    mod = apply_uv_transform.(Ref(m), u, v, 1.0)
+    last.(mod).*visibilities(unmodified(m), first.(mod), getindex.(mod,2), args...)
+end
 
 
 # I need some special pass-throughs for the non-analytic FFT transform
