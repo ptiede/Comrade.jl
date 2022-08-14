@@ -158,7 +158,7 @@ end
     #else
     #    ylims --> inv.(lims)[end:-1:begin]
     #end
-    xlims --> (gt[:time][begin], gt[:time][end])
+    xlims --> (gt[:time][begin], gt[:time][end] + 0.01*abs(gt[:time][end]))
     for (i,s) in enumerate(sites)
         @series begin
             seriestype := :scatter
@@ -171,7 +171,7 @@ end
 
             T = nonmissingtype(eltype(gt[s]))
             ind = Base.:!.(ismissing.(gt[s]))
-            x := gt[:time][ind]
+            #x := gt[:time][ind]
             if !datagains
                 yy = gt[s][ind]
             else
@@ -179,7 +179,7 @@ end
             end
 
             title --> string(s)
-            T.(yy)
+            gt[:time][ind], T.(yy)
         end
     end
 end
