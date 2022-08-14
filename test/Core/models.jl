@@ -45,6 +45,33 @@ function testft(m, npix=256, atol=1e-4)
     GC.gc()
 end
 
+@testset "Moments" begin
+    img = IntensityMap(zeros(512, 512), 30.0, 30.0)
+    m1 = Gaussian()
+    intensitymap!(img, m1)
+    @test isapprox(centroid(img)[1], 0.0, atol=1e-5)
+    @test isapprox(centroid(img)[2], 0.0, atol=1e-5)
+
+    I = inertia(img)
+    I2 = inertia(img; center=false)
+    @test isapprox(I, [1.0 0.0; 0.0 1.0], atol=1e-5)
+    @test I ≈ I2
+
+    m2 = shifted(m1, 1.0, 1.0)
+    intensitymap!(img, m2)
+    @test isapprox(centroid(img)[1], 1.0, atol=1e-5)
+    @test isapprox(centroid(img)[2], 1.0, atol=1e-5)
+    @test isapprox(inertia(img), I, atol=1e-5)
+
+    m3 = stretched(m1, 2.0, 1.0)
+    intensitymap!(img, m3)
+    @test isapprox(centroid(img)[1], 0.0, atol=1e-5)
+    @test isapprox(centroid(img)[2], 0.0, atol=1e-5)
+    I3 = inertia(img)
+    @test isapprox(I3, [4.0 0.0; 0.0 1.0], atol=1e-5)
+
+end
+
 
 @testset "FFTTest" begin
     @testset "Base" begin
