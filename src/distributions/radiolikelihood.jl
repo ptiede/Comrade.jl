@@ -47,6 +47,14 @@ end
 
 MultiRadioLikelihood(lklhds::RadioLikelihood...) = MultiRadioLikelihood(lklhds)
 
+function Base.show(io::IO, d::MultiRadioLikelihood)
+    println(io, "MultiRadioLikelihood: ")
+    println(io, "  Number of obs: ", length(d.lklhds))
+    for l in d.lklhds
+        print(io, "\t", l)
+    end
+end
+
 function MB.logdensityof(lklhds::MultiRadioLikelihood, m)
     sum(Base.Fix2(logdensityof, m), lklhds.lklhds)
 end
@@ -58,7 +66,7 @@ end
 
 
 function Base.show(io::IO, d::RadioLikelihood{T}) where {T}
-    println(io, "RadioLikelihood{$T}")
+    println(io, "RadioLikelihood")
     println(io, "\tNumber of data products: ", length(d.lklhds))
 end
 
