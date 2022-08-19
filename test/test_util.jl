@@ -1,7 +1,7 @@
 function load_data()
     obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "test_data.uvfits"))
     obs.add_scans()
-    obsavg = obs.avg_coherent(0.0, scan_avg=true)
+    obsavg = scan_average(obs)
 
     m = ehtim.model.Model()
     m = m.add_gauss(1.0, μas2rad(40.0), μas2rad(20.0), π/3, 0.0, 0.0)

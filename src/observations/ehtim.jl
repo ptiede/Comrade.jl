@@ -1,4 +1,5 @@
-export extract_amp, extract_vis, extract_lcamp, extract_cphase
+export extract_amp, extract_vis, extract_lcamp, extract_cphase, scan_average
+using PyCall: set!
 
 function getvisfield(obs)
     obsamps = obs.data::PyObject
@@ -453,6 +454,34 @@ function minimal_cphase(obsc; kwargs...)
                           bandwidth=bw, frequency=rf,
                           source = source,
                         )
+end
+
+"""
+    scan_average(obs; homogenize=true)
+
+This homogenizes the scan times for an eht-imaging `Obsdata` object. This is needed
+because eht-imaging has a bug that will sometimes create very small scans and
+this can mess up both the closure construction and the gain scan times.
+Note that this is only a problem if we
+are fitting **scan averaged** data.
+"""
+function scan_average(obs)
+    obsc = obs.copy()
+    obsc.add_scans()
+    obsc = obsc.avg_coherent(0.0, scan_avg=true)
+    stimes = obsc.scans
+    times = get(obsc.data, "time")
+    @info "Before homogenizing we have $(length(unique(times))) unique times"
+
+    for r in eachrow(stimes)
+        sbegin, send = r
+        indices = findall(x-> (sbegin < x <= send), times)
+        times[indices] .= (send+sbegin)/2
+    end
+    set!(obsc.data, "time", times)
+    @info "After homogenizing we have $(length(unique(times))) unique times"
+
+    return obsc
 end
 
 

@@ -16,7 +16,7 @@ obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_net
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.01)
+obs = scan_average(obs.flag_uvdist(uv_min=0.1e9)).add_fractional_noise(0.01)
 # extract log closure amplitudes and closure phases
 dlcamp = extract_lcamp(obs)
 dcphase = extract_cphase(obs)

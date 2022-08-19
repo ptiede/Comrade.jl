@@ -6,7 +6,7 @@ using ComradeOptimization
 using ComradeAHMC
 using OptimizationBBO
 using OptimizationOptimJL
-
+using Zygote
 using Plots
 using StatsBase
 using RadioImagePriors
@@ -18,95 +18,99 @@ obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_net
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.02)
+obs = scan_average(obs).add_fractional_noise(0.02)
 # extract log closure amplitudes and closure phases
 dlcamp = extract_lcamp(obs)
 dcphase = extract_cphase(obs)
+damp = extract_amp(obs)
 
 # Build the Model. Here we we a struct to hold some caches
 # which will speed up imaging
-struct ImModel{C}
+struct Model{C}
     cache::C
-    fov::Float64
-    npix::Int
-    function ImModel(obs::Comrade.EHTObservation, fov::Real, npix::Int)
-        buffer = IntensityMap(zeros(npix, npix), fov, fov, BSplinePulse{3}())
-        cache = create_cache(DFTAlg(obs), buffer)
-        return new{typeof(cache)}(cache, fov, npix)
+    fovx::Float64
+    fovy::Float64
+    nx::Int
+    ny::Int
+    function Model(obs::Comrade.EHTObservation, fovx, fovy, nx, ny)
+        buffer = IntensityMap(zeros(ny, nx), fovx, fovy, BSplinePulse{3}())
+        cache = create_cache(NFFTAlg(obs), buffer)
+        return new{typeof(cache)}(cache, fovx, fovy, nx, ny)
     end
-
 end
 
 # For our model we will be using a rasterized image. This can be viewed as something like a
 # non-parametric model. As a result of this we will need to use a `modelimage` object to
 # store cache information we will need to compute the numerical FT.
-function (model::ImModel)(θ)
+function (model::Model)(θ)
     (;c) = θ
     #Construct the image model
-    img = IntensityMap(c, model.fov, model.fov, BSplinePulse{3}())
+    img = IntensityMap(c, model.fovx, model.fovy, BSplinePulse{3}())
     #Create the modelimage object that will use a cache to compute the DFT
-    m = modelimage(img, model.cache)
+    return modelimage(img, model.cache)
 end
 
 
-npix = 24
-fovxy = μas2rad(62.5)
+fovx = μas2rad(65.0)
+fovy = μas2rad(65.0)
+psize = μas2rad(5.0)
+nx = nextprod((2,4,6,8,10), fovx÷psize)
+ny = nextprod((2,4,6,8,10), fovy÷psize)
 # Now we can feed in the array information to form the cache. We will be using a DFT since
 # it is efficient for so few pixels
-mms = ImModel(dlcamp, fovxy, npix)
+mms = Model(dlcamp, fovx, fovy, nx, ny)
 # We will use a Dirichlet prior to enforce that the flux sums to unity since closures are
 # degenerate to total flux.
-prior = (c = ImageDirichlet(0.5, npix, npix),)
+prior = (c = ImageDirichlet(1.0, ny, nx),)
 
 lklhd = RadioLikelihood(dlcamp, dcphase)
 post = Posterior(lklhd, prior, mms)
 
 # Transform from simplex space to the unconstrained
 tpost = asflat(post)
+ℓ = logdensityof(tpost)
 
 # Let's run an optimizer to get a nice starting location
 # It turns out that gradients are really helpful here
 ndim = dimension(tpost)
-using Zygote
 # Creates optimization function using Optimization.jl
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 # randn(ndim) is a random initialization guess
 # nothing just says there are no additional arguments to the optimization function.
-prob = OptimizationProblem(f, randn(ndim), nothing)
-
-ℓ = logdensityof(tpost)
+prob = OptimizationProblem(f, -rand(ndim), nothing)
 # Find the best fit image! Using LBFGS optimizaer.
 sol = solve(prob, LBFGS(); maxiters=2_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
+
 
 # Move from unconstrained space to physical parameter space
 xopt = transform(tpost, sol)
 
 # Let's see how the fit looks
+xopt = transform(tpost, res.draws[:,1])
+img = intensitymap(mms(xopt), fovx, fovy, 512, 512)
+plot(img, colorbar_scale=:log10, size=(450,600), clims=(1e-6, 1e-3))
 residual(mms(xopt), dlcamp)
 residual(mms(xopt), dcphase)
-plot(mms(xopt), fovx=fovxy, fovy=fovxy, title="MAP")
 
+# Finally we sample with HMC
+metric = DenseEuclideanMetric(Matrix(res.fit_distribution.Σ))
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 5000; nadapts=4000, init_params=xopt)
 
-# now we sample using hmc
-metric = DiagEuclideanMetric(ndim)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 4000; nadapts=3000, init_params=xopt)
-
-# This takes about 1.75 hours on my laptop. Which isn't bad for a 575 dimensional model!
 
 # Plot the mean image and standard deviation image
 using StatsBase
 samples = mms.(sample(hchain, 500))
-imgs = intensitymap.(samples, fovxy, fovxy, 96, 96)
+imgs = intensitymap.(samples, fovx, fovy, 256, 256)
 
 mimg, simg = mean_and_std(imgs)
 
-p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)))
+ p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)))
 p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)))
 p2 = plot(simg./mimg,  title="Fractional Error", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
 
 # Computing information
 # ```
-# Julia Version 1.7.3
+# Julia Version 1.8.0
 # Commit 742b9abb4d (2022-05-06 12:58 UTC)
 # Platform Info:
 #   OS: Linux (x86_64-pc-linux-gnu)
