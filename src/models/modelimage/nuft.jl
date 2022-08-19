@@ -3,7 +3,7 @@ padfac(alg::NUFT) = alg.padfac
 function padimage(::NUFT, img)
     #pf = padfac(alg)
     #cimg = convert(Matrix{Complex{eltype(img)}}, img.img)
-    return IntensityMap(img, img.fovx, img.fovy, img.pulse)
+    return IntensityMap(img, img.fovx, img.fovy, img.pulse).im
     # ny,nx = size(img)
     # nnx = nextpow(2, pf*nx)
     # nny = nextpow(2, pf*ny)
@@ -69,18 +69,17 @@ function nuft(A, b)
     return A*complex.(b)
 end
 
-# function ChainRulesCore.rrule(::typeof(nuft), A, b)
-#     bc = complex.(b)
-#     vis = A*bc
-#     println("Pld")
-#     function nuft_pullback(Δy)
-#         Δf = NoTangent()
-#         ΔA = @thunk(A'*Δy)
-#         Δb = @thunk(Δy*bc')
-#         return Δf, ΔA, Δb
-#     end
-#     return vis, nuft_pullback
-# end
+function ChainRulesCore.rrule(::typeof(nuft), A::NFFTPlan, b)
+    bc = complex.(b)
+    pr = ChainRulesCore.ProjectTo(b)
+    vis = A*bc
+    function nuft_pullback(Δy)
+        Δf = NoTangent()
+        ΔA = pr(A'*unthunk(Δy))
+        return Δf, NoTangent(), ΔA
+    end
+    return vis, nuft_pullback
+end
 
 
 # ReverseDiff.@grad_from_chainrules nuft(A::ReverseDiff.TrackedArray, b::ReverseDiff.TrackedArray)
@@ -89,6 +88,7 @@ end
 # ReverseDiff.@grad_from_chainrules nuft(A, b::Vector{<:ReverseDiff.TrackedReal})
 
 
+ChainRulesCore.@non_differentiable checkuv(alg, u::AbstractArray, v::AbstractArray)
 
 function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       u::AbstractArray,
@@ -208,6 +208,10 @@ Base.@kwdef struct NFFTAlg <: NUFT
     Controls the accuracy of the NFFT usually don't need to change this
     """
     m::Int = 10
+    """
+    NFFT interpolation algorithm
+    """
+    precompute=NFFT.TENSOR
 end
 include(joinpath(@__DIR__, "nfft_alg.jl"))
 

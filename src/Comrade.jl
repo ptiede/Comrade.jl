@@ -21,7 +21,7 @@ using FLoops
 #using MappedArrays: mappedarray
 import MeasureBase as MB
 import MeasureTheory as MT
-using NFFT: nfft, plan_nfft
+using NFFT
 using PaddedViews
 using PyCall: pyimport, PyNULL, PyObject
 using SpecialFunctions

@@ -61,7 +61,7 @@ function padimage(alg::NFFTAlg, img)
     nny = nextprod((2,3,5,7), padfac*ny)
     nsx = nnx÷2-nx÷2
     nsy = nny÷2-ny÷2
-    return PaddedView(zero(eltype(img)), img,
+    return PaddedView(zero(eltype(img)), img.im,
                       (1:nnx, 1:nny),
                       (nsx+1:nsx+nx, nsy+1:nsy+ny)
                      )
@@ -71,7 +71,7 @@ function plan_nuft(alg::ObservedNUFT{<:NFFTAlg}, img, dx, dy)
     uv2 = similar(alg.uv)
     uv2[1,:] .= alg.uv[1,:]*dx
     uv2[2,:] .= alg.uv[2,:]*dy
-    plan = plan_nfft(uv2, size(img); precompute=NFFT.POLYNOMIAL)
+    plan = plan_nfft(uv2, size(img'); precompute=alg.alg.precompute)
     return plan
 end
 
@@ -83,8 +83,8 @@ function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img)
 end
 
 @inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img)
-    timg = IntensityMap(transpose(img.im), img.fovx, img.fovy, img.pulse)
-    return NUFTCache(alg, plan, phases, img.pulse, timg)
+    #timg = #IntensityMap(transpose(img.im), img.fovx, img.fovy, img.pulse)
+    return NUFTCache(alg, plan, phases, img.pulse, img.im')
 end
 
 # Allow NFFT to work with ForwardDiff.

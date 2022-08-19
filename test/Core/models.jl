@@ -1,4 +1,5 @@
 using ChainRulesTestUtils
+using ChainRulesCore
 
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
@@ -325,4 +326,43 @@ end
 @testset "DImage BSpline3" begin
     c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12; pulse=BSplinePulse{3}())
     testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
+end
+
+@testset "modelimage cache" begin
+    img = intensitymap(rotated(stretched(Gaussian(), μas2rad(2.0), μas2rad(1.0)), π/8),
+                       μas2rad(12.0), μas2rad(12.0), 24, 12; pulse=BSplinePulse{3}())
+    _,_, amp, lcamp, cphase = load_data()
+
+    cache_nf = create_cache(NFFTAlg(amp), img)
+    cache_df = create_cache(DFTAlg(amp), img)
+    ac_amp = arrayconfig(amp)
+    ac_lcamp = arrayconfig(lcamp)
+    ac_cphase = arrayconfig(cphase)
+
+    mimg_nf = modelimage(img, cache_nf)
+    mimg_df = modelimage(img, cache_df)
+
+    vnf = visibilities(mimg_nf, ac_amp)
+    vdf = visibilities(mimg_df, ac_amp)
+
+    atol = 1e-5
+
+    @test isapprox(maximum(abs, vnf-vdf), 0, atol=atol)
+
+
+    cpnf = closure_phases(mimg_nf, ac_cphase)
+    cpdf = closure_phases(mimg_df, ac_cphase)
+
+    @test isapprox(maximum(abs, cis.(cpnf-cpdf) .- 1.0 ), 0, atol=atol)
+
+    lcnf = logclosure_amplitudes(mimg_nf, ac_lcamp)
+    lcdf = logclosure_amplitudes(mimg_df, ac_lcamp)
+
+    @test isapprox(maximum(abs, lcnf-lcdf), 0, atol=atol)
+
+
+
+    @testset "nuft pullback" begin
+        test_rrule(Comrade.nuft, cache_nf.plan ⊢ NoTangent(), img.im')
+    end
 end
