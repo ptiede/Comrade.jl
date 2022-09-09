@@ -11,10 +11,10 @@ export visibility, amplitude, closure_phase, logclosure_amplitude, bispectrum,
 
 abstract type AbstractModelImage{M} <: ComradeBase.AbstractModel end
 
-ChainRulesCore.@non_differentiable visanalytic(M)
-ChainRulesCore.@non_differentiable imanalytic(M)
-ChainRulesCore.@non_differentiable isprimitive(M)
-
+# ChainRulesCore.@non_differentiable visanalytic(M)
+# ChainRulesCore.@non_differentiable imanalytic(M)
+# ChainRulesCore.@non_differentiable isprimitive(M)
+#
 
 """
     visibility(mimg, u, v, args...)

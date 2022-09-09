@@ -296,7 +296,7 @@ function corrupt(vis::AbstractArray, cache::GainCache, gains::AbstractArray)
     return @. g1*vis*conj(g2)
 end
 
-ChainRulesCore.@non_differentiable getproperty(cache::GainCache, s::Symbol)
+# ChainRulesCore.@non_differentiable getproperty(cache::GainCache, s::Symbol)
 
 # function ChainRulesCore.rrule(::typeof(corrupt), vis::AbstractArray, cache::GainCache, gains::AbstractArray)
 #     g1 = cache.m1*gains

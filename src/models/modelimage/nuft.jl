@@ -66,26 +66,26 @@ end
 
 
 function nuft(A, b)
-    return A*complex.(b)
+    return A*b
 end
 
 function ChainRulesCore.rrule(::typeof(nuft), A::NFFTPlan, b)
-    bc = complex.(b)
-    pr = ChainRulesCore.ProjectTo(b)
-    vis = A*bc
+    #pr = ChainRulesCore.ProjectTo(b)
+    vis = A*b
     function nuft_pullback(Δy)
         Δf = NoTangent()
-        ΔA = pr(A'*unthunk(Δy))
+        dy = similar(vis)
+        dy .= unthunk(Δy)
+        ΔA = A'*dy
         return Δf, NoTangent(), ΔA
     end
     return vis, nuft_pullback
 end
 
-
-# ReverseDiff.@grad_from_chainrules nuft(A::ReverseDiff.TrackedArray, b::ReverseDiff.TrackedArray)
-# ReverseDiff.@grad_from_chainrules nuft(A, b::ReverseDiff.TrackedArray)
-# ReverseDiff.@grad_from_chainrules nuft(A::ReverseDiff.TrackedArray, b)
-# ReverseDiff.@grad_from_chainrules nuft(A, b::Vector{<:ReverseDiff.TrackedReal})
+#using ReverseDiff
+#using NFFT
+#ReverseDiff.@grad_from_chainrules nuft(A, b::ReverseDiff.TrackedArray)
+#ReverseDiff.@grad_from_chainrules nuft(A, b::Vector{<:ReverseDiff.TrackedReal})
 
 
 ChainRulesCore.@non_differentiable checkuv(alg, u::AbstractArray, v::AbstractArray)
@@ -96,7 +96,7 @@ function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
     checkuv(m.cache.alg.uv, u, v)
     #vr = real.(m.cache.plan)
     #vi = imag.(m.cache.plan)
-    vis =  nuft(m.cache.plan, m.cache.img)
+    vis =  nuft(m.cache.plan, complex.(m.cache.img))
     conj.(vis).*m.cache.phases
     #return vis
 end

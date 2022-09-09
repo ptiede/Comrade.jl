@@ -89,7 +89,7 @@ true
 
 """
 Base.:+(m1::AbstractModel, m2::AbstractModel) = AddModel(m1, m2)
-Base.:-(m1, m2) = AddModel(m1, -1.0*m2)
+Base.:-(m1::AbstractModel, m2::AbstractModel) = AddModel(m1, -1.0*m2)
 
 """
     added(m1::AbstractModel, m2::AbstractModel)
