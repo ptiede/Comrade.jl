@@ -27,6 +27,7 @@ ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
+Yota = "cd998857-8626-517d-b929-70ad188a48f0"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [extras]
