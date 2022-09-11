@@ -65,7 +65,6 @@ Note that is does not save the figure.
 
     ny, nx = dims
     image = intensitymap(m, (fovx, fovy), dims; phasecenter, pulse)
-    xitr, yitr = imagepixels(image)
     psizex,psizey = pixelsizes(image)
     x0, x1 = uvscale.(extrema(xitr))
     y0, y1 = uvscale.(extrema(yitr))

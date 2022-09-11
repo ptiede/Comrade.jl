@@ -18,7 +18,7 @@ flux(m::RIMEModel) = flux(basemodel(m))
 radialextent(m::RIMEModel) = radialextent(basemodel(m))
 
 function intensitymap(model::RIMEModel, fov::NTuple{2}, dim::Dims{2}, args...; kwargs...)
-    return intensitymap(basemodel(model), fov, dim, args...; kwargs...)
+    return intensitymap(basemodel(model), fov, dims, args...; kwargs...)
 end
 
 """
