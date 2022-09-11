@@ -155,9 +155,9 @@ end
 
 function intensitymap!(sim::IntensityMap, m::AddModel)
     csim = deepcopy(sim)
-    intensitymap!(csim, m.m1)
+    intensitymap!(csim, m.m1, executor)
     sim .= csim
-    intensitymap!(csim, m.m2)
+    intensitymap!(csim, m.m2, executor)
     sim .= sim .+ csim
     return sim
 end

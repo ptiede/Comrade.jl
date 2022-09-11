@@ -302,7 +302,7 @@ end
     @test evpa(v) ≈ evpa(m, p)
     @test m̆(v) ≈ m̆(m, p)
 
-    I = IntensityMap(zeros(1024,1024), 100.0, 100.0)
+    I = IntensityMap(zeros(1024,1024), (100.0, 100.0))
     Q = similar(I)
     U = similar(I)
     V = similar(I)
