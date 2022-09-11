@@ -60,8 +60,10 @@ end
 function make_phases(alg::ObservedNUFT{<:DFTAlg}, img)
     u = @view alg.uv[1,:]
     v = @view alg.uv[2,:]
+    # We don't need to correct for the phase offset here since that
+    # is taken care of in plan_nuft for DFTAlg
     dx, dy = pixelsizes(img)
-    visibilities(img.pulse, u*dx, v*dy)
+    return visibilities(img.pulse, u*dx, v*dy)
 end
 
 """
@@ -71,5 +73,5 @@ Create a cache for the DFT algorithm with precomputed `plan`, `phases` and `img`
 This is an internal version.
 """
 function create_cache(alg::ObservedNUFT{<:DFTAlg}, plan, phases, img)
-    return NUFTCache(alg, plan, phases, img.pulse, reshape(img.im, :))
+    return NUFTCache(alg, plan, phases, img.pulse, reshape(img.img, :))
 end

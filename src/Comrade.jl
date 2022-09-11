@@ -75,7 +75,7 @@ Converts a number from micro-arcseconds (μas) to rad
 
 #include("interface.jl")
 #include("images/images.jl")
-import ComradeBase: flux, radialextent, intensitymap, intensitymap!
+import ComradeBase: flux, radialextent, intensitymap, intensitymap!, phasecenter
 export create_cache
 include("observations/observations.jl")
 include("models/models.jl")
@@ -87,8 +87,8 @@ include("inference/inference.jl")
 include("calibration/calibration.jl")
 
 function __init__()
-    # FIX THIS
-    del_format(format"FITS")
+    ## FIX THIS
+    FileIO.del_format(format"FITS")
     add_format(format"FITS",
         # See https://www.loc.gov/preservation/digital/formats/fdd/fdd000317.shtml#sign
         [0x53,0x49,0x4d,0x50,0x4c,0x45,0x20,0x20,0x3d,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x54],

@@ -69,21 +69,21 @@ function visibilities(pimg::PolarizedModel, u, v)
     return StructArray{StokesVector{eltype(si)}}((si, sq, su, sv))
 end
 
-function intensitymap!(pimg::IntensityMap{<:StokesVector}, pmodel::PolarizedModel)
-    intensitymap!(stokes(pimg, :I), pmodel.I)
-    intensitymap!(stokes(pimg, :Q), pmodel.Q)
-    intensitymap!(stokes(pimg, :U), pmodel.U)
-    intensitymap!(stokes(pimg, :V), pmodel.V)
+function intensitymap!(pimg::IntensityMap{<:StokesVector}, pmodel::PolarizedModel, executor=SequentialEx())
+    intensitymap!(stokes(pimg, :I), pmodel.I, executor)
+    intensitymap!(stokes(pimg, :Q), pmodel.Q, executor)
+    intensitymap!(stokes(pimg, :U), pmodel.U, executor)
+    intensitymap!(stokes(pimg, :V), pmodel.V, executor)
     return pimg
 end
 
-function intensitymap(pmodel::PolarizedModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
-    imgI = intensitymap(pmodel.I, fovx, fovy, nx, ny)
-    imgQ = intensitymap(pmodel.Q, fovx, fovy, nx, ny)
-    imgU = intensitymap(pmodel.U, fovx, fovy, nx, ny)
-    imgV = intensitymap(pmodel.V, fovx, fovy, nx, ny)
-    pimg = StructArray{StokesVector{eltype(imgI)}}((imgI.im, imgQ.im, imgU.im, imgV.im))
-    return IntensityMap(pimg, fovx, fovy, pulse)
+function intensitymap(pmodel::PolarizedModel, fov::NTuple{2}, dims::Dims{2}; phasecenter=(0.0,0.0), pulse=DeltaPulse(), executor=SequentialEx())
+    imgI = intensitymap(pmodel.I, fov, dims; phasecenter, pulse, executor)
+    imgQ = intensitymap(pmodel.Q, fov, dims; phasecenter, pulse, executor)
+    imgU = intensitymap(pmodel.U, fov, dims; phasecenter, pulse, executor)
+    imgV = intensitymap(pmodel.V, fov, dims; phasecenter, pulse, executor)
+    pimg = StructArray{StokesVector{eltype(imgI)}}((imgI.img, imgQ.img, imgU.img, imgV.img))
+    return IntensityMap(pimg, fov, phasecenter, pulse)
 end
 
 """

@@ -41,7 +41,7 @@ AbstractFFTs.plan_fft(x::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, region=1:
 
 # Allow things to work with Complex Dual numbers.
 ForwardDiff.value(x::Complex{<:ForwardDiff.Dual}) = Complex(x.re.value, x.im.value)
-ForwardDiff.partials(x::Complex{<:ForwardDiff.Dual}, n::Int) = Complex(ForwardDiff.partials(x.re, n), ForwardDiff.partials(x.im, n))
+ForwardDiff.partials(x::Complex{<:ForwardDiff.Dual}, n::Int) = Complex(ForwardDiff.partials(x.re, n), ForwardDiff.partials(x.img, n))
 ForwardDiff.npartials(x::Complex{<:ForwardDiff.Dual}) = ForwardDiff.npartials(x.re)
 
 # internal function that creates the interpolator objector to evaluate the FT.
@@ -129,6 +129,7 @@ function create_cache(alg::FFTAlg, img)
     uu, vv = uviterator(dx, dy, nnx, nny)
 
     x0,y0 = first.(imagepixels(img))
+    #Δx, Δy = phasecenter(img)
     #phases = fftphases(uu, vv, x0, y0, dx, dy)
     vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
     sitp = create_interpolator(uu, vv, vispc, img)
@@ -148,6 +149,7 @@ function update_cache(cache::FFTCache, img)
     uu, vv = uviterator(dx, dy, nnx, nny)
 
     x0,y0 = first.(imagepixels(img))
+    Δx, Δy = phasecenter(img)
 
 
     dx,dy = pixelsizes(img)
@@ -194,13 +196,14 @@ Create a Fourier or visibility map of a model `m`
 assuming a image with a field of view `fovx/fovy` and
 `nx/ny` pixels in the x/y direction respectively.
 """
-function fouriermap(m, fovx, fovy, nx, ny)
-    x,y = imagepixels(fovx, fovy, nx, ny)
+function fouriermap(m, fovx, fovy, x0, y0, nx, ny)
+    x,y = imagepixels(fovx, fovy, x0, y0, nx, ny)
     dx = step(x); dy = step(y)
     uu,vv = uviterator(dx, dy, nx, ny)
 
     T = typeof(visibility(m, 0.0, 0.0))
     vis = Matrix{T}(undef, ny, nx)
+
 
     @inbounds for I in CartesianIndices(vis)
         iy, ix = Tuple(I)
@@ -211,9 +214,9 @@ function fouriermap(m, fovx, fovy, nx, ny)
 end
 
 
-function fouriermap(m::ModelImage, fovx, fovy, nx, ny)
+function fouriermap(m::ModelImage, fovx, fovy, x0, y0, nx, ny)
     cache = create_cache(FFTAlg(), m.image)
-    x,y = imagepixels(fovx, fovy, nx, ny)
+    x,y = imagepixels(fovx, fovy, x0, y0, nx, ny)
     dx = step(x); dy = step(y)
     uu,vv = uviterator(dx, dy, nx, ny)
 
@@ -229,8 +232,8 @@ function fouriermap(m::ModelImage, fovx, fovy, nx, ny)
 
 end
 
-function phasedecenter!(vis, fovx, fovy, nx, ny)
-    x,y = imagepixels(fovx, fovy, nx, ny)
+function phasedecenter!(vis, fovx, fovy, Δx, Δy, nx, ny)
+    x,y = imagepixels(fovx, fovy, Δx, Δy, nx, ny)
     dx = step(x); dy = step(y)
     uu,vv = uviterator(dx, dy, nx, ny)
     x0 = first(x)

@@ -61,7 +61,7 @@ function padimage(alg::NFFTAlg, img)
     nny = nextprod((2,3,5,7), padfac*ny)
     nsx = nnx÷2-nx÷2
     nsy = nny÷2-ny÷2
-    return PaddedView(zero(eltype(img)), img.im,
+    return PaddedView(zero(eltype(img)), img.img,
                       (1:nnx, 1:nny),
                       (nsx+1:nsx+nx, nsy+1:nsy+ny)
                      )
@@ -77,14 +77,16 @@ end
 
 function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img)
     dx, dy = pixelsizes(img)
+    x0, y0 = phasecenter(img)
     u = @view alg.uv[1,:]
     v = @view alg.uv[2,:]
-    return cispi.((u.*dx .+ v.*dy)).*visibility_point.(Ref(img.pulse), u.*dx, v.*dy)
+    # Correct for the nFFT phase center and the img phase center
+    return cispi.((u.*(dx - 2*x0) .+ v.*(dy - 2*y0))).*visibility_point.(Ref(img.pulse), u.*dx, v.*dy)
 end
 
 @inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img)
     #timg = #IntensityMap(transpose(img.im), img.fovx, img.fovy, img.pulse)
-    return NUFTCache(alg, plan, phases, img.pulse, img.im')
+    return NUFTCache(alg, plan, phases, img.pulse, img.img')
 end
 
 # Allow NFFT to work with ForwardDiff.
@@ -94,13 +96,13 @@ function _frule_vis(m::ModelImage{M,<:IntensityMap{<:ForwardDiff.Dual{T,V,P}},<:
     # Compute the fft
     buffer = similar(m.cache.img, S)
     buffer .= ForwardDiff.value.(m.cache.img)
-    xtil = p*(buffer .+ 0.0im)
+    xtil = p*complex.(buffer)
     out = similar(buffer, Complex{ForwardDiff.Dual{T,V,P}})
     # Now take the deriv of nuft
     ndxs = ForwardDiff.npartials(first(m.cache.img))
     dxtils = ntuple(ndxs) do n
         buffer .= ForwardDiff.partials.(m.cache.img, n)
-        p * (buffer .+ 0.0im)
+        p * complex.(buffer)
     end
     out = similar(xtil, Complex{ForwardDiff.Dual{T,V,P}})
     for i in eachindex(out)

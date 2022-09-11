@@ -1,7 +1,5 @@
-export load, save
-
 """
-    load(fitsfile::String, IntensityMap)
+    Comrade.load(fitsfile::String, IntensityMap)
 
 This loads in a fits file that is more robust to the various imaging algorithms
 in the EHT, i.e. is works with clean, smili, eht-imaging.
@@ -66,7 +64,7 @@ function _load_fits(fname, ::Type{IntensityMap})
 end
 
 """
-    save(file::String, img::IntensityMap, obs)
+    Comrade.save(file::String, img::IntensityMap, obs)
 
 Saves an image to a fits file. You can optionally pass an EHTObservation so that ancillary information
 will be added.
@@ -112,8 +110,8 @@ function _save_fits(fname::String, image::IntensityMap, head)
               head.source,
               "RA---SIN",
               "DEC---SIN",
-              rad2deg(image.psizex),
-              rad2deg(image.psizey),
+              rad2deg(image.psize[1]),
+              rad2deg(image.psize[2]),
               head.RA,
               head.DEC,
               head.freq,

@@ -19,7 +19,7 @@ visibility_point(::ZeroModel{T}, args...) where {T} = complex(zero(T))
 intensity_point(::ZeroModel{T}, args...) where {T} = zero(T)
 
 _visibilities(::ZeroModel{T}, u, v, args...) where {T} = Fill(zero(T), length(u))
-intensitymap(::ZeroModel{T}, fovx, fovy, nx, ny, args...) where {T} = IntensityMap(Fill(zero(T), ny, nx), fovx, fovy, args...)
+intensitymap(::ZeroModel{T}, fov, dims, args...) where {T} = IntensityMap(Fill(zero(T), dims...), fov, args...)
 
 @inline AddModel(::ZeroModel, x) = x
 @inline AddModel(x, ::ZeroModel) = x

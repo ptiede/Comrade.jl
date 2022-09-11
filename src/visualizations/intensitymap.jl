@@ -19,6 +19,8 @@ Note that is does not save the figure.
     #Construct the image grid in μas
     fovx, fovy = uvscale.(fov(image))
     xitr, yitr = imagepixels(image)
+    x0, x1 = uvscale.(extrema(xitr))
+    y0, y1 = uvscale.(extrema(yitr))
 
     tickfontsize --> 11
     guidefontsize --> 14
@@ -28,8 +30,8 @@ Note that is does not save the figure.
     seriescolor --> :afmhot
     aspect_ratio --> 1
     bar_width --> 0
-    xlims --> (-fovx/2,fovx/2)
-    ylims --> (-fovy/2,fovy/2)
+    xlims --> (x0, x1)
+    ylims --> (y0, y1)
     #left_margin --> -2mm
     #right_margin --> 5
     z = image
@@ -58,10 +60,11 @@ EHTImage object and plots it according to EHT conventions.
 Note that is does not save the figure.
 """
 @recipe function f(m::AbstractModel; uvscale=rad2μas,
-                   fovx = 2*radialextent(m), fovy=2*radialextent(m), dim=(512, 512))
+                   fovx = 2*radialextent(m), fovy=2*radialextent(m), dims=(512, 512),
+                   phasecenter = (0.0, 0.0), pulse=DeltaPulse())
 
-    ny, nx = dim
-    image = intensitymap(m, fovx, fovy, nx, ny)
+    ny, nx = dims
+    image = intensitymap(m, (fovx, fovy), dims; phasecenter, pulse)
     psizex,psizey = pixelsizes(image)
     #Define some constants
     #Construct the image grid in μas

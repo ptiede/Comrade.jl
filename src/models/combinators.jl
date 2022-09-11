@@ -141,17 +141,17 @@ components(m::CompositeModel{M1,M2}) where
 flux(m::AddModel) = flux(m.m1) + flux(m.m2)
 
 
-function intensitymap(m::AddModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse())
-    sim1 = intensitymap(m.m1, fovx, fovy, nx, ny; pulse)
-    sim2 = intensitymap(m.m2, fovx, fovy, nx, ny; pulse)
+function intensitymap(m::AddModel, fov::NTuple{2}, dims::Dims{2}; phasecenter=(0.0, 0.0), pulse=DeltaPulse(), executor=SequentialEx())
+    sim1 = intensitymap(m.m1, fov, dims; phasecenter, pulse, executor)
+    sim2 = intensitymap(m.m2, fov, dims; phasecenter, pulse, executor)
     return sim1 .+ sim2
 end
 
-function intensitymap!(sim::IntensityMap, m::AddModel)
+function intensitymap!(sim::IntensityMap, m::AddModel, executor=SequentialEx())
     csim = deepcopy(sim)
-    intensitymap!(csim, m.m1)
+    intensitymap!(csim, m.m1, executor)
     sim .= csim
-    intensitymap!(csim, m.m2)
+    intensitymap!(csim, m.m2, executor)
     sim .= sim .+ csim
     return sim
 end
@@ -265,20 +265,27 @@ smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 
 flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
-function intensitymap(::NotAnalytic, model::ConvolvedModel, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse(), executor=SequentialEx())
-    vis1 = fouriermap(model.m1, fovx, fovy, nx, ny)
-    vis2 = fouriermap(model.m2, fovx, fovy, nx, ny)
-    vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, nx, ny))
+function intensitymap(::NotAnalytic, model::ConvolvedModel, fov::NTuple{2}, dims::Dims{2};
+        phasecenter = (0.0),
+        pulse=DeltaPulse(), executor=SequentialEx())
+
+    fovx, fovy = fov
+    ny, nx = dims
+    x0, y0 = phasecenter
+    vis1 = fouriermap(model.m1, fovx, fovy, x0, y0, nx, ny)
+    vis2 = fouriermap(model.m2, fovx, fovy, x0, y0, nx, ny)
+    vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, x0, y0, nx, ny))
     img = ifft(vis)
-    return IntensityMap(real.(img)./(nx*ny), fovx, fovy, pulse)
+    return IntensityMap(real.(img)./(nx*ny), fov, phasecenter, pulse)
 end
 
 function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel, executor=SequentialEx())
     ny, nx = size(sim)
-    fovx, fovy = sim.fovx, sim.fovy
-    vis1 = fouriermap(model.m1, fovx, fovy, nx, ny)
-    vis2 = fouriermap(model.m2, fovx, fovy, nx, ny)
-    vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, nx, ny))
+    fovx, fovy = fov(sim)
+    x0, y0 = phasecenter(sim)
+    vis1 = fouriermap(model.m1, fovx, fovy, x0, y0, nx, ny)
+    vis2 = fouriermap(model.m2, fovx, fovy, x0, y0, nx, ny)
+    vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, x0, y0, nx, ny))
     ifft!(vis)
     for I in eachindex(sim)
         sim[I] = real(vis[I])/(nx*ny)

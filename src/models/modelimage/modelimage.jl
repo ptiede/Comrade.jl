@@ -183,10 +183,9 @@ For analytic models this is a no-op and returns the model.
 
 """
 function modelimage(m::M;
-                    fovx=2*radialextent(m),
-                    fovy=2*radialextent(m),
-                    nx=512,
-                    ny=512,
+                    fov=(2*radialextent(m), 2*radialextent(m)),
+                    dims=(512, 512),
+                    phasecenter = (0.0, 0.0),
                     pulse=ComradeBase.DeltaPulse(),
                     alg=FFTAlg(),
                     executor=SequentialEx()) where {M}
@@ -194,7 +193,7 @@ function modelimage(m::M;
         return m
     else
         T = typeof(intensity_point(m, 0.0, 0.0))
-        img = IntensityMap(zeros(T,ny,nx), fovx, fovy, pulse)
+        img = IntensityMap(zeros(T,dims...), fov, phasecenter, pulse)
         modelimage(m, img, alg, executor)
     end
 end

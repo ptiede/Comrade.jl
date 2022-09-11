@@ -12,7 +12,7 @@ function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     @test isapprox(flux(m), flux(img), atol=atol)
     @test isapprox(mean(img .- img2), 0, atol=1e-8)
     cache = Comrade.create_cache(Comrade.FFTAlg(padfac=4), img./flux(img)*flux(m))
-    u = fftshift(fftfreq(size(img,1), 1/img.psizex))./30
+    u = fftshift(fftfreq(size(img,1), 1/img.psize[1]))./30
     Plots.closeall()
     @test isapprox(maximum(abs, (visibility.(Ref(m), u', u) .- cache.sitp.(u', u))), 0.0, atol=atol*10)
     img = nothing
@@ -236,9 +236,10 @@ end
     m2 = ExtendedRing(8.0)
 
     @testset "Add models" begin
-        img = IntensityMap(zeros(1024, 1024),
-                                        20.0,
-                                        20.0)
+        img = IntensityMap(
+                zeros(1024, 1024),
+                (20.0,20.0)
+                )
         mt1 = m1 + m2
         mt2 = shifted(m1, 1.0, 1.0) + m2
         mt3 = shifted(m1, 1.0, 1.0) + 0.5*stretched(m2, 0.9, 0.8)
@@ -253,9 +254,10 @@ end
     end
 
     @testset "Convolved models" begin
-        img = IntensityMap(zeros(1024, 1024),
-                                        20.0,
-                                        20.0)
+        img = IntensityMap(
+                zeros(1024, 1024),
+                (20.0,20.0)
+                )
         mt1 = convolved(m1, m2)
         mt2 = convolved(shifted(m1, 1.0, 1.0), m2)
         mt3 = convolved(shifted(m1, 1.0, 1.0), 0.5*stretched(m2, 0.9, 0.8))
@@ -269,9 +271,10 @@ end
     end
 
     @testset "All composite" begin
-        img = IntensityMap(zeros(1024, 1024),
-                                            20.0,
-                                            20.0)
+        img = IntensityMap(
+                zeros(1024, 1024),
+                (20.0,20.0)
+                )
 
         mt = m1 + convolved(m1, m2)
         mc = Comrade.components(mt)
@@ -295,7 +298,7 @@ end
     @test evpa(v) == evpa(m, 0.005, 0.01)
     @test m̆(v) == m̆(m, 0.005, 0.01)
 
-    I = IntensityMap(zeros(1024,1024), 100.0, 100.0)
+    I = IntensityMap(zeros(1024,1024), (100.0, 100.0))
     Q = similar(I)
     U = similar(I)
     V = similar(I)
@@ -363,6 +366,6 @@ end
 
 
     @testset "nuft pullback" begin
-        test_rrule(Comrade.nuft, cache_nf.plan ⊢ NoTangent(), img.im')
+        test_rrule(Comrade.nuft, cache_nf.plan ⊢ NoTangent(), complex.(img.img'))
     end
 end

@@ -94,6 +94,12 @@ Returns a transformed `u` and `v` according to the `model` modifier
 """
 function transform_uv end
 
+struct TransformState{T<:Number,C<:Complex}
+    u::T
+    v::T
+    scale::C
+end
+
 
 
 @inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number, scale::Number)
@@ -102,9 +108,14 @@ function transform_uv end
     return apply_uv_transform(basemodel(m), ut, vt, scale)
 end
 
-@inline function apply_uv_transform(::AbstractModel, u::Number, v::Number, scale::Number)
-    return u, v, scale
+@inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number, scale::Real)
+    return apply_uv_transform(m, u, v, complex(scale))
 end
+
+@inline function apply_uv_transform(::AbstractModel, u::Number, v::Number, scale::Number)
+    return (u, v), scale
+end
+
 
 # function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
 #     res = apply_uv_transform.(Ref(m), u, v, 1.0)
@@ -116,8 +127,10 @@ end
 # end
 
 @inline function _visibilities(m::AbstractModifier, u::AbstractArray, v::AbstractArray, args...)
-    mod = apply_uv_transform.(Ref(m), u, v, 1.0)
-    last.(mod).*visibilities(unmodified(m), first.(mod), getindex.(mod,2), args...)
+    mod = apply_uv_transform.(Ref(m), u, v, one(Complex{eltype(u)}))
+    uv = first.(mod)
+    scale = last.(mod)
+    scale.*visibilities(unmodified(m), first.(uv), last.(uv), args...)
 end
 
 
@@ -228,13 +241,13 @@ true
 ```
 """
 renormed(model::M, f) where {M<:AbstractModel} = RenormalizedModel(model, f)
-Base.:*(model::AbstractModel, f::Real) = renormed(model, f)
-Base.:*(f::Real, model::AbstractModel) = renormed(model, f)
-Base.:/(f::Real, model::AbstractModel) = renormed(model, inv(f))
-Base.:/(model::AbstractModel, f::Real) = renormed(model, inv(f))
+Base.:*(model::AbstractModel, f::Number) = renormed(model, f)
+Base.:*(f::Number, model::AbstractModel) = renormed(model, f)
+Base.:/(f::Number, model::AbstractModel) = renormed(model, inv(f))
+Base.:/(model::AbstractModel, f::Number) = renormed(model, inv(f))
 # Dispatch on RenormalizedModel so that I just make a new RenormalizedModel with a different f
 # This will make it easier on the compiler.
-Base.:*(model::RenormalizedModel, f::Real) = renormed(model.model, model.scale*f)
+Base.:*(model::RenormalizedModel, f::Number) = renormed(model.model, model.scale*f)
 # Overload the unary negation operator to be the same model with negative flux
 Base.:-(model::AbstractModel) = renormed(model, -1.0)
 flux(m::RenormalizedModel) = m.scale*flux(m.model)

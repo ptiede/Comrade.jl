@@ -3,16 +3,17 @@ abstract type AbstractIntensityMap{T,S} <: AbstractMatrix{T} end
 
 #abstract type AbstractPolarizedMap{I,Q,U,V} end
 
-@inline function intensitymap(s, fov::Number, npix::Int; pulse=ComradeBase.DeltaPulse(), executor=SequentialEx())
-    return intensitymap(s, fov, fov, npix, npix; pulse, executor)
+@inline function intensitymap(s, fov::Number, npix::Int; phasecenter=(0.0, 0.0), pulse=ComradeBase.DeltaPulse(), executor=SequentialEx())
+    return intensitymap(s, (fov, fov), (npix, npix); phasecenter, pulse, executor)
 end
 
 @inline function intensitymap(s::M,
                               fovx::Number, fovy::Number,
                               nx::Int, ny::Int;
+                              phasecenter = (0.0, 0.0),
                               pulse=ComradeBase.DeltaPulse(),
                               executor=SequentialEx()) where {M}
-    return intensitymap(imanalytic(M), s, fovx, fovy, nx, ny; pulse, executor)
+    return intensitymap(imanalytic(M), s, (fovx, fovy), (ny, nx); phasecenter, pulse, executor)
 end
 
 @inline function intensitymap!(img::AbstractIntensityMap, s::M, executor=SequentialEx()) where {M}
