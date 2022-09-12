@@ -65,7 +65,11 @@ Note that is does not save the figure.
 
     ny, nx = dims
     image = intensitymap(m, (fovx, fovy), dims; phasecenter, pulse)
+    xitr, yitr = imagepixels(image)
     psizex,psizey = pixelsizes(image)
+    x0, x1 = uvscale.(extrema(xitr))
+    y0, y1 = uvscale.(extrema(yitr))
+
     #Define some constants
     #Construct the image grid in μas
     fovx, fovy = uvscale.(fov(image))
@@ -78,8 +82,8 @@ Note that is does not save the figure.
     seriescolor --> :afmhot
     aspect_ratio --> 1
     bar_width --> 0
-    xlims --> (-fovx/2,fovx/2)
-    ylims --> (-fovy/2,fovy/2)
+    xlims --> (x0, x1)
+    ylims --> (y0, y1)
     #left_margin --> -2mm
     #right_margin --> 5mm
     z = image
