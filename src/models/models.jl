@@ -394,9 +394,14 @@ end
 
 # internal method for computing an image of a non-analytic image model. The
 # `executor` if for parallelization but is not used for this method.
-function intensitymap(::NotAnalytic, m, fovx::Real, fovy::Real, nx::Int, ny::Int; pulse=DeltaPulse(), executor=SequentialEx())
-    img = IntensityMap(zeros(ny, nx), fovx, fovy, pulse)
-    vis = ifftshift(phasedecenter!(fouriermap(m, fovx, fovy, nx, ny), fovx, fovy, nx, ny))
+function intensitymap(::NotAnalytic, m, fov::NTuple{2}, dims::Dims{2};
+            phasecenter=(0.0, 0.0), pulse=DeltaPulse(), executor=SequentialEx())
+    ny, nx = dims
+    fovx, fovy = fov
+    Δx, Δy = phasecenter
+    img = IntensityMap(zeros(dims...), fov, phasecenter, pulse)
+    fm = fouriermap(m, fovx, fovy, Δx, Δy, nx, ny)
+    vis = ifftshift(phasedecenter!(fm, fovx, fovy, Δx, Δy, nx, ny))
     ifft!(vis)
     for I in CartesianIndices(img)
         img[I] = real(vis[I])/(nx*ny)
