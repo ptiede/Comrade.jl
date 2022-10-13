@@ -168,12 +168,15 @@ function MB.logdensityof(d::RadioLikelihood, θ::NamedTuple)
 end
 
 function _logdensityofvis(d::RadioLikelihood, vis::AbstractArray)
-    # We use a for loop here since Zygote plays nice with this
-    acc = logdensityof(first(d.lklhds), vis)
-    @inbounds for l in d.lklhds[begin+1:end]
-        acc += logdensityof(l, vis)
-    end
-    return acc
+    # This sum is fast and more generic than a loop
+    #f = Base.Fix2(logdensityof, vis)
+    #return sum(f, d.lklhds)
+        # We use a for loop here since Zygote plays nice with this
+        acc = logdensityof(first(d.lklhds), vis)
+        @inbounds for l in d.lklhds[begin+1:end]
+            acc += logdensityof(l, vis)
+        end
+        return acc
 end
 
 
