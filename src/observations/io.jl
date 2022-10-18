@@ -104,6 +104,8 @@ function _save_fits(fname::String, image::IntensityMap, head)
                   "TELESCOP",
                   "BUNIT",
                   "STOKES"]
+
+    psizex, psizey = pixelsizes(image)
     values = [true,
               -64,
               2,
@@ -112,8 +114,8 @@ function _save_fits(fname::String, image::IntensityMap, head)
               head.source,
               "RA---SIN",
               "DEC---SIN",
-              rad2deg(image.psizex),
-              rad2deg(image.psizey),
+              rad2deg(psizex),
+              rad2deg(psizey),
               head.RA,
               head.DEC,
               head.freq,
