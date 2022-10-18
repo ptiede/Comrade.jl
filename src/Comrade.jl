@@ -24,7 +24,8 @@ import MeasureTheory as MT
 using NFFT
 using PaddedViews
 using PyCall: pyimport, PyNULL, PyObject
-using SpecialFunctions
+using SpecialFunctions #: gamma, erf
+#using Bessels
 using Reexport
 using Requires: @require
 using StructArrays: StructVector, StructArray, append!!

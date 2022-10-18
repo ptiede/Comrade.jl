@@ -154,7 +154,7 @@ of the Fourier expansion. The `N` in the type defines the order of
 the Fourier expansion.
 
 """
-function MRing(c::AbstractVector{<:Complex}) where {N}
+function MRing(c::AbstractVector{<:Complex})
     α = real.(c)
     β = imag.(c)
     return MRing(α, β)
