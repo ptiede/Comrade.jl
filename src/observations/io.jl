@@ -102,6 +102,8 @@ function _save_fits(fname::String, image::IntensityMap, head)
                   "TELESCOP",
                   "BUNIT",
                   "STOKES"]
+
+    psizex, psizey = pixelsizes(image)
     values = [true,
               -64,
               2,
