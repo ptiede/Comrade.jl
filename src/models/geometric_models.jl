@@ -6,7 +6,8 @@ export Gaussian,
         ExtendedRing,
         Ring,
         ParabolicSegment,
-        Wisp
+        Wisp,
+        Butterworth
 
 """
 $(TYPEDEF)
@@ -91,7 +92,7 @@ By default if `T` isn't given, `Gaussian` defaults to `Float64`
 """
 struct Ring{T} <: GeometricModel end
 Ring() = Ring{Float64}()
-radialextent(::Ring) = 1.5
+radialextent(::Ring) = 3/2
 
 @inline function intensity_point(::Ring{T}, x::Number, y::Number) where {T}
     r = hypot(x,y)
@@ -112,6 +113,26 @@ end
     vis = besselj0(k) + zero(T)*im
     return vis
 end
+
+"""
+
+"""
+struct Butterworth{N, T} <: GeometricModel end
+
+Butterworth{N}() where {N} = Butterworth{N,Float64}()
+
+radialextent(b::Butterworth) = 5
+flux(::Butterworth{N,T}) where {N,T} = one(T)
+
+visanalytic(::Type{<:Butterworth}) = IsAnalytic()
+imanalytic(::Type{<:Butterworth}) = NotAnalytic()
+
+function visibility_point(::Butterworth{N,T}, u, v, args...) where {N,T}
+    b = hypot(u,v) + eps(T)
+    return inv(sqrt(1 + b^(2*N)))
+end
+
+
 
 
 
