@@ -363,6 +363,6 @@ end
 
 
     @testset "nuft pullback" begin
-        test_rrule(Comrade.nuft, cache_nf.plan ⊢ NoTangent(), img.im')
+        test_rrule(Comrade.nuft, cache_nf.plan ⊢ NoTangent(), complex.(img.im)')
     end
 end
