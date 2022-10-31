@@ -126,7 +126,8 @@ end
 #     return _visibilities(visanalytic(M), m, u, v, args...)
 # end
 
-@inline function _visibilities(m::AbstractModifier, u::AbstractArray, v::AbstractArray, args...)
+@inline function _visibilities(m::AbstractModifier, p)
+    (;u, v) = p
     mod = apply_uv_transform.(Ref(m), u, v, one(Complex{eltype(u)}))
     uv = first.(mod)
     scale = last.(mod)
@@ -153,9 +154,10 @@ function modelimage(::NotAnalytic,
 end
 
 
-@inline function visibility_point(m::AbstractModifier, u, v, args...)
-    ut, vt = transform_uv(m, u, v)
+@inline function visibility_point(m::AbstractModifier, p)
+    ut, vt = transform_uv(m, p)
     scale = scale_uv(m, u, v)
+    pup =
     scale*visibility(basemodel(m), ut, vt, args...)
 end
 
