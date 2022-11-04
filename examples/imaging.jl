@@ -75,9 +75,9 @@ prior = (
 
 
 mms = GModel(damp, fovx, fovy, nx, ny)
-lklhd = RadioLikelihood(mms, damp, dcphase)
+lklhd = RadioLikelihood(damp, dcphase)
 
-post = Posterior(lklhd, prior)
+post = Posterior(lklhd, prior, mms)
 
 tpost = asflat(post)
 
@@ -88,7 +88,7 @@ using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(); maxiters=2000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
+sol = solve(prob, LBFGS(); maxiters=6000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 
 xopt = transform(tpost, sol)
 
