@@ -20,13 +20,13 @@ obslo.add_scans()
 obshi.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obslo = obslo.avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.02)
-obshi = obshi.avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.02)
+obslo = obslo.avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.01)
+obshi = obshi.avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.01)
 # extract log closure amplitudes and closure phases
 damplo = extract_amp(obslo)
-dcphaselo = extract_cphase(obslo; snrcut=3)
+dcphaselo = extract_cphase(obslo; cut_trivial=true, snrcut=3)
 damphi = extract_amp(obshi)
-dcphasehi = extract_cphase(obshi; snrcut=3)
+dcphasehi = extract_cphase(obshi; cut_trivial=true, snrcut=3)
 
 # Build the Model. Here we we a struct to hold some caches
 # This will be useful to hold precomputed caches
@@ -39,7 +39,7 @@ struct GModel1{C,G}
     nx::Int
     ny::Int
     function GModel1(obs::Comrade.EHTObservation, fovx, fovy, nx, ny)
-        buffer = IntensityMap(zeros(ny, nx), fovx, fovy, BSplinePulse{3}())
+        buffer = IntensityMap(zeros(ny, nx), fovx, fovy, (0.0, 0.0), BSplinePulse{3}())
         cache = create_cache(DFTAlg(obs), buffer)
         gcache = GainCache(scantable(obs))
         return new{typeof(cache), typeof(gcache)}(cache, gcache, fovx, fovy, nx, ny)
@@ -49,7 +49,7 @@ end
 function (model::GModel1)(θ)
     (;c, f, fg, lgamp1) = θ
     # Construct the image model
-    img = IntensityMap(f*c, model.fovx, model.fovy, BSplinePulse{3}())
+    img = IntensityMap(f*c, model.fovx, model.fovy, (0.0,0.0), BSplinePulse{3}())
     m = modelimage(img, model.cache)
     gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
@@ -65,7 +65,7 @@ struct GModel2{C,G}
     nx::Int
     ny::Int
     function GModel2(obs::Comrade.EHTObservation, fovx, fovy, nx, ny)
-        buffer = IntensityMap(zeros(ny, nx), fovx, fovy, BSplinePulse{3}())
+        buffer = IntensityMap(zeros(ny, nx), fovx, fovy, (0.0,0.0), BSplinePulse{3}())
         cache = create_cache(DFTAlg(obs), buffer)
         gcache = GainCache(scantable(obs))
         return new{typeof(cache), typeof(gcache)}(cache, gcache, fovx, fovy, nx, ny)
@@ -75,7 +75,7 @@ end
 function (model::GModel2)(θ)
     (;c, f, fg, lgamp2) = θ
     # Construct the image model
-    img = IntensityMap(f*c, model.fovx, model.fovy, BSplinePulse{3}())
+    img = IntensityMap(f*c, model.fovx, model.fovy, (0.0, 0.0), BSplinePulse{3}())
     m = modelimage(img, model.cache)
     gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
@@ -95,11 +95,10 @@ distamp = (AA = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1)
            )
 
-fovx = μas2rad(80.0)
-fovy = μas2rad(80.0)
-nx = 16
+fovx = μas2rad(72.5)
+fovy = μas2rad(72.5)
+nx = 10
 ny = floor(Int, fovy/fovx*nx)
-xitr, yitr = Comrade.imagepixels(fovx, fovy, nx, ny)
 prior = (
           c = ImageDirichlet(1.0, ny, nx),
           f = Uniform(0.2, 0.9),
@@ -124,18 +123,18 @@ tpost = asflat(post)
 ndim = dimension(tpost)
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, -rand(ndim) .- 0.5, nothing)
+prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(); maxiters=2000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 
 xopt = transform(tpost, sol)
 
 # Let's see how the fit looks
+plot(mms2(xopt), fovx=fovx, fovy=fovy, title="MAP")
 residual(mms1(xopt), damplo)
 residual(mms1(xopt), dcphaselo)
 residual(mms2(xopt), damphi)
 residual(mms2(xopt), dcphasehi)
-plot(mms2(xopt), fovx=fovx, fovy=fovy, title="MAP")
 
 # Let's also plot the gain curves
 gt1 = Comrade.caltable(mms1(xopt))
@@ -147,8 +146,8 @@ using Measurements
 
 
 # now we sample using hmc
-metric = DiagEuclideanMetric(ndim)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 2000; nadapts=1000, init_params=xopt)
+metric = DenseEuclideanMetric(ndim)
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 4000; nadapts=3000, init_params=xopt)
 
 # Now plot the gain table with error bars
 gamps1 = exp.(hcat(hchain.lgamp1...))
