@@ -35,7 +35,7 @@ jobs:
       - name: Install Libs
         run: |
           sudo apt-get update
-          sudo apt-get install libhdf5
+          sudo apt-get install libhdf5-dev
       - uses: actions/checkout@v2
       - name: Setup python
         uses: actions/setup-python@v1
