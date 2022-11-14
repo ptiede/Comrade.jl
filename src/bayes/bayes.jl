@@ -36,7 +36,7 @@ where `post::Posterior`.
 To generate random draws from the prior see the [`prior_sample`](@ref prior_sample) function.
 """
 function Posterior(lklhd, prior::NamedTuple, model)
-    return Posterior(lklhd, NamedTupleDist(prior), model)
+    return Posterior(lklhd, NamedDist(prior), model)
 end
 
 @inline DensityInterface.DensityKind(::Posterior) = DensityInterface.IsDensity()
@@ -143,7 +143,7 @@ For the transformation to the unit hypercube see [`ascube`](@ref ascube)
 
 """
 function HypercubeTransform.asflat(post::Posterior)
-    pr = getfield(post.prior, :_internal_distributions)
+    pr = post.prior
     tr = asflat(pr)
     return TransformedPosterior(post, tr)
 end

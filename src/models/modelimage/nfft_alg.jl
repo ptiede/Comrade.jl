@@ -61,10 +61,12 @@ function padimage(alg::NFFTAlg, img)
     nny = nextprod((2,3,5,7), padfac*ny)
     nsx = nnx÷2-nx÷2
     nsy = nny÷2-ny÷2
-    return PaddedView(zero(eltype(img)), img.im,
+    pimg = PaddedView(zero(eltype(img)), img.im,
                       (1:nnx, 1:nny),
                       (nsx+1:nsx+nx, nsy+1:nsy+ny)
                      )
+    dx, dy = pixelsizes(img)
+    return IntensityMap(collect(pimg), dx*size(pimg,2), dy*size(pimg, 1), img.pulse)
 end
 
 function plan_nuft(alg::ObservedNUFT{<:NFFTAlg}, img, dx, dy)
