@@ -314,7 +314,6 @@ end
 
 @testset "Image SqExp" begin
    c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12; pulse=SqExpPulse(3.0))
-   #mI = DImage(c.im, SqExpPulse(5.0))
    testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
 end
 #@testset "DImage Bspline0" begin
@@ -328,6 +327,11 @@ end
 
 @testset "DImage BSpline3" begin
     c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12; pulse=BSplinePulse{3}())
+    testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
+end
+
+@testset "DImage Bicubic" begin
+    c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12; pulse=Bicubic())
     testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
 end
 
