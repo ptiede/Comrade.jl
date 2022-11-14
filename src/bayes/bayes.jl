@@ -39,6 +39,56 @@ function Posterior(lklhd, prior::NamedTuple, model)
     return Posterior(lklhd, NamedDist(prior), model)
 end
 
+struct ModelMetadata{M, C}
+    model::M
+    metadata::C
+end
+
+function (m::ModelMetadata)(θ)
+    return m.model(θ, m.metadata)
+end
+
+"""
+    Posterior(lklhd, prior::NamedTuple, model, metadata::NamedTuple)
+
+Creates a posterior density using the `lklhd`, `prior`. This version accepts
+two additional arguments a `model` that converts from parameters `θ` to a Comrade
+AbstractModel which can be used to compute [`visibilities`](@ref) and a set of
+`metadata` that is used by `model` to compute the model.
+
+# Warning
+
+The `model` itself must be a two argument function where the first argument is the set
+of model parameters and the second is a container that holds all the additional
+information needed to construct the model. An example of this is when the model
+needs some precomputed cache to define the model.
+
+# Example
+```julia
+
+# Construct a likelihood
+lklhd = RadioLikelihood(...)
+
+cache = create_cache(FFTAlg(), IntensityMap(zeros(128,128), μas2rad(100.0), μas2rad(100.0)))
+
+function model(θ, metadata)
+    (; r, a) = θ
+    m = stretched(ExtendedRing(a), r, r)
+    return modelimage(m, metadata.cache)
+end
+
+prior = (
+         r = Uniform(μas2rad(10.0), μas2rad(40.0)),
+         a = Uniform(0.1, 5.0)
+         )
+
+Posterior(lklhd, prior, model, (cache = cache))
+```
+"""
+function Posterior(lklhd, prior::NamedTuple, model, metadata)
+    return Posterior(lklhd, NamedDist(prior), ModelMetadata(model, metadata))
+end
+
 @inline DensityInterface.DensityKind(::Posterior) = DensityInterface.IsDensity()
 
 function DensityInterface.logdensityof(post::Posterior, x)
