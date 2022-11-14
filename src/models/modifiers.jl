@@ -128,10 +128,10 @@ end
 
 @inline function _visibilities(m::AbstractModifier, p)
     (;u, v) = p
-    mod = apply_uv_transform.(Ref(m), u, v, one(Complex{eltype(u)}))
-    uv = first.(mod)
+    mod = apply_uv_transform.(Ref(m), p, one(Complex{eltype(u)}))
+    ptr = first.(mod)
     scale = last.(mod)
-    scale.*visibilities(unmodified(m), first.(uv), last.(uv), args...)
+    scale.*visibilities(unmodified(m), ptr)
 end
 
 
