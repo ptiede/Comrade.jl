@@ -65,6 +65,8 @@ function padimage(alg::NFFTAlg, img)
                       (1:nnx, 1:nny),
                       (nsx+1:nsx+nx, nsy+1:nsy+ny)
                      )
+    dx, dy = pixelsizes(img)
+    return IntensityMap(collect(pimg), dx*size(pimg,2), dy*size(pimg, 1), img.pulse)
 end
 
 function plan_nuft(alg::ObservedNUFT{<:NFFTAlg}, img, dx, dy)

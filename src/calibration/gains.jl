@@ -106,6 +106,97 @@ function Distributions._logpdf(d::GainPrior, x::AbstractArray)
     return Distributions._logpdf(d.dist, x)
 end
 
+struct HeirarchicalGainPrior{G,DM,DS,S,T}
+    mean::DM
+    std::DS
+    stations::S
+    times::T
+end
+
+struct NamedDist{Names, D}
+    dists::D
+end
+
+function NamedDist(d::NamedTuple{N}) where {N}
+    d = values(d)
+    return NamedDist{N,typeof(d)}(d)
+end
+
+function Dists.logpdf(d::NamedDist{N}, x::NamedTuple{N}) where {N}
+    vt = values(x)
+    dists = d.dists
+    sum(map((dist, acc) -> Dists.logpdf(dist, acc), dists, vt))
+end
+
+function Dists.logpdf(d::NamedDist{N}, x::NamedTuple{M}) where {N,M}
+    xsub = select(x, N)
+    return Dists.logpdf(d, xsub)
+end
+
+function Dists.rand(rng::AbstractRNG, d::NamedDist{N}) where {N}
+    return NamedTuple{N}(map(x->rand(rng, x), d.dists))
+end
+
+HypercubeTransform.asflat(d::NamedDist{N}) where {N} = asflat(NamedTuple{N}(d.dists))
+
+DensityInterface.DensityKind(::NamedDist) = DensityInterface.IsDensity()
+DensityInterface.logdensityof(d::NamedDist, x) = Dists.logpdf(d, x)
+
+DensityInterface.DensityKind(::HeirarchicalGainPrior) = DensityInterface.IsDensity()
+DensityInterface.logdensityof(d::HeirarchicalGainPrior, x) = Dists.logpdf(d, x)
+
+function _construct_gain_prior(means::NamedTuple{N}, stds::NamedTuple{N}, ::Type{G}, stations) where {N, G}
+    gpr = NamedTuple{N}(G.(values(means), values(stds)))
+    return Dists.product_distribution(getproperty.(Ref(gpr), stations))
+end
+
+function HeirarchicalGainPrior{G}(means, std, st::ScanTable) where {G}
+    mnt = NamedDist(means)
+    snt = NamedDist(std)
+    gtimes, gstat = gain_stations(st)
+
+    return HeirarchicalGainPrior{G, typeof(mnt), typeof(snt), typeof(gstat), typeof(gtimes)}(mnt, snt, gstat, gtimes)
+end
+
+function Dists.logpdf(d::HeirarchicalGainPrior{G}, x::NamedTuple) where {G}
+    lm = Dists.logpdf(d.mean, x.mean)
+    ls = Dists.logpdf(d.std, x.std)
+    dg = _construct_gain_prior(x.mean, x.std, G, d.stations)
+    lg = Dists.logpdf(dg, x.gains)
+    return lg+ls+lm
+end
+
+# function ChainRulesCore.rrule(config::ChainRulesCore.RuleConfig{>:ChainRulesCore.HasReverseMode}, ::typeof(Dists.logpdf), d::HeirarchicalGainPrior, x::NamedTuple)
+#     f = Dists.logpdf(d, x)
+
+#     y_and_dy = map(values(x)) do xi
+#         ChainRulesCore.rrule_via_ad(config, (NoTangent(), NoTangent(), 1.0), Dists.logpdf, d, x)
+#     end
+
+#     function _heirarchical_gain_logpdf(Δ)
+#         Δf = NoTangent()
+#         d = NoTangent()
+
+#     end
+# end
+
+function Dists.rand(rng::AbstractRNG, d::HeirarchicalGainPrior{G}) where {G}
+    m = rand(rng, d.mean)
+    s = rand(rng, d.std)
+    dg = _construct_gain_prior(m, s, G, d.stations)
+    g = rand(rng, dg)
+    return (mean=m, std=s, gains=g)
+end
+
+Base.length(d::HeirarchicalGainPrior) = length(d.mean) + length(d.std) + length(d.times)
+
+function HypercubeTransform.asflat(d::HeirarchicalGainPrior{G}) where {G}
+    m = rand(d.mean)
+    s = rand(d.std)
+    dg = _construct_gain_prior(m, s, G, d.stations)
+    return TransformVariables.as((mean = asflat(d.mean), std = asflat(d.std), gains = asflat(dg)))
+end
+
 Statistics.mean(d::GainPrior) = mean(d.dist)
 Statistics.var(d::GainPrior) = var(d.dist)
 Distributions.entropy(d::GainPrior) = entropy(d.dist)
