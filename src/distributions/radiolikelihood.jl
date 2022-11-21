@@ -80,7 +80,7 @@ function RadioLikelihood(model, metadata::NamedTuple, data::EHTObservation...)
     acs = arrayconfig.(data)
     #@argcheck acs[1] == acs[2]
     mms = ModelMetadata(model, metadata)
-    RadioLikelihood{typeof(model), typeof(ls), typeof(acs[1])}(model, metadata, ls, acs[1])
+    RadioLikelihood{typeof(model), typeof(ls), typeof(acs[1])}(mms, ls, acs[1])
 end
 
 """
