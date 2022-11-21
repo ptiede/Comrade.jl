@@ -33,6 +33,17 @@ function (m::ModelMetadata)(θ)
     return m.model(θ, m.metadata)
 end
 
+struct ModelMetadata{M, C}
+    model::M
+    metadata::C
+end
+
+function (m::ModelMetadata)(θ)
+    return m.model(θ, m.metadata)
+end
+
+
+
 
 function RadioLikelihood(model, data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
