@@ -150,6 +150,7 @@ function _construct_gain_prior(means::NamedTuple{N}, stds::NamedTuple{N}, ::Type
     return Dists.product_distribution(getproperty.(Ref(gpr), stations))
 end
 
+
 function HeirarchicalGainPrior{G}(means, std, st::ScanTable) where {G}
     mnt = NamedDist(means)
     snt = NamedDist(std)
@@ -166,19 +167,10 @@ function Dists.logpdf(d::HeirarchicalGainPrior{G}, x::NamedTuple) where {G}
     return lg+ls+lm
 end
 
-# function ChainRulesCore.rrule(config::ChainRulesCore.RuleConfig{>:ChainRulesCore.HasReverseMode}, ::typeof(Dists.logpdf), d::HeirarchicalGainPrior, x::NamedTuple)
-#     f = Dists.logpdf(d, x)
+function _unwrapped_logpdf(d::HeirarchicalGainPrior, x::Tuple)
+    return Dists.logpdf(d, NamedTuple{(:mean, :std, :gains)}(x))
+end
 
-#     y_and_dy = map(values(x)) do xi
-#         ChainRulesCore.rrule_via_ad(config, (NoTangent(), NoTangent(), 1.0), Dists.logpdf, d, x)
-#     end
-
-#     function _heirarchical_gain_logpdf(Δ)
-#         Δf = NoTangent()
-#         d = NoTangent()
-
-#     end
-# end
 
 function Dists.rand(rng::AbstractRNG, d::HeirarchicalGainPrior{G}) where {G}
     m = rand(rng, d.mean)
