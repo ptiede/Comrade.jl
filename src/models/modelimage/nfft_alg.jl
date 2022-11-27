@@ -66,7 +66,7 @@ function padimage(alg::NFFTAlg, img)
                       (nsx+1:nsx+nx, nsy+1:nsy+ny)
                      )
     dx, dy = pixelsizes(img)
-    return IntensityMap(collect(pimg), dx*size(pimg,2), dy*size(pimg, 1), img.pulse)
+    return IntensityMap(collect(pimg), dx*size(pimg,2), dy*size(pimg, 1))
 end
 
 function plan_nuft(alg::ObservedNUFT{<:NFFTAlg}, img, dx, dy)
@@ -87,8 +87,8 @@ function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img)
 end
 
 @inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img)
-    #timg = #IntensityMap(transpose(img.im), img.fovx, img.fovy, img.pulse)
-    return NUFTCache(alg, plan, phases, img.pulse, img.img')
+    #timg = #IntensityMap(transpose(img.im), img.fovx, img.fovy)
+    return NUFTCache(alg, plan, phases, img.img')
 end
 
 # Allow NFFT to work with ForwardDiff.

@@ -1,6 +1,6 @@
 export PolarizedModel, coherencymatrix
 
-import ComradeBase: AbstractPolarizedModel, m̆, evpa, CoherencyMatrix, StokesVector
+import ComradeBase: AbstractPolarizedModel, m̆, evpa, CoherencyMatrix, StokesParams
 
 """
     $(TYPEDEF)
@@ -45,7 +45,7 @@ Base.@constprop :aggressive @inline imanalytic(::Type{PolarizedModel{I,Q,U,V}}) 
     Q = intensity_point(pmodel.Q, u, v)
     U = intensity_point(pmodel.U, u, v)
     V = intensity_point(pmodel.V, u, v)
-    return StokesVector(I,Q,U,V)
+    return StokesParams(I,Q,U,V)
 end
 
 """
@@ -58,7 +58,7 @@ Computes the visibility in the stokes basis of the polarized model
     sq = visibility(pimg.Q, u, v)
     su = visibility(pimg.U, u, v)
     sv = visibility(pimg.V, u, v)
-    return StokesVector(si, sq, su, sv)
+    return StokesParams(si, sq, su, sv)
 end
 
 function visibilities(pimg::PolarizedModel, u, v)
@@ -66,68 +66,68 @@ function visibilities(pimg::PolarizedModel, u, v)
     sq = visibilities(pimg.Q, u, v)
     su = visibilities(pimg.U, u, v)
     sv = visibilities(pimg.V, u, v)
-    return StructArray{StokesVector{eltype(si)}}((si, sq, su, sv))
+    return StructArray{StokesParams{eltype(si)}}((si, sq, su, sv))
 end
 
-function intensitymap!(pimg::IntensityMap{<:StokesVector}, pmodel::PolarizedModel, executor=SequentialEx())
-    intensitymap!(stokes(pimg, :I), pmodel.I, executor)
-    intensitymap!(stokes(pimg, :Q), pmodel.Q, executor)
-    intensitymap!(stokes(pimg, :U), pmodel.U, executor)
-    intensitymap!(stokes(pimg, :V), pmodel.V, executor)
+function intensitymap!(pimg::IntensityMap{<:StokesParams}, pmodel::PolarizedModel)
+    intensitymap!(stokes(pimg, :I), pmodel.I)
+    intensitymap!(stokes(pimg, :Q), pmodel.Q)
+    intensitymap!(stokes(pimg, :U), pmodel.U)
+    intensitymap!(stokes(pimg, :V), pmodel.V)
     return pimg
 end
 
-function intensitymap(pmodel::PolarizedModel, fov::NTuple{2}, dims::Dims{2}; phasecenter=(0.0,0.0), pulse=DeltaPulse(), executor=SequentialEx())
+function intensitymap(pmodel::PolarizedModel, fov::NTuple{2}, dims::Dims{2}; phasecenter=(0.0,0.0), pulse=DeltaPulse())
     imgI = intensitymap(pmodel.I, fov, dims; phasecenter, pulse, executor)
     imgQ = intensitymap(pmodel.Q, fov, dims; phasecenter, pulse, executor)
     imgU = intensitymap(pmodel.U, fov, dims; phasecenter, pulse, executor)
     imgV = intensitymap(pmodel.V, fov, dims; phasecenter, pulse, executor)
-    pimg = StructArray{StokesVector{eltype(imgI)}}((imgI.img, imgQ.img, imgU.img, imgV.img))
+    pimg = StructArray{StokesParams{eltype(imgI)}}((imgI.img, imgQ.img, imgU.img, imgV.img))
     return IntensityMap(pimg, fov, phasecenter, pulse)
 end
 
-"""
-    $(SIGNATURES)
+# """
+#     $(SIGNATURES)
 
-Computes the coherency matrix of the polarized model `pimg` at `u` and `v`
-"""
-@inline function coherencymatrix(pimg::PolarizedModel, u, v)
-    si = visibility(pimg, u, v)
-    return convert(CoherencyMatrix, si)
-end
+# Computes the coherency matrix of the polarized model `pimg` at `u` and `v`
+# """
+# @inline function coherencymatrix(pimg::PolarizedModel, u, v)
+#     si = visibility(pimg, u, v)
+#     return convert(CoherencyMatrix, si)
+# end
 
-"""
-    evpa(pimg::AbstractPolarizedModel, u, v)
+# """
+#     evpa(pimg::AbstractPolarizedModel, u, v)
 
-electric vector position angle or EVPA of the polarized model `pimg` at `u` and `v`
-"""
-@inline function evpa(pimg::AbstractPolarizedModel, u, v)
-    sq = visibility(pimg.Q, u, v)
-    su = visibility(pimg.U, u, v)
-    return 1/2*angle(su/sq)
-end
+# electric vector position angle or EVPA of the polarized model `pimg` at `u` and `v`
+# """
+# @inline function evpa(pimg::AbstractPolarizedModel, u, v)
+#     sq = visibility(pimg.Q, u, v)
+#     su = visibility(pimg.U, u, v)
+#     return 1/2*angle(su/sq)
+# end
 
 
-"""
-    m̆(pimg::AbstractPolarizedModel, u, v)
+# """
+#     m̆(pimg::AbstractPolarizedModel, u, v)
 
-Computes the fractional linear polarization in the visibility domain
+# Computes the fractional linear polarization in the visibility domain
 
-    m̆ = (Q + iU)/I
+#     m̆ = (Q + iU)/I
 
-To create the symbol type `m\\breve` in the REPL or use the
-[`mbreve`](@ref) function.
-"""
-@inline function m̆(pimg::AbstractPolarizedModel, u, v)
-    Q = visibility(pimg.Q, u, v)
-    U = visibility(pimg.U, u, v)
-    I = visibility(pimg.I, u, v)
-    return (Q+1im*U)/I
-end
+# To create the symbol type `m\\breve` in the REPL or use the
+# [`mbreve`](@ref) function.
+# """
+# @inline function m̆(pimg::AbstractPolarizedModel, u, v)
+#     Q = visibility(pimg.Q, u, v)
+#     U = visibility(pimg.U, u, v)
+#     I = visibility(pimg.I, u, v)
+#     return (Q+1im*U)/I
+# end
 
-"""
-    $(SIGNATURES)
+# """
+#     $(SIGNATURES)
 
-Explicit m̆ function used for convenience.
-"""
-mbreve(pimg, u, v) = m̆(pimg, u, v)
+# Explicit m̆ function used for convenience.
+# """
+# mbreve(pimg, u, v) = m̆(pimg, u, v)

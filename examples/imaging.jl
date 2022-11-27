@@ -23,34 +23,20 @@ obs = scan_average(obs).add_fractional_noise(0.02)
 damp = extract_amp(obs)
 dcphase = extract_cphase(obs; cut_trivial=true)
 
-# Build the Model. Here we we a struct to hold some caches
-# This will be useful to hold precomputed caches
 
-struct GModel{C,G}
-    cache::C
-    gcache::G
-    fovx::Float64
-    fovy::Float64
-    nx::Int
-    ny::Int
-    function GModel(obs::Comrade.EHTObservation, fovx, fovy, nx, ny)
-        buffer = IntensityMap(zeros(ny, nx), fovx, fovy, BSplinePulse{3}())
-        cache = create_cache(DFTAlg(obs), buffer)
-        gcache = GainCache(scantable(obs))
-        return new{typeof(cache), typeof(gcache)}(cache, gcache, fovx, fovy, nx, ny)
-    end
-end
-
-function (model::GModel)(θ)
+function model(θ, metadata)
     (;c, f, fg, lgamp) = θ
+    (; fovx, fovy, cache, gcache) = metadata
     # Construct the image model
-    img = IntensityMap(f*c, model.fovx, model.fovy, BSplinePulse{3}())
-    m = modelimage(img, model.cache)
+    img = IntensityMap(f*c, fovx, fovy, (0.0, 0.0), BSplinePulse{3}())
+    m = modelimage(img, cache)
     gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
     g = exp.(lgamp)
-    Comrade.GainModel(model.gcache, g, m+gaussian)
+    Comrade.GainModel(gcache, g, m+gaussian)
 end
+
+
 
 # First we define the station gain priors
 distamp = (AA = Normal(0.0, 0.1),
@@ -73,11 +59,14 @@ prior = (
           lgamp = Comrade.GainPrior(distamp, scantable(damp)),
         )
 
+buffer = IntensityMap(zeros(ny, nx), fovx, fovy, (0.0, 0.0), BSplinePulse{3}())
+cache = create_cache(DFTAlg(damp), buffer)
+gcache = GainCache(scantable(damp))
+metadata = (;cache, gcache, fovx, fovy)
 
-mms = GModel(damp, fovx, fovy, nx, ny)
-lklhd = RadioLikelihood(damp, dcphase)
+lklhd = RadioLikelihood(model, metadata, damp, dcphase)
 
-post = Posterior(lklhd, prior, mms)
+post = Posterior(lklhd, prior)
 
 tpost = asflat(post)
 
@@ -93,12 +82,12 @@ sol = solve(prob, LBFGS(); maxiters=6000, callback=(x,p)->(@info ℓ(x); false),
 xopt = transform(tpost, sol)
 
 # Let's see how the fit looks
-plot(mms(xopt), fovx=fovx, fovy=fovy, title="MAP")
-residual(mms(xopt), damp)
-residual(mms(xopt), dcphase)
+plot(model(xopt, metadata), fovx=fovx, fovy=fovy, title="MAP")
+residual(model(xopt, metadata), damp)
+residual(model(xopt, metadata), dcphase)
 
 # Let's also plot the gain curves
-gt = Comrade.caltable(mms(xopt))
+gt = Comrade.caltable(model(xopt, metadata))
 plot(gt, ylims=:none, layout=(3,3), size=(600,500))
 
 using Measurements

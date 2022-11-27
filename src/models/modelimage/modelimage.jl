@@ -78,7 +78,7 @@ For analytic models this is a no-op and returns the model.
 For non-analytic models this creates a `ModelImage` object which uses `alg` to compute
 the non-analytic Fourier transform.
 """
-@inline function modelimage(model::M, image::ComradeBase.AbstractIntensityMap, alg::FourierTransform=FFTAlg(), executor=SequentialEx()) where {M}
+@inline function modelimage(model::M, image::IntensityMap, alg::FourierTransform=FFTAlg(), executor=SequentialEx()) where {M}
     return modelimage(visanalytic(M), model, image, alg, executor)
 end
 
@@ -93,7 +93,7 @@ function _modelimage(model, image, alg, executor)
 end
 
 @inline function modelimage(::NotAnalytic, model,
-                            image::ComradeBase.AbstractIntensityMap,
+                            image::IntensityMap,
                             alg::FourierTransform=FFTAlg(),
                             executor=SequentialEx())
     _modelimage(model, image, alg, executor)
@@ -183,17 +183,19 @@ For analytic models this is a no-op and returns the model.
 
 """
 function modelimage(m::M;
-                    fov=(2*radialextent(m), 2*radialextent(m)),
-                    dims=(512, 512),
-                    phasecenter = (0.0, 0.0),
-                    pulse=ComradeBase.DeltaPulse(),
+                    fovx = 2*radialextent(m),
+                    fovy = 2*radialextent(m),
+                    nx = 512,
+                    ny = 512,
+                    x0 = 0.0,
+                    y0 = 0.0,
                     alg=FFTAlg(),
                     executor=SequentialEx()) where {M}
     if visanalytic(M) == IsAnalytic()
         return m
     else
         T = typeof(intensity_point(m, 0.0, 0.0))
-        img = IntensityMap(zeros(T,dims...), fov, phasecenter, pulse)
+        img = IntensityMap(zeros(T,dims...), fovx, fovy, nx, ny, x0, y0)
         modelimage(m, img, alg, executor)
     end
 end

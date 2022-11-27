@@ -138,7 +138,7 @@ end
 # since you evaluate the visibilities pointwise
 function modelimage(::NotAnalytic,
     model::AbstractModifier,
-    image::ComradeBase.AbstractIntensityMap, alg::FFTAlg, executor=SequentialEx())
+    image::IntensityMap, alg::FFTAlg, executor=SequentialEx())
 
     @set model.model = modelimage(model.model, image, alg, executor)
 end
@@ -147,7 +147,7 @@ end
 # since you evaluate the visibilities as a vector
 function modelimage(::NotAnalytic,
     model::AbstractModifier,
-    image::ComradeBase.AbstractIntensityMap, alg::NUFT,
+    image::IntensityMap, alg::NUFT,
     executor=SequentialEx())
     _modelimage(model, image, alg, executor)
 end

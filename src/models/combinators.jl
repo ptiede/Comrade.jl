@@ -24,7 +24,7 @@ abstract type CompositeModel{M1,M2} <: AbstractModel end
 
 function modelimage(::NotAnalytic,
     model::CompositeModel,
-    image::ComradeBase.AbstractIntensityMap,
+    image::IntensityMap,
     alg::FourierTransform=FFTAlg(),
     executor=SequentialEx())
 
