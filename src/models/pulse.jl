@@ -1,7 +1,7 @@
 export DeltaPulse, SqExpPulse, BSplinePulse, BicubicPulse, RaisedCosinePulse
 
 """
-Pulse
+    Pulse
 Pixel response function for a radio image model. This makes
 a discrete sampling continuous by picking a certain *smoothing*
 kernel for the image.
@@ -16,8 +16,8 @@ visanalytic(::Type{<:Pulse}) = IsAnalytic()
 imanalytic(::Type{<:Pulse}) = IsAnalytic()
 isprimitive(::Type{<:Pulse}) = IsPrimitive()
 
-@inline intensity_point(p::Pulse, x,y) = κ(p::Pulse, x)*κ(p::Pulse, y)
-@inline visibility_point(p::Pulse, u,v) = ω(p::Pulse, u)*ω(p::Pulse, v)
+@inline intensity_point(p::Pulse, ps) = κ(p::Pulse, ps.X)*κ(p::Pulse, ps.Y)
+@inline visibility_point(p::Pulse, ps) = ω(p::Pulse, ps.X)*ω(p::Pulse, ps.Y)
 
 
 flux(p::Pulse) = κflux(p)^2

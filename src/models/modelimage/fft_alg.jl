@@ -55,7 +55,7 @@ function create_interpolator(u, v, vis, img)
     dx,dy = pixelsizes(img)
     function (u,v)
         #phase = cispi(-(u*dx + v*dx))
-        pl = visibility_point(img.pulse, u*dx, v*dy)
+        pl = visibility_point(img.pulse, (U=u*dx, V=v*dy))
         return pl*(p1(u,v) + 1im*p2(u,v))
     end
 end
@@ -97,7 +97,7 @@ end
 #                      )
 # end
 
-function padimage(img, alg::FFTAlg)
+function padimage(img::IntensityMap, alg::FFTAlg)
     padfac = alg.padfac
     ny,nx = size(img)
     nnx = nextprod((2,3,5,7), padfac*nx)
@@ -114,7 +114,7 @@ function phasecenter(vis, uu, vv, x0, y0, dx, dy)
 end
 
 
-function create_cache(alg::FFTAlg, img)
+function create_cache(alg::FFTAlg, img::IntensityMap)
     #intensitymap!(img, model)
     pimg = padimage(img, alg)
     # Do the plan and then fft
@@ -136,11 +136,13 @@ function create_cache(alg::FFTAlg, img)
     return FFTCache(alg, plan, img, sitp)
 end
 
-function update_cache(cache::FFTCache, img)
+function update_cache(cache::FFTCache, img::IntensityMap)
     plan = cache.plan
     pimg = padimage(img, cache.alg)
 
-    dx,dy = pixelsizes(img)
+    dp = pixelsizes(img)
+    dx = dp.X
+    dy = dp.Y
     nny, nnx = size(pimg)
     uu, vv = uviterator(dx, dy, nnx, nny)
 
@@ -190,47 +192,42 @@ end
 #end
 
 """
-    fouriermap(m, fovx, fovy, nx, ny)
+    fouriermap(m, x)
 
 Create a Fourier or visibility map of a model `m`
-assuming a image with a field of view `fovx/fovy` and
-`nx/ny` pixels in the x/y direction respectively.
+where the image is specified in the image domain by the
+pixel locations `x` and `y`
 """
-function fouriermap(m, fovx, fovy, x0, y0, nx, ny)
-    x,y = imagepixels(fovx, fovy, x0, y0, nx, ny)
+function fouriermap(m, dims::DataNames)
+    x = dims.X
+    y = dims.Y
     dx = step(x); dy = step(y)
     uu,vv = uviterator(dx, dy, nx, ny)
+    vis = visibility.(m, grid(U=uu, V=vv))
 
-    T = typeof(visibility(m, 0.0, 0.0))
-    vis = Matrix{T}(undef, ny, nx)
-
-
-    @inbounds for I in CartesianIndices(vis)
-        iy, ix = Tuple(I)
-        vp = visibility(m, uu[ix], vv[iy])
-        vis[I] = vp
-    end
     return vis
 end
 
 
-function fouriermap(m::ModelImage, fovx, fovy, x0, y0, nx, ny)
-    cache = create_cache(FFTAlg(), m.image)
-    x,y = imagepixels(fovx, fovy, x0, y0, nx, ny)
-    dx = step(x); dy = step(y)
-    uu,vv = uviterator(dx, dy, nx, ny)
 
-    T = Complex{eltype(m.image)}
-    vis = Matrix{T}(undef, ny, nx)
 
-    @inbounds for I in CartesianIndices(vis)
-        iy, ix = Tuple(I)
-        vp = cache.sitp(uu[ix], vv[iy])
-        vis[I] = vp
-    end
-    return vis
+# function fouriermap(m::ModelImage, fovx, fovy, x0, y0, nx, ny)
+#     cache = create_cache(FFTAlg(), m.image)
+#     x,y = imagepixels(fovx, fovy, x0, y0, nx, ny)
+#     dx = step(x); dy = step(y)
+#     uu,vv = uviterator(dx, dy, nx, ny)
 
-end
+#     T = Complex{eltype(m.image)}
+#     vis = Matrix{T}(undef, ny, nx)
+
+#     @inbounds for I in CartesianIndices(vis)
+#         iy, ix = Tuple(I)
+#         vp = cache.sitp(uu[ix], vv[iy])
+#         vis[I] = vp
+#     end
+#     return vis
+
+# end
 
 function phasedecenter!(vis, fovx, fovy, Δx, Δy, nx, ny)
     x,y = imagepixels(fovx, fovy, Δx, Δy, nx, ny)
@@ -249,6 +246,6 @@ end
 #     return visibility.(Ref(mimg), u, v, args...)
 # end
 
-@inline function visibility_point(mimg::ModelImage{M,I,<:FFTCache}, u, v) where {M,I}
-    return mimg.cache.sitp(u, v)
+@inline function visibility_point(mimg::ModelImage{M,I,<:FFTCache}, p) where {M,I}
+    return mimg.cache.sitp(p.U, p.V)
 end

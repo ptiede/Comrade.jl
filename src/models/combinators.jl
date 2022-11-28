@@ -265,15 +265,14 @@ smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 
 flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
-function intensitymap(::NotAnalytic, model::ConvolvedModel, fov::NTuple{2}, dims::Dims{2};
-        phasecenter = (0.0),
-        pulse=DeltaPulse(), executor=SequentialEx())
-
-    fovx, fovy = fov
+function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::DataNames, header=nothing)
+    fov = fieldofview(dims)
+    fovx = fov.X
+    fovy = fov.Y
     ny, nx = dims
     x0, y0 = phasecenter
-    vis1 = fouriermap(model.m1, fovx, fovy, x0, y0, nx, ny)
-    vis2 = fouriermap(model.m2, fovx, fovy, x0, y0, nx, ny)
+    vis1 = fouriermap(model.m1, dims.X, dims.Y)
+    vis2 = fouriermap(model.m2, dims.X, dims.Y)
     vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, x0, y0, nx, ny))
     img = ifft(vis)
     return IntensityMap(real.(img)./(nx*ny), fov, phasecenter, pulse)

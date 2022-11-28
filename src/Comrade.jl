@@ -26,6 +26,7 @@ using PaddedViews
 using PyCall: pyimport, PyNULL, PyObject
 using SpecialFunctions #: gamma, erf
 #using Bessels
+using RectiGrids
 using Reexport
 using Requires: @require
 using StructArrays: StructVector, StructArray, append!!
@@ -35,7 +36,7 @@ using UUIDs
 
 @reexport using ComradeBase
 export AD
-using ComradeBase: visanalytic, imanalytic
+using ComradeBase: visanalytic, imanalytic, DataNames
 
 export SequentialEx, ThreadedEx
 
@@ -76,7 +77,7 @@ Converts a number from micro-arcseconds (μas) to rad
 
 #include("interface.jl")
 #include("images/images.jl")
-import ComradeBase: flux, radialextent, intensitymap, intensitymap!, phasecenter
+import ComradeBase: flux, radialextent, intensitymap, intensitymap!
 export create_cache
 include("observations/observations.jl")
 include("models/models.jl")

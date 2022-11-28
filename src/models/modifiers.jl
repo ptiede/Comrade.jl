@@ -102,18 +102,14 @@ end
 
 
 
-@inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number, scale::Number)
-    ut, vt = transform_uv(m, u, v)
-    scale *= scale_uv(m, u, v)
-    return apply_uv_transform(basemodel(m), ut, vt, scale)
+@inline function apply_uv_transform(m::AbstractModifier, t::TransformState)
+    ut, vt = transform_uv(m, t.u, t.v)
+    scale = t.scale*scale_uv(m, t.u, t.v)
+    return apply_uv_transform(basemodel(m), TransformState(ut, vt, scale))
 end
 
-@inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number, scale::Real)
-    return apply_uv_transform(m, u, v, complex(scale))
-end
-
-@inline function apply_uv_transform(::AbstractModel, u::Number, v::Number, scale::Number)
-    return (u, v), scale
+@inline function apply_uv_transform(::AbstractModel, t::TransformState)
+    return t
 end
 
 
@@ -127,11 +123,10 @@ end
 # end
 
 @inline function _visibilities(m::AbstractModifier, p)
-    (;u, v) = p
-    mod = apply_uv_transform.(Ref(m), p, one(Complex{eltype(u)}))
-    ptr = first.(mod)
-    scale = last.(mod)
-    scale.*visibilities(unmodified(m), ptr)
+    (;U, V) = p
+    st = StructArray{TransformState{eltype(U), Complex{eltype(u)}}}(u=U, v=V, scale=fill(one(Complex{eltype(u)}), length(U)))
+    mst = apply_uv_transform.(Ref(m), st)
+    mst.scale.*visibilities(unmodified(m), (U=mst.u, V=mst.v))
 end
 
 
@@ -155,16 +150,15 @@ end
 
 
 @inline function visibility_point(m::AbstractModifier, p)
-    ut, vt = transform_uv(m, p)
-    scale = scale_uv(m, u, v)
-    pup =
-    scale*visibility(basemodel(m), ut, vt, args...)
+    ut, vt = transform_uv(m, p.U, p.V)
+    scale = scale_uv(m, p.U, p.V)
+    scale*visibility(basemodel(m), (U=ut, V=vt))
 end
 
-@inline function ComradeBase.intensity_point(m::AbstractModifier, x, y)
-    xt, yt = transform_image(m, x, y)
-    scale = scale_image(m, x, y)
-    scale*ComradeBase.intensity_point(basemodel(m), xt, yt)
+@inline function ComradeBase.intensity_point(m::AbstractModifier, p)
+    xt, yt = transform_image(m, p.X, p.Y)
+    scale = scale_image(m, p.X, p.Y)
+    scale*ComradeBase.intensity_point(basemodel(m), (X=xt, Y=yt))
 end
 
 """

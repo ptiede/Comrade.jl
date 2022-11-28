@@ -77,11 +77,11 @@ function intensitymap!(pimg::StokesIntensityMap, pmodel::PolarizedModel)
     return pimg
 end
 
-function intensitymap(pmodel::PolarizedModel, pmodel::PolarizedModel, )
-    imgI = intensitymap(pmodel.I, fov, dims; phasecenter, pulse, executor)
-    imgQ = intensitymap(pmodel.Q, fov, dims; phasecenter, pulse, executor)
-    imgU = intensitymap(pmodel.U, fov, dims; phasecenter, pulse, executor)
-    imgV = intensitymap(pmodel.V, fov, dims; phasecenter, pulse, executor)
+function intensitymap(pmodel::PolarizedModel, dims)
+    imgI = intensitymap(pmodel.I, dims)
+    imgQ = intensitymap(pmodel.Q, dims)
+    imgU = intensitymap(pmodel.U, dims)
+    imgV = intensitymap(pmodel.V, dims)
     pimg = StructArray{StokesParams{eltype(imgI)}}((imgI.img, imgQ.img, imgU.img, imgV.img))
     return IntensityMap(pimg, fov, phasecenter, pulse)
 end
