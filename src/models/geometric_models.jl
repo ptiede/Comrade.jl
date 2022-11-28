@@ -9,6 +9,11 @@ export Gaussian,
         Wisp,
         Butterworth
 
+# helper functions for below
+@inline _getuv(p) = (p.U, p.V)
+@inline _getxy(p) = (p.X, p.Y)
+
+
 """
 $(TYPEDEF)
 A type that defines it is a geometric model. These are usually
@@ -44,11 +49,13 @@ Gaussian() = Gaussian{Float64}()
 radialextent(::Gaussian) = 5.0
 
 
-@inline function intensity_point(::Gaussian, x,y)
+@inline function intensity_point(::Gaussian, p)
+    x,y = _getxy(p)
     return exp(-(x^2+y^2)/2)/2π
 end
 
-@inline function visibility_point(::Gaussian{T}, u, v, args...) where {T}
+@inline function visibility_point(::Gaussian{T}, p) where {T}
+    u,v = _getuv(p)
     return exp(-2π^2*(u^2 + v^2)) + zero(T)im
 end
 
@@ -69,13 +76,15 @@ By default if T isn't given, `Disk` defaults to `Float64`
 struct Disk{T} <: GeometricModel end
 Disk() = Disk{Float64}()
 
-@inline function intensity_point(::Disk{T}, x, y, args...) where {T}
+@inline function intensity_point(::Disk{T}, p) where {T}
+    x,y = _getxy(p)
     r = x^2 + y^2
     return r < 1 ?  one(T)/(π) : zero(T)
 end
 
-@inline function visibility_point(::Disk{T}, x, y, args...) where {T}
-    ur = 2π*(hypot(x,y) + eps(T))
+@inline function visibility_point(::Disk{T}, p) where {T}
+
+    ur = 2π*(hypot(u,v) + eps(T))
     return 2*besselj1(ur)/(ur) + zero(T)im
 end
 
@@ -94,7 +103,8 @@ struct Ring{T} <: GeometricModel end
 Ring() = Ring{Float64}()
 radialextent(::Ring) = 3/2
 
-@inline function intensity_point(::Ring{T}, x::Number, y::Number) where {T}
+@inline function intensity_point(::Ring{T}, p) where {T}
+    x,y = _getxy(p)
     r = hypot(x,y)
     θ = atan(x,y)
     dr = 1e-2
@@ -108,7 +118,8 @@ end
 
 
 
-@inline function visibility_point(::Ring{T}, u, v, args...) where {T}
+@inline function visibility_point(::Ring{T}, p) where {T}
+    u,v = _getuv(p)
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     vis = besselj0(k) + zero(T)*im
     return vis
@@ -127,7 +138,8 @@ flux(::Butterworth{N,T}) where {N,T} = one(T)
 visanalytic(::Type{<:Butterworth}) = IsAnalytic()
 imanalytic(::Type{<:Butterworth}) = NotAnalytic()
 
-function visibility_point(::Butterworth{N,T}, u, v, args...) where {N,T}
+function visibility_point(::Butterworth{N,T}, p) where {N,T}
+    u,v = _getuv(p)
     b = hypot(u,v) + eps(T)
     return inv(sqrt(1 + b^(2*N)))
 end
@@ -150,7 +162,7 @@ The `N` in the type defines the order of the Fourier expansion.
 # Fields
 $(FIELDS)
 """
-struct MRing{T, V<:AbstractVector{T}} <: GeometricModel
+struct MRing{T, V<:Union{AbstractVector{T}, NTuple}} <: GeometricModel
     """
     Real Fourier mode coefficients
     """
@@ -159,7 +171,7 @@ struct MRing{T, V<:AbstractVector{T}} <: GeometricModel
     Imaginary Fourier mode coefficients
     """
     β::V
-    function MRing(α::V, β::V) where {V <: AbstractVector}
+    function MRing(α::V, β::V) where {V <: Union{AbstractVector, NTuple}}
         @argcheck length(α) == length(β) "Lengths of real/imag components must be equal in MRing"
         return new{eltype(α), V}(α, β)
     end
@@ -175,7 +187,7 @@ of the Fourier expansion. The `N` in the type defines the order of
 the Fourier expansion.
 
 """
-function MRing(c::AbstractVector{<:Complex})
+function MRing(c::Union{AbstractVector{<:Complex}, NTuple{N,<:Complex}})
     α = real.(c)
     β = imag.(c)
     return MRing(α, β)
@@ -183,11 +195,7 @@ end
 
 function MRing(a::Real, b::Real)
     aT,bT = promote(a,b)
-    return MRing([aT], [bT])
-end
-
-function MRing(a::Tuple, b::Tuple)
-    return MRing(collect(a), collect(b))
+    return MRing((aT,), (bT,))
 end
 
 # Depreciate this method since we are moving to vectors for simplificty
@@ -196,7 +204,8 @@ end
 radialextent(::MRing) = 1.5
 
 
-@inline function intensity_point(m::MRing{T}, x::Number, y::Number) where {T}
+@inline function intensity_point(m::MRing{T}, p) where {T}
+    x,y = _getxy(p)
     r = hypot(x,y)
     θ = atan(x,y)
     dr = 0.025
@@ -213,7 +222,11 @@ radialextent(::MRing) = 1.5
 end
 
 
-@inline function visibility_point(m::MRing{T}, u, v, args...) where {T}
+@inline function visibility_point(m::MRing{T}, p) where {T}
+    return _mring_vis(m, p.U, p.V)
+end
+
+function _mring_vis(m, u, v)
     (;α, β) = m
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     vis = besselj0(k) + zero(T)*im
@@ -267,7 +280,7 @@ function _mring_adjoint(α, β, u, v)
     return vis, ∂α, ∂β, ∂u, ∂v
 end
 
-function ChainRulesCore.rrule(::typeof(Comrade.visibility_point), m::MRing, u, v)
+function ChainRulesCore.rrule(::typeof(_mring_vis), m::MRing, u, v)
     (;α, β) = m
     vis, ∂α, ∂β, ∂u, ∂v = _mring_adjoint(α, β, u, v)
 
@@ -342,7 +355,8 @@ function _crescentnorm(m::ConcordanceCrescent)
     return 2/π/f
 end
 
-function intensity_point(m::ConcordanceCrescent{T}, x, y, args...) where {T}
+function intensity_point(m::ConcordanceCrescent{T}, p) where {T}
+    x,y = _getxy(p)
     r2 = x^2 + y ^2
     norm = _crescentnorm(m)
     if (r2 < m.router^2 && (x-m.shift)^2 + y^2 > m.rinner^2 )
@@ -352,7 +366,8 @@ function intensity_point(m::ConcordanceCrescent{T}, x, y, args...) where {T}
     end
 end
 
-function visibility_point(m::ConcordanceCrescent{T}, u, v, args...) where {T}
+function visibility_point(m::ConcordanceCrescent{T}, p) where {T}
+    u,v = _getuv(p)
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     norm = π*_crescentnorm(m)/k
     phaseshift = cispi(2*m.shift*u)
@@ -402,7 +417,8 @@ visanalytic(::Type{<:ExtendedRing}) = NotAnalytic()
 
 radialextent(m::ExtendedRing) = 6.0
 
-function intensity_point(m::ExtendedRing, x, y)
+function intensity_point(m::ExtendedRing, p)
+    x,y = _getxy(p)
     r = hypot(x, y) + eps()
     β = (m.shape + 1)
     α = m.shape
@@ -435,7 +451,8 @@ This is just a convenience function for `stretched(ParabolicSegment(), a, h)`
     stretched(ParabolicSegment(), a, h)
 end
 
-function intensity_point(::ParabolicSegment{T}, x, y) where {T}
+function intensity_point(::ParabolicSegment{T}, p) where {T}
+    x,y = _getxy(p)
     yw = (1-x^2)
     if abs(y - yw) < 0.01/2 && abs(x) < 1
         return 1/(2*0.01)
@@ -444,7 +461,8 @@ function intensity_point(::ParabolicSegment{T}, x, y) where {T}
     end
 end
 
-function visibility_point(::ParabolicSegment{T}, u, v) where {T}
+function visibility_point(::ParabolicSegment{T}, p) where {T}
+    u,v = _getuv(p)
     ϵ = sqrt(eps(T))
     vϵ = v + ϵ + 0im
     phase = cispi(3/4 + 2*vϵ + u^2/(2vϵ))

@@ -199,7 +199,7 @@ shifted(model::ShiftedModel, Δx, Δy) = ShiftedModel(basemodel(model), Δx+mode
 radialextent(model::ShiftedModel, Δx, Δy) = radialextent(model.model) + hypot(abs(Δx), abs(Δy))
 
 @inline transform_image(model::ShiftedModel, x, y) = (x-model.Δx, y-model.Δy)
-@inline transform_uv(model::ShiftedModel, u, v) = (u, v)
+@inline transform_uv(::ShiftedModel, u, v) = (u, v)
 
 @inline scale_image(model::ShiftedModel, x, y) = 1.0
 @inline scale_uv(model::ShiftedModel, u, v) = exp(2im*π*(u*model.Δx + v*model.Δy))

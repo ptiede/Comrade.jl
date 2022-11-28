@@ -69,7 +69,7 @@ function visibilities(pimg::PolarizedModel, u, v)
     return StructArray{StokesParams{eltype(si)}}((si, sq, su, sv))
 end
 
-function intensitymap!(pimg::IntensityMap{<:StokesParams}, pmodel::PolarizedModel)
+function intensitymap!(pimg::StokesIntensityMap, pmodel::PolarizedModel)
     intensitymap!(stokes(pimg, :I), pmodel.I)
     intensitymap!(stokes(pimg, :Q), pmodel.Q)
     intensitymap!(stokes(pimg, :U), pmodel.U)
@@ -77,7 +77,7 @@ function intensitymap!(pimg::IntensityMap{<:StokesParams}, pmodel::PolarizedMode
     return pimg
 end
 
-function intensitymap(pmodel::PolarizedModel, fov::NTuple{2}, dims::Dims{2}; phasecenter=(0.0,0.0), pulse=DeltaPulse())
+function intensitymap(pmodel::PolarizedModel, pmodel::PolarizedModel, )
     imgI = intensitymap(pmodel.I, fov, dims; phasecenter, pulse, executor)
     imgQ = intensitymap(pmodel.Q, fov, dims; phasecenter, pulse, executor)
     imgU = intensitymap(pmodel.U, fov, dims; phasecenter, pulse, executor)

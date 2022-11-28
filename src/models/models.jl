@@ -131,17 +131,6 @@ are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
     return _visibilities(m, p)
 end
 
-"""
-    visibilities(m, u::AbstractArray, v::AbstractArray, args...)
-
-Computes the visibilities of the model `m` at the coordinates `p`. The coordinates `p`
-are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
-If you want to compute a single visibility you should call [`visibility`](@ref visibility).
-"""
-@inline function visibilities(m, p)
-    return _visibilities(m, p)
-end
-
 
 
 # Internal function required for dispatch. This is a fallback method if
@@ -341,7 +330,7 @@ end
 
 # internal method for computing an image of a non-analytic image model. The
 # `executor` if for parallelization but is not used for this method.
-function intensitymap!(::NotAnalytic, img::DimArray, m; executor=SequentialEx())
+function intensitymap!(::NotAnalytic, img::IntensityMap, m)
     ny, nx = size(img)
     vis = fouriermap(m, dims(img); executor)
     vis = ifftshift(phasedecenter!(vis, xitr, yitr))

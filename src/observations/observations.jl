@@ -229,7 +229,7 @@ function stations(d::EHTObservation{T,A}) where {T,A<:AbstractInterferometryDatu
     bl = getdata(d, :baseline)
     s1 = first.(bl)
     s2 = last.(bl)
-    return unique([s1..., s2...])
+    return unique(vcat(s1, s2))
 end
 
 
