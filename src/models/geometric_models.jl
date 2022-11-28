@@ -226,7 +226,7 @@ end
     return _mring_vis(m, p.U, p.V)
 end
 
-function _mring_vis(m, u, v)
+@inline function _mring_vis(m::MRing{T}, u, v) where {T}
     (;α, β) = m
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     vis = besselj0(k) + zero(T)*im

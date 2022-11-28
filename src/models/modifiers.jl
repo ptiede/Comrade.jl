@@ -63,6 +63,8 @@ flux(m::AbstractModifier) = flux(m.model)
 Base.@constprop :aggressive @inline visanalytic(::Type{<:AbstractModifier{M}}) where {M} = visanalytic(M)
 Base.@constprop :aggressive @inline imanalytic(::Type{<:AbstractModifier{M}}) where {M} = imanalytic(M)
 
+Base.@constprop :aggressive @inline ispolarized(::Type{<:AbstractModifier{M}}) where {M} = ispolarized(M)
+
 radialextent(m::AbstractModifier) = radialextent(basemodel(m))
 
 """
@@ -122,12 +124,34 @@ end
 #     return _visibilities(visanalytic(M), m, u, v, args...)
 # end
 
+@inline function _visibilities(m::AbstractModifier{M}, p) where {M}
+    return _visibilities(ispolarized(M), m, p)
+end
+
+@inline function _visibilities(::NotPolarized, m::AbstractModifier, p)
+    (;U, V) = p
+    st = StructArray{TransformState{eltype(U), Complex{eltype(u)}}}(u=U, v=V, scale=fill(one(Complex{eltype(u)}), length(U)))
+    mst = apply_uv_transform.(Ref(m), st)
+    mst.scale.*visibilities(unmodified(m), (U=mst.u, V=mst.v))
+end
+
+@inline function _visibilities(::IsPolarized, m::AbstractModifier, p)
+    (;U, V) = p
+
+    S = eltype(U)
+    unit = StokesParams(complex(one(S)), complex(one(S)), complex(one(S)),complex(one(S)))
+    st = StructArray{TransformState{eltype(U), typeof(unit)}}(u=U, v=V, scale=Fill(unit, length(U)))
+    mst = apply_uv_transform.(Ref(m), st)
+    mst.scale.*visibilities(unmodified(m), (U=mst.u, V=mst.v))
+end
+
 @inline function _visibilities(m::AbstractModifier, p)
     (;U, V) = p
     st = StructArray{TransformState{eltype(U), Complex{eltype(u)}}}(u=U, v=V, scale=fill(one(Complex{eltype(u)}), length(U)))
     mst = apply_uv_transform.(Ref(m), st)
     mst.scale.*visibilities(unmodified(m), (U=mst.u, V=mst.v))
 end
+
 
 
 # I need some special pass-throughs for the non-analytic FFT transform
@@ -345,6 +369,7 @@ end
     s,c = model.s, model.c
     return c*u + s*v, -s*u + c*v
 end
+
 
 @inline scale_image(model::RotatedModel, x, y) = 1.0
 @inline scale_uv(model::RotatedModel, u, v) = 1.0
