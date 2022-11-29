@@ -17,7 +17,6 @@ Note that is does not save the figure.
 
     #Define some constants
     #Construct the image grid in μas
-    fovx, fovy = uvscale.(fov(image))
     xitr, yitr = imagepixels(image)
     x0, x1 = uvscale.(extrema(xitr))
     y0, y1 = uvscale.(extrema(yitr))
@@ -34,7 +33,7 @@ Note that is does not save the figure.
     ylims --> (y0, y1)
     #left_margin --> -2mm
     #right_margin --> 5
-    z = image
+    z = ComradeBase.baseimage(image)'
     seriestype := :heatmap
     #fontfamily --> "sans serif"
     colorbar_title --> "Jy/px"
@@ -63,16 +62,15 @@ Note that is does not save the figure.
                    fovx = 2*radialextent(m), fovy=2*radialextent(m), dims=(512, 512),
                    phasecenter = (0.0, 0.0), pulse=DeltaPulse())
 
-    ny, nx = dims
-    image = intensitymap(m, (fovx, fovy), dims; phasecenter, pulse)
-    xitr, yitr = imagepixels(image)
+    image = intensitymap(m, fovx, fovy, dims[1], dims[2], phasecenter[1], phasecenter[2])
+    xitr, yitr = values(imagepixels(image))
     x0, x1 = uvscale.(extrema(xitr))
     y0, y1 = uvscale.(extrema(yitr))
 
     #Define some constants
     #Construct the image grid in μas
-    fovx, fovy = uvscale.(fov(image))
-    xitr, yitr = uvscale.(imagepixels(image))
+    fovx, fovy = uvscale.(values(fieldofview(image)))
+    xitr, yitr = uvscale.(values(imagepixels(image)))
     tickfontsize --> 11
     guidefontsize --> 14
     size --> (500,400)
@@ -85,7 +83,7 @@ Note that is does not save the figure.
     ylims --> (y0, y1)
     #left_margin --> -2mm
     #right_margin --> 5mm
-    z = image
+    z = ComradeBase.baseimage(image)'
     seriestype := :heatmap
     #fontfamily --> "sans serif"
     colorbar_title --> "Jy/px²"
