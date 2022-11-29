@@ -36,7 +36,7 @@ using UUIDs
 
 @reexport using ComradeBase
 export AD
-using ComradeBase: visanalytic, imanalytic, DataNames
+using ComradeBase: DataNames
 
 export SequentialEx, ThreadedEx
 
