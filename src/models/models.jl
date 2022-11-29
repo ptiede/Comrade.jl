@@ -1,5 +1,6 @@
 import ComradeBase: AbstractModel, IsPrimitive, NotPrimitive, IsAnalytic, NotAnalytic,
-                    visanalytic, imanalytic, isprimitive
+                    IsPolarized, NotPolarized,
+                    visanalytic, imanalytic, isprimitive, ispolarized
 import ComradeBase: visibility_point,
                     intensitymap, intensitymap!, intensity_point,
                     flux
