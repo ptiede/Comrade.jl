@@ -1,4 +1,4 @@
-export residuals, χ²
+export residuals, chi2
 
 @recipe function f(m::AbstractModel, dvis::EHTObservation{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTVisibilityDatum}
     xguide --> "uv-distance (λ)"
@@ -287,12 +287,12 @@ end
 end
 
 
-function χ²(m, data::EHTObservation)
+function chi2(m, data::EHTObservation)
     return sum(abs2, last(residuals(m, data)))
 end
 
-function χ²(m, data::EHTObservation...)
-    return mapreduce(d->χ²(m, d), +, data)
+function chi2(m, data::EHTObservation...)
+    return mapreduce(d->chi2(m, d), +, data)
 end
 
 
