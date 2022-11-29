@@ -135,6 +135,19 @@ end
     mst.scale.*visibilities(unmodified(m), (U=mst.u, V=mst.v))
 end
 
+function update_uv(p::NamedTuple, uv)
+    p1 = @set p.U = uv.U
+    p2 = @set p1.V = uv.V
+    return p2
+end
+
+function update_xy(p::NamedTuple, xy)
+    p1 = @set p.X = xy.X
+    p2 = @set p1.Y = xy.Y
+    return p2
+end
+
+
 @inline function _visibilities(::IsPolarized, m::AbstractModifier, p)
     (;U, V) = p
 
@@ -142,14 +155,17 @@ end
     unit = StokesParams(complex(one(S)), complex(one(S)), complex(one(S)),complex(one(S)))
     st = StructArray{TransformState{eltype(U), typeof(unit)}}(u=U, v=V, scale=Fill(unit, length(U)))
     mst = apply_uv_transform.(Ref(m), st)
-    mst.scale.*visibilities(unmodified(m), (U=mst.u, V=mst.v))
+
+    pup = update_uv(p, (U=mst.u, V=mst.v))
+    mst.scale.*visibilities(unmodified(m), pup)
 end
 
 @inline function _visibilities(m::AbstractModifier, p)
     (;U, V) = p
     st = StructArray{TransformState{eltype(U), Complex{eltype(u)}}}(u=U, v=V, scale=fill(one(Complex{eltype(u)}), length(U)))
     mst = apply_uv_transform.(Ref(m), st)
-    mst.scale.*visibilities(unmodified(m), (U=mst.u, V=mst.v))
+    pup = update_uv(p, (U=mst.u, V=mst.v))
+    mst.scale.*visibilities(unmodified(m), pup)
 end
 
 

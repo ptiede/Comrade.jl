@@ -26,7 +26,7 @@ function modelimage(::NotAnalytic,
     model::CompositeModel,
     image::IntensityMap,
     alg::FourierTransform=FFTAlg(),
-    executor=SequentialEx())
+    header=nothing)
 
     m1 = @set model.m1 = modelimage(model.m1, image, alg, executor)
     @set m1.m2 = modelimage(m1.m2, copy(image), alg, executor)
@@ -35,15 +35,15 @@ end
 function modelimage(::NotAnalytic,
     model::CompositeModel,
     cache::AbstractCache,
-    executor=SequentialEx())
+    header=nothing)
 
     m1 = @set model.m1 = modelimage(model.m1, cache, executor)
     @set m1.m2 = modelimage(m1.m2, cache, executor)
 end
 
-function fouriermap(m::CompositeModel, fovx, fovy, nx, ny)
-    m1 = fouriermap(m.m1, fovx, fovy, nx, ny)
-    m2 = fouriermap(m.m2, fovx, fovy, nx, ny)
+function fouriermap(m::CompositeModel, xitr, yitr)
+    m1 = fouriermap(m.m1, xitr, yitr)
+    m2 = fouriermap(m.m2, xitr, yitr)
     return uv_combinator(m).(m1,m2)
 end
 
@@ -141,17 +141,17 @@ components(m::CompositeModel{M1,M2}) where
 flux(m::AddModel) = flux(m.m1) + flux(m.m2)
 
 
-function intensitymap(m::AddModel, fov::NTuple{2}, dims::Dims{2}; phasecenter=(0.0, 0.0), pulse=DeltaPulse(), executor=SequentialEx())
-    sim1 = intensitymap(m.m1, fov, dims; phasecenter, pulse, executor)
-    sim2 = intensitymap(m.m2, fov, dims; phasecenter, pulse, executor)
+function intensitymap(m::AddModel, dims::DataNames, header=nothing)
+    sim1 = intensitymap(m.m1, dims, header)
+    sim2 = intensitymap(m.m2, dims, header)
     return sim1 .+ sim2
 end
 
-function intensitymap!(sim::IntensityMap, m::AddModel, executor=SequentialEx())
+function intensitymap!(sim::IntensityMap, m::AddModel, header=nothing)
     csim = deepcopy(sim)
-    intensitymap!(csim, m.m1, executor)
+    intensitymap!(csim, m.m1, header)
     sim .= csim
-    intensitymap!(csim, m.m2, executor)
+    intensitymap!(csim, m.m2, header)
     sim .= sim .+ csim
     return sim
 end
@@ -168,9 +168,9 @@ end
 # end
 
 
-@inline function _visibilities(model::AddModel, u::AbstractArray, v::AbstractArray, args...)
+@inline function _visibilities(model::AddModel, p)
     #f = uv_combinator(model)
-    return _visibilities(model.m1, u, v) .+ _visibilities(model.m2, u, v)
+    return _visibilities(model.m1, p) .+ _visibilities(model.m2, p)
 end
 
 # @inline function _visibilities(::IsAnalytic, model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
@@ -201,17 +201,17 @@ end
 # end
 
 
-@inline function visibility_point(model::CompositeModel{M1,M2}, u, v, args...) where {M1,M2}
+@inline function visibility_point(model::CompositeModel{M1,M2}, p) where {M1,M2}
     f = uv_combinator(model)
-    v1 = visibility(model.m1, u, v, args...)
-    v2 = visibility(model.m2, u, v, args...)
+    v1 = visibility(model.m1, p)
+    v2 = visibility(model.m2, p)
     return f(v1,v2)
 end
 
-@inline function intensity_point(model::CompositeModel, u, v)
+@inline function intensity_point(model::CompositeModel, p)
     f = xy_combinator(model)
-    v1 = intensity_point(model.m1, u, v)
-    v2 = intensity_point(model.m2, u, v)
+    v1 = intensity_point(model.m1, p)
+    v2 = intensity_point(model.m2, p)
     return f(v1,v2)
 end
 
@@ -278,12 +278,12 @@ function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::DataNames, hea
     return IntensityMap(real.(img)./(nx*ny), fov, phasecenter, pulse)
 end
 
-function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel, executor=SequentialEx())
+function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel, header=nothing)
     ny, nx = size(sim)
     fovx, fovy = fov(sim)
     x0, y0 = phasecenter(sim)
-    vis1 = fouriermap(model.m1, fovx, fovy, x0, y0, nx, ny)
-    vis2 = fouriermap(model.m2, fovx, fovy, x0, y0, nx, ny)
+    vis1 = fouriermap(model.m1, dims.X, dims.Y)
+    vis2 = fouriermap(model.m2, dims.X, dims.Y)
     vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, x0, y0, nx, ny))
     ifft!(vis)
     for I in eachindex(sim)
@@ -293,9 +293,9 @@ end
 
 #ChainRulesCore.@non_differentiable getproperty(m::ConvolvedModel, x::Symbol)
 
-@inline function _visibilities(model::ConvolvedModel, u::AbstractArray, v::AbstractArray, args...)
+@inline function _visibilities(model::ConvolvedModel, p)
     #f = uv_combinator(model)
-    return _visibilities(model.m1, u, v).*_visibilities(model.m2, u, v)
+    return _visibilities(model.m1, p).*_visibilities(model.m2, p)
 end
 
 
