@@ -40,32 +40,32 @@ end
 Base.@constprop :aggressive @inline visanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = visanalytic(I)*visanalytic(Q)*visanalytic(U)*visanalytic(V)
 Base.@constprop :aggressive @inline imanalytic(::Type{PolarizedModel{I,Q,U,V}}) where {I,Q,U,V} = imanalytic(I)*imanalytic(Q)*imanalytic(U)*imanalytic(V)
 
-@inline function intensity_point(pmodel::PolarizedModel, u, v)
-    I = intensity_point(pmodel.I, u, v)
-    Q = intensity_point(pmodel.Q, u, v)
-    U = intensity_point(pmodel.U, u, v)
-    V = intensity_point(pmodel.V, u, v)
+@inline function intensity_point(pmodel::PolarizedModel, p)
+    I = intensity_point(pmodel.I, p)
+    Q = intensity_point(pmodel.Q, p)
+    U = intensity_point(pmodel.U, p)
+    V = intensity_point(pmodel.V, p)
     return StokesParams(I,Q,U,V)
 end
 
 """
-    visibility(pimg::PolarizedModel, u, v)
+    visibility(pimg::PolarizedModel, p)
 
 Computes the visibility in the stokes basis of the polarized model
 """
-@inline function visibility(pimg::PolarizedModel, u, v)
-    si = visibility(pimg.I, u, v)
-    sq = visibility(pimg.Q, u, v)
-    su = visibility(pimg.U, u, v)
-    sv = visibility(pimg.V, u, v)
+@inline function visibility(pimg::PolarizedModel, p)
+    si = visibility(pimg.I, p)
+    sq = visibility(pimg.Q, p)
+    su = visibility(pimg.U, p)
+    sv = visibility(pimg.V, p)
     return StokesParams(si, sq, su, sv)
 end
 
-function visibilities(pimg::PolarizedModel, u, v)
-    si = visibilities(pimg.I, u, v)
-    sq = visibilities(pimg.Q, u, v)
-    su = visibilities(pimg.U, u, v)
-    sv = visibilities(pimg.V, u, v)
+function visibilities(pimg::PolarizedModel, p)
+    si = visibilities(pimg.I, p)
+    sq = visibilities(pimg.Q, p)
+    su = visibilities(pimg.U, p)
+    sv = visibilities(pimg.V, p)
     return StructArray{StokesParams{eltype(si)}}((si, sq, su, sv))
 end
 
@@ -77,13 +77,12 @@ function intensitymap!(pimg::StokesIntensityMap, pmodel::PolarizedModel)
     return pimg
 end
 
-function intensitymap(pmodel::PolarizedModel, dims)
+function intensitymap(pmodel::PolarizedModel, dims::DataNames, header=nothing)
     imgI = intensitymap(pmodel.I, dims)
     imgQ = intensitymap(pmodel.Q, dims)
     imgU = intensitymap(pmodel.U, dims)
     imgV = intensitymap(pmodel.V, dims)
-    pimg = StructArray{StokesParams{eltype(imgI)}}((imgI.img, imgQ.img, imgU.img, imgV.img))
-    return IntensityMap(pimg, fov, phasecenter, pulse)
+    return StokesIntensityMap(imgI, imgQ, imgU, imgV)
 end
 
 # """
