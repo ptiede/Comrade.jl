@@ -77,7 +77,7 @@ function intensitymap!(pimg::StokesIntensityMap, pmodel::PolarizedModel)
     return pimg
 end
 
-function intensitymap(pmodel::PolarizedModel, dims::DataNames, header=nothing)
+function intensitymap(pmodel::PolarizedModel, dims::Union{Tuple, NamedTuple}, header=nothing)
     imgI = intensitymap(pmodel.I, dims)
     imgQ = intensitymap(pmodel.Q, dims)
     imgU = intensitymap(pmodel.U, dims)

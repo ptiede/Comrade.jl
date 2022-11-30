@@ -198,7 +198,7 @@ Create a Fourier or visibility map of a model `m`
 where the image is specified in the image domain by the
 pixel locations `x` and `y`
 """
-function fouriermap(m, dims::DataNames)
+function fouriermap(m, dims::Union{Tuple, NamedTuple})
     x = dims.X
     y = dims.Y
     dx = step(x); dy = step(y)

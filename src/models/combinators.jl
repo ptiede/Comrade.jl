@@ -141,17 +141,17 @@ components(m::CompositeModel{M1,M2}) where
 flux(m::AddModel) = flux(m.m1) + flux(m.m2)
 
 
-function intensitymap(m::AddModel, dims::DataNames, header=nothing)
-    sim1 = intensitymap(m.m1, dims, header)
-    sim2 = intensitymap(m.m2, dims, header)
+function intensitymap(m::AddModel, dims::Union{Tuple, NamedTuple}; kwargs...)
+    sim1 = intensitymap(m.m1, dims, header; kwargs...)
+    sim2 = intensitymap(m.m2, dims, header; kwargs...)
     return sim1 .+ sim2
 end
 
-function intensitymap!(sim::IntensityMap, m::AddModel, header=nothing)
+function intensitymap!(sim::IntensityMap, m::AddModel; kwargs...)
     csim = deepcopy(sim)
-    intensitymap!(csim, m.m1, header)
+    intensitymap!(csim, m.m1, header; kwargs...)
     sim .= csim
-    intensitymap!(csim, m.m2, header)
+    intensitymap!(csim, m.m2, header; kwargs...)
     sim .= sim .+ csim
     return sim
 end
@@ -265,7 +265,7 @@ smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 
 flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
-function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::DataNames, header=nothing)
+function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::Union{Tuple,NamedTuple}, header=nothing)
     fov = fieldofview(dims)
     fovx = fov.X
     fovy = fov.Y
