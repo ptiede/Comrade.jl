@@ -137,6 +137,15 @@ function Dists.rand(rng::AbstractRNG, d::NamedDist{N}) where {N}
     return NamedTuple{N}(map(x->rand(rng, x), d.dists))
 end
 
+function Dists.rand(rng::AbstractRNG, d::NamedDist{N}) where {N}
+    return NamedTuple{N}(map(x->rand(rng, x), d.dists))
+end
+
+function Dists.rand(rng::AbstractRNG, d::NamedDist{N}, dims::Dims) where {N}
+    return map(_->rand(rng, d), CartesianIndices(dims))
+end
+
+
 HypercubeTransform.asflat(d::NamedDist{N}) where {N} = asflat(NamedTuple{N}(d.dists))
 
 DensityInterface.DensityKind(::NamedDist) = DensityInterface.IsDensity()

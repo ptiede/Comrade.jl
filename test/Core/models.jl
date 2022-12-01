@@ -106,6 +106,13 @@ end
         testmodel(m)
     end
 
+    @testset "SlashedDisk" begin
+        m = smoothed(SlashedDisk(0.5), 0.25)
+        ComradeBase.intensity_point(Disk(), 0.0, 0.0)
+        testmodel(m)
+    end
+
+
     @testset "Ring" begin
         m = smoothed(Ring(), 0.25)
         ComradeBase.intensity_point(Ring(), 0.0, 0.0)
@@ -327,10 +334,10 @@ end
     testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
 end
 
-@testset "DImage Bicubic" begin
-    c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12; pulse=Bicubic())
-    testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
-end
+# @testset "DImage Bicubic" begin
+#     c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12; pulse=BicubicPulse())
+#     testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
+# end
 
 @testset "modelimage cache" begin
     img = intensitymap(rotated(stretched(Gaussian(), μas2rad(2.0), μas2rad(1.0)), π/8),

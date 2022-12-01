@@ -6,7 +6,8 @@ export Gaussian,
         ExtendedRing,
         Ring,
         ParabolicSegment,
-        Wisp
+        Wisp,
+        SlashedDisk
 
 """
 $(TYPEDEF)
@@ -79,6 +80,51 @@ end
 end
 
 radialextent(::Disk) = 3.0
+
+
+@doc raw"""
+    SlashedDisk{T}(slash::T) where {T}
+
+Tophat disk geometrical model, i.e. the intensity profile
+```math
+    I(x,y) = \begin{cases} \pi^{-1} & x^2+y^2 < 1 \\ 0 & x^2+y^2 \geq 0 \end{cases}
+```
+i.e. a unit radius and unit flux disk.
+
+By default if T isn't given, `Disk` defaults to `Float64`
+"""
+struct SlashedDisk{T} <: GeometricModel
+    slash::T
+end
+
+
+function intensity_point(m::SlashedDisk{T}, x, y, args...) where {T}
+    r2 = x^2 + y ^2
+    s = 1 - m.slash
+    norm = 2*inv(π)/(1+s)
+    if  r2 < 1
+        return norm/2*((1+y) + s*(1-y))
+    else
+        return zero(T)
+    end
+end
+
+function visibility_point(m::SlashedDisk{T}, u, v, args...) where {T}
+    k = 2π*sqrt(u^2 + v^2) + eps(T)
+    s = 1-m.slash
+    norm = 2/(1+s)/k
+
+    b0outer = besselj0(k)
+    b1outer = besselj1(k)
+    b2outer = besselj(2,k)
+
+    v1 = (1+s)*b1outer
+    v3 = -2im*π*u*(1-s)*(b0outer-b2outer-2*b1outer/k)/(2*k)
+    return norm*(v1+v3)
+end
+
+radialextent(::SlashedDisk) = 3.0
+
 
 """
     $(TYPEDEF)
