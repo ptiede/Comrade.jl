@@ -63,7 +63,7 @@ end
 #=
 This is so ForwardDiff works with FFTW. I am very harsh on the `x` type because of type piracy.
 =#
-function Base.:*(p::AbstractFFTs.Plan, x::PaddedView{<:ForwardDiff.Dual{T,V,P},N, I,<:IntensityMap}) where {T,V,P,N,I}
+function Base.:*(p::AbstractFFTs.Plan, x::PaddedView{<:ForwardDiff.Dual{T,V,P},N, I,<:SpatialIntensityMap}) where {T,V,P,N,I}
     M = typeof(ForwardDiff.value(first(x)))
     cache = Matrix{M}(undef, size(x)...)
     cache .= ForwardDiff.value.(x)
@@ -97,7 +97,7 @@ end
 #                      )
 # end
 
-function padimage(img::IntensityMap, alg::FFTAlg)
+function padimage(img::SpatialIntensityMap, alg::FFTAlg)
     padfac = alg.padfac
     ny,nx = size(img)
     nnx = nextprod((2,3,5,7), padfac*nx)
@@ -106,22 +106,18 @@ function padimage(img::IntensityMap, alg::FFTAlg)
 end
 
 # phasecenter the FFT.
-function phasecenter(vis, uu, vv, x0, y0, dx, dy)
-    map(CartesianIndices((eachindex(uu), eachindex((vv))))) do I
-        iy,ix = Tuple(I)
-        return conj(vis[I])*cispi(2*(uu[ix]*x0 + vv[iy]*y0))
-    end
+function phasecenter(vis, X, Y, U, V)
+    x0 = first(X)
+    y0 = first(Y)
+    return vis.*cispi(-2 .* (U.*x0 + V'.*y0))
 end
 
 
-function create_cache(alg::FFTAlg, img::IntensityMap)
-    #intensitymap!(img, model)
+function create_cache(alg::FFTAlg, img::SpatialIntensityMap)
     pimg = padimage(img, alg)
     # Do the plan and then fft
     plan = plan_fft(pimg)
     vis = fftshift(plan*pimg)
-    #println(sum(img)*dx*dy)
-    #println(sum(pimg)*dx*dy)
 
     #Construct the uv grid
     dx,dy = pixelsizes(img)
@@ -131,32 +127,23 @@ function create_cache(alg::FFTAlg, img::IntensityMap)
     x0,y0 = first.(imagepixels(img))
     #Δx, Δy = phasecenter(img)
     #phases = fftphases(uu, vv, x0, y0, dx, dy)
-    vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
-    sitp = create_interpolator(uu, vv, vispc, img)
+    vispc = phasecenter(vis, X, Y, U, V)
+    sitp = create_interpolator(U, V, vispc, img)
     return FFTCache(alg, plan, img, sitp)
 end
 
-function update_cache(cache::FFTCache, img::IntensityMap)
+function update_cache(cache::FFTCache, img::SpatialIntensityMap)
     plan = cache.plan
     pimg = padimage(img, cache.alg)
 
-    dp = pixelsizes(img)
-    dx = dp.X
-    dy = dp.Y
-    nny, nnx = size(pimg)
-    uu, vv = uviterator(dx, dy, nnx, nny)
+    (;X,Y) = imagepixels(img)
 
-    dx,dy = pixelsizes(img)
-    nny, nnx = size(pimg)
-    uu, vv = uviterator(dx, dy, nnx, nny)
+    # Flip U because of radio conventions
+    U = fftshift(fftfreq(length(X), -1/step(X)))
+    V = fftshift(fftfreq(length(Y), 1/step(Y)))
 
-    x0,y0 = first.(imagepixels(img))
-    Δx, Δy = phasecenter(img)
-
-
-    dx,dy = pixelsizes(img)
     vis = fftshift(plan*pimg)
-    vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
+    vispc = phasecenter(vis, X, Y, U, V)
     sitp = create_interpolator(uu, vv, vispc, img)
     return FFTCache(cache.alg, plan, img, sitp)
 end

@@ -1,6 +1,7 @@
 using MeasureBase: logdensityof, Likelihood
 export RadioLikelihood, logdensityof, MultiRadioLikelihood
 using LinearAlgebra
+using VLBILikelihoods
 
 """
     RadioLikelihood(model, data1, data2, ...)
@@ -83,6 +84,7 @@ function RadioLikelihood(model, metadata::NamedTuple, data::EHTObservation...)
     RadioLikelihood{typeof(mms), typeof(ls), typeof(acs[1])}(mms, ls, acs[1])
 end
 
+
 """
     MultiRadioLikelihood(lklhd1, lklhd2, ...)
 Combines multiple likelihoods into one object that is useful for fitting multiple days/frequencies.
@@ -113,7 +115,7 @@ function MB.logdensityof(lklhds::MultiRadioLikelihood, m)
 end
 
 
-function RadioLikelihood(model, data::MT.Likelihood...)
+function RadioLikelihood(model, data::MB.Likelihood...)
     return RadioLikelihood{typeof(model), typeof(data), Nothing}(model, data, nothing)
 end
 

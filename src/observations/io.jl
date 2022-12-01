@@ -6,7 +6,7 @@ in the EHT, i.e. is works with clean, smili, eht-imaging.
 The function returns an tuple with an intensitymap and a second named tuple with ancillary
 information about the image, like the source name, location, mjd, and radio frequency.
 """
-function fileio_load(file::File{format"FITS"}, T::Type{IntensityMap})
+function load(file::File{format"FITS"}, T::Type{IntensityMap})
     return _load_fits(file.filename, T)
 end
 
@@ -69,7 +69,7 @@ end
 Saves an image to a fits file. You can optionally pass an EHTObservation so that ancillary information
 will be added.
 """
-function fileio_save(fname::File{format"FITS"}, img::IntensityMap, obs = nothing)
+function save(fname, img::IntensityMap, obs = nothing)
     head = make_header(obs)
     _save_fits(fname.filename, img, head)
 end

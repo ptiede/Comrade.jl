@@ -1,11 +1,21 @@
 export ContinuousImage
 
 """
-    ContinuousImage{A<:AbstractDimArray, P}
+    ContinuousImage{A<:IntensityMap, P} <: AbstractModel
+    ContinuousImage(img::Intensitymap, kernel)
+
+The basic continuous image model for Comrade. This expects a IntensityMap style object as its imag
+as well as a image kernel or pulse that allows you to evaluate the image at any image
+and visibility location. The image model is
+
+    I(x,y) = ∑ᵢ Iᵢⱼ κ(x-xᵢ, y-yᵢ)
+
+where `Iᵢⱼ` are the flux densities of the image `img` and κ is the intensity function for the
+`kernel`.
 
 
 """
-struct ContinuousImage{A <: KeyedArray, P} <: AbstractModel
+struct ContinuousImage{A <: IntensityMap, P} <: AbstractModel
     """
     Discrete representation of the image. This must be a DimArray where at least two of the
     """
@@ -16,6 +26,27 @@ struct ContinuousImage{A <: KeyedArray, P} <: AbstractModel
     """
     kernel::P
 end
+
+Base.parent(m::ContinuousImage)         = m.img
+Base.length(m::ContinuousImage)         = length(parent(m))
+Base.size(m::ContinuousImage)           = size(parent(m))
+Base.size(m::ContinuousImage, i::Int)   = size(parent(m), i::Int)
+Base.firstindex(m::ContinuousImage)     = firstindex(parent(m))
+Base.lastindex(m::ContinuousImage)      = lastindex(parent(m))
+Base.iterate(m::ContinuousImage)        = iterate(parent(m))
+Base.iterate(m::ContinuousImage, state) = iterate(parent(m), state)
+
+Base.IteratorSize(::ContinuousImage{A, P}) where {A,P} = Base.IteratorSize(M)
+Base.IteratorEltype(::ContinuousImage{A, P}) where {A,P} = Base.IteratorEltype(M)
+Base.eltype(::ContinuousImage{A, P}) where {A,P} = eltype(A)
+
+Base.getindex(img::ContinuousImage, args...) = getindex(parent(img), args...)
+Base.axes(m::ContinuousImage) = axes(parent(m))
+ComradeBase.imagegrid(m::ContinuousImage) = imagegrid(parent(m))
+ComradeBase.AxisKeys.named_axiskeys(m::ContinuousImage) = named_axiskeys(parent(m))
+ComradeBase.AxisKeys.axiskeys(m::ContinuousImage)       = ComradeBase.AxisKeys.axiskeys(parent(m))
+
+Base.similar(m::ContinuousImage, ::Type{S}, dims) where {S} = ContinuousImage(similar(parent(m), S, dims), m.kernel)
 
 function ContinuousImage(img::IntensityMap, pulse::AbstractModel)
     dx, dy = pixelsizes(img)
@@ -35,8 +66,6 @@ function ContinuousImage(im::AbstractMatrix, fov::Real, x0::Real, y0::Real, puls
     return ContinuousImage(im, fov, fov, x0, y0, pulse, header)
 end
 
-Base.getindex(img::ContinuousImage, args...) = getindex(img.img, args...)
-Base.setindex!(img::ContinuousImage, args...) = setindex!(img.img, args...)
 
 
 ComradeBase.imagepixels(img::ContinuousImage) = NamedTuple{names.(dims(img.img))}(dims(img.img))
@@ -59,3 +88,27 @@ function intensity_point(m::ContinuousImage, p)
 end
 
 convolved(cimg::ContinuousImage, m::AbstractModel) = ContinuousImage(cimg.img, convolved(cimg.pulse, m))
+
+
+"""
+    modelimage(img::ContinuousImage, alg=NFFTAlg())
+
+Create a model image directly using an image, i.e. treating it as the model. You
+can optionally specify the Fourier transform algorithm using `alg`
+"""
+@inline function modelimage(model::ContinuousImage, alg=NFFTAlg())
+    cache = create_cache(alg, parent(img))
+    return ModelImage(model, model, cache)
+end
+
+"""
+    modelimage(img::ContinuousImage, cache::AbstractCache)
+
+Create a model image directly using an image, i.e. treating it as the model. Additionally
+reuse a previously compute image `cache`. This can be used when directly modeling an
+image of a fixed size and number of pixels.
+"""
+@inline function modelimage(img::ContinuousImage, cache::AbstractCache)
+    newcache = update_cache(cache, img)
+    return ModelImage(img, img, newcache)
+end

@@ -9,36 +9,34 @@ using AbstractMCMC
 using Accessors: @set
 using ArgCheck: @argcheck
 using BasicInterpolators
+import Distributions as Dists
 using DocStringExtensions
 using ChainRulesCore
 using ComradeBase
 using FITSIO
-using FileIO
+using FileIO: File, @format_str
 using FillArrays: Fill
 using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
-using FLoops
 #using MappedArrays: mappedarray
 import MeasureBase as MB
-import MeasureTheory as MT
 using NFFT
 using PaddedViews
 using PyCall: pyimport, PyNULL, PyObject
 using SpecialFunctions #: gamma, erf
 #using Bessels
+using Random
 using RectiGrids
 using Reexport
 using Requires: @require
 using StructArrays: StructVector, StructArray, append!!
 using Tables
-using UUIDs
 # Write your package code here.
 
 @reexport using ComradeBase
 export AD
 # using ComradeBase: DataNames
 
-export SequentialEx, ThreadedEx
 
 const ehtim = PyNULL()
 
@@ -81,25 +79,11 @@ import ComradeBase: flux, radialextent, intensitymap, intensitymap!
 export create_cache
 include("observations/observations.jl")
 include("models/models.jl")
-include("distributions/distributions.jl")
 include("distributions/radiolikelihood.jl")
 include("visualizations/visualizations.jl")
 include("bayes/bayes.jl")
 include("inference/inference.jl")
 include("calibration/calibration.jl")
 
-function __init__()
-    ## FIX THIS
-    FileIO.del_format(format"FITS")
-    add_format(format"FITS",
-        # See https://www.loc.gov/preservation/digital/formats/fdd/fdd000317.shtml#sign
-        [0x53,0x49,0x4d,0x50,0x4c,0x45,0x20,0x20,0x3d,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x54],
-        [".fit", ".fits", ".fts", ".FIT", ".FITS", ".FTS", ".fit",],
-        [:FITSIO => UUID("525bcba6-941b-5504-bd06-fd0dc1a4d2eb")],
-        [:AstroImages => UUID("fe3fc30c-9b16-11e9-1c73-17dabf39f4ad")],
-        [:Comrade => UUID("99d987ce-9a1e-4df8-bc0b-1ea019aa547b")]
-    )
-
-end
 
 end

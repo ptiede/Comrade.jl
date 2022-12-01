@@ -42,7 +42,7 @@ function DFTAlg(u::AbstractArray, v::AbstractArray)
 end
 
 # internal function that creates an DFT matrix/plan to use used for the img.
-function plan_nuft(alg::ObservedNUFT{<:DFTAlg}, img::IntensityMap, args...)
+function plan_nuft(alg::ObservedNUFT{<:DFTAlg}, img::SpatialIntensityMap, args...)
     uv = alg.uv
     xitr, yitr = imagepixels(img)
     dft = similar(Complex{eltype(img)}, undef, size(uv,2), size(img)...)

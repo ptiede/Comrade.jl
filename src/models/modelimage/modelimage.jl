@@ -59,7 +59,7 @@ radialextent(m::ModelImage) = hypot(fov(m.image)...)
 
 #@inline visibility_point(m::AbstractModelImage, u, v) = visibility_point(model(m), u, v)
 
-@inline intensity_point(m::AbstractModelImage, x, y) = intensity_point(model(m), x, y)
+@inline intensity_point(m::AbstractModelImage, p) = intensity_point(model(m), p)
 
 
 
@@ -67,44 +67,43 @@ include(joinpath(@__DIR__, "cache.jl"))
 
 
 """
-    modelimage(model::AbstractIntensityMap, image::AbstractIntensityMap, alg=FFTAlg(), executor=SequentialEx())
+    modelimage(model::AbstractIntensityMap, image::AbstractIntensityMap, alg=FFTAlg())
 
 Construct a `ModelImage` from a `model`, `image` and the optionally
-specified visibility algorithm `alg` and `executor` which uses Folds.jl
-parallelism formalism.
+specified visibility algorithm `alg`
 
 # Notes
 For analytic models this is a no-op and returns the model.
 For non-analytic models this creates a `ModelImage` object which uses `alg` to compute
 the non-analytic Fourier transform.
 """
-@inline function modelimage(model::M, image::IntensityMap, alg::FourierTransform=FFTAlg(), executor=SequentialEx()) where {M}
-    return modelimage(visanalytic(M), model, image, alg, executor)
+@inline function modelimage(model::M, image::IntensityMap, alg::FourierTransform=FFTAlg()) where {M}
+    return modelimage(visanalytic(M), model, image, alg)
 end
 
 @inline function modelimage(::IsAnalytic, model, args...; kwargs...)
     return model
 end
 
-function _modelimage(model, image, alg, executor)
-    intensitymap!(image, model, executor)
+function _modelimage(model, image, alg)
+    intensitymap!(image, model)
     cache = create_cache(alg, image)
     return ModelImage(model, image, cache)
 end
 
 @inline function modelimage(::NotAnalytic, model,
                             image::IntensityMap,
-                            alg::FourierTransform=FFTAlg(),
-                            executor=SequentialEx())
-    _modelimage(model, image, alg, executor)
+                            alg::FourierTransform=FFTAlg()
+                            )
+    _modelimage(model, image, alg)
 end
 
 """
-    modelimage(model, cache::AbstractCache, executor=SequentialEx())
+    modelimage(model, cache::AbstractCach))
 
 Construct a `ModelImage` from the `model` and using a precompute Fourier transform `cache`.
-You can optionally specify the executor which will compute the internal image buffer using
-the `executor`.
+You can optionally specify th which will compute the internal image buffer using
+the`.
 
 # Example
 
@@ -118,48 +117,18 @@ julia> mimg = modelimage(m, cache, ThreadedEx())
 For analytic models this is a no-op and returns the model.
 
 """
-@inline function modelimage(model::M, cache::AbstractCache, executor=SequentialEx()) where {M}
-    return modelimage(visanalytic(M), model, cache, executor)
+@inline function modelimage(model::M, cache::AbstractCache) where {M}
+    return modelimage(visanalytic(M), model, cache)
 end
 
 
-@inline function modelimage(::NotAnalytic, model, cache::AbstractCache, executor=SequentialEx())
+@inline function modelimage(::NotAnalytic, model, cache::AbstractCache)
     img = cache.img
-    intensitymap!(img, model, executor)
+    intensitymap!(img, model)
     newcache = update_cache(cache, img)
     return ModelImage(model, img, newcache)
 end
 
-"""
-    modelimage(img::IntensityMap, alg=NFFTAlg())
-
-Create a model image directly using an image, i.e. treating it as the model. You
-can optionally specify the Fourier transform algorithm using `alg`
-
-# Notes
-For analytic models this is a no-op and returns the model.
-
-"""
-@inline function modelimage(img::IntensityMap, alg=NFFTAlg())
-    cache = create_cache(alg, img)
-    return ModelImage(img, img, cache)
-end
-
-"""
-    modelimage(img::IntensityMap, cache::AbstractCache)
-
-Create a model image directly using an image, i.e. treating it as the model. Additionally
-reuse a previously compute image `cache`. This can be used when directly modeling an
-image of a fixed size and number of pixels.
-
-# Notes
-For analytic models this is a no-op and returns the model.
-
-"""
-@inline function modelimage(img::IntensityMap, cache::AbstractCache)
-    newcache = update_cache(cache, img)
-    return ModelImage(img, img, newcache)
-end
 
 """
     modelimage(m;
@@ -169,7 +138,7 @@ end
                ny=512,
                pulse=ComradeBase.DeltaPulse(),
                alg=FFTAlg(),
-               executor=SequentialEx()
+        =SequentialEx()
                 )
 
 Construct a `ModelImage` where just the model `m` is specified.
@@ -190,12 +159,12 @@ function modelimage(m::M;
                     x0 = 0.0,
                     y0 = 0.0,
                     alg=FFTAlg(),
-                    executor=SequentialEx()) where {M}
+                    ) where {M}
     if visanalytic(M) == IsAnalytic()
         return m
     else
-        T = typeof(intensity_point(m, 0.0, 0.0))
+        T = typeof(intensity_point(m, (X=typeof(fovx), Y=typeof(fovy))))
         img = IntensityMap(zeros(T,dims...), fovx, fovy, nx, ny, x0, y0)
-        modelimage(m, img, alg, executor)
+        modelimage(m, img, alg)
     end
 end
