@@ -228,7 +228,7 @@ This is the transform that should be used if using typical NestedSampling method
 i.e. `ComradeNested`. For the transformation to unconstrained space see [`asflat`](@ref asflat)
 """
 function HypercubeTransform.ascube(post::Posterior)
-    pr = getfield(post.prior, :_internal_distributions)
+    pr = post.prior
     tr = ascube(pr)
     return TransformedPosterior(post, tr)
 end
