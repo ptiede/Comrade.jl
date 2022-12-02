@@ -324,8 +324,9 @@ end
 """
     $(TYPEDEF)
 Creates the ConcordanceCrescent model, i.e. a flat-top crescent
-with a displacment and a slash. Note this creates a crescent with
-unit flux. If you want a different flux please use the `renomed`
+with a displacment and a slash and shadow depth.
+Note this creates a crescent with unit flux.
+If you want a different flux please use the `renomed`
 modifier.
 
 ## Fields
