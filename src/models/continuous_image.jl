@@ -79,7 +79,7 @@ radialextent(c::ContinuousImage) = maximum(values(fieldofview(c.img)))/2
 
 function intensity_point(m::ContinuousImage, p)
     sum = zero(eltype(m.img))
-    @inbounds for (I, p0) in pairs(grid(m.img))
+    @inbounds for (I, p0) in pairs(imagegrid(m.img))
         dp = (X=(p.X - p0.X), Y=(p.Y - p0.Y))
         k = intensity_point(m.kernel, dp)
         sum += m.img[I]*k
@@ -97,8 +97,8 @@ Create a model image directly using an image, i.e. treating it as the model. You
 can optionally specify the Fourier transform algorithm using `alg`
 """
 @inline function modelimage(model::ContinuousImage, alg=NFFTAlg())
-    cache = create_cache(alg, parent(img))
-    return ModelImage(model, model, cache)
+    cache = create_cache(alg, parent(model), model.kernel)
+    return ModelImage(model, parent(model), cache)
 end
 
 """
@@ -109,6 +109,6 @@ reuse a previously compute image `cache`. This can be used when directly modelin
 image of a fixed size and number of pixels.
 """
 @inline function modelimage(img::ContinuousImage, cache::AbstractCache)
-    newcache = update_cache(cache, img)
-    return ModelImage(img, img, newcache)
+    newcache = update_cache(cache, parent(img), img.kernel)
+    return ModelImage(img, parent(img), newcache)
 end

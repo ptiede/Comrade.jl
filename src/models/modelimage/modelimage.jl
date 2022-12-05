@@ -55,7 +55,7 @@ flux(mimg::ModelImage) = flux(mimg.image)
 #     mimg.image
 # end
 
-radialextent(m::ModelImage) = hypot(fov(m.image)...)
+radialextent(m::ModelImage) = hypot(fieldofview(m.image)...)
 
 #@inline visibility_point(m::AbstractModelImage, u, v) = visibility_point(model(m), u, v)
 
@@ -163,8 +163,9 @@ function modelimage(m::M;
     if visanalytic(M) == IsAnalytic()
         return m
     else
-        T = typeof(intensity_point(m, (X=typeof(fovx), Y=typeof(fovy))))
-        img = IntensityMap(zeros(T,dims...), fovx, fovy, nx, ny, x0, y0)
+        T = typeof(intensity_point(m, (X=zero(fovx), Y=zero(fovy))))
+        dims = imagepixels(fovx, fovy, nx, ny, x0, y0)
+        img = IntensityMap(zeros(T, nx, ny), dims)
         modelimage(m, img, alg)
     end
 end

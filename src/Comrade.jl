@@ -18,6 +18,7 @@ using FileIO: File, @format_str
 using FillArrays: Fill
 using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
+using FFTW
 #using MappedArrays: mappedarray
 import MeasureBase as MB
 using NFFT
@@ -75,7 +76,7 @@ Converts a number from micro-arcseconds (μas) to rad
 
 #include("interface.jl")
 #include("images/images.jl")
-import ComradeBase: flux, radialextent, intensitymap, intensitymap!
+import ComradeBase: flux, radialextent, intensitymap, intensitymap!, phasecenter
 export create_cache
 include("observations/observations.jl")
 include("models/models.jl")

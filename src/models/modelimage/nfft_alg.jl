@@ -76,23 +76,23 @@ function plan_nuft(alg::ObservedNUFT{<:NFFTAlg}, img::SpatialIntensityMap)
     uv2[1,:] .= alg.uv[1,:]*dx
     uv2[2,:] .= alg.uv[2,:]*dy
     balg = alg.alg
-    (;m, σ, window, precompute, blocking, sortNodes, storeDeconvolutionIdx, fftflag) = balg
-    plan = plan_nfft(uv2, size(img); m, σ, window, precompute, blocking, sortNodes, storeDeconvolutionIdx, fftflag)
+    (;m, σ, window, precompute, blocking, sortNodes, storeDeconvolutionIdx, fftflags) = balg
+    plan = plan_nfft(uv2, size(img); m, σ, window, precompute, blocking, sortNodes, storeDeconvolutionIdx, fftflags)
     return plan
 end
 
-function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img, pulse=DeltaPulse())
+function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img::IntensityMap, pulse=DeltaPulse())
     dx, dy = pixelsizes(img)
     x0, y0 = phasecenter(img)
     u = @view alg.uv[1,:]
     v = @view alg.uv[2,:]
     # Correct for the nFFT phase center and the img phase center
-    return cispi.((u.*(dx - 2*x0) .+ v.*(dy - 2*y0))).*visibility_point.(Ref(pulse), NamedTuple{(:U,:V)}.((u.*dx, v.*dy)))
+    return cispi.(-(u.*(dx - 2*x0) .+ v.*(dy - 2*y0))).*visibility_point.(Ref(pulse), NamedTuple{(:U,:V)}.(u, v))
 end
 
-@inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img)
+@inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img::IntensityMap, pulse=DeltaPulse())
     #timg = #SpatialIntensityMap(transpose(img.im), img.fovx, img.fovy)
-    return NUFTCache(alg, plan, phases, img.img')
+    return NUFTCache(alg, plan, phases, pulse, img)
 end
 
 # Allow NFFT to work with ForwardDiff.

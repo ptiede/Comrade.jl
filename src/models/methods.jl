@@ -96,7 +96,7 @@ end
 end
 
 @inline function _visibility_primitive(::NotAnalytic, mimg, p)
-    return mimg.cache.sitp(p.u, p.v)
+    return mimg.cache.sitp(p.U, p.V)
 end
 
 # @inline function visibilities(m::M, u::AbstractArray, v::AbstractArray) where {M}
@@ -113,6 +113,11 @@ are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
     return _visibilities(m, p)
 end
 
+@inline function visibilities(m, p::ArrayConfiguration)
+    return _visibilities(m, getuv(p))
+end
+
+
 
 
 # Internal function required for dispatch. This is a fallback method if
@@ -121,9 +126,14 @@ end
     _visibilities_fallback(m, p)
 end
 
-function _visibilities_fallback(m, p)
+function _visibilities_fallback(m, p::NamedTuple)
+    return visibility_point.(Ref(m), StructArray(p))
+end
+
+function _visibilities_fallback(m, p::StructArray)
     return visibility_point.(Ref(m), p)
 end
+
 
 
 

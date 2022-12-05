@@ -77,7 +77,7 @@ function intensitymap!(pimg::StokesIntensityMap, pmodel::PolarizedModel)
     return pimg
 end
 
-function intensitymap(pmodel::PolarizedModel, dims::Union{Tuple, NamedTuple}, header=nothing)
+function intensitymap(pmodel::PolarizedModel, dims::DataNames)
     imgI = intensitymap(pmodel.I, dims)
     imgQ = intensitymap(pmodel.Q, dims)
     imgU = intensitymap(pmodel.U, dims)
@@ -95,38 +95,38 @@ end
 #     return convert(CoherencyMatrix, si)
 # end
 
-# """
-#     evpa(pimg::AbstractPolarizedModel, u, v)
+"""
+    evpa(pimg::AbstractPolarizedModel, p)
 
-# electric vector position angle or EVPA of the polarized model `pimg` at `u` and `v`
-# """
-# @inline function evpa(pimg::AbstractPolarizedModel, u, v)
-#     sq = visibility(pimg.Q, u, v)
-#     su = visibility(pimg.U, u, v)
-#     return 1/2*angle(su/sq)
-# end
+electric vector position angle or EVPA of the polarized model `pimg` at `u` and `v`
+"""
+@inline function evpa(pimg::AbstractPolarizedModel, p)
+    sq = visibility(pimg.Q, p)
+    su = visibility(pimg.U, p)
+    return 1/2*angle(su/sq)
+end
 
 
-# """
-#     m̆(pimg::AbstractPolarizedModel, u, v)
+"""
+    m̆(pimg::AbstractPolarizedModel, p)
 
-# Computes the fractional linear polarization in the visibility domain
+Computes the fractional linear polarization in the visibility domain
 
-#     m̆ = (Q + iU)/I
+    m̆ = (Q + iU)/I
 
-# To create the symbol type `m\\breve` in the REPL or use the
-# [`mbreve`](@ref) function.
-# """
-# @inline function m̆(pimg::AbstractPolarizedModel, u, v)
-#     Q = visibility(pimg.Q, u, v)
-#     U = visibility(pimg.U, u, v)
-#     I = visibility(pimg.I, u, v)
-#     return (Q+1im*U)/I
-# end
+To create the symbol type `m\\breve` in the REPL or use the
+[`mbreve`](@ref) function.
+"""
+@inline function m̆(pimg::AbstractPolarizedModel, p)
+    Q = visibility(pimg.Q, p)
+    U = visibility(pimg.U, p)
+    I = visibility(pimg.I, p)
+    return (Q+1im*U)/I
+end
 
-# """
-#     $(SIGNATURES)
+"""
+    $(SIGNATURES)
 
-# Explicit m̆ function used for convenience.
-# """
-# mbreve(pimg, u, v) = m̆(pimg, u, v)
+Explicit m̆ function used for convenience.
+"""
+mbreve(pimg, p) = m̆(pimg, p)

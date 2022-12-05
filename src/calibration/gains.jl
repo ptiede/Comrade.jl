@@ -340,17 +340,17 @@ function caltable(g::GainModel)
 end
 
 
-function intensitymap!(img::IntensityMap, model::GainModel, args...)
-    return intensitymap!(img, model.model, args...)
+function intensitymap!(img::IntensityMap, model::GainModel, p)
+    return intensitymap!(img, model.model, p)
 end
 
-function _visibilities(model::GainModel, u::AbstractArray, v::AbstractArray)
-    vis = _visibilities(model.model, u, v)
+function _visibilities(model::GainModel, p)
+    vis = _visibilities(model.model, p)
     return corrupt(vis, model.cache, model.gains)
 end
 
-function amplitudes(model::GainModel, u::AbstractArray, v::AbstractArray)
-    amp = amplitudes(model.model, u, v)
+function amplitudes(model::GainModel, p)
+    amp = amplitudes(model.model, p)
     return abs.(corrupt(amp, model.cache, model.gains))
 end
 

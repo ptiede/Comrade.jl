@@ -5,7 +5,6 @@ import ParameterHandling
 import ParameterHandling: flatten
 using HypercubeTransform
 using TransformVariables
-using ValueShapes: NamedTupleDist
 
 struct Posterior{L,P}
     lklhd::L

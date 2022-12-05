@@ -83,7 +83,7 @@ Disk() = Disk{Float64}()
 end
 
 @inline function visibility_point(::Disk{T}, p) where {T}
-
+    u, v = _getuv(p)
     ur = 2π*(hypot(u,v) + eps(T))
     return 2*besselj1(ur)/(ur) + zero(T)im
 end

@@ -28,8 +28,8 @@ function modelimage(::NotAnalytic,
     alg::FourierTransform=FFTAlg(),
     header=nothing)
 
-    m1 = @set model.m1 = modelimage(model.m1, image, alg, executor)
-    @set m1.m2 = modelimage(m1.m2, copy(image), alg, executor)
+    m1 = @set model.m1 = modelimage(model.m1, image, alg)
+    @set m1.m2 = modelimage(m1.m2, copy(image), alg)
 end
 
 function modelimage(::NotAnalytic,
@@ -37,13 +37,13 @@ function modelimage(::NotAnalytic,
     cache::AbstractCache,
     header=nothing)
 
-    m1 = @set model.m1 = modelimage(model.m1, cache, executor)
-    @set m1.m2 = modelimage(m1.m2, cache, executor)
+    m1 = @set model.m1 = modelimage(model.m1, cache)
+    @set m1.m2 = modelimage(m1.m2, cache)
 end
 
-function fouriermap(m::CompositeModel, xitr, yitr)
-    m1 = fouriermap(m.m1, xitr, yitr)
-    m2 = fouriermap(m.m2, xitr, yitr)
+function fouriermap(m::CompositeModel, dims::DataNames)
+    m1 = fouriermap(m.m1, dims)
+    m2 = fouriermap(m.m2, dims)
     return uv_combinator(m).(m1,m2)
 end
 
@@ -141,17 +141,17 @@ components(m::CompositeModel{M1,M2}) where
 flux(m::AddModel) = flux(m.m1) + flux(m.m2)
 
 
-function intensitymap(m::AddModel, dims::Union{Tuple, NamedTuple}; kwargs...)
-    sim1 = intensitymap(m.m1, dims, header; kwargs...)
-    sim2 = intensitymap(m.m2, dims, header; kwargs...)
-    return sim1 .+ sim2
+function intensitymap(m::AddModel, dims::DataNames)
+    sim1 = intensitymap(m.m1, dims)
+    sim2 = intensitymap(m.m2, dims)
+    return sim1 + sim2
 end
 
-function intensitymap!(sim::IntensityMap, m::AddModel; kwargs...)
+function intensitymap!(sim::IntensityMap, m::AddModel)
     csim = deepcopy(sim)
-    intensitymap!(csim, m.m1, header; kwargs...)
+    intensitymap!(csim, m.m1)
     sim .= csim
-    intensitymap!(csim, m.m2, header; kwargs...)
+    intensitymap!(csim, m.m2)
     sim .= sim .+ csim
     return sim
 end
@@ -265,29 +265,26 @@ smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 
 flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
-function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::Union{Tuple,NamedTuple}, header=nothing)
-    fov = fieldofview(dims)
-    fovx = fov.X
-    fovy = fov.Y
-    ny, nx = dims
-    x0, y0 = phasecenter
-    vis1 = fouriermap(model.m1, dims.X, dims.Y)
-    vis2 = fouriermap(model.m2, dims.X, dims.Y)
-    vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, x0, y0, nx, ny))
+function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::DataNames, header=nothing)
+    (;X, Y) = dims
+    nx = length(X)
+    ny = length(Y)
+    vis1 = fouriermap(model.m1, dims)
+    vis2 = fouriermap(model.m2, dims)
+    vis = ifftshift(phasedecenter!(vis1.*vis2, X, Y))
     img = ifft(vis)
-    return IntensityMap(real.(img)./(nx*ny), fov, phasecenter, pulse)
+    return IntensityMap(real.(img)./(nx*ny), dims)
 end
 
 function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel, header=nothing)
-    ny, nx = size(sim)
-    fovx, fovy = fov(sim)
-    x0, y0 = phasecenter(sim)
-    vis1 = fouriermap(model.m1, dims.X, dims.Y)
-    vis2 = fouriermap(model.m2, dims.X, dims.Y)
-    vis = ifftshift(phasedecenter!(vis1.*vis2, fovx, fovy, x0, y0, nx, ny))
+    dims = named_axiskeys(sim)
+    (;X, Y) = dims
+    vis1 = fouriermap(model.m1, dims)
+    vis2 = fouriermap(model.m2, dims)
+    vis = ifftshift(phasedecenter!(vis1.*vis2, X, Y))
     ifft!(vis)
     for I in eachindex(sim)
-        sim[I] = real(vis[I])/(nx*ny)
+        sim[I] = real(vis[I])/length(sim)
     end
 end
 

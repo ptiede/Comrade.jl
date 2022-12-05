@@ -16,47 +16,49 @@ function padimage(::NUFT, img::IntensityMap)
     #                  )
 end
 
-padimage(alg::ObservedNUFT, img) = padimage(alg.alg, img)
+padimage(alg::ObservedNUFT, img::IntensityMap) = padimage(alg.alg, img)
 
 
 
-function create_cache(alg::ObservedNUFT, img)
+function create_cache(alg::ObservedNUFT, img::IntensityMap, pulse=DeltaPulse())
     pimg = padimage(alg, img)
 
     # make nuft plan
     dx, dy = pixelsizes(img)
-    plan = plan_nuft(alg, pimg, dx, dy)
+    plan = plan_nuft(alg, pimg)
     # get phases and pulse functions
-    phases = make_phases(alg, img)
+    phases = make_phases(alg, img, pulse)
 
-    return create_cache(alg, plan, phases, pimg)
+    return create_cache(alg, plan, phases, pimg, pulse)
 end
 
-function create_cache(alg::NUFT, img)
+function create_cache(alg::NUFT, img::IntensityMap, pulse=DeltaPulse())
     pimg = padimage(alg, img)
-    return NUFTCache(alg, nothing, nothing, img.pulse, pimg)
+    return NUFTCache(alg, nothing, nothing, pimg, pulse)
 end
 
-function update_cache(cache::NUFTCache, img)
+function update_cache(cache::NUFTCache, img::IntensityMap, pulse=DeltaPulse())
     pimg = padimage(cache.alg, img)
-    cache2 = update_phases(cache, img)
-    create_cache(cache2.alg, cache2.plan, cache2.phases, pimg)
+    cache2 = update_phases(cache, img, pulse)
+    create_cache(cache2.alg, cache2.plan, cache2.phases, pimg, pulse)
 end
 
-function update_phases(cache::NUFTCache, img)
-    if cache.pulse !== img.pulse
-        phases = make_phases(cache.alg, img)
+function update_phases(cache::NUFTCache, img::IntensityMap, pulse)
+    if cache.pulse !== pulse
+        phases = make_phases(cache.alg, img, pulse)
         return @set cache.phases = phases
     else
         return cache
     end
 end
 
-function nocachevis(m::ModelImage{M,I,<:NUFTCache}, u::AbstractArray, v::AbstractArray) where {M,I}
+function nocachevis(m::ModelImage{M,I,<:NUFTCache}, p) where {M,I}
+    u = p.U
+    v = p.V
     alg = ObservedNUFT(m.cache.alg, vcat(u', v'))
     cache = create_cache(alg, m.image)
     m = @set m.cache = cache
-    return _visibilities(m, u, v)
+    return _visibilities(m, StructArray((U=u, V=v)))
 end
 
 function checkuv(uv, u, v)
@@ -91,18 +93,18 @@ end
 ChainRulesCore.@non_differentiable checkuv(alg, u::AbstractArray, v::AbstractArray)
 
 function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
-                      u::AbstractArray,
-                      v::AbstractArray) where {M,I,A<:ObservedNUFT}
+                      p) where {M,I,A<:ObservedNUFT}
+    u = p.U
+    v = p.V
     checkuv(m.cache.alg.uv, u, v)
     vis =  nuft(m.cache.plan, complex.(m.cache.img))
-    return conj.(vis).*m.cache.phases
+    return vis.*m.cache.phases
 end
 
 
 function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
-                      u::AbstractArray,
-                      v::AbstractArray) where {M,I,A<:NUFT}
-    return nocachevis(m, u, v)
+                      p) where {M,I,A<:NUFT}
+    return nocachevis(m, p)
 end
 
 
@@ -154,7 +156,7 @@ Base.@kwdef struct NFFTAlg{T,N,F} <: NUFT
     Flag passed to inner AbstractFFT. The fastest FFTW is FFTW.MEASURE but takes the longest
     to precompute
     """
-    fftflag::F = FFTW.MEASURE
+    fftflags::F = FFTW.MEASURE
 end
 include(joinpath(@__DIR__, "nfft_alg.jl"))
 

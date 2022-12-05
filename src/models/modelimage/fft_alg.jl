@@ -45,17 +45,15 @@ ForwardDiff.partials(x::Complex{<:ForwardDiff.Dual}, n::Int) = Complex(ForwardDi
 ForwardDiff.npartials(x::Complex{<:ForwardDiff.Dual}) = ForwardDiff.npartials(x.re)
 
 # internal function that creates the interpolator objector to evaluate the FT.
-function create_interpolator(u, v, vis, img)
+function create_interpolator(u, v, vis, pulse)
     # Construct the interpolator
     #itp = interpolate(vis, BSpline(Cubic(Line(OnGrid()))))
     #etp = extrapolate(itp, zero(eltype(vis)))
     #scale(etp, u, v)
-    p1 = BicubicInterpolator(u, v, real(vis)', NoBoundaries())
-    p2 = BicubicInterpolator(u, v, imag(vis)', NoBoundaries())
-    dx,dy = pixelsizes(img)
+    p1 = BicubicInterpolator(u, v, real(vis), NoBoundaries())
+    p2 = BicubicInterpolator(u, v, imag(vis), NoBoundaries())
     function (u,v)
-        #phase = cispi(-(u*dx + v*dx))
-        pl = visibility_point(img.pulse, (U=u*dx, V=v*dy))
+        pl = visibility_point(pulse, (U=u, V=v))
         return pl*(p1(u,v) + 1im*p2(u,v))
     end
 end
@@ -109,26 +107,23 @@ end
 function phasecenter(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
-    return vis.*cispi(-2 .* (U.*x0 + V'.*y0))
+    return vis.*cispi.(-2 .* (U.*x0 .+ V'.*y0))
 end
 
 
-function create_cache(alg::FFTAlg, img::SpatialIntensityMap)
+function create_cache(alg::FFTAlg, img::SpatialIntensityMap, pulse=DeltaPulse())
     pimg = padimage(img, alg)
     # Do the plan and then fft
     plan = plan_fft(pimg)
     vis = fftshift(plan*pimg)
 
     #Construct the uv grid
-    dx,dy = pixelsizes(img)
-    nny, nnx = size(pimg)
-    uu, vv = uviterator(dx, dy, nnx, nny)
+    (;X, Y) = imagepixels(img)
+    (;U, V) = uviterator(size(pimg, 1), step(X), size(pimg, 2), step(Y))
 
-    x0,y0 = first.(imagepixels(img))
-    #Δx, Δy = phasecenter(img)
-    #phases = fftphases(uu, vv, x0, y0, dx, dy)
+
     vispc = phasecenter(vis, X, Y, U, V)
-    sitp = create_interpolator(U, V, vispc, img)
+    sitp = create_interpolator(U, V, vispc, pulse)
     return FFTCache(alg, plan, img, sitp)
 end
 
@@ -139,8 +134,7 @@ function update_cache(cache::FFTCache, img::SpatialIntensityMap)
     (;X,Y) = imagepixels(img)
 
     # Flip U because of radio conventions
-    U = fftshift(fftfreq(length(X), -1/step(X)))
-    V = fftshift(fftfreq(length(Y), 1/step(Y)))
+    (;U, V) = uviterator(size(pimg, 1), step(X), size(pimg, 2), step(Y))
 
     vis = fftshift(plan*pimg)
     vispc = phasecenter(vis, X, Y, U, V)
@@ -150,7 +144,7 @@ end
 
 
 """
-    uviterator(dx, dy, nnx, nny)
+    uviterator(nx, dx, ny dy)
 
 Construct the u,v iterators for the Fourier transform of the image
 with pixel sizes `dx, dy` and number of pixels `nx, ny`
@@ -158,14 +152,10 @@ with pixel sizes `dx, dy` and number of pixels `nx, ny`
 If you are extending Fourier transform stuff please use these functions
 to ensure that the centroid is being properly computed.
 """
-function uviterator(dx, dy, nnx, nny)
-    uM = 1/(2*dx)
-    du = 2*uM/nnx
-    vM = 1/(2*dy)
-    dv = 2*vM/nny
-    uu = range(-uM, step=du, length=nnx)
-    vv = range(-vM, step=dv, length=nny)
-    return uu, vv
+function uviterator(nx, dx, ny, dy)
+    U = fftshift(fftfreq(nx, inv(dx)))
+    V = fftshift(fftfreq(ny, inv(dy)))
+    return (;U, V)
 end
 
 #function ChainRulesCore.rrule(::typeof(phasecenter!), vis, uu, vv, x0, y0, dx, dy)
@@ -185,12 +175,11 @@ Create a Fourier or visibility map of a model `m`
 where the image is specified in the image domain by the
 pixel locations `x` and `y`
 """
-function fouriermap(m, dims::Union{Tuple, NamedTuple})
-    x = dims.X
-    y = dims.Y
-    dx = step(x); dy = step(y)
-    uu,vv = uviterator(dx, dy, nx, ny)
-    vis = visibility.(m, grid(U=uu, V=vv))
+function fouriermap(m, dims::DataNames)
+    X = dims.X
+    Y = dims.Y
+    uu,vv = uviterator(length(X), step(X), length(Y), step(Y))
+    vis = visibility_point.(Ref(m), NamedTuple{(:U, :V)}.(uu, vv'))
 
     return vis
 end
@@ -216,15 +205,15 @@ end
 
 # end
 
-function phasedecenter!(vis, fovx, fovy, Δx, Δy, nx, ny)
-    x,y = imagepixels(fovx, fovy, Δx, Δy, nx, ny)
-    dx = step(x); dy = step(y)
-    uu,vv = uviterator(dx, dy, nx, ny)
-    x0 = first(x)
-    y0 = first(y)
+function phasedecenter!(vis, X, Y)
+    nx = length(X)
+    ny = length(Y)
+    uu,vv = uviterator(nx, step(X), ny, step(Y))
+    x0 = first(X)
+    y0 = first(Y)
     for I in CartesianIndices(vis)
         iy, ix = Tuple(I)
-        vis[I] = conj(vis[I]*cispi(-2*(uu[ix]*x0 + vv[iy]*y0)))*nx*ny
+        vis[I] = vis[I]*cispi(2*(uu[ix]*x0 + vv[iy]*y0))*nx*ny
     end
     return vis
 end

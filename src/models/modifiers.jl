@@ -162,7 +162,7 @@ end
 
 @inline function _visibilities(m::AbstractModifier, p)
     (;U, V) = p
-    st = StructArray{TransformState{eltype(U), Complex{eltype(u)}}}(u=U, v=V, scale=fill(one(Complex{eltype(u)}), length(U)))
+    st = StructArray{TransformState{eltype(U), Complex{eltype(U)}}}(u=U, v=V, scale=fill(one(Complex{eltype(U)}), length(U)))
     mst = apply_uv_transform.(Ref(m), st)
     pup = update_uv(p, (U=mst.u, V=mst.v))
     mst.scale.*visibilities(unmodified(m), pup)
@@ -174,9 +174,9 @@ end
 # since you evaluate the visibilities pointwise
 function modelimage(::NotAnalytic,
     model::AbstractModifier,
-    image::IntensityMap, alg::FFTAlg, executor=SequentialEx())
+    image::IntensityMap, alg::FFTAlg)
 
-    @set model.model = modelimage(model.model, image, alg, executor)
+    @set model.model = modelimage(model.model, image, alg)
 end
 
 # I need some special pass-throughs for the non-analytic NUFT transform
@@ -185,7 +185,7 @@ function modelimage(::NotAnalytic,
     model::AbstractModifier,
     image::IntensityMap, alg::NUFT,
     executor=SequentialEx())
-    _modelimage(model, image, alg, executor)
+    _modelimage(model, image, alg)
 end
 
 
@@ -236,7 +236,7 @@ radialextent(model::ShiftedModel, Δx, Δy) = radialextent(model.model) + hypot(
 @inline transform_uv(::ShiftedModel, u, v) = (u, v)
 
 @inline scale_image(model::ShiftedModel, x, y) = 1.0
-@inline scale_uv(model::ShiftedModel, u, v) = exp(2im*π*(u*model.Δx + v*model.Δy))
+@inline scale_uv(model::ShiftedModel, u, v) = exp(-2im*π*(u*model.Δx + v*model.Δy))
 
 @inline visanalytic(::Type{<:ShiftedModel{M}}) where {M} = visanalytic(M)
 

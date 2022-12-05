@@ -80,7 +80,7 @@ end
 Get the u, v positions of the array.
 """
 function getuv(ac::ArrayConfiguration)
-    return ac.data.u, ac.data.v
+    return (U=ac.data.U, V=ac.data.V)
 end
 
 function getuv(ac::ClosureConfig)
@@ -108,19 +108,19 @@ struct ArrayBaselineDatum{T}
     """
     time of the data point in (Hr)
     """
-    time::T
+    T::T
     """
     frequency of the data point (Hz)
     """
-    freq::T
+    F::T
     """
     u position of the data point in λ
     """
-    u::T
+    U::T
     """
     v position of the data point in λ
     """
-    v::T
+    V::T
     """
     Station codes of the baseline (u,v)
     """
@@ -670,10 +670,10 @@ function _arrayconfig(data, bandwidth, frequency)
     times = getproperty(data, :time)
     error = getproperty(data, :error)
     baseline = getproperty(data, :baseline)
-    uvsamples = StructArray{ArrayBaselineDatum}(time=times,
-                                        u=u,
-                                        v=v,
-                                        freq = fill(frequency, length(u)),
+    uvsamples = StructArray{ArrayBaselineDatum}(T=times,
+                                        U=u,
+                                        V=v,
+                                        F = fill(frequency, length(u)),
                                         baseline=baseline,
                                         error_real=error,
                                         error_imag=error
