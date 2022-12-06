@@ -176,7 +176,7 @@ end
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
     Σ = data[:error].^2
     vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
-    ℓ = Likelihood(vis) do (μ, )
+    ℓ = Likelihood(vis) do μ
         ComplexVisLikelihood(μ, Σ)
     end
     return ℓ
@@ -186,7 +186,7 @@ end
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     Σ = data[:error].^2
     amp = getdata(data, :amp)
-    ℓ = Likelihood(amp) do (μ, )
+    ℓ = Likelihood(amp) do μ
         AmplitudeLikelihood(abs.(μ), Σ)
     end
     return ℓ
@@ -195,14 +195,14 @@ end
 # internal function that creates the likelihood for a set of log closure amplitudes
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
     dmat = data.config.designmat
-    Σvis = data.config.ac[:error].^2
+    Σvis = data.config.ac.data.error.^2
 
     # Form the closure covariance matrix
     Σlca = PDMat(dmat*Σvis*transpose(dmat))
 
     f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:amp]
-    ℓ = Likelihood(amp) do (μ,)
+    ℓ = Likelihood(amp) do μ
         AmplitudeLikelihood(f(μ), Σlca)
     end
     return ℓ
@@ -212,14 +212,14 @@ end
 # internal function that creates the likelihood for a set of closure phase datum
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosurePhaseDatum})
     dmat = data.config.designmat
-    Σvis = data.config.ac[:error].^2
+    Σvis = data.config.ac.data.error.^2
 
     # Form the closure covariance matrix
-    Σcp = PDMat(dmat*Σvis*transpose(dmat))
+    Σcp = PDMat(Matrix(dmat*Diagonal(Σvis)*transpose(dmat)))
 
     f = Base.Fix2(closure_phases, data.config)
     phase = data[:phase]
-    ℓ = Likelihood(phase) do (μ,)
+    ℓ = Likelihood(phase) do μ
         ClosurePhaseLikelihood(f(μ), Σcp)
     end
 

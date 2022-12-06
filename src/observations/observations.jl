@@ -125,10 +125,14 @@ struct ArrayBaselineDatum{T}
     Station codes of the baseline (u,v)
     """
     baseline::Tuple{Symbol, Symbol}
-    function ArrayBaselineDatum(time, freq, u, v, baseline)
-        tt, ft, ut, vt = promote(time, freq, u, v)
+    """
+    The thermal noise on the baseline
+    """
+    error::T
+    function ArrayBaselineDatum(time, freq, u, v, baseline, error)
+        tt, ft, ut, vt, errort = promote(time, freq, u, v, error)
         T = typeof(tt)
-        return new{T}(tt, ft, ut, vt, baseline)
+        return new{T}(tt, ft, ut, vt, baseline, errort)
     end
 end
 
@@ -675,8 +679,7 @@ function _arrayconfig(data, bandwidth, frequency)
                                         V=v,
                                         F = fill(frequency, length(u)),
                                         baseline=baseline,
-                                        error_real=error,
-                                        error_imag=error
+                                        error=error
                                     )
     return EHTArrayConfiguration(frequency, bandwidth, uvsamples)
 end
