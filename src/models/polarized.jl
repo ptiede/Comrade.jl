@@ -48,7 +48,7 @@ Base.@constprop :aggressive @inline imanalytic(::Type{PolarizedModel{I,Q,U,V}}) 
     return StokesParams(I,Q,U,V)
 end
 
-stokes(pmodel::PolarizedModel, symbol) = getproperty(pmodel, symbol)
+ComradeBase.stokes(pmodel::PolarizedModel, symbol) = getproperty(pmodel, symbol)
 
 
 """

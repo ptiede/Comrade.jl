@@ -107,9 +107,9 @@ end
 Saves an image to a fits file. You can optionally pass an EHTObservation so that ancillary information
 will be added.
 """
-function save(fname, img::IntensityMap, obs = nothing)
+function save(fname::String, img::IntensityMapTypes, obs = nothing)
     head = make_header(obs)
-    _save_fits(fname.filename, img, head)
+    _save_fits(fname, img, head)
 end
 
 function make_header(obs)
@@ -120,12 +120,13 @@ function make_header(obs)
     end
 end
 
-function _save_fits(fname::String, image::IntensityMap, head)
+function _prepare_header(image, head, stokes="I")
     headerkeys = ["SIMPLE",
                   "BITPIX",
                   "NAXIS",
                   "NAXIS1",
                   "NAXIS2",
+                  "EXTEND",
                   "OBJECT",
                   "CTYPE1",
                   "CTYPE2",
@@ -145,22 +146,23 @@ function _save_fits(fname::String, image::IntensityMap, head)
     values = [true,
               -64,
               2,
-              size(image, 2),
               size(image, 1),
+              size(image, 2),
+              true,
               head.source,
               "RA---SIN",
               "DEC---SIN",
-              rad2deg(image.psize[1]),
-              rad2deg(image.psize[2]),
+              rad2deg(psizex),
+              rad2deg(psizey),
               head.RA,
               head.DEC,
               head.freq,
-              size(image,2)/2+0.5,
               size(image,1)/2+0.5,
+              size(image,2)/2+0.5,
               head.mjd,
               "VLBI",
               "JY/PIXEL",
-              "STOKES"]
+              stokes]
     comments = ["conforms to FITS standard",
                 "array data type",
                 "number of array dimensions",
@@ -179,11 +181,31 @@ function _save_fits(fname::String, image::IntensityMap, head)
                 "",
                 "",
                 "",
+                "",
                 ""]
+
+    return headerkeys, values, comments
+end
+
+function _save_fits(fname::String, image::IntensityMap, head)
     FITS(fname, "w") do hdu
-        hdeheader = FITSHeader(headerkeys, values, comments)
-        img = copy(image[:,end:-1:1]')
-        write(hdu, img, header=hdeheader)
+        write_stokes(hdu, image, head)
+    end
+end
+
+function write_stokes(f, image, head, stokes="I", innername="")
+    headerkeys, values, comments = _prepare_header(image, head, stokes)
+    hdeheader = FITSHeader(headerkeys, values, comments)
+    img = ComradeBase.baseimage(image[end:-1:1, :])
+    FITSIO.write(f, img; header=hdeheader, name=innername)
+end
+
+function _save_fits(fname::String, image::StokesIntensityMap, head)
+    FITS(fname, "w") do fits
+        write_stokes(fits, ComradeBase.stokes(image, :I), head, "I")
+        write_stokes(fits, ComradeBase.stokes(image, :Q), head, "Q", "Q")
+        write_stokes(fits, ComradeBase.stokes(image, :U), head, "U", "U")
+        write_stokes(fits, ComradeBase.stokes(image, :V), head, "V", "V")
     end
 end
 
