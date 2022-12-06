@@ -41,11 +41,13 @@ function DFTAlg(u::AbstractArray, v::AbstractArray)
     return ObservedNUFT(DFTAlg(), uv)
 end
 
+
 # internal function that creates an DFT matrix/plan to use used for the img.
-function plan_nuft(alg::ObservedNUFT{<:DFTAlg}, img::SpatialIntensityMap)
+function plan_nuft(alg::ObservedNUFT{<:DFTAlg}, img::Union{IntensityMap{T,2}, StokesIntensityMap{T,2}}) where {T}
     uv = alg.uv
+    println(img isa StokesIntensityMap)
     xitr, yitr = imagepixels(img)
-    dft = similar(parent(img), Complex{eltype(img)}, size(uv,2), size(img)...)
+    dft = similar(parent(img), Complex{eltype(uv)}, size(uv,2), size(img)...)
     @fastmath for i in axes(img,2), j in axes(img,1), k in axes(uv,2)
         u = uv[1,k]
         v = uv[2,k]
@@ -56,7 +58,7 @@ function plan_nuft(alg::ObservedNUFT{<:DFTAlg}, img::SpatialIntensityMap)
 end
 
 # internal function to make the phases to phase center the image.
-function make_phases(alg::ObservedNUFT{<:DFTAlg}, img::IntensityMap, pulse)
+function make_phases(alg::ObservedNUFT{<:DFTAlg}, img::IntensityMapTypes, pulse)
     u = @view alg.uv[1,:]
     v = @view alg.uv[2,:]
     # We don't need to correct for the phase offset here since that

@@ -45,7 +45,7 @@ ForwardDiff.partials(x::Complex{<:ForwardDiff.Dual}, n::Int) = Complex(ForwardDi
 ForwardDiff.npartials(x::Complex{<:ForwardDiff.Dual}) = ForwardDiff.npartials(x.re)
 
 # internal function that creates the interpolator objector to evaluate the FT.
-function create_interpolator(u, v, vis, pulse)
+function create_interpolator(u, v, vis::AbstractArray{<:Real}, pulse)
     # Construct the interpolator
     #itp = interpolate(vis, BSpline(Cubic(Line(OnGrid()))))
     #etp = extrapolate(itp, zero(eltype(vis)))
@@ -58,10 +58,35 @@ function create_interpolator(u, v, vis, pulse)
     end
 end
 
+function create_interpolator(u, v, vis::StructArray{<:StokesParams}, pulse)
+    # Construct the interpolator
+    pI_real = BicubicInterpolator(u, v, real(vis.I), NoBoundaries())
+    pI_imag = BicubicInterpolator(u, v, real(vis.I), NoBoundaries())
+
+    pQ_real = BicubicInterpolator(u, v, real(vis.Q), NoBoundaries())
+    pQ_imag = BicubicInterpolator(u, v, real(vis.Q), NoBoundaries())
+
+    pU_real = BicubicInterpolator(u, v, real(vis.U), NoBoundaries())
+    pU_imag = BicubicInterpolator(u, v, real(vis.U), NoBoundaries())
+
+    pV_real = BicubicInterpolator(u, v, real(vis.V), NoBoundaries())
+    pV_imag = BicubicInterpolator(u, v, real(vis.V), NoBoundaries())
+
+    function (u,v)
+        pl = visibility_point(pulse, (U=u, V=v))
+        return StokesParams(
+            pI_real(u,v)*pl + 1im*pI_imag(u,v)*pl,
+            pQ_real(u,v)*pl + 1im*pQ_imag(u,v)*pl,
+            pU_real(u,v)*pl + 1im*pU_imag(u,v)*pl,
+            pV_real(u,v)*pl + 1im*pV_imag(u,v)*pl,
+        )
+    end
+end
+
 #=
 This is so ForwardDiff works with FFTW. I am very harsh on the `x` type because of type piracy.
 =#
-function Base.:*(p::AbstractFFTs.Plan, x::PaddedView{<:ForwardDiff.Dual{T,V,P},N, I,<:SpatialIntensityMap}) where {T,V,P,N,I}
+function Base.:*(p::AbstractFFTs.Plan, x::PaddedView{<:ForwardDiff.Dual{T,V,P},N, I,<:IntensityMapTypes}) where {T,V,P,N,I}
     M = typeof(ForwardDiff.value(first(x)))
     cache = Matrix{M}(undef, size(x)...)
     cache .= ForwardDiff.value.(x)
@@ -95,12 +120,20 @@ end
 #                      )
 # end
 
-function padimage(img::SpatialIntensityMap, alg::FFTAlg)
+function padimage(img::IntensityMap, alg::FFTAlg)
     padfac = alg.padfac
     ny,nx = size(img)
     nnx = nextprod((2,3,5,7), padfac*nx)
     nny = nextprod((2,3,5,7), padfac*ny)
     PaddedView(zero(eltype(img)), img, (nny, nnx))
+end
+
+function padimage(img::StokesIntensityMap, alg::FFTAlg)
+    pI = padimage(stokes(img, :I), alg)
+    pQ = padimage(stokes(img, :Q), alg)
+    pU = padimage(stokes(img, :U), alg)
+    pV = padimage(stokes(img, :V), alg)
+    return StructArray{eltype(img)}((I=pI, Q=pQ, U=pU, V=pV))
 end
 
 # phasecenter the FFT.
@@ -110,12 +143,25 @@ function phasecenter(vis, X, Y, U, V)
     return vis.*cispi.(-2 .* (U.*x0 .+ V'.*y0))
 end
 
+function applyfft(plan, img::AbstractArray{<:Number})
+    return fftshift(plan*img)
+end
 
-function create_cache(alg::FFTAlg, img::SpatialIntensityMap, pulse=DeltaPulse())
+function applyfft(plan, img::AbstractArray{<:StokesParams})
+    visI = applyfft(plan, img.I)
+    visQ = applyfft(plan, img.Q)
+    visU = applyfft(plan, img.U)
+    visV = applyfft(plan, img.V)
+    return StructArray{StokesParams{eltype(visI)}}((I=visI, Q=visQ, U=visU, V=visV))
+end
+
+
+
+function create_cache(alg::FFTAlg, img::IntensityMapTypes, pulse=DeltaPulse())
     pimg = padimage(img, alg)
     # Do the plan and then fft
-    plan = plan_fft(pimg)
-    vis = fftshift(plan*pimg)
+    plan = plan_fft(pimg.I)
+    vis = applyfft(plan, pimg)
 
     #Construct the uv grid
     (;X, Y) = imagepixels(img)
@@ -127,16 +173,16 @@ function create_cache(alg::FFTAlg, img::SpatialIntensityMap, pulse=DeltaPulse())
     return FFTCache(alg, plan, img, sitp)
 end
 
-function update_cache(cache::FFTCache, img::SpatialIntensityMap)
+function update_cache(cache::FFTCache, img::IntensityMapTypes)
     plan = cache.plan
     pimg = padimage(img, cache.alg)
+    vis = applyfft(plan, pimg)
 
     (;X,Y) = imagepixels(img)
 
     # Flip U because of radio conventions
     (;U, V) = uviterator(size(pimg, 1), step(X), size(pimg, 2), step(Y))
 
-    vis = fftshift(plan*pimg)
     vispc = phasecenter(vis, X, Y, U, V)
     sitp = create_interpolator(uu, vv, vispc, img)
     return FFTCache(cache.alg, plan, img, sitp)

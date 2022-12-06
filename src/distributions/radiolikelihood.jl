@@ -33,8 +33,6 @@ function (m::ModelMetadata)(θ)
 end
 
 
-
-
 function RadioLikelihood(model, data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
@@ -173,62 +171,56 @@ function _logdensityofvis(d::RadioLikelihood, vis::AbstractArray)
     return acc
 end
 
-#function MB.logdensityof(d::RadioLikelihood, m::ComradeBase.AbstractModel)
-#    acc = logdensityof(first(d.lklhds), m)
-#    @inbounds for i in 2:length(d.lklhds)
-#        acc += logdensityof(d.lklhds[i], m)
-#    end
-#    return acc
-#end
 
 # internal function that creates the likelihood for a set of complex visibilities
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
-    errinv = inv.(data[:error])
+    Σ = data[:error].^2
     vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
     ℓ = Likelihood(vis) do (μ, )
-        ComplexNormal{(:μ, :τ)}(μ, errinv)
+        ComplexVisLikelihood(μ, Σ)
     end
     return ℓ
 end
-
 
 # internal function that creates the likelihood for a set of visibility amplitudes
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
-    τ = inv.(data[:error])
+    Σ = data[:error].^2
     amp = getdata(data, :amp)
     ℓ = Likelihood(amp) do (μ, )
-        AmpNormal{(:μ, :τ)}(abs.(μ), τ)
+        AmplitudeLikelihood(abs.(μ), Σ)
     end
     return ℓ
 end
-
 
 # internal function that creates the likelihood for a set of log closure amplitudes
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
     dmat = data.config.designmat
-    τ  = inv.(data[:error])
-    #covm = σvis*dmat*transpose(σvis)
+    Σvis = data.config.ac[:error].^2
 
-    #C = Cholesky(Symmetric(covm))
-    #σ = C.L
+    # Form the closure covariance matrix
+    Σlca = PDMat(dmat*Σvis*transpose(dmat))
 
     f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:amp]
     ℓ = Likelihood(amp) do (μ,)
-        AmpNormal{(:μ, :τ)}(f(μ), τ)
+        AmplitudeLikelihood(f(μ), Σlca)
     end
-    #return AmpNormal{(:μ, :τ)}(amp, τ)
     return ℓ
 end
 
 
 # internal function that creates the likelihood for a set of closure phase datum
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosurePhaseDatum})
-    τ = inv.(getdata(data, :error)).^2
+    dmat = data.config.designmat
+    Σvis = data.config.ac[:error].^2
+
+    # Form the closure covariance matrix
+    Σcp = PDMat(dmat*Σvis*transpose(dmat))
+
     f = Base.Fix2(closure_phases, data.config)
     phase = data[:phase]
     ℓ = Likelihood(phase) do (μ,)
-        CPVonMises{(:μ, :κ)}(f(μ), τ)
+        ClosurePhaseLikelihood(f(μ), Σcp)
     end
 
     return ℓ

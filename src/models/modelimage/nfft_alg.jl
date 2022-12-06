@@ -68,7 +68,7 @@ function padimage(alg::NFFTAlg, img::SpatialIntensityMap)
     return SpatialIntensityMap(collect(pimg), dx*size(pimg,2), dy*size(pimg, 1))
 end
 
-function plan_nuft(alg::ObservedNUFT{<:NFFTAlg}, img::SpatialIntensityMap)
+function plan_nuft(alg::ObservedNUFT{<:NFFTAlg}, img::IntensityMapTypes{T,2}) where {T}
     uv2 = similar(alg.uv)
     dpx = pixelsizes(img)
     dx = dpx.X
@@ -81,7 +81,7 @@ function plan_nuft(alg::ObservedNUFT{<:NFFTAlg}, img::SpatialIntensityMap)
     return plan
 end
 
-function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img::IntensityMap, pulse=DeltaPulse())
+function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img::IntensityMapTypes, pulse=DeltaPulse())
     dx, dy = pixelsizes(img)
     x0, y0 = phasecenter(img)
     u = @view alg.uv[1,:]
@@ -90,7 +90,7 @@ function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img::IntensityMap, pulse=Delt
     return cispi.(-(u.*(dx - 2*x0) .+ v.*(dy - 2*y0))).*visibility_point.(Ref(pulse), NamedTuple{(:U,:V)}.(u, v))
 end
 
-@inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img::IntensityMap, pulse=DeltaPulse())
+@inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img::IntensityMapTypes, pulse=DeltaPulse())
     #timg = #SpatialIntensityMap(transpose(img.im), img.fovx, img.fovy)
     return NUFTCache(alg, plan, phases, pulse, img)
 end

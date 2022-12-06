@@ -23,6 +23,7 @@ using FFTW
 import MeasureBase as MB
 using NFFT
 using PaddedViews
+using PDMats
 using PyCall: pyimport, PyNULL, PyObject
 using SpecialFunctions #: gamma, erf
 #using Bessels

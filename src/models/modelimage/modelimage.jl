@@ -36,6 +36,7 @@ end
 @inline visanalytic(::Type{<:ModelImage{M}}) where {M} = visanalytic(M)
 @inline imanalytic(::Type{<:ModelImage{M}}) where {M} = imanalytic(M)
 @inline isprimitive(::Type{<:ModelImage{M}}) where {M} = isprimitive(M)
+@inline ispolarized(::Type{<:ModelImage{M}}) where {M} = ispolarized(M)
 
 function Base.show(io::IO, mi::ModelImage)
    #io = IOContext(io, :compact=>true)
@@ -77,7 +78,7 @@ For analytic models this is a no-op and returns the model.
 For non-analytic models this creates a `ModelImage` object which uses `alg` to compute
 the non-analytic Fourier transform.
 """
-@inline function modelimage(model::M, image::IntensityMap, alg::FourierTransform=FFTAlg()) where {M}
+@inline function modelimage(model::M, image::Union{StokesIntensityMap, IntensityMap}, alg::FourierTransform=FFTAlg()) where {M}
     return modelimage(visanalytic(M), model, image, alg)
 end
 
@@ -90,6 +91,7 @@ function _modelimage(model, image, alg)
     cache = create_cache(alg, image)
     return ModelImage(model, image, cache)
 end
+
 
 @inline function modelimage(::NotAnalytic, model,
                             image::IntensityMap,
@@ -163,9 +165,15 @@ function modelimage(m::M;
     if visanalytic(M) == IsAnalytic()
         return m
     else
-        T = typeof(intensity_point(m, (X=zero(fovx), Y=zero(fovy))))
         dims = imagepixels(fovx, fovy, nx, ny, x0, y0)
-        img = IntensityMap(zeros(T, nx, ny), dims)
-        modelimage(m, img, alg)
+        if ispolarized(M) === IsPolarized()
+            T = eltype(intensity_point(m, (X=zero(fovx), Y=zero(fovy))))
+            img = StokesIntensityMap(zeros(T, nx, ny), zeros(T, nx, ny), zeros(T, nx, ny), zeros(T, nx, ny), dims)
+            return modelimage(m, img, alg)
+        else
+            T = typeof(intensity_point(m, (X=zero(fovx), Y=zero(fovy))))
+            img = StokesIntensityMap(zeros(T, nx, ny), dims)
+            return modelimage(m, img, alg)
+        end
     end
 end
