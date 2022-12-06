@@ -28,8 +28,9 @@ function model(θ, metadata)
     (;c, f, fg, lgamp) = θ
     (; fovx, fovy, cache, gcache) = metadata
     # Construct the image model
-    img = IntensityMap(f*c, fovx, fovy, (0.0, 0.0), BSplinePulse{3}())
-    m = modelimage(img, cache)
+    img = IntensityMap(f*c, fovx, fovy)
+    cimg = ContinuousImage(img, BSplinePulse{3}())
+    m = modelimage(cimg, cache)
     gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
     g = exp.(lgamp)
@@ -59,7 +60,7 @@ prior = (
           lgamp = Comrade.GainPrior(distamp, scantable(damp)),
         )
 
-buffer = IntensityMap(zeros(ny, nx), fovx, fovy, (0.0, 0.0), BSplinePulse{3}())
+buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
 cache = create_cache(DFTAlg(damp), buffer)
 gcache = GainCache(scantable(damp))
 metadata = (;cache, gcache, fovx, fovy)
@@ -71,6 +72,16 @@ post = Posterior(lklhd, prior)
 tpost = asflat(post)
 
 # We will use HMC to sample the posterior.
+using StructArrays
+Zygote.@adjoint function Zygote.literal_getproperty(sa::StructArray, ::Val{key}) where {key}
+    key::Symbol
+    result = getproperty(sa, key)
+    function back(Δ::AbstractArray)
+        nt = (; (k => zero(v) for (k,v) in pairs(fieldarrays(sa)))...)
+        return (Base.setindex(nt, Δ, key), nothing)
+    end
+    return result, back
+end
 
 ndim = dimension(tpost)
 using Zygote
