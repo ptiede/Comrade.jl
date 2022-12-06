@@ -33,7 +33,6 @@ using Reexport
 using Requires: @require
 using StructArrays: StructVector, StructArray, append!!
 using Tables
-using ZygoteRules
 # Write your package code here.
 
 @reexport using ComradeBase
