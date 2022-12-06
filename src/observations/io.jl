@@ -6,61 +6,99 @@ in the EHT, i.e. is works with clean, smili, eht-imaging.
 The function returns an tuple with an intensitymap and a second named tuple with ancillary
 information about the image, like the source name, location, mjd, and radio frequency.
 """
-function load(file::File{format"FITS"}, T::Type{IntensityMap})
-    return _load_fits(file.filename, T)
+function load(file, T::Type{<:IntensityMapTypes})
+    if !endswith(file, ".fits")
+        @warn "File does not end with FITS trying to load anyways"
+    end
+    return _load_fits(file, T)
 end
 
 function _load_fits(fname, ::Type{IntensityMap})
     img, head = FITS(fname, "r") do f
-        if ndims(f[1])==2
-            image = copy(read(f[1])')[:,end:-1:1]
-        else
-            @warn "Currently only stokes I is loaded"
-            image = Matrix{Float64}(read(f[1])[:,:,1,1]')
+        if length(f) > 1
+            @warn "Currently only loading stokes I. To load polarized quantities\n"*
+                  "please call `Comrade.load(filename, StokesIntensityMap)`"
         end
-
-        header = read_header(f[1])
-        nx = Int(header["NAXIS1"])
-        ny = Int(header["NAXIS2"])
-        psizex = abs(float(header["CDELT1"]))*π/180
-        psizey = abs(float(header["CDELT2"]))*π/180
-
-        ra = float(header["OBSRA"])
-        dec = float(header["OBSDEC"])
-        #Get frequency
-        freq = 0.0
-        if haskey(header, "FREQ")
-            freq = parse(Float64, string(header["FREQ"]))
-        elseif "CRVAL3" in keys(header)
-            freq = float(header["CRVAL3"])
-        end
-
-        mjd = 0.0
-        if haskey(header, "MJD")
-            mjd = parse(Float64, string(header["MJD"]))
-        end
-
-        source = "NA"
-        if haskey(header,"OBJECT")
-            source = string(header["OBJECT"])
-        end
-
-        bmaj = 1.0 #Nominal values
-        bmin = 1.0
-        if haskey(header, "BUNIT")
-            if header["BUNIT"] == "JY/BEAM"
-                @info "Converting Jy/Beam => Jy/pixel"
-                bmaj = header["BMAJ"]*π/180
-                bmin = header["BMIN"]*π/180
-                beamarea = (2.0*π*bmaj*bmin)/(8*log(2))
-                image .= image.*(psizex*psizey/beamarea)
-            end
-        end
-
-        imap = IntensityMap(image, psizex*nx, psizey*ny)
-        info = (source=source, RA=ra, DEC=dec, mjd=mjd, ν=freq)
-        return imap, info
+        # assume that the first element is stokes I
+        return _extract_fits_image(f[1])
     end
+    return img, head
+end
+
+function try_loading(f, stokes, imgI, headI)
+    try
+        return _extract_fits_image(f[stokes])
+    catch
+        @warn "No stokes $(stokes) found creating a zero array"
+        imgQ = zeros(imgI)
+        headQ = @set headI.stokes = stokes
+        return imgQ, headQ
+
+    end
+end
+
+
+function _load_fits(fname, ::Type{StokesIntensityMap})
+    img, head = FITS(fname, "r") do f
+        # assume that the first element is stokes I
+        imgI, headI = _extract_fits_image(f[1])
+        imgQ, headQ = try_loading(f, "Q", imgI, headI)
+        imgU, headU = try_loading(f, "U", imgI, headI)
+        imgV, headV = try_loading(f, "V", imgI, headI)
+
+        head = @set headI.stokes = (:I, :Q, :U, :V)
+        return StokesIntensityMap(imgI, imgQ, imgU, imgV), head
+    end
+    return img, head
+end
+
+
+
+function _extract_fits_image(f::FITSIO.ImageHDU{T,2}) where {T}
+    image = read(f)[end:-1:begin,:]
+    header = read_header(f)
+    nx = Int(header["NAXIS1"])
+    ny = Int(header["NAXIS2"])
+
+    psizex = abs(float(header["CDELT1"]))*π/180
+    psizey = abs(float(header["CDELT2"]))*π/180
+
+    ra = float(header["OBSRA"])
+    dec = float(header["OBSDEC"])
+
+    #Get frequency
+    freq = 0.0
+    if haskey(header, "FREQ")
+        freq = parse(Float64, string(header["FREQ"]))
+    elseif "CRVAL3" in keys(header)
+        freq = float(header["CRVAL3"])
+    end
+    mjd = 0.0
+    if haskey(header, "MJD")
+        mjd = parse(Float64, string(header["MJD"]))
+    end
+    source = "NA"
+    if haskey(header,"OBJECT")
+        source = string(header["OBJECT"])
+    end
+    stokes = "NA"
+    if haskey(header, "STOKES")
+        stokes = Symbol(header["STOKES"])
+    end
+    bmaj = 1.0 #Nominal values
+    bmin = 1.0
+    if haskey(header, "BUNIT")
+        if header["BUNIT"] == "JY/BEAM"
+            @info "Converting Jy/Beam => Jy/pixel"
+            bmaj = header["BMAJ"]*π/180
+            bmin = header["BMIN"]*π/180
+            beamarea = (2.0*π*bmaj*bmin)/(8*log(2))
+            image .= image.*(psizex*psizey/beamarea)
+        end
+    end
+    imap = IntensityMap(image, psizex*nx, psizey*ny)
+    info = (source=source, RA=ra, DEC=dec, mjd=mjd, ν=freq, stokes=stokes)
+    return imap, info
 end
 
 """
