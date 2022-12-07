@@ -18,23 +18,24 @@ obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_lo_hops_net
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obs = scan_average(obs).add_fractional_noise(0.01)
+obs = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
 # extract log closure amplitudes and closure phases
-damp = extract_amp(obs)
+damp = extract_lcamp(obs)
 dcphase = extract_cphase(obs; cut_trivial=true)
 
 
 function model(θ, metadata)
-    (;c, f, fg, lgamp) = θ
-    (; fovx, fovy, cache, gcache) = metadata
+    (;c) = θ
+    (; fovx, fovy, cache) = metadata
     # Construct the image model
-    img = IntensityMap(f*c, fovx, fovy)
+    img = IntensityMap(c, fovx, fovy)
     cimg = ContinuousImage(img, BSplinePulse{3}())
     m = modelimage(cimg, cache)
     #gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
-    g = exp.(lgamp)
-    Comrade.GainModel(gcache, g, m)#+gaussian)
+    return m
+    #g = exp.(lgamp)
+    #Comrade.GainModel(gcache, g, m)#+gaussian)
 end
 
 
@@ -49,23 +50,24 @@ distamp = (AA = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1)
            )
 
-fovx = μas2rad(80.0)
-fovy = μas2rad(80.0)
+fovx = μas2rad(70.0)
+fovy = μas2rad(70.0)
 nx = 10
 ny = floor(Int, fovy/fovx*nx)
 prior = (
           c = ImageDirichlet(1.0, nx, ny),
-          f = Uniform(0.5, 0.9),
-          fg = Uniform(0.0, 1.0),
-          lgamp = Comrade.GainPrior(distamp, scantable(damp)),
+          #f = Uniform(0.4, 0.7),
+          #fg = Uniform(0.0, 1.0),
+          #lgamp = Comrade.GainPrior(distamp, scantable(damp)),
         )
 
-buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
-cache = create_cache(DFTAlg(damp), buffer)
-gcache = GainCache(scantable(damp))
-metadata = (;cache, gcache, fovx, fovy)
 
-lklhd = RadioLikelihood(model, metadata, damp)
+buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
+cache = create_cache(NFFTAlg(damp), buffer)
+gcache = GainCache(scantable(damp))
+metadata = (;cache, fovx, fovy)
+
+lklhd = RadioLikelihood(model, metadata, damp, dcphase)
 
 post = Posterior(lklhd, prior)
 

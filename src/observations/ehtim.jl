@@ -276,7 +276,7 @@ function minimal_lcamp(obsc; kwargs...)
     bw = obs.bw
     rf = obs.rf
     ac = arrayconfig(dvis)
-    clac = ClosureConfig(ac, dmat)
+    clac = ClosureConfig(dvis, dmat)
     return EHTObservation(data = minset, mjd = mjd,
                           config=clac,
                           ra = ra, dec= dec,
@@ -346,7 +346,7 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
     end
 
     ac = arrayconfig(dvis)
-    clac = ClosureConfig(ac, dmat)
+    clac = ClosureConfig(dvis, dmat)
     return  EHTObservation(data = data, mjd = mjd,
                            config=clac,
                            ra = ra, dec= dec,
@@ -415,7 +415,7 @@ function _ehtim_lcamp(obsc; count="max", kwargs...)
 
 
     ac = arrayconfig(dvis)
-    clac = ClosureConfig(ac, dmat)
+    clac = ClosureConfig(dvis, dmat)
     return  EHTObservation(data = lcamp.data, mjd = lcamp.mjd,
                            config=clac,
                            ra = lcamp.ra, dec= lcamp.dec,
@@ -447,7 +447,7 @@ function minimal_cphase(obsc; kwargs...)
     bw = obs.bw
     rf = obs.rf
     ac = arrayconfig(dvis)
-    clac = ClosureConfig(ac, dmat)
+    clac = ClosureConfig(dvis, dmat)
     return EHTObservation(data = minset, mjd = mjd,
                           config=clac,
                           ra = ra, dec= dec,

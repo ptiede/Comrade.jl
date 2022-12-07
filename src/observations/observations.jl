@@ -83,6 +83,11 @@ function getuv(ac::ArrayConfiguration)
     return (U=ac.data.U, V=ac.data.V)
 end
 
+function getuv(ac::EHTObservation)
+    return (U=ac.data.u, V=ac.data.v)
+end
+
+
 function getuv(ac::ClosureConfig)
     return getuv(ac.ac)
 end
@@ -311,8 +316,6 @@ function amplitude(D::EHTVisibilityDatum)
     return EHTVisibilityAmplitudeDatum(amp, D.error,
                                        D.u, D.v,
                                        D.time,
-                                       D.frequency,
-                                       D.bandwidth,
                                        D.baseline
                                     )
 end
@@ -667,6 +670,7 @@ Extract the array configuration from a EHT observation.
 function arrayconfig(vis::EHTObservation)
     vis.config
 end
+
 
 function _arrayconfig(data, bandwidth, frequency)
     u = getproperty(data, :u)

@@ -155,7 +155,7 @@ end
 
 function _amplitudes(::IsAnalytic, m, p)
     #f(x,y) = amplitude(m, x, y)
-    return amplitude.(Ref(m), p)
+    return amplitude.(Ref(m), StructArray(p))
 end
 
 function _amplitudes(::NotAnalytic, m, p)
@@ -234,7 +234,7 @@ from Blackburn et al.[^1]
 [^1]: Blackburn L., et al "Closure Statistics in Interferometric Data" ApJ 2020
 """
 function closure_phases(m::AbstractModel, ac::ClosureConfig)
-    vis = visibilities(m, ac.ac)
+    vis = visibilities(m, arrayconfig(ac.ac))
     return ac.designmat*angle.(vis)
 end
 
@@ -290,7 +290,7 @@ from Blackburn et al.[^1]
 [^1]: Blackburn L., et al "Closure Statistics in Interferometric Data" ApJ 2020
 """
 function logclosure_amplitudes(m::AbstractModel, ac::ClosureConfig)
-    vis = visibilities(m, ac.ac)
+    vis = visibilities(m, arrayconfig(ac.ac))
     return ac.designmat*log.(abs.(vis))
 end
 

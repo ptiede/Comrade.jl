@@ -300,7 +300,7 @@ function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityDatu
     u = getdata(damp, :u)
     v = getdata(damp, :v)
     vis = StructArray{Complex{Float64}}((damp[:visr], damp[:visi]))
-    mvis = visibilities(m, u, v)
+    mvis = visibilities(m, (U=u, V=v))
     res = (vis - mvis)./getdata(damp, :error)
     re = real.(res)
     im = imag.(res)
@@ -312,7 +312,7 @@ function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityAmpl
     u = getdata(damp, :u)
     v = getdata(damp, :v)
 
-    mamp = amplitudes(m, u, v)
+    mamp = amplitudes(m, (U=u, V=v))
     res = (amp - mamp)./getdata(damp, :error)
     return hypot.(u, v), res
 end

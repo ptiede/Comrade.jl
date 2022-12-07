@@ -340,6 +340,9 @@ function caltable(g::GainModel)
     return caltable(g.cache, g.gains)
 end
 
+function intensity_point(model::GainModel, p)
+    return intensity_point(model.model, p)
+end
 
 function intensitymap!(img::IntensityMap, model::GainModel, p)
     return intensitymap!(img, model.model, p)
