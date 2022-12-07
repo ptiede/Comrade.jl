@@ -176,7 +176,7 @@ end
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
     Σ = data[:error].^2
     vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
-    ℓ = Likelihood(vis) do μ
+    ℓ = Likelihood(vis) do (μ,)
         ComplexVisLikelihood(μ, Σ)
     end
     return ℓ
@@ -186,7 +186,7 @@ end
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     Σ = data[:error].^2
     amp = getdata(data, :amp)
-    ℓ = Likelihood(amp) do μ
+    ℓ = Likelihood(amp) do (μ,)
         AmplitudeLikelihood(abs.(μ), Σ)
     end
     return ℓ
@@ -198,11 +198,11 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
     Σvis = data.config.ac.data.error.^2
 
     # Form the closure covariance matrix
-    Σlca = PDMat(dmat*Σvis*transpose(dmat))
+    Σlca = PDMat(Matrix(dmat*Diagonal(Σvis)*transpose(dmat)))
 
     f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:amp]
-    ℓ = Likelihood(amp) do μ
+    ℓ = Likelihood(amp) do (μ,)
         AmplitudeLikelihood(f(μ), Σlca)
     end
     return ℓ
@@ -219,7 +219,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosur
 
     f = Base.Fix2(closure_phases, data.config)
     phase = data[:phase]
-    ℓ = Likelihood(phase) do μ
+    ℓ = Likelihood(phase) do (μ,)
         ClosurePhaseLikelihood(f(μ), Σcp)
     end
 

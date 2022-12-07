@@ -1,11 +1,13 @@
 [deps]
 AbstractDifferentiation = "c29ec348-61ec-40c8-8164-b8c60e9d9f3d"
+AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 ChainRulesTestUtils = "cdddcdb0-9152-4a09-a978-84456f9df70a"
 ComponentArrays = "b0b7db55-cfe3-40fc-9ded-d10e2dbeff66"
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 ComradeAHMC = "a4336a5c-78bc-4363-8a90-ce3fa9d3abe4"
 ComradeBase = "6d8c423b-a35f-4ef1-850c-862fe21f82c4"
+ComradeDynesty = "0e22d245-d796-46d0-bd67-132aa2ceb697"
 ComradeOptimization = "26988f03-70df-4135-959e-06268cc6415a"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"

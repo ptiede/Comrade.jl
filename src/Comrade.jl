@@ -86,6 +86,7 @@ include("visualizations/visualizations.jl")
 include("bayes/bayes.jl")
 include("inference/inference.jl")
 include("calibration/calibration.jl")
+include("rules.jl")
 
 
 end

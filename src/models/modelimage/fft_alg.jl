@@ -148,10 +148,10 @@ function applyfft(plan, img::AbstractArray{<:Number})
 end
 
 function applyfft(plan, img::AbstractArray{<:StokesParams})
-    visI = applyfft(plan, img.I)
-    visQ = applyfft(plan, img.Q)
-    visU = applyfft(plan, img.U)
-    visV = applyfft(plan, img.V)
+    visI = applyfft(plan, stokes(img, :I))
+    visQ = applyfft(plan, stokes(img, :Q))
+    visU = applyfft(plan, stokes(img, :U))
+    visV = applyfft(plan, stokes(img, :V))
     return StructArray{StokesParams{eltype(visI)}}((I=visI, Q=visQ, U=visU, V=visV))
 end
 

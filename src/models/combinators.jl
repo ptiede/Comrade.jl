@@ -147,6 +147,13 @@ function intensitymap(m::AddModel, dims::DataNames)
     return sim1 + sim2
 end
 
+function intensitymap(::NotAnalytic, m::AddModel, dims::DataNames)
+    sim1 = intensitymap(m.m1, dims)
+    sim2 = intensitymap(m.m2, dims)
+    return sim1 + sim2
+end
+
+
 function intensitymap!(sim::IntensityMap, m::AddModel)
     csim = deepcopy(sim)
     intensitymap!(csim, m.m1)

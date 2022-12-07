@@ -17,7 +17,7 @@ where `Iᵢⱼ` are the flux densities of the image `img` and κ is the intensit
 """
 struct ContinuousImage{A <: Union{StokesIntensityMap, IntensityMap}, P} <: AbstractModel
     """
-    Discrete representation of the image. This must be a DimArray where at least two of the
+    Discrete representation of the image.
     """
     img::A
     """

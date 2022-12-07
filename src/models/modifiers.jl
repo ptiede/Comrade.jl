@@ -115,6 +115,22 @@ end
 end
 
 
+# @inline function apply_uv_transform(m::AbstractModifier, u, v, scale)
+#     ut, vt = transform_uv(m, u, v)
+#     scale = scale*scale_uv(m, u, v)
+#     return apply_uv_transform(basemodel(m), ut, vt, scale)
+# end
+
+# @inline function apply_uv_transform(::AbstractModel, u, v, scale)
+#     return u, v, scale
+# end
+
+
+# function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
+#     res = apply_uv_transform.(Ref(m), u, v, 1.0)
+#     return getindex.(res,1), getindex.(res,2), getindex.(res,3)
+# end
+
 # function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
 #     res = apply_uv_transform.(Ref(m), u, v, 1.0)
 #     return getindex.(res,1), getindex.(res,2), getindex.(res,3)

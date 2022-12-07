@@ -138,6 +138,7 @@ function Dists.rand(rng::AbstractRNG, d::NamedDist{N}) where {N}
 end
 
 HypercubeTransform.asflat(d::NamedDist{N}) where {N} = asflat(NamedTuple{N}(d.dists))
+HypercubeTransform.ascube(d::NamedDist{N}) where {N} = ascube(NamedTuple{N}(d.dists))
 
 DensityInterface.DensityKind(::NamedDist) = DensityInterface.IsDensity()
 DensityInterface.logdensityof(d::NamedDist, x) = Dists.logpdf(d, x)

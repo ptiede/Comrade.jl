@@ -44,12 +44,12 @@ function update_cache(cache::NUFTCache, img::Union{StokesIntensityMap,IntensityM
 end
 
 function update_phases(cache::NUFTCache, img::IntensityMap, pulse)
-    if cache.pulse !== pulse
-        phases = make_phases(cache.alg, img, pulse)
-        return @set cache.phases = phases
-    else
+    #if cache.pulse != pulse
+    #    phases = make_phases(cache.alg, img, pulse)
+    #    return @set cache.phases = phases
+    #else
         return cache
-    end
+    #end
 end
 
 function nocachevis(m::ModelImage{M,I,<:NUFTCache}, p) where {M,I<:IntensityMap}

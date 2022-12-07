@@ -127,11 +127,11 @@ end
 end
 
 function _visibilities_fallback(m, p::NamedTuple)
-    return visibility_point.(Ref(m), StructArray(p))
+    return visibility_point.(Ref(m), NamedTuple{(:U, :V)}.(p.U, p.V))
 end
 
 function _visibilities_fallback(m, p::StructArray)
-    return visibility_point.(Ref(m), p)
+    return visibility_point.(Ref(m), NamedTuple{(:U, :V)}.(p.U, p.V))
 end
 
 
@@ -324,9 +324,15 @@ end
 # `executor` if for parallelization but is not used for this method.
 function intensitymap!(::NotAnalytic, img::IntensityMap, m)
     ny, nx = size(img)
-    vis = fouriermap(m, dims(img); executor)
+    vis = fouriermap(m, dims(img))
     vis = ifftshift(phasedecenter!(vis, xitr, yitr))
     ifft!(vis, dimnum(img, (X,Y)))
     img .= real.(vis[I])./(nx*ny)
 
+end
+
+function intensitymap(::NotAnalytic, m, dims)
+    vis = ifftshift(phasedecenter!(fouriermap(m, dims), dims.X, dims.Y))
+    ifft!(vis)
+    return real.(vis)./length(vis)
 end
