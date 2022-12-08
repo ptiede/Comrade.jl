@@ -83,7 +83,7 @@ Note that is does not save the figure.
     ylims --> (y0, y1)
     #left_margin --> -2mm
     #right_margin --> 5mm
-    z = ComradeBase.baseimage(image)'[:,end:-1:1]
+    z = ComradeBase.baseimage(image)'
     seriestype := :heatmap
     #fontfamily --> "sans serif"
     colorbar_title --> "Jy/px²"

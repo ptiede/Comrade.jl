@@ -98,7 +98,7 @@ function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
     v = p.V
     checkuv(m.cache.alg.uv, u, v)
     vis =  nuft(m.cache.plan, complex.(m.cache.img))
-    return vis.*m.cache.phases
+    return conj.(vis).*m.cache.phases
 end
 
 function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},

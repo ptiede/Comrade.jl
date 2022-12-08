@@ -71,7 +71,6 @@ end
     @test isapprox(centroid(img)[1], 0.0, atol=1e-5)
     @test isapprox(centroid(img)[2], 0.0, atol=1e-5)
     I3 = second_moment(img)
-    println(I3)
     @test isapprox(I3, [4.0 0.0; 0.0 1.0], atol=1e-5)
 
 end

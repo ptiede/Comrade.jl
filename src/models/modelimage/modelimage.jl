@@ -172,7 +172,7 @@ function modelimage(m::M;
             return modelimage(m, img, alg)
         else
             T = typeof(intensity_point(m, (X=zero(fovx), Y=zero(fovy))))
-            img = StokesIntensityMap(zeros(T, nx, ny), dims)
+            img = IntensityMap(zeros(T, nx, ny), dims)
             return modelimage(m, img, alg)
         end
     end

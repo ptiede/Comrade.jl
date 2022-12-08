@@ -108,7 +108,7 @@ c2 = chi2(model(xopt), dlcamp, dcphase)/(length(dlcamp) + length(dcphase) - dime
 # log-closure amplitudes
 residual(model(xopt), dlcamp)
 residual(model(xopt), dcphase)
-
+ℓ = logdensityof(tpost)
 
 # we can also plot the best fit model or maximum likelihood estimate (MLE)
 X,Y = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256, 0.0, 0.0)

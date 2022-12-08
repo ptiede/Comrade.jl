@@ -177,7 +177,7 @@ end
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
     Σ = data[:error].^2
     vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
-    ℓ = Likelihood(vis) do μ
+    ℓ = Likelihood(vis) do (μ,)
         ComplexVisLikelihood(μ, Σ, 0.0)
     end
     return ℓ
@@ -187,7 +187,7 @@ end
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     Σ = data[:error].^2
     amp = getdata(data, :amp)
-    ℓ = Likelihood(amp) do μ
+    ℓ = Likelihood(amp) do (μ,)
         AmplitudeLikelihood(abs.(μ), Σ, 0.0)
     end
     return ℓ
@@ -196,16 +196,15 @@ end
 # internal function that creates the likelihood for a set of log closure amplitudes
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
     dmat = data.config.designmat
-    amp = data.config.ac.data.visr.^2 .+ data.config.ac.data.visi.^2
-    Σlamp = data.config.ac.data.error./ amp
+    amp2 = data.config.ac.data.visr.^2 .+ data.config.ac.data.visi.^2
+    Σlamp = data.config.ac.data.error.^2 ./ amp2
 
     # Form the closure covariance matrix
     Σlca = PDMat(Matrix(dmat*Diagonal(Σlamp)*transpose(dmat)))
     #Σlca = data[:error].^2
-
     f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:amp]
-    ℓ = Likelihood(amp) do μ
+    ℓ = Likelihood(amp) do (μ,)
         AmplitudeLikelihood(f(μ), Σlca, 0.0)
     end
     return ℓ
@@ -215,15 +214,15 @@ end
 # internal function that creates the likelihood for a set of closure phase datum
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosurePhaseDatum})
     dmat = data.config.designmat
-    amp = data.config.ac.data.visr.^2 .+ data.config.ac.data.visi.^2
-    Σphase = data.config.ac.data.error./ amp
+    amp2 = data.config.ac.data.visr.^2 .+ data.config.ac.data.visi.^2
+    Σphase = data.config.ac.data.error.^2 ./ amp2
 
     # Form the closure covariance matrix
-    Σcp = PDMat(Matrix(dmat*Diagonal(Σphase)*transpose(dmat)))
+    #Σcp = PDMat(Matrix(dmat*Diagonal(Σphase)*transpose(dmat)))
     Σcp = data[:error].^2
     f = Base.Fix2(closure_phases, data.config)
     phase = data[:phase]
-    ℓ = Likelihood(phase) do μ
+    ℓ = Likelihood(phase) do (μ,)
         ClosurePhaseLikelihood(f(μ), Σcp, 0.0)
     end
 

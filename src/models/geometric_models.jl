@@ -233,7 +233,7 @@ end
     θ = atan(u, v)
     @inbounds for n in eachindex(α, β)
         s,c = sincos(n*θ)
-        vis += 2*(α[n]*c - β[n]*s)*(-1im)^n*besselj(n, k)
+        vis += 2*(α[n]*c - β[n]*s)*(1im)^n*besselj(n, k)
     end
     return vis
 end
@@ -262,7 +262,7 @@ function _mring_adjoint(α, β, u, v)
 
     for n in eachindex(α, β)
         s,c = sincos(n*θ)
-        imn = (-1im)^n
+        imn = (1im)^n
         jn = besselj(n,k)
         ∂α[n] =  2*c*jn*imn
         ∂β[n] = -2*s*jn*imn
@@ -370,7 +370,7 @@ function visibility_point(m::ConcordanceCrescent{T}, p) where {T}
     u,v = _getuv(p)
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     norm = π*_crescentnorm(m)/k
-    phaseshift = cispi(-2*m.shift*u)
+    phaseshift = cispi(2*m.shift*u)
     b0outer,b0inner = besselj0(k*m.router), besselj0(k*m.rinner)
     b1outer,b1inner = besselj1(k*m.router), besselj1(k*m.rinner)
     b2outer,b2inner = besselj(2,k*m.router), besselj(2, k*m.rinner)
@@ -378,11 +378,11 @@ function visibility_point(m::ConcordanceCrescent{T}, p) where {T}
     v1 = (1+m.slash)*m.router*b1outer
     v2 = ((1+m.slash) + (1-m.slash)*m.shift/m.router)*
             phaseshift*m.rinner*b1inner
-    v3 = 2im*π*u*(1-m.slash)*(m.router*b0outer -
+    v3 = -2im*π*u*(1-m.slash)*(m.router*b0outer -
                            m.router*b2outer -
                            2*b1outer/k
                           )/(2*k)
-    v4 = 2im*π*u*(1-m.slash)*(m.rinner*b0inner -
+    v4 = -2im*π*u*(1-m.slash)*(m.rinner*b0inner -
                           m.rinner*b2inner -
                           2*b1inner/k
                          )/(2*k)*(m.rinner/m.router)*phaseshift
@@ -465,8 +465,8 @@ function visibility_point(::ParabolicSegment{T}, p) where {T}
     u,v = _getuv(p)
     ϵ = sqrt(eps(T))
     vϵ = v + ϵ + 0im
-    phase = cispi(-3/4 - 2*vϵ - u^2/(2vϵ))
-    Δ1 = erf(√(π/(2vϵ))*cispi(-1/4)*(u-2vϵ))
-    Δ2 = erf(√(π/(2vϵ))*cispi(-1/4)*(u+2vϵ))
+    phase = cispi(3/4 + 2*vϵ + u^2/(2vϵ))
+    Δ1 = erf(√(π/(2vϵ))*cispi(1/4)*(u-2vϵ))
+    Δ2 = erf(√(π/(2vϵ))*cispi(1/4)*(u+2vϵ))
     return phase/(√(2vϵ))*(Δ1-Δ2)/4
 end

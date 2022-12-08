@@ -49,6 +49,7 @@ post = Posterior(lklhd, prior)
 # the unit hypercube
 tpost = asflat(post)
 ndim = dimension(tpost)
+ℓ = logdensityof(tpost)
 f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
 prob = OptimizationProblem(f, rand(ndim), nothing, lb=fill(-5.0, ndim), ub = fill(5.0, ndim))
 sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000)

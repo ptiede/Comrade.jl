@@ -83,9 +83,6 @@ function getuv(ac::ArrayConfiguration)
     return (U=ac.data.U, V=ac.data.V)
 end
 
-function getuv(ac::EHTObservation)
-    return (U=ac.data.u, V=ac.data.v)
-end
 
 
 function getuv(ac::ClosureConfig)
@@ -213,6 +210,9 @@ getdata(obs, :time)
 """
 getdata(obs::Observation, s::Symbol) = getproperty(getfield(obs, :data), s)
 
+function getuv(ac::EHTObservation)
+    return (U=ac.data.u, V=ac.data.v)
+end
 
 # Implement the tables interface
 Tables.istable(::Type{<:EHTObservation}) = true

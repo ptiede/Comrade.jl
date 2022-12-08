@@ -51,6 +51,7 @@ function plan_nuft(alg::ObservedNUFT{<:DFTAlg}, img::Union{IntensityMap{T,2}, St
     @fastmath for i in axes(img,2), j in axes(img,1), k in axes(uv,2)
         u = uv[1,k]
         v = uv[2,k]
+        # - sign is taken care of in _visibilities
         dft[k, j, i] = cispi(-2(u*xitr[j] + v*yitr[i]))
     end
     # reshape to a matrix so we can take advantage of an easy BLAS call

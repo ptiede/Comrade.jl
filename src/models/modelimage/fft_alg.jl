@@ -45,7 +45,7 @@ ForwardDiff.partials(x::Complex{<:ForwardDiff.Dual}, n::Int) = Complex(ForwardDi
 ForwardDiff.npartials(x::Complex{<:ForwardDiff.Dual}) = ForwardDiff.npartials(x.re)
 
 # internal function that creates the interpolator objector to evaluate the FT.
-function create_interpolator(u, v, vis::AbstractArray{<:Real}, pulse)
+function create_interpolator(u, v, vis::AbstractArray{<:Complex}, pulse)
     # Construct the interpolator
     #itp = interpolate(vis, BSpline(Cubic(Line(OnGrid()))))
     #etp = extrapolate(itp, zero(eltype(vis)))
@@ -140,7 +140,7 @@ end
 function phasecenter(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
-    return vis.*cispi.(-2 .* (U.*x0 .+ V'.*y0))
+    return conj.(vis).*cispi.(2 .* (U.*x0 .+ V'.*y0))
 end
 
 function applyfft(plan, img::AbstractArray{<:Number})
@@ -160,7 +160,7 @@ end
 function create_cache(alg::FFTAlg, img::IntensityMapTypes, pulse=DeltaPulse())
     pimg = padimage(img, alg)
     # Do the plan and then fft
-    plan = plan_fft(pimg.I)
+    plan = plan_fft(pimg)
     vis = applyfft(plan, pimg)
 
     #Construct the uv grid
@@ -259,7 +259,7 @@ function phasedecenter!(vis, X, Y)
     y0 = first(Y)
     for I in CartesianIndices(vis)
         iy, ix = Tuple(I)
-        vis[I] = vis[I]*cispi(2*(uu[ix]*x0 + vv[iy]*y0))*nx*ny
+        vis[I] = conj(vis[I])*cispi(2*(uu[ix]*x0 + vv[iy]*y0))*nx*ny
     end
     return vis
 end

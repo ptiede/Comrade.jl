@@ -23,11 +23,21 @@
 #     ZeroTangent()
 # end
 
-function ChainRulesCore.rrule(::Type{IntensityMap}, data::AbstractArray, keys)
-    img = IntensityMap(data, keys)
+function ChainRulesCore.rrule(::Type{IntensityMap}, data::AbstractArray, keys...)
+    img = IntensityMap(data, keys...)
     pd = ProjectTo(data)
     function _IntensityMap_pullback(Δ)
-        return NoTangent(), @thunk(pd(Δ)), NoTangent()
+        return (NoTangent(), @thunk(pd(Δ)), map(i->NoTangent(), keys)...)
     end
     return img, _IntensityMap_pullback
+end
+
+
+function ChainRulesCore.rrule(::Type{ContinuousImage}, data::AbstractArray, pulse)
+    img = ContinuousImage(data, pulse)
+    pd = ProjectTo(data)
+    function _ContinuousImage_pullback(Δ)
+        return (NoTangent(), @thunk(pd(Δ.img)), NoTangent())
+    end
+    return img, _ContinuousImage_pullback
 end

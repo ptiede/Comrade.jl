@@ -252,7 +252,7 @@ radialextent(model::ShiftedModel, Δx, Δy) = radialextent(model.model) + hypot(
 @inline transform_uv(::ShiftedModel, u, v) = (u, v)
 
 @inline scale_image(model::ShiftedModel, x, y) = 1.0
-@inline scale_uv(model::ShiftedModel, u, v) = exp(-2im*π*(u*model.Δx + v*model.Δy))
+@inline scale_uv(model::ShiftedModel, u, v) = cispi(2*(u*model.Δx + v*model.Δy))
 
 @inline visanalytic(::Type{<:ShiftedModel{M}}) where {M} = visanalytic(M)
 

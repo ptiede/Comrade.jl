@@ -290,9 +290,7 @@ function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel, 
     vis2 = fouriermap(model.m2, dims)
     vis = ifftshift(phasedecenter!(vis1.*vis2, X, Y))
     ifft!(vis)
-    for I in eachindex(sim)
-        sim[I] = real(vis[I])/length(sim)
-    end
+    sim .= real.(vis)./length(sim)
 end
 
 #ChainRulesCore.@non_differentiable getproperty(m::ConvolvedModel, x::Symbol)

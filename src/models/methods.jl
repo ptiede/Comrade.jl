@@ -127,11 +127,13 @@ end
 end
 
 function _visibilities_fallback(m, p::NamedTuple)
-    return visibility_point.(Ref(m), NamedTuple{(:U, :V)}.(p.U, p.V))
+    vp = Base.Fix1(visibility_point, m)
+    return vp.(NamedTuple{(:U, :V)}.(p.U, p.V))
 end
 
 function _visibilities_fallback(m, p::StructArray)
-    return visibility_point.(Ref(m), NamedTuple{(:U, :V)}.(p.U, p.V))
+    vp = Base.Fix1(visibility_point, m)
+    return vp.(p)
 end
 
 
