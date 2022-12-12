@@ -17,7 +17,7 @@ imanalytic(::Type{<:Pulse}) = IsAnalytic()
 isprimitive(::Type{<:Pulse}) = IsPrimitive()
 
 @inline intensity_point(p::Pulse, ps) = κ(p::Pulse, ps.X)*κ(p::Pulse, ps.Y)
-@inline visibility_point(p::Pulse, ps) = ω(p::Pulse, ps.U)*ω(p::Pulse, ps.V)
+@inline visibility_point(p::Pulse, u, v, time, freq) = ω(p::Pulse, u)*ω(p::Pulse, v)
 
 
 flux(p::Pulse) = κflux(p)^2

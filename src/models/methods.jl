@@ -83,7 +83,7 @@ end
     how we specify how to evaluate the model
 =#
 @inline function _visibility(::NotPrimitive, m, p)
-    return visibility_point(m, p)
+    return visibility_point(m, u, v, time, freq)
 end
 
 @inline function _visibility(::IsPrimitive, m::M, p) where {M}
@@ -92,7 +92,7 @@ end
 
 
 @inline function _visibility_primitive(::IsAnalytic, mimg, p)
-    return visibility_point(mimg, p)
+    return visibility_point(mimg, u, v, time, freq)
 end
 
 @inline function _visibility_primitive(::NotAnalytic, mimg, p)
@@ -109,31 +109,34 @@ end
 Computes the visibilities of the model `m` using the coordinates `p`. The coordinates `p`
 are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
 """
-@inline function visibilities(m, p)
-    return _visibilities(m, p)
+@inline function visibilities(m, p::NamedTuple)
+    return _visibilities(m, p.U, p.V, p.T, p.F)
 end
 
 @inline function visibilities(m, p::ArrayConfiguration)
-    return _visibilities(m, getuv(p))
+    return _visibilities(m, p.data.U, p.data.V, p.data.T, p.data.F)
 end
+
+# function ChainRulesCore.rrule(::typeof(getuv), p::ArrayConfiguration)
+#     sa = getuv(p)
+#     function _get_uv_pullback(Δ)
+#         println(typeof(Δ))
+#         return Tangent{typeof(p)}(data = Tangent{typeof(p.data)}(U=Δ.U, V=Δ.V))
+#     end
+#     return sa, _get_uv_pullback
+# end
 
 
 
 
 # Internal function required for dispatch. This is a fallback method if
 # visibilities doesn't have a direct implementation.
-@inline function _visibilities(m, p)
-    _visibilities_fallback(m, p)
+@inline function _visibilities(m, u, v, time, freq)
+    _visibilities_fallback(m, u, v, time, freq)
 end
 
-function _visibilities_fallback(m, p::NamedTuple)
-    vp = Base.Fix1(visibility_point, m)
-    return vp.(NamedTuple{(:U, :V)}.(p.U, p.V))
-end
-
-function _visibilities_fallback(m, p::StructArray)
-    vp = Base.Fix1(visibility_point, m)
-    return vp.(p)
+function _visibilities_fallback(m, u, v, time, freq)
+    return visibility_point.(Ref(m), u, v, time, freq)
 end
 
 
@@ -147,21 +150,25 @@ Computes the visibility amplitudes of the model `m` at the coordinates `p`.
 The coordinates `p` are expected to have the properties `U`, `V`,
 and sometimes `Ti` and `Fr`.
 """
-function amplitudes(m, p)
-    _amplitudes(m, p)
+function amplitudes(m, p::NamedTuple{(:U, :V, :T, :F)})
+    _amplitudes(m, p.U, p.V, p.T, p.F)
 end
 
-function _amplitudes(m::S, p) where {S}
-    _amplitudes(visanalytic(S), m, p)
+function amplitudes(m, p::NamedTuple{(:U, :V)})
+    _amplitudes(m, p.U, p.V, 0.0, 0.0)
 end
 
-function _amplitudes(::IsAnalytic, m, p)
-    #f(x,y) = amplitude(m, x, y)
-    return amplitude.(Ref(m), StructArray(p))
+
+function _amplitudes(m::S, u, v, time, freq) where {S}
+    _amplitudes(visanalytic(S), m, u, v, time, freq)
 end
 
-function _amplitudes(::NotAnalytic, m, p)
-    abs.(visibilities(m, p))
+function _amplitudes(::IsAnalytic, m, u, v, time, freq)
+    amplitude.(Ref(m), u, v, time, freq)
+end
+
+function _amplitudes(::NotAnalytic, m, u, v, time, freq)
+    abs.(_visibilities(m, u, v, time, freq))
 end
 
 
@@ -176,6 +183,7 @@ function bispectra(m,
                     p2,
                     p3,
                     )
+
     _bispectra(m, p1, p2, p3)
 end
 

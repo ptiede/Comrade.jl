@@ -11,17 +11,16 @@ function getvisfield(obs)
     t2 = Symbol.(deepcopy((get(obsamps, Vector{String}, "t2"))))
     baseline = tuple.(t1, t2)
     time = deepcopy((get(obsamps, Vector{Float64}, "time")))
-    freq = zeros(length(time))
+    freq = fill(obs.rf, length(time))
     bw = zeros(length(time))
 
     return  StructArray{Comrade.EHTVisibilityDatum{Float64}}(
-        visr = real.(vis),
-        visi = imag.(vis),
-        u = u,
-        v = v,
+        measurement = vis,
+        U = u,
+        V = v,
         error = err,
-        time = time,
-        frequency = freq,
+        T = time,
+        F = freq,
         bandwidth = bw,
         baseline = baseline
     )
@@ -38,17 +37,15 @@ function getampfield(obs)
     t2 = Symbol.(deepcopy(get(obsamps, Vector{String}, "t2")))
     baseline = tuple.(t1, t2)
     time = deepcopy(get(obsamps, Vector{Float64}, "time"))
-    freq = zeros(length(time))
-    bw = zeros(length(time))
+    freq = fill(obs.rf, length(time))
 
     return  StructArray{Comrade.EHTVisibilityAmplitudeDatum{Float64}}(
-        amp = amps,
-        u = uamp,
-        v = vamp,
+        measurement = amps,
+        U = uamp,
+        V = vamp,
         error = erramp,
-        time = time,
-        frequency = freq,
-        bandwidth = bw,
+        T = time,
+        F = freq,
         baseline = baseline
     )
 end
@@ -69,21 +66,20 @@ function getcpfield(obs)
     t3 = Symbol.(deepcopy((get(obscp, Vector{String}, "t3"))))
     baseline = tuple.(t1, t2, t3)
     time = deepcopy(get(obscp, Vector{Float64}, "time"))
-    freq = zeros(length(time))
+    freq = fill(obs.rf, length(time))
     bw = zeros(length(time))
 
     return StructArray{Comrade.EHTClosurePhaseDatum{Float64}}(
-        phase = cp,
-        u1 = u1,
-        v1 = v1,
-        u2 = u2,
-        v2 = v2,
-        u3 = u3,
-        v3 = v3,
+        measurement = cp,
+        U1 = u1,
+        V1 = v1,
+        U2 = u2,
+        V2 = v2,
+        U3 = u3,
+        V3 = v3,
         error = errcp,
-        time = time,
-        frequency = freq,
-        bandwidth = bw,
+        T = time,
+        F = freq,
         triangle = baseline
     )
 
@@ -108,27 +104,83 @@ function getlcampfield(obs)
     t4 = Symbol.(((get(obslcamp, Vector{String}, "t4"))))
     baseline = tuple.(t1, t2, t3, t4)
     time = (get(obslcamp, Vector{Float64}, "time"))
-    freq = zeros(length(time))
+    freq = fill(obs.rf, length(time))
     bw = zeros(length(time))
 
     return StructArray{Comrade.EHTLogClosureAmplitudeDatum{Float64}}(
-        amp = camp,
-        u1 = u1,
-        v1 = v1,
-        u2 = u2,
-        v2 = v2,
-        u3 = u3,
-        v3 = v3,
-        u4 = u4,
-        v4 = v4,
+        measurement = camp,
+        U1 = u1,
+        V1 = v1,
+        U2 = u2,
+        V2 = v2,
+        U3 = u3,
+        V3 = v3,
+        U4 = u4,
+        V4 = v4,
         error = errcamp,
-        time = time,
-        frequency = freq,
-        bandwidth = bw,
+        T = time,
+        F = freq,
         quadrangle = baseline
     )
 
 end
+
+
+function getcoherency(obs)
+
+    # ensure that the visibilities are represented in a circular basis
+    obs = obs.switch_polrep("circ")
+
+    # get (u,v) coordinates
+    u = get(obs.data, "u")
+    v = get(obs.data, "v")
+
+    # get visibilities
+    c11 = get(obs.data, "rrvis")
+    c12 = get(obs.data, "rlvis")
+    c21 = get(obs.data, "lrvis")
+    c22 = get(obs.data, "llvis")
+
+    cmat = StructArray{SMatrix{2,2,eltyp(c11), 4}}(c11, c21, c12, c22)
+
+    # get uncertainties
+    e11 = get(obs.data, "rrsigma")
+    e12 = get(obs.data, "rlsigma")
+    e21 = get(obs.data, "lrsigma")
+    e22 = get(obs.data, "llsigma")
+
+    emat = StructArray{SMatrix{2,2,eltyp(e11), 4}}(e11, e21, e12, e22)
+
+
+    # get timestamps and frequencies
+    time = get(obs.data, "time")
+    freq = fill(obs.rf, length(time))
+
+    # get baseline info
+    t1 = get(obs.data, Vector{Symbol}, "t1")
+    t2 = get(obs.data, Vector{Symbol}, "t2")
+    baseline = tuple.(t1, t2)
+
+    # provide the polarization basis info
+    single_polbasis = (CirBasis(), CirBasis())
+    polbasis = fill(single_polbasis,length(u))
+
+    # prepare output
+    output = StructArray{CoherencyDatum{eltype(u)}}(
+        measurement = cohmat,
+        error = errmat,
+        U = u,
+        V = v,
+        T = time,
+        F = freq,
+        baseline = baseline,
+        polbasis = polbasis
+        )
+
+    return output
+
+end
+
 
 function getradec(obs)::Tuple{Float64, Float64}
     return (float(obs.ra), float(obs.dec))
@@ -161,11 +213,11 @@ function extract_amp(obsc; kwargs...)
     source = getsource(obs)
     bw = obs.bw
     rf = obs.rf
-    ac = _arrayconfig(data, bw, rf)
+    ac = _arrayconfig(data, bw)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    config = ac,
-                   bandwidth=bw, frequency=rf,
+                   bandwidth=bw,
                    source = source,
     )
 end
@@ -189,15 +241,40 @@ function extract_vis(obsc; kwargs...)
     source = getsource(obs)
     bw = obs.bw
     rf = obs.rf
-    ac = _arrayconfig(data, bw, rf)
+    ac = _arrayconfig(data, bw)
     return Comrade.EHTObservation(
                    data = data, mjd = mjd,
                    config=ac,
                    ra = ra, dec= dec,
-                   bandwidth=bw, frequency=rf,
+                   bandwidth=bw,
                    source = source,
     )
 end
+
+"""
+    extract_vis(obs)
+Extracts the coherency matrix from an ehtim observation object
+
+This grabs the raw `data` object from the obs object. Any keyword arguments are ignored.
+
+Returns an EHTObservation with coherency matrix
+"""
+function extract_coherency(obs)
+    data = getcoherency(obs)
+    ra, dec = Comrade.getradec(obs)
+    mjd = Comrade.getmjd(obs)
+    source = Comrade.getsource(obs)
+    bw = obs.bw
+    rf = obs.rf
+    ac = _arrayconfig(data, bw)
+    return Comrade.EHTObservation(data = data, mjd = mjd,
+                   ra = ra, dec= dec,
+                   config = ac,
+                   bandwidth=bw,
+                   source = source,
+    )
+end
+
 
 
 function closure_designmat(scancp::Scan{A,B,C}, scanvis) where {A,B,C<:StructArray{<:EHTClosurePhaseDatum}}
@@ -309,7 +386,7 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
     cphase = EHTObservation(data = data, mjd = mjd,
                    config=nothing,
                    ra = ra, dec= dec,
-                   bandwidth=bw, frequency=rf,
+                   bandwidth=bw,
                    source = source,
     )
 
@@ -318,7 +395,7 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
     #Now make the vis obs
     dvis = extract_vis(obsc)
     st = scantable(dvis)
-    S = eltype(dvis[:visr])
+    S = eltype(dvis[:error])
 
     dmat = Matrix{S}[]
     for i in 1:length(st)
@@ -350,7 +427,7 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
     return  EHTObservation(data = data, mjd = mjd,
                            config=clac,
                            ra = ra, dec= dec,
-                           bandwidth=bw, frequency=rf,
+                           bandwidth=bw,
                            source = source
                           )
 end
@@ -371,7 +448,7 @@ function _make_lcamp(obsc, count="max"; kwargs...)
     return EHTObservation(data = data, mjd = mjd,
                    config=nothing,
                    ra = ra, dec= dec,
-                   bandwidth=bw, frequency=rf,
+                   bandwidth=bw,
                    source = source,
     )
 
@@ -419,7 +496,7 @@ function _ehtim_lcamp(obsc; count="max", kwargs...)
     return  EHTObservation(data = lcamp.data, mjd = lcamp.mjd,
                            config=clac,
                            ra = lcamp.ra, dec= lcamp.dec,
-                           bandwidth=lcamp.bandwidth, frequency=lcamp.frequency,
+                           bandwidth=lcamp.bandwidth,
                            source = lcamp.source
                           )
 end
@@ -451,7 +528,7 @@ function minimal_cphase(obsc; kwargs...)
     return EHTObservation(data = minset, mjd = mjd,
                           config=clac,
                           ra = ra, dec= dec,
-                          bandwidth=bw, frequency=rf,
+                          bandwidth=bw,
                           source = source,
                         )
 end
@@ -489,7 +566,7 @@ function _minimal_closure(stcl, st)
 
     # Determine the number of timestamps containing a closure triangle
     T = typeof(stcl[1][1])
-    S = typeof(stcl[1][1].u1)
+    S = typeof(stcl[1][1].U1)
     # loop over all timestamps
     minset = StructVector{T}(undef, 0)
     dmat = Matrix{S}[]

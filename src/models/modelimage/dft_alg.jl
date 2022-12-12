@@ -11,8 +11,8 @@ Create an algorithm object using the direct Fourier transform object from the ob
 FT cache.
 """
 function DFTAlg(obs::EHTObservation)
-    u,v = getuv(obs.config)
-    return DFTAlg(u, v)
+    (;U,V) = getuv(obs.config)
+    return DFTAlg(U, V)
 end
 
 """
@@ -23,8 +23,8 @@ Create an algorithm object using the direct Fourier transform object from the ar
 FT cache.
 """
 function DFTAlg(ac::ArrayConfiguration)
-    u,v = getuv(ac)
-    return DFTAlg(u, v)
+    (;U,V) = getuv(ac)
+    return DFTAlg(U, V)
 end
 
 """
@@ -45,7 +45,6 @@ end
 # internal function that creates an DFT matrix/plan to use used for the img.
 function plan_nuft(alg::ObservedNUFT{<:DFTAlg}, img::Union{IntensityMap{T,2}, StokesIntensityMap{T,2}}) where {T}
     uv = alg.uv
-    println(img isa StokesIntensityMap)
     xitr, yitr = imagepixels(img)
     dft = similar(parent(img), Complex{eltype(uv)}, size(uv,2), size(img)...)
     @fastmath for i in axes(img,2), j in axes(img,1), k in axes(uv,2)
@@ -59,13 +58,13 @@ function plan_nuft(alg::ObservedNUFT{<:DFTAlg}, img::Union{IntensityMap{T,2}, St
 end
 
 # internal function to make the phases to phase center the image.
-function make_phases(alg::ObservedNUFT{<:DFTAlg}, img::IntensityMapTypes, pulse)
+function make_phases(alg::ObservedNUFT{<:DFTAlg}, img::IntensityMapTypes, pulse::Pulse)
     u = @view alg.uv[1,:]
     v = @view alg.uv[2,:]
     # We don't need to correct for the phase offset here since that
     # is taken care of in plan_nuft for DFTAlg
     dx, dy = pixelsizes(img)
-    return visibilities(pulse, (U=u, V=v))
+    return _visibilities(stretched(pulse, dx, dy), u, v, 0.0, 0.0)
 end
 
 """
@@ -74,6 +73,6 @@ end
 Create a cache for the DFT algorithm with precomputed `plan`, `phases` and `img`.
 This is an internal version.
 """
-function create_cache(alg::ObservedNUFT{<:DFTAlg}, plan, phases, img, pulse)
+function create_cache(alg::ObservedNUFT{<:DFTAlg}, plan, phases, img, pulse::Pulse)
     return NUFTCache(alg, plan, phases, pulse, reshape(img, :))
 end

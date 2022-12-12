@@ -31,6 +31,7 @@ using Random
 using RectiGrids
 using Reexport
 using Requires: @require
+using StaticArraysCore
 using StructArrays: StructVector, StructArray, append!!
 using Tables
 # Write your package code here.

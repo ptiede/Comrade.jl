@@ -17,7 +17,7 @@ Any implementation of a composite type must define the following methods:
 - intensitymap if model intensity is `NotAnalytic`
 - flux
 - radialextent
-- visibilities (optional)
+- _visibilities (optional)
 """
 abstract type CompositeModel{M1,M2} <: AbstractModel end
 
@@ -175,9 +175,9 @@ end
 # end
 
 
-@inline function _visibilities(model::AddModel, p)
+@inline function _visibilities(model::AddModel, u, v, time, freq)
     #f = uv_combinator(model)
-    return _visibilities(model.m1, p) .+ _visibilities(model.m2, p)
+    return _visibilities(model.m1, u, v, time, freq) .+ _visibilities(model.m2, u, v, time, freq)
 end
 
 # @inline function _visibilities(::IsAnalytic, model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
@@ -295,9 +295,9 @@ end
 
 #ChainRulesCore.@non_differentiable getproperty(m::ConvolvedModel, x::Symbol)
 
-@inline function _visibilities(model::ConvolvedModel, p)
+@inline function _visibilities(model::ConvolvedModel, u, v, time, freq)
     #f = uv_combinator(model)
-    return _visibilities(model.m1, p).*_visibilities(model.m2, p)
+    return _visibilities(model.m1, u, v, time, freq).*_visibilities(model.m2, u, v, time, freq)
 end
 
 

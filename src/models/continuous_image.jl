@@ -51,18 +51,17 @@ ComradeBase.AxisKeys.axiskeys(m::ContinuousImage)       = ComradeBase.AxisKeys.a
 
 Base.similar(m::ContinuousImage, ::Type{S}, dims) where {S} = ContinuousImage(similar(parent(m), S, dims), m.kernel)
 
-function ContinuousImage(img::IntensityMap, pulse::AbstractModel)
+function ContinuousImage(img::IntensityMap, pulse::Pulse)
     dx, dy = pixelsizes(img)
-    spulse = stretched(pulse, dx, dy)
-    return ContinuousImage{typeof(img), typeof(spulse)}(img, spulse)
+    return ContinuousImage{typeof(img), typeof(pulse)}(img, pulse)
 end
 
 
 function ContinuousImage(im::AbstractMatrix, fovx::Real, fovy::Real, x0::Real, y0::Real, pulse, header=nothing)
     xitr, yitr = imagepixels(fovx, fovy, size(img, 1), size(img,2), x0, y0)
     img = IntensityMap(im, (X=xitr, Y=yitr), header)
-    spulse = stretched(pulse, step(xitr), step(yitr))
-    return ContinuousImage(img, spulse)
+    # spulse = stretched(pulse, step(xitr), step(yitr))
+    return ContinuousImage(img, pulse)
 end
 
 function ContinuousImage(im::AbstractMatrix, fov::Real, x0::Real, y0::Real, pulse, header=nothing)
@@ -81,10 +80,11 @@ isprimitive(::Type{<:ContinuousImage}) = IsPrimitive()
 radialextent(c::ContinuousImage) = maximum(values(fieldofview(c.img)))/2
 
 function intensity_point(m::ContinuousImage, p)
+    dx, dy = pixelsizes(m.img)
     sum = zero(eltype(m.img))
     @inbounds for (I, p0) in pairs(imagegrid(m.img))
         dp = (X=(p.X - p0.X), Y=(p.Y - p0.Y))
-        k = intensity_point(m.kernel, dp)
+        k = intensity_point(stretched(m.kernel, dx, dy) , dp)
         sum += m.img[I]*k
     end
     return sum

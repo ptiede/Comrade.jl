@@ -5,8 +5,8 @@ export residuals, chi2
     yguide --> "V (Jy)"
     markershape --> :diamond
 
-    u = getdata(dvis, :u)
-    v = getdata(dvis, :v)
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
     vis = visibility.(dvis.data)
     error = getdata(dvis, :error)
@@ -47,8 +47,8 @@ end
     yguide --> "V (Jy)"
     markershape --> :circle
 
-    u = getdata(dvis, :u)
-    v = getdata(dvis, :v)
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
     vis = visibility.(dvis.data)
     error = getdata(dvis, :error)
@@ -82,8 +82,8 @@ end
     yguide --> "|V| (Jy)"
     markershape --> :diamond
 
-    u = getdata(dvis, :u)/1e9
-    v = getdata(dvis, :v)/1e9
+    u = getdata(dvis, :U)/1e9
+    v = getdata(dvis, :V)/1e9
     uvdist = hypot.(u,v)
     amp = amplitude.(dvis.data)
     error = getdata(dvis, :error)
@@ -107,7 +107,7 @@ end
     linecolor --> nothing
     aspect_ratio --> :equal
     label -->"Data"
-    title --> "Frequency: $(acc.frequency/1e9) GHz"
+    title --> "Frequency: $(first(acc.data.F)/1e9) GHz"
     vcat(u/1e9,-u/1e9), vcat(v/1e9,-v/1e9)
 end
 
@@ -116,8 +116,8 @@ end
     yguide --> "V (Jy)"
     markershape --> :diamond
 
-    u = getdata(dvis, :u)
-    v = getdata(dvis, :v)
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
     amp = amplitude.(dvis.data)
     error = getdata(dvis, :error)
@@ -184,14 +184,14 @@ end
     xguide --> "√(quadrangle area) (λ)"
     yguide --> "Log Clos. Amp."
     markershape --> :diamond
-    u1 = getdata(dlca, :u1)
-    v1 = getdata(dlca, :v1)
-    u2 = getdata(dlca, :u2)
-    v2 = getdata(dlca, :v2)
-    u3 = getdata(dlca, :u3)
-    v3 = getdata(dlca, :v3)
-    u4 = getdata(dlca, :u4)
-    v4 = getdata(dlca, :v4)
+    u1 = getdata(dlca, :U1)
+    v1 = getdata(dlca, :V1)
+    u2 = getdata(dlca, :U2)
+    v2 = getdata(dlca, :V2)
+    u3 = getdata(dlca, :U3)
+    v3 = getdata(dlca, :V3)
+    u4 = getdata(dlca, :U4)
+    v4 = getdata(dlca, :V4)
     area = sqrt.(uvarea.(dlca.data))
     phase = getdata(dlca, :amp)
     error = getdata(dlca, :error)
@@ -217,12 +217,12 @@ end
     xguide --> "√(triangle area) (λ)"
     yguide --> "Phase (rad)"
     markershape --> :circle
-    u1 = getdata(dcp, :u1)
-    v1 = getdata(dcp, :v1)
-    u2 = getdata(dcp, :u2)
-    v2 = getdata(dcp, :v2)
-    u3 = getdata(dcp, :u3)
-    v3 = getdata(dcp, :v3)
+    u1 = getdata(dcp, :U1)
+    v1 = getdata(dcp, :V1)
+    u2 = getdata(dcp, :U2)
+    v2 = getdata(dcp, :V2)
+    u3 = getdata(dcp, :U3)
+    v3 = getdata(dcp, :V3)
     area = sqrt.(uvarea.(dcp.data))
     phase = getdata(dcp, :phase)
     error = getdata(dcp, :error)
@@ -238,12 +238,12 @@ end
     xguide --> "√(triangle area) (λ)"
     yguide --> "Phase (rad)"
     markershape --> :diamond
-    u1 = getdata(dcp, :u1)
-    v1 = getdata(dcp, :v1)
-    u2 = getdata(dcp, :u2)
-    v2 = getdata(dcp, :v2)
-    u3 = getdata(dcp, :u3)
-    v3 = getdata(dcp, :v3)
+    u1 = getdata(dcp, :U1)
+    v1 = getdata(dcp, :V1)
+    u2 = getdata(dcp, :U2)
+    v2 = getdata(dcp, :V2)
+    u3 = getdata(dcp, :U3)
+    v3 = getdata(dcp, :V3)
     area = sqrt.(uvarea.(dcp.data))
     phase = getdata(dcp, :phase)
     error = getdata(dcp, :error)
@@ -267,6 +267,10 @@ end
 
 @userplot Residual
 
+
+ndata(d::EHTObservation) = length(d)
+ndata(d::EHTObservation{T, D}) where {T, D<:EHTVisibilityDatum} = 2*length(d)
+
 @recipe function f(h::Residual)
     if length(h.args) != 2 || !(typeof(h.args[1]) <: AbstractModel) ||
         !(typeof(h.args[2]) <: EHTObservation)
@@ -282,7 +286,7 @@ end
     linecolor --> nothing
     legend --> false
 
-    title --> @sprintf "<χ²> = %.2f" chi2/length(damp)
+    title --> @sprintf "<χ²> = %.2f" chi2/ndata(damp)
     uvdist, res
 end
 
@@ -296,21 +300,21 @@ function chi2(m, data::EHTObservation...)
 end
 
 
-function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityDatum}
-    u = getdata(damp, :u)
-    v = getdata(damp, :v)
-    vis = StructArray{Complex{Float64}}((damp[:visr], damp[:visi]))
-    mvis = visibilities(m, (U=u, V=v))
-    res = (vis - mvis)./getdata(damp, :error)
+function residuals(m, dvis::EHTObservation{T, A}) where {T, A<:EHTVisibilityDatum}
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
+    vis = dvis[:measurement]
+    mvis = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
+    res = (vis - mvis)./getdata(dvis, :error)
     re = real.(res)
     im = imag.(res)
     return hypot.(u, v), hcat(re, im)
 end
 
 function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityAmplitudeDatum}
-    amp = getdata(damp, :amp)
-    u = getdata(damp, :u)
-    v = getdata(damp, :v)
+    amp = getdata(damp, :measurement)
+    u = getdata(damp, :U)
+    v = getdata(damp, :V)
 
     mamp = amplitudes(m, (U=u, V=v))
     res = (amp - mamp)./getdata(damp, :error)
@@ -320,7 +324,7 @@ end
 
 function residuals(m, dcp::EHTObservation{T, A}) where {T, A<:EHTClosurePhaseDatum}
     area = sqrt.(uvarea.(dcp.data))
-    phase = getdata(dcp, :phase)
+    phase = getdata(dcp, :measurement)
     error = getdata(dcp, :error)
 
     mphase = closure_phases(m, dcp.config)
@@ -336,7 +340,7 @@ end
 
 function residuals(m, dlca::EHTObservation{T, A}) where {T, A<:EHTLogClosureAmplitudeDatum}
     area = sqrt.(uvarea.(dlca.data))
-    phase = getdata(dlca, :amp)
+    phase = getdata(dlca, :measurement)
     error = getdata(dlca, :error)
 
     mphase = logclosure_amplitudes(m, dlca.config)

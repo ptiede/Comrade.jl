@@ -348,13 +348,13 @@ function intensitymap!(img::IntensityMap, model::GainModel, p)
     return intensitymap!(img, model.model, p)
 end
 
-function _visibilities(model::GainModel, p)
-    vis = _visibilities(model.model, p)
+function _visibilities(model::GainModel, u, v, time, freq)
+    vis = _visibilities(model.model, u, v, time, freq)
     return corrupt(vis, model.cache, model.gains)
 end
 
-function amplitudes(model::GainModel, p)
-    amp = amplitudes(model.model, p)
+function amplitudes(model::GainModel, u, v, time, freq)
+    amp = visibilities(model.model, u, v, time, freq)
     return abs.(corrupt(amp, model.cache, model.gains))
 end
 
@@ -425,7 +425,7 @@ function gain_design(st::ScanTable)
     colInd1 = Int[]
     rowInd2 = Int[]
     colInd2 = Int[]
-    times = st.obs[:time]
+    times = st.obs[:T]
     bl = st.obs[:baseline]
     gaintime, gainstat = gain_stations(st)
     gts = collect(zip(gaintime, gainstat))

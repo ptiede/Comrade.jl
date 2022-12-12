@@ -5,10 +5,14 @@ An abstract type for all VLBI interfermetry data types. See [EHTVisibilityDatum]
 abstract type AbstractInterferometryDatum{T} end
 
 abstract type AbstractVisibilityDatum{T} <: AbstractInterferometryDatum{T} end
-abstract type AbstractLinearPolDatum{S<:AbstractVisibilityDatum, T} <: AbstractInterferometryDatum{T} end
-abstract type AbstractCrossPolDatum{S,T} <: AbstractInterferometryDatum{T} end
-
 abstract type ClosureProducts{T} <: AbstractInterferometryDatum{T} end
+
+measurment(d::AbstractVisibilityDatum) = d.measurement
+error(d::AbstractVisibilityDatum) = d.error
+baseline(d::AbstractVisibilityDatum) = d.baseline
+position(d::AbstractVisibilityDatum) = (U=d.U, V=d.V, T=d.T, F=d.F)
+uvposition(d::AbstractVisibilityDatum) = (U=d.U, V=d.V)
+feed(d::AbstractVisibilityDatum) = d.polbasis
 
 abstract type Observation{T} end
 
@@ -16,7 +20,7 @@ using DelimitedFiles
 using AstroTime: modified_julian
 
 export uvpositions, stations, getdata, arrayconfig,
-       getuv, baselines, scantable
+       getuv, baselines, rescaleuv!, scantable
 
 
 
@@ -48,6 +52,14 @@ struct EHTArrayConfiguration{F,T<:AbstractArray} <: ArrayConfiguration
     data::T
 end
 
+function getindex(ac::EHTArrayConfiguration, v::Symbol)
+    return getproperty(ac.data, v)
+end
+
+function getindex(ac::EHTArrayConfiguration, I::Union{Int, <:AbstractVector{<:Integer}})
+    return getindex(ac, I)
+end
+
 """
     $(TYPEDEF)
 Array config file for closure quantities. This stores the design matrix `designmat`
@@ -75,14 +87,14 @@ end
 
 Get the u, v positions of the array.
 """
-function getuv(ac::ArrayConfiguration)
+function uvposition(ac::ArrayConfiguration)
     return (U=ac.data.U, V=ac.data.V)
 end
 
 
 
-function getuv(ac::ClosureConfig)
-    return getuv(ac.ac)
+function uvposition(ac::ClosureConfig)
+    return uvposition(ac.ac)
 end
 
 """
@@ -90,11 +102,11 @@ end
 
 Get the u, v, time, freq of the array as a tuple.
 """
-function getuvtimefreq(ac::EHTArrayConfiguration)
-    u,v = getuv(ac)
-    t = ac.data.T
-    ν = ac.data.F
-    return u, v, t, ν
+function position(ac::EHTArrayConfiguration)
+    (;U,V) = getuv(ac)
+    t = ac.data.time
+    ν = ac.frequency
+    return (U=U, V=V, T=t, F=fill(ν, length(u)))
 end
 
 """
@@ -102,7 +114,7 @@ end
 
 A single datum of an `ArrayConfiguration`
 """
-struct ArrayBaselineDatum{T}
+struct ArrayBaselineDatum{T} <: AbstractInterferometryDatum{T}
     """
     u position of the data point in λ
     """
@@ -127,24 +139,20 @@ struct ArrayBaselineDatum{T}
     The thermal noise on the baseline
     """
     error::T
-    function ArrayBaselineDatum(u, v, time, freq, baseline, error)
+    function ArrayBaselineDatum(time, freq, u, v, baseline, error)
         tt, ft, ut, vt, errort = promote(time, freq, u, v, error)
         T = typeof(tt)
-        return new{T}(ut, vt, tt, ft, baseline, errort)
+        return new{T}(tt, ft, ut, vt, baseline, errort)
     end
 end
 
+
+@non_differentiable getuv(ac::ArrayConfiguration)
 
 
 const ArrayQuadrangleDatum = NTuple{4, ArrayBaselineDatum{T}} where {T}
 const ArrayTriangleDatum = NTuple{3, ArrayBaselineDatum{T}} where {T}
 
-"""
-    uvpositions(datum::AbstractVisibilityDatum)
-
-Get the uvp positions of an inferometric datum.
-"""
-uvpositions(D::AbstractVisibilityDatum) = D.u, D.v
 
 """
     $(TYPEDEF)
@@ -155,11 +163,11 @@ of any `AbstractInterferometryDatum` type.
 # Fields
 $FIELDS
 """
-Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructArray{T}, A, N} <: Observation{F}
+Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S, A, N} <: Observation{F}
     """
     StructArray of data productts
     """
-    data::S
+    measurement::S
     """
     Array config holds ancillary information about array
     """
@@ -202,9 +210,6 @@ getdata(obs, :time)
 """
 getdata(obs::Observation, s::Symbol) = getproperty(getfield(obs, :data), s)
 
-function getuv(ac::EHTObservation)
-    return (U=ac.data.u, V=ac.data.v)
-end
 
 # Implement the tables interface
 Tables.istable(::Type{<:EHTObservation}) = true
@@ -238,7 +243,7 @@ function Base.show(io::IO, d::EHTObservation{F,D}) where {F,D}
     println(io, "EHTObservation{$F,$D, ...}")
     println(io, "  source: ", d.source)
     println(io, "  mjd: ", d.mjd)
-    println(io, "  frequency: ", first(d.data.F))
+    println(io, "  frequency: ", d.frequency)
     println(io, "  bandwidth: ", d.bandwidth)
     println(io, "  stations: ", stations(d))
     println(io, "  nsamples: ", length(d))
@@ -246,7 +251,13 @@ end
 
 
 
+abstract type MeasurementDatum{T} <: AbstractVisibilityDatum{T} end
 
+error(d::MeasurementDatum) = error(d.baseline)
+baseline(d::MeasurementDatum) = baseline(d.baseline)
+position(d::MeasurementDatum) = position(d.baseline)
+uvposition(d::MeasurementDatum) = uvposition(d.baseline)
+feed(d::MeasurementDatum) = feed(d.baseline)
 
 
 """
@@ -257,61 +268,17 @@ A struct holding the information for a single measured visibility.
 # $(FIELDS)
 
 """
-Base.@kwdef struct EHTVisibilityDatum{S<:Number} <: AbstractVisibilityDatum{S}
+Base.@kwdef struct VisibilityDatum{T<:Number, B<:ArrayBaselineDatum{T}} <: MeasurementDatum{T}
     """
-    real component of the visibility (Jy)
+    Complex visibility
     """
-    measurement::Complex{S}
+    measurement::Complex{T}
     """
-    error of the visibility (Jy)
+    Baseline datum
     """
-    error::S
-    """
-    u position of the data point in λ
-    """
-    U::S
-    """
-    v position of the data point in λ
-    """
-    V::S
-    """
-    time of the data point in (Hr)
-    """
-    T::S
-    """
-    frequency of the data point (Hz)
-    """
-    F::S
-    """
-    station baseline codes
-    """
-    baseline::NTuple{2,Symbol}
+    config::B
 end
 
-"""
-    visibility(d::EHTVisibilityDatum)
-
-Return the complex visibility of the visibility datum
-"""
-@inline function visibility(D::EHTVisibilityDatum{T}) where {T}
-        return Complex{T}(D.visr, D.visi)
-end
-
-
-"""
-    amplitude(d::EHTVisibilityDatum)
-
-Get the amplitude of a visibility datum
-"""
-function amplitude(D::EHTVisibilityDatum)
-    amp = hypot(D.visr,D.visi)
-    return EHTVisibilityAmplitudeDatum(amp, D.error,
-                                       D.u, D.v,
-                                       D.time,
-                                       D.frequency,
-                                       D.baseline
-                                    )
-end
 
 """
     $(TYPEDEF)
@@ -322,44 +289,24 @@ A struct holding the information for a single measured visibility amplitude.
 $(FIELDS)
 
 """
-Base.@kwdef struct EHTVisibilityAmplitudeDatum{S<:Number} <: AbstractVisibilityDatum{S}
+Base.@kwdef struct AmplitudeDatum{T<:Number} <: MeasurementDatum{T}
     """
     amplitude (Jy)
     """
-    measurement::S
+    measurement::T
     """
-    error of the visibility amplitude (Jy)
+    Baseline datum
     """
-    error::S
-    """
-    u position of the data point in λ
-    """
-    U::S
-    """
-    v position of the data point in λ
-    """
-    V::S
-    """
-    time of the data point in (Hr)
-    """
-    T::S
-    """
-    frequency of the data point (Hz)
-    """
-    F::S
-    """
-    station baseline codes
-    """
-    baseline::NTuple{2,Symbol}
+    config::B
 end
 
 # internal method that checks whether the triangle is closes
-function checktriangle(D1::EHTVisibilityDatum,
-                       D2::EHTVisibilityDatum,
-                       D3::EHTVisibilityDatum)
-    b1 = D1.baseline
-    b2 = D2.baseline
-    b3 = D3.baseline
+function checktriangle(D1::VisibilityDatum,
+                       D2::VisibilityDatum,
+                       D3::VisibilityDatum)
+    b1 = baseline(D1)
+    b2 = baseline(D2)
+    b3 = baseline(D3)
     l = length(unique([b1..., b2..., b3...]))
     @assert l == 3 "For a valid closure phase you need 3 unique stations not $l"
     @assert (D1.time == D2.time == D3.time) "For a valid closure phase the times need to match"
@@ -371,8 +318,8 @@ end
 
 Get the amplitude of a amplitude datum
 """
-@inline function amplitude(D::EHTVisibilityAmplitudeDatum{T}) where {T}
-    return D.amp
+@inline function amplitude(D::VisibilityDatum{T}) where {T}
+    return abs(measurement(D))
 end
 
 
@@ -384,7 +331,20 @@ i.e. the phase of the bispectrum is a closure phase.
 """
 @inline function bispectrum(D1::EHTVisibilityDatum, D2::EHTVisibilityDatum, D3::EHTVisibilityDatum)
     checktriangle(D1, D2, D3)
-    visibility(D1)*visibility(D2)*visibility(D3)
+    measurement(D1)*measurement(D2)*measurement(D3)
+end
+
+
+"""
+    rescaleuv!(data::EHTObservation)
+
+rescale the u-v lengths according to scale. This can be useful when you want the spatial scales
+to be in 1/μas instead of 1/rad
+"""
+function rescaleuv!(data::EHTObservation{T,D}, scale) where {T,D<:Union{EHTVisibilityAmplitudeDatum,EHTVisibilityDatum}}
+    data.data.u .= data.data.u.*scale
+    data.data.v .= data.data.v.*scale
+    return data
 end
 
 
@@ -398,97 +358,59 @@ A Datum for a single closure phase.
 $(FIELDS)
 
 """
-Base.@kwdef struct EHTClosurePhaseDatum{S<:Number} <: ClosureProducts{S}
+Base.@kwdef struct EHTClosurePhaseDatum{T<:Number} <: ClosureProducts{T}
     """
     closure phase (rad)
     """
-    measurement::S
+    phase::T
     """
     error of the closure phase assuming the high-snr limit
     """
-    error::S
+    error::T
     """
     u (λ) of first station
     """
-    U1::S
+    u1::T
     """
     v (λ) of first station
     """
-    V1::S
+    v1::T
     """
     u (λ) of second station
     """
-    U2::S
+    u2::T
     """
     v (λ) of second station
     """
-    V2::S
+    v2::T
     """
     u (λ) of third station
     """
-    U3::S
+    u3::T
     """
     v (λ) of third station
     """
-    V3::S
+    v3::T
     """
     Measured time of closure phase in hours
     """
-    T::S
-    """
-    Measured frequency of closure phase in Hz
-    """
-    F::S
+    time::T
     """
     station baselines used
     """
     triangle::NTuple{3,Symbol}
 end
 
-
-"""
-    $(TYPEDEF)
-
-A Datum for a single coherency matrix
-
-# Fields
-$(FIELDS)
-
-"""
-Base.@kwdef struct CoherencyDatum{S, B1, B2, M<:SMatrix{2,2,Complex{S}}, E<:SMatrix{2,2,S}} <: Comrade.AbstractInterferometryDatum{S}
-    """
-    coherency matrix, with entries in Jy
-    """
-    measurment::M
-    """
-    visibility uncertainty matrix, with entries in Jy
-    """
-    error::E
-    """
-    x-direction baseline length, in λ
-    """
-    u::S
-    """
-    y-direction baseline length, in λ
-    """
-    v::S
-    """
-    Timestamp, in hours
-    """
-    time::S
-    """
-    Frequency, in Hz
-    """
-    freq::S
-    """
-    station baseline codes
-    """
-    baseline::NTuple{2,Symbol}
-    """
-    polarization basis for each station
-    """
-    polbasis::Tuple{B1, B2}
+function rescaleuv!(data::EHTObservation{T,D}, scale) where {T,D<:EHTClosurePhaseDatum}
+    data.data.u1 .= data.data.u1.*scale
+    data.data.v1 .= data.data.v1.*scale
+    data.data.u2 .= data.data.u2.*scale
+    data.data.v2 .= data.data.v2.*scale
+    data.data.u3 .= data.data.u3.*scale
+    data.data.v3 .= data.data.v3.*scale
+    return data
 end
+
 
 
 function stations(d::EHTObservation{T,A}) where {T,A<:EHTClosurePhaseDatum}
@@ -554,61 +476,68 @@ A Datum for a single log closure amplitude.
 # $(FIELDS)
 
 """
-Base.@kwdef struct EHTLogClosureAmplitudeDatum{S<:Number} <: ClosureProducts{S}
+Base.@kwdef struct EHTLogClosureAmplitudeDatum{T<:Number} <: ClosureProducts{T}
     """
     log-closure amplitude
     """
-    measurement::S
+    amp::T
     """
     log-closure amplitude error in the high-snr limit
     """
-    error::S
+    error::T
     """
     u (λ) of first station
     """
-    U1::S
+    u1::T
     """
     v (λ) of first station
     """
-    V1::S
+    v1::T
     """
     u (λ) of second station
     """
-    U2::S
+    u2::T
     """
     v (λ) of second station
     """
-    V2::S
+    v2::T
     """
     u (λ) of third station
     """
-    U3::S
+    u3::T
     """
     v (λ) of third station
     """
-    V3::S
+    v3::T
     """
     u (λ) of fourth station
     """
-    U4::S
+    u4::T
     """
     v (λ) of fourth station
     """
-    V4::S
+    v4::T
     """
-    Measured time of closure phase in hours
+    Observation time of the quadrangle
     """
-    T::S
-    """
-    Measured frequency of closure phase in Hz
-    """
-    F::S
+    time::T
     """
     station codes for the quadrangle
     """
     quadrangle::NTuple{4,Symbol}
 end
 
+function rescaleuv!(data::EHTObservation{T,D}, scale) where {T,D<:EHTLogClosureAmplitudeDatum}
+    data.data.u1 .= data.data.u1.*scale
+    data.data.v1 .= data.data.v1.*scale
+    data.data.u2 .= data.data.u2.*scale
+    data.data.v2 .= data.data.v2.*scale
+    data.data.u3 .= data.data.u3.*scale
+    data.data.v3 .= data.data.v3.*scale
+    data.data.u4 .= data.data.u4.*scale
+    data.data.v4 .= data.data.v4.*scale
+    return data
+end
 
 """
     baselines(CP::EHTLogClosureAmplitudeDatum)
@@ -625,8 +554,57 @@ function stations(d::EHTObservation{T,A}) where {T,A<:EHTLogClosureAmplitudeDatu
     return unique(vcat(collect.(bl)...))
 end
 
-uvpositions(datum::EHTLogClosureAmplitudeDatum) = (datum.u1, datum.v1, datum.u2, datum.v2, datum.u3, datum.v3, datum.u4, datum.v4)
+uvpositions(datum::EHTLogClosureAmplitudeDatum) = (datum.U1, datum.V1, datum.U2, datum.V2, datum.U3, datum.V3, datum.U4, datum.V4)
 
+
+# @doc raw"""
+#     $(SIGNATURES)
+# Compute the log-closure amplitude of 4 visibility datums.
+# This uses the same ordering as eht-imaging i.e.
+
+# ```math
+# C_A = \log \frac{|V_{1}| |V_{2}|}{|V_{3}| |V_{4}|}
+# ```
+
+# # Notes
+
+# Currently we use the high SNR Gaussian approximation to the thermal error.
+# In the future we may use the moment matching approach using Monte Carlo sampling.
+# """
+# function logclosure_amplitude(D1::EHTVisibilityDatum,
+#                               D2::EHTVisibilityDatum,
+#                               D3::EHTVisibilityDatum,
+#                               D4::EHTVisibilityDatum)
+#     check_quadrangle(D1,D2,D3,D4)
+
+#     amp1 = amplitude(D1)
+#     amp2 = amplitude(D2)
+#     amp3 = amplitude(D3)
+#     amp4 = amplitude(D4)
+
+#     u1,v1 = uvpositions(D1)
+#     u2,v2 = uvpositions(D2)
+#     u3,v3 = uvpositions(D3)
+#     u4,v4 = uvpositions(D4)
+
+#     #Construct the quadrangle
+#     s12 = unique([D1.baseline..., D2.baseline...])
+#     s123 = unique([s12..., D3.baseline...])
+#     s1234 = unique([s123..., D4.baseline...])
+
+#     # Now do the error propogation
+#     err = hypot(D1.err/map1, D2.err/amp2, D3.err/amp3, D4.err/amp4)
+
+#     #construct the lcamp
+#     lcamp = log(amp1*amp2/(amp3*amp4))
+
+#     return EHTLogClosureAmplitudeDatum(lcamp, err,
+#                                        u1, v1,
+#                                        u2, v2,
+#                                        u3, v3,
+#                                        u4, v4,
+#                                        time, s1234)
+# end
 
 """
     $(SIGNATURES)
@@ -638,21 +616,20 @@ function arrayconfig(vis::EHTObservation)
 end
 
 
-function _arrayconfig(data, bandwidth)
-    u = getproperty(data, :U)
-    v = getproperty(data, :V)
-    times = getproperty(data, :T)
+function _arrayconfig(data, bandwidth, frequency)
+    u = getproperty(data, :u)
+    v = getproperty(data, :v)
+    times = getproperty(data, :time)
     error = getproperty(data, :error)
     baseline = getproperty(data, :baseline)
-    frequency = getproperty(data, :F)
     uvsamples = StructArray{ArrayBaselineDatum}(T=times,
                                         U=u,
                                         V=v,
-                                        F = frequency,
+                                        F = fill(frequency, length(u)),
                                         baseline=baseline,
                                         error=error
                                     )
-    return EHTArrayConfiguration(bandwidth, uvsamples)
+    return EHTArrayConfiguration(frequency, bandwidth, uvsamples)
 end
 
 const VisAmpDatum = Union{EHTVisibilityAmplitudeDatum, EHTVisibilityDatum}
@@ -721,16 +698,6 @@ Base.length(s::Scan) = length(s.scan)
 
 Return the baselines for each datum in a scan
 """
-function baselines(scan::Scan{A,B,C}) where {A,B,C<:StructArray{<:AbstractInterferometryDatum}}
-    bl = scan.scan.baseline
-    # organize the closure phase stations
-    ant1 = first.(bl)
-    ant2 = last.(bl)
-    return ant1, ant2
-end
-
-
-# Closures are special
 function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTClosurePhaseDatum}}
     tri = scancp.scan.triangle
     # organize the closure phase stations
@@ -750,7 +717,21 @@ function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTLogClosur
     return ant1, ant2, ant3, ant4
 end
 
+function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTVisibilityDatum}}
+    bl = scancp.scan.baseline
+    # organize the closure phase stations
+    ant1 = first.(bl)
+    ant2 = last.(bl)
+    return ant1, ant2
+end
 
+function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTVisibilityAmplitudeDatum}}
+    bl = scancp.scan.baseline
+    # organize the closure phase stations
+    ant1 = first.(bl)
+    ant2 = last.(bl)
+    return ant1, ant2
+end
 
 
 function stations(s::Scan)
@@ -817,7 +798,7 @@ scan1[:baseline]
 
 """
 function scantable(obs::EHTObservation)
-    times = obs[:T]
+    times = obs[:time]
     scantimes = unique(times)
     scanind = Int[]
     for t in scantimes

@@ -54,8 +54,7 @@ radialextent(::Gaussian) = 5.0
     return exp(-(x^2+y^2)/2)/2π
 end
 
-@inline function visibility_point(::Gaussian{T}, p) where {T}
-    u,v = _getuv(p)
+@inline function visibility_point(::Gaussian{T}, u, v, time, freq) where {T}
     return exp(-2π^2*(u^2 + v^2)) + zero(T)im
 end
 
@@ -82,8 +81,7 @@ Disk() = Disk{Float64}()
     return r < 1 ?  one(T)/(π) : zero(T)
 end
 
-@inline function visibility_point(::Disk{T}, p) where {T}
-    u, v = _getuv(p)
+@inline function visibility_point(::Disk{T}, u, v, time, freq) where {T}
     ur = 2π*(hypot(u,v) + eps(T))
     return 2*besselj1(ur)/(ur) + zero(T)im
 end
@@ -118,8 +116,7 @@ end
 
 
 
-@inline function visibility_point(::Ring{T}, p) where {T}
-    u,v = _getuv(p)
+@inline function visibility_point(::Ring{T}, u, v, time, freq) where {T}
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     vis = besselj0(k) + zero(T)*im
     return vis
@@ -138,8 +135,7 @@ flux(::Butterworth{N,T}) where {N,T} = one(T)
 visanalytic(::Type{<:Butterworth}) = IsAnalytic()
 imanalytic(::Type{<:Butterworth}) = NotAnalytic()
 
-function visibility_point(::Butterworth{N,T}, p) where {N,T}
-    u,v = _getuv(p)
+function visibility_point(::Butterworth{N,T}, u, v, time, freq) where {N,T}
     b = hypot(u,v) + eps(T)
     return inv(sqrt(1 + b^(2*N))) + 0im
 end
@@ -222,8 +218,8 @@ radialextent(::MRing) = 1.5
 end
 
 
-@inline function visibility_point(m::MRing{T}, p) where {T}
-    return _mring_vis(m, p.U, p.V)
+@inline function visibility_point(m::MRing{T}, u, v, time, freq) where {T}
+    return _mring_vis(m, u, v)
 end
 
 @inline function _mring_vis(m::MRing{T}, u, v) where {T}
@@ -366,8 +362,7 @@ function intensity_point(m::ConcordanceCrescent{T}, p) where {T}
     end
 end
 
-function visibility_point(m::ConcordanceCrescent{T}, p) where {T}
-    u,v = _getuv(p)
+function visibility_point(m::ConcordanceCrescent{T}, u, v, time, freq) where {T}
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     norm = π*_crescentnorm(m)/k
     phaseshift = cispi(2*m.shift*u)
@@ -461,8 +456,7 @@ function intensity_point(::ParabolicSegment{T}, p) where {T}
     end
 end
 
-function visibility_point(::ParabolicSegment{T}, p) where {T}
-    u,v = _getuv(p)
+function visibility_point(::ParabolicSegment{T}, u, v, time, freq) where {T}
     ϵ = sqrt(eps(T))
     vϵ = v + ϵ + 0im
     phase = cispi(3/4 + 2*vϵ + u^2/(2vϵ))

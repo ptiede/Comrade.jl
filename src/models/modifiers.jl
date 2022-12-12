@@ -96,7 +96,7 @@ Returns a transformed `u` and `v` according to the `model` modifier
 """
 function transform_uv end
 
-struct TransformState{T<:Number,C<:Complex}
+struct TransformState{T<:Number,C}
     u::T
     v::T
     scale::C
@@ -104,52 +104,69 @@ end
 
 
 
-@inline function apply_uv_transform(m::AbstractModifier, t::TransformState)
-    ut, vt = transform_uv(m, t.u, t.v)
-    scale = t.scale*scale_uv(m, t.u, t.v)
-    return apply_uv_transform(basemodel(m), TransformState(ut, vt, scale))
-end
-
-@inline function apply_uv_transform(::AbstractModel, t::TransformState)
-    return t
-end
-
-
-# @inline function apply_uv_transform(m::AbstractModifier, u, v, scale)
-#     ut, vt = transform_uv(m, u, v)
-#     scale = scale*scale_uv(m, u, v)
-#     return apply_uv_transform(basemodel(m), ut, vt, scale)
+# @inline function apply_uv_transform(m::AbstractModifier, t::TransformState)
+#     ut, vt = transform_uv(m, t.u, t.v)
+#     scale = t.scale*scale_uv(m, t.u, t.v)
+#     return apply_uv_transform(basemodel(m), TransformState(ut, vt, scale))
 # end
 
-# @inline function apply_uv_transform(::AbstractModel, u, v, scale)
-#     return u, v, scale
+# @inline function apply_uv_transform(::AbstractModel, t::TransformState)
+#     return t
 # end
 
+
+@inline function apply_uv_transform(m::AbstractModifier, u, v, scale)
+    ut, vt = transform_uv(m, u, v)
+    scale = scale*scale_uv(m, u, v)
+    return apply_uv_transform(basemodel(m), ut, vt, scale)
+end
+
+@inline function apply_uv_transform(::AbstractModel, u, v, scale)
+    return (u, v), scale
+end
+
+@inline function _visibilities(m::AbstractModifier, u, v, time, freq)
+    uv, scale = apply_uv_transform(m, u, v)
+    ut = first.(uv)
+    vt = last.(uv)
+    scale.*_visibilities(unmodified(m), ut, vt, time, freq)
+end
+
+
+# function visibilities(m, p::NamedTuple)
+#     m = Base.Fix1(m∘NamedTuple{keys(p)})
+#     return visibilities(m, NamedTuple{keys(p)}(p))
+# end
+
+
+function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
+    res = apply_uv_transform.(Ref(m), u, v, 1.0)
+    return first.(res), last.(res)
+end
 
 # function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
 #     res = apply_uv_transform.(Ref(m), u, v, 1.0)
 #     return getindex.(res,1), getindex.(res,2), getindex.(res,3)
 # end
 
-# function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
-#     res = apply_uv_transform.(Ref(m), u, v, 1.0)
-#     return getindex.(res,1), getindex.(res,2), getindex.(res,3)
-# end
+# @inline function _visibilities(m::M, p) {M<:AbstractModifier}
 
-# @inline function _visibilities(m::M, u::AbstractArray, v::AbstractArray, args...) {M<:AbstractModifier}
 #     return _visibilities(visanalytic(M), m, u, v, args...)
 # end
 
-@inline function _visibilities(m::AbstractModifier{M}, p) where {M}
-    return _visibilities(ispolarized(M), m, p)
-end
+# @inline function _visibilities(m::AbstractModifier{M}, p) where {M}
+#     return _visibilities(ispolarized(M), m, p)
+# end
 
-@inline function _visibilities(::NotPolarized, m::AbstractModifier, p)
-    (;U, V) = p
-    st = StructArray{TransformState{eltype(U), Complex{eltype(u)}}}(u=U, v=V, scale=fill(one(Complex{eltype(u)}), length(U)))
-    mst = apply_uv_transform.(Ref(m), st)
-    mst.scale.*visibilities(unmodified(m), (U=mst.u, V=mst.v))
-end
+
+
+# @inline function _visibilities(m::AbstractModifier, p)
+#     (;U, V) = p
+#     st = StructArray{TransformState{eltype(U), Complex{eltype(U)}}}(u=U, v=V, scale=fill(one(Complex{eltype(U)}), length(U)))
+#     auv = Base.Fix1(apply_uv_transform, m)
+#     mst = map(auv, st)
+#     mst.scale.*visibilities(unmodified(m), (U=mst.u, V=mst.v))
+# end
 
 function update_uv(p::NamedTuple, uv)
     p1 = @set p.U = uv.U
@@ -164,25 +181,25 @@ function update_xy(p::NamedTuple, xy)
 end
 
 
-@inline function _visibilities(::IsPolarized, m::AbstractModifier, p)
-    (;U, V) = p
+# @inline function _visibilities(::IsPolarized, m::AbstractModifier, p)
+#     (;U, V) = p
 
-    S = eltype(U)
-    unit = StokesParams(complex(one(S)), complex(one(S)), complex(one(S)),complex(one(S)))
-    st = StructArray{TransformState{eltype(U), typeof(unit)}}(u=U, v=V, scale=Fill(unit, length(U)))
-    mst = apply_uv_transform.(Ref(m), st)
+#     S = eltype(U)
+#     unit = StokesParams(complex(one(S)), complex(one(S)), complex(one(S)),complex(one(S)))
+#     st = StructArray{TransformState{eltype(U), typeof(unit)}}(u=U, v=V, scale=Fill(unit, length(U)))
+#     mst = apply_uv_transform.(Ref(m), st)
 
-    pup = update_uv(p, (U=mst.u, V=mst.v))
-    mst.scale.*visibilities(unmodified(m), pup)
-end
+#     pup = update_uv(p, (U=mst.u, V=mst.v))
+#     mst.scale.*visibilities(unmodified(m), pup)
+# end
 
-@inline function _visibilities(m::AbstractModifier, p)
-    (;U, V) = p
-    st = StructArray{TransformState{eltype(U), Complex{eltype(U)}}}(u=U, v=V, scale=fill(one(Complex{eltype(U)}), length(U)))
-    mst = apply_uv_transform.(Ref(m), st)
-    pup = update_uv(p, (U=mst.u, V=mst.v))
-    mst.scale.*visibilities(unmodified(m), pup)
-end
+# @inline function _visibilities(m::AbstractModifier, p)
+#     (;U, V) = p
+#     st = StructArray{TransformState{eltype(U), Complex{eltype(U)}}}(u=U, v=V, scale=fill(one(Complex{eltype(U)}), length(U)))
+#     mst = apply_uv_transform.(Ref(m), st)
+#     pup = update_uv(p, (U=mst.u, V=mst.v))
+#     mst.scale.*visibilities(unmodified(m), pup)
+# end
 
 
 
@@ -208,13 +225,13 @@ end
 @inline function visibility_point(m::AbstractModifier, p)
     ut, vt = transform_uv(m, p.U, p.V)
     scale = scale_uv(m, p.U, p.V)
-    scale*visibility(basemodel(m), (U=ut, V=vt))
+    scale*visibility(basemodel(m), update_uv(p, (U=ut, V=vt)))
 end
 
 @inline function ComradeBase.intensity_point(m::AbstractModifier, p)
     xt, yt = transform_image(m, p.X, p.Y)
     scale = scale_image(m, p.X, p.Y)
-    scale*ComradeBase.intensity_point(basemodel(m), (X=xt, Y=yt))
+    scale*ComradeBase.intensity_point(basemodel(m), update_xy(p, (X=xt, Y=yt)))
 end
 
 """

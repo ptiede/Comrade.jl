@@ -12,8 +12,8 @@ FT cache.
 The possible optional arguments are given in the [`NFFTAlg`](@ref) struct.
 """
 function NFFTAlg(obs::EHTObservation; kwargs...)
-    u, v = getuv(arrayconfig(obs))
-    return NFFTAlg(u, v; kwargs...)
+    (;U, V) = getuv(arrayconfig(obs))
+    return NFFTAlg(U, V; kwargs...)
 end
 
 """
@@ -44,8 +44,8 @@ The optional arguments are: `padfac` specifies how much to pad the image by, and
 is an internal variable for `NFFT.jl`.
 """
 function NFFTAlg(ac::ArrayConfiguration; kwargs...)
-    u, v = getuv(ac)
-    return NFFTAlg(u, v; kwargs...)
+    (;U, V) = getuv(ac)
+    return NFFTAlg(U, V; kwargs...)
 end
 
 
@@ -81,13 +81,13 @@ function plan_nuft(alg::ObservedNUFT{<:NFFTAlg}, img::IntensityMapTypes{T,2}) wh
     return plan
 end
 
-function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img::IntensityMapTypes, pulse=DeltaPulse())
+function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
     dx, dy = pixelsizes(img)
     x0, y0 = phasecenter(img)
     u = @view alg.uv[1,:]
     v = @view alg.uv[2,:]
     # Correct for the nFFT phase center and the img phase center
-    return cispi.((u.*(dx - 2*x0) .+ v.*(dy - 2*y0))).*visibility_point.(Ref(pulse), NamedTuple{(:U,:V)}.(u, v))
+    return cispi.((u.*(dx - 2*x0) .+ v.*(dy - 2*y0))).*visibility_point.(Ref(stretched(pulse, dx, dy)), NamedTuple{(:U,:V)}.(u, v))
 end
 
 @inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img::IntensityMapTypes, pulse=DeltaPulse())
@@ -122,7 +122,9 @@ end
 
 function _visibilities(m::ModelImage{M,<:SpatialIntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{O}},
     u::AbstractArray,
-    v::AbstractArray) where {M,T,V,P,A<:NFFTAlg,O<:ObservedNUFT{A}}
+    v::AbstractArray,
+    time,
+    freq) where {M,T,V,P,A<:NFFTAlg,O<:ObservedNUFT{A}}
     checkuv(m.cache.alg.uv, u, v)
     # Now reconstruct everything
 

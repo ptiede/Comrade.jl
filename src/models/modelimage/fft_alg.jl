@@ -45,35 +45,36 @@ ForwardDiff.partials(x::Complex{<:ForwardDiff.Dual}, n::Int) = Complex(ForwardDi
 ForwardDiff.npartials(x::Complex{<:ForwardDiff.Dual}) = ForwardDiff.npartials(x.re)
 
 # internal function that creates the interpolator objector to evaluate the FT.
-function create_interpolator(u, v, vis::AbstractArray{<:Complex}, pulse)
+function create_interpolator(U, V, vis::AbstractArray{<:Complex}, pulse)
     # Construct the interpolator
     #itp = interpolate(vis, BSpline(Cubic(Line(OnGrid()))))
     #etp = extrapolate(itp, zero(eltype(vis)))
     #scale(etp, u, v)
-    p1 = BicubicInterpolator(u, v, real(vis), NoBoundaries())
-    p2 = BicubicInterpolator(u, v, imag(vis), NoBoundaries())
+    p1 = BicubicInterpolator(U, V, real(vis), NoBoundaries())
+    p2 = BicubicInterpolator(U, V, imag(vis), NoBoundaries())
     function (u,v)
-        pl = visibility_point(pulse, (U=u, V=v))
+        pl = visibility_point(pulse, u, v, 0.0, 0.0)
         return pl*(p1(u,v) + 1im*p2(u,v))
     end
 end
 
-function create_interpolator(u, v, vis::StructArray{<:StokesParams}, pulse)
+function create_interpolator(U, V, vis::StructArray{<:StokesParams}, pulse)
     # Construct the interpolator
-    pI_real = BicubicInterpolator(u, v, real(vis.I), NoBoundaries())
-    pI_imag = BicubicInterpolator(u, v, real(vis.I), NoBoundaries())
+    pI_real = BicubicInterpolator(U, V, real(vis.I), NoBoundaries())
+    pI_imag = BicubicInterpolator(U, V, real(vis.I), NoBoundaries())
 
-    pQ_real = BicubicInterpolator(u, v, real(vis.Q), NoBoundaries())
-    pQ_imag = BicubicInterpolator(u, v, real(vis.Q), NoBoundaries())
+    pQ_real = BicubicInterpolator(U, V, real(vis.Q), NoBoundaries())
+    pQ_imag = BicubicInterpolator(U, V, real(vis.Q), NoBoundaries())
 
-    pU_real = BicubicInterpolator(u, v, real(vis.U), NoBoundaries())
-    pU_imag = BicubicInterpolator(u, v, real(vis.U), NoBoundaries())
+    pU_real = BicubicInterpolator(U, V, real(vis.U), NoBoundaries())
+    pU_imag = BicubicInterpolator(U, V, real(vis.U), NoBoundaries())
 
-    pV_real = BicubicInterpolator(u, v, real(vis.V), NoBoundaries())
-    pV_imag = BicubicInterpolator(u, v, real(vis.V), NoBoundaries())
+    pV_real = BicubicInterpolator(U, V, real(vis.V), NoBoundaries())
+    pV_imag = BicubicInterpolator(U, V, real(vis.V), NoBoundaries())
+
 
     function (u,v)
-        pl = visibility_point(pulse, (U=u, V=v))
+        pl = visibility_point(pulse, u, v, 0.0, 0.0)
         return StokesParams(
             pI_real(u,v)*pl + 1im*pI_imag(u,v)*pl,
             pQ_real(u,v)*pl + 1im*pQ_imag(u,v)*pl,
@@ -157,7 +158,7 @@ end
 
 
 
-function create_cache(alg::FFTAlg, img::IntensityMapTypes, pulse=DeltaPulse())
+function create_cache(alg::FFTAlg, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
     pimg = padimage(img, alg)
     # Do the plan and then fft
     plan = plan_fft(pimg)
@@ -169,7 +170,7 @@ function create_cache(alg::FFTAlg, img::IntensityMapTypes, pulse=DeltaPulse())
 
 
     vispc = phasecenter(vis, X, Y, U, V)
-    sitp = create_interpolator(U, V, vispc, pulse)
+    sitp = create_interpolator(U, V, vispc, stretched(pulse, step(X), step(Y)))
     return FFTCache(alg, plan, img, sitp)
 end
 
@@ -225,7 +226,8 @@ function fouriermap(m, dims::DataNames)
     X = dims.X
     Y = dims.Y
     uu,vv = uviterator(length(X), step(X), length(Y), step(Y))
-    vis = visibility_point.(Ref(m), NamedTuple{(:U, :V)}.(uu, vv'))
+    uvgrid = ComradeBase.grid(U=uu, V=vv)
+    vis = visibility_point.(Ref(m), uvgrid)
 
     return vis
 end
@@ -268,6 +270,6 @@ end
 #     return visibility.(Ref(mimg), u, v, args...)
 # end
 
-@inline function visibility_point(mimg::ModelImage{M,I,<:FFTCache}, p) where {M,I}
-    return mimg.cache.sitp(p.U, p.V)
+@inline function visibility_point(mimg::ModelImage{M,I,<:FFTCache}, u, v, time, freq) where {M,I}
+    return mimg.cache.sitp(u, v)
 end

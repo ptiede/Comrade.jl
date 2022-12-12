@@ -17,10 +17,11 @@ such as when fitting different wavelengths or days, you can combine them using
 julia> RadioLikelihood(model, dcphase1, dlcamp1)
 ```
 """
-struct RadioLikelihood{M,T,A} <: MB.AbstractMeasure
+struct RadioLikelihood{M,T,A,P} <: MB.AbstractMeasure
     model::M
     lklhds::T
     ac::A
+    positions::P
 end
 
 struct ModelMetadata{M, C}
@@ -36,8 +37,9 @@ end
 function RadioLikelihood(model, data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
+    positions = NamedTuple{(:U, :V, :T, :F)}(data[1][:U], data[1][:V], data[1][:T], data[1][:F])
     #@argcheck acs[1] == acs[2]
-    RadioLikelihood{typeof(model), typeof(ls), typeof(acs[1])}(model, ls, acs[1])
+    RadioLikelihood{typeof(model), typeof(ls), typeof(acs[1]), typeof(positions)}(model, ls, acs[1], positions)
 end
 
 """
@@ -77,9 +79,10 @@ RadioLikelihood(model, (cache = cache), obs)
 function RadioLikelihood(model, metadata::NamedTuple, data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
+    positions = NamedTuple{(:U, :V, :T, :F)}(data[1][:U], data[1][:V], data[1][:T], data[1][:F])
     #@argcheck acs[1] == acs[2]
     mms = ModelMetadata(model, metadata)
-    RadioLikelihood{typeof(mms), typeof(ls), typeof(acs[1])}(mms, ls, acs[1])
+    RadioLikelihood{typeof(mms), typeof(ls), typeof(acs[1]), typeof(positions)}(mms, ls, acs[1], positions)
 end
 
 
@@ -156,7 +159,7 @@ phase(vis::AbstractArray{<:Complex}) = angle.(vis)
 
 
 function MB.logdensityof(d::RadioLikelihood, θ::NamedTuple)
-    ac = d.ac
+    ac = d.positions
     m = d.model(θ)
     # Convert because of conventions
     vis = visibilities(m, ac)
@@ -176,8 +179,8 @@ end
 # internal function that creates the likelihood for a set of complex visibilities
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
     Σ = data[:error].^2
-    vis = StructArray{Complex{eltype(data[:visr])}}((data[:visr],data[:visi]))
-    ℓ = Likelihood(vis) do (μ,)
+    vis = data[:measurement]
+    ℓ = Likelihood(vis) do μ
         ComplexVisLikelihood(μ, Σ, 0.0)
     end
     return ℓ
@@ -186,8 +189,8 @@ end
 # internal function that creates the likelihood for a set of visibility amplitudes
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     Σ = data[:error].^2
-    amp = getdata(data, :amp)
-    ℓ = Likelihood(amp) do (μ,)
+    amp = data[:measurement]
+    ℓ = Likelihood(amp) do μ
         AmplitudeLikelihood(abs.(μ), Σ, 0.0)
     end
     return ℓ
@@ -203,8 +206,8 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
     Σlca = PDMat(Matrix(dmat*Diagonal(Σlamp)*transpose(dmat)))
     #Σlca = data[:error].^2
     f = Base.Fix2(logclosure_amplitudes, data.config)
-    amp = data[:amp]
-    ℓ = Likelihood(amp) do (μ,)
+    amp = data[:measurement]
+    ℓ = Likelihood(amp) do μ
         AmplitudeLikelihood(f(μ), Σlca, 0.0)
     end
     return ℓ
@@ -214,15 +217,15 @@ end
 # internal function that creates the likelihood for a set of closure phase datum
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosurePhaseDatum})
     dmat = data.config.designmat
-    amp2 = data.config.ac.data.visr.^2 .+ data.config.ac.data.visi.^2
+    amp2 = abs2.(data.config.ac.data.measurement)
     Σphase = data.config.ac.data.error.^2 ./ amp2
 
     # Form the closure covariance matrix
     #Σcp = PDMat(Matrix(dmat*Diagonal(Σphase)*transpose(dmat)))
     Σcp = data[:error].^2
     f = Base.Fix2(closure_phases, data.config)
-    phase = data[:phase]
-    ℓ = Likelihood(phase) do (μ,)
+    phase = data[:measurement]
+    ℓ = Likelihood(phase) do μ
         ClosurePhaseLikelihood(f(μ), Σcp, 0.0)
     end
 

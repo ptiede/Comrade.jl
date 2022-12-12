@@ -78,17 +78,17 @@ For analytic models this is a no-op and returns the model.
 For non-analytic models this creates a `ModelImage` object which uses `alg` to compute
 the non-analytic Fourier transform.
 """
-@inline function modelimage(model::M, image::Union{StokesIntensityMap, IntensityMap}, alg::FourierTransform=FFTAlg()) where {M}
-    return modelimage(visanalytic(M), model, image, alg)
+@inline function modelimage(model::M, image::Union{StokesIntensityMap, IntensityMap}, alg::FourierTransform=FFTAlg(), pulse=DeltaPulse()) where {M}
+    return modelimage(visanalytic(M), model, image, alg, pulse)
 end
 
 @inline function modelimage(::IsAnalytic, model, args...; kwargs...)
     return model
 end
 
-function _modelimage(model, image, alg)
+function _modelimage(model, image, alg, pulse)
     intensitymap!(image, model)
-    cache = create_cache(alg, image)
+    cache = create_cache(alg, image, pulse)
     return ModelImage(model, image, cache)
 end
 
@@ -97,7 +97,7 @@ end
                             image::IntensityMap,
                             alg::FourierTransform=FFTAlg()
                             )
-    _modelimage(model, image, alg)
+    _modelimage(model, image, alg, pulse)
 end
 
 """
@@ -161,6 +161,7 @@ function modelimage(m::M;
                     x0 = 0.0,
                     y0 = 0.0,
                     alg=FFTAlg(),
+                    pulse = DeltaPulse()
                     ) where {M}
     if visanalytic(M) == IsAnalytic()
         return m
@@ -169,11 +170,11 @@ function modelimage(m::M;
         if ispolarized(M) === IsPolarized()
             T = eltype(intensity_point(m, (X=zero(fovx), Y=zero(fovy))))
             img = StokesIntensityMap(zeros(T, nx, ny), zeros(T, nx, ny), zeros(T, nx, ny), zeros(T, nx, ny), dims)
-            return modelimage(m, img, alg)
+            return modelimage(m, img, alg, pulse)
         else
             T = typeof(intensity_point(m, (X=zero(fovx), Y=zero(fovy))))
             img = IntensityMap(zeros(T, nx, ny), dims)
-            return modelimage(m, img, alg)
+            return modelimage(m, img, alg, pulse)
         end
     end
 end

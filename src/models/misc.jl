@@ -18,8 +18,8 @@ imanalytic(::Type{<:ZeroModel}) = IsAnalytic()
 visibility_point(::ZeroModel{T}, args...) where {T} = complex(zero(T))
 intensity_point(::ZeroModel{T}, args...) where {T} = zero(T)
 
-_visibilities(::ZeroModel{T}, u, v, args...) where {T} = Fill(zero(T), length(u))
-intensitymap(::ZeroModel{T}, fov, dims, args...) where {T} = IntensityMap(Fill(zero(T), dims...), fov, args...)
+_visibilities(::ZeroModel{T}, u, v, time, freq) where {T} = Fill(zero(T), length(u))
+intensitymap(::ZeroModel{T}, p) where {T} = IntensityMap(Fill(zero(T), dims...), fov, args...)
 
 @inline AddModel(::ZeroModel, x) = x
 @inline AddModel(x, ::ZeroModel) = x
