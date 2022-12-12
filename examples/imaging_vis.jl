@@ -14,137 +14,172 @@ using DistributionsAD
 # load eht-imaging we use this to load eht data
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
+# obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "simdata_3644_hops-b3_point+disk.uvfits"))
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obsavg = obs.avg_coherent(60.0).add_fractional_noise(0.05)
+obsavg = scan_average(obs).add_fractional_noise(0.01)
+obs_split = obsavg.split_obs()
 # extract log closure amplitudes and closure phases
 dvis = extract_vis(obsavg)
 
 # Build the Model. Here we we a struct to hold some caches
 # This will be useful to hold precomputed caches
 
-struct GModel{C,G}
-    cache::C
-    gcache::G
-    fovx::Float64
-    fovy::Float64
-    x0::Float64
-    y0::Float64
-    nx::Int
-    ny::Int
-    function GModel(obs::Comrade.EHTObservation, fovx, fovy, x0, y0, nx, ny)
-        buffer = IntensityMap(zeros(ny, nx), (fovx, fovy), (x0, y0), BSplinePulse{3}())
-        cache = create_cache(NFFTAlg(obs), buffer)
-        gcache = GainCache(scantable(obs))
-        return new{typeof(cache), typeof(gcache)}(cache, gcache, fovx, fovy, x0, y0, nx, ny)
-    end
+function model(θ, metadata)
+    (;c, f, fg, lgamp, gphase) = θ
+    (; fovx, fovy, cache, gcache) = metadata
+    # Construct the image model
+    img = IntensityMap(f*c, fovx, fovy)
+    cimg = ContinuousImage(img, BSplinePulse{3}())
+    m = modelimage(cimg, cache)
+    gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
+    # Now corrupt the model with Gains
+    ga = exp.(lgamp)
+    gp = cis.(gphase)
+    return Comrade.GainModel(gcache, ga.*gp, m+gaussian)
 end
 
-function (model::GModel)(θ)
-    (;c, f, lgamp, gphase) = θ
-    # Construct the image model
-    img = IntensityMap(f*c, (model.fovx, model.fovy), (model.x0, model.y0), BSplinePulse{3}())
-    m = modelimage(img, model.cache)
-    # Now corrupt the model with Gains
-    # Now corrupt the model with Gains
-    g = exp.(lgamp)
-    gp = cis.(gphase)
-    return Comrade.GainModel(model.gcache, g.*gp, m)
-    #return m
-end
+
 
 # First we define the station gain priors
-sites = stations(dvis)
-distamp = ( BR = Normal(0.0, 0.2),
-            FD = Normal(0.0, 0.2),
-            HN = Normal(0.0, 0.2),
-            KP = Normal(0.0, 0.2),
-            LA = Normal(-0.05, 0.2),
-            MK = Normal(0.3, 0.6),
-            NL = Normal(0.0, 0.2),
-            OV = Normal(0.0, 0.2),
-            PT = Normal(-0.1, 0.6),
-            SC = Normal(0.3, 0.5))
-distphase = NamedTuple{Tuple(sites[2:end])}(Tuple(Normal(0.0, 0.5) for _ in sites[2:end]))
-distphase2 = merge(NamedTuple{(first(sites),)}((Normal(0.0, 0.001),)), distphase)
+# distamp = (AA = Normal(0.0, 0.1),
+#            AP = Normal(0.0, 0.1),
+#            LM = Normal(0.0, 0.3),
+#            AZ = Normal(0.0, 0.1),
+#            JC = Normal(0.0, 0.1),
+#            PV = Normal(0.0, 0.1),
+#            SM = Normal(0.0, 0.1),
+#            GL = Normal(0.0, 0.5)
+#            )
+
+# distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
+#              AP = DiagonalVonMises([0.0], [inv(π^2)]),
+#              LM = DiagonalVonMises([0.0], [inv(π^2)]),
+#              AZ = DiagonalVonMises([0.0], [inv(π^2)]),
+#              JC = DiagonalVonMises([0.0], [inv(π^2)]),
+#              PV = DiagonalVonMises([0.0], [inv(π^2)]),
+#              SM = DiagonalVonMises([0.0], [inv(π^2)]),
+#              GL = DiagonalVonMises([0.0], [inv(π^2)])
+#            )
+
+distamp = (AA = Normal(0.0, 0.1),
+           PV = Normal(0.0, 0.1),
+           AX = Normal(0.0, 0.1),
+           MG = Normal(0.0, 0.1),
+           LM = Normal(0.0, 0.3),
+           MM = Normal(0.0, 0.1),
+           SW = Normal(0.0, 0.1),
+           GL = Normal(0.0, 0.5)
+           )
+
+distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
+             PV = DiagonalVonMises([0.0], [inv(π^2)]),
+             AX = DiagonalVonMises([0.0], [inv(π^2)]),
+             MG = DiagonalVonMises([0.0], [inv(π^2)]),
+             LM = DiagonalVonMises([0.0], [inv(π^2)]),
+             MM = DiagonalVonMises([0.0], [inv(π^2)]),
+             SW = DiagonalVonMises([0.0], [inv(π^2)]),
+             GL = DiagonalVonMises([0.0], [inv(π^2)])
+           )
 
 
-fovx = μas2rad(2800.0)
-fovy = μas2rad(3750.0)
-x0 = μas2rad(000.0)
-y0 = μas2rad(1500.0)
-nx = 76
-ny = floor(Int, fovy/fovx*nx)+1
+
+10
+fovx = μas2rad(100.0)
+fovy = μas2rad(100.0)
+nx = 10
+ny = floor(Int, fovy/fovx*nx)
 prior = (
-          c = ImageDirichlet(1.0, ny, nx),
-          f = Uniform(10.0, 20.0),
-          lgamp = GainPrior(distamp, scantable(dvis)),
-          gphase = GainPrior(distphase2, scantable(dvis))
+          c = ImageDirichlet(2.0, nx, ny),
+          f = truncated(Normal(0.6, 0.05), 0.0, 1.0),
+          fg = Uniform(0.0, 1.0),
+          lgamp = Comrade.GainPrior(distamp, scantable(dvis)),
+          gphase = Comrade.GainPrior(distphase, scantable(dvis))
         )
 
 
-mms = GModel(dvis, fovx, fovy, x0, y0, nx, ny)
-lklhd = RadioLikelihood(mms, dvis)
+buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
+cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
+gcache = GainCache(scantable(dvis))
+metadata = (;cache, fovx, fovy, gcache)
+
+lklhd = RadioLikelihood(model, metadata, dvis)
 
 post = Posterior(lklhd, prior)
 
 tpost = asflat(post)
+
+ℓ = logdensityof(tpost)
 
 # We will use HMC to sample the posterior.
 
 ndim = dimension(tpost)
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, randn(ndim), nothing)
+prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(); maxiters=1500, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
-
+sol = solve(prob, LBFGS(); maxiters=3000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 xopt = transform(tpost, sol)
 
+
 # Let's see how the fit looks
-plot(mms(xopt), fovx=fovx, fovy=fovy, title="MAP", phasecenter=(x0, y0), colorbar_scale=:log10, clims=(2e-5,1e-2), size=(600,600))
-residual(mms(xopt), dvis)
+plot(model(xopt, metadata), fovx=fovx, fovy=fovy, title="MAP")
+
+residual(model(xopt, metadata), dvis)
 #residual(mms(xopt), dcphase)
 
 # Let's also plot the gain curves
-gt = Comrade.caltable(mms.gcache, xopt.gphase)
-plot(gt, layout=(4,3), size=(600,500))
+gt = Comrade.caltable(gcache, xopt.gphase)
+plot(gt, layout=(3,3), size=(600,500))
 
-gt = Comrade.caltable(mms.gcache, exp.(xopt.lgamp))
-plot(gt, layout=(4,3), size=(600,500))
+gt = Comrade.caltable(gcache, exp.(xopt.lgamp))
+plot(gt, layout=(3,3), size=(600,500))
 
 
 using Measurements
 
+using Pathfinder
+res = pathfinder(
+        ℓ, ℓ';
+        init=sol.u .+ 0.01*randn(ndim),
+        dim = ndim,
+        optimizer=LBFGS(m=6),
+        g_tol=1e-1,
+        maxiters=1000,
+        callback = (x,p)->(l = ℓ(x); @info l; isnan(l))
+)
+
+
 
 # now we sample using hmc
-metric = DiagEuclideanMetric(ndim)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 5000; nadapts=4000, init_params=xopt)
+using LinearAlgebra
+metric = DenseEuclideanMetric(res.fit_distribution.Σ)
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 2_000; nadapts=1_000, init_params=xopt)
 
 # Now plot the gain table with error bars
-gamps = exp.(hcat(hchain.lgamp...))
+gamps = (hcat(hchain.gphase...))
 mga = mean(gamps, dims=2)
 sga = std(gamps, dims=2)
 
 using Measurements
 gmeas = measurement.(mga, sga)
-ctable = caltable(mms.gcache, vec(gmeas))
-plot(ctable)
+ctable = caltable(gcache, vec(gmeas))
+plot(ctable, layout=(3,3), size=(600,500))
 
 # This takes about 1.75 hours on my laptop. Which isn't bad for a 575 dimensional model!
 
 # Plot the mean image and standard deviation image
 using StatsBase
-samples = mms.(sample(hchain, 50))
-imgs = intensitymap.(samples, fovx, fovy, 128,  128; phasecenter=(x0, y0))
+samples = model.(sample(hchain, 50), Ref(metadata))
+imgs = intensitymap.(samples, fovx, fovy, 128,  128)
 
 mimg, simg = mean_and_std(imgs)
 
-p1 = plot(mimg, title="Mean", colorbar_scale=:log10, clims=(5e-4, 1e-1))
-p2 = plot(simg,  title="Std. Dev.", colorbar_scale=:log10, clims=(5e-4, 1e-1))
-p3 = plot(mimg./simg,  title="SNR", clims=(2.0, 17.0))
+p1 = plot(mimg, title="Mean")
+p2 = plot(simg,  title="Std. Dev.")
+p3 = plot(mimg./simg,  title="SNR")
 p4 = plot(simg./mimg,  title="Fractional Error")
 
 plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))

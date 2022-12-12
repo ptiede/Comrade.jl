@@ -14,28 +14,27 @@ using DistributionsAD
 # load eht-imaging we use this to load eht data
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_101_hi_hops_netcal_StokesI.uvfits"))
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obs = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
+obs = scan_average(obs).add_fractional_noise(0.01)
 # extract log closure amplitudes and closure phases
 damp = extract_amp(obs)
 dcphase = extract_cphase(obs; cut_trivial=true)
 
 
 function model(θ, metadata)
-    (;c, f, lgamp) = θ
-    (; fovx, fovy, cache) = metadata
+    (;c, f, fg, lgamp) = θ
+    (; fovx, fovy, cache, gcache) = metadata
     # Construct the image model
     img = IntensityMap(f*c, fovx, fovy)
     cimg = ContinuousImage(img, BSplinePulse{3}())
     m = modelimage(cimg, cache)
-    #gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
+    gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
-    #return m
     g = exp.(lgamp)
-    return Comrade.GainModel(gcache, g, m)#+gaussian)
+    return Comrade.GainModel(gcache, g, m+gaussian)
 end
 
 
@@ -50,28 +49,32 @@ distamp = (AA = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1)
            )
 
-fovx = μas2rad(80.0)
-fovy = μas2rad(80.0)
-nx = 10
+fovx = μas2rad(75)
+fovy = μas2rad(75)
+nx = 8
 ny = floor(Int, fovy/fovx*nx)
 prior = (
-          c = ImageDirichlet(1.0, nx, ny),
-          f = Uniform(0.4, 0.7),
-          #fg = Uniform(0.0, 1.0),
+          c = ImageDirichlet(0.8, nx, ny),
+          f = Normal(0.6, 0.025),
+          fg = Uniform(0.0, 1.0),
           lgamp = Comrade.GainPrior(distamp, scantable(damp)),
         )
 
 
 buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
-cache = create_cache(DFTAlg(damp), buffer)
+cache = create_cache(DFTAlg(damp), buffer, BSplinePulse{3}())
 gcache = GainCache(scantable(damp))
 metadata = (;cache, fovx, fovy, gcache)
 
-lklhd = RadioLikelihood(damp, dcphase)
+lklhd = RadioLikelihood(model, metadata, damp, dcphase)
 
-post = Posterior(lklhd, prior, model, metadata)
+post = Posterior(lklhd, prior)
 
 tpost = asflat(post)
+
+ℓ = logdensityof(tpost)
+
+using ChainRulesCore
 
 # We will use HMC to sample the posterior.
 using StructArrays
@@ -90,7 +93,6 @@ using Zygote
 
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
-ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(); maxiters=6000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 
 xopt = transform(tpost, sol)
@@ -98,6 +100,7 @@ xopt = transform(tpost, sol)
 # Let's see how the fit looks
 
 plot(model(xopt, metadata), fovx=fovx, fovy=fovy, title="MAP")
+
 residual(model(xopt, metadata), damp)
 residual(model(xopt, metadata), dcphase)
 
