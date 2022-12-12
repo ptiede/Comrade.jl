@@ -186,6 +186,15 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
     return ℓ
 end
 
+function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTCoherencyDatum})
+    Σ = map(x->x.^2, data[:error])
+    vis = data[:measurement]
+    ℓ = Likelihood(vis) do μ
+        CoherencyLikelihood(μ, Σ, 0.0)
+    end
+    return ℓ
+end
+
 # internal function that creates the likelihood for a set of visibility amplitudes
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     Σ = data[:error].^2

@@ -1,8 +1,3 @@
-using LinearAlgebra
-using SparseArrays
-import Distributions
-using Statistics
-using PrettyTables
 
 export GainCache, GainPrior, GainModel
 
@@ -17,9 +12,14 @@ basemodel(m::RIMEModel) = m.model
 flux(m::RIMEModel) = flux(basemodel(m))
 radialextent(m::RIMEModel) = radialextent(basemodel(m))
 
-function intensitymap(model::RIMEModel, fov::NTuple{2}, dim::Dims{2}, args...; kwargs...)
-    return intensitymap(basemodel(model), fov, dim, args...; kwargs...)
+function intensitymap(model::RIMEModel, dims)
+    return intensitymap(basemodel(model), dims)
 end
+
+function intensity_point(model::RIMEModel, p)
+    return intensity_point(model.model, p)
+end
+
 
 """
     $(TYPEDEF)
@@ -42,158 +42,6 @@ Base.setindex!(m::DesignMatrix, v, i::Vararg{Int, N}) where {N} = setindex!(m.ma
 
 Base.similar(m::DesignMatrix, ::Type{S}, dims::Dims) where {S} = DesignMatrix(similar(m.matrix, S, dims), m.times, m.stations)
 
-
-
-
-function LinearAlgebra.mul!(y::AbstractArray, M::DesignMatrix, x::AbstractArray)
-    LinearAlgebra.mul!(y, M.matrix, x)
-end
-
-
-struct GainPrior{S,T,G} <: Distributions.ContinuousMultivariateDistribution
-    stations::S
-    times::T
-    dist::G
-end
-
-"""
-    GainPrior(dists, st::ScanTable)
-
-Creates a distribution for the gain priors for scan table `st`. The `dists` should be
-a NamedTuple of `Distributions`, where each name corresponds to a telescope or station
-in the scan table. See [`scantable`](@ref scantable). The resulting type if a subtype
-of the `Distributions.AbstractDistribution` so the usual `Distributions` interface
-should work.
-
-# Example
-
-For the 2017 observations of M87 a common GainPrior call is:
-```julia-repl
-julia> gdist = GainPrior((AA = LogNormal(0.0, 0.1),
-                   AP = LogNormal(0.0, 0.1),
-                   JC = LogNormal(0.0, 0.1),
-                   SM = LogNormal(0.0, 0.1),
-                   AZ = LogNormal(0.0, 0.1),
-                   LM = LogNormal(0.0, 1.0),
-                   PV = LogNormal(0.0, 0.1)
-                ), st)
-
-julia> x = rand(gdist)
-julia> logdensityof(gdist, x)
-```
-"""
-function GainPrior(dists, st::ScanTable)
-    @argcheck Set(keys(dists)) == Set(stations(st))
-
-    gtimes, gstat = gain_stations(st)
-
-    gprior = Dists.product_distribution([getproperty(dists, g) for g in gstat])
-    return GainPrior(gstat, gtimes, gprior)
-end
-
-#HypercubeTransform.bijector(d::GainPrior) = HypercubeTransform.asflat(d.dist)
-HypercubeTransform.asflat(d::GainPrior) = asflat(d.dist)
-HypercubeTransform.ascube(d::GainPrior) = ascube(d.dist)
-
-Distributions.sampler(d::GainPrior) = Distributions.sampler(d.dist)
-Base.length(d::GainPrior) = length(d.dist)
-Base.eltype(d::GainPrior) = eltype(d.dist)
-function Distributions._rand!(rng::AbstractRNG, d::GainPrior, x::AbstractVector)
-    Distributions._rand!(rng, d.dist, x)
-end
-
-function Distributions._logpdf(d::GainPrior, x::AbstractArray)
-    return Distributions._logpdf(d.dist, x)
-end
-
-struct HeirarchicalGainPrior{G,DM,DS,S,T}
-    mean::DM
-    std::DS
-    stations::S
-    times::T
-end
-
-struct NamedDist{Names, D}
-    dists::D
-end
-
-function NamedDist(d::NamedTuple{N}) where {N}
-    d = values(d)
-    return NamedDist{N,typeof(d)}(d)
-end
-
-function Dists.logpdf(d::NamedDist{N}, x::NamedTuple{N}) where {N}
-    vt = values(x)
-    dists = d.dists
-    sum(map((dist, acc) -> Dists.logpdf(dist, acc), dists, vt))
-end
-
-function Dists.logpdf(d::NamedDist{N}, x::NamedTuple{M}) where {N,M}
-    xsub = select(x, N)
-    return Dists.logpdf(d, xsub)
-end
-
-function Dists.rand(rng::AbstractRNG, d::NamedDist{N}) where {N}
-    return NamedTuple{N}(map(x->rand(rng, x), d.dists))
-end
-
-HypercubeTransform.asflat(d::NamedDist{N}) where {N} = asflat(NamedTuple{N}(d.dists))
-HypercubeTransform.ascube(d::NamedDist{N}) where {N} = ascube(NamedTuple{N}(d.dists))
-
-DensityInterface.DensityKind(::NamedDist) = DensityInterface.IsDensity()
-DensityInterface.logdensityof(d::NamedDist, x) = Dists.logpdf(d, x)
-
-DensityInterface.DensityKind(::HeirarchicalGainPrior) = DensityInterface.IsDensity()
-DensityInterface.logdensityof(d::HeirarchicalGainPrior, x) = Dists.logpdf(d, x)
-
-function _construct_gain_prior(means::NamedTuple{N}, stds::NamedTuple{N}, ::Type{G}, stations) where {N, G}
-    gpr = NamedTuple{N}(G.(values(means), values(stds)))
-    return Dists.product_distribution(getproperty.(Ref(gpr), stations))
-end
-
-
-function HeirarchicalGainPrior{G}(means, std, st::ScanTable) where {G}
-    mnt = NamedDist(means)
-    snt = NamedDist(std)
-    gtimes, gstat = gain_stations(st)
-
-    return HeirarchicalGainPrior{G, typeof(mnt), typeof(snt), typeof(gstat), typeof(gtimes)}(mnt, snt, gstat, gtimes)
-end
-
-function Dists.logpdf(d::HeirarchicalGainPrior{G}, x::NamedTuple) where {G}
-    lm = Dists.logpdf(d.mean, x.mean)
-    ls = Dists.logpdf(d.std, x.std)
-    dg = _construct_gain_prior(x.mean, x.std, G, d.stations)
-    lg = Dists.logpdf(dg, x.gains)
-    return lg+ls+lm
-end
-
-function _unwrapped_logpdf(d::HeirarchicalGainPrior, x::Tuple)
-    return Dists.logpdf(d, NamedTuple{(:mean, :std, :gains)}(x))
-end
-
-
-function Dists.rand(rng::AbstractRNG, d::HeirarchicalGainPrior{G}) where {G}
-    m = rand(rng, d.mean)
-    s = rand(rng, d.std)
-    dg = _construct_gain_prior(m, s, G, d.stations)
-    g = rand(rng, dg)
-    return (mean=m, std=s, gains=g)
-end
-
-Base.length(d::HeirarchicalGainPrior) = length(d.mean) + length(d.std) + length(d.times)
-
-function HypercubeTransform.asflat(d::HeirarchicalGainPrior{G}) where {G}
-    m = rand(d.mean)
-    s = rand(d.std)
-    dg = _construct_gain_prior(m, s, G, d.stations)
-    return TransformVariables.as((mean = asflat(d.mean), std = asflat(d.std), gains = asflat(dg)))
-end
-
-Statistics.mean(d::GainPrior) = mean(d.dist)
-Statistics.var(d::GainPrior) = var(d.dist)
-Distributions.entropy(d::GainPrior) = entropy(d.dist)
-Statistics.cov(d::GainPrior) = cov(d.dist)
 
 """
     $(TYPEDEF)
@@ -223,70 +71,7 @@ struct GainCache{D1<:DesignMatrix, D2<:DesignMatrix, T, S}
     stations::S
 end
 
-"""
-    caltable(obs::EHTObservation, gains::AbstractVector)
 
-Create a calibration table for the observations `obs` with `gains`. This returns
-a [`CalTable`](@ref) object that satisfies the
-`Tables.jl` interface. This table is very similar to the `DataFrames` interface.
-
-# Example
-
-```julia
-ct = caltable(obs, gains)
-
-# Access a particular station (here ALMA)
-ct[:AA]
-ct.AA
-
-# Access a the first row
-ct[1, :]
-```
-"""
-function caltable(obs::EHTObservation, gains::AbstractVector)
-    st = scantable(obs)
-    gcache = GainCache(st)
-    return caltable(gcache, gains)
-end
-
-"""
-    caltable(g::GainCache, gains::AbstractVector)
-
-Convert the GainCache `g` and recovered `gains` into a `CalTable` which satisfies the
-`Tables.jl` interface. This table is very similar to the `DataFrames` interface.
-
-# Example
-
-```julia
-ct = caltable(gcache, gains)
-
-# Access a particular station (here ALMA)
-ct[:AA]
-ct.AA
-
-# Access a the first row
-ct[1, :]
-```
-"""
-function caltable(g::GainCache, gains::AbstractVector)
-    @argcheck length(g.times) == length(gains)
-
-    stations = sort(unique(g.stations))
-    times = unique(g.times)
-    gmat = Matrix{Union{eltype(gains), Missing}}(missing, length(times), length(stations))
-
-    alltimes = g.times
-    allstations = g.stations
-    # Create the lookup dict
-    lookup = Dict(stations[i]=>i for i in eachindex(stations))
-    for i in eachindex(gains)
-        t = findfirst(t->(t==alltimes[i]), times)
-        c = lookup[allstations[i]]
-        gmat[t,c] = gains[i]
-    end
-
-    return CalTable(stations, lookup, times, gmat)
-end
 
 
 """

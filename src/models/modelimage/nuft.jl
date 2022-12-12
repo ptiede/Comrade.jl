@@ -45,7 +45,7 @@ function update_cache(cache::NUFTCache, img::Union{StokesIntensityMap,IntensityM
     create_cache(cache2.alg, cache2.plan, cache2.phases, pimg, pulse)
 end
 
-function update_phases(cache::NUFTCache, img::IntensityMap, pulse::Pulse)
+function update_phases(cache::NUFTCache, img::IntensityMapTypes, pulse::Pulse)
     #if cache.pulse != pulse
     #    phases = make_phases(cache.alg, img, pulse)
     #    return @set cache.phases = phases
@@ -102,11 +102,12 @@ end
 function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I<:StokesIntensityMap,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
-    visI =  nuft(m.cache.plan, complex.(stokes(m.cache.img, :I)))
-    visQ =  nuft(m.cache.plan, complex.(stokes(m.cache.img, :Q)))
-    visU =  nuft(m.cache.plan, complex.(stokes(m.cache.img, :U)))
-    visV =  nuft(m.cache.plan, complex.(stokes(m.cache.img, :V)))
-    return StructArray{StokesParams{eltype(visI)}}((I=visI, Q=visQ, U=visU, V=visV)).*m.cache.phases
+    visI =  nuft(m.cache.plan, complex.(m.cache.img.I))
+    visQ =  nuft(m.cache.plan, complex.(m.cache.img.Q))
+    visU =  nuft(m.cache.plan, complex.(m.cache.img.U))
+    visV =  nuft(m.cache.plan, complex.(m.cache.img.V))
+    r = StructArray{StokesParams{eltype(visI)}}((I=visI, Q=visQ, U=visU, V=visV)).*m.cache.phases
+    return r
 end
 
 

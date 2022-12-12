@@ -1,4 +1,6 @@
-export extract_amp, extract_vis, extract_lcamp, extract_cphase, scan_average
+export extract_amp, extract_vis, extract_lcamp, extract_cphase,
+       extract_coherency,
+       scan_average
 using PyCall: set!
 
 function getvisfield(obs)
@@ -141,7 +143,7 @@ function getcoherency(obs)
     c21 = get(obs.data, "lrvis")
     c22 = get(obs.data, "llvis")
 
-    cmat = StructArray{SMatrix{2,2,eltyp(c11), 4}}(c11, c21, c12, c22)
+    cohmat = StructArray{SMatrix{2,2,eltype(c11), 4}}((c11, c21, c12, c22))
 
     # get uncertainties
     e11 = get(obs.data, "rrsigma")
@@ -149,7 +151,7 @@ function getcoherency(obs)
     e21 = get(obs.data, "lrsigma")
     e22 = get(obs.data, "llsigma")
 
-    emat = StructArray{SMatrix{2,2,eltyp(e11), 4}}(e11, e21, e12, e22)
+    errmat = StructArray{SMatrix{2,2,eltype(e11), 4}}((e11, e21, e12, e22))
 
 
     # get timestamps and frequencies
@@ -166,7 +168,7 @@ function getcoherency(obs)
     polbasis = fill(single_polbasis,length(u))
 
     # prepare output
-    output = StructArray{CoherencyDatum{eltype(u)}}(
+    output = StructArray{EHTCoherencyDatum{eltype(u)}}(
         measurement = cohmat,
         error = errmat,
         U = u,
@@ -252,7 +254,7 @@ function extract_vis(obsc; kwargs...)
 end
 
 """
-    extract_vis(obs)
+    extract_coherency(obs)
 Extracts the coherency matrix from an ehtim observation object
 
 This grabs the raw `data` object from the obs object. Any keyword arguments are ignored.

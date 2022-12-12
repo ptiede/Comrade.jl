@@ -455,11 +455,11 @@ A Datum for a single coherency matrix
 $(FIELDS)
 
 """
-Base.@kwdef struct CoherencyDatum{S, B1, B2, M<:SMatrix{2,2,Complex{S}}, E<:SMatrix{2,2,S}} <: Comrade.AbstractInterferometryDatum{S}
+Base.@kwdef struct EHTCoherencyDatum{S, B1, B2, M<:SMatrix{2,2,Complex{S}}, E<:SMatrix{2,2,S}} <: Comrade.AbstractInterferometryDatum{S}
     """
     coherency matrix, with entries in Jy
     """
-    measurment::M
+    measurement::M
     """
     visibility uncertainty matrix, with entries in Jy
     """
@@ -467,19 +467,19 @@ Base.@kwdef struct CoherencyDatum{S, B1, B2, M<:SMatrix{2,2,Complex{S}}, E<:SMat
     """
     x-direction baseline length, in λ
     """
-    u::S
+    U::S
     """
     y-direction baseline length, in λ
     """
-    v::S
+    V::S
     """
     Timestamp, in hours
     """
-    time::S
+    T::S
     """
     Frequency, in Hz
     """
-    freq::S
+    F::S
     """
     station baseline codes
     """
