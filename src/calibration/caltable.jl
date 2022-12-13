@@ -242,7 +242,7 @@ ct.AA
 ct[1, :]
 ```
 """
-function caltable(g::JonesCache, gains::AbstractVector)
+function caltable(g::Union{JonesCache, GainCache}, gains::AbstractVector)
     @argcheck length(g.times) == length(gains)
 
     stations = sort(unique(g.stations))

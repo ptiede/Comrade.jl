@@ -15,55 +15,74 @@ using DistributionsAD
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "simdata_3644_hops-b3_point+disk.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "polarized_synthetic_data.uvfits"))
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
 obsavg = scan_average(obs).add_fractional_noise(0.01)
 obs_split = obsavg.split_obs()
 # extract log closure amplitudes and closure phases
-dvis = extract_vis(obsavg)
+dvis = extract_coherency(obsavg)
 
 # Build the Model. Here we we a struct to hold some caches
 # This will be useful to hold precomputed caches
 
+# function polimg(stokesI, pol, sphere)
+#     I = stokesI
+#     Q = stokesI .* pol .* getindex.(sphere, 1)
+#     U = stokesI .* pol .* getindex.(sphere, 2)
+#     V = stokesI .* pol .* getindex.(sphere, 3)
+#     return (;I, Q, U, V)
+# end
+
+# function ChainRulesCore.rrule(::typeof(polimg), stokesI, pol, sphere)
+#     s1 = getindex.(sphere, 1)
+#     s2 = getindex.(sphere, 2)
+#     s3 = getindex.(sphere, 3)
+#     I = stokesI
+#     Q = stokesI .* pol .* s1
+#     U = stokesI .* pol .* s2
+#     V = stokesI .* pol .* s3
+
+#     function _polimg_pullback(Δ)
+#         ΔI = Δ.I
+#         ΔQ = Δ.Q
+#         ΔU = Δ.U
+#         ΔV = Δ.V
+
+#         ΔstokesI = ΔI .+ ΔQ.*pol.*s1 .+ ΔU.*pol.*s2 .+ ΔV.*pol.*s3
+#         Δpol = stokesI.*(ΔQ.*s1 .+ ΔU.*s2 .+ ΔV.*s3)
+#         Δsphere =
+#     end
+# end
+
+using StructArrays
 function model(θ, metadata)
-    (;c, f, fg, lgamp, gphase) = θ
-    (; fovx, fovy, cache, gcache) = metadata
+    (;c, f) = θ
+    (; fovx, fovy, cache, tcache) = metadata
     # Construct the image model
-    img = IntensityMap(f*c, fovx, fovy)
-    cimg = ContinuousImage(img, BSplinePulse{3}())
+    # produce Stokes images from parameters
+    #csa = StructArrays.components(angparams)
+    I = IntensityMap(f .* c, fovx, fovy)
+    Q = IntensityMap(f .* c, fovx, fovy)
+    U = IntensityMap(f .* c, fovx, fovy)
+    V = IntensityMap(f .* c, fovx, fovy)
+
+    pimg = StokesIntensityMap(I, Q, U, V)
+    cimg = ContinuousImage(pimg, DeltaPulse())
+
     m = modelimage(cimg, cache)
-    gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
-    # Now corrupt the model with Gains
-    ga = exp.(lgamp)
-    gp = cis.(gphase)
-    return Comrade.GainModel(gcache, ga.*gp, m+gaussian)
+    # jT = jonesT(tcache)
+    # calibration parameters
+    # G = jonesG(gR, gL, gcache)
+    # D = jonesG(dR, dL, dcache)
+    # J = G * D
+    return JonesModel(1, m, CirBasis())
 end
 
 
 
 # First we define the station gain priors
-# distamp = (AA = Normal(0.0, 0.1),
-#            AP = Normal(0.0, 0.1),
-#            LM = Normal(0.0, 0.3),
-#            AZ = Normal(0.0, 0.1),
-#            JC = Normal(0.0, 0.1),
-#            PV = Normal(0.0, 0.1),
-#            SM = Normal(0.0, 0.1),
-#            GL = Normal(0.0, 0.5)
-#            )
-
-# distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
-#              AP = DiagonalVonMises([0.0], [inv(π^2)]),
-#              LM = DiagonalVonMises([0.0], [inv(π^2)]),
-#              AZ = DiagonalVonMises([0.0], [inv(π^2)]),
-#              JC = DiagonalVonMises([0.0], [inv(π^2)]),
-#              PV = DiagonalVonMises([0.0], [inv(π^2)]),
-#              SM = DiagonalVonMises([0.0], [inv(π^2)]),
-#              GL = DiagonalVonMises([0.0], [inv(π^2)])
-#            )
-
 distamp = (AA = Normal(0.0, 0.1),
            PV = Normal(0.0, 0.1),
            AX = Normal(0.0, 0.1),
@@ -85,34 +104,34 @@ distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
            )
 
 
-
-10
+# Set up the cache structure
 fovx = μas2rad(100.0)
 fovy = μas2rad(100.0)
 nx = 10
 ny = floor(Int, fovy/fovx*nx)
-X, Y = imagepixels(buffer)
-prior = (
-          c = CenteredImage(X, Y, μas2rad(0.1), ImageDirichlet(2.0, nx, ny)),
-          f = truncated(Normal(0.6, 0.05), 0.0, 1.0),
-          fg = Uniform(0.0, 1.0),
-          lgamp = Comrade.CalPrior(distamp, gcache),
-          gphase = Comrade.CalPrior(distphase, gcache)
-        )
-
 
 buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
 cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
-gcache = GainCache(scantable(dvis))
-metadata = (;cache, fovx, fovy, gcache)
+tcache = TransformCache(dvis)
+metadata = (;cache, fovx, fovy, tcache)
+
+
+prior = (
+          c = ImageDirichlet(2.0, nx, ny),
+          f = Uniform(0.1, 1.2),
+          #p = ImageUniform(nx, ny),
+          #angparams = ImageSphericalUniform(nx, ny)
+          )
+
+
 
 lklhd = RadioLikelihood(model, metadata, dvis)
 
 post = Posterior(lklhd, prior)
 
 tpost = asflat(post)
-
 ndim = dimension(tpost)
+
 ℓ = logdensityof(tpost)
 
 # We will use HMC to sample the posterior.
@@ -120,7 +139,6 @@ ndim = dimension(tpost)
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
-ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(); maxiters=3000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 xopt = transform(tpost, sol)
 
@@ -144,11 +162,11 @@ using Measurements
 using Pathfinder
 res = pathfinder(
         ℓ, ℓ';
-        init=sol.u .+ 0.035*randn(ndim),
+        init=sol.u .+ 0.01*randn(ndim),
         dim = ndim,
         optimizer=LBFGS(m=6),
         g_tol=1e-1,
-        maxiters=1500,
+        maxiters=1000,
         callback = (x,p)->(l = ℓ(x); @info l; isnan(l))
 )
 
@@ -157,7 +175,7 @@ res = pathfinder(
 # now we sample using hmc
 using LinearAlgebra
 metric = DenseEuclideanMetric(res.fit_distribution.Σ)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 20_000; nadapts=18_000, init_params=xopt)
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 2_000; nadapts=1_000, init_params=xopt)
 
 # Now plot the gain table with error bars
 gamps = (hcat(hchain.gphase...))

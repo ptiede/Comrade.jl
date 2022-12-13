@@ -76,3 +76,14 @@ This is an internal version.
 function create_cache(alg::ObservedNUFT{<:DFTAlg}, plan, phases, img, pulse::Pulse)
     return NUFTCache(alg, plan, phases, pulse, reshape(img, :))
 end
+
+function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
+    u, v, time, freq) where {M,I<:StokesIntensityMap,A<:ObservedNUFT{<:DFTAlg}}
+checkuv(m.cache.alg.uv, u, v)
+    visI =  nuft(m.cache.plan, complex.(reshape((ComradeBase.AxisKeys.keyless_unname(m.cache.img).I), :)))
+    visQ =  nuft(m.cache.plan, complex.(reshape((ComradeBase.AxisKeys.keyless_unname(m.cache.img).Q), :)))
+    visU =  nuft(m.cache.plan, complex.(reshape((ComradeBase.AxisKeys.keyless_unname(m.cache.img).U), :)))
+    visV =  nuft(m.cache.plan, complex.(reshape((ComradeBase.AxisKeys.keyless_unname(m.cache.img).V), :)))
+    r = StructArray{StokesParams{eltype(visI)}}((I=visI, Q=visQ, U=visU, V=visV)).*m.cache.phases
+    return r
+end

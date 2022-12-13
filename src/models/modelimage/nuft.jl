@@ -72,13 +72,13 @@ function nuft(A, b)
 end
 
 function ChainRulesCore.rrule(::typeof(nuft), A::NFFTPlan, b)
-    #pr = ChainRulesCore.ProjectTo(b)
+    pr = ChainRulesCore.ProjectTo(b)
     vis = A*b
     function nuft_pullback(Δy)
         Δf = NoTangent()
         dy = similar(vis)
         dy .= unthunk(Δy)
-        ΔA = A'*dy
+        ΔA = @thunk(pr(A'*dy))
         return Δf, NoTangent(), ΔA
     end
     return vis, nuft_pullback
@@ -109,6 +109,8 @@ function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
     r = StructArray{StokesParams{eltype(visI)}}((I=visI, Q=visQ, U=visU, V=visV)).*m.cache.phases
     return r
 end
+
+
 
 
 
