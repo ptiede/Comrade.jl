@@ -15,11 +15,11 @@ using DistributionsAD
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "simdata_3644_hops-b3_point+disk.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obsavg = scan_average(obs).add_fractional_noise(0.01)
+obsavg = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
 obs_split = obsavg.split_obs()
 # extract log closure amplitudes and closure phases
 dvis = extract_vis(obsavg)
@@ -28,76 +28,73 @@ dvis = extract_vis(obsavg)
 # This will be useful to hold precomputed caches
 
 function model(θ, metadata)
-    (;c, f, fg, lgamp, gphase) = θ
+    (;c, f, lgamp, gphase) = θ
     (; fovx, fovy, cache, gcache) = metadata
     # Construct the image model
     img = IntensityMap(f*c, fovx, fovy)
     cimg = ContinuousImage(img, BSplinePulse{3}())
     m = modelimage(cimg, cache)
-    gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
+    #gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
     ga = exp.(lgamp)
     gp = cis.(gphase)
-    return Comrade.GainModel(gcache, ga.*gp, m+gaussian)
+    return Comrade.GainModel(gcache, ga.*gp, m)
 end
 
 
 
 # First we define the station gain priors
-# distamp = (AA = Normal(0.0, 0.1),
-#            AP = Normal(0.0, 0.1),
-#            LM = Normal(0.0, 0.3),
-#            AZ = Normal(0.0, 0.1),
-#            JC = Normal(0.0, 0.1),
-#            PV = Normal(0.0, 0.1),
-#            SM = Normal(0.0, 0.1),
-#            GL = Normal(0.0, 0.5)
-#            )
-
-# distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
-#              AP = DiagonalVonMises([0.0], [inv(π^2)]),
-#              LM = DiagonalVonMises([0.0], [inv(π^2)]),
-#              AZ = DiagonalVonMises([0.0], [inv(π^2)]),
-#              JC = DiagonalVonMises([0.0], [inv(π^2)]),
-#              PV = DiagonalVonMises([0.0], [inv(π^2)]),
-#              SM = DiagonalVonMises([0.0], [inv(π^2)]),
-#              GL = DiagonalVonMises([0.0], [inv(π^2)])
-#            )
-
 distamp = (AA = Normal(0.0, 0.1),
-           PV = Normal(0.0, 0.1),
-           AX = Normal(0.0, 0.1),
-           MG = Normal(0.0, 0.1),
+           AP = Normal(0.0, 0.1),
            LM = Normal(0.0, 0.3),
-           MM = Normal(0.0, 0.1),
-           SW = Normal(0.0, 0.1),
-           GL = Normal(0.0, 0.5)
+           AZ = Normal(0.0, 0.1),
+           JC = Normal(0.0, 0.1),
+           PV = Normal(0.0, 0.1),
+           SM = Normal(0.0, 0.1),
            )
 
-distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
-             PV = DiagonalVonMises([0.0], [inv(π^2)]),
-             AX = DiagonalVonMises([0.0], [inv(π^2)]),
-             MG = DiagonalVonMises([0.0], [inv(π^2)]),
+distphase = (AA = DiagonalVonMises([0.0], [inv(π^2)]),
+             AP = DiagonalVonMises([0.0], [inv(π^2)]),
              LM = DiagonalVonMises([0.0], [inv(π^2)]),
-             MM = DiagonalVonMises([0.0], [inv(π^2)]),
-             SW = DiagonalVonMises([0.0], [inv(π^2)]),
-             GL = DiagonalVonMises([0.0], [inv(π^2)])
+             AZ = DiagonalVonMises([0.0], [inv(π^2)]),
+             JC = DiagonalVonMises([0.0], [inv(π^2)]),
+             PV = DiagonalVonMises([0.0], [inv(π^2)]),
+             SM = DiagonalVonMises([0.0], [inv(π^2)]),
            )
 
+# distamp = (AA = Normal(0.0, 0.1),
+#            PV = Normal(0.0, 0.1),
+#            AX = Normal(0.0, 0.1),
+#            MG = Normal(0.0, 0.1),
+#            LM = Normal(0.0, 0.3),
+#            MM = Normal(0.0, 0.1),
+#            SW = Normal(0.0, 0.1),
+#            #GL = Normal(0.0, 0.5)
+#            )
+
+# distphase = (AA = DiagonalVonMises([0.0], [inv(π^2)]),
+#              PV = DiagonalVonMises([0.0], [inv(π^2)]),
+#              AX = DiagonalVonMises([0.0], [inv(π^2)]),
+#              MG = DiagonalVonMises([0.0], [inv(π^2)]),
+#              LM = DiagonalVonMises([0.0], [inv(π^2)]),
+#              MM = DiagonalVonMises([0.0], [inv(π^2)]),
+#              SW = DiagonalVonMises([0.0], [inv(π^2)]),
+#              #GL = DiagonalVonMises([0.0], [inv(π^2)])
+#            )
 
 
-10
-fovx = μas2rad(100.0)
-fovy = μas2rad(100.0)
-nx = 10
+
+fovx = μas2rad(70.0)
+fovy = μas2rad(70.0)
+nx = 12
 ny = floor(Int, fovy/fovx*nx)
 X, Y = imagepixels(buffer)
 prior = (
-          c = CenteredImage(X, Y, μas2rad(0.1), ImageDirichlet(2.0, nx, ny)),
-          f = truncated(Normal(0.6, 0.05), 0.0, 1.0),
-          fg = Uniform(0.0, 1.0),
+          c = ImageDirichlet(2.0, nx, ny),
+          f = Uniform(0.4, 0.7),# truncated(Normal(0.6, 0.05), 0.0, 1.0),
+          #fg = Uniform(0.0, 1.0),
           lgamp = Comrade.CalPrior(distamp, gcache),
-          gphase = Comrade.CalPrior(distphase, gcache)
+          gphase = Comrade.CalPrior(distphase, gcache, DiagonalVonMises([0.0], [inv(1e-4)]))
         )
 
 
@@ -157,7 +154,7 @@ res = pathfinder(
 # now we sample using hmc
 using LinearAlgebra
 metric = DenseEuclideanMetric(res.fit_distribution.Σ)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 20_000; nadapts=18_000, init_params=xopt)
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 5000; nadapts=4000, init_params=hchain[end])
 
 # Now plot the gain table with error bars
 gamps = (hcat(hchain.gphase...))
@@ -173,7 +170,7 @@ plot(ctable, layout=(3,3), size=(600,500))
 
 # Plot the mean image and standard deviation image
 using StatsBase
-samples = model.(sample(hchain, 50), Ref(metadata))
+samples = model.(hchain[begin:10:end], Ref(metadata))
 imgs = intensitymap.(samples, fovx, fovy, 128,  128)
 
 mimg, simg = mean_and_std(imgs)

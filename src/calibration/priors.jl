@@ -38,9 +38,9 @@ function CalPrior(dists, jcache::Union{JonesCache, GainCache}, reference=:none)
     if reference === :none
         gprior = make_gdist(dists, gstat, jcache)
     else
-        gprior = make_referenced_gdist(dists, gstat, jcache, reference)
+        gprior = make_reference_gdist(dists, gstat, jcache, reference)
     end
-
+    return gprior
     return CalPrior{typeof(gprior), typeof(jcache)}(gprior, jcache)
 end
 
@@ -51,30 +51,49 @@ function make_gdist(dists, gstat, jcache)
 end
 
 function make_reference_gdist(dists, gstat, jcache, refprior)
-    sites = Set(gstat)
+    list = _makelist(dists, gstat, jcache, refprior)
+    return Dists.product_distribution(list)
+end
+
+
+function _makelist(dists, gstat, jcache, refprior)
+    sites = collect(Set(gstat))
     idx = 1
-    times = unique(jcache.times)
-    gprior = []
-    for (i,t) in enumerate(times)
+    times = jcache.times
+    scantimes = unique(jcache.times)
+    list = map(enumerate(scantimes)) do (i,t)
         # Select the reference station (we cycle through)
         inds = findall(==(t), times)
         ref, idxnew = _selectref(gstat[inds], sites, idx)
-        for i in inds
-            if gstat[i] == refprior
-                push!(gprior, refprior)
-            else
-                push!(gprior, getproperty(dists, gstat[i]))
-            end
-        end
+        println(ref)
         idx = idxnew
+        return gainlist_scan(gstat[inds], ref, dists, refprior)
+    end
+    return reduce(vcat, list)
+end
+
+function gainlist_scan(stations, ref, dists, refprior)
+    return map(stations) do s
+        if s == ref
+            return refprior
+        else
+            return getproperty(dists, s)
+        end
     end
 end
 
 function _selectref(stations, sites, idx)
     if sites[idx] ∈ stations
-        return sites[idx], (idx + 1)%(length(sites)+1)
+        return sites[idx], max((idx + 1)%(length(sites)+1), 1)
     else
-        idxnew = (idx+1)%(length(sites)+1)
+        for i in (idx+1):(length(sites)+idx)
+            idxnew = max(i%(length(sites)+1), 1)
+            if sites[idxnew] ∈ stations
+                return sites[idxnew], max((idxnew+1)%(length(sites)+1), 1)
+            end
+        end
+        throw(AssertionError("No sites found"))
+    end
 end
 
 #HypercubeTransform.bijector(d::CalPrior) = HypercubeTransform.asflat(d.dist)
