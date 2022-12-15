@@ -58,26 +58,28 @@ dvis = extract_coherency(obsavg)
 
 using StructArrays
 function model(θ, metadata)
-    (;c, f) = θ
+    (;c, f, p, angparams) = θ
     (; fovx, fovy, cache, tcache) = metadata
     # Construct the image model
     # produce Stokes images from parameters
-    #csa = StructArrays.components(angparams)
-    I = IntensityMap(f .* c, fovx, fovy)
-    Q = IntensityMap(f .* c, fovx, fovy)
-    U = IntensityMap(f .* c, fovx, fovy)
-    V = IntensityMap(f .* c, fovx, fovy)
+    csa = angparams
+    imgI = f.*c
+    pimgI = imgI.*p
+    I = IntensityMap(imgI, fovx, fovy)
+    Q = IntensityMap(pimgI .* csa[1], fovx, fovy)
+    U = IntensityMap(pimgI .* csa[2], fovx, fovy)
+    V = IntensityMap(pimgI .* csa[3], fovx, fovy)
 
-    pimg = StokesIntensityMap(I, Q, U, V)
-    cimg = ContinuousImage(pimg, DeltaPulse())
+    pimg = PolIntensityMap(I, Q, U, V)
+    cimg = ContinuousImage(pimg, BSplinePulse{3}())
 
     m = modelimage(cimg, cache)
-    # jT = jonesT(tcache)
+    jT = jonesT(tcache)
     # calibration parameters
     # G = jonesG(gR, gL, gcache)
     # D = jonesG(dR, dL, dcache)
     # J = G * D
-    return JonesModel(1, m, CirBasis())
+    return JonesModel(jT, m, CirBasis())
 end
 
 
@@ -105,8 +107,8 @@ distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
 
 
 # Set up the cache structure
-fovx = μas2rad(100.0)
-fovy = μas2rad(100.0)
+fovx = μas2rad(65.0)
+fovy = μas2rad(65.0)
 nx = 10
 ny = floor(Int, fovy/fovx*nx)
 
@@ -118,9 +120,9 @@ metadata = (;cache, fovx, fovy, tcache)
 
 prior = (
           c = ImageDirichlet(2.0, nx, ny),
-          f = Uniform(0.1, 1.2),
-          #p = ImageUniform(nx, ny),
-          #angparams = ImageSphericalUniform(nx, ny)
+          f = Uniform(0.1, 2.0),
+          p = ImageUniform(nx, ny),
+          angparams = ImageSphericalUniform(nx, ny)
           )
 
 
@@ -143,10 +145,15 @@ sol = solve(prob, LBFGS(); maxiters=3000, callback=(x,p)->(@info ℓ(x); false),
 xopt = transform(tpost, sol)
 
 
-# Let's see how the fit looks
-plot(model(xopt, metadata), fovx=fovx, fovy=fovy, title="MAP")
 
-residual(model(xopt, metadata), dvis)
+
+
+# Let's see how the fit looks
+plot(model(xopt, metadata), fovx=fovx, fovy=fovy)
+
+timg = Comrade.load(joinpath(@__DIR__, "example_image_test.fits"), StokesIntensityMap)
+
+residuals(model(xopt, metadata), dvis)
 #residual(mms(xopt), dcphase)
 
 # Let's also plot the gain curves
@@ -170,7 +177,32 @@ res = pathfinder(
         callback = (x,p)->(l = ℓ(x); @info l; isnan(l))
 )
 
+vis = dvis[:measurement]
+err = dvis[:error]
+mvis = visibilities(model(xopt, metadata), arrayconfig(dvis))
+uvdist = hypot.(values(getuv(dvis))...)
 
+p1 = scatter(uvdist, real.(getindex.(vis, 1, 1)), yerr=getindex.(err, 1, 1), title="RR", color=:blue, marker=:circ, label="Data real")
+scatter!(uvdist, imag.(getindex.(vis, 1, 1)), yerr=getindex.(err, 1, 1), color=:orange, marker=:circ, label="Data imag")
+scatter!(uvdist, real.(getindex.(vis, 1, 1)), color=:cyan, alpha=0.5, marker=:square, label="Model real")
+scatter!(uvdist, imag.(getindex.(vis, 1, 1)), color=:yellow, alpha=0.5, marker=:square, label="Model imag")
+
+p2 = scatter(uvdist, real.(getindex.(vis, 2, 1)), yerr=getindex.(err, 2, 1), title="LR", color=:blue, marker=:circ, label="Data real RR")
+scatter!(uvdist, imag.(getindex.(vis, 2, 1)), yerr=getindex.(err, 2, 1), color=:orange, marker=:circ, label="Data imag RR")
+scatter!(uvdist, real.(getindex.(vis, 2, 1)), color=:cyan, alpha=0.5, marker=:square, label="Model real RR")
+scatter!(uvdist, imag.(getindex.(vis, 2, 1)), color=:yellow, alpha=0.5, marker=:square, label="Model imag RR", legend=:false)
+
+p3 = scatter(uvdist, real.(getindex.(vis, 1, 2)), yerr=getindex.(err, 1, 2), title="RL", color=:blue, marker=:circ, label="Data real RR")
+scatter!(uvdist, imag.(getindex.(vis, 1, 2)), yerr=getindex.(err, 1, 2), color=:orange, marker=:circ, label="Data imag RR")
+scatter!(uvdist, real.(getindex.(vis, 1, 2)), color=:cyan, alpha=0.5, marker=:square, label="Model real RR")
+scatter!(uvdist, imag.(getindex.(vis, 1, 2)), color=:yellow, alpha=0.5, marker=:square, label="Model imag RR", legend=false)
+
+p4 = scatter(uvdist, real.(getindex.(vis, 2, 2)), yerr=getindex.(err, 2, 2), title="LL", color=:blue, marker=:circ, label="Data real RR")
+scatter!(uvdist, imag.(getindex.(vis, 2, 2)), yerr=getindex.(err, 2, 2), color=:orange, marker=:circ, label="Data imag RR")
+scatter!(uvdist, real.(getindex.(vis, 2, 2)), color=:cyan, alpha=0.5, marker=:square, label="Model real RR")
+scatter!(uvdist, imag.(getindex.(vis, 2, 2)), color=:yellow, alpha=0.5, marker=:square, label="Model imag RR", legend=false)
+
+plot(p1, p2, p3, p4, layout=(2,2))
 
 # now we sample using hmc
 using LinearAlgebra

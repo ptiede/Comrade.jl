@@ -278,8 +278,8 @@ struct TransformCache{M, B<:PolBasis}
 end
 
 function TransformCache(obs::EHTObservation; ref::PolBasis=CirBasis())
-    T1 = map(x -> basis_transform(ref, x[1]), obs.data.polbasis)
-    T2 = map(x -> basis_transform(ref, x[2]), obs.data.polbasis)
+    T1 = StructArray(map(x -> basis_transform(ref, x[1]), obs.data.polbasis))
+    T2 = StructArray(map(x -> basis_transform(ref, x[2]), obs.data.polbasis))
     return TransformCache{typeof(T1),typeof(ref)}(T1, T2, ref)
 end
 
@@ -314,8 +314,8 @@ end
 
 function corrupt(vis::AbstractArray, jones)
     # @assert length(vis) == length(jones) "visibility vector and jones pairs have mismatched dimensions!"
-    #Vnew = jones.m1 .* vis .* adjoint.(jones.m2)
-    return vis
+    vnew = jones.m1 .* vis .* adjoint.(jones.m2)
+    return vnew
 end
 
 function _coherency(vis, ::Type{B}) where {B}
@@ -333,10 +333,10 @@ function ChainRulesCore.rrule(::typeof(_coherency), vis, ::Type{CirBasis})
             ΔLR = Δ[i][2,1]
             ΔRL = Δ[i][1,2]
             ΔLL = Δ[i][2,2]
-            Δvis.I[i] = complex(ΔRR + ΔLL)/2
-            Δvis.Q[i] = complex(ΔLR + ΔRL)/2
-            Δvis.U[i] = 1im*(ΔLR - ΔRL)/2
-            Δvis.V[i] = complex(ΔRR - ΔLL)/2
+            Δvis.I[i] = complex(ΔRR + ΔLL)
+            Δvis.Q[i] = complex(ΔLR + ΔRL)
+            Δvis.U[i] = 1im*(ΔLR - ΔRL)
+            Δvis.V[i] = complex(ΔRR - ΔLL)
         end
         return NoTangent(), pd(Δvis), NoTangent()
     end

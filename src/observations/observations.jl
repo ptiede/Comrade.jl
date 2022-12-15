@@ -203,7 +203,7 @@ getdata(obs, :time)
 getdata(obs::Observation, s::Symbol) = getproperty(getfield(obs, :data), s)
 
 function getuv(ac::EHTObservation)
-    return (U=ac.data.u, V=ac.data.v)
+    return (U=ac.data.U, V=ac.data.V)
 end
 
 # Implement the tables interface
@@ -294,7 +294,7 @@ end
 Return the complex visibility of the visibility datum
 """
 @inline function visibility(D::EHTVisibilityDatum{T}) where {T}
-        return Complex{T}(D.visr, D.visi)
+        return D.measurement
 end
 
 
@@ -372,7 +372,7 @@ end
 Get the amplitude of a amplitude datum
 """
 @inline function amplitude(D::EHTVisibilityAmplitudeDatum{T}) where {T}
-    return D.amp
+    return D.measurement
 end
 
 

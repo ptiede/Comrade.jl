@@ -48,10 +48,10 @@ end
 #     StructArray{T}(dx.components)
 # end
 
-# function (project::ProjectTo{StructArray{T}})(dx::NamedTuple) where {T}
-#     @assert project.names == keys(dx) "Key mismatch"
-#     StructArray{T}(dx)
-# end
+function (project::ProjectTo{StructArray{T}})(dx::NamedTuple) where {T}
+    @assert project.names == keys(dx) "Key mismatch"
+    StructArray{T}(dx)
+end
 
 
 # (project::ProjectTo{StructArray{T}})(dx::Tuple) where {T} = StructArray{T}(dx)
@@ -104,7 +104,7 @@ function ChainRulesCore.rrule(::Type{IntensityMap}, data::AbstractArray, keys...
 end
 
 
-function ChainRulesCore.rrule(::Type{ContinuousImage}, data::AbstractArray, pulse)
+function ChainRulesCore.rrule(::Type{ContinuousImage}, data::AbstractArray, pulse::AbstractModel)
     img = ContinuousImage(data, pulse)
     pd = ProjectTo(data)
     function _ContinuousImage_pullback(Δ)

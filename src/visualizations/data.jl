@@ -311,6 +311,16 @@ function residuals(m, dvis::EHTObservation{T, A}) where {T, A<:EHTVisibilityDatu
     return hypot.(u, v), hcat(re, im)
 end
 
+function residuals(m, dvis::EHTObservation{T, A}) where {T, A<:EHTCoherencyDatum}
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
+    coh = dvis[:measurement]
+    mcoh = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
+    res = map((x,y,z)->((x .- y)./z), coh, mcoh, dvis[:error])
+    return res
+end
+
+
 function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityAmplitudeDatum}
     amp = getdata(damp, :measurement)
     u = getdata(damp, :U)

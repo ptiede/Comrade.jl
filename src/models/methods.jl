@@ -11,7 +11,7 @@ consider using the [`visibilities`](@ref visibilities).
 """
 @inline function visibility(mimg::M, p) where {M}
     #first we split based on whether the model is primitive
-    _visibility(isprimitive(M), mimg, p)
+    _visibility(isprimitive(M), mimg, p.U, p.V, 0.0, 0.0)
 end
 
 
@@ -82,21 +82,21 @@ end
     Welcome to the trait jungle. Below is
     how we specify how to evaluate the model
 =#
-@inline function _visibility(::NotPrimitive, m, p)
+@inline function _visibility(::NotPrimitive, m, u, v, time, freq)
     return visibility_point(m, u, v, time, freq)
 end
 
-@inline function _visibility(::IsPrimitive, m::M, p) where {M}
-    _visibility_primitive(visanalytic(M), m, p)
+@inline function _visibility(::IsPrimitive, m::M, u, v, time, freq) where {M}
+    _visibility_primitive(visanalytic(M), m, u, v, time, freq)
 end
 
 
-@inline function _visibility_primitive(::IsAnalytic, mimg, p)
+@inline function _visibility_primitive(::IsAnalytic, mimg, u, v, time, freq)
     return visibility_point(mimg, u, v, time, freq)
 end
 
-@inline function _visibility_primitive(::NotAnalytic, mimg, p)
-    return mimg.cache.sitp(p.U, p.V)
+@inline function _visibility_primitive(::NotAnalytic, mimg, u, v, time, freq)
+    return mimg.cache.sitp(u, v)
 end
 
 # @inline function visibilities(m::M, u::AbstractArray, v::AbstractArray) where {M}

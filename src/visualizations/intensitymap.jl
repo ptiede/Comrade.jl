@@ -13,7 +13,7 @@ EHTImage object and plots it according to EHT conventions.
 
 Note that is does not save the figure.
 """
-@recipe function f(image::IntensityMap; uvscale=rad2μas)
+@recipe function f(image::Union{StokesIntensityMap, IntensityMap}; uvscale=rad2μas)
 
     #Define some constants
     #Construct the image grid in μas
@@ -21,29 +21,125 @@ Note that is does not save the figure.
     x0, x1 = uvscale.(extrema(xitr))
     y0, y1 = uvscale.(extrema(yitr))
 
+    xitr, yitr = uvscale.(values(imagepixels(image)))
     tickfontsize --> 11
     guidefontsize --> 14
-    size --> (500,400)
-    xaxis --> "ΔRA  (μas)"
-    yaxis --> "ΔDEC (μas)"
-    seriescolor --> :afmhot
-    aspect_ratio --> 1
-    bar_width --> 0
-    xlims --> (x0, x1)
-    ylims --> (y0, y1)
-    #left_margin --> -2mm
-    #right_margin --> 5
-    z = ComradeBase.baseimage(image)'
-    seriestype := :heatmap
-    #fontfamily --> "sans serif"
-    colorbar_title --> "Jy/px"
-    xflip --> true
-    widen := false
-    framestyle --> :box
-    title --> @sprintf("flux = %.2f Jy", flux(image))
-    linecolor-->:black
-    tick_direction --> :out
-    uvscale.(collect(xitr)),uvscale.(collect(yitr)),z
+
+    tickfontsize --> 11
+    guidefontsize --> 14
+    if image isa StokesIntensityMap
+
+        # get the mean linear pol
+        maxI = maximum(stokes(image, :I))
+
+        layout --> (2, 2)
+        size --> (500*2,400*2)
+        @series begin
+            subplot := 1
+            seriestype := :heatmap
+            seriescolor --> :afmhot
+            aspect_ratio --> 1
+            bar_width --> 0
+            xlims --> (x0, x1)
+            ylims --> (y0, y1)
+            z = ComradeBase.baseimage(stokes(image, :I))'
+            title --> "Stokes I"
+            seriestype := :heatmap
+            #fontfamily --> "sans serif"
+            xflip --> true
+            widen := false
+            linecolor-->:black
+            tick_direction --> :out
+            #colorrange-->(0.0, maxI)
+
+            collect(xitr),collect(yitr),z
+        end
+        @series begin
+            subplot := 2
+            seriestype := :heatmap
+            seriescolor --> :afmhot
+            aspect_ratio --> 1
+            bar_width --> 0
+            xlims --> (x0, x1)
+            ylims --> (y0, y1)
+            z = ComradeBase.baseimage(stokes(image, :Q))'
+            title --> "Stokes Q"
+            seriestype := :heatmap
+            #fontfamily --> "sans serif"
+            xflip --> true
+            widen := false
+            linecolor-->:black
+            tick_direction --> :out
+            clims-->(-maxI/2, maxI/2)
+
+            collect(xitr),collect(yitr),z
+        end
+        @series begin
+            subplot := 3
+            seriestype := :heatmap
+            xaxis --> "ΔRA  (μas)"
+            yaxis --> "ΔDEC (μas)"
+            seriescolor --> :afmhot
+            aspect_ratio --> 1
+            bar_width --> 0
+            xlims --> (x0, x1)
+            ylims --> (y0, y1)
+            z = ComradeBase.baseimage(stokes(image, :U))'
+            title --> "Stokes U"
+            seriestype := :heatmap
+            #fontfamily --> "sans serif"
+            xflip --> true
+            widen := false
+            linecolor-->:black
+            tick_direction --> :out
+            clims-->(-maxI/2, maxI/2)
+
+            collect(xitr),collect(yitr),z
+        end
+        @series begin
+            subplot := 4
+            seriestype := :heatmap
+            xaxis --> "ΔRA  (μas)"
+            yaxis --> "ΔDEC (μas)"
+            seriescolor --> :afmhot
+            aspect_ratio --> 1
+            bar_width --> 0
+            xlims --> (x0, x1)
+            ylims --> (y0, y1)
+            z = ComradeBase.baseimage(stokes(image, :V))'
+            title --> "Stokes V"
+            seriestype := :heatmap
+            #fontfamily --> "sans serif"
+            colorbar_title --> "Jy/px²"
+            xflip --> true
+            widen := false
+            linecolor-->:black
+            tick_direction --> :out
+            clims-->(-maxI/2, maxI/2)
+
+            collect(xitr),collect(yitr),z
+        end
+    else
+        seriestype := :heatmap
+        xaxis --> "ΔRA  (μas)"
+        yaxis --> "ΔDEC (μas)"
+        seriescolor --> :afmhot
+        aspect_ratio --> 1
+        bar_width --> 0
+        xlims --> (x0, x1)
+        ylims --> (y0, y1)
+        z = ComradeBase.baseimage(image)'
+        title --> "Stokes I"
+        seriestype := :heatmap
+        #fontfamily --> "sans serif"
+        colorbar_title --> "Jy/px²"
+        xflip --> true
+        widen := false
+        linecolor-->:black
+        tick_direction --> :out
+
+        collect(xitr),collect(yitr),z
+    end
 end
 
 
@@ -73,25 +169,117 @@ Note that is does not save the figure.
     xitr, yitr = uvscale.(values(imagepixels(image)))
     tickfontsize --> 11
     guidefontsize --> 14
-    size --> (500,400)
-    xaxis --> "ΔRA  (μas)"
-    yaxis --> "ΔDEC (μas)"
-    seriescolor --> :afmhot
-    aspect_ratio --> 1
-    bar_width --> 0
-    xlims --> (x0, x1)
-    ylims --> (y0, y1)
-    #left_margin --> -2mm
-    #right_margin --> 5mm
-    z = ComradeBase.baseimage(image)'
-    seriestype := :heatmap
-    #fontfamily --> "sans serif"
-    colorbar_title --> "Jy/px²"
-    xflip --> true
-    widen := false
-    #framestyle --> :box
-    title --> @sprintf("flux = %.2f Jy", flux(image))
-    linecolor-->:black
-    tick_direction --> :out
-    collect(xitr),collect(yitr),z
+    if ispolarized(typeof(m)) === NotPolarized()
+
+        # get the mean linear pol
+        maxI = maximum(stokes(image, :I))
+
+        layout --> (2, 2)
+        size --> (500*2,400*2)
+        @series begin
+            subplot := 1
+            seriestype := :heatmap
+            seriescolor --> :afmhot
+            aspect_ratio --> 1
+            bar_width --> 0
+            xlims --> (x0, x1)
+            ylims --> (y0, y1)
+            z = ComradeBase.baseimage(stokes(image, :I))'
+            title --> "Stokes I"
+            seriestype := :heatmap
+            #fontfamily --> "sans serif"
+            xflip --> true
+            widen := false
+            linecolor-->:black
+            tick_direction --> :out
+            colorrange-->(0.0, maxI)
+
+            collect(xitr),collect(yitr),z
+        end
+        @series begin
+            subplot := 2
+            seriestype := :heatmap
+            seriescolor --> :afmhot
+            aspect_ratio --> 1
+            bar_width --> 0
+            xlims --> (x0, x1)
+            ylims --> (y0, y1)
+            z = ComradeBase.baseimage(stokes(image, :Q))'
+            title --> "Stokes Q"
+            seriestype := :heatmap
+            #fontfamily --> "sans serif"
+            xflip --> true
+            widen := false
+            linecolor-->:black
+            tick_direction --> :out
+            clims-->(-maxI/2, maxI/2)
+
+            collect(xitr),collect(yitr),z
+        end
+        @series begin
+            subplot := 3
+            seriestype := :heatmap
+            xaxis --> "ΔRA  (μas)"
+            yaxis --> "ΔDEC (μas)"
+            seriescolor --> :afmhot
+            aspect_ratio --> 1
+            bar_width --> 0
+            xlims --> (x0, x1)
+            ylims --> (y0, y1)
+            z = ComradeBase.baseimage(stokes(image, :U))'
+            title --> "Stokes U"
+            seriestype := :heatmap
+            #fontfamily --> "sans serif"
+            xflip --> true
+            widen := false
+            linecolor-->:black
+            tick_direction --> :out
+            clims-->(-maxI/2, maxI/2)
+
+            collect(xitr),collect(yitr),z
+        end
+        @series begin
+            subplot := 4
+            seriestype := :heatmap
+            xaxis --> "ΔRA  (μas)"
+            yaxis --> "ΔDEC (μas)"
+            seriescolor --> :afmhot
+            aspect_ratio --> 1
+            bar_width --> 0
+            xlims --> (x0, x1)
+            ylims --> (y0, y1)
+            z = ComradeBase.baseimage(stokes(image, :V))'
+            title --> "Stokes V"
+            seriestype := :heatmap
+            #fontfamily --> "sans serif"
+            colorbar_title --> "Jy/px²"
+            xflip --> true
+            widen := false
+            linecolor-->:black
+            tick_direction --> :out
+            clims-->(-maxI/2, maxI/2)
+
+            collect(xitr),collect(yitr),z
+        end
+    else
+        seriestype := :heatmap
+        xaxis --> "ΔRA  (μas)"
+        yaxis --> "ΔDEC (μas)"
+        seriescolor --> :afmhot
+        aspect_ratio --> 1
+        bar_width --> 0
+        xlims --> (x0, x1)
+        ylims --> (y0, y1)
+        z = ComradeBase.baseimage(image)'
+        title --> "Stokes I"
+        seriestype := :heatmap
+        #fontfamily --> "sans serif"
+        colorbar_title --> "Jy/px²"
+        xflip --> true
+        widen := false
+        linecolor-->:black
+        tick_direction --> :out
+
+        collect(xitr),collect(yitr),z
+    end
 end

@@ -194,6 +194,68 @@ BenchmarkTools.Trial: 10000 samples with 1 evaluation.
 ```
 
 
+# Polarization Benchmarks
+
+## imaging_vis.jl
+```
+julia> @benchmark ℓ($(rand(ndim)))
+BenchmarkTools.Trial: 10000 samples with 4 evaluations.
+ Range (min … max):  7.582 μs …  7.306 ms  ┊ GC (min … max): 0.00% … 99.88%
+ Time  (median):     8.572 μs              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   9.864 μs ± 74.726 μs  ┊ GC (mean ± σ):  7.40% ±  1.00%
+
+    ▂▆▇█▇▇▇███▆▅▄▂▂▂▁▁▁▁▂▂▂▁▁▁▁▁▁                 ▁▁▁▁       ▃
+  ▄▇█████████████████████████████▇▇▆▄▅▅▄▄▄▄▄▆▇▇██████████▆▅▅ █
+  7.58 μs      Histogram: log(frequency) by time     13.7 μs <
+
+ Memory estimate: 12.73 KiB, allocs estimate: 8.
+```
+
+
+```
+julia> @benchmark Zygote.gradient($ℓ, $(rand(ndim)))
+BenchmarkTools.Trial: 10000 samples with 1 evaluation.
+ Range (min … max):  162.186 μs …  21.748 ms  ┊ GC (min … max):  0.00% … 89.70%
+ Time  (median):     176.206 μs               ┊ GC (median):     0.00%
+ Time  (mean ± σ):   222.080 μs ± 919.626 μs  ┊ GC (mean ± σ):  17.62% ±  4.22%
+
+       ▄█▇▅▂                                                     
+  ▂▂▃▅███████▆▄▃▃▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▁▂▂▂▁▂▂▂▂▂ ▃
+  162 μs           Histogram: frequency by time          275 μs <
+
+ Memory estimate: 690.05 KiB, allocs estimate: 1079.
+```
+
+
+## imaging_pol.jl
+```
+julia> @benchmark ℓ($(rand(ndim)))
+BenchmarkTools.Trial: 10000 samples with 1 evaluation.
+ Range (min … max):  25.830 μs …  25.112 ms  ┊ GC (min … max):  0.00% … 83.20%
+ Time  (median):     30.099 μs               ┊ GC (median):     0.00%
+ Time  (mean ± σ):   36.615 μs ± 346.054 μs  ┊ GC (mean ± σ):  11.20% ±  1.20%
+
+       ▁▅▆█▇▆▅▃▄▂                                               
+  ▁▁▂▄▇███████████▆▄▃▂▂▂▂▂▂▂▂▂▂▂▂▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▁▁▁▁▁▁▁ ▃
+  25.8 μs         Histogram: frequency by time         49.5 μs <
+
+ Memory estimate: 94.23 KiB, allocs estimate: 44.
+```
+
+```
+julia> @benchmark Zygote.gradient($ℓ, $(rand(ndim)))
+BenchmarkTools.Trial: 6547 samples with 1 evaluation.
+ Range (min … max):  469.049 μs … 19.420 ms  ┊ GC (min … max):  0.00% … 87.98%
+ Time  (median):     517.048 μs              ┊ GC (median):     0.00%
+ Time  (mean ± σ):   762.914 μs ±  2.052 ms  ┊ GC (mean ± σ):  28.46% ± 10.14%
+
+  █                                                            ▁
+  █▆▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▇ █
+  469 μs        Histogram: log(frequency) by time        18 ms <
+
+ Memory estimate: 4.22 MiB, allocs estimate: 2174.
+```
+
 # Computing Environment
 
 ```

@@ -87,7 +87,7 @@ function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img::IntensityMapTypes, pulse
     u = @view alg.uv[1,:]
     v = @view alg.uv[2,:]
     # Correct for the nFFT phase center and the img phase center
-    return cispi.((u.*(dx - 2*x0) .+ v.*(dy - 2*y0))).*visibility_point.(Ref(stretched(pulse, dx, dy)), NamedTuple{(:U,:V)}.(u, v))
+    return cispi.((u.*(dx - 2*x0) .+ v.*(dy - 2*y0))).*visibility_point.(Ref(stretched(pulse, dx, dy)), u, v, 0.0, 0.0)
 end
 
 @inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img::IntensityMapTypes, pulse=DeltaPulse())
@@ -130,4 +130,21 @@ function _visibilities(m::ModelImage{M,<:SpatialIntensityMap{<:ForwardDiff.Dual{
 
     vis = _frule_vis(m)
     return conj.(vis).*m.cache.phases
+end
+
+function nuft(A::NFFTPlan, b)
+    return A*b
+end
+
+function ChainRulesCore.rrule(::typeof(nuft), A::NFFTPlan, b)
+    pr = ChainRulesCore.ProjectTo(b)
+    vis = A*b
+    function nuft_pullback(Δy)
+        Δf = NoTangent()
+        dy = similar(vis)
+        dy .= unthunk(Δy)
+        ΔA = @thunk(pr(A'*dy))
+        return Δf, NoTangent(), ΔA
+    end
+    return vis, nuft_pullback
 end

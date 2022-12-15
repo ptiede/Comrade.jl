@@ -222,10 +222,10 @@ function modelimage(::NotAnalytic,
 end
 
 
-@inline function visibility_point(m::AbstractModifier, p)
-    ut, vt = transform_uv(m, p.U, p.V)
-    scale = scale_uv(m, p.U, p.V)
-    scale*visibility(basemodel(m), update_uv(p, (U=ut, V=vt)))
+@inline function visibility_point(m::AbstractModifier, u, v, time, freq)
+    ut, vt = transform_uv(m, u, v)
+    scale = scale_uv(m, u, v)
+    scale*visibility_point(basemodel(m), ut, vt, time, freq)
 end
 
 @inline function ComradeBase.intensity_point(m::AbstractModifier, p)

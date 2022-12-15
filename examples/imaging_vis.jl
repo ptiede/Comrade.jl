@@ -15,11 +15,13 @@ using DistributionsAD
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+# obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "polarized_synthetic_data.uvfits"))
+
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obsavg = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
+obsavg = scan_average(obs).add_fractional_noise(0.01)
 obs_split = obsavg.split_obs()
 # extract log closure amplitudes and closure phases
 dvis = extract_vis(obsavg)
@@ -28,17 +30,15 @@ dvis = extract_vis(obsavg)
 # This will be useful to hold precomputed caches
 
 function model(θ, metadata)
-    (;c, f, lgamp, gphase) = θ
-    (; fovx, fovy, cache, gcache) = metadata
+    (;c, f) = θ
+    (; fovx, fovy, cache) = metadata
     # Construct the image model
     img = IntensityMap(f*c, fovx, fovy)
     cimg = ContinuousImage(img, BSplinePulse{3}())
     m = modelimage(cimg, cache)
     #gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
-    ga = exp.(lgamp)
-    gp = cis.(gphase)
-    return Comrade.GainModel(gcache, ga.*gp, m)
+    return m
 end
 
 
@@ -53,7 +53,7 @@ distamp = (AA = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1),
            )
 
-distphase = (AA = DiagonalVonMises([0.0], [inv(π^2)]),
+distphase = (AA = DiagonalVonMises([0.0], [inv(1e-3)]),
              AP = DiagonalVonMises([0.0], [inv(π^2)]),
              LM = DiagonalVonMises([0.0], [inv(π^2)]),
              AZ = DiagonalVonMises([0.0], [inv(π^2)]),
@@ -84,24 +84,23 @@ distphase = (AA = DiagonalVonMises([0.0], [inv(π^2)]),
 
 
 
-fovx = μas2rad(70.0)
-fovy = μas2rad(70.0)
-nx = 12
+fovx = μas2rad(65.0)
+fovy = μas2rad(65.0)
+nx = 10
 ny = floor(Int, fovy/fovx*nx)
-X, Y = imagepixels(buffer)
-prior = (
-          c = ImageDirichlet(2.0, nx, ny),
-          f = Uniform(0.4, 0.7),# truncated(Normal(0.6, 0.05), 0.0, 1.0),
-          #fg = Uniform(0.0, 1.0),
-          lgamp = Comrade.CalPrior(distamp, gcache),
-          gphase = Comrade.CalPrior(distphase, gcache, DiagonalVonMises([0.0], [inv(1e-4)]))
-        )
-
 
 buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
 cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
-gcache = GainCache(scantable(dvis))
-metadata = (;cache, fovx, fovy, gcache)
+metadata = (;cache, fovx, fovy, tcache)
+
+
+X, Y = imagepixels(buffer)
+prior = (
+          c = ImageDirichlet(2.0, nx, ny),
+          f = Uniform(0.4, 2.0),# truncated(Normal(0.6, 0.05), 0.0, 1.0),
+        )
+
+
 
 lklhd = RadioLikelihood(model, metadata, dvis)
 
@@ -154,10 +153,10 @@ res = pathfinder(
 # now we sample using hmc
 using LinearAlgebra
 metric = DenseEuclideanMetric(res.fit_distribution.Σ)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 5000; nadapts=4000, init_params=hchain[end])
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 12_000; nadapts=10_000, init_params=transform(tpost, res.draws[:,1]))
 
 # Now plot the gain table with error bars
-gamps = (hcat(hchain.gphase...))
+  ngamps = (hcat(hchain.gphase...))
 mga = mean(gamps, dims=2)
 sga = std(gamps, dims=2)
 

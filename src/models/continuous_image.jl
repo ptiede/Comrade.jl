@@ -15,7 +15,7 @@ where `Iᵢⱼ` are the flux densities of the image `img` and κ is the intensit
 
 
 """
-struct ContinuousImage{A <: Union{StokesIntensityMap, IntensityMap}, P} <: AbstractModel
+struct ContinuousImage{A <: Union{PolIntensityMap, StokesIntensityMap, IntensityMap}, P} <: AbstractModel
     """
     Discrete representation of the image.
     """
@@ -27,7 +27,7 @@ struct ContinuousImage{A <: Union{StokesIntensityMap, IntensityMap}, P} <: Abstr
     kernel::P
 end
 
-ComradeBase.ispolarized(::Type{ContinuousImage{A}}) where {A<:StokesIntensityMap} = IsPolarized()
+ComradeBase.ispolarized(::Type{ContinuousImage{A}}) where {A<:Union{StokesIntensityMap, PolIntensityMap}} = IsPolarized()
 ComradeBase.ispolarized(::Type{ContinuousImage{A}}) where {A<:IntensityMap} = NotPolarized()
 
 Base.parent(m::ContinuousImage)         = m.img
