@@ -58,8 +58,8 @@ dvis = extract_coherency(obsavg)
 
 using StructArrays
 function model(θ, metadata)
-    (;c, f, p, angparams) = θ
-    (; fovx, fovy, cache, tcache) = metadata
+    (;c, f, p, angparams, lgR, lgL, dRa, dRp, dLa, dLp) = θ
+    (; fovx, fovy, cache, gcache, tcache) = metadata
     # Construct the image model
     # produce Stokes images from parameters
     csa = angparams
@@ -76,33 +76,43 @@ function model(θ, metadata)
     m = modelimage(cimg, cache)
     jT = jonesT(tcache)
     # calibration parameters
-    # G = jonesG(gR, gL, gcache)
-    # D = jonesG(dR, dL, dcache)
-    # J = G * D
-    return JonesModel(jT, m, CirBasis())
+    gR = exp.(lgR)
+    gL = exp.(lgL)
+    G = jonesG(gR, gL, gcache)
+    D = jonesG(dRa.*cis.(dRp), dLa.*cis.(dLp), dcache)
+    J = G*jT
+    return JonesModel(J, m, CirBasis())
 end
 
 
 
 # First we define the station gain priors
 distamp = (AA = Normal(0.0, 0.1),
-           PV = Normal(0.0, 0.1),
-           AX = Normal(0.0, 0.1),
-           MG = Normal(0.0, 0.1),
+           AP = Normal(0.0, 0.1),
            LM = Normal(0.0, 0.3),
-           MM = Normal(0.0, 0.1),
-           SW = Normal(0.0, 0.1),
-           GL = Normal(0.0, 0.5)
+           AZ = Normal(0.0, 0.1),
+           JC = Normal(0.0, 0.1),
+           PV = Normal(0.0, 0.1),
+           SM = Normal(0.0, 0.1),
            )
 
-distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
-             PV = DiagonalVonMises([0.0], [inv(π^2)]),
-             AX = DiagonalVonMises([0.0], [inv(π^2)]),
-             MG = DiagonalVonMises([0.0], [inv(π^2)]),
+distamp2 = (AA = Normal(0.0, 1.0),
+           AP = Normal(0.0,  1.0),
+           LM = Normal(0.0,  1.0),
+           AZ = Normal(0.0,  1.0),
+           JC = Normal(0.0,  1.0),
+           PV = Normal(0.0,  1.0),
+           SM = Normal(0.0,  1.0),
+           )
+
+
+distphase = (AA = DiagonalVonMises([0.0], [inv(π^2)]),
+             AP = DiagonalVonMises([0.0], [inv(π^2)]),
              LM = DiagonalVonMises([0.0], [inv(π^2)]),
-             MM = DiagonalVonMises([0.0], [inv(π^2)]),
-             SW = DiagonalVonMises([0.0], [inv(π^2)]),
-             GL = DiagonalVonMises([0.0], [inv(π^2)])
+             AZ = DiagonalVonMises([0.0], [inv(π^2)]),
+             JC = DiagonalVonMises([0.0], [inv(π^2)]),
+             PV = DiagonalVonMises([0.0], [inv(π^2)]),
+             SM = DiagonalVonMises([0.0], [inv(π^2)]),
            )
 
 
@@ -115,14 +125,23 @@ ny = floor(Int, fovy/fovx*nx)
 buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
 cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
 tcache = TransformCache(dvis)
-metadata = (;cache, fovx, fovy, tcache)
+gcache = JonesCache(dvis, ScanSeg())
+dcache = JonesCache(dvis, TrackSeg())
+metadata = (;cache, fovx, fovy, tcache, gcache, dcache)
+
 
 
 prior = (
           c = ImageDirichlet(2.0, nx, ny),
           f = Uniform(0.1, 2.0),
           p = ImageUniform(nx, ny),
-          angparams = ImageSphericalUniform(nx, ny)
+          angparams = ImageSphericalUniform(nx, ny),
+          lgR = CalPrior(distamp, gcache),
+          lgL = CalPrior(distamp, gcache),
+          dRa = CalPrior(distamp2, dcache),
+          dRp = CalPrior(distphase, dcache),
+          dLa = CalPrior(distamp2, dcache),
+          dLp = CalPrior(distphase, dcache),
           )
 
 
@@ -140,7 +159,7 @@ ndim = dimension(tpost)
 
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
+prob = OptimizationProblem(f, randn(ndim)*0.2, nothing)
 sol = solve(prob, LBFGS(); maxiters=3000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 xopt = transform(tpost, sol)
 
@@ -150,7 +169,7 @@ xopt = transform(tpost, sol)
 
 # Let's see how the fit looks
 plot(model(xopt, metadata), fovx=fovx, fovy=fovy)
-
+plot(timg[1], xlims=(-32.5, 32.5), ylims=(-32.5, 32.5))
 timg = Comrade.load(joinpath(@__DIR__, "example_image_test.fits"), StokesIntensityMap)
 
 residuals(model(xopt, metadata), dvis)

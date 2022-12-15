@@ -1,11 +1,12 @@
-# function ChainRulesCore.rrule(::Type{SA}, t::Tuple) where {SA<:StructArray}
-#     sa = SA(t)
-#     function _structarray_tuple_pullback(Δ)
-#         ps = getproperty.(Ref(Δ), propertynames(Δ))
-#         return NoTangent(), Tangent{typeof(t)}(ps)
-#     end
-#     return sa, _structarray_tuple_pullback
-# end
+function ChainRulesCore.rrule(::Type{SA}, t::Tuple) where {SA<:StructArray}
+    sa = SA(t)
+    pt = ProjectTo(t)
+    function _structarray_tuple_pullback(Δ)
+        ps = getproperty.(Ref(Δ), propertynames(Δ))
+        return NoTangent(), Tangent{typeof(t)}(ps...)
+    end
+    return sa, _structarray_tuple_pullback
+end
 
 
 function ChainRulesCore.rrule(::Type{SA}, t::NamedTuple{Na}) where {Na, SA<:StructArray}
@@ -48,9 +49,9 @@ end
 #     StructArray{T}(dx.components)
 # end
 
-function (project::ProjectTo{StructArray{T}})(dx::NamedTuple) where {T}
+function (project::ProjectTo{StructArray})(dx::NamedTuple)
     @assert project.names == keys(dx) "Key mismatch"
-    StructArray{T}(dx)
+    return StructArray(dx)
 end
 
 
@@ -66,6 +67,13 @@ function (project::ProjectTo{StructArray})(dx::StructArray)
     @assert project.eltype === eltype(dx) "The eltype of the array is not the same there is an error in a ChainRule"
     return dx
 end
+
+function (project::ProjectTo{StructArray})(dx)
+    @assert project.eltype === eltype(dx) "The eltype of the array is not the same there is an error in a ChainRule"
+    println(typeof(dx))
+    return dx
+end
+
 
 
 # function (project::ProjectTo{StructArray})(dx::AbstractArray) where {T}

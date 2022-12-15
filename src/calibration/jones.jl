@@ -1,4 +1,4 @@
-export JonesCache, TrackSeg, ScanSeg, IntegSeg, jonesD, jonesD, jonesT,
+export JonesCache, TrackSeg, ScanSeg, IntegSeg, jonesG, jonesD, jonesT,
        TransformCache, JonesModel
 
 abstract type ObsSegmentation end
@@ -78,7 +78,7 @@ function JonesCache(obs::EHTObservation, s::TrackSeg)
 
     ttimes = fill(times[begin], length(stats))
 
-    return JonesCache{typeof(m1),typeof(s), typeof(ttimes), typeof(stats)}(m1,m2,s, ttimes, stats)
+    return JonesCache{typeof(m1),typeof(s), typeof(stats), typeof(ttimes)}(m1,m2,s, stats, ttimes)
 end
 
 function JonesCache(obs::EHTObservation, s::ScanSeg)
@@ -113,7 +113,7 @@ function JonesCache(obs::EHTObservation, s::ScanSeg)
     m1 = sparse(rowInd1, colInd1, z, length(times), length(gaintime))
     m2 = sparse(rowInd2, colInd2, z, length(times), length(gaintime))
 
-    return JonesCache{typeof(m1),typeof(s), typeof(gaintime), typeof(gainstat)}(m1,m2,s, gaintime, gainstat)
+    return JonesCache{typeof(m1),typeof(s),  typeof(gainstat), typeof(gaintime)}(m1,m2,s, gainstat, gaintime)
 end
 
 struct JonesPairs{T, M1<:AbstractVector{T}, M2<:AbstractVector{T}}
@@ -122,8 +122,8 @@ struct JonesPairs{T, M1<:AbstractVector{T}, M2<:AbstractVector{T}}
 end
 
 function Base.:*(x::JonesPairs, y::JonesPairs...)
-    m1 = map(getproperty(x, :m1), (x,y...))
-    m2 = map(getproperty(x, :m1), (x,y...))
+    m1 = map(x->getproperty(x, :m1), (x,y...))
+    m2 = map(x->getproperty(x, :m2), (x,y...))
     return _allmul(m1, m2)
 end
 
@@ -219,7 +219,7 @@ function JonesCache(obs::EHTObservation, s::IntegSeg)
     m1 = sparse(rowInd1, colInd1, z, length(times), length(tbl))
     m2 = sparse(rowInd2, colInd2, z, length(times), length(tbl))
 
-    return JonesCache{typeof(m1),typeof(s)}(m1,m2,s)
+    return JonesCache{typeof(m1),typeof(s), typeof(bls), typeof(times)}(m1,m2,s, bls, times)
 end
 
 
@@ -233,7 +233,7 @@ function gmat(g1, g2, m)
    gs1 = m*g1
    gs2 = m*g2
    n = length(gs1)
-   offdiag = Fill(zero(S), n)
+   offdiag = fill(zero(S), n)
    StructArray{SMatrix{2,2,S,4}}((gs1, offdiag, offdiag, gs2))
 end
 function jonesG(g1, g2,jcache::JonesCache)
@@ -248,7 +248,7 @@ function dmat(d1, d2, m)
     ds1 = m*d1
     ds2 = m*d2
     n = length(ds1)
-    unit = Fill(one(S), n)
+    unit = fill(one(S), n)
     return StructArray{SMatrix{2,2,S,4}}((unit, ds2, ds1, unit))
 end
 
