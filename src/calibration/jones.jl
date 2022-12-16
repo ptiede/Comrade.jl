@@ -128,42 +128,42 @@ function Base.:*(x::JonesPairs, y::JonesPairs...)
 end
 
 function _allmul(m1, m2)
-    # out1 = zero(first(m1))
-    # out2 = zero(first(m2))
-    # _allmul!(out1, out2, m1, m2)
-    out1 = reduce(.*, m1)
-    out2 = reduce(.*, m2)
+    out1 = zero(first(m1))
+    out2 = zero(first(m2))
+    _allmul!(out1, out2, m1, m2)
+    # out1 = reduce(.*, m1)
+    # out2 = reduce(.*, m2)
     return JonesPairs(out1, out2)
 end
 
-# function _allmul!(out1, out2, m1, m2)
-#     for i in eachindex(out1, out2)
-#         out1[i] = mapreduce(x->getindex(x, i), Base.:*, m1)
-#         out2[i] = mapreduce(x->getindex(x, i), Base.:*, m2)
-#     end
-#     return nothing
-# end
+function _allmul!(out1, out2, m1, m2)
+    for i in eachindex(out1, out2)
+        out1[i] = mapreduce(x->getindex(x, i), Base.:*, m1)
+        out2[i] = mapreduce(x->getindex(x, i), Base.:*, m2)
+    end
+    return nothing
+end
 
-# using Enzyme
-# function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
-#     out = _allmul(m1, m2)
-#     pm1 = ProjectTo(m1)
-#     pm2 = ProjectTo(m2)
-#     function _allmul_pullback(Δ)
-#         Δm1 = similar(out.m1)
-#         Δm1 .= unthunk(Δ.m1)
-#         Δm2 = similar(out.m1)
-#         Δm1 .= unthunk(Δ.m2)
-#         dm1 = zero.(m1)
-#         dm2 = zero.(m2)
+using Enzyme
+function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
+    out = _allmul(m1, m2)
+    pm1 = ProjectTo(m1)
+    pm2 = ProjectTo(m2)
+    function _allmul_pullback(Δ)
+        Δm1 = zero(out.m1)
+        Δm1 .= unthunk(Δ.m1)
+        Δm2 = zero(out.m1)
+        Δm2 .= unthunk(Δ.m2)
+        dm1 = zero.(m1)
+        dm2 = zero.(m2)
 
-#         out1 = zero(first(m1))
-#         out2 = zero(first(m2))
-#         autodiff(_allmul!, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
-#         return NoTangent(), pm1(dm1), pm2(dm2)
-#     end
-#     return out, _allmul_pullback
-# end
+        out1 = zero(first(m1))
+        out2 = zero(first(m2))
+        autodiff(_allmul!, Const, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
+        return NoTangent(), pm1(dm1), pm2(dm2)
+    end
+    return out, _allmul_pullback
+end
 
 
 # function JonesPairs(m1::AbstractVector{T}, m2::AbstractVector{T}) where {T}
@@ -372,7 +372,7 @@ function corrupt(vis::AbstractArray, jones)
     return vnew
 end
 
-function _coherency(vis::AbstractArray{T}, ::Type{B}) where {T<:AbstractMatrix,B}
+function _coherency(vis::AbstractArray{T}, ::Type{B}) where {T<:AbstractArray,B}
     return CoherencyMatrix{B,B}.(vis)
 end
 
@@ -380,7 +380,7 @@ function _coherency(vis::AbstractArray{<:Number}, ::Type{B}) where {B}
     return vis
 end
 
-function ChainRulesCore.rrule(::typeof(_coherency), vis::AbstractArray{<:AbstractMatrix}, ::Type{CirBasis})
+function ChainRulesCore.rrule(::typeof(_coherency), vis::AbstractArray{<:AbstractArray}, ::Type{CirBasis})
     coh  = _coherency(vis, CirBasis)
     pd = ProjectTo(vis)
     function _coherency_pullback(Δd)

@@ -49,10 +49,10 @@ end
 #     StructArray{T}(dx.components)
 # end
 
-function (project::ProjectTo{StructArray})(dx::NamedTuple)
-    @assert project.names == keys(dx) "Key mismatch"
-    return StructArray(dx)
-end
+# function (project::ProjectTo{StructArray})(dx::NamedTuple)
+#     @assert project.names == keys(dx) "Key mismatch"
+#     return StructArray(dx)
+# end
 
 
 # (project::ProjectTo{StructArray{T}})(dx::Tuple) where {T} = StructArray{T}(dx)
