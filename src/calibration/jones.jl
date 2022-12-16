@@ -128,10 +128,42 @@ function Base.:*(x::JonesPairs, y::JonesPairs...)
 end
 
 function _allmul(m1, m2)
-    m1 = reduce(.*, m1)
-    m2 = reduce(.*, m2)
-    return JonesPairs(m1, m2)
+    # out1 = zero(first(m1))
+    # out2 = zero(first(m2))
+    # _allmul!(out1, out2, m1, m2)
+    out1 = reduce(.*, m1)
+    out2 = reduce(.*, m2)
+    return JonesPairs(out1, out2)
 end
+
+# function _allmul!(out1, out2, m1, m2)
+#     for i in eachindex(out1, out2)
+#         out1[i] = mapreduce(x->getindex(x, i), Base.:*, m1)
+#         out2[i] = mapreduce(x->getindex(x, i), Base.:*, m2)
+#     end
+#     return nothing
+# end
+
+# using Enzyme
+# function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
+#     out = _allmul(m1, m2)
+#     pm1 = ProjectTo(m1)
+#     pm2 = ProjectTo(m2)
+#     function _allmul_pullback(Δ)
+#         Δm1 = similar(out.m1)
+#         Δm1 .= unthunk(Δ.m1)
+#         Δm2 = similar(out.m1)
+#         Δm1 .= unthunk(Δ.m2)
+#         dm1 = zero.(m1)
+#         dm2 = zero.(m2)
+
+#         out1 = zero(first(m1))
+#         out2 = zero(first(m2))
+#         autodiff(_allmul!, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
+#         return NoTangent(), pm1(dm1), pm2(dm2)
+#     end
+#     return out, _allmul_pullback
+# end
 
 
 # function JonesPairs(m1::AbstractVector{T}, m2::AbstractVector{T}) where {T}
@@ -139,6 +171,7 @@ end
 #     @assert firstindex(m1) == firstindex(m2) "m1 and m2 must be indexed the same"
 #     return JonesPairs{T, typeof(m1), typeof(m2)}(m1, m2)
 # end
+
 
 Base.length(j::JonesPairs) = length(j.m1)
 Base.size(j::JonesPairs) = (length(j),)
@@ -238,7 +271,7 @@ function gmat(g1, g2, m)
 end
 function jonesG(g1, g2,jcache::JonesCache)
     gm1 = gmat(g1, g2, jcache.m1)
-    gm2 = gmat(g1, g2, jcache.m1)
+    gm2 = gmat(g1, g2, jcache.m2)
     return JonesPairs(gm1, gm2)
 end
 
@@ -258,6 +291,21 @@ function jonesD(d1::T,d2::T,jcache::JonesCache) where {T}
     return JonesPairs(dm1, dm2)
 end
 
+export jonesStokes
+"""
+    jonesStokes(g1::AbstractArray, gcache::JonesCache)
+
+Construct the JonesPairs for the stokes I image only. That is, we only need to
+pass a single vector corresponding to the gain for the stokes I visibility. This is
+for when you only want to image Stokes I.
+
+# Warning
+In the future this functionality may be removed when stokes I fitting is replaced with the
+more correct `trace(coherency)`, i.e. RR+LL for a circular basis.
+"""
+function jonesStokes(g, gcache)
+    return JonesPairs(gcache.m1*g, gcache.m2*g)
+end
 
 
 
@@ -287,6 +335,8 @@ jonesT(tcache::TransformCache) = JonesPairs(tcache.T1, tcache.T2)
 
 
 
+
+
 struct JonesModel{J, M, B<:PolBasis} <: RIMEModel
     """
     Cache containing the specific Jones matrices that are to be applied to the visibilities.
@@ -306,6 +356,10 @@ function JonesModel(jones, model, tcache::TransformCache)
     return JonesModel(jones, model, tcache.refbasis)
 end
 
+function JonesModel(jones, model)
+    return JonesModel(jones, model, CirBasis())
+end
+
 function _visibilities(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
     vis = _visibilities(model.model, u, v, time, freq)
     coh = _coherency(vis, B)
@@ -313,16 +367,20 @@ function _visibilities(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
 end
 
 function corrupt(vis::AbstractArray, jones)
-    # @assert length(vis) == length(jones) "visibility vector and jones pairs have mismatched dimensions!"
+    @assert length(vis) == length(jones) "visibility vector and jones pairs have mismatched dimensions!"
     vnew = jones.m1 .* vis .* adjoint.(jones.m2)
     return vnew
 end
 
-function _coherency(vis, ::Type{B}) where {B}
+function _coherency(vis::AbstractArray{T}, ::Type{B}) where {T<:AbstractMatrix,B}
     return CoherencyMatrix{B,B}.(vis)
 end
 
-function ChainRulesCore.rrule(::typeof(_coherency), vis, ::Type{CirBasis})
+function _coherency(vis::AbstractArray{<:Number}, ::Type{B}) where {B}
+    return vis
+end
+
+function ChainRulesCore.rrule(::typeof(_coherency), vis::AbstractArray{<:AbstractMatrix}, ::Type{CirBasis})
     coh  = _coherency(vis, CirBasis)
     pd = ProjectTo(vis)
     function _coherency_pullback(Δd)

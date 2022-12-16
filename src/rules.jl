@@ -68,11 +68,11 @@ function (project::ProjectTo{StructArray})(dx::StructArray)
     return dx
 end
 
-function (project::ProjectTo{StructArray})(dx)
-    @assert project.eltype === eltype(dx) "The eltype of the array is not the same there is an error in a ChainRule"
-    println(typeof(dx))
-    return dx
-end
+# function (project::ProjectTo{StructArray})(dx)
+#     @assert project.eltype === eltype(dx) "The eltype of the array is not the same there is an error in a ChainRule"
+#     println(typeof(dx))
+#     return dx
+# end
 
 
 

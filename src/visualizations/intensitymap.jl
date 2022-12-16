@@ -169,7 +169,7 @@ Note that is does not save the figure.
     xitr, yitr = uvscale.(values(imagepixels(image)))
     tickfontsize --> 11
     guidefontsize --> 14
-    if ispolarized(typeof(m)) === NotPolarized()
+    if ispolarized(typeof(m)) === IsPolarized()
 
         # get the mean linear pol
         maxI = maximum(stokes(image, :I))

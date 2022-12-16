@@ -19,7 +19,7 @@ obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "polarized_synthetic_data.uvf
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obsavg = scan_average(obs).add_fractional_noise(0.01)
+obsavg = scan_average(obs)
 obs_split = obsavg.split_obs()
 # extract log closure amplitudes and closure phases
 dvis = extract_coherency(obsavg)
@@ -76,11 +76,11 @@ function model(θ, metadata)
     m = modelimage(cimg, cache)
     jT = jonesT(tcache)
     # calibration parameters
-    gR = exp.(lgR)
-    gL = exp.(lgL)
+    gR = exp.(lgR .+ 0.0im)
+    gL = exp.(lgL .+ 0.0im)
     G = jonesG(gR, gL, gcache)
-    D = jonesG(dRa.*cis.(dRp), dLa.*cis.(dLp), dcache)
-    J = G*jT
+    D = jonesD(dRa.*cis.(dRp), dLa.*cis.(dLp), dcache)
+    J = G*D*jT
     return JonesModel(J, m, CirBasis())
 end
 
@@ -169,14 +169,14 @@ xopt = transform(tpost, sol)
 
 # Let's see how the fit looks
 plot(model(xopt, metadata), fovx=fovx, fovy=fovy)
-plot(timg[1], xlims=(-32.5, 32.5), ylims=(-32.5, 32.5))
-timg = Comrade.load(joinpath(@__DIR__, "example_image_test.fits"), StokesIntensityMap)
+timg, hdr = Comrade.load(joinpath(@__DIR__, "polarized_synthetic_data.fits"), StokesIntensityMap)
+plot(timg, xlims=(-32.5, 32.5), ylims=(-32.5, 32.5))
 
-residuals(model(xopt, metadata), dvis)
+Comrade.residuals(model(xopt, metadata), dvis)
 #residual(mms(xopt), dcphase)
 
 # Let's also plot the gain curves
-gt = Comrade.caltable(gcache, xopt.gphase)
+gt = Comrade.caltable(gcache, xopt.lgL)
 plot(gt, layout=(3,3), size=(600,500))
 
 gt = Comrade.caltable(gcache, exp.(xopt.lgamp))

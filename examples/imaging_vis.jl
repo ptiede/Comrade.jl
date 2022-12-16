@@ -30,27 +30,28 @@ dvis = extract_vis(obsavg)
 # This will be useful to hold precomputed caches
 
 function model(θ, metadata)
-    (;c, f) = θ
-    (; fovx, fovy, cache) = metadata
+    (;c, f, lgamp, gphase) = θ
+    (; fovx, fovy, cache, gcache) = metadata
     # Construct the image model
     img = IntensityMap(f*c, fovx, fovy)
-    cimg = ContinuousImage(img, BSplinePulse{3}())
+    cimg = ContinuousImage(img, BicubicPulse())
     m = modelimage(cimg, cache)
     #gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
-    return m
+    j = jonesStokes(exp.(lgamp).*cis.(gphase), gcache)
+    return JonesModel(j, m)
 end
 
 
 
 # First we define the station gain priors
-distamp = (AA = Normal(0.0, 0.1),
-           AP = Normal(0.0, 0.1),
-           LM = Normal(0.0, 0.3),
-           AZ = Normal(0.0, 0.1),
-           JC = Normal(0.0, 0.1),
-           PV = Normal(0.0, 0.1),
-           SM = Normal(0.0, 0.1),
+distamp = (AA = Normal(0.0, 0.01),
+           AP = Normal(0.0, 0.01),
+           LM = Normal(0.0, 0.01),
+           AZ = Normal(0.0, 0.01),
+           JC = Normal(0.0, 0.01),
+           PV = Normal(0.0, 0.01),
+           SM = Normal(0.0, 0.01),
            )
 
 distphase = (AA = DiagonalVonMises([0.0], [inv(1e-3)]),
@@ -90,14 +91,17 @@ nx = 10
 ny = floor(Int, fovy/fovx*nx)
 
 buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
-cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
-metadata = (;cache, fovx, fovy, tcache)
+cache = create_cache(DFTAlg(dvis), buffer, BicubicPulse())
+gcache = JonesCache(dvis, ScanSeg())
+metadata = (;cache, fovx, fovy, gcache)
 
 
 X, Y = imagepixels(buffer)
 prior = (
-          c = ImageDirichlet(2.0, nx, ny),
+          c = CenteredImage(X, Y, μas2rad(1.0), ImageDirichlet(2.0, nx, ny)),
           f = Uniform(0.4, 2.0),# truncated(Normal(0.6, 0.05), 0.0, 1.0),
+          lgamp = CalPrior(distamp, gcache),
+          gphase = CalPrior(distphase, gcache)
         )
 
 
@@ -122,6 +126,7 @@ xopt = transform(tpost, sol)
 
 
 # Let's see how the fit looks
+
 plot(model(xopt, metadata), fovx=fovx, fovy=fovy, title="MAP")
 
 residual(model(xopt, metadata), dvis)
@@ -156,7 +161,7 @@ metric = DenseEuclideanMetric(res.fit_distribution.Σ)
 hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 12_000; nadapts=10_000, init_params=transform(tpost, res.draws[:,1]))
 
 # Now plot the gain table with error bars
-  ngamps = (hcat(hchain.gphase...))
+ngamps = (hcat(hchain.gphase...))
 mga = mean(gamps, dims=2)
 sga = std(gamps, dims=2)
 
