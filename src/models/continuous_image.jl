@@ -27,8 +27,8 @@ struct ContinuousImage{A <: Union{PolIntensityMap, StokesIntensityMap, Intensity
     kernel::P
 end
 
-ComradeBase.ispolarized(::Type{ContinuousImage{A}}) where {A<:Union{StokesIntensityMap, PolIntensityMap}} = IsPolarized()
-ComradeBase.ispolarized(::Type{ContinuousImage{A}}) where {A<:IntensityMap} = NotPolarized()
+ComradeBase.ispolarized(::Type{<:ContinuousImage{A}}) where {A<:Union{StokesIntensityMap, PolIntensityMap}} = IsPolarized()
+ComradeBase.ispolarized(::Type{<:ContinuousImage{A}}) where {A<:IntensityMap} = NotPolarized()
 
 Base.parent(m::ContinuousImage)         = m.img
 Base.length(m::ContinuousImage)         = length(parent(m))

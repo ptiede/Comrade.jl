@@ -24,6 +24,31 @@ export uvpositions, stations, getdata, arrayconfig,
 
 
 
+
+struct EHTObservation
+    telescope::T
+    configuration::C
+    measurements::M
+    header::H
+end
+
+
+struct EHTArrayConfiguration
+    U::TU
+    V::TU
+    T::TU
+    F::TU
+end
+
+struct EHTHeader
+    source::Symbol
+    ra::F
+    dec::F
+    mjd::Int
+end
+
+
+
 """
     $(TYPEDEF)
 
@@ -114,7 +139,7 @@ end
 
 A single datum of an `ArrayConfiguration`
 """
-struct ArrayBaselineDatum{T} <: AbstractInterferometryDatum{T}
+struct ArrayBaselineDatum{T, E} <: AbstractInterferometryDatum{T}
     """
     u position of the data point in λ
     """
@@ -138,7 +163,7 @@ struct ArrayBaselineDatum{T} <: AbstractInterferometryDatum{T}
     """
     The thermal noise on the baseline
     """
-    error::T
+    error::E
     function ArrayBaselineDatum(time, freq, u, v, baseline, error)
         tt, ft, ut, vt, errort = promote(time, freq, u, v, error)
         T = typeof(tt)

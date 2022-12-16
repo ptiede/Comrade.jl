@@ -33,7 +33,9 @@ using Reexport
 using Requires: @require
 using StaticArraysCore
 using StructArrays: StructVector, StructArray, append!!
+import StructArrays
 using Tables
+using TypedTables
 # Write your package code here.
 
 @reexport using ComradeBase

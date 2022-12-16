@@ -1,7 +1,25 @@
 export extract_amp, extract_vis, extract_lcamp, extract_cphase,
        extract_coherency,
-       scan_average
+       load_ehtim_uvfits, scan_average
 using PyCall: set!
+
+"""
+    load_ehtim_uvfits(uvfile, arrayfile=nothing; kwargs...)
+
+Load a uvfits file with eht-imaging and returns a eht-imaging `Obsdata`
+object. You can optionally pass an array file as well that will load
+additional information such at the telescopes field rotation information
+with the arrayfile. This is expected to be an eht-imaging produced array
+or antenna file.
+"""
+function load_ehtim_uvfits(uvfile, arrayfile=nothing; kwargs...)
+    obs = ehtim.obsdata.load_uvfits(uvfile; kwargs...)
+    if arrayfile !== nothing
+        tarr = ehtim.io.load.load_array_txt(arrayfile).tarr
+        obs.tarr = tarr
+    end
+    return obs
+end
 
 function getvisfield(obs)
     obsamps = obs.data::PyObject
@@ -208,6 +226,7 @@ Returns an EHTObservation with visibility amplitude data
 function extract_amp(obsc; kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
+    tarr = Table()
     obs.add_amp(;kwargs...)
     data = getampfield(obs)
     ra, dec = getradec(obs)
@@ -215,12 +234,38 @@ function extract_amp(obsc; kwargs...)
     source = getsource(obs)
     bw = obs.bw
     rf = obs.rf
-    ac = _arrayconfig(data, bw)
+    angles = get_fr_angles(obs)
+    tarr = make_array_table(obsc)
+    ac = _arrayconfig(data, angles, tarr, bw)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    config = ac,
                    bandwidth=bw,
                    source = source,
+    )
+end
+
+function get_fr_angles(ehtobs)
+    el1 = get(ehtobs.unpack(["el1"],ang_unit="rad"),"el1")
+    el2 = get(ehtobs.unpack(["el2"],ang_unit="rad"),"el2")
+
+    # read parallactic angles for each station
+    par1 = get(ehtobs.unpack(["par_ang1"],ang_unit="rad"),"par_ang1")
+    par2 = get(ehtobs.unpack(["par_ang2"],ang_unit="rad"),"par_ang2")
+    return (el1, el2), (par1, par2)
+end
+
+function make_array_table(obs)
+    return Table(
+        sites = collect(Symbol.(get(obs.tarr, "site"))),
+        X     = collect(get(obs.tarr, "x")),
+        Y     = collect(get(obs.tarr, "y")),
+        Z     = collect(get(obs.tarr, "z")),
+        SEFD1 = collect(get(obs.tarr, "sefdr")),
+        SEFD2 = collect(get(obs.tarr, "sefdl")),
+        fr_parallactic = collect(get(obs.tarr, "fr_par")),
+        fr_elevation = collect(get(obs.tarr, "fr_elev")),
+        fr_offset = collect(get(obs.tarr, "fr_off")),
     )
 end
 
@@ -243,7 +288,9 @@ function extract_vis(obsc; kwargs...)
     source = getsource(obs)
     bw = obs.bw
     rf = obs.rf
-    ac = _arrayconfig(data, bw)
+    angles = get_fr_angles(obs)
+    tarr = make_array_table(obsc)
+    ac = _arrayconfig(data, angles, tarr, bw)
     return Comrade.EHTObservation(
                    data = data, mjd = mjd,
                    config=ac,
@@ -268,7 +315,9 @@ function extract_coherency(obs)
     source = Comrade.getsource(obs)
     bw = obs.bw
     rf = obs.rf
-    ac = _arrayconfig(data, bw)
+    angles = get_fr_angles(obs)
+    tarr = make_array_table(obs)
+    ac = _arrayconfig(data, angles, tarr, bw)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    config = ac,

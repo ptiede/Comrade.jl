@@ -37,16 +37,23 @@ model visibilities.
 # Fields
 $(FIELDS)
 """
-struct EHTArrayConfiguration{F,T<:AbstractArray} <: ArrayConfiguration
+struct EHTArrayConfiguration{F,T,D<:AbstractArray} <: ArrayConfiguration
     """
     Observing bandwith (Hz)
     """
     bandwidth::F
     """
+    Telescope array file
+    """
+    tarr::T
+    """
     A struct array of `ArrayBaselineDatum` holding time, freq, u, v, baselines.
     """
-    data::T
+    data::D
 end
+
+
+
 
 """
     $(TYPEDEF)
@@ -102,7 +109,7 @@ end
 
 A single datum of an `ArrayConfiguration`
 """
-struct ArrayBaselineDatum{T}
+struct ArrayBaselineDatum{T,E,V}
     """
     u position of the data point in λ
     """
@@ -126,11 +133,21 @@ struct ArrayBaselineDatum{T}
     """
     The thermal noise on the baseline
     """
-    error::T
-    function ArrayBaselineDatum(u, v, time, freq, baseline, error)
-        tt, ft, ut, vt, errort = promote(time, freq, u, v, error)
+    error::E
+    """
+    elevation of baselines
+    """
+    elevation::Tuple{V,V}
+    """
+    parallactic angle of baslines
+    """
+    parallactic::Tuple{V,V}
+    function ArrayBaselineDatum(u, v, time, freq, baseline, error, elevation, parallactic)
+        tt, ft, ut, vt = promote(time, freq, u, v)
         T = typeof(tt)
-        return new{T}(ut, vt, tt, ft, baseline, errort)
+        V = typeof(elevation[1])
+        E = typeof(error)
+        return new{T,E,V}(ut, vt, tt, ft, baseline, error, elevation, parallactic)
     end
 end
 
@@ -638,7 +655,7 @@ function arrayconfig(vis::EHTObservation)
 end
 
 
-function _arrayconfig(data, bandwidth)
+function _arrayconfig(data, angles, tarr, bandwidth)
     u = getproperty(data, :U)
     v = getproperty(data, :V)
     times = getproperty(data, :T)
@@ -650,9 +667,11 @@ function _arrayconfig(data, bandwidth)
                                         V=v,
                                         F = frequency,
                                         baseline=baseline,
-                                        error=error
+                                        error=error,
+                                        elevation = StructArray(angles[1]),
+                                        parallactic  = StructArray(angles[2])
                                     )
-    return EHTArrayConfiguration(bandwidth, uvsamples)
+    return EHTArrayConfiguration(bandwidth, tarr, uvsamples)
 end
 
 const VisAmpDatum = Union{EHTVisibilityAmplitudeDatum, EHTVisibilityDatum}

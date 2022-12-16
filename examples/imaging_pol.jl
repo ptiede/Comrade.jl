@@ -15,14 +15,15 @@ using DistributionsAD
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "polarized_synthetic_data.uvfits"))
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedData/hops_hi_3601_M87+ALMArot.uvfits"), joinpath(@__DIR__, "PolarizedData/array.txt"))
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obsavg = scan_average(obs)
+obsavg = scan_average(obs).flag_sites(["JC"]).flag_uvdist(uv_min=0.1e9)
 obs_split = obsavg.split_obs()
 # extract log closure amplitudes and closure phases
 dvis = extract_coherency(obsavg)
+
 
 # Build the Model. Here we we a struct to hold some caches
 # This will be useful to hold precomputed caches
@@ -58,7 +59,7 @@ dvis = extract_coherency(obsavg)
 
 using StructArrays
 function model(θ, metadata)
-    (;c, f, p, angparams, lgR, lgL, dRa, dRp, dLa, dLp) = θ
+    (;c, f, p, angparams, lgR, lgL, gpR, gpL, dRa, dRp, dLa, dLp) = θ
     (; fovx, fovy, cache, gcache, tcache) = metadata
     # Construct the image model
     # produce Stokes images from parameters
@@ -76,8 +77,8 @@ function model(θ, metadata)
     m = modelimage(cimg, cache)
     jT = jonesT(tcache)
     # calibration parameters
-    gR = exp.(lgR .+ 0.0im)
-    gL = exp.(lgL .+ 0.0im)
+    gR = exp.(lgR).*cis.(gpR)
+    gL = exp.(lgL).*cis.(gpL)
     G = jonesG(gR, gL, gcache)
     D = jonesD(dRa.*cis.(dRp), dLa.*cis.(dLp), dcache)
     J = G*D*jT
@@ -91,26 +92,34 @@ distamp = (AA = Normal(0.0, 0.1),
            AP = Normal(0.0, 0.1),
            LM = Normal(0.0, 0.3),
            AZ = Normal(0.0, 0.1),
-           JC = Normal(0.0, 0.1),
+           #JC = Normal(0.0, 0.1),
            PV = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1),
            )
 
-distamp2 = (AA = Normal(0.0, 1.0),
-           AP = Normal(0.0,  1.0),
-           LM = Normal(0.0,  1.0),
-           AZ = Normal(0.0,  1.0),
-           JC = Normal(0.0,  1.0),
-           PV = Normal(0.0,  1.0),
-           SM = Normal(0.0,  1.0),
+distamp2 = (AA = Normal(0.0, 0.1),
+           AP = Normal(0.0,  0.1),
+           LM = Normal(0.0,  0.1),
+           AZ = Normal(0.0,  0.1),
+           #JC = Normal(0.0,  1.0),
+           PV = Normal(0.0,  0.1),
+           SM = Normal(0.0,  0.1),
            )
 
-
-distphase = (AA = DiagonalVonMises([0.0], [inv(π^2)]),
+distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
              AP = DiagonalVonMises([0.0], [inv(π^2)]),
              LM = DiagonalVonMises([0.0], [inv(π^2)]),
              AZ = DiagonalVonMises([0.0], [inv(π^2)]),
-             JC = DiagonalVonMises([0.0], [inv(π^2)]),
+             #JC = DiagonalVonMises([0.0], [inv(π^2)]),
+             PV = DiagonalVonMises([0.0], [inv(π^2)]),
+             SM = DiagonalVonMises([0.0], [inv(π^2)]),
+           )
+
+distphase2 = (AA = DiagonalVonMises([0.0], [inv(π^2)]),
+             AP = DiagonalVonMises([0.0], [inv(π^2)]),
+             LM = DiagonalVonMises([0.0], [inv(π^2)]),
+             AZ = DiagonalVonMises([0.0], [inv(π^2)]),
+             #JC = DiagonalVonMises([0.0], [inv(π^2)]),
              PV = DiagonalVonMises([0.0], [inv(π^2)]),
              SM = DiagonalVonMises([0.0], [inv(π^2)]),
            )
@@ -130,18 +139,20 @@ dcache = JonesCache(dvis, TrackSeg())
 metadata = (;cache, fovx, fovy, tcache, gcache, dcache)
 
 
-
+X, Y = imagepixels(buffer)
 prior = (
-          c = ImageDirichlet(2.0, nx, ny),
+          c = CenteredImage(X, Y, μas2rad(5.0), ImageDirichlet(2.0, nx, ny)),
           f = Uniform(0.1, 2.0),
           p = ImageUniform(nx, ny),
           angparams = ImageSphericalUniform(nx, ny),
           lgR = CalPrior(distamp, gcache),
           lgL = CalPrior(distamp, gcache),
+          gpR = CalPrior(distphase, gcache),
+          gpL = CalPrior(distphase, gcache),
           dRa = CalPrior(distamp2, dcache),
-          dRp = CalPrior(distphase, dcache),
+          dRp = CalPrior(distphase2, dcache),
           dLa = CalPrior(distamp2, dcache),
-          dLp = CalPrior(distphase, dcache),
+          dLp = CalPrior(distphase2, dcache),
           )
 
 
@@ -160,7 +171,7 @@ ndim = dimension(tpost)
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = OptimizationProblem(f, randn(ndim)*0.2, nothing)
-sol = solve(prob, LBFGS(); maxiters=3000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
+sol = solve(prob, LBFGS(); maxiters=10_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 xopt = transform(tpost, sol)
 
 
