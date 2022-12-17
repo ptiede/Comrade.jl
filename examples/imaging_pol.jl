@@ -15,12 +15,12 @@ using DistributionsAD
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedData/hops_hi_3601_M87+ALMArot.uvfits"), joinpath(@__DIR__, "PolarizedData/array.txt"))
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedData/convention_test1/convention_test1.uvfits"), joinpath(@__DIR__, "PolarizedData/convention_test1/template_array.txt"))
+# obs = load_ehtim_uvfits(joinpath(@__DIR__, "polarized_synthetic_data.uvfits"))
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
 obsavg = scan_average(obs).flag_sites(["JC"]).flag_uvdist(uv_min=0.1e9)
-obs_split = obsavg.split_obs()
 # extract log closure amplitudes and closure phases
 dvis = extract_coherency(obsavg)
 
@@ -59,7 +59,7 @@ dvis = extract_coherency(obsavg)
 
 using StructArrays
 function model(θ, metadata)
-    (;c, f, p, angparams, lgR, lgL, gpR, gpL, dRa, dRp, dLa, dLp) = θ
+    (;c, f, p, angparams, dRx, dRy, dLx, dLy) = θ
     (; fovx, fovy, cache, gcache, tcache) = metadata
     # Construct the image model
     # produce Stokes images from parameters
@@ -77,11 +77,11 @@ function model(θ, metadata)
     m = modelimage(cimg, cache)
     jT = jonesT(tcache)
     # calibration parameters
-    gR = exp.(lgR).*cis.(gpR)
-    gL = exp.(lgL).*cis.(gpL)
-    G = jonesG(gR, gL, gcache)
-    D = jonesD(dRa.*cis.(dRp), dLa.*cis.(dLp), dcache)
-    J = G*D*jT
+    # gR = exp.(lgR).*cis.(gpR)
+    # gL = exp.(lgL).*cis.(gpL)
+    # G = jonesG(gR, gL, gcache)
+    D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), dcache)
+    J = D*jT
     return JonesModel(J, m, CirBasis())
 end
 
@@ -97,14 +97,24 @@ distamp = (AA = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1),
            )
 
-distamp2 = (AA = Normal(0.0, 0.1),
-           AP = Normal(0.0,  0.1),
-           LM = Normal(0.0,  0.1),
-           AZ = Normal(0.0,  0.1),
-           #JC = Normal(0.0,  1.0),
-           PV = Normal(0.0,  0.1),
-           SM = Normal(0.0,  0.1),
+# distamp2 = (AA = Normal(-2.0, 1.0),
+#            AP = Normal(-2.0,  1.0),
+#            LM = Normal(-2.0,  1.0),
+#            AZ = Normal(-2.0,  1.0),
+#            #JC = Normal(-1.0,  1.0),
+#            PV = Normal(-2.0,  1.0),
+#            SM = Normal(-2.0,  1.0),
+#            )
+distamp2 = (AA = Uniform(0.0, 1.0),
+           AP = Uniform(0.0,  1.0),
+           LM = Uniform(0.0,  1.0),
+           AZ = Uniform(0.0,  1.0),
+           #JC = Uniform(0.0,  1.0),
+           PV = Uniform(0.0,  1.0),
+           SM = Uniform(0.0,  1.0),
            )
+
+
 
 distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
              AP = DiagonalVonMises([0.0], [inv(π^2)]),
@@ -115,25 +125,25 @@ distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
              SM = DiagonalVonMises([0.0], [inv(π^2)]),
            )
 
-distphase2 = (AA = DiagonalVonMises([0.0], [inv(π^2)]),
-             AP = DiagonalVonMises([0.0], [inv(π^2)]),
-             LM = DiagonalVonMises([0.0], [inv(π^2)]),
-             AZ = DiagonalVonMises([0.0], [inv(π^2)]),
-             #JC = DiagonalVonMises([0.0], [inv(π^2)]),
-             PV = DiagonalVonMises([0.0], [inv(π^2)]),
-             SM = DiagonalVonMises([0.0], [inv(π^2)]),
+distD = (   AA = Uniform(-1.0, 1.0),
+             AP = Uniform(-1.0, 1.0),
+             LM = Uniform(-1.0, 1.0),
+             AZ = Uniform(-1.0, 1.0),
+             #JC = Uniform(-1.0, 1.0),
+             PV = Uniform(-1.0, 1.0),
+             SM = Uniform(-1.0, 1.0),
            )
 
 
 # Set up the cache structure
-fovx = μas2rad(65.0)
-fovy = μas2rad(65.0)
+fovx = μas2rad(70.0)
+fovy = μas2rad(70.0)
 nx = 10
 ny = floor(Int, fovy/fovx*nx)
 
 buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
 cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
-tcache = TransformCache(dvis)
+tcache = TransformCache(dvis; ehtim_fr_convention=true)
 gcache = JonesCache(dvis, ScanSeg())
 dcache = JonesCache(dvis, TrackSeg())
 metadata = (;cache, fovx, fovy, tcache, gcache, dcache)
@@ -141,18 +151,18 @@ metadata = (;cache, fovx, fovy, tcache, gcache, dcache)
 
 X, Y = imagepixels(buffer)
 prior = (
-          c = CenteredImage(X, Y, μas2rad(5.0), ImageDirichlet(2.0, nx, ny)),
-          f = Uniform(0.1, 2.0),
+          c = ImageDirichlet(2.0, nx, ny),
+          f = Uniform(0.45, 0.7),
           p = ImageUniform(nx, ny),
           angparams = ImageSphericalUniform(nx, ny),
-          lgR = CalPrior(distamp, gcache),
-          lgL = CalPrior(distamp, gcache),
-          gpR = CalPrior(distphase, gcache),
-          gpL = CalPrior(distphase, gcache),
-          dRa = CalPrior(distamp2, dcache),
-          dRp = CalPrior(distphase2, dcache),
-          dLa = CalPrior(distamp2, dcache),
-          dLp = CalPrior(distphase2, dcache),
+          #lgR = CalPrior(distamp, gcache),
+          #lgL = CalPrior(distamp, gcache),
+          #gpR = CalPrior(distphase, gcache),
+          #gpL = CalPrior(distphase, gcache),
+          dRx = CalPrior(distD, dcache),
+          dRy = CalPrior(distD, dcache),
+          dLx = CalPrior(distD, dcache),
+          dLy = CalPrior(distD, dcache),
           )
 
 
@@ -170,8 +180,8 @@ ndim = dimension(tpost)
 
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, randn(ndim)*0.2, nothing)
-sol = solve(prob, LBFGS(); maxiters=10_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
+prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
+sol = solve(prob, LBFGS(); maxiters=3_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 xopt = transform(tpost, sol)
 
 
@@ -184,7 +194,7 @@ timg, hdr = Comrade.load(joinpath(@__DIR__, "polarized_synthetic_data.fits"), St
 plot(timg, xlims=(-32.5, 32.5), ylims=(-32.5, 32.5))
 
 Comrade.residuals(model(xopt, metadata), dvis)
-#residual(mms(xopt), dcphase)
+plot(model(xopt, metadata), dvis)
 
 # Let's also plot the gain curves
 gt = Comrade.caltable(gcache, xopt.lgL)
