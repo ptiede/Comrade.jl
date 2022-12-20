@@ -59,11 +59,10 @@ function JonesCache(obs::EHTObservation, s::TrackSeg)
     rowInd2 = Int[]
     colInd2 = Int[]
 
-    for i in 1:length(times)
-
+    for i in eachindex(bls)
         s1, s2 = bls[i]
-        ind1 = findfirst(x -> x==s1, stats)
-        ind2 = findfirst(x -> x==s2, stats)
+        ind1 = findfirst(==(s1), stats)
+        ind2 = findfirst(==(s2), stats)
 
         append!(colInd1,ind1)
         append!(colInd2,ind2)
@@ -128,42 +127,42 @@ function Base.:*(x::JonesPairs, y::JonesPairs...)
 end
 
 function _allmul(m1, m2)
-    # out1 = zero(first(m1))
-    # out2 = zero(first(m2))
-    # _allmul!(out1, out2, m1, m2)
-    out1 = reduce(.*, m1)
-    out2 = reduce(.*, m2)
+    out1 = zero(first(m1))
+    out2 = zero(first(m2))
+    _allmul!(out1, out2, m1, m2)
+    # out1 = reduce(.*, m1)
+    # out2 = reduce(.*, m2)
     return JonesPairs(out1, out2)
 end
 
-# function _allmul!(out1, out2, m1, m2)
-#     for i in eachindex(out1, out2)
-#         out1[i] = mapreduce(x->getindex(x, i), Base.:*, m1)
-#         out2[i] = mapreduce(x->getindex(x, i), Base.:*, m2)
-#     end
-#     return nothing
-# end
+function _allmul!(out1, out2, m1, m2)
+    for i in eachindex(out1, out2)
+        out1[i] = mapreduce(x->getindex(x, i), Base.:*, m1)
+        out2[i] = mapreduce(x->getindex(x, i), Base.:*, m2)
+    end
+    return nothing
+end
 
-# using Enzyme
-# function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
-#     out = _allmul(m1, m2)
-#     pm1 = ProjectTo(m1)
-#     pm2 = ProjectTo(m2)
-#     function _allmul_pullback(Δ)
-#         Δm1 = zero(out.m1)
-#         Δm1 .= unthunk(Δ.m1)
-#         Δm2 = zero(out.m1)
-#         Δm2 .= unthunk(Δ.m2)
-#         dm1 = zero.(m1)
-#         dm2 = zero.(m2)
+using Enzyme
+function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
+    out = _allmul(m1, m2)
+    pm1 = ProjectTo(m1)
+    pm2 = ProjectTo(m2)
+    function _allmul_pullback(Δ)
+        Δm1 = zero(out.m1)
+        Δm1 .= unthunk(Δ.m1)
+        Δm2 = zero(out.m1)
+        Δm2 .= unthunk(Δ.m2)
+        dm1 = zero.(m1)
+        dm2 = zero.(m2)
 
-#         out1 = zero(first(m1))
-#         out2 = zero(first(m2))
-#         autodiff(_allmul!, Const, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
-#         return NoTangent(), pm1(dm1), pm2(dm2)
-#     end
-#     return out, _allmul_pullback
-# end
+        out1 = zero(first(m1))
+        out2 = zero(first(m2))
+        autodiff(_allmul!, Const, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
+        return NoTangent(), pm1(dm1), pm2(dm2)
+    end
+    return out, _allmul_pullback
+end
 
 
 # function JonesPairs(m1::AbstractVector{T}, m2::AbstractVector{T}) where {T}
@@ -252,7 +251,7 @@ function JonesCache(obs::EHTObservation, s::IntegSeg)
     m1 = sparse(rowInd1, colInd1, z, length(times), length(tbl))
     m2 = sparse(rowInd2, colInd2, z, length(times), length(tbl))
 
-    return JonesCache{typeof(m1),typeof(s), typeof(bls), typeof(times)}(m1,m2,s, bls, times)
+    return JonesCache{typeof(m1),typeof(s), typeof(bls), typeof(times)}(m1,m2, s, bls, times)
 end
 
 
@@ -284,7 +283,6 @@ function dmat(d1, d2, m)
     unit = fill(one(S), n)
     return StructArray{SMatrix{2,2,S,4}}((unit, ds2, ds1, unit))
 end
-
 function jonesD(d1::T,d2::T,jcache::JonesCache) where {T}
     dm1 = dmat(d1, d2, jcache.m1)
     dm2 = dmat(d1, d2, jcache.m2)
@@ -445,17 +443,19 @@ function extract_FRs(obs::EHTObservation; ehtim_fr_convention=true)
     f_el2  = zero(el2)
     f_par2 = zero(par2)
     f_off2 = zero(el2)
-    for i in 1:length(ant1)
-        ind1 = findall(ant -> ant==ant1[i],ants)[1]
-        ind2 = findall(ant -> ant==ant2[i],ants)[1]
+    for i in eachindex(ant1)
+        ind1 = findall(==(ant1[i]), ants) |> first
+        ind2 = findall(==(ant2[i]), ants) |> first
+
         f_el1[i]  = elevs[ind1]
         f_el2[i]  = elevs[ind2]
+
         f_par1[i] = pars[ind1]
         f_par2[i] = pars[ind2]
+
         f_off1[i] = offs[ind1]
         f_off2[i] = offs[ind2]
     end
-
     # combine to get field rotations for each station
     FR1 = (f_el1 .* el1) .+ (f_par1 .* par1) .+ f_off1
     FR2 = (f_el2 .* el2) .+ (f_par2 .* par2) .+ f_off2

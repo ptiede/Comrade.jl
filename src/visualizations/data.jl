@@ -36,6 +36,8 @@ export residuals, chi2
         yerr := error
         uvdist, vim
     end
+
+
     seriestype-->:scatter
     vmod = visibilities(m, u, v)
     labels --> "Model"
@@ -53,10 +55,9 @@ end
 
     #add data errorbars
     @series begin
-        subplot := 1
         v = getindex.(vis, 1, 1)
         err = getindex.(error, 1, 1)
-        yguide := "C₁₁ (Jy)"
+        subplot := 1
 
         @series begin
             seriestype := :scatter
@@ -81,19 +82,20 @@ end
             uvdist, imag.(v)
         end
 
+        yguide := "C₁₁ (Jy)"
         seriestype := :scatter
-        # legend := true
+        legend := false
         yguide := "C₁₁ (Jy)"
         label := ["Model Re" "Model Imag"]
         markercolor := [:red :orange]
         vm = getindex.(vmod, 1, 1)
-        uvdist, hcat(real.(vm), imag.(vm))
+        [uvdist uvdist], hcat(real.(vm), imag.(vm))
     end
 
     @series begin
         subplot := 2
-        v = getindex.(vis, 2, 1)
-        err = getindex.(error, 2, 1)
+        v = getindex.(vis, 1, 2)
+        err = getindex.(error, 1, 2)
         @series begin
             seriestype := :scatter
             markershape := datamarker
@@ -116,6 +118,7 @@ end
             yerr := err
             uvdist, imag.(v)
         end
+
         seriestype := :scatter
         legend := false
         yguide := "C₁₂ (Jy)"
@@ -200,6 +203,166 @@ end
     layout --> (2,2)
 
 end
+
+@recipe function f(dvis::EHTObservation{T,A};) where {T,A<:EHTVisibilityDatum}
+    xguide --> "uv-distance (λ)"
+    yguide --> "V (Jy)"
+    markershape --> :circle
+
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
+    uvdist = hypot.(u,v)
+    vis = visibility.(dvis.data)
+    error = getdata(dvis, :error)
+    vre = real.(vis)
+    vim = imag.(vis)
+    #add data errorbars
+    @series begin
+        seriestype := :scatter
+        alpha := 0.5
+        yerr := error
+        linecolor := nothing
+        label := "Real"
+        uvdist, vre
+    end
+
+    @series begin
+        seriestype := :scatter
+        markeralpha := 0.1
+        markerstrokecolor := :black
+        markerstrokealpha := 1.0
+        linecolor :=nothing
+        label := nothing
+        yerr := error
+        label := "Imag"
+        uvdist, vim
+    end
+end
+
+@recipe function f(dvis::EHTObservation{T,A};) where {T,A<:EHTCoherencyDatum}
+    markershape --> :circle
+
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
+    uvdist = hypot.(u,v)
+    coh = dvis[:measurement]
+    error = dvis[:error]
+    layout := (2,2)
+
+    #add data errorbars
+    @series begin
+        xguide --> "uv-distance (λ)"
+        subplot := 1
+        yguide := "RR (Jy)"
+        vre = real.(getindex.(coh, 1, 1))
+        vim = imag.(getindex.(coh, 1, 1))
+        err = getindex.(error, 1, 1)
+        @series begin
+            seriestype := :scatter
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Real"
+            uvdist, vre
+        end
+
+            seriestype := :scatter
+            markeralpha := 0.5
+            markerstrokecolor := :black
+            markerstrokealpha := 1.0
+            linecolor :=nothing
+            label := nothing
+            yerr := err
+            label := "Imag"
+            uvdist, vim
+    end
+
+    @series begin
+        xguide --> "uv-distance (λ)"
+        subplot := 2
+        yguide := "RL (Jy)"
+        vre = real.(getindex.(coh, 1, 2))
+        vim = imag.(getindex.(coh, 1, 2))
+        err = getindex.(error, 1, 2)
+        @series begin
+            seriestype := :scatter
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Real"
+            uvdist, vre
+        end
+
+            seriestype := :scatter
+            markeralpha := 0.5
+            markerstrokecolor := :black
+            markerstrokealpha := 1.0
+            linecolor :=nothing
+            legend := nothing
+            label := nothing
+            yerr := err
+            label := "Imag"
+            uvdist, vim
+    end
+
+    @series begin
+        xguide --> "uv-distance (λ)"
+        subplot := 3
+        yguide := "LR (Jy)"
+        vre = real.(getindex.(coh, 2, 1))
+        vim = imag.(getindex.(coh, 2, 1))
+        err = getindex.(error, 1, 1)
+        @series begin
+            seriestype := :scatter
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Real"
+            uvdist, vre
+        end
+
+            seriestype := :scatter
+            markeralpha := 0.5
+            markerstrokecolor := :black
+            markerstrokealpha := 1.0
+            linecolor :=nothing
+            label := nothing
+            legend := nothing
+            yerr := err
+            label := "Imag"
+            uvdist, vim
+    end
+    @series begin
+        xguide --> "uv-distance (λ)"
+        subplot := 4
+        yguide := "LL (Jy)"
+        vre = real.(getindex.(coh, 2, 2))
+        vim = imag.(getindex.(coh, 2, 2))
+        err = getindex.(error, 1, 1)
+        @series begin
+            seriestype := :scatter
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Real"
+            uvdist, vre
+        end
+
+            seriestype := :scatter
+            markeralpha := 0.5
+            markerstrokecolor := :black
+            markerstrokealpha := 1.0
+            linecolor :=nothing
+            label := nothing
+            legend := nothing
+            yerr := err
+            label := "Imag"
+            uvdist, vim
+    end
+
+end
+
+
 
 
 @recipe function f(dvis::EHTObservation{T,A};) where {T,A<:EHTVisibilityDatum}
@@ -427,9 +590,10 @@ end
 
 @userplot Residual
 
-
+export ndata
 ndata(d::EHTObservation) = length(d)
 ndata(d::EHTObservation{T, D}) where {T, D<:EHTVisibilityDatum} = 2*length(d)
+ndata(d::EHTObservation{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d)
 
 @recipe function f(h::Residual)
     if length(h.args) != 2 || !(typeof(h.args[1]) <: AbstractModel) ||
@@ -452,8 +616,16 @@ end
 
 
 function chi2(m, data::EHTObservation)
-    return sum(abs2, last(residuals(m, data)))
+    return sum(abs2, residuals(m, data))
 end
+
+function chi2(m, data::EHTObservation{T, A}) where {T, A<:EHTCoherencyDatum}
+    res = residuals(m, data)
+    return mapreduce(+, 1:4) do i
+        sum(abs2, getindex.(res, i))
+    end
+end
+
 
 function chi2(m, data::EHTObservation...)
     return mapreduce(d->chi2(m, d), +, data)

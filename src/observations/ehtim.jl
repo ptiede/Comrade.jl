@@ -226,7 +226,6 @@ Returns an EHTObservation with visibility amplitude data
 function extract_amp(obsc; kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
-    tarr = Table()
     obs.add_amp(;kwargs...)
     data = getampfield(obs)
     ra, dec = getradec(obs)
@@ -265,7 +264,7 @@ function make_array_table(obs)
         SEFD2 = collect(get(obs.tarr, "sefdl")),
         fr_parallactic = collect(get(obs.tarr, "fr_par")),
         fr_elevation = collect(get(obs.tarr, "fr_elev")),
-        fr_offset = collect(get(obs.tarr, "fr_off")),
+        fr_offset = deg2rad.(collect(get(obs.tarr, "fr_off"))),
     )
 end
 

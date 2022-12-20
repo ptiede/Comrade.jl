@@ -41,7 +41,6 @@ end
 function update_cache(cache::NUFTCache, img::Union{StokesIntensityMap, PolIntensityMap, IntensityMap}, pulse::Pulse=DeltaPulse())
     pimg = padimage(cache.alg, img)
     cache2 = update_phases(cache, img, pulse)
-    dx, dy = pixelsizes(img)
     create_cache(cache2.alg, cache2.plan, cache2.phases, pimg, pulse)
 end
 

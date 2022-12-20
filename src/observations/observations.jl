@@ -247,7 +247,7 @@ function stations(d::EHTObservation{T,A}) where {T,A<:AbstractInterferometryDatu
     bl = getdata(d, :baseline)
     s1 = first.(bl)
     s2 = last.(bl)
-    return unique(vcat(s1, s2))
+    return sort(unique(vcat(s1, s2)))
 end
 
 
@@ -510,7 +510,7 @@ end
 
 function stations(d::EHTObservation{T,A}) where {T,A<:EHTClosurePhaseDatum}
     bl = getdata(d, :triangle)
-    return unique(vcat(collect.(bl)...))
+    return sort(unique(vcat(collect.(bl)...)))
 end
 
 
@@ -639,7 +639,7 @@ end
 
 function stations(d::EHTObservation{T,A}) where {T,A<:EHTLogClosureAmplitudeDatum}
     bl = getdata(d, :quadrangle)
-    return unique(vcat(collect.(bl)...))
+    return sort(unique(vcat(collect.(bl)...)))
 end
 
 uvpositions(datum::EHTLogClosureAmplitudeDatum) = (datum.u1, datum.v1, datum.u2, datum.v2, datum.u3, datum.v3, datum.u4, datum.v4)
@@ -775,7 +775,7 @@ end
 function stations(s::Scan)
     ants = baselines(s)
     stat = unique(vcat(ants...))
-    return stat
+    return sort(stat)
 end
 
 function Base.show(io::IO, s::Scan)

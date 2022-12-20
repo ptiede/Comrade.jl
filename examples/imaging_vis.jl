@@ -16,12 +16,13 @@ load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "polarized_synthetic_data.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "DomTest/polarized_gaussian.uvfits"),
+                                joinpath(@__DIR__, "DomTest/array.txt"))
 
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obsavg = scan_average(obs).add_fractional_noise(0.01)
+obsavg = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
 obs_split = obsavg.split_obs()
 # extract log closure amplitudes and closure phases
 dvis = extract_vis(obsavg)
@@ -34,7 +35,7 @@ function model(θ, metadata)
     (; fovx, fovy, cache, gcache) = metadata
     # Construct the image model
     img = IntensityMap(f*c, fovx, fovy)
-    cimg = ContinuousImage(img, BicubicPulse())
+    cimg = ContinuousImage(img, BicubicPulse(0.0))
     m = modelimage(cimg, cache)
     #gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
@@ -85,13 +86,13 @@ distphase = (AA = DiagonalVonMises([0.0], [inv(1e-3)]),
 
 
 
-fovx = μas2rad(65.0)
-fovy = μas2rad(65.0)
-nx = 10
+fovx = μas2rad(80.0)
+fovy = μas2rad(60.0)
+nx = 20
 ny = floor(Int, fovy/fovx*nx)
 
 buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
-cache = create_cache(DFTAlg(dvis), buffer, BicubicPulse())
+cache = create_cache(DFTAlg(dvis), buffer, BicubicPulse(0.0))
 gcache = JonesCache(dvis, ScanSeg())
 metadata = (;cache, fovx, fovy, gcache)
 

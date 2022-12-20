@@ -15,12 +15,16 @@ using DistributionsAD
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedData/convention_test1/convention_test1.uvfits"), joinpath(@__DIR__, "PolarizedData/convention_test1/template_array.txt"))
+# obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedData/convention_test1/convention_test1.uvfits"), joinpath(@__DIR__, "PolarizedData/convention_test1/template_array.txt"))
 # obs = load_ehtim_uvfits(joinpath(@__DIR__, "polarized_synthetic_data.uvfits"))
+# obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedData/hops_lo_3601_M87+ALMArot.uvfits"), joinpath(@__DIR__, "PolarizedData/array.txt"))
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "DomTest/polarized_gaussian_all_corruptions.uvfits"),
+                                joinpath(@__DIR__, "DomTest/array.txt"))
+
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obsavg = scan_average(obs).flag_sites(["JC"]).flag_uvdist(uv_min=0.1e9)
+obsavg = scan_average(obs)
 # extract log closure amplitudes and closure phases
 dvis = extract_coherency(obsavg)
 
@@ -59,8 +63,10 @@ dvis = extract_coherency(obsavg)
 
 using StructArrays
 function model(θ, metadata)
-    (;c, f, p, angparams, dRx, dRy, dLx, dLy) = θ
-    (; fovx, fovy, cache, gcache, tcache) = metadata
+    # (;c, f, p, angparams) = θ
+    # (;c, f, p, angparams, dRx, dRy, dLx, dLy) = θ
+    (;c, f, p, angparams, dRx, dRy, dLx, dLy, lgR, lgL, gpR, gpL) = θ
+    (; fovx, fovy, cache, tcache, gcache, dcache) = metadata
     # Construct the image model
     # produce Stokes images from parameters
     csa = angparams
@@ -77,11 +83,11 @@ function model(θ, metadata)
     m = modelimage(cimg, cache)
     jT = jonesT(tcache)
     # calibration parameters
-    # gR = exp.(lgR).*cis.(gpR)
-    # gL = exp.(lgL).*cis.(gpL)
-    # G = jonesG(gR, gL, gcache)
+    gR = exp.(lgR).*cis.(gpR)
+    gL = exp.(lgL).*cis.(gpL)
+    G = jonesG(gR, gL, gcache)
     D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), dcache)
-    J = D*jT
+    J = G*D*jT
     return JonesModel(J, m, CirBasis())
 end
 
@@ -92,7 +98,7 @@ distamp = (AA = Normal(0.0, 0.1),
            AP = Normal(0.0, 0.1),
            LM = Normal(0.0, 0.3),
            AZ = Normal(0.0, 0.1),
-           #JC = Normal(0.0, 0.1),
+           JC = Normal(0.0, 0.1),
            PV = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1),
            )
@@ -105,14 +111,6 @@ distamp = (AA = Normal(0.0, 0.1),
 #            PV = Normal(-2.0,  1.0),
 #            SM = Normal(-2.0,  1.0),
 #            )
-distamp2 = (AA = Uniform(0.0, 1.0),
-           AP = Uniform(0.0,  1.0),
-           LM = Uniform(0.0,  1.0),
-           AZ = Uniform(0.0,  1.0),
-           #JC = Uniform(0.0,  1.0),
-           PV = Uniform(0.0,  1.0),
-           SM = Uniform(0.0,  1.0),
-           )
 
 
 
@@ -120,30 +118,30 @@ distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
              AP = DiagonalVonMises([0.0], [inv(π^2)]),
              LM = DiagonalVonMises([0.0], [inv(π^2)]),
              AZ = DiagonalVonMises([0.0], [inv(π^2)]),
-             #JC = DiagonalVonMises([0.0], [inv(π^2)]),
+             JC = DiagonalVonMises([0.0], [inv(π^2)]),
              PV = DiagonalVonMises([0.0], [inv(π^2)]),
              SM = DiagonalVonMises([0.0], [inv(π^2)]),
            )
 
-distD = (   AA = Uniform(-1.0, 1.0),
-             AP = Uniform(-1.0, 1.0),
-             LM = Uniform(-1.0, 1.0),
-             AZ = Uniform(-1.0, 1.0),
-             #JC = Uniform(-1.0, 1.0),
-             PV = Uniform(-1.0, 1.0),
-             SM = Uniform(-1.0, 1.0),
+distD = (   AA = Normal(0.0, 0.1),
+             AP = Normal(0.0, 0.1),
+             LM = Normal(0.0, 0.1),
+             AZ = Normal(0.0, 0.1),
+             JC = Normal(0.0, 0.1),
+             PV = Normal(0.0, 0.1),
+             SM = Normal(0.0, 0.1),
            )
 
 
 # Set up the cache structure
-fovx = μas2rad(70.0)
-fovy = μas2rad(70.0)
-nx = 10
+fovx = μas2rad(50.0)
+fovy = μas2rad(50.0)
+nx = 5
 ny = floor(Int, fovy/fovx*nx)
 
 buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
 cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
-tcache = TransformCache(dvis; ehtim_fr_convention=true)
+tcache = TransformCache(dvis; add_fr=true, ehtim_fr_convention=false)
 gcache = JonesCache(dvis, ScanSeg())
 dcache = JonesCache(dvis, TrackSeg())
 metadata = (;cache, fovx, fovy, tcache, gcache, dcache)
@@ -151,14 +149,14 @@ metadata = (;cache, fovx, fovy, tcache, gcache, dcache)
 
 X, Y = imagepixels(buffer)
 prior = (
-          c = ImageDirichlet(2.0, nx, ny),
-          f = Uniform(0.45, 0.7),
+          c = CenteredImage(X, Y, μas2rad(1.0), ImageDirichlet(1.0, nx, ny)),
+          f = Uniform(0.7, 1.3),
           p = ImageUniform(nx, ny),
           angparams = ImageSphericalUniform(nx, ny),
-          #lgR = CalPrior(distamp, gcache),
-          #lgL = CalPrior(distamp, gcache),
-          #gpR = CalPrior(distphase, gcache),
-          #gpL = CalPrior(distphase, gcache),
+          lgR = CalPrior(distamp, gcache),
+          lgL = CalPrior(distamp, gcache),
+          gpR = CalPrior(distphase, gcache),
+          gpL = CalPrior(distphase, gcache),
           dRx = CalPrior(distD, dcache),
           dRy = CalPrior(distD, dcache),
           dLx = CalPrior(distD, dcache),
@@ -174,34 +172,45 @@ post = Posterior(lklhd, prior)
 tpost = asflat(post)
 ndim = dimension(tpost)
 
+
 ℓ = logdensityof(tpost)
 
 # We will use HMC to sample the posterior.
 
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
-sol = solve(prob, LBFGS(); maxiters=3_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
+prob = OptimizationProblem(f, sol.u, nothing)
+sol = solve(prob, LBFGS(); maxiters=10_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 xopt = transform(tpost, sol)
 
 
-
-
-
-# Let's see how the fit looks
 plot(model(xopt, metadata), fovx=fovx, fovy=fovy)
-timg, hdr = Comrade.load(joinpath(@__DIR__, "polarized_synthetic_data.fits"), StokesIntensityMap)
-plot(timg, xlims=(-32.5, 32.5), ylims=(-32.5, 32.5))
+# Let's see how the fit looks
+
+img = intensitymap(model(xopt, metadata), fovx, fovy, 128, 128)
+plot(img)
+Comrade.save(joinpath(@__DIR__, "DomTest/comrade_fit_3601_lo_allcorr.fits"), img)
 
 Comrade.residuals(model(xopt, metadata), dvis)
 plot(model(xopt, metadata), dvis)
 
-# Let's also plot the gain curves
-gt = Comrade.caltable(gcache, xopt.lgL)
-plot(gt, layout=(3,3), size=(600,500))
+# Let's also plot the calibration tables for gains
+gL = Comrade.caltable(gcache, exp.(xopt.lgL))
+plot(gL, layout=(3,3), size=(600,500))
 
-gt = Comrade.caltable(gcache, exp.(xopt.lgamp))
-plot(gt, layout=(3,3), size=(600,500))
+gR = Comrade.caltable(gcache, exp.(xopt.lgR))
+plot!(gR, layout=(3,3), size=(600,500))
+
+# Let's also plot the calibration tables for gains
+gpL = Comrade.caltable(gcache, (xopt.gpL))
+plot(gpL, layout=(3,3), size=(600,500))
+
+gpR = Comrade.caltable(gcache, (xopt.gpR))
+plot!(gpR, layout=(3,3), size=(600,500))
+
+# And the calibration tables for d-terms
+dR = caltable(dcache, complex.(xopt.dRx, xopt.dRy))
+dL = caltable(dcache, complex.(xopt.dLx, xopt.dLy))
 
 
 using Measurements
@@ -209,7 +218,7 @@ using Measurements
 using Pathfinder
 res = pathfinder(
         ℓ, ℓ';
-        init=sol.u .+ 0.01*randn(ndim),
+        init=sol.u .+ 0.05*randn(ndim),
         dim = ndim,
         optimizer=LBFGS(m=6),
         g_tol=1e-1,
@@ -247,16 +256,16 @@ plot(p1, p2, p3, p4, layout=(2,2))
 # now we sample using hmc
 using LinearAlgebra
 metric = DenseEuclideanMetric(res.fit_distribution.Σ)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 2_000; nadapts=1_000, init_params=xopt)
+hchain, stats = sample(tpost, AHMC(;metric, autodiff=AD.ZygoteBackend()), 10_000; nadapts=9_000, init_params=res.draws[:,1])
 
 # Now plot the gain table with error bars
-gamps = (hcat(hchain.gphase...))
+gamps = (hcat(hchain.dLx...))
 mga = mean(gamps, dims=2)
 sga = std(gamps, dims=2)
 
 using Measurements
 gmeas = measurement.(mga, sga)
-ctable = caltable(gcache, vec(gmeas))
+ctable = caltable(dcache, vec(gmeas))
 plot(ctable, layout=(3,3), size=(600,500))
 
 # This takes about 1.75 hours on my laptop. Which isn't bad for a 575 dimensional model!
@@ -286,3 +295,6 @@ savefig("3c84_complex_vis_2min_avg.png")
 #   LIBM: libopenlibm
 #   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
 # ```
+
+
+gAA = CSV.read(joinpath(@__DIR__, "DomTest/gain"))
