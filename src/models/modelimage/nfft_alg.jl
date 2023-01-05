@@ -90,7 +90,7 @@ function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img::IntensityMapTypes, pulse
     return cispi.((u.*(dx - 2*x0) .+ v.*(dy - 2*y0))).*visibility_point.(Ref(stretched(pulse, dx, dy)), u, v, 0.0, 0.0)
 end
 
-@inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img::Union{PolIntensityMap, IntensityMap}, pulse=DeltaPulse())
+@inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img::IntensityMapTypes, pulse=DeltaPulse())
     #timg = #SpatialIntensityMap(transpose(img.im), img.fovx, img.fovy)
     return NUFTCache(alg, plan, phases, pulse, img)
 end

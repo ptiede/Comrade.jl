@@ -37,7 +37,7 @@ end
 function RadioLikelihood(model, data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
-    positions = NamedTuple{(:U, :V, :T, :F)}(data[1][:U], data[1][:V], data[1][:T], data[1][:F])
+    positions = getuvtimefreq(data[1].config)
     #@argcheck acs[1] == acs[2]
     RadioLikelihood{typeof(model), typeof(ls), typeof(acs[1]), typeof(positions)}(model, ls, acs[1], positions)
 end
@@ -79,7 +79,7 @@ RadioLikelihood(model, (cache = cache), obs)
 function RadioLikelihood(model, metadata::NamedTuple, data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
-    positions = NamedTuple{(:U, :V, :T, :F)}(data[1][:U], data[1][:V], data[1][:T], data[1][:F])
+    positions = getuvtimefreq(data[1].config)
     #@argcheck acs[1] == acs[2]
     mms = ModelMetadata(model, metadata)
     RadioLikelihood{typeof(mms), typeof(ls), typeof(acs[1]), typeof(positions)}(mms, ls, acs[1], positions)
@@ -209,12 +209,12 @@ end
 # internal function that creates the likelihood for a set of log closure amplitudes
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
     dmat = data.config.designmat
-    amp2 = data.config.ac.data.visr.^2 .+ data.config.ac.data.visi.^2
-    Σlamp = data.config.ac.data.error.^2 ./ amp2
+    #amp2 = abs.(data.config.ac.data.measurement)
+    #Σlamp = data.config.ac.data.error.^2 ./ amp2
 
     # Form the closure covariance matrix
-    Σlca = PDMat(Matrix(dmat*Diagonal(Σlamp)*transpose(dmat)))
-    #Σlca = data[:error].^2
+    #Σlca = PDMat(Matrix(dmat*Diagonal(Σlamp)*transpose(dmat)))
+    Σlca = data[:error].^2
     f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:measurement]
     ℓ = Likelihood(amp) do μ
@@ -227,8 +227,8 @@ end
 # internal function that creates the likelihood for a set of closure phase datum
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosurePhaseDatum})
     dmat = data.config.designmat
-    amp2 = abs2.(data.config.ac.data.measurement)
-    Σphase = data.config.ac.data.error.^2 ./ amp2
+    #amp2 = abs2.(data.config.ac.data.measurement)
+    #Σphase = data.config.ac.data.error.^2 ./ amp2
 
     # Form the closure covariance matrix
     #Σcp = PDMat(Matrix(dmat*Diagonal(Σphase)*transpose(dmat)))

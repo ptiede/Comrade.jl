@@ -1,6 +1,6 @@
 padfac(alg::NUFT) = alg.padfac
 
-function padimage(::NUFT, img::Union{StokesIntensityMap, PolIntensityMap, IntensityMap})
+function padimage(::NUFT, img::IntensityMapTypes)
     #pf = padfac(alg)
     #cimg = convert(Matrix{Complex{eltype(img)}}, img.img)
     return img
@@ -16,11 +16,11 @@ function padimage(::NUFT, img::Union{StokesIntensityMap, PolIntensityMap, Intens
     #                  )
 end
 
-padimage(alg::ObservedNUFT, img::Union{StokesIntensityMap, PolIntensityMap, IntensityMap}) = padimage(alg.alg, img)
+padimage(alg::ObservedNUFT, img::IntensityMapTypes) = padimage(alg.alg, img)
 
 
 
-function create_cache(alg::ObservedNUFT, img::Union{StokesIntensityMap, PolIntensityMap, IntensityMap}, pulse::Pulse=DeltaPulse())
+function create_cache(alg::ObservedNUFT, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
     pimg = padimage(alg, img)
 
     # make nuft plan
@@ -32,19 +32,19 @@ function create_cache(alg::ObservedNUFT, img::Union{StokesIntensityMap, PolInten
     return create_cache(alg, plan, phases, pimg, pulse)
 end
 
-function create_cache(alg::NUFT, img::Union{StokesIntensityMap, PolIntensityMap, IntensityMap}, pulse::Pulse=DeltaPulse())
+function create_cache(alg::NUFT, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
     dx, dy = pixelsizes(img)
     pimg = padimage(alg, img)
     return NUFTCache(alg, nothing, nothing, pimg, pulse)
 end
 
-function update_cache(cache::NUFTCache, img::Union{StokesIntensityMap, PolIntensityMap, IntensityMap}, pulse::Pulse=DeltaPulse())
+function update_cache(cache::NUFTCache, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
     pimg = padimage(cache.alg, img)
     cache2 = update_phases(cache, img, pulse)
     create_cache(cache2.alg, cache2.plan, cache2.phases, pimg, pulse)
 end
 
-function update_phases(cache::NUFTCache, img::Union{IntensityMapTypes, PolIntensityMap}, pulse::Pulse)
+function update_phases(cache::NUFTCache, img::IntensityMapTypes, pulse::Pulse)
     #if cache.pulse != pulse
     #    phases = make_phases(cache.alg, img, pulse)
     #    return @set cache.phases = phases
@@ -83,7 +83,7 @@ function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
 end
 
 function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
-                      u, v, time, freq) where {M,I<:Union{StokesIntensityMap, PolIntensityMap},A<:ObservedNUFT}
+                      u, v, time, freq) where {M,I<:StokesIntensityMap,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
     visI =  conj.(nuft(m.cache.plan, complex.(m.cache.img.I))).*m.cache.phases
     visQ =  conj.(nuft(m.cache.plan, complex.(m.cache.img.Q))).*m.cache.phases

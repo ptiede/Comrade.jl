@@ -101,8 +101,13 @@ function getuvtimefreq(ac::EHTArrayConfiguration)
     u,v = getuv(ac)
     t = ac.data.T
     ν = ac.data.F
-    return u, v, t, ν
+    return (U=u, V=v, T=t, F=ν)
 end
+
+function getuvtimefreq(ac::ClosureConfig)
+    return getuvtimefreq(ac.ac.config)
+end
+
 
 """
     $(TYPEDEF)
@@ -222,6 +227,11 @@ getdata(obs::Observation, s::Symbol) = getproperty(getfield(obs, :data), s)
 function getuv(ac::EHTObservation)
     return (U=ac.data.U, V=ac.data.V)
 end
+
+function getuv(ac::EHTObservation{T,A}) where {T,A<:ClosureProducts}
+    return (U=ac.config.ac.data.U, V=ac.config.ac.data.V)
+end
+
 
 # Implement the tables interface
 Tables.istable(::Type{<:EHTObservation}) = true
@@ -642,7 +652,7 @@ function stations(d::EHTObservation{T,A}) where {T,A<:EHTLogClosureAmplitudeDatu
     return sort(unique(vcat(collect.(bl)...)))
 end
 
-uvpositions(datum::EHTLogClosureAmplitudeDatum) = (datum.u1, datum.v1, datum.u2, datum.v2, datum.u3, datum.v3, datum.u4, datum.v4)
+uvpositions(datum::EHTLogClosureAmplitudeDatum) = (datum.U1, datum.V1, datum.U2, datum.V2, datum.U3, datum.V3, datum.U4, datum.V4)
 
 
 """

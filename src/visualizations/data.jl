@@ -362,44 +362,6 @@ end
 
 end
 
-
-
-
-@recipe function f(dvis::EHTObservation{T,A};) where {T,A<:EHTVisibilityDatum}
-    xguide --> "uv-distance (λ)"
-    yguide --> "V (Jy)"
-    markershape --> :circle
-
-    u = getdata(dvis, :U)
-    v = getdata(dvis, :V)
-    uvdist = hypot.(u,v)
-    vis = visibility.(dvis.data)
-    error = getdata(dvis, :error)
-    vre = real.(vis)
-    vim = imag.(vis)
-    #add data errorbars
-    @series begin
-        seriestype := :scatter
-        alpha := 0.5
-        yerr := error
-        linecolor := nothing
-        label := "Real"
-        uvdist, vre
-    end
-
-    @series begin
-        seriestype := :scatter
-        markeralpha := 0.1
-        markerstrokecolor := :black
-        markerstrokealpha := 1.0
-        linecolor :=nothing
-        label := nothing
-        yerr := error
-        label := "Imag"
-        uvdist, vim
-    end
-end
-
 @recipe function f(dvis::EHTObservation{T,A};) where {T,A<:EHTVisibilityAmplitudeDatum}
     xguide --> "uv-distance (λ)"
     yguide --> "|V| (Jy)"
@@ -491,7 +453,7 @@ end
     yguide --> "Log Clos. Amp."
     markershape --> :diamond
     area = sqrt.(uvarea.(dlca.data))
-    phase = getdata(dlca, :amp)
+    phase = getdata(dlca, :measurement)
     error = getdata(dlca, :error)
     #add data errorbars
     seriestype --> :scatter
@@ -516,7 +478,7 @@ end
     u4 = getdata(dlca, :U4)
     v4 = getdata(dlca, :V4)
     area = sqrt.(uvarea.(dlca.data))
-    phase = getdata(dlca, :amp)
+    phase = getdata(dlca, :measurement)
     error = getdata(dlca, :error)
     #add data errorbars
     @series begin
@@ -547,7 +509,7 @@ end
     u3 = getdata(dcp, :U3)
     v3 = getdata(dcp, :V3)
     area = sqrt.(uvarea.(dcp.data))
-    phase = getdata(dcp, :phase)
+    phase = getdata(dcp, :measurement)
     error = getdata(dcp, :error)
     seriestype := :scatter
     alpha --> 0.5
@@ -568,7 +530,7 @@ end
     u3 = getdata(dcp, :U3)
     v3 = getdata(dcp, :V3)
     area = sqrt.(uvarea.(dcp.data))
-    phase = getdata(dcp, :phase)
+    phase = getdata(dcp, :measurement)
     error = getdata(dcp, :error)
     #add data errorbars
     @series begin
@@ -616,11 +578,11 @@ end
 
 
 function chi2(m, data::EHTObservation)
-    return sum(abs2, residuals(m, data))
+    return sum(x->abs2.(x), last(residuals(m, data)))
 end
 
 function chi2(m, data::EHTObservation{T, A}) where {T, A<:EHTCoherencyDatum}
-    res = residuals(m, data)
+    res = last(residuals(m, data))
     return mapreduce(+, 1:4) do i
         sum(abs2, getindex.(res, i))
     end

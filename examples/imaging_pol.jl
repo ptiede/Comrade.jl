@@ -77,7 +77,7 @@ function model(θ, metadata)
     U = IntensityMap(pimgI .* csa[2], fovx, fovy)
     V = IntensityMap(pimgI .* csa[3], fovx, fovy)
 
-    pimg = PolIntensityMap(I, Q, U, V)
+    pimg = StokesIntensityMap(I, Q, U, V)
     cimg = ContinuousImage(pimg, BSplinePulse{3}())
 
     m = modelimage(cimg, cache)

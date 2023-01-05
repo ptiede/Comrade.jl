@@ -140,7 +140,7 @@ end
 
 
 function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
-    res = apply_uv_transform.(Ref(m), u, v, 1.0)
+    res = apply_uv_transform.(Ref(m), u, v, complex(one(eltype(u))))
     return first.(res), last.(res)
 end
 

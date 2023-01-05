@@ -42,7 +42,7 @@ Note that is does not save the figure.
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = ComradeBase.baseimage(stokes(image, :I))'
+            z = stokes(image, :I)'
             title --> "Stokes I"
             seriestype := :heatmap
             #fontfamily --> "sans serif"
@@ -57,14 +57,13 @@ Note that is does not save the figure.
         @series begin
             subplot := 2
             seriestype := :heatmap
-            seriescolor --> :afmhot
+            seriescolor --> :seismic
             aspect_ratio --> 1
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = ComradeBase.baseimage(stokes(image, :Q))'
+            z = stokes(image, :Q)'
             title --> "Stokes Q"
-            seriestype := :heatmap
             #fontfamily --> "sans serif"
             xflip --> true
             widen := false
@@ -79,12 +78,12 @@ Note that is does not save the figure.
             seriestype := :heatmap
             xaxis --> "ΔRA  (μas)"
             yaxis --> "ΔDEC (μas)"
-            seriescolor --> :afmhot
+            seriescolor --> :seismic
             aspect_ratio --> 1
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = ComradeBase.baseimage(stokes(image, :U))'
+            z = stokes(image, :U)'
             title --> "Stokes U"
             seriestype := :heatmap
             #fontfamily --> "sans serif"
@@ -101,12 +100,12 @@ Note that is does not save the figure.
             seriestype := :heatmap
             xaxis --> "ΔRA  (μas)"
             yaxis --> "ΔDEC (μas)"
-            seriescolor --> :afmhot
+            seriescolor --> :seismic
             aspect_ratio --> 1
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = ComradeBase.baseimage(stokes(image, :V))'
+            z = stokes(image, :V)'
             title --> "Stokes V"
             seriestype := :heatmap
             #fontfamily --> "sans serif"
@@ -128,7 +127,7 @@ Note that is does not save the figure.
         bar_width --> 0
         xlims --> (x0, x1)
         ylims --> (y0, y1)
-        z = ComradeBase.baseimage(image)'
+        z = image'
         title --> "Stokes I"
         seriestype := :heatmap
         #fontfamily --> "sans serif"
@@ -270,7 +269,7 @@ Note that is does not save the figure.
         bar_width --> 0
         xlims --> (x0, x1)
         ylims --> (y0, y1)
-        z = ComradeBase.baseimage(image)'
+        z = ComradeBase.AxisKeys.keyless_unname(image)'
         title --> "Stokes I"
         seriestype := :heatmap
         #fontfamily --> "sans serif"

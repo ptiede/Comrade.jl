@@ -116,7 +116,7 @@ function make_header(obs)
     if isnothing(obs)
         return (source="NA", RA=0.0, DEC=0.0, mjd=0, freq=0.0)
     else
-        return (source=String(obs.source), RA=obs.ra, DEC=obs.dec, mjd=obs.mjd, freq=obs.frequency)
+        return (source=String(obs.source), RA=obs.ra, DEC=obs.dec, mjd=obs.mjd, freq=first(obs[:F]))
     end
 end
 
@@ -196,7 +196,7 @@ end
 function write_stokes(f, image, head, stokes="I", innername="")
     headerkeys, values, comments = _prepare_header(image, head, stokes)
     hdeheader = FITSHeader(headerkeys, values, comments)
-    img = ComradeBase.baseimage(image[end:-1:1, :])
+    img = ComradeBase.AxisKeys.keyless_unname(image[end:-1:1, :])
     FITSIO.write(f, img; header=hdeheader, name=innername)
 end
 

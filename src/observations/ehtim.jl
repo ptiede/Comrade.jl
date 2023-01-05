@@ -407,7 +407,7 @@ function minimal_lcamp(obsc; kwargs...)
     return EHTObservation(data = minset, mjd = mjd,
                           config=clac,
                           ra = ra, dec= dec,
-                          bandwidth=bw, frequency=rf,
+                          bandwidth=bw,
                           source = source,
                         )
 
@@ -513,7 +513,7 @@ function _ehtim_lcamp(obsc; count="max", kwargs...)
     #Now make the vis obs
     dvis = extract_vis(obsc)
     st = scantable(dvis)
-    S = eltype(dvis[:visr])
+    S = eltype(dvis[:U])
 
     dmat = Matrix{S}[]
     for i in 1:length(st)

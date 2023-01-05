@@ -113,6 +113,11 @@ are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
     return _visibilities(m, p.U, p.V, p.T, p.F)
 end
 
+@inline function visibilities(m, p::NamedTuple{(:U, :V)})
+    return _visibilities(m, p.U, p.V, zero(eltype(p.U)), zero(eltype(p.U)))
+end
+
+
 @inline function visibilities(m, p::ArrayConfiguration)
     return _visibilities(m, p.data.U, p.data.V, p.data.T, p.data.F)
 end
