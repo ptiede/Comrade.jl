@@ -4,12 +4,31 @@ export JonesCache, TrackSeg, ScanSeg, IntegSeg, jonesG, jonesD, jonesT,
 abstract type ObsSegmentation end
 
 # Track is for quantities that remain static across an entire observation
+"""
+    $(TYPEDEF)
+
+Data segmentation such that the quantity is constant over a `track`, i.e., the observation "night".
+"""
 struct TrackSeg <: ObsSegmentation end
 
 # Scan is for quantities that are constant across a scan
+"""
+    $(TYPEDEF)
+
+Data segmentation such that the quantity is constant over a `scan`.
+
+## Warning
+Currently we do not explicity track the telescope scans. This will be fixed in a future version.
+Right now `ScanSeg` and `TrackSeg` are the same
+"""
 struct ScanSeg <: ObsSegmentation end
 
 # Integration is for quantities that change every integration time
+"""
+    $(TYPEDEF)
+
+Data segmentation such that the quantity is constant over a correlation integration.
+"""
 struct IntegSeg <: ObsSegmentation end
 
 
@@ -19,7 +38,16 @@ function LinearAlgebra.mul!(y::AbstractArray, M::DesignMatrix, x::AbstractArray)
     LinearAlgebra.mul!(y, M.matrix, x)
 end
 
+"""
+    $(TYPEDEF)
 
+Holds the ancillary information for a the design matrix cache for Jones matrices. That is,
+it defines the cached map that moves from model visibilities to the corrupted voltages
+that are measured from the telescope.
+
+# Fields
+$(FIELDS)
+"""
 struct JonesCache{D,S<:ObsSegmentation, ST, Ti}
     """
     Design matrix for the first station
@@ -46,6 +74,18 @@ end
 stations(j::JonesCache) = j.stations
 ChainRulesCore.@non_differentiable stations(j::JonesCache)
 
+"""
+    JonesCache(obs::EHTObservation, segmentation::ObsSegmentation)
+
+Constructs a `JonesCache` from a given observation `obs` using the segmentation scheme
+`segmentation`.
+
+# Example
+```julia-repl
+# coh is a EHTObservation
+julia> JonesCache(coh, ScanSeg())
+```
+"""
 function JonesCache(obs::EHTObservation, s::TrackSeg)
 
     # extract relevant observation info
@@ -115,8 +155,22 @@ function JonesCache(obs::EHTObservation, s::ScanSeg)
     return JonesCache{typeof(m1),typeof(s),  typeof(gainstat), typeof(gaintime)}(m1,m2,s, gainstat, gaintime)
 end
 
+"""
+    $(TYPEDEF)
+
+Holds the pairs of Jones matrices for the first and second station of a baseline.
+
+# Fields
+$(FIELDS)
+"""
 struct JonesPairs{T, M1<:AbstractVector{T}, M2<:AbstractVector{T}}
+    """
+    Vector of jones matrices for station 1
+    """
     m1::M1
+    """
+    Vector of jones matrices for station 2
+    """
     m2::M2
 end
 
@@ -207,7 +261,6 @@ find_js(::Any, rest) = find_js(rest)
 
 
 function JonesCache(obs::EHTObservation, s::IntegSeg)
-
     # extract relevant observation info
     times = obs[:T]
     bls = obs[:baseline]
@@ -268,7 +321,20 @@ function gmat(g1, g2, m)
    offdiag = fill(zero(S), n)
    StructArray{SMatrix{2,2,S,4}}((gs1, offdiag, offdiag, gs2))
 end
-function jonesG(g1, g2,jcache::JonesCache)
+
+"""
+    jonesG(g1::AbstractVector, g2::AbstractVector, jcache::JonesCache)
+
+Constructs the pairs Jones `G` matrices for each pair of stations. The `g1` are the
+gains for the first polarization basis and `g2` are the gains for the other polarization.
+
+The layout for each matrix is as follows:
+```
+    g1 0
+    0  g2
+```
+"""
+function jonesG(g1::AbstractVector, g2::AbstractVector, jcache::JonesCache)
     gm1 = gmat(g1, g2, jcache.m1)
     gm2 = gmat(g1, g2, jcache.m2)
     return JonesPairs(gm1, gm2)
@@ -283,6 +349,19 @@ function dmat(d1, d2, m)
     unit = fill(one(S), n)
     return StructArray{SMatrix{2,2,S,4}}((unit, ds2, ds1, unit))
 end
+
+"""
+    jonesD(d1::AbstractVector, d2::AbstractVector, jcache::JonesCache)
+
+Constructs the pairs Jones `D` matrices for each pair of stations. The `d1` are the
+d-termsfor the first polarization basis and `d2` are the d-terms for the other polarization.
+
+The layout for each matrix is as follows:
+```
+    1  d1
+    d2 1
+```
+"""
 function jonesD(d1::T,d2::T,jcache::JonesCache) where {T}
     dm1 = dmat(d1, d2, jcache.m1)
     dm2 = dmat(d1, d2, jcache.m2)
@@ -293,7 +372,7 @@ export jonesStokes
 """
     jonesStokes(g1::AbstractArray, gcache::JonesCache)
 
-Construct the JonesPairs for the stokes I image only. That is, we only need to
+Construct the Jones Pairs for the stokes I image only. That is, we only need to
 pass a single vector corresponding to the gain for the stokes I visibility. This is
 for when you only want to image Stokes I.
 
@@ -307,7 +386,15 @@ end
 
 
 
+"""
+    $(TYPDEF)
 
+Holds various transformations that move from the measured telescope basis to the **chosen**
+on sky reference basis.
+
+# Fields
+$(FIELDS)
+"""
 struct TransformCache{M, B<:PolBasis}
     """
     Transform matrices for the first stations
@@ -323,6 +410,27 @@ struct TransformCache{M, B<:PolBasis}
     refbasis::B
 end
 
+"""
+    TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=true, ref::PolBasis=CirBasis())
+
+Constructs the cache that holds the transformation from the **chosen** on-sky reference basis
+to the basis that the telescope measures the electric fields given an observation `obs`.
+Our convention is that the feed rotations
+are included in the transformation cache with the `add_fr` toggle. The user can specify the reference basis
+using the keyword argument `ref` which is the (R,L) circular basis by default.
+
+# Notes
+We use the following definition for our feed rotations
+
+```
+    exp(-iθ)  0
+    0         exp(iθ)
+```
+
+# Warning
+eht-imaging can sometimes pre-rotate the coherency matrices. As a result the field rotation can sometimes
+be applied twice. To compensate for this we have added a `ehtim_fr_convention` which will fix this.
+"""
 function TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=true, ref::PolBasis=CirBasis())
     T1 = StructArray(map(x -> basis_transform(ref, x[1]), obs.data.polbasis))
     T2 = StructArray(map(x -> basis_transform(ref, x[2]), obs.data.polbasis))
@@ -335,7 +443,6 @@ function TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=tr
 end
 
 jonesT(tcache::TransformCache) = JonesPairs(tcache.T1, tcache.T2)
-
 
 
 
@@ -361,7 +468,15 @@ ispolarized(::Type{<:JonesModel{J,M}}) where {J,M} = ispolarized(M)
 
 
 
+"""
+    JonesModel(jones::JonesPairs, model, tcache::TransformCache)
+    JonesModel(jones::JonesPairs, model, refbasis::PolBasis=CirBasis())
 
+Constructs a `JonesModel` from a `jones` pairs that describe the intrument model
+and the `model` which describes the on-sky polarized visibilities. The third argument
+can either be the `tcache` that converts from the model coherency basis to the instrumental
+basis, or just the `refbasis` that will be used when constructing the model coherency matrices.
+"""
 function JonesModel(jones, model, tcache::TransformCache)
     return JonesModel(jones, model, tcache.refbasis)
 end
@@ -376,17 +491,23 @@ function _visibilities(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
     return corrupt(coh, model.jones.m1, model.jones.m2)
 end
 
-function corrupt!(vnew, vis::AbstractArray, j1, j2)
-    # @assert length(vis) == length(j1) "visibility vector and jones pairs have mismatched dimensions!"
-    vnew .= j1 .* vis .* adjoint.(j2)
-    return nothing
-end
+"""
+    corrupt(vis, j1, j2)
 
+Corrupts the model coherency matrices with the Jones matrices `j1` for station 1 and
+`j2` for station 2.
+"""
 function corrupt(vis, j1, j2)
     vnew = j1 .* vis .* adjoint.(j2)
     return vnew
 end
 
+
+# function corrupt!(vnew, vis::AbstractArray, j1, j2)
+#     # @assert length(vis) == length(j1) "visibility vector and jones pairs have mismatched dimensions!"
+#     vnew .= j1 .* vis .* adjoint.(j2)
+#     return nothing
+# end
 
 # function ChainRulesCore.rrule(::typeof(corrupt), vis, j1, j2)
 #     out = corrupt(vis, j1, j2)
@@ -439,7 +560,17 @@ function ChainRulesCore.rrule(::typeof(_coherency), vis::AbstractArray{<:Abstrac
     return coh, _coherency_pullback
 end
 
+"""
+    extract_FRs
 
+Extracts the feed rotation Jones matrices (returned as a `JonesPair`) from an EHT
+observation `obs`.
+
+# Warning
+eht-imaging can sometimes pre-rotate the coherency matrices. As a result the field rotation can sometimes
+be applied twice. To compensate for this we have added a `ehtim_fr_convention` which will fix this.
+
+"""
 function extract_FRs(obs::EHTObservation; ehtim_fr_convention=true)
 
     # read elevation angles for each station
