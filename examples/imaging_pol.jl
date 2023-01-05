@@ -18,8 +18,8 @@ load_ehtim()
 # obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedData/convention_test1/convention_test1.uvfits"), joinpath(@__DIR__, "PolarizedData/convention_test1/template_array.txt"))
 # obs = load_ehtim_uvfits(joinpath(@__DIR__, "polarized_synthetic_data.uvfits"))
 # obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedData/hops_lo_3601_M87+ALMArot.uvfits"), joinpath(@__DIR__, "PolarizedData/array.txt"))
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "DomTest/polarized_gaussian_all_corruptions.uvfits"),
-                                joinpath(@__DIR__, "DomTest/array.txt"))
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian_all_corruptions.uvfits"),
+                                joinpath(@__DIR__, "PolarizedExamples/array.txt"))
 
 obs.add_scans()
 # kill 0-baselines since we don't care about
@@ -62,7 +62,7 @@ dvis = extract_coherency(obsavg)
 # end
 
 using StructArrays
-function model(θ, metadata)
+function model1(θ, metadata)
     # (;c, f, p, angparams) = θ
     # (;c, f, p, angparams, dRx, dRy, dLx, dLy) = θ
     (;c, f, p, angparams, dRx, dRy, dLx, dLy, lgR, lgL, gpR, gpL) = θ
@@ -90,6 +90,36 @@ function model(θ, metadata)
     J = G*D*jT
     return JonesModel(J, m, CirBasis())
 end
+
+function model2(θ, metadata)
+    # (;c, f, p, angparams) = θ
+    # (;c, f, p, angparams, dRx, dRy, dLx, dLy) = θ
+    (;c, f, p, angparams, dRx, dRy, dLx, dLy, lgR, lgL, gpR, gpL) = θ
+    (; fovx, fovy, cache, tcache, gcache, dcache) = metadata
+    # Construct the image model
+    # produce Stokes images from parameters
+    csa = angparams
+    imgI = f.*c
+    pimgI = imgI.*p
+    I = IntensityMap(imgI, fovx, fovy)
+    Q = IntensityMap(pimgI .* csa[1], fovx, fovy)
+    U = IntensityMap(pimgI .* csa[2], fovx, fovy)
+    V = IntensityMap(pimgI .* csa[3], fovx, fovy)
+
+    pimg = StokesIntensityMap(I, Q, U, V)
+    cimg = ContinuousImage(pimg, BSplinePulse{3}())
+
+    m = modelimage(cimg, cache)
+    jT = jonesT(tcache)
+    # calibration parameters
+    gR = exp.(lgR).*cis.(gpR)
+    gL = exp.(lgL).*cis.(gpL)
+    G = jonesG(gR, gL, gcache)
+    D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), dcache)
+    J = G*D*jT
+    return JonesModel(J, m, CirBasis())
+end
+
 
 
 
@@ -165,15 +195,26 @@ prior = (
 
 
 
-lklhd = RadioLikelihood(model, metadata, dvis)
+lklhd1 = RadioLikelihood(model1, metadata, dvis)
 
-post = Posterior(lklhd, prior)
+post1 = Posterior(lklhd1, prior)
 
-tpost = asflat(post)
-ndim = dimension(tpost)
+tpost1 = asflat(post1)
+ndim1 = dimension(tpost1)
 
 
-ℓ = logdensityof(tpost)
+ℓ1 = logdensityof(tpost1)
+
+lklhd2 = RadioLikelihood(model2, metadata, dvis)
+
+post2 = Posterior(lklhd2, prior)
+
+tpost2 = asflat(post2)
+ndim2 = dimension(tpost2)
+
+
+ℓ2 = logdensityof(tpost2)
+
 
 # We will use HMC to sample the posterior.
 

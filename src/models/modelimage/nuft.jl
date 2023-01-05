@@ -85,10 +85,10 @@ end
 function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I<:StokesIntensityMap,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
-    visI =  conj.(nuft(m.cache.plan, complex.(m.cache.img.I))).*m.cache.phases
-    visQ =  conj.(nuft(m.cache.plan, complex.(m.cache.img.Q))).*m.cache.phases
-    visU =  conj.(nuft(m.cache.plan, complex.(m.cache.img.U))).*m.cache.phases
-    visV =  conj.(nuft(m.cache.plan, complex.(m.cache.img.V))).*m.cache.phases
+    visI =  conj.(nuft(m.cache.plan, complex.(stokes(m.cache.img, :I)))).*m.cache.phases
+    visQ =  conj.(nuft(m.cache.plan, complex.(stokes(m.cache.img, :Q)))).*m.cache.phases
+    visU =  conj.(nuft(m.cache.plan, complex.(stokes(m.cache.img, :U)))).*m.cache.phases
+    visV =  conj.(nuft(m.cache.plan, complex.(stokes(m.cache.img, :V)))).*m.cache.phases
     r = StructArray{StokesParams{eltype(visI)}}((I=visI, Q=visQ, U=visU, V=visV))
     return r
 end
