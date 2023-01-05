@@ -45,9 +45,10 @@ end
 #     ret =  StructArray{T}(tcomp)
 #     return ret
 # end
-# function (project::ProjectTo{StructArray{T}})(dx::Tangent{StructArray{T}}) where {T}
-#     StructArray{T}(dx.components)
-# end
+function (project::ProjectTo{StructArray})(dx::Tangent{<:StructArray})
+    println(typeof(dx.components))
+    StructArray{project.eltype}(dx.components)
+end
 
 # function (project::ProjectTo{StructArray})(dx::NamedTuple)
 #     @assert project.names == keys(dx) "Key mismatch"
@@ -68,11 +69,11 @@ function (project::ProjectTo{StructArray})(dx::StructArray)
     return dx
 end
 
-# function (project::ProjectTo{StructArray})(dx)
-#     @assert project.eltype === eltype(dx) "The eltype of the array is not the same there is an error in a ChainRule"
-#     println(typeof(dx))
-#     return dx
-# end
+function (project::ProjectTo{StructArray})(dx)
+    @assert project.eltype === eltype(dx) "The eltype of the array is not the same there is an error in a ChainRule"
+    println(typeof(dx))
+    return dx
+end
 
 
 

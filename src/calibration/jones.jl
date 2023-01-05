@@ -373,14 +373,42 @@ end
 function _visibilities(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
     vis = _visibilities(model.model, u, v, time, freq)
     coh = _coherency(vis, B)
-    return corrupt(coh, model.jones)
+    return corrupt(coh, model.jones.m1, model.jones.m2)
 end
 
-function corrupt(vis::AbstractArray, jones)
-    @assert length(vis) == length(jones) "visibility vector and jones pairs have mismatched dimensions!"
-    vnew = jones.m1 .* vis .* adjoint.(jones.m2)
+function corrupt!(vnew, vis::AbstractArray, j1, j2)
+    # @assert length(vis) == length(j1) "visibility vector and jones pairs have mismatched dimensions!"
+    vnew .= j1 .* vis .* adjoint.(j2)
+    return nothing
+end
+
+function corrupt(vis, j1, j2)
+    vnew = j1 .* vis .* adjoint.(j2)
     return vnew
 end
+
+
+# function ChainRulesCore.rrule(::typeof(corrupt), vis, j1, j2)
+#     out = corrupt(vis, j1, j2)
+#     pvis = ProjectTo(vis)
+#     pj1 = ProjectTo(j1)
+#     pj2 = ProjectTo(j2)
+#     function _corrupt_pullback(Δ)
+#         Δout = similar(out)
+#         println(typeof(Δ))
+#         println(typeof(out))
+#         Δout .= unthunk(Δ)
+#         Δvis = zero(out)
+#         v2 = zero(out)
+#         v2 .= vis
+#         Δj1 = zero(j1)
+#         Δj2 = zero(j2)
+#         out = similar(out)
+#         autodiff(corrupt!, Const, Duplicated(out, Δout), Duplicated(v2, Δvis), Duplicated(j1, Δj1), Duplicated(j2, Δj2))
+#         return NoTangent(), pvis(Δvis), pj1(Δj1), pj2(Δj2)
+#     end
+#     return out, _corrupt_pullback
+# end
 
 function _coherency(vis::AbstractArray{T}, ::Type{B}) where {T<:AbstractArray,B}
     return CoherencyMatrix{B,B}.(vis)
