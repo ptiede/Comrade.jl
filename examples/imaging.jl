@@ -57,7 +57,7 @@ prior = (
           c = ImageDirichlet(0.8, nx, ny),
           f = Normal(0.6, 0.025),
           fg = Uniform(0.0, 1.0),
-          lgamp = Comrade.GainPrior(distamp, scantable(damp)),
+          lgamp = Comrade.HeirarchicalGainPrior{Normal{Float64}}(distamp_mean, distamp_std, scantable(damp)),
         )
 
 
@@ -105,6 +105,7 @@ residual(model(xopt, metadata), damp)
 residual(model(xopt, metadata), dcphase)
 
 # Let's also plot the gain curves
+gt = Comrade.caltable(model(xopt, metadata))
 gt = Comrade.caltable(model(xopt, metadata))
 plot(gt, ylims=:none, layout=(3,3), size=(600,500))
 

@@ -387,7 +387,7 @@ end
 
 
 """
-    $(TYPDEF)
+    $(TYPEDEF)
 
 Holds various transformations that move from the measured telescope basis to the **chosen**
 on sky reference basis.
