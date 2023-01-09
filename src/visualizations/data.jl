@@ -39,7 +39,7 @@ export residuals, chi2
 
 
     seriestype-->:scatter
-    vmod = visibilities(m, u, v)
+    vmod = visibilities(m, arrayconfig(dvis))
     labels --> "Model"
     uvdist, hcat(real.(vmod), imag.(vmod))
 end

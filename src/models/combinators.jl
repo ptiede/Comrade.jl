@@ -208,10 +208,10 @@ end
 # end
 
 
-@inline function visibility_point(model::CompositeModel{M1,M2}, p) where {M1,M2}
+@inline function visibility_point(model::CompositeModel{M1,M2}, u, v, time, freq) where {M1,M2}
     f = uv_combinator(model)
-    v1 = visibility(model.m1, p)
-    v2 = visibility(model.m2, p)
+    v1 = visibility_point(model.m1, u, v, time, freq)
+    v2 = visibility_point(model.m2, u, v, time, freq)
     return f(v1,v2)
 end
 

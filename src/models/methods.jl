@@ -347,7 +347,7 @@ function intensitymap!(::NotAnalytic, img::IntensityMap, m)
 end
 
 function intensitymap(::NotAnalytic, m, dims)
-    vis = ifftshift(phasedecenter!(fouriermap(m, dims), dims.X, dims.Y))
+    vis = ifftshift(ComradeBase.AxisKeys.keyless_unname(phasedecenter!(fouriermap(m, dims), dims.X, dims.Y)))
     ifft!(vis)
-    return real.(vis)./length(vis)
+    return IntensityMap(real.(vis)./length(vis), dims)
 end
