@@ -38,15 +38,17 @@ function AbstractMCMC.sample(post::Comrade.TransformedPosterior,
     ℓ = logdensityof(post)
     kw = delete!(Dict(kwargs), :init_params)
     res = sample(ℓ, identity, sampler, args...; kw...)
-    samples, weights = transpose(res["samples"]), exp.(res["logwt"] .- res["logz"][end])
+    # Make sure that res["sample"] is an array and use transpose
+    samples, weights = transpose(Dynesty.PyCall.PyArray(res["samples"])), exp.(res["logwt"] .- res["logz"][end])
     chain = transform.(Ref(post), eachcol(samples)) |> Table
-    stats = (logl = transpose(res["logl"]),
+    stats = (logl = res["logl"],
              logz = res["logz"][end],
              logzerr = res["logz"][end],
              weights = weights,
             )
-        return chain, stats, res
+    return Table(chain), stats, res
 end
+
 
 
 end
