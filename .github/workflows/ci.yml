@@ -18,6 +18,7 @@ jobs:
           - ComradeOptimization
           - ComradeNested
         version:
+          - '1'
           - '1.7'
           - 'nightly'
         os:
