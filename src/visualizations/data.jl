@@ -419,7 +419,7 @@ end
     end
 
     seriestype-->:scatter
-    amod = amplitudes(m, u, v)
+    amod = abs.(visibilities(m, arrayconfig(dvis)))
     labels --> "Model"
     uvdist, amod
 end

@@ -143,6 +143,8 @@ function amplitudes(model::GainModel, u, v, time, freq)
     return abs.(corrupt(amp, model.cache, model.gains))
 end
 
+amplitudes(model, u, v, time, freq) = abs.(_visibilities(m, u, v, time, freq))
+
 # Pass through since closure phases are independent of gains
 function closure_phases(model::GainModel, args::Vararg{<:AbstractArray, N}) where {N}
     return closure_phases(model.model, args...)
