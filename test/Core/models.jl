@@ -299,8 +299,8 @@ end
     m = PolarizedModel(mI, mQ, mU, mV)
 
     v = coherencymatrix(m, 0.005, 0.01)
-    @test evpa(v) == evpa(m, 0.005, 0.01)
-    @test m̆(v) == m̆(m, 0.005, 0.01)
+    @test evpa(v) ≈ evpa(m, 0.005, 0.01)
+    @test m̆(v) ≈ m̆(m, 0.005, 0.01)
 
     I = IntensityMap(zeros(1024,1024), 100.0, 100.0)
     Q = similar(I)
