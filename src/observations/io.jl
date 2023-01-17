@@ -187,7 +187,7 @@ function _prepare_header(image, head, stokes="I")
     return headerkeys, values, comments
 end
 
-function _save_fits(fname::String, image::IntensityMap, head)
+function _save_fits(fname::String, image::IntensityMap{T}, head) where {T<:Number}
     FITS(fname, "w") do hdu
         write_stokes(hdu, image, head)
     end
@@ -200,7 +200,7 @@ function write_stokes(f, image, head, stokes="I", innername="")
     FITSIO.write(f, img; header=hdeheader, name=innername)
 end
 
-function _save_fits(fname::String, image::StokesIntensityMap, head)
+function _save_fits(fname::String, image::Union{StokesIntensityMap, IntensityMap{T}}, head) where {T<:StokesParams}
     FITS(fname, "w") do fits
         write_stokes(fits, ComradeBase.stokes(image, :I), head, "I")
         write_stokes(fits, ComradeBase.stokes(image, :Q), head, "Q", "Q")

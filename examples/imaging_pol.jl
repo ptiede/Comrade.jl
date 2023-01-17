@@ -29,56 +29,15 @@ obsavg = scan_average(obs)
 dvis = extract_coherency(obsavg)
 
 
-# Build the Model. Here we we a struct to hold some caches
-# This will be useful to hold precomputed caches
 
-# function polimg(stokesI, pol, sphere)
-#     I = stokesI
-#     Q = stokesI .* pol .* getindex.(sphere, 1)
-#     U = stokesI .* pol .* getindex.(sphere, 2)
-#     V = stokesI .* pol .* getindex.(sphere, 3)
-#     return (;I, Q, U, V)
-# end
-
-# function ChainRulesCore.rrule(::typeof(polimg), stokesI, pol, sphere)
-#     s1 = getindex.(sphere, 1)
-#     s2 = getindex.(sphere, 2)
-#     s3 = getindex.(sphere, 3)
-#     I = stokesI
-#     Q = stokesI .* pol .* s1
-#     U = stokesI .* pol .* s2
-#     V = stokesI .* pol .* s3
-
-#     function _polimg_pullback(Δ)
-#         ΔI = Δ.I
-#         ΔQ = Δ.Q
-#         ΔU = Δ.U
-#         ΔV = Δ.V
-
-#         ΔstokesI = ΔI .+ ΔQ.*pol.*s1 .+ ΔU.*pol.*s2 .+ ΔV.*pol.*s3
-#         Δpol = stokesI.*(ΔQ.*s1 .+ ΔU.*s2 .+ ΔV.*s3)
-#         Δsphere =
-#     end
-# end
-
-using StructArrays
-function model1(θ, metadata)
-    # (;c, f, p, angparams) = θ
-    # (;c, f, p, angparams, dRx, dRy, dLx, dLy) = θ
+function model(θ, metadata)
     (;c, f, p, angparams, dRx, dRy, dLx, dLy, lgR, lgL, gpR, gpL) = θ
-    (; fovx, fovy, cache, tcache, gcache, dcache) = metadata
+    (; grid, cache, pulse, tcache, gcache, dcache) = metadata
     # Construct the image model
     # produce Stokes images from parameters
-    csa = angparams
     imgI = f.*c
-    pimgI = imgI.*p
-    I = IntensityMap(imgI, fovx, fovy)
-    Q = IntensityMap(pimgI .* csa[1], fovx, fovy)
-    U = IntensityMap(pimgI .* csa[2], fovx, fovy)
-    V = IntensityMap(pimgI .* csa[3], fovx, fovy)
-
-    pimg = StokesIntensityMap(I, Q, U, V)
-    cimg = ContinuousImage(pimg, BSplinePulse{3}())
+    pimg = PoincareSphere2Map(imgI, p, angparams, grid)
+    cimg = ContinuousImage(pimg, pulse)
 
     m = modelimage(cimg, cache)
     jT = jonesT(tcache)
@@ -91,34 +50,6 @@ function model1(θ, metadata)
     return JonesModel(J, m, CirBasis())
 end
 
-function model2(θ, metadata)
-    # (;c, f, p, angparams) = θ
-    # (;c, f, p, angparams, dRx, dRy, dLx, dLy) = θ
-    (;c, f, p, angparams, dRx, dRy, dLx, dLy, lgR, lgL, gpR, gpL) = θ
-    (; fovx, fovy, cache, tcache, gcache, dcache) = metadata
-    # Construct the image model
-    # produce Stokes images from parameters
-    csa = angparams
-    imgI = f.*c
-    pimgI = imgI.*p
-    I = IntensityMap(imgI, fovx, fovy)
-    Q = IntensityMap(pimgI .* csa[1], fovx, fovy)
-    U = IntensityMap(pimgI .* csa[2], fovx, fovy)
-    V = IntensityMap(pimgI .* csa[3], fovx, fovy)
-
-    pimg = StokesIntensityMap(I, Q, U, V)
-    cimg = ContinuousImage(pimg, BSplinePulse{3}())
-
-    m = modelimage(cimg, cache)
-    jT = jonesT(tcache)
-    # calibration parameters
-    gR = exp.(lgR).*cis.(gpR)
-    gL = exp.(lgL).*cis.(gpL)
-    G = jonesG(gR, gL, gcache)
-    D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), dcache)
-    J = G*D*jT
-    return JonesModel(J, m, CirBasis())
-end
 
 
 
@@ -132,16 +63,6 @@ distamp = (AA = Normal(0.0, 0.1),
            PV = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1),
            )
-
-# distamp2 = (AA = Normal(-2.0, 1.0),
-#            AP = Normal(-2.0,  1.0),
-#            LM = Normal(-2.0,  1.0),
-#            AZ = Normal(-2.0,  1.0),
-#            #JC = Normal(-1.0,  1.0),
-#            PV = Normal(-2.0,  1.0),
-#            SM = Normal(-2.0,  1.0),
-#            )
-
 
 
 distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
@@ -166,20 +87,21 @@ distD = (   AA = Normal(0.0, 0.1),
 # Set up the cache structure
 fovx = μas2rad(50.0)
 fovy = μas2rad(50.0)
-nx = 5
+nx = 24
 ny = floor(Int, fovy/fovx*nx)
 
-buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
-cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
+grid = imagepixels(fovx, fovy, nx, ny)
+buffer = IntensityMap(zeros(nx, ny), grid)
+pulse = BSplinePulse{3}()
+cache = create_cache(NFFTAlg(dvis), buffer, pulse)
 tcache = TransformCache(dvis; add_fr=true, ehtim_fr_convention=false)
 gcache = JonesCache(dvis, ScanSeg())
 dcache = JonesCache(dvis, TrackSeg())
-metadata = (;cache, fovx, fovy, tcache, gcache, dcache)
+metadata = (;cache, grid, pulse, tcache, gcache, dcache)
 
 
-X, Y = imagepixels(buffer)
 prior = (
-          c = CenteredImage(X, Y, μas2rad(1.0), ImageDirichlet(1.0, nx, ny)),
+          c = ImageDirichlet(1.0, nx, ny),
           f = Uniform(0.7, 1.3),
           p = ImageUniform(nx, ny),
           angparams = ImageSphericalUniform(nx, ny),
@@ -195,32 +117,21 @@ prior = (
 
 
 
-lklhd1 = RadioLikelihood(model1, metadata, dvis)
+lklhd = RadioLikelihood(model, metadata, dvis)
 
-post1 = Posterior(lklhd1, prior)
+post = Posterior(lklhd, prior)
 
-tpost1 = asflat(post1)
-ndim1 = dimension(tpost1)
+tpost = asflat(post)
+ndim = dimension(tpost)
 
-
-ℓ1 = logdensityof(tpost1)
-
-lklhd2 = RadioLikelihood(model2, metadata, dvis)
-
-post2 = Posterior(lklhd2, prior)
-
-tpost2 = asflat(post2)
-ndim2 = dimension(tpost2)
-
-
-ℓ2 = logdensityof(tpost2)
+ℓ = logdensityof(tpost)
 
 
 # We will use HMC to sample the posterior.
 
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, sol.u, nothing)
+prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
 sol = solve(prob, LBFGS(); maxiters=10_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 xopt = transform(tpost, sol)
 
@@ -232,7 +143,7 @@ img = intensitymap(model(xopt, metadata), fovx, fovy, 128, 128)
 plot(img)
 Comrade.save(joinpath(@__DIR__, "DomTest/comrade_fit_3601_lo_allcorr.fits"), img)
 
-Comrade.residuals(model(xopt, metadata), dvis)
+residual(model(xopt, metadata), dvis)
 plot(model(xopt, metadata), dvis)
 
 # Let's also plot the calibration tables for gains
