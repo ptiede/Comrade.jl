@@ -48,8 +48,6 @@ Base.@constprop :aggressive @inline imanalytic(::Type{PolarizedModel{I,Q,U,V}}) 
     return StokesParams(I,Q,U,V)
 end
 
-ComradeBase.stokes(pmodel::PolarizedModel, symbol) = getproperty(pmodel, symbol)
-
 
 """
     visibility(pimg::PolarizedModel, p)

@@ -169,7 +169,7 @@ function _amplitudes(m::S, u, v, time, freq) where {S}
 end
 
 function _amplitudes(::IsAnalytic, m, u, v, time, freq)
-    amplitude.(Ref(m), u, v, time, freq)
+    abs.(visibility_point.(Ref(m), u, v, time, freq))
 end
 
 function _amplitudes(::NotAnalytic, m, u, v, time, freq)

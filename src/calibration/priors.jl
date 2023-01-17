@@ -40,7 +40,6 @@ function CalPrior(dists, jcache::Union{JonesCache, GainCache}, reference=:none)
     else
         gprior = make_reference_gdist(dists, gstat, jcache, reference)
     end
-    return gprior
     return CalPrior{typeof(gprior), typeof(jcache)}(gprior, jcache)
 end
 

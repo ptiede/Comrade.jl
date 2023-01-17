@@ -207,9 +207,9 @@ end
 # since you evaluate the visibilities pointwise
 function modelimage(::NotAnalytic,
     model::AbstractModifier,
-    image::IntensityMap, alg::FFTAlg)
+    image::IntensityMap, alg::FFTAlg, pulse)
 
-    @set model.model = modelimage(model.model, image, alg)
+    @set model.model = modelimage(model.model, image, alg, pulse)
 end
 
 # I need some special pass-throughs for the non-analytic NUFT transform

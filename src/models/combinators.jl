@@ -284,7 +284,7 @@ function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::AbstractDims, 
 end
 
 function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel, header=nothing)
-    dims = named_axiskeys(sim)
+    dims = axiskeys(sim)
     (;X, Y) = dims
     vis1 = fouriermap(model.m1, dims)
     vis2 = fouriermap(model.m2, dims)
