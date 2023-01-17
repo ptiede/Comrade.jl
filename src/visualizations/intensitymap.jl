@@ -13,8 +13,7 @@ EHTImage object and plots it according to EHT conventions.
 
 Note that is does not save the figure.
 """
-@recipe function f(image::Union{StokesIntensityMap, IntensityMap}; uvscale=rad2μas)
-
+@recipe function f(image::Union{<:StokesIntensityMap, <:IntensityMap}; uvscale=rad2μas)
     #Define some constants
     #Construct the image grid in μas
     xitr, yitr = imagepixels(image)
@@ -27,7 +26,7 @@ Note that is does not save the figure.
 
     tickfontsize --> 11
     guidefontsize --> 14
-    if image isa StokesIntensityMap
+    if typeof(image) <: Union{<:StokesIntensityMap, <:IntensityMap{<:StokesParams}}
 
         # get the mean linear pol
         maxI = maximum(stokes(image, :I))
@@ -42,7 +41,7 @@ Note that is does not save the figure.
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = Comrade.baseimage(stokes(image, :I))'
+            z = baseimage(stokes(image, :I))'
             title --> "Stokes I"
             seriestype := :heatmap
             #fontfamily --> "sans serif"
@@ -62,7 +61,7 @@ Note that is does not save the figure.
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = Comrade.baseimage(stokes(image, :Q))'
+            z = baseimage(stokes(image, :Q))'
             title --> "Stokes Q"
             #fontfamily --> "sans serif"
             xflip --> true
@@ -83,7 +82,7 @@ Note that is does not save the figure.
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = Comrade.baseimage(stokes(image, :U))'
+            z = baseimage(stokes(image, :U))'
             title --> "Stokes U"
             seriestype := :heatmap
             #fontfamily --> "sans serif"
@@ -105,7 +104,7 @@ Note that is does not save the figure.
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = Comrade.baseimage(stokes(image, :V))'
+            z = baseimage(stokes(image, :V))'
             title --> "Stokes V"
             seriestype := :heatmap
             #fontfamily --> "sans serif"
@@ -127,7 +126,7 @@ Note that is does not save the figure.
         bar_width --> 0
         xlims --> (x0, x1)
         ylims --> (y0, y1)
-        z = Comrade.baseimage(image)'
+        z = baseimage(image)'
         title --> "Stokes I"
         seriestype := :heatmap
         #fontfamily --> "sans serif"
@@ -137,7 +136,7 @@ Note that is does not save the figure.
         linecolor-->:black
         tick_direction --> :out
 
-        collect(xitr),collect(yitr),z
+        collect(xitr),collect(yitr), z
     end
 end
 
@@ -198,7 +197,7 @@ Note that is does not save the figure.
         @series begin
             subplot := 2
             seriestype := :heatmap
-            seriescolor --> :afmhot
+            seriescolor --> :berlin
             aspect_ratio --> 1
             bar_width --> 0
             xlims --> (x0, x1)
@@ -220,7 +219,7 @@ Note that is does not save the figure.
             seriestype := :heatmap
             xaxis --> "ΔRA  (μas)"
             yaxis --> "ΔDEC (μas)"
-            seriescolor --> :afmhot
+            seriescolor --> :berlin
             aspect_ratio --> 1
             bar_width --> 0
             xlims --> (x0, x1)
@@ -242,7 +241,7 @@ Note that is does not save the figure.
             seriestype := :heatmap
             xaxis --> "ΔRA  (μas)"
             yaxis --> "ΔDEC (μas)"
-            seriescolor --> :afmhot
+            seriescolor --> :berlin
             aspect_ratio --> 1
             bar_width --> 0
             xlims --> (x0, x1)
