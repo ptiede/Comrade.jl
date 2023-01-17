@@ -117,19 +117,9 @@ prior = (
 
 
 
-lklhd1 = RadioLikelihood(model1, metadata, dvis)
+lklhd = RadioLikelihood(model, metadata, dvis)
 
-post1 = Posterior(lklhd1, prior)
-
-tpost1 = asflat(post1)
-ndim1 = dimension(tpost1)
-
-
-ℓ1 = logdensityof(tpost1)
-
-lklhd2 = RadioLikelihood(model2, metadata, dvis)
-
-post2 = Posterior(lklhd2, prior)
+post = Posterior(lklhd, prior)
 
 tpost = asflat(post)
 ndim = dimension(tpost)
