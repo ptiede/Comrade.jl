@@ -222,7 +222,7 @@ Create a Fourier or visibility map of a model `m`
 where the image is specified in the image domain by the
 pixel locations `x` and `y`
 """
-function fouriermap(m, dims::DataNames)
+function fouriermap(m, dims::AbstractDims)
     X = dims.X
     Y = dims.Y
     uu,vv = uviterator(length(X), step(X), length(Y), step(Y))

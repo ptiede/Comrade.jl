@@ -42,7 +42,7 @@ Note that is does not save the figure.
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = stokes(image, :I)'
+            z = Comrade.baseimage(stokes(image, :I))'
             title --> "Stokes I"
             seriestype := :heatmap
             #fontfamily --> "sans serif"
@@ -62,7 +62,7 @@ Note that is does not save the figure.
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = stokes(image, :Q)'
+            z = Comrade.baseimage(stokes(image, :Q))'
             title --> "Stokes Q"
             #fontfamily --> "sans serif"
             xflip --> true
@@ -83,7 +83,7 @@ Note that is does not save the figure.
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = stokes(image, :U)'
+            z = Comrade.baseimage(stokes(image, :U))'
             title --> "Stokes U"
             seriestype := :heatmap
             #fontfamily --> "sans serif"
@@ -105,7 +105,7 @@ Note that is does not save the figure.
             bar_width --> 0
             xlims --> (x0, x1)
             ylims --> (y0, y1)
-            z = stokes(image, :V)'
+            z = Comrade.baseimage(stokes(image, :V))'
             title --> "Stokes V"
             seriestype := :heatmap
             #fontfamily --> "sans serif"
@@ -127,7 +127,7 @@ Note that is does not save the figure.
         bar_width --> 0
         xlims --> (x0, x1)
         ylims --> (y0, y1)
-        z = image'
+        z = Comrade.baseimage(image)'
         title --> "Stokes I"
         seriestype := :heatmap
         #fontfamily --> "sans serif"

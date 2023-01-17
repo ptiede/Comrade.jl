@@ -41,7 +41,7 @@ function modelimage(::NotAnalytic,
     @set m1.m2 = modelimage(m1.m2, cache)
 end
 
-function fouriermap(m::CompositeModel, dims::DataNames)
+function fouriermap(m::CompositeModel, dims::AbstractDims)
     m1 = fouriermap(m.m1, dims)
     m2 = fouriermap(m.m2, dims)
     return uv_combinator(m).(m1,m2)
@@ -141,13 +141,13 @@ components(m::CompositeModel{M1,M2}) where
 flux(m::AddModel) = flux(m.m1) + flux(m.m2)
 
 
-function intensitymap(m::AddModel, dims::DataNames)
+function intensitymap(m::AddModel, dims::Union{NamedTuple, AbstractDims})
     sim1 = intensitymap(m.m1, dims)
     sim2 = intensitymap(m.m2, dims)
     return sim1 + sim2
 end
 
-function intensitymap(::NotAnalytic, m::AddModel, dims::DataNames)
+function intensitymap(::NotAnalytic, m::AddModel, dims::AbstractDims)
     sim1 = intensitymap(m.m1, dims)
     sim2 = intensitymap(m.m2, dims)
     return sim1 + sim2
@@ -272,7 +272,7 @@ smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 
 flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
-function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::DataNames, header=nothing)
+function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::AbstractDims, header=nothing)
     (;X, Y) = dims
     nx = length(X)
     ny = length(Y)

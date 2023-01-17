@@ -100,7 +100,7 @@ end
 HypercubeTransform.asflat(d::CalPrior) = asflat(d.dists)
 HypercubeTransform.ascube(d::CalPrior) = ascube(d.dists)
 
-Distributions.sampler(d::CalPrior) = Distributions.sampler(d.dist)
+Distributions.sampler(d::CalPrior) = Distributions.sampler(d.dists)
 Base.length(d::CalPrior) = length(d.dists)
 Base.eltype(d::CalPrior) = eltype(d.dists)
 

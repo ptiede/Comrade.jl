@@ -40,7 +40,7 @@ using TypedTables
 
 @reexport using ComradeBase
 export AD
-# using ComradeBase: DataNames
+using ComradeBase: AbstractDims
 
 
 const ehtim = PyNULL()

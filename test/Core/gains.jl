@@ -31,11 +31,11 @@ using Tables
     gamp_prior = NamedTuple{Tuple(tel)}(ntuple(_->LogNormal(0.0, 0.1), length(tel)))
     gph_prior = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
 
-    gamp = GainPrior(gamp_prior, st)
-    gpha = GainPrior(gph_prior, st)
+    gamp = CalPrior(gamp_prior, st)
+    gpha = CalPrior(gph_prior, st)
 
     ga = fill(1.0, size(rand(gamp))...)
-    gm = GainModel(gcache, ga, m)
+    gm = JonesModel(jonesStokes(ga, gcache), m)
 
     c1 = caltable(gm)
     c2 = caltable(gcache, ga)

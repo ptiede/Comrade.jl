@@ -214,9 +214,9 @@ end
 function _bispectra(::NotAnalytic, m,
                     p1,p2,p3
                    )
-    vis1 = _visibilities(m, p1)
-    vis2 = _visibilities(m, p2)
-    vis3 = _visibilities(m, p3)
+    vis1 = visibilities(m, p1)
+    vis2 = visibilities(m, p2)
+    vis3 = visibilities(m, p3)
     return @. vis1*vis2*vis3
 end
 
