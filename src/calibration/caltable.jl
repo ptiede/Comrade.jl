@@ -224,10 +224,10 @@ function caltable(obs::EHTObservation, gains::AbstractVector)
 end
 
 """
-    caltable(g::GainCache, gains::AbstractVector)
+    caltable(g::JonesCache, jterms::AbstractVector)
 
-Convert the GainCache `g` and recovered `gains` into a `CalTable` which satisfies the
-`Tables.jl` interface. This table is very similar to the `DataFrames` interface.
+Convert the JonesCache `g` and recovered Jones/corruption elements `jterms` into a `CalTable`
+which satisfies the `Tables.jl` interface.
 
 # Example
 
@@ -242,7 +242,7 @@ ct.AA
 ct[1, :]
 ```
 """
-function caltable(g::Union{JonesCache, GainCache}, gains::AbstractVector)
+function caltable(g::JonesCache, gains::AbstractVector)
     @argcheck length(g.times) == length(gains)
 
     stations = sort(unique(g.stations))

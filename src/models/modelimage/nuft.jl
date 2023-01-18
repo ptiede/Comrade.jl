@@ -24,7 +24,6 @@ function create_cache(alg::ObservedNUFT, img::IntensityMapTypes, pulse::Pulse=De
     pimg = padimage(alg, img)
 
     # make nuft plan
-    dx, dy = pixelsizes(img)
     plan = plan_nuft(alg, pimg)
     # get phases and pulse functions
     phases = make_phases(alg, img, pulse)
@@ -33,7 +32,6 @@ function create_cache(alg::ObservedNUFT, img::IntensityMapTypes, pulse::Pulse=De
 end
 
 function create_cache(alg::NUFT, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
-    dx, dy = pixelsizes(img)
     pimg = padimage(alg, img)
     return NUFTCache(alg, nothing, nothing, pimg, pulse)
 end

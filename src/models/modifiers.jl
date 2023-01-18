@@ -217,8 +217,8 @@ end
 function modelimage(::NotAnalytic,
     model::AbstractModifier,
     image::IntensityMap, alg::NUFT,
-    executor=SequentialEx())
-    _modelimage(model, image, alg)
+    pulse = DeltaPulse())
+    _modelimage(model, image, alg, pulse)
 end
 
 

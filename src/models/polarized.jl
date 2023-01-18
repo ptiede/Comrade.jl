@@ -78,7 +78,7 @@ function intensitymap!(pimg::StokesIntensityMap, pmodel::PolarizedModel)
     return pimg
 end
 
-function intensitymap(pmodel::PolarizedModel, dims::Union{AbstractDims, NamedTuple})
+function intensitymap(pmodel::PolarizedModel, dims::AbstractDims)
     imgI = intensitymap(stokes(pmodel, :I), dims)
     imgQ = intensitymap(stokes(pmodel, :Q), dims)
     imgU = intensitymap(stokes(pmodel, :U), dims)
@@ -124,8 +124,8 @@ PoincareSphere2Map(I::IntensityMap, p, X) = PoincareSphere2Map(baseimage(I), p, 
 electric vector position angle or EVPA of the polarized model `pimg` at `u` and `v`
 """
 @inline function evpa(pimg::AbstractPolarizedModel, p)
-    sq = visibility(stokes(pimg :Q), p)
-    su = visibility(stokes(pimg :U), p)
+    sq = visibility(stokes(pimg, :Q), p)
+    su = visibility(stokes(pimg, :U), p)
     return 1/2*angle(su/sq)
 end
 

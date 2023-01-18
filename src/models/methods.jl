@@ -207,7 +207,7 @@ function _bispectra(::IsAnalytic, m,
                     p2,
                     p3,
                    )
-    return bispectrum.(Ref(m), p1, p2, p3)
+    return bispectrum.(Ref(m), StructArray(p1), StructArray(p2), StructArray(p3))
 end
 
 # internal method used for trait dispatch for non-analytic visibilities

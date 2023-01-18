@@ -95,7 +95,8 @@ end
 
 @inline function modelimage(::NotAnalytic, model,
                             image::IntensityMap,
-                            alg::FourierTransform=FFTAlg()
+                            alg::FourierTransform=FFTAlg(),
+                            pulse = DeltaPulse()
                             )
     _modelimage(model, image, alg, pulse)
 end
@@ -138,9 +139,8 @@ end
                fovy=2*radialextent(m),
                nx=512,
                ny=512,
-               pulse=ComradeBase.DeltaPulse(),
                alg=FFTAlg(),
-        =SequentialEx()
+               pulse=ComradeBase.DeltaPulse(),
                 )
 
 Construct a `ModelImage` where just the model `m` is specified.

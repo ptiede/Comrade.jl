@@ -1,6 +1,6 @@
 export CalPrior, HeirarchicalCalPrior
 
-struct CalPrior{S,J} <: Distributions.ContinuousMultivariateDistribution
+struct CalPrior{S,J<:JonesCache} <: Distributions.ContinuousMultivariateDistribution
     dists::S
     jcache::J
 end
@@ -31,7 +31,7 @@ julia> x = rand(gdist)
 julia> logdensityof(gdist, x)
 ```
 """
-function CalPrior(dists, jcache::Union{JonesCache, GainCache}, reference=:none)
+function CalPrior(dists::NamedTuple, jcache::JonesCache, reference=:none)
     gstat = jcache.stations
     @argcheck Set(keys(dists)) == Set(gstat)
 
@@ -139,6 +139,12 @@ end
 
 function Dists.rand(rng::AbstractRNG, d::NamedDist{N}) where {N}
     return NamedTuple{N}(map(x->rand(rng, x), d.dists))
+end
+
+function Dists.rand(rng::AbstractRNG, d::NamedDist{Na}, n::Dims) where {Na}
+    map(CartesianIndices(n)) do I
+        rand(rng, d)
+    end
 end
 
 HypercubeTransform.asflat(d::NamedDist{N}) where {N} = asflat(NamedTuple{N}(d.dists))

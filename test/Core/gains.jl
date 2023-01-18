@@ -10,7 +10,7 @@ using Tables
     stcp = scantable(cphase)
     stlca = scantable(lcamp)
 
-    gcache = GainCache(st)
+    gcache = JonesCache(vis, ScanSeg())
 
 
     θ = (f1 = 1.0,
@@ -31,8 +31,9 @@ using Tables
     gamp_prior = NamedTuple{Tuple(tel)}(ntuple(_->LogNormal(0.0, 0.1), length(tel)))
     gph_prior = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
 
-    gamp = CalPrior(gamp_prior, st)
-    gpha = CalPrior(gph_prior, st)
+    jcache = JonesCache(vis, ScanSeg())
+    gamp = CalPrior(gamp_prior, jcache)
+    gpha = CalPrior(gph_prior,  jcache)
 
     ga = fill(1.0, size(rand(gamp))...)
     gm = JonesModel(jonesStokes(ga, gcache), m)

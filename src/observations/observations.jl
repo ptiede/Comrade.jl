@@ -166,7 +166,7 @@ const ArrayTriangleDatum = NTuple{3, ArrayBaselineDatum{T}} where {T}
 
 Get the uvp positions of an inferometric datum.
 """
-uvpositions(D::AbstractVisibilityDatum) = D.u, D.v
+uvpositions(D::AbstractVisibilityDatum) = D.U, D.V
 
 """
     $(TYPEDEF)

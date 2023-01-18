@@ -26,16 +26,15 @@ function modelimage(::NotAnalytic,
     model::CompositeModel,
     image::IntensityMap,
     alg::FourierTransform=FFTAlg(),
-    header=nothing)
+    pulse = DeltaPulse())
 
-    m1 = @set model.m1 = modelimage(model.m1, image, alg)
-    @set m1.m2 = modelimage(m1.m2, copy(image), alg)
+    m1 = @set model.m1 = modelimage(model.m1, image, alg, pulse)
+    @set m1.m2 = modelimage(m1.m2, copy(image), alg, pulse)
 end
 
 function modelimage(::NotAnalytic,
     model::CompositeModel,
-    cache::AbstractCache,
-    header=nothing)
+    cache::AbstractCache)
 
     m1 = @set model.m1 = modelimage(model.m1, cache)
     @set m1.m2 = modelimage(m1.m2, cache)
@@ -141,7 +140,7 @@ components(m::CompositeModel{M1,M2}) where
 flux(m::AddModel) = flux(m.m1) + flux(m.m2)
 
 
-function intensitymap(m::AddModel, dims::Union{NamedTuple, AbstractDims})
+function intensitymap(m::AddModel, dims::AbstractDims)
     sim1 = intensitymap(m.m1, dims)
     sim2 = intensitymap(m.m2, dims)
     return sim1 + sim2
