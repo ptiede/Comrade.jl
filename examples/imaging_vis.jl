@@ -8,7 +8,7 @@ using OptimizationBBO
 using Plots
 using StatsBase
 using OptimizationOptimJL
-using RadioImagePriors
+using VLBIImagePriors
 using DistributionsAD
 
 # load eht-imaging we use this to load eht data
@@ -16,8 +16,7 @@ load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "DomTest/polarized_gaussian.uvfits"),
-                                joinpath(@__DIR__, "DomTest/array.txt"))
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_101_lo_hops_netcal_StokesI.uvfits"))
 
 obs.add_scans()
 # kill 0-baselines since we don't care about
@@ -31,11 +30,11 @@ dvis = extract_vis(obsavg)
 # This will be useful to hold precomputed caches
 
 function model(θ, metadata)
-    (;c, f, lgamp, gphase) = θ
+    (;c, lgamp, gphase) = θ
     (; fovx, fovy, cache, gcache) = metadata
     # Construct the image model
-    img = IntensityMap(f*c, fovx, fovy)
-    cimg = ContinuousImage(img, BicubicPulse(0.0))
+    img = IntensityMap(0.6*c, fovx, fovy)
+    cimg = ContinuousImage(img, BSplinePulse{3}())
     m = modelimage(cimg, cache)
     #gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
@@ -46,13 +45,13 @@ end
 
 
 # First we define the station gain priors
-distamp = (AA = Normal(0.0, 0.01),
-           AP = Normal(0.0, 0.01),
-           LM = Normal(0.0, 0.01),
-           AZ = Normal(0.0, 0.01),
-           JC = Normal(0.0, 0.01),
-           PV = Normal(0.0, 0.01),
-           SM = Normal(0.0, 0.01),
+distamp = (AA = Normal(0.0, 0.1),
+           AP = Normal(0.0, 0.1),
+           LM = Normal(0.0, 1.0),
+           AZ = Normal(0.0, 0.1),
+           JC = Normal(0.0, 0.1),
+           PV = Normal(0.0, 0.1),
+           SM = Normal(0.0, 0.1),
            )
 
 distphase = (AA = DiagonalVonMises([0.0], [inv(1e-3)]),
@@ -87,20 +86,19 @@ distphase = (AA = DiagonalVonMises([0.0], [inv(1e-3)]),
 
 
 fovx = μas2rad(80.0)
-fovy = μas2rad(60.0)
-nx = 20
+fovy = μas2rad(80.0)
+nx = 16
 ny = floor(Int, fovy/fovx*nx)
 
 buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
-cache = create_cache(DFTAlg(dvis), buffer, BicubicPulse(0.0))
+cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
 gcache = JonesCache(dvis, ScanSeg())
 metadata = (;cache, fovx, fovy, gcache)
 
 
 X, Y = imagepixels(buffer)
 prior = (
-          c = CenteredImage(X, Y, μas2rad(1.0), ImageDirichlet(2.0, nx, ny)),
-          f = Uniform(0.4, 2.0),# truncated(Normal(0.6, 0.05), 0.0, 1.0),
+          c = CenteredImage(X, Y, μas2rad(5.0), ImageDirichlet(2.0, nx, ny)),
           lgamp = CalPrior(distamp, gcache),
           gphase = CalPrior(distphase, gcache)
         )
@@ -121,14 +119,13 @@ ndim = dimension(tpost)
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
-ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(); maxiters=3000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 xopt = transform(tpost, sol)
 
 
 # Let's see how the fit looks
-
-plot(model(xopt, metadata), fovx=fovx, fovy=fovy, title="MAP")
+img = intensitymap(model(xopt, metadata), fovx, fovy, 128, 128)
+plot(img)
 
 residual(model(xopt, metadata), dvis)
 #residual(mms(xopt), dcphase)
@@ -158,11 +155,11 @@ res = pathfinder(
 
 # now we sample using hmc
 using LinearAlgebra
-metric = DenseEuclideanMetric(res.fit_distribution.Σ)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 12_000; nadapts=10_000, init_params=transform(tpost, res.draws[:,1]))
+metric = DiagEuclideanMetric(diag(res.fit_distribution.Σ))
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 4_000; nadapts=3_500, init_params=transform(tpost, res.draws[:,1]))
 
 # Now plot the gain table with error bars
-ngamps = (hcat(hchain.gphase...))
+gamps = (hcat(hchain.gphase...))
 mga = mean(gamps, dims=2)
 sga = std(gamps, dims=2)
 
@@ -175,7 +172,7 @@ plot(ctable, layout=(3,3), size=(600,500))
 
 # Plot the mean image and standard deviation image
 using StatsBase
-samples = model.(hchain[begin:10:end], Ref(metadata))
+samples = model.(sample(hchain, 50), Ref(metadata))
 imgs = intensitymap.(samples, fovx, fovy, 128,  128)
 
 mimg, simg = mean_and_std(imgs)

@@ -120,6 +120,19 @@ function JonesCache(obs::EHTObservation, s::TrackSeg)
     return JonesCache{typeof(m1),typeof(s), typeof(stats), typeof(ttimes)}(m1,m2,s, stats, ttimes)
 end
 
+# This is an internal function that computes the set of stations from a ScanTable
+function gain_stations(st::ScanTable)
+    gainstat = Symbol[]
+    times = eltype(st.times)[]
+    for i in 1:length(st)
+        s = stations(st[i])
+        append!(gainstat, s)
+        append!(times, fill(st[i].time, length(s)))
+    end
+    return times, gainstat
+end
+
+
 function JonesCache(obs::EHTObservation, s::ScanSeg)
 
     # extract relevant observation info

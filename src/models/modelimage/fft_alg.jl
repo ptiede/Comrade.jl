@@ -174,7 +174,7 @@ function create_cache(alg::FFTAlg, img::IntensityMapTypes, pulse::Pulse=DeltaPul
     return FFTCache(alg, plan, img, sitp)
 end
 
-function update_cache(cache::FFTCache, img::IntensityMapTypes)
+function update_cache(cache::FFTCache, img::IntensityMapTypes, pulse)
     plan = cache.plan
     pimg = padimage(img, cache.alg)
     vis = applyfft(plan, pimg)

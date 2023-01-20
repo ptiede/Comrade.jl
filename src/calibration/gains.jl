@@ -10,7 +10,7 @@ basemodel(m::RIMEModel) = m.model
 flux(m::RIMEModel) = flux(basemodel(m))
 radialextent(m::RIMEModel) = radialextent(basemodel(m))
 
-function intensitymap(model::RIMEModel, dims::Union{AbstractDims, NamedTuple})
+function intensitymap(model::RIMEModel, dims::AbstractDims)
     return intensitymap(basemodel(model), dims)
 end
 

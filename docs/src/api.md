@@ -21,15 +21,13 @@ Pages = ["api.md"]
 ```@docs
 Comrade.corrupt
 Comrade.CalTable
-Comrade.caltable(::Comrade.GainCache, ::AbstractVector)
+Comrade.caltable(::Comrade.JonesCache, ::AbstractVector)
 Comrade.caltable(::Comrade.EHTObservation, ::AbstractVector)
-Comrade.caltable(::Comrade.GainModel)
 Comrade.DesignMatrix
-Comrade.GainCache
-Comrade.GainCache(::Comrade.ScanTable)
-Comrade.GainModel
-Comrade.GainPrior
-Comrade.GainPrior(::Any, ::Comrade.ScanTable)
+Comrade.JonesCache
+Comrade.JonesModel
+Comrade.CalPrior
+Comrade.CalPrior(::NamedTuple, ::JonesCache)
 Comrade.RIMEModel
 ```
 
