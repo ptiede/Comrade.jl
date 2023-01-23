@@ -54,6 +54,18 @@ true
 basemodel(model::AbstractModifier) = model.model
 basemodel(model::AbstractModel) = model
 
+"""
+    unmodified(model::AbstractModel)
+
+Returns the un-modified model
+
+### Example
+```julia-repl
+julia> m = stretched(rotated(Gaussian(), π/4), 2.0, 1.0)
+julia> umodified(m) == Gaussian()
+true
+```
+"""
 unmodified(model::AbstractModel) = basemodel(model)
 unmodified(model::AbstractModifier) = unmodified(basemodel(model))
 
@@ -62,7 +74,6 @@ flux(m::AbstractModifier) = flux(m.model)
 
 Base.@constprop :aggressive @inline visanalytic(::Type{<:AbstractModifier{M}}) where {M} = visanalytic(M)
 Base.@constprop :aggressive @inline imanalytic(::Type{<:AbstractModifier{M}}) where {M} = imanalytic(M)
-
 Base.@constprop :aggressive @inline ispolarized(::Type{<:AbstractModifier{M}}) where {M} = ispolarized(M)
 
 radialextent(m::AbstractModifier) = radialextent(basemodel(m))
