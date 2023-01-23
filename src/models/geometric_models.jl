@@ -141,7 +141,7 @@ imanalytic(::Type{<:Butterworth}) = NotAnalytic()
 
 function visibility_point(::Butterworth{N,T}, u, v, time, freq) where {N,T}
     b = hypot(u,v) + eps(T)
-    return inv(sqrt(1 + b^(2*N))) + 0im
+    return complex(inv(sqrt(1 + b^(2*N))))
 end
 
 

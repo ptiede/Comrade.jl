@@ -48,6 +48,7 @@ Base.axes(m::ContinuousImage) = axes(parent(m))
 ComradeBase.imagegrid(m::ContinuousImage) = imagegrid(parent(m))
 ComradeBase.AxisKeys.named_axiskeys(m::ContinuousImage) = named_axiskeys(parent(m))
 ComradeBase.AxisKeys.axiskeys(m::ContinuousImage)       = ComradeBase.AxisKeys.axiskeys(parent(m))
+ComradeBase.axisdims(m::ContinuousImage) = axisdims(parent(m))
 
 Base.similar(m::ContinuousImage, ::Type{S}, dims) where {S} = ContinuousImage(similar(parent(m), S, dims), m.kernel)
 

@@ -137,6 +137,15 @@ function padimage(img::StokesIntensityMap, alg::FFTAlg)
     return StructArray{eltype(img)}((I=pI, Q=pQ, U=pU, V=pV))
 end
 
+function padimage(img::IntensityMap{<:StokesParams}, alg::FFTAlg)
+    pI = padimage(stokes(img, :I), alg)
+    pQ = padimage(stokes(img, :Q), alg)
+    pU = padimage(stokes(img, :U), alg)
+    pV = padimage(stokes(img, :V), alg)
+    return StructArray{eltype(img)}((I=pI, Q=pQ, U=pU, V=pV))
+end
+
+
 # phasecenter the FFT.
 function phasecenter(vis, X, Y, U, V)
     x0 = first(X)
