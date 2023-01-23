@@ -38,9 +38,8 @@ using Tables
     ga = fill(1.0, size(rand(gamp))...)
     gm = JonesModel(jonesStokes(ga, gcache), m)
 
-    c1 = caltable(gm)
-    c2 = caltable(gcache, ga)
-    c3 = caltable(amp, ga)
+    c1 = caltable(gcache, ga)
+    c2 = caltable(amp, ga)
 
     @testset "caltable test" begin
         @test Tables.istable(typeof(c1))
@@ -70,8 +69,6 @@ using Tables
     end
 
 
-    @test prod(skipmissing(Comrade.gmat(c3) .== Comrade.gmat(c1)))
-    @test prod(skipmissing(Comrade.gmat(c3) .== Comrade.gmat(c2)))
     @test prod(skipmissing(Comrade.gmat(c2) .== Comrade.gmat(c1)))
 
     plot(c3, layout=(3,3), size=(600,500))

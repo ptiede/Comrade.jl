@@ -217,9 +217,8 @@ ct.AA
 ct[1, :]
 ```
 """
-function caltable(obs::EHTObservation, gains::AbstractVector)
-    st = scantable(obs)
-    gcache = JonesCache(st)
+function caltable(obs::EHTObservation, gains::AbstractVector, seg = ScanSeg())
+    gcache = JonesCache(obs, seg)
     return caltable(gcache, gains)
 end
 

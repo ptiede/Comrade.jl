@@ -1,6 +1,6 @@
 using FileIO
 @testset "io.jl" begin
-    imc, head = Comrade.load(joinpath(@__DIR__, "../example_image.fits"), IntensityMap)
+    imc = Comrade.load(joinpath(@__DIR__, "../example_image.fits"), IntensityMap)
     ime = ehtim.image.load_image(joinpath(@__DIR__, "../example_image.fits"))
     data = load_data()
     @test size(ime.imarr("I")) == size(imc)

@@ -155,9 +155,9 @@ end
 
 function intensitymap!(sim::IntensityMap, m::AddModel)
     csim = deepcopy(sim)
-    intensitymap!(csim, m.m1, executor)
+    intensitymap!(csim, m.m1)
     sim .= csim
-    intensitymap!(csim, m.m2, executor)
+    intensitymap!(csim, m.m2)
     sim .= sim .+ csim
     return sim
 end
@@ -278,7 +278,7 @@ function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::AbstractDims, 
     vis1 = fouriermap(model.m1, dims)
     vis2 = fouriermap(model.m2, dims)
     vis = ifftshift(phasedecenter!(vis1.*vis2, X, Y))
-    img = ComradeBase.baseimage(ifft(vis))
+    img = ComradeBase.AxisKeys.keyless_unname(ifft(vis))
     return IntensityMap(real.(img)./(nx*ny), dims)
 end
 
@@ -287,7 +287,7 @@ function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel, 
     (;X, Y) = dims
     vis1 = fouriermap(model.m1, dims)
     vis2 = fouriermap(model.m2, dims)
-    vis = ComradeBase.baseimage(ifftshift(phasedecenter!(vis1.*vis2, X, Y)))
+    vis = ComradeBase.AxisKeys.keyless_unname(ifftshift(phasedecenter!(vis1.*vis2, X, Y)))
     ifft!(vis)
     sim .= real.(vis)./length(sim)
 end

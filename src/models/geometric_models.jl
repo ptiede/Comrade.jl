@@ -106,7 +106,8 @@ struct SlashedDisk{T} <: GeometricModel
 end
 
 
-function intensity_point(m::SlashedDisk{T}, x, y, args...) where {T}
+function intensity_point(m::SlashedDisk{T}, p) where {T}
+    x,y = _getxy(p)
     r2 = x^2 + y ^2
     s = 1 - m.slash
     norm = 2*inv(π)/(1+s)
@@ -117,7 +118,7 @@ function intensity_point(m::SlashedDisk{T}, x, y, args...) where {T}
     end
 end
 
-function visibility_point(m::SlashedDisk{T}, u, v, args...) where {T}
+function visibility_point(m::SlashedDisk{T}, u, v, time, freq) where {T}
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     s = 1-m.slash
     norm = 2/(1+s)/k

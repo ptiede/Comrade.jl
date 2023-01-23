@@ -147,7 +147,7 @@ end
 
 
 # phasecenter the FFT.
-function phasecenter(vis, X, Y, U, V)
+function ComradeBase.phasecenter(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
     return conj.(vis).*cispi.(2 .* (U.*x0 .+ V'.*y0))
@@ -236,7 +236,7 @@ function fouriermap(m, dims::AbstractDims)
     Y = dims.Y
     uu,vv = uviterator(length(X), step(X), length(Y), step(Y))
     uvgrid = ComradeBase.grid(U=uu, V=vv)
-    vis = visibility_point.(Ref(m), uvgrid)
+    vis = visibility.(Ref(m), uvgrid)
 
     return vis
 end

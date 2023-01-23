@@ -110,7 +110,7 @@ end
 
     @testset "SlashedDisk" begin
         m = smoothed(SlashedDisk(0.5), 0.25)
-        ComradeBase.intensity_point(Disk(), 0.0, 0.0)
+        ComradeBase.intensity_point(SlashedDisk(0.5), (X=0.0, Y=0.0))
         testmodel(m)
     end
 
@@ -309,7 +309,7 @@ end
     @test evpa(v) ≈ evpa(m, p)
     @test m̆(v) ≈ m̆(m, p)
 
-    I = IntensityMap(zeros(1024,1024), (100.0, 100.0))
+    I = IntensityMap(zeros(1024,1024), 100.0, 100.0)
     Q = similar(I)
     U = similar(I)
     V = similar(I)

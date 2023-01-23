@@ -95,7 +95,7 @@ function _extract_fits_image(f::FITSIO.ImageHDU{T,2}) where {T}
         end
     end
     info = (source=source, RA=ra, DEC=dec, mjd=mjd, ν=freq, stokes=stokes)
-    imap = IntensityMap(image, psizex*nx, psizey*ny, info)
+    imap = IntensityMap(image, psizex*nx, psizey*ny; header=info)
     return imap
 end
 
@@ -156,8 +156,8 @@ function _prepare_header(image, stokes="I")
               head.RA,
               head.DEC,
               head.freq,
-              size(image,2)/2+0.5,
               size(image,1)/2+0.5,
+              size(image,2)/2+0.5,
               head.mjd,
               "VLBI",
               "JY/PIXEL",
