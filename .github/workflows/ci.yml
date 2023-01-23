@@ -18,6 +18,7 @@ jobs:
           - ComradeOptimization
           - ComradeNested
         version:
+          - '1'
           - '1.7'
           - 'nightly'
         os:
@@ -25,7 +26,7 @@ jobs:
         arch:
           - x64
         python-version:
-          - '3'
+          - '3.10'
         exclude:
           - os: macOS-latest
             arch: x86
@@ -43,6 +44,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.arch }}
       - run: python -m pip install --upgrade pip
+      - run: python -m pip install numpy==1.23.1
       - run: python -m pip install ipython requests
       - run: python -m pip install ehtim
       - run: python -m pip install dynesty

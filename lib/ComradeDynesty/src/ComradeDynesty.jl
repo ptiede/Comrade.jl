@@ -50,4 +50,5 @@ function AbstractMCMC.sample(::Random.AbstractRNG, post::Comrade.TransformedPost
 end
 
 
+
 end
