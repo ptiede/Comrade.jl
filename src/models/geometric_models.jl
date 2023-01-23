@@ -47,7 +47,7 @@ By default if T isn't given, `Gaussian` defaults to `Float64`
 """
 struct Gaussian{T} <: GeometricModel end
 Gaussian() = Gaussian{Float64}()
-radialextent(::Gaussian) = 5.0
+radialextent(::Gaussian{T}) where {T} = convert(T, 5)
 
 
 @inline function intensity_point(::Gaussian, p)
@@ -87,7 +87,7 @@ end
     return 2*besselj1(ur)/(ur) + zero(T)im
 end
 
-radialextent(::Disk) = 3.0
+radialextent(::Disk{T}) where {T} = convert(T, 3)
 
 
 @doc raw"""
@@ -132,7 +132,7 @@ function visibility_point(m::SlashedDisk{T}, u, v, time, freq) where {T}
     return norm*(v1+v3)
 end
 
-radialextent(::SlashedDisk) = 3.0
+radialextent(::SlashedDisk{T}) where {T} = convert(T, 3)
 
 
 """
@@ -146,7 +146,7 @@ By default if `T` isn't given, `Gaussian` defaults to `Float64`
 """
 struct Ring{T} <: GeometricModel end
 Ring() = Ring{Float64}()
-radialextent(::Ring) = 3/2
+radialextent(::Ring{T}) where {T} = convert(T, 3/2)
 
 @inline function intensity_point(::Ring{T}, p) where {T}
     x,y = _getxy(p)
@@ -180,7 +180,7 @@ The type of the output is given by `T` and if not given defaults to `Float64`
 """
 Butterworth{N}() where {N} = Butterworth{N,Float64}()
 
-radialextent(b::Butterworth) = 5
+radialextent(::Butterworth{N,T}) where {N,T} = convert(T, 5)
 flux(::Butterworth{N,T}) where {N,T} = one(T)
 
 visanalytic(::Type{<:Butterworth}) = IsAnalytic()
@@ -248,7 +248,7 @@ end
 # Depreciate this method since we are moving to vectors for simplificty
 #@deprecate MRing(a::Tuple, b::Tuple) MRing(a::AbstractVector, b::AbstractVector)
 
-radialextent(::MRing) = 1.5
+radialextent(::MRing{T}) where {T} = convert(T, 3/2)
 
 
 @inline function intensity_point(m::MRing{T}, p) where {T}
@@ -394,7 +394,7 @@ struct ConcordanceCrescent{T} <: GeometricModel
     slash::T
 end
 
-radialextent(m::ConcordanceCrescent) = m.router*1.5
+radialextent(m::ConcordanceCrescent{T}) where {T} = m.router*3/2
 
 # Crescent normalization to ensure the
 function _crescentnorm(m::ConcordanceCrescent)
@@ -462,7 +462,7 @@ struct ExtendedRing{F<:Number} <: GeometricModel
 end
 visanalytic(::Type{<:ExtendedRing}) = NotAnalytic()
 
-radialextent(m::ExtendedRing) = 6.0
+radialextent(::ExtendedRing{T}) where {T} = convert(T, 6)
 
 function intensity_point(m::ExtendedRing, p)
     x,y = _getxy(p)
@@ -483,7 +483,7 @@ Note that if `T` isn't specified at construction then it defaults to `Float64`.
 """
 struct ParabolicSegment{T} <: GeometricModel end
 ParabolicSegment() = ParabolicSegment{Float64}()
-radialextent(::ParabolicSegment{T}) where {T} = one(T)*sqrt(2)
+radialextent(::ParabolicSegment{T}) where {T} = convert(T, sqrt(2))
 
 """
     ParabolicSegment(a::Number, h::Number)

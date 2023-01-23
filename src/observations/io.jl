@@ -94,7 +94,7 @@ function _extract_fits_image(f::FITSIO.ImageHDU{T,2}) where {T}
             image .= image.*(psizex*psizey/beamarea)
         end
     end
-    info = (source=source, RA=ra, DEC=dec, mjd=mjd, ν=freq, stokes=stokes)
+    info = (source=source, RA=ra, DEC=dec, mjd=mjd, F=freq, stokes=stokes)
     imap = IntensityMap(image, psizex*nx, psizey*ny; header=info)
     return imap
 end
@@ -105,21 +105,21 @@ end
 Saves an image to a fits file. You can optionally pass an EHTObservation so that ancillary information
 will be added.
 """
-function save(fname::String, img::IntensityMapTypes, obs = nothing)
-    head = make_header(obs)
-    _save_fits(fname, img, head)
+function save(fname::String, img::IntensityMapTypes)
+    _save_fits(fname, img)
 end
 
-function make_header(obs)
-    if isnothing(obs)
-        return (source="NA", RA=0.0, DEC=0.0, mjd=0, freq=0.0)
+function make_header(img)
+    head = header(img)
+    if isnothing(head)
+        return (source="NA", RA=0.0, DEC=0.0, mjd=0, F=0.0)
     else
-        return (source=String(obs.source), RA=obs.ra, DEC=obs.dec, mjd=obs.mjd, freq=first(obs[:F]))
+        return (source=head.source, RA=head.RA, DEC=head.DEC, mjd=head.mjd, F=head.F, stokes=head.stokes)
     end
 end
 
 function _prepare_header(image, stokes="I")
-    head = header(image)
+    head = make_header(image)
     headerkeys = ["SIMPLE",
                   "BITPIX",
                   "NAXIS",
@@ -155,7 +155,7 @@ function _prepare_header(image, stokes="I")
               rad2deg(psizey),
               head.RA,
               head.DEC,
-              head.freq,
+              head.F,
               size(image,1)/2+0.5,
               size(image,2)/2+0.5,
               head.mjd,
@@ -186,7 +186,7 @@ function _prepare_header(image, stokes="I")
     return headerkeys, values, comments
 end
 
-function _save_fits(fname::String, image::IntensityMap{T}, head) where {T<:Number}
+function _save_fits(fname::String, image::IntensityMap{T}) where {T<:Number}
     FITS(fname, "w") do hdu
         write_stokes(hdu, image)
     end

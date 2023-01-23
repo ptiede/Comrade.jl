@@ -163,6 +163,8 @@ function amplitudes(m, p::NamedTuple{(:U, :V)})
     _amplitudes(m, p.U, p.V, 0.0, 0.0)
 end
 
+amplitudes(m, p::ArrayConfiguration) = _amplitudes(m, p.data.U, p.data.V, p.data.T, p.data.F)
+
 
 function _amplitudes(m::S, u, v, time, freq) where {S}
     _amplitudes(visanalytic(S), m, u, v, time, freq)

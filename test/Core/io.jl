@@ -10,6 +10,4 @@ using FileIO
     @test fov.Y ≈ ime.fovx()
     Comrade.save("test.fits", imc)
     rm("test.fits")
-    Comrade.save("test.fits", imc, last(data))
-    rm("test.fits")
 end

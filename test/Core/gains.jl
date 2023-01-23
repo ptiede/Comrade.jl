@@ -71,7 +71,7 @@ using Tables
 
     @test prod(skipmissing(Comrade.gmat(c2) .== Comrade.gmat(c1)))
 
-    plot(c3, layout=(3,3), size=(600,500))
+    plot(c1, layout=(3,3), size=(600,500))
 
     ac = arrayconfig(vis)
     cpac = arrayconfig(cphase)
