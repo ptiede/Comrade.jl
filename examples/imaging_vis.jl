@@ -1,5 +1,4 @@
 using Pkg; Pkg.activate(@__DIR__)
-#Pkg.add(url="https://github.com/ptiede/RadioImagePriors.jl")
 using Comrade
 using Distributions
 using ComradeOptimization
@@ -85,9 +84,9 @@ distphase = (AA = DiagonalVonMises([0.0], [inv(1e-3)]),
 
 
 
-fovx = μas2rad(80.0)
-fovy = μas2rad(80.0)
-nx = 16
+fovx = μas2rad(75.0)
+fovy = μas2rad(75.0)
+nx = 7
 ny = floor(Int, fovy/fovx*nx)
 
 buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
@@ -98,7 +97,7 @@ metadata = (;cache, fovx, fovy, gcache)
 
 X, Y = imagepixels(buffer)
 prior = (
-          c = CenteredImage(X, Y, μas2rad(5.0), ImageDirichlet(2.0, nx, ny)),
+          c = ImageDirichlet(2.0, nx, ny),
           lgamp = CalPrior(distamp, gcache),
           gphase = CalPrior(distphase, gcache)
         )
@@ -155,8 +154,8 @@ res = pathfinder(
 
 # now we sample using hmc
 using LinearAlgebra
-metric = DiagEuclideanMetric(diag(res.fit_distribution.Σ))
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 4_000; nadapts=3_500, init_params=transform(tpost, res.draws[:,1]))
+metric = DenseEuclideanMetric((res.fit_distribution.Σ))
+hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 12_000; nadapts=11_000, init_params=transform(tpost, res.draws[:,1]))
 
 # Now plot the gain table with error bars
 gamps = (hcat(hchain.gphase...))
@@ -173,9 +172,23 @@ plot(ctable, layout=(3,3), size=(600,500))
 # Plot the mean image and standard deviation image
 using StatsBase
 samples = model.(sample(hchain, 50), Ref(metadata))
-imgs = intensitymap.(samples, fovx, fovy, 128,  128)
+imgs = intensitymap.(samples, μas2rad(115.0), μas2rad(115.0), 128,  128)
 
 mimg, simg = mean_and_std(imgs)
+
+using CairoMakie
+function Makie.convert_arguments(::SurfaceLike, img::Comrade.IntensityMap)
+    return rad2μas.(values(imagepixels(img)))..., Comrade.baseimage(img)
+end
+
+fig = Figure(;resolution=(400,400))
+ax = Axis(fig[1,1], xreversed=true, aspect=DataAspect())
+hidedecorations!(ax)
+image!(ax, mimg, colormap=:afmhot)
+lines!(ax, [15.0, 55.0], [-45.0, -45.0], color=:white, linewidth=3)
+text!(ax, 35.0, -50.0, text=L"$40\,\mu$as", color=:white, align=(:center, :center), fontsize=20)
+fig
+save("test.png", fig)
 
 p1 = plot(mimg, title="Mean")
 p2 = plot(simg,  title="Std. Dev.")

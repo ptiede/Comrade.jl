@@ -115,7 +115,7 @@ function PoincareSphere2Map(I, p, X, grid)
     stokesV = IntensityMap(pimgI .* X[3], grid)
     return StokesIntensityMap(stokesI, stokesQ, stokesU, stokesV)
 end
-PoincareSphere2Map(I::IntensityMap, p, X) = PoincareSphere2Map(baseimage(I), p, X, ComradeBase.axiskeys(I))
+PoincareSphere2Map(I::IntensityMap, p, X) = PoincareSphere2Map(baseimage(I), p, X, axiskeys(I))
 
 
 """

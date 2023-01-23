@@ -14,7 +14,7 @@ function load(file, T::Type{<:IntensityMapTypes})
 end
 
 function _load_fits(fname, ::Type{IntensityMap})
-    img, head = FITS(fname, "r") do f
+    img = FITS(fname, "r") do f
         if length(f) > 1
             @warn "Currently only loading stokes I. To load polarized quantities\n"*
                   "please call `Comrade.load(filename, StokesIntensityMap)`"
@@ -22,34 +22,32 @@ function _load_fits(fname, ::Type{IntensityMap})
         # assume that the first element is stokes I
         return _extract_fits_image(f[1])
     end
-    return img, head
+    return img
 end
 
-function try_loading(f, stokes, imgI, headI)
+function try_loading(f, stokes, imgI)
     try
         return _extract_fits_image(f[stokes])
     catch
         @warn "No stokes $(stokes) found creating a zero array"
         imgQ = zeros(imgI)
-        headQ = @set headI.stokes = stokes
-        return imgQ, headQ
+        return imgQ
 
     end
 end
 
 
 function _load_fits(fname, ::Type{StokesIntensityMap})
-    img, head = FITS(fname, "r") do f
+    img = FITS(fname, "r") do f
         # assume that the first element is stokes I
-        imgI, headI = _extract_fits_image(f[1])
-        imgQ, headQ = try_loading(f, "Q", imgI, headI)
-        imgU, headU = try_loading(f, "U", imgI, headI)
-        imgV, headV = try_loading(f, "V", imgI, headI)
+        imgI = _extract_fits_image(f[1])
+        imgQ = try_loading(f, "Q", imgI)
+        imgU = try_loading(f, "U", imgI)
+        imgV = try_loading(f, "V", imgI)
 
-        head = @set headI.stokes = (:I, :Q, :U, :V)
         return StokesIntensityMap(imgI, imgQ, imgU, imgV), head
     end
-    return img, head
+    return img
 end
 
 
@@ -96,9 +94,9 @@ function _extract_fits_image(f::FITSIO.ImageHDU{T,2}) where {T}
             image .= image.*(psizex*psizey/beamarea)
         end
     end
-    imap = IntensityMap(image, psizex*nx, psizey*ny)
     info = (source=source, RA=ra, DEC=dec, mjd=mjd, ν=freq, stokes=stokes)
-    return imap, info
+    imap = IntensityMap(image, psizex*nx, psizey*ny, info)
+    return imap
 end
 
 """
@@ -120,7 +118,8 @@ function make_header(obs)
     end
 end
 
-function _prepare_header(image, head, stokes="I")
+function _prepare_header(image, stokes="I")
+    head = header(image)
     headerkeys = ["SIMPLE",
                   "BITPIX",
                   "NAXIS",
@@ -152,8 +151,8 @@ function _prepare_header(image, head, stokes="I")
               head.source,
               "RA---SIN",
               "DEC---SIN",
-              rad2deg(psizex),
-              rad2deg(psizey),
+              rad2deg(image.psize[1]),
+              rad2deg(image.psize[2]),
               head.RA,
               head.DEC,
               head.freq,
@@ -189,23 +188,23 @@ end
 
 function _save_fits(fname::String, image::IntensityMap{T}, head) where {T<:Number}
     FITS(fname, "w") do hdu
-        write_stokes(hdu, image, head)
+        write_stokes(hdu, image)
     end
 end
 
-function write_stokes(f, image, head, stokes="I", innername="")
-    headerkeys, values, comments = _prepare_header(image, head, stokes)
+function write_stokes(f, image, stokes="I", innername="")
+    headerkeys, values, comments = _prepare_header(image, stokes)
     hdeheader = FITSHeader(headerkeys, values, comments)
     img = ComradeBase.AxisKeys.keyless_unname(image[end:-1:1, :])
     FITSIO.write(f, img; header=hdeheader, name=innername)
 end
 
-function _save_fits(fname::String, image::Union{StokesIntensityMap, IntensityMap{T}}, head) where {T<:StokesParams}
+function _save_fits(fname::String, image::Union{StokesIntensityMap, IntensityMap{T}}) where {T<:StokesParams}
     FITS(fname, "w") do fits
-        write_stokes(fits, ComradeBase.stokes(image, :I), head, "I")
-        write_stokes(fits, ComradeBase.stokes(image, :Q), head, "Q", "Q")
-        write_stokes(fits, ComradeBase.stokes(image, :U), head, "U", "U")
-        write_stokes(fits, ComradeBase.stokes(image, :V), head, "V", "V")
+        write_stokes(fits, ComradeBase.stokes(image, :I), "I")
+        write_stokes(fits, ComradeBase.stokes(image, :Q), "Q", "Q")
+        write_stokes(fits, ComradeBase.stokes(image, :U), "U", "U")
+        write_stokes(fits, ComradeBase.stokes(image, :V), "V", "V")
     end
 end
 

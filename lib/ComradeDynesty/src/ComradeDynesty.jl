@@ -31,7 +31,7 @@ chain, stats = sample(post, NestedSampler(dimension(post), 1000))
 equal_weighted_chain = sample(chain, Weights(stats.weights), 10_000)
 ```
 """
-function AbstractMCMC.sample(post::Comrade.TransformedPosterior,
+function AbstractMCMC.sample(::Random.AbstractRNG, post::Comrade.TransformedPosterior,
                              sampler::Union{NestedSampler, DynamicNestedSampler},
                              args...;
                              kwargs...)
