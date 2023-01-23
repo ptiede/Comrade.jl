@@ -1,5 +1,5 @@
 function load_data()
-    obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "test_data.uvfits"))
+    obs = load_ehtim_uvfits(joinpath(@__DIR__, "test_data.uvfits"))
     obs.add_scans()
     obsavg = scan_average(obs)
 

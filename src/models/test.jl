@@ -13,4 +13,4 @@ ComradeBase.visanalytic(::Type{<:NonAnalyticTest}) = NotAnalytic()
 ComradeBase.isprimitive(::Type{<:NonAnalyticTest}) = IsPrimitive()
 
 @inline radialextent(m::NonAnalyticTest) = radialextent(m.model)
-@inline intensity_point(m::NonAnalyticTest, x, y) = intensity_point(m.model, x, y)
+@inline intensity_point(m::NonAnalyticTest, p) = intensity_point(m.model, p)

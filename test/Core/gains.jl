@@ -10,7 +10,7 @@ using Tables
     stcp = scantable(cphase)
     stlca = scantable(lcamp)
 
-    gcache = GainCache(st)
+    gcache = JonesCache(vis, ScanSeg())
 
 
     θ = (f1 = 1.0,
@@ -31,15 +31,15 @@ using Tables
     gamp_prior = NamedTuple{Tuple(tel)}(ntuple(_->LogNormal(0.0, 0.1), length(tel)))
     gph_prior = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
 
-    gamp = GainPrior(gamp_prior, st)
-    gpha = GainPrior(gph_prior, st)
+    jcache = JonesCache(vis, ScanSeg())
+    gamp = CalPrior(gamp_prior, jcache)
+    gpha = CalPrior(gph_prior,  jcache)
 
     ga = fill(1.0, size(rand(gamp))...)
-    gm = GainModel(gcache, ga, m)
+    gm = JonesModel(jonesStokes(ga, gcache), m)
 
-    c1 = caltable(gm)
-    c2 = caltable(gcache, ga)
-    c3 = caltable(amp, ga)
+    c1 = caltable(gcache, ga)
+    c2 = caltable(amp, ga)
 
     @testset "caltable test" begin
         @test Tables.istable(typeof(c1))
@@ -69,11 +69,9 @@ using Tables
     end
 
 
-    @test prod(skipmissing(Comrade.gmat(c3) .== Comrade.gmat(c1)))
-    @test prod(skipmissing(Comrade.gmat(c3) .== Comrade.gmat(c2)))
     @test prod(skipmissing(Comrade.gmat(c2) .== Comrade.gmat(c1)))
 
-    plot(c3, layout=(3,3), size=(600,500))
+    plot(c1, layout=(3,3), size=(600,500))
 
     ac = arrayconfig(vis)
     cpac = arrayconfig(cphase)

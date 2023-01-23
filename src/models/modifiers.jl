@@ -54,6 +54,18 @@ true
 basemodel(model::AbstractModifier) = model.model
 basemodel(model::AbstractModel) = model
 
+"""
+    unmodified(model::AbstractModel)
+
+Returns the un-modified model
+
+### Example
+```julia-repl
+julia> m = stretched(rotated(Gaussian(), π/4), 2.0, 1.0)
+julia> umodified(m) == Gaussian()
+true
+```
+"""
 unmodified(model::AbstractModel) = basemodel(model)
 unmodified(model::AbstractModifier) = unmodified(basemodel(model))
 
@@ -62,6 +74,7 @@ flux(m::AbstractModifier) = flux(m.model)
 
 Base.@constprop :aggressive @inline visanalytic(::Type{<:AbstractModifier{M}}) where {M} = visanalytic(M)
 Base.@constprop :aggressive @inline imanalytic(::Type{<:AbstractModifier{M}}) where {M} = imanalytic(M)
+Base.@constprop :aggressive @inline ispolarized(::Type{<:AbstractModifier{M}}) where {M} = ispolarized(M)
 
 radialextent(m::AbstractModifier) = radialextent(basemodel(m))
 
@@ -94,71 +107,146 @@ Returns a transformed `u` and `v` according to the `model` modifier
 """
 function transform_uv end
 
+struct TransformState{T<:Number,C}
+    u::T
+    v::T
+    scale::C
+end
 
 
-@inline function apply_uv_transform(m::AbstractModifier, u::Number, v::Number, scale::Number)
+
+# @inline function apply_uv_transform(m::AbstractModifier, t::TransformState)
+#     ut, vt = transform_uv(m, t.u, t.v)
+#     scale = t.scale*scale_uv(m, t.u, t.v)
+#     return apply_uv_transform(basemodel(m), TransformState(ut, vt, scale))
+# end
+
+# @inline function apply_uv_transform(::AbstractModel, t::TransformState)
+#     return t
+# end
+
+
+@inline function apply_uv_transform(m::AbstractModifier, u, v, scale)
     ut, vt = transform_uv(m, u, v)
-    scale *= scale_uv(m, u, v)
+    scale = scale*scale_uv(m, u, v)
     return apply_uv_transform(basemodel(m), ut, vt, scale)
 end
 
-@inline function apply_uv_transform(::AbstractModel, u::Number, v::Number, scale::Number)
-    return u, v, scale
+@inline function apply_uv_transform(::AbstractModel, u, v, scale)
+    return (u, v), scale
 end
 
-# function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
-#     ut = similar(u)
-#     vt = similar(v)
-#     T = typeof(scale_uv(m, 0.0, 0.0))
-#     scale = ones(T, size(ut))
-#     @inbounds for i in eachindex(u,v)
-#         up, vp, sp = apply_uv_transform(m, u[i], v[i], scale[i])
-#         ut[i] = up
-#         vt[i] = vp
-#         scale[i] = sp
-#     end
-#     return ut, vt, scale
+@inline function _visibilities(m::AbstractModifier, u, v, time, freq)
+    uv, scale = apply_uv_transform(m, u, v)
+    ut = first.(uv)
+    vt = last.(uv)
+    scale.*_visibilities(unmodified(m), ut, vt, time, freq)
+end
+
+
+# function visibilities(m, p::NamedTuple)
+#     m = Base.Fix1(m∘NamedTuple{keys(p)})
+#     return visibilities(m, NamedTuple{keys(p)}(p))
 # end
 
-# @inline function _visibilities(m::M, u::AbstractArray, v::AbstractArray, args...) {M<:AbstractModifier}
+function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
+    res = apply_uv_transform.(Ref(m), u, v, 1.0)
+    return first.(res), last.(res)
+end
+
+
+
+# function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
+#     res = apply_uv_transform.(Ref(m), u, v, 1.0)
+#     return getindex.(res,1), getindex.(res,2), getindex.(res,3)
+#     res = apply_uv_transform.(Ref(m), u, v, 1.0)
+#     return getindex.(res,1), getindex.(res,2), getindex.(res,3)
+# end
+# @inline function _visibilities(m::M, p) {M<:AbstractModifier}
+
+# @inline function _visibilities(m::M, p) {M<:AbstractModifier}
+
 #     return _visibilities(visanalytic(M), m, u, v, args...)
 # end
 
-@inline function _visibilities(m::AbstractModifier, u::AbstractArray, v::AbstractArray, args...)
-    mod = apply_uv_transform.(Ref(m), u, v, 1.0)
-    last.(mod).*visibilities(unmodified(m), first.(mod), getindex.(mod,2), args...)
+# @inline function _visibilities(m::AbstractModifier{M}, p) where {M}
+#     return _visibilities(ispolarized(M), m, p)
+# end
+
+
+
+# @inline function _visibilities(m::AbstractModifier, p)
+#     (;U, V) = p
+#     st = StructArray{TransformState{eltype(U), Complex{eltype(U)}}}(u=U, v=V, scale=fill(one(Complex{eltype(U)}), length(U)))
+#     auv = Base.Fix1(apply_uv_transform, m)
+#     mst = map(auv, st)
+#     mst.scale.*visibilities(unmodified(m), (U=mst.u, V=mst.v))
+# end
+
+function update_uv(p::NamedTuple, uv)
+    p1 = @set p.U = uv.U
+    p2 = @set p1.V = uv.V
+    return p2
 end
+
+function update_xy(p::NamedTuple, xy)
+    p1 = @set p.X = xy.X
+    p2 = @set p1.Y = xy.Y
+    return p2
+end
+
+
+# @inline function _visibilities(::IsPolarized, m::AbstractModifier, p)
+#     (;U, V) = p
+
+#     S = eltype(U)
+#     unit = StokesParams(complex(one(S)), complex(one(S)), complex(one(S)),complex(one(S)))
+#     st = StructArray{TransformState{eltype(U), typeof(unit)}}(u=U, v=V, scale=Fill(unit, length(U)))
+#     mst = apply_uv_transform.(Ref(m), st)
+
+#     pup = update_uv(p, (U=mst.u, V=mst.v))
+#     mst.scale.*visibilities(unmodified(m), pup)
+# end
+
+# @inline function _visibilities(m::AbstractModifier, p)
+#     (;U, V) = p
+#     st = StructArray{TransformState{eltype(U), Complex{eltype(U)}}}(u=U, v=V, scale=fill(one(Complex{eltype(U)}), length(U)))
+#     mst = apply_uv_transform.(Ref(m), st)
+#     pup = update_uv(p, (U=mst.u, V=mst.v))
+#     mst.scale.*visibilities(unmodified(m), pup)
+# end
+
 
 
 # I need some special pass-throughs for the non-analytic FFT transform
 # since you evaluate the visibilities pointwise
 function modelimage(::NotAnalytic,
     model::AbstractModifier,
-    image::ComradeBase.AbstractIntensityMap, alg::FFTAlg, executor=SequentialEx())
+    image::IntensityMap, alg::FFTAlg, pulse)
 
-    @set model.model = modelimage(model.model, image, alg, executor)
+    @set model.model = modelimage(model.model, image, alg, pulse)
 end
 
 # I need some special pass-throughs for the non-analytic NUFT transform
 # since you evaluate the visibilities as a vector
 function modelimage(::NotAnalytic,
     model::AbstractModifier,
-    image::ComradeBase.AbstractIntensityMap, alg::NUFT,
-    executor=SequentialEx())
-    _modelimage(model, image, alg, executor)
+    image::IntensityMap, alg::NUFT,
+    pulse = DeltaPulse())
+    _modelimage(model, image, alg, pulse)
 end
 
 
-@inline function visibility_point(m::AbstractModifier, u, v, args...)
+@inline function visibility_point(m::AbstractModifier, u, v, time, freq)
     ut, vt = transform_uv(m, u, v)
     scale = scale_uv(m, u, v)
-    scale*visibility(basemodel(m), ut, vt, args...)
+    scale*visibility_point(basemodel(m), ut, vt, time, freq)
 end
 
-@inline function ComradeBase.intensity_point(m::AbstractModifier, x, y)
-    xt, yt = transform_image(m, x, y)
-    scale = scale_image(m, x, y)
-    scale*ComradeBase.intensity_point(basemodel(m), xt, yt)
+@inline function ComradeBase.intensity_point(m::AbstractModifier, p)
+    xt, yt = transform_image(m, p.X, p.Y)
+    scale = scale_image(m, p.X, p.Y)
+    scale*ComradeBase.intensity_point(basemodel(m), update_xy(p, (X=xt, Y=yt)))
 end
 
 """
@@ -193,10 +281,10 @@ shifted(model::ShiftedModel, Δx, Δy) = ShiftedModel(basemodel(model), Δx+mode
 radialextent(model::ShiftedModel, Δx, Δy) = radialextent(model.model) + hypot(abs(Δx), abs(Δy))
 
 @inline transform_image(model::ShiftedModel, x, y) = (x-model.Δx, y-model.Δy)
-@inline transform_uv(model::ShiftedModel, u, v) = (u, v)
+@inline transform_uv(::ShiftedModel, u, v) = (u, v)
 
 @inline scale_image(model::ShiftedModel, x, y) = 1.0
-@inline scale_uv(model::ShiftedModel, u, v) = exp(2im*π*(u*model.Δx + v*model.Δy))
+@inline scale_uv(model::ShiftedModel, u, v) = cispi(2*(u*model.Δx + v*model.Δy))
 
 @inline visanalytic(::Type{<:ShiftedModel{M}}) where {M} = visanalytic(M)
 
@@ -237,13 +325,13 @@ true
 ```
 """
 renormed(model::M, f) where {M<:AbstractModel} = RenormalizedModel(model, f)
-Base.:*(model::AbstractModel, f::Real) = renormed(model, f)
-Base.:*(f::Real, model::AbstractModel) = renormed(model, f)
-Base.:/(f::Real, model::AbstractModel) = renormed(model, inv(f))
-Base.:/(model::AbstractModel, f::Real) = renormed(model, inv(f))
+Base.:*(model::AbstractModel, f::Number) = renormed(model, f)
+Base.:*(f::Number, model::AbstractModel) = renormed(model, f)
+Base.:/(f::Number, model::AbstractModel) = renormed(model, inv(f))
+Base.:/(model::AbstractModel, f::Number) = renormed(model, inv(f))
 # Dispatch on RenormalizedModel so that I just make a new RenormalizedModel with a different f
 # This will make it easier on the compiler.
-Base.:*(model::RenormalizedModel, f::Real) = renormed(model.model, model.scale*f)
+Base.:*(model::RenormalizedModel, f::Number) = renormed(model.model, model.scale*f)
 # Overload the unary negation operator to be the same model with negative flux
 Base.:-(model::AbstractModel) = renormed(model, -1.0)
 flux(m::RenormalizedModel) = m.scale*flux(m.model)
@@ -345,6 +433,7 @@ end
     s,c = model.s, model.c
     return c*u + s*v, -s*u + c*v
 end
+
 
 @inline scale_image(model::RotatedModel, x, y) = 1.0
 @inline scale_uv(model::RotatedModel, u, v) = 1.0

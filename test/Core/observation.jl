@@ -43,7 +43,7 @@
     @test length(extract_cphase(obsavg; count="min")) == length(obsavg.cphase)
     @test length(extract_lcamp(obsavg; count="min")) == length(obsavg.logcamp)
     #@test Set(stations(vis)) == Set(Symbol.(collect(get(obsavg.tarr, "site"))))
-    @test mean(getdata(amp, :amp)) == mean(get(obsavg.amp, :amp))
+    @test mean(getdata(amp, :measurement)) == mean(get(obsavg.amp, :amp))
 
     println("observation: ")
     uvpositions(vis[1])
@@ -60,36 +60,35 @@
     plot(ac)
 
     u,v = getuv(ac)
-    @test visibilities(m, ac) ≈ visibilities(m, u, v)
+    @test visibilities(m, ac) ≈ visibilities(m, (U=u, V=v))
 
-    @test visibility(m, ac.data[1]) ≈ visibility(m, u[1], v[1])
+    @test visibility(m, ac.data[1]) ≈ visibility(m, (U=u[1], V=v[1]))
 
 
-    u1 = cphase[:u1]
-    v1 = cphase[:v1]
-    u2 = cphase[:u2]
-    v2 = cphase[:v2]
-    u3 = cphase[:u3]
-    v3 = cphase[:v3]
-    bispectra(m, u1, v1, u2, v2, u3, v3)
+    u1 = cphase[:U1]
+    v1 = cphase[:V1]
+    u2 = cphase[:U2]
+    v2 = cphase[:V2]
+    u3 = cphase[:U3]
+    v3 = cphase[:V3]
+    bispectra(m, (U=u1, V=v1), (U=u2, V=v2), (U=u3, V=v3))
 
     @testset "RadioLikelihood" begin
-        lamp = RadioLikelihood(amp)
-        lcphase = RadioLikelihood(cphase)
-        llcamp = RadioLikelihood(lcamp)
-        lclose1 = RadioLikelihood(cphase, lcamp)
-        lclose2 = RadioLikelihood(lcamp, cphase)
 
         m = stretched(Gaussian(), μas2rad(20.0), μas2rad(20.0))
-        logdensityof(lcphase, m)
-        logdensityof(llcamp, m)
-        logdensityof(lamp, m)
+        f(_) = stretched(Gaussian(), μas2rad(20.0), μas2rad(20.0))
+        lamp = RadioLikelihood(f, amp)
+        lcphase = RadioLikelihood(f, cphase)
+        llcamp = RadioLikelihood(f, lcamp)
+        lclose1 = RadioLikelihood(f, cphase, lcamp)
+        lclose2 = RadioLikelihood(f, lcamp, cphase)
 
-        @test logdensityof(lclose1,m) ≈ logdensityof(lclose2,m)
-        @test logdensityof(lclose1,m ) ≈ logdensityof(lcphase, m) + logdensityof(llcamp, m)
-        @inferred logdensityof(lclose1, m)
-        @inferred logdensityof(lclose2, m)
-        @inferred logdensityof(lamp, m)
+        θ = NamedTuple{()}(())
+        @test logdensityof(lclose1,θ) ≈ logdensityof(lclose2, θ)
+        @test logdensityof(lclose1, θ ) ≈ logdensityof(lcphase, θ) + logdensityof(llcamp, θ)
+        @inferred logdensityof(lclose1, θ)
+        @inferred logdensityof(lclose2, θ)
+        @inferred logdensityof(lamp, θ)
 
     end
 

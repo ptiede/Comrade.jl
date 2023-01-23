@@ -9,11 +9,11 @@ load_ehtim()
 
 @testset "bayes" begin
     _,vis, amp, lcamp, cphase = load_data()
-    lklhd = RadioLikelihood(lcamp, cphase)
+    lklhd = RadioLikelihood(test_model, lcamp, cphase)
 
     prior = test_prior()
 
-    post = Posterior(lklhd, prior, test_model)
+    post = Posterior(lklhd, prior)
     prior_sample(post)
     prior_sample(post, 2)
     tpostf = asflat(post)

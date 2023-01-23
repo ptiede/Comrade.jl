@@ -32,7 +32,7 @@ of ℓ.
 
 This is an internal function and shouldn't be typically used by an end-user.
 """
-function make_pullback(ℓ, autodiff::Function)
+function make_pullback(ℓ, grad::Function)
     function ∇ℓ(x)
         return (ℓ(x), grad(x))
     end

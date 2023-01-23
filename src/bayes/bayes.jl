@@ -5,21 +5,18 @@ import ParameterHandling
 import ParameterHandling: flatten
 using HypercubeTransform
 using TransformVariables
-using ValueShapes: NamedTupleDist
 
-struct Posterior{L,P,F}
+struct Posterior{L,P}
     lklhd::L
     prior::P
-    model::F
 end
 
 """
-    Posterior(lklhd, prior, model)
+    Posterior(lklhd, prior)
 Creates a Posterior density that follows obeys [DensityInferface](https://github.com/JuliaMath/DensityInferface.jl).
 The `lklhd` object is expected to be a `MeasureBase.Likelihood` object. For instance, these can be
 created using [`RadioLikelihood`](@ref). `prior` is expected to be a `NamedTuple`
-of distributions that reflect the priors on the parameters you are considering. `model` is a function
-that takes in a `NamedTuple` of parameters and returns a `Comrade` `<:AbstractModel`.
+of distributions that reflect the priors on the parameters you are considering.
 
 # Notes
 Since this function obeys `DensityInferface` you can evaluate it with
@@ -35,67 +32,17 @@ where `post::Posterior`.
 
 To generate random draws from the prior see the [`prior_sample`](@ref prior_sample) function.
 """
-function Posterior(lklhd, prior::NamedTuple, model)
-    return Posterior(lklhd, NamedDist(prior), model)
+function Posterior(lklhd, prior::NamedTuple)
+    return Posterior(lklhd, NamedDist(prior))
 end
 
-struct ModelMetadata{M, C}
-    model::M
-    metadata::C
-end
-
-function (m::ModelMetadata)(θ)
-    return m.model(θ, m.metadata)
-end
-
-"""
-    Posterior(lklhd, prior::NamedTuple, model, metadata::NamedTuple)
-
-Creates a posterior density using the `lklhd`, `prior`. This version accepts
-two additional arguments a `model` that converts from parameters `θ` to a Comrade
-AbstractModel which can be used to compute [`visibilities`](@ref) and a set of
-`metadata` that is used by `model` to compute the model.
-
-# Warning
-
-The `model` itself must be a two argument function where the first argument is the set
-of model parameters and the second is a container that holds all the additional
-information needed to construct the model. An example of this is when the model
-needs some precomputed cache to define the model.
-
-# Example
-```julia
-
-# Construct a likelihood
-lklhd = RadioLikelihood(...)
-
-cache = create_cache(FFTAlg(), IntensityMap(zeros(128,128), μas2rad(100.0), μas2rad(100.0)))
-
-function model(θ, metadata)
-    (; r, a) = θ
-    m = stretched(ExtendedRing(a), r, r)
-    return modelimage(m, metadata.cache)
-end
-
-prior = (
-         r = Uniform(μas2rad(10.0), μas2rad(40.0)),
-         a = Uniform(0.1, 5.0)
-         )
-
-Posterior(lklhd, prior, model, (cache = cache))
-```
-"""
-function Posterior(lklhd, prior::NamedTuple, model, metadata)
-    return Posterior(lklhd, NamedDist(prior), ModelMetadata(model, metadata))
-end
 
 @inline DensityInterface.DensityKind(::Posterior) = DensityInterface.IsDensity()
 
 function DensityInterface.logdensityof(post::Posterior, x)
     pr = logdensityof(post.prior, x)
     !isfinite(pr) && return -Inf
-    vis = post.model(x)
-    return logdensityof(post.lklhd, vis) + pr
+    return logdensityof(post.lklhd, x) + pr
 end
 
 """
@@ -240,7 +187,7 @@ function DensityInterface.logdensityof(tpost::TransformedPosterior{P, T}, x::Abs
     end
     p = transform(tpost.transform, x)
     post = tpost.lpost
-    return logdensityof(post.lklhd, post.model(p))
+    return logdensityof(post.lklhd, p)
 end
 
 struct FlatTransform{T}

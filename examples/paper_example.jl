@@ -19,7 +19,6 @@ obs = scan_average(obs.flag_uvdist(uv_min=0.1e9).add_fractional_noise(0.02))
 dlcamp = extract_lcamp(obs)
 dcphase = extract_cphase(obs)
 # form the likelihood
-lklhd = RadioLikelihood(dlcamp, dcphase)
 # build the model here we fit a ring with a azimuthal
 #brightness variation and a Gaussian
 
@@ -42,13 +41,15 @@ prior = (
           y = Uniform(-(80.0), (80.0))
         )
 # Now form the posterior
-post = Posterior(lklhd, prior, model)
+lklhd = RadioLikelihood(model,dlcamp, dcphase)
+post = Posterior(lklhd, prior)
 # We will use HMC to sample the posterior.
 # First we will find a reasonable starting location using GalacticOptim
 # For optimization we need to specify what transform to use. Here we will transform to
 # the unit hypercube
 tpost = asflat(post)
 ndim = dimension(tpost)
+ℓ = logdensityof(tpost)
 f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
 prob = OptimizationProblem(f, rand(ndim), nothing, lb=fill(-5.0, ndim), ub = fill(5.0, ndim))
 sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000)

@@ -41,29 +41,53 @@ AbstractFFTs.plan_fft(x::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, region=1:
 
 # Allow things to work with Complex Dual numbers.
 ForwardDiff.value(x::Complex{<:ForwardDiff.Dual}) = Complex(x.re.value, x.im.value)
-ForwardDiff.partials(x::Complex{<:ForwardDiff.Dual}, n::Int) = Complex(ForwardDiff.partials(x.re, n), ForwardDiff.partials(x.im, n))
+ForwardDiff.partials(x::Complex{<:ForwardDiff.Dual}, n::Int) = Complex(ForwardDiff.partials(x.re, n), ForwardDiff.partials(x.img, n))
 ForwardDiff.npartials(x::Complex{<:ForwardDiff.Dual}) = ForwardDiff.npartials(x.re)
 
 # internal function that creates the interpolator objector to evaluate the FT.
-function create_interpolator(u, v, vis, img)
+function create_interpolator(U, V, vis::AbstractArray{<:Complex}, pulse)
     # Construct the interpolator
     #itp = interpolate(vis, BSpline(Cubic(Line(OnGrid()))))
     #etp = extrapolate(itp, zero(eltype(vis)))
     #scale(etp, u, v)
-    p1 = BicubicInterpolator(u, v, real(vis)', NoBoundaries())
-    p2 = BicubicInterpolator(u, v, imag(vis)', NoBoundaries())
-    dx,dy = pixelsizes(img)
+    p1 = BicubicInterpolator(U, V, real(vis), NoBoundaries())
+    p2 = BicubicInterpolator(U, V, imag(vis), NoBoundaries())
     function (u,v)
-        #phase = cispi(-(u*dx + v*dx))
-        pl = visibility_point(img.pulse, u*dx, v*dy)
+        pl = visibility_point(pulse, u, v, 0.0, 0.0)
         return pl*(p1(u,v) + 1im*p2(u,v))
+    end
+end
+
+function create_interpolator(U, V, vis::StructArray{<:StokesParams}, pulse)
+    # Construct the interpolator
+    pI_real = BicubicInterpolator(U, V, real(vis.I), NoBoundaries())
+    pI_imag = BicubicInterpolator(U, V, real(vis.I), NoBoundaries())
+
+    pQ_real = BicubicInterpolator(U, V, real(vis.Q), NoBoundaries())
+    pQ_imag = BicubicInterpolator(U, V, real(vis.Q), NoBoundaries())
+
+    pU_real = BicubicInterpolator(U, V, real(vis.U), NoBoundaries())
+    pU_imag = BicubicInterpolator(U, V, real(vis.U), NoBoundaries())
+
+    pV_real = BicubicInterpolator(U, V, real(vis.V), NoBoundaries())
+    pV_imag = BicubicInterpolator(U, V, real(vis.V), NoBoundaries())
+
+
+    function (u,v)
+        pl = visibility_point(pulse, u, v, 0.0, 0.0)
+        return StokesParams(
+            pI_real(u,v)*pl + 1im*pI_imag(u,v)*pl,
+            pQ_real(u,v)*pl + 1im*pQ_imag(u,v)*pl,
+            pU_real(u,v)*pl + 1im*pU_imag(u,v)*pl,
+            pV_real(u,v)*pl + 1im*pV_imag(u,v)*pl,
+        )
     end
 end
 
 #=
 This is so ForwardDiff works with FFTW. I am very harsh on the `x` type because of type piracy.
 =#
-function Base.:*(p::AbstractFFTs.Plan, x::PaddedView{<:ForwardDiff.Dual{T,V,P},N, I,<:IntensityMap}) where {T,V,P,N,I}
+function Base.:*(p::AbstractFFTs.Plan, x::PaddedView{<:ForwardDiff.Dual{T,V,P},N, I,<:IntensityMapTypes}) where {T,V,P,N,I}
     M = typeof(ForwardDiff.value(first(x)))
     cache = Matrix{M}(undef, size(x)...)
     cache .= ForwardDiff.value.(x)
@@ -97,7 +121,7 @@ end
 #                      )
 # end
 
-function padimage(img, alg::FFTAlg)
+function padimage(img::IntensityMap, alg::FFTAlg)
     padfac = alg.padfac
     ny,nx = size(img)
     nnx = nextprod((2,3,5,7), padfac*nx)
@@ -105,61 +129,78 @@ function padimage(img, alg::FFTAlg)
     PaddedView(zero(eltype(img)), img, (nny, nnx))
 end
 
-# phasecenter the FFT.
-function phasecenter(vis, uu, vv, x0, y0, dx, dy)
-    map(CartesianIndices((eachindex(uu), eachindex((vv))))) do I
-        iy,ix = Tuple(I)
-        return conj(vis[I])*cispi(2*(uu[ix]*x0 + vv[iy]*y0))
-    end
+function padimage(img::StokesIntensityMap, alg::FFTAlg)
+    pI = padimage(stokes(img, :I), alg)
+    pQ = padimage(stokes(img, :Q), alg)
+    pU = padimage(stokes(img, :U), alg)
+    pV = padimage(stokes(img, :V), alg)
+    return StructArray{eltype(img)}((I=pI, Q=pQ, U=pU, V=pV))
+end
+
+function padimage(img::IntensityMap{<:StokesParams}, alg::FFTAlg)
+    pI = padimage(stokes(img, :I), alg)
+    pQ = padimage(stokes(img, :Q), alg)
+    pU = padimage(stokes(img, :U), alg)
+    pV = padimage(stokes(img, :V), alg)
+    return StructArray{eltype(img)}((I=pI, Q=pQ, U=pU, V=pV))
 end
 
 
-function create_cache(alg::FFTAlg, img)
-    #intensitymap!(img, model)
+# phasecenter the FFT.
+function ComradeBase.phasecenter(vis, X, Y, U, V)
+    x0 = first(X)
+    y0 = first(Y)
+    return conj.(vis).*cispi.(2 .* (U.*x0 .+ V'.*y0))
+end
+
+function applyfft(plan, img::AbstractArray{<:Number})
+    return fftshift(plan*img)
+end
+
+function applyfft(plan, img::AbstractArray{<:StokesParams})
+    visI = applyfft(plan, stokes(img, :I))
+    visQ = applyfft(plan, stokes(img, :Q))
+    visU = applyfft(plan, stokes(img, :U))
+    visV = applyfft(plan, stokes(img, :V))
+    return StructArray{StokesParams{eltype(visI)}}((I=visI, Q=visQ, U=visU, V=visV))
+end
+
+
+
+function create_cache(alg::FFTAlg, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
     pimg = padimage(img, alg)
     # Do the plan and then fft
     plan = plan_fft(pimg)
-    vis = fftshift(plan*pimg)
-    #println(sum(img)*dx*dy)
-    #println(sum(pimg)*dx*dy)
+    vis = applyfft(plan, pimg)
 
     #Construct the uv grid
-    dx,dy = pixelsizes(img)
-    nny, nnx = size(pimg)
-    uu, vv = uviterator(dx, dy, nnx, nny)
+    (;X, Y) = imagepixels(img)
+    (;U, V) = uviterator(size(pimg, 1), step(X), size(pimg, 2), step(Y))
 
-    x0,y0 = first.(imagepixels(img))
-    #phases = fftphases(uu, vv, x0, y0, dx, dy)
-    vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
-    sitp = create_interpolator(uu, vv, vispc, img)
+
+    vispc = phasecenter(vis, X, Y, U, V)
+    sitp = create_interpolator(U, V, vispc, stretched(pulse, step(X), step(Y)))
     return FFTCache(alg, plan, img, sitp)
 end
 
-function update_cache(cache::FFTCache, img)
+function update_cache(cache::FFTCache, img::IntensityMapTypes, pulse)
     plan = cache.plan
     pimg = padimage(img, cache.alg)
+    vis = applyfft(plan, pimg)
 
-    dx,dy = pixelsizes(img)
-    nny, nnx = size(pimg)
-    uu, vv = uviterator(dx, dy, nnx, nny)
+    (;X,Y) = imagepixels(img)
 
-    dx,dy = pixelsizes(img)
-    nny, nnx = size(pimg)
-    uu, vv = uviterator(dx, dy, nnx, nny)
+    # Flip U because of radio conventions
+    (;U, V) = uviterator(size(pimg, 1), step(X), size(pimg, 2), step(Y))
 
-    x0,y0 = first.(imagepixels(img))
-
-
-    dx,dy = pixelsizes(img)
-    vis = fftshift(plan*pimg)
-    vispc = phasecenter(vis, uu, vv, x0, y0, dx, dy)
+    vispc = phasecenter(vis, X, Y, U, V)
     sitp = create_interpolator(uu, vv, vispc, img)
     return FFTCache(cache.alg, plan, img, sitp)
 end
 
 
 """
-    uviterator(dx, dy, nnx, nny)
+    uviterator(nx, dx, ny dy)
 
 Construct the u,v iterators for the Fourier transform of the image
 with pixel sizes `dx, dy` and number of pixels `nx, ny`
@@ -167,14 +208,10 @@ with pixel sizes `dx, dy` and number of pixels `nx, ny`
 If you are extending Fourier transform stuff please use these functions
 to ensure that the centroid is being properly computed.
 """
-function uviterator(dx, dy, nnx, nny)
-    uM = 1/(2*dx)
-    du = 2*uM/nnx
-    vM = 1/(2*dy)
-    dv = 2*vM/nny
-    uu = range(-uM, step=du, length=nnx)
-    vv = range(-vM, step=dv, length=nny)
-    return uu, vv
+function uviterator(nx, dx, ny, dy)
+    U = fftshift(fftfreq(nx, inv(dx)))
+    V = fftshift(fftfreq(ny, inv(dy)))
+    return (;U, V)
 end
 
 #function ChainRulesCore.rrule(::typeof(phasecenter!), vis, uu, vv, x0, y0, dx, dy)
@@ -188,56 +225,52 @@ end
 #end
 
 """
-    fouriermap(m, fovx, fovy, nx, ny)
+    fouriermap(m, x)
 
 Create a Fourier or visibility map of a model `m`
-assuming a image with a field of view `fovx/fovy` and
-`nx/ny` pixels in the x/y direction respectively.
+where the image is specified in the image domain by the
+pixel locations `x` and `y`
 """
-function fouriermap(m, fovx, fovy, nx, ny)
-    x,y = imagepixels(fovx, fovy, nx, ny)
-    dx = step(x); dy = step(y)
-    uu,vv = uviterator(dx, dy, nx, ny)
+function fouriermap(m, dims::AbstractDims)
+    X = dims.X
+    Y = dims.Y
+    uu,vv = uviterator(length(X), step(X), length(Y), step(Y))
+    uvgrid = ComradeBase.grid(U=uu, V=vv)
+    vis = visibility.(Ref(m), uvgrid)
 
-    T = typeof(visibility(m, 0.0, 0.0))
-    vis = Matrix{T}(undef, ny, nx)
-
-    @inbounds for I in CartesianIndices(vis)
-        iy, ix = Tuple(I)
-        vp = visibility(m, uu[ix], vv[iy])
-        vis[I] = vp
-    end
     return vis
 end
 
 
-function fouriermap(m::ModelImage, fovx, fovy, nx, ny)
-    cache = create_cache(FFTAlg(), m.image)
-    x,y = imagepixels(fovx, fovy, nx, ny)
-    dx = step(x); dy = step(y)
-    uu,vv = uviterator(dx, dy, nx, ny)
 
-    T = Complex{eltype(m.image)}
-    vis = Matrix{T}(undef, ny, nx)
 
-    @inbounds for I in CartesianIndices(vis)
-        iy, ix = Tuple(I)
-        vp = cache.sitp(uu[ix], vv[iy])
-        vis[I] = vp
-    end
-    return vis
+# function fouriermap(m::ModelImage, fovx, fovy, x0, y0, nx, ny)
+#     cache = create_cache(FFTAlg(), m.image)
+#     x,y = imagepixels(fovx, fovy, x0, y0, nx, ny)
+#     dx = step(x); dy = step(y)
+#     uu,vv = uviterator(dx, dy, nx, ny)
 
-end
+#     T = Complex{eltype(m.image)}
+#     vis = Matrix{T}(undef, ny, nx)
 
-function phasedecenter!(vis, fovx, fovy, nx, ny)
-    x,y = imagepixels(fovx, fovy, nx, ny)
-    dx = step(x); dy = step(y)
-    uu,vv = uviterator(dx, dy, nx, ny)
-    x0 = first(x)
-    y0 = first(y)
+#     @inbounds for I in CartesianIndices(vis)
+#         iy, ix = Tuple(I)
+#         vp = cache.sitp(uu[ix], vv[iy])
+#         vis[I] = vp
+#     end
+#     return vis
+
+# end
+
+function phasedecenter!(vis, X, Y)
+    nx = length(X)
+    ny = length(Y)
+    uu,vv = uviterator(nx, step(X), ny, step(Y))
+    x0 = first(X)
+    y0 = first(Y)
     for I in CartesianIndices(vis)
         iy, ix = Tuple(I)
-        vis[I] = conj(vis[I]*cispi(-2*(uu[ix]*x0 + vv[iy]*y0)))*nx*ny
+        vis[I] = conj(vis[I])*cispi(2*(uu[ix]*x0 + vv[iy]*y0))*nx*ny
     end
     return vis
 end
@@ -246,6 +279,6 @@ end
 #     return visibility.(Ref(mimg), u, v, args...)
 # end
 
-@inline function visibility_point(mimg::ModelImage{M,I,<:FFTCache}, u, v) where {M,I}
+@inline function visibility_point(mimg::ModelImage{M,I,<:FFTCache}, u, v, time, freq) where {M,I}
     return mimg.cache.sitp(u, v)
 end

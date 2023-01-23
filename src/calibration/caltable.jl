@@ -195,3 +195,68 @@ function Base.show(io::IO, ct::CalTable, )
                      formatters = (v,i,j)->round(v, digits=3)
                 )
 end
+
+
+"""
+    caltable(obs::EHTObservation, gains::AbstractVector)
+
+Create a calibration table for the observations `obs` with `gains`. This returns
+a [`CalTable`](@ref) object that satisfies the
+`Tables.jl` interface. This table is very similar to the `DataFrames` interface.
+
+# Example
+
+```julia
+ct = caltable(obs, gains)
+
+# Access a particular station (here ALMA)
+ct[:AA]
+ct.AA
+
+# Access a the first row
+ct[1, :]
+```
+"""
+function caltable(obs::EHTObservation, gains::AbstractVector, seg = ScanSeg())
+    gcache = JonesCache(obs, seg)
+    return caltable(gcache, gains)
+end
+
+"""
+    caltable(g::JonesCache, jterms::AbstractVector)
+
+Convert the JonesCache `g` and recovered Jones/corruption elements `jterms` into a `CalTable`
+which satisfies the `Tables.jl` interface.
+
+# Example
+
+```julia
+ct = caltable(gcache, gains)
+
+# Access a particular station (here ALMA)
+ct[:AA]
+ct.AA
+
+# Access a the first row
+ct[1, :]
+```
+"""
+function caltable(g::JonesCache, gains::AbstractVector)
+    @argcheck length(g.times) == length(gains)
+
+    stations = sort(unique(g.stations))
+    times = unique(g.times)
+    gmat = Matrix{Union{eltype(gains), Missing}}(missing, length(times), length(stations))
+
+    alltimes = g.times
+    allstations = g.stations
+    # Create the lookup dict
+    lookup = Dict(stations[i]=>i for i in eachindex(stations))
+    for i in eachindex(gains)
+        t = findfirst(t->(t==alltimes[i]), times)
+        c = lookup[allstations[i]]
+        gmat[t,c] = gains[i]
+    end
+
+    return CalTable(stations, lookup, times, gmat)
+end

@@ -1,12 +1,12 @@
-export residuals, χ²
+export residuals, chi2
 
 @recipe function f(m::AbstractModel, dvis::EHTObservation{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTVisibilityDatum}
     xguide --> "uv-distance (λ)"
     yguide --> "V (Jy)"
     markershape --> :diamond
 
-    u = getdata(dvis, :u)
-    v = getdata(dvis, :v)
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
     vis = visibility.(dvis.data)
     error = getdata(dvis, :error)
@@ -36,10 +36,172 @@ export residuals, χ²
         yerr := error
         uvdist, vim
     end
+
+
     seriestype-->:scatter
-    vmod = visibilities(m, u, v)
+    vmod = visibilities(m, arrayconfig(dvis))
     labels --> "Model"
     uvdist, hcat(real.(vmod), imag.(vmod))
+end
+
+@recipe function f(m::AbstractModel, dvis::EHTObservation{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTCoherencyDatum}
+
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
+    uvdist = hypot.(u,v)
+    vis = dvis[:measurement]
+    error = getdata(dvis, :error)
+    vmod = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
+
+    #add data errorbars
+    @series begin
+        v = getindex.(vis, 1, 1)
+        err = getindex.(error, 1, 1)
+        subplot := 1
+
+        @series begin
+            seriestype := :scatter
+            markershape := datamarker
+            markercolor := datacolor
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Data Real"
+            uvdist, real.(v)
+        end
+        @series begin
+            seriestype := :scatter
+            markershape := :square
+            markercolor := :grey
+            markeralpha := 0.5
+            markerstrokecolor := :black
+            markerstrokealpha := 1.0
+            linecolor :=nothing
+            label := "Data Imag"
+            yerr := err
+            uvdist, imag.(v)
+        end
+
+        yguide := "C₁₁ (Jy)"
+        seriestype := :scatter
+        legend := false
+        yguide := "C₁₁ (Jy)"
+        label := ["Model Re" "Model Imag"]
+        markercolor := [:red :orange]
+        vm = getindex.(vmod, 1, 1)
+        [uvdist uvdist], hcat(real.(vm), imag.(vm))
+    end
+
+    @series begin
+        subplot := 2
+        v = getindex.(vis, 1, 2)
+        err = getindex.(error, 1, 2)
+        @series begin
+            seriestype := :scatter
+            markershape := datamarker
+            markercolor := datacolor
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Data Real"
+            uvdist, real.(v)
+        end
+        @series begin
+            seriestype := :scatter
+            markershape := datamarker
+            markercolor := :white
+            markeralpha := 0.01
+            markerstrokecolor := :black
+            markerstrokealpha := 1.0
+            linecolor :=nothing
+            label := "Data Imag"
+            yerr := err
+            uvdist, imag.(v)
+        end
+
+        seriestype := :scatter
+        legend := false
+        yguide := "C₁₂ (Jy)"
+        label := ["Model Re" "Model Imag"]
+        markercolor := [:red :orange]
+        vm = getindex.(vmod, 1, 2)
+        uvdist, hcat(real.(vm), imag.(vm))
+    end
+
+
+    @series begin
+        subplot := 3
+        v = getindex.(vis, 2, 1)
+        err = getindex.(error, 2, 1)
+        @series begin
+            seriestype := :scatter
+            markershape := datamarker
+            markercolor := datacolor
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Data Real"
+            uvdist, real.(v)
+        end
+        @series begin
+            seriestype := :scatter
+            markershape := datamarker
+            markercolor := :white
+            markeralpha := 0.01
+            markerstrokecolor := :black
+            markerstrokealpha := 0.5
+            linecolor :=nothing
+            label := "Data Imag"
+            yerr := err
+            uvdist, imag.(v)
+        end
+
+        seriestype := :scatter
+        legend := false
+        yguide := "C₂₁ (Jy)"
+        label := ["Model Re" "Model Imag"]
+        markercolor := [:red :orange]
+        vm = getindex.(vmod, 2, 1)
+        uvdist, hcat(real.(vm), imag.(vm))
+
+    end
+
+    @series begin
+        subplot := 4
+        title := "C₂₂"
+        v = getindex.(vis, 2, 2)
+        err = getindex.(error, 2, 2)
+        @series begin
+            seriestype := :scatter
+            markershape := datamarker
+            markercolor := datacolor
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Data Real"
+            uvdist, real.(v)
+        end
+        @series begin
+            seriestype := :scatter
+            markershape := datamarker
+            markercolor := :white
+            markeralpha := 0.01
+            markerstrokecolor := :black
+            markerstrokealpha := 1.0
+            linecolor :=nothing
+            label := "Data Imag"
+            yerr := err
+            uvdist, imag.(v)
+        end
+        seriestype := :scatter
+        legend := false
+        labels --> "Model"
+        vm = getindex.(vmod, 2, 2)
+        uvdist, hcat(real.(vm), imag.(vm))
+
+    end
+    layout --> (2,2)
+
 end
 
 @recipe function f(dvis::EHTObservation{T,A};) where {T,A<:EHTVisibilityDatum}
@@ -47,8 +209,8 @@ end
     yguide --> "V (Jy)"
     markershape --> :circle
 
-    u = getdata(dvis, :u)
-    v = getdata(dvis, :v)
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
     vis = visibility.(dvis.data)
     error = getdata(dvis, :error)
@@ -77,13 +239,136 @@ end
     end
 end
 
+@recipe function f(dvis::EHTObservation{T,A};) where {T,A<:EHTCoherencyDatum}
+    markershape --> :circle
+
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
+    uvdist = hypot.(u,v)
+    coh = dvis[:measurement]
+    error = dvis[:error]
+    layout := (2,2)
+
+    #add data errorbars
+    @series begin
+        xguide --> "uv-distance (λ)"
+        subplot := 1
+        yguide := "RR (Jy)"
+        vre = real.(getindex.(coh, 1, 1))
+        vim = imag.(getindex.(coh, 1, 1))
+        err = getindex.(error, 1, 1)
+        @series begin
+            seriestype := :scatter
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Real"
+            uvdist, vre
+        end
+
+            seriestype := :scatter
+            markeralpha := 0.5
+            markerstrokecolor := :black
+            markerstrokealpha := 1.0
+            linecolor :=nothing
+            label := nothing
+            yerr := err
+            label := "Imag"
+            uvdist, vim
+    end
+
+    @series begin
+        xguide --> "uv-distance (λ)"
+        subplot := 2
+        yguide := "RL (Jy)"
+        vre = real.(getindex.(coh, 1, 2))
+        vim = imag.(getindex.(coh, 1, 2))
+        err = getindex.(error, 1, 2)
+        @series begin
+            seriestype := :scatter
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Real"
+            uvdist, vre
+        end
+
+            seriestype := :scatter
+            markeralpha := 0.5
+            markerstrokecolor := :black
+            markerstrokealpha := 1.0
+            linecolor :=nothing
+            legend := nothing
+            label := nothing
+            yerr := err
+            label := "Imag"
+            uvdist, vim
+    end
+
+    @series begin
+        xguide --> "uv-distance (λ)"
+        subplot := 3
+        yguide := "LR (Jy)"
+        vre = real.(getindex.(coh, 2, 1))
+        vim = imag.(getindex.(coh, 2, 1))
+        err = getindex.(error, 1, 1)
+        @series begin
+            seriestype := :scatter
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Real"
+            uvdist, vre
+        end
+
+            seriestype := :scatter
+            markeralpha := 0.5
+            markerstrokecolor := :black
+            markerstrokealpha := 1.0
+            linecolor :=nothing
+            label := nothing
+            legend := nothing
+            yerr := err
+            label := "Imag"
+            uvdist, vim
+    end
+    @series begin
+        xguide --> "uv-distance (λ)"
+        subplot := 4
+        yguide := "LL (Jy)"
+        vre = real.(getindex.(coh, 2, 2))
+        vim = imag.(getindex.(coh, 2, 2))
+        err = getindex.(error, 1, 1)
+        @series begin
+            seriestype := :scatter
+            alpha := 0.5
+            yerr := err
+            linecolor := nothing
+            label := "Real"
+            uvdist, vre
+        end
+
+            seriestype := :scatter
+            markeralpha := 0.5
+            markerstrokecolor := :black
+            markerstrokealpha := 1.0
+            linecolor :=nothing
+            label := nothing
+            legend := nothing
+            yerr := err
+            label := "Imag"
+            uvdist, vim
+    end
+
+end
+
 @recipe function f(dvis::EHTObservation{T,A};) where {T,A<:EHTVisibilityAmplitudeDatum}
     xguide --> "uv-distance (λ)"
     yguide --> "|V| (Jy)"
     markershape --> :diamond
 
-    u = getdata(dvis, :u)/1e9
-    v = getdata(dvis, :v)/1e9
+    u = getdata(dvis, :U)/1e9
+    v = getdata(dvis, :V)/1e9
     uvdist = hypot.(u,v)
     amp = amplitude.(dvis.data)
     error = getdata(dvis, :error)
@@ -107,7 +392,7 @@ end
     linecolor --> nothing
     aspect_ratio --> :equal
     label -->"Data"
-    title --> "Frequency: $(acc.frequency/1e9) GHz"
+    title --> "Frequency: $(first(acc.data.F)/1e9) GHz"
     vcat(u/1e9,-u/1e9), vcat(v/1e9,-v/1e9)
 end
 
@@ -116,8 +401,8 @@ end
     yguide --> "V (Jy)"
     markershape --> :diamond
 
-    u = getdata(dvis, :u)
-    v = getdata(dvis, :v)
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
     amp = amplitude.(dvis.data)
     error = getdata(dvis, :error)
@@ -134,7 +419,7 @@ end
     end
 
     seriestype-->:scatter
-    amod = amplitudes(m, u, v)
+    amod = abs.(visibilities(m, arrayconfig(dvis)))
     labels --> "Model"
     uvdist, amod
 end
@@ -168,7 +453,7 @@ end
     yguide --> "Log Clos. Amp."
     markershape --> :diamond
     area = sqrt.(uvarea.(dlca.data))
-    phase = getdata(dlca, :amp)
+    phase = getdata(dlca, :measurement)
     error = getdata(dlca, :error)
     #add data errorbars
     seriestype --> :scatter
@@ -184,16 +469,16 @@ end
     xguide --> "√(quadrangle area) (λ)"
     yguide --> "Log Clos. Amp."
     markershape --> :diamond
-    u1 = getdata(dlca, :u1)
-    v1 = getdata(dlca, :v1)
-    u2 = getdata(dlca, :u2)
-    v2 = getdata(dlca, :v2)
-    u3 = getdata(dlca, :u3)
-    v3 = getdata(dlca, :v3)
-    u4 = getdata(dlca, :u4)
-    v4 = getdata(dlca, :v4)
+    u1 = getdata(dlca, :U1)
+    v1 = getdata(dlca, :V1)
+    u2 = getdata(dlca, :U2)
+    v2 = getdata(dlca, :V2)
+    u3 = getdata(dlca, :U3)
+    v3 = getdata(dlca, :V3)
+    u4 = getdata(dlca, :U4)
+    v4 = getdata(dlca, :V4)
     area = sqrt.(uvarea.(dlca.data))
-    phase = getdata(dlca, :amp)
+    phase = getdata(dlca, :measurement)
     error = getdata(dlca, :error)
     #add data errorbars
     @series begin
@@ -217,14 +502,14 @@ end
     xguide --> "√(triangle area) (λ)"
     yguide --> "Phase (rad)"
     markershape --> :circle
-    u1 = getdata(dcp, :u1)
-    v1 = getdata(dcp, :v1)
-    u2 = getdata(dcp, :u2)
-    v2 = getdata(dcp, :v2)
-    u3 = getdata(dcp, :u3)
-    v3 = getdata(dcp, :v3)
+    u1 = getdata(dcp, :U1)
+    v1 = getdata(dcp, :V1)
+    u2 = getdata(dcp, :U2)
+    v2 = getdata(dcp, :V2)
+    u3 = getdata(dcp, :U3)
+    v3 = getdata(dcp, :V3)
     area = sqrt.(uvarea.(dcp.data))
-    phase = getdata(dcp, :phase)
+    phase = getdata(dcp, :measurement)
     error = getdata(dcp, :error)
     seriestype := :scatter
     alpha --> 0.5
@@ -238,14 +523,14 @@ end
     xguide --> "√(triangle area) (λ)"
     yguide --> "Phase (rad)"
     markershape --> :diamond
-    u1 = getdata(dcp, :u1)
-    v1 = getdata(dcp, :v1)
-    u2 = getdata(dcp, :u2)
-    v2 = getdata(dcp, :v2)
-    u3 = getdata(dcp, :u3)
-    v3 = getdata(dcp, :v3)
+    u1 = getdata(dcp, :U1)
+    v1 = getdata(dcp, :V1)
+    u2 = getdata(dcp, :U2)
+    v2 = getdata(dcp, :V2)
+    u3 = getdata(dcp, :U3)
+    v3 = getdata(dcp, :V3)
     area = sqrt.(uvarea.(dcp.data))
-    phase = getdata(dcp, :phase)
+    phase = getdata(dcp, :measurement)
     error = getdata(dcp, :error)
     #add data errorbars
     @series begin
@@ -267,6 +552,11 @@ end
 
 @userplot Residual
 
+export ndata
+ndata(d::EHTObservation) = length(d)
+ndata(d::EHTObservation{T, D}) where {T, D<:EHTVisibilityDatum} = 2*length(d)
+ndata(d::EHTObservation{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d)
+
 @recipe function f(h::Residual)
     if length(h.args) != 2 || !(typeof(h.args[1]) <: AbstractModel) ||
         !(typeof(h.args[2]) <: EHTObservation)
@@ -282,37 +572,55 @@ end
     linecolor --> nothing
     legend --> false
 
-    title --> @sprintf "<χ²> = %.2f" chi2/length(damp)
+    title --> @sprintf "<χ²> = %.2f" chi2/ndata(damp)
     uvdist, res
 end
 
 
-function χ²(m, data::EHTObservation)
-    return sum(abs2, last(residuals(m, data)))
+function chi2(m, data::EHTObservation)
+    return sum(x->abs2.(x), last(residuals(m, data)))
 end
 
-function χ²(m, data::EHTObservation...)
-    return mapreduce(d->χ²(m, d), +, data)
+function chi2(m, data::EHTObservation{T, A}) where {T, A<:EHTCoherencyDatum}
+    res = last(residuals(m, data))
+    return mapreduce(+, 1:4) do i
+        sum(abs2, getindex.(res, i))
+    end
 end
 
 
-function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityDatum}
-    u = getdata(damp, :u)
-    v = getdata(damp, :v)
-    vis = StructArray{Complex{Float64}}((damp[:visr], damp[:visi]))
-    mvis = visibilities(m, u, v)
-    res = (vis - mvis)./getdata(damp, :error)
+function chi2(m, data::EHTObservation...)
+    return mapreduce(d->chi2(m, d), +, data)
+end
+
+
+function residuals(m, dvis::EHTObservation{T, A}) where {T, A<:EHTVisibilityDatum}
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
+    vis = dvis[:measurement]
+    mvis = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
+    res = (vis - mvis)./getdata(dvis, :error)
     re = real.(res)
     im = imag.(res)
     return hypot.(u, v), hcat(re, im)
 end
 
-function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityAmplitudeDatum}
-    amp = getdata(damp, :amp)
-    u = getdata(damp, :u)
-    v = getdata(damp, :v)
+function residuals(m, dvis::EHTObservation{T, A}) where {T, A<:EHTCoherencyDatum}
+    u = getdata(dvis, :U)
+    v = getdata(dvis, :V)
+    coh = dvis[:measurement]
+    mcoh = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
+    res = map((x,y,z)->((x .- y)./z), coh, mcoh, dvis[:error])
+    return res
+end
 
-    mamp = amplitudes(m, u, v)
+
+function residuals(m, damp::EHTObservation{T, A}) where {T, A<:EHTVisibilityAmplitudeDatum}
+    amp = getdata(damp, :measurement)
+    u = getdata(damp, :U)
+    v = getdata(damp, :V)
+
+    mamp = amplitudes(m, (U=u, V=v))
     res = (amp - mamp)./getdata(damp, :error)
     return hypot.(u, v), res
 end
@@ -320,7 +628,7 @@ end
 
 function residuals(m, dcp::EHTObservation{T, A}) where {T, A<:EHTClosurePhaseDatum}
     area = sqrt.(uvarea.(dcp.data))
-    phase = getdata(dcp, :phase)
+    phase = getdata(dcp, :measurement)
     error = getdata(dcp, :error)
 
     mphase = closure_phases(m, dcp.config)
@@ -336,7 +644,7 @@ end
 
 function residuals(m, dlca::EHTObservation{T, A}) where {T, A<:EHTLogClosureAmplitudeDatum}
     area = sqrt.(uvarea.(dlca.data))
-    phase = getdata(dlca, :amp)
+    phase = getdata(dlca, :measurement)
     error = getdata(dlca, :error)
 
     mphase = logclosure_amplitudes(m, dlca.config)

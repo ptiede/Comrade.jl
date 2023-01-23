@@ -4,6 +4,8 @@ using Plots
 using ComradeAHMC
 using ComradeOptimization
 using OptimizationBBO
+using Distributions
+using DistributionsAD
 
 load_ehtim()
 
@@ -75,8 +77,8 @@ prior = (
 
 mms  = Model(st)
 
-lklhd = RadioLikelihood(damp, dcphase)
-post = Posterior(lklhd, prior, mms)
+lklhd = RadioLikelihood(mms, damp, dcphase)
+post = Posterior(lklhd, prior)
 
 tpost = asflat(post)
 # We will use HMC to sample the posterior.
@@ -87,12 +89,12 @@ f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
 x0 = Comrade.HypercubeTransform.inverse(tpost, rand(post.prior))
 
 using OptimizationOptimJL
-prob = OptimizationProblem(f, 0.1*randn(ndim), nothing)
+prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
 sol = solve(prob, LBFGS(); g_tol=1e-5, maxiters=2_000)
 
 @info sol.minimum
 
-xopt = transform(tpost, sol)
+xopt = Comrade.transform(tpost, sol)
 
 residual(mms(xopt), damp)
 

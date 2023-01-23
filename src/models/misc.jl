@@ -18,8 +18,8 @@ imanalytic(::Type{<:ZeroModel}) = IsAnalytic()
 visibility_point(::ZeroModel{T}, args...) where {T} = complex(zero(T))
 intensity_point(::ZeroModel{T}, args...) where {T} = zero(T)
 
-_visibilities(::ZeroModel{T}, u, v, args...) where {T} = Fill(zero(T), length(u))
-intensitymap(::ZeroModel{T}, fovx, fovy, nx, ny, args...) where {T} = IntensityMap(Fill(zero(T), ny, nx), fovx, fovy, args...)
+_visibilities(::ZeroModel{T}, u, v, time, freq) where {T} = Fill(zero(T), length(u))
+intensitymap(::ZeroModel{T}, p) where {T} = IntensityMap(Fill(zero(T), dims...), fov, args...)
 
 @inline AddModel(::ZeroModel, x) = x
 @inline AddModel(x, ::ZeroModel) = x
@@ -29,7 +29,7 @@ intensitymap(::ZeroModel{T}, fovx, fovy, nx, ny, args...) where {T} = IntensityM
 
 
 # Now here we use a bit of meta programming to deal with combinators
-for m in [:RenormalizedModel, :RotatedModel, :ShiftedModel, :StretchedModel]
+for m in (:RenormalizedModel, :RotatedModel, :ShiftedModel, :StretchedModel)
     @eval begin
       $m(z::ZeroModel{T}, arg::Vararg{X,N}) where {T,X<:Number,N} = z
     end

@@ -51,20 +51,22 @@ function (model::Model)(θ)
 end
 
 
-fovx = μas2rad(65.0)
-fovy = μas2rad(65.0)
-psize = μas2rad(5.0)
-nx = nextprod((2,4,6,8,10), fovx÷psize)
-ny = nextprod((2,4,6,8,10), fovy÷psize)
+npix = 16
+fovxy = μas2rad(70.0)
 # Now we can feed in the array information to form the cache. We will be using a DFT since
 # it is efficient for so few pixels
 mms = Model(dlcamp, fovx, fovy, nx, ny)
 # We will use a Dirichlet prior to enforce that the flux sums to unity since closures are
 # degenerate to total flux.
-prior = (c = ImageDirichlet(1.0, ny, nx),)
+img = IntensityMap(zeros(npix,npix), fovxy, fovxy)
+xitr, yitr = Comrade.imagepixels(img)
+prior = (c = CenteredImage(xitr, yitr, μas2rad(1.0),
+            ImageDirichlet(1.0, npix, npix)
+            )
+            ,)
 
-lklhd = RadioLikelihood(dlcamp, dcphase)
-post = Posterior(lklhd, prior, mms)
+lklhd = RadioLikelihood(mms, dlcamp, dcphase)
+post = Posterior(lklhd, prior)
 
 # Transform from simplex space to the unconstrained
 tpost = asflat(post)
@@ -77,7 +79,9 @@ ndim = dimension(tpost)
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 # randn(ndim) is a random initialization guess
 # nothing just says there are no additional arguments to the optimization function.
-prob = OptimizationProblem(f, -rand(ndim), nothing)
+prob = OptimizationProblem(f, randn(ndim), nothing)
+
+ℓ = logdensityof(tpost)
 # Find the best fit image! Using LBFGS optimizaer.
 sol = solve(prob, LBFGS(); maxiters=2_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 
@@ -98,7 +102,7 @@ hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 5000; n
 
 
 # Plot the mean image and standard deviation image
-using StatsBase
+ using StatsBase
 samples = mms.(sample(hchain, 500))
 imgs = intensitymap.(samples, fovx, fovy, 256, 256)
 
