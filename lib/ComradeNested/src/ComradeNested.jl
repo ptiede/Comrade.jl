@@ -26,11 +26,11 @@ chain, stats = sample(post, NestedSampler(dimension(post), 1000))
 equal_weighted_chain = sample(chain, Weights(stats.weights), 10_000)
 
 """
-function AbstractMCMC.sample(post::Comrade.TransformedPosterior, sampler::Nested, args...; kwargs...)
+function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedPosterior, sampler::Nested, args...; kwargs...)
     ℓ = logdensityof(post)
     model = NestedModel(ℓ, identity)
 
-    samples, stats = sample(model, sampler, args...; chain_type=Array, kwargs...)
+    samples, stats = sample(rng, model, sampler, args...; chain_type=Array, kwargs...)
     weights = samples[:, end]
     chain = transform.(Ref(post), eachrow(samples[:,1:end-1]))
     return Table(chain), merge((;weights,), stats)

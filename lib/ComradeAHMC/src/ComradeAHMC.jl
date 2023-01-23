@@ -129,7 +129,8 @@ is a set of ancilliary information about each set of samples.
 
 This will automatically transform the posterior to the flattened unconstrained space.
 """
-function AbstractMCMC.sample(post::Comrade.Posterior,
+function AbstractMCMC.sample(
+    rng::Random.AbstractRNG, post::Comrade.Posterior,
     sampler::A, parallel::AbstractMCMC.AbstractMCMCEnsemble,
     nsamples, nchains;
     init_params=nothing, kwargs...
@@ -140,7 +141,8 @@ function AbstractMCMC.sample(post::Comrade.Posterior,
     else
         θ0 = Comrade.HypercubeTransform.inverse.(Ref(tpost), init_params)
     end
-    return Comrade.sample(tpost,
+    return Comrade.sample(rng,
+                            tpost,
                             sampler,
                             parallel,
                             nsamples,
@@ -151,7 +153,7 @@ end
 
 
 
-function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior,
+function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
                              sampler::AHMC, parallel::AbstractMCMC.AbstractMCMCEnsemble,
                              nsamples, nchains;
                              init_params=nothing, kwargs...
@@ -172,7 +174,7 @@ function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior,
     kernel = HMCKernel(Trajectory{sampler.trajectory}(integrator, sampler.termination))
     adaptor = sampler.adaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(sampler.targetacc, integrator))
 
-    res = AbstractMCMC.sample(Random.GLOBAL_RNG, model, kernel, metric, adaptor, parallel, nsamples, nchains; init_params=θ0, chain_type=Array, kwargs...)
+    res = AbstractMCMC.sample(rng, model, kernel, metric, adaptor, parallel, nsamples, nchains; init_params=θ0, chain_type=Array, kwargs...)
 
     stats = [Table(getproperty.(r, :stat)) for r in res]
     samples = [getproperty.(getproperty.(r, :z), :θ) for r in res]
@@ -205,7 +207,7 @@ and the second argument is a set of ancilliary information about the sampler.
 
 This will automatically transform the posterior to the flattened unconstrained space.
 """
-function AbstractMCMC.sample(tpost::Comrade.TransformedPosterior, sampler::AHMC, nsamples, args...;
+function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC, nsamples, args...;
                              init_params=nothing,
                              kwargs...)
     ℓ = logdensityof(tpost)
