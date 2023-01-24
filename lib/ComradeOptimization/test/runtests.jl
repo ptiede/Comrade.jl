@@ -7,8 +7,8 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 @testset "ComradeOptimization.jl" begin
     m, vis, amp, lcamp, cphase = load_data()
     prior = test_prior()
-    lklhd = RadioLikelihood(lcamp, cphase)
-    post = Posterior(lklhd, prior, test_model)
+    lklhd = RadioLikelihood(test_model, lcamp, cphase)
+    post = Posterior(lklhd, prior)
 
     tpost = ascube(post)
     f = OptimizationFunction(tpost, Optimization.AutoForwardDiff{4}())

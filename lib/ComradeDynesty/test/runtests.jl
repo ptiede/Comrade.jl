@@ -7,8 +7,8 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 @testset "ComradeDynesty.jl" begin
     m, vis, amp, lcamp, cphase = load_data()
     prior = test_prior()
-    lklhd = RadioLikelihood(lcamp, cphase)
-    post = Posterior(lklhd, prior, test_model)
+    lklhd = RadioLikelihood(test_model, lcamp, cphase)
+    post = Posterior(lklhd, prior)
     a1 = NestedSampler(dimension(post))
     a2 = DynamicNestedSampler(dimension(post))
 

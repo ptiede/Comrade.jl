@@ -5,6 +5,7 @@ using Comrade
 using AbstractMCMC
 using TypedTables
 using Reexport
+using Random
 
 @reexport using Dynesty
 
@@ -33,7 +34,7 @@ equal_weighted_chain = sample(chain, Weights(stats.weights), 10_000)
 """
 function AbstractMCMC.sample(::Random.AbstractRNG, post::Comrade.TransformedPosterior,
                              sampler::Union{NestedSampler, DynamicNestedSampler},
-                             args...;
+                             args...; init_params=nothing,
                              kwargs...)
     ℓ = logdensityof(post)
     kw = delete!(Dict(kwargs), :init_params)
