@@ -37,22 +37,103 @@ model visibilities.
 # Fields
 $(FIELDS)
 """
-struct EHTArrayConfiguration{F,T,D<:AbstractArray} <: ArrayConfiguration
+struct EHTArrayConfiguration{F,T,S,D<:AbstractArray} <: ArrayConfiguration
+    """
+    Observation RA
+    """
+    ra::F
+    """
+    Observation DEC
+    """
+    dec::F
     """
     Observing bandwith (Hz)
     """
     bandwidth::F
     """
+    Common source name
+    """
+    source::Symbol
+    """
+    Time zone used.
+    """
+    timetype::Symbol = :UTC
+    """
     Telescope array file
     """
     tarr::T
+    """
+    Scan times
+    """
+    scans::S
     """
     A struct array of `ArrayBaselineDatum` holding time, freq, u, v, baselines.
     """
     data::D
 end
 
+"""
+    ra(a::ArrayConfiguration)
 
+Returns the right ascension of the array configuration `a`
+"""
+ra(a::ArrayConfiguration)        = a.ra
+"""
+    dec(a::ArrayConfiguration)
+
+Returns the declination of the array configuration `a`
+"""
+dec(a::ArrayConfiguration)       = a.dec
+
+"""
+    source(a::ArrayConfiguration)
+
+Returns the common source name of the array configuration `a`
+"""
+source(a::ArrayConfiguration)    = a.source
+
+"""
+    bandwidth(a::ArrayConfiguration)
+
+Returns the bandwidth of the array configuration `a`
+"""
+bandwidth(a::ArrayConfiguration) = a.bandwidth
+
+"""
+    source(a::ArrayConfiguration)
+
+Returns the telescope array information for the array `a`
+
+!!! note
+    This will be wrong if the array file wasn't load during `load_ehtim_uvfits`.
+"""
+telescope(a::ArrayConfiguration) = a.tarr
+
+"""
+    source(a::ArrayConfiguration)
+
+Returns the scan start and stop times for the array configuration `a`.
+The output is expected to be a named tuples with `start` and `stop` fields.
+"""
+scans(a::ArrayConfiguration)     = a.scans
+
+"""
+    data(a::ArrayConfiguration)
+    data(a::ArrayConfiguration, v::Symbol)
+
+Retrieve the complete table of information. If `v` isn't specified
+then all of the `U`, `V`, `T`, and `F` locations are returned as a struct array.
+Otherwise pass `v` to return the specific property you wish to return
+"""
+data(a::ArrayConfiguration) = a.data
+data(a::ArrayConfiguration, v::Symbol) = getproperty(data(a), v)
+
+"""
+    getuv
+
+Get the u, v positions of the array.
+"""
+getuv(ac::ArrayConfiguration) = (U=data(ac, :U), V=data(ac, :V))
 
 
 """
@@ -68,29 +149,22 @@ struct ClosureConfig{A,D} <: ArrayConfiguration
     ac::A
     """Closure design matrix"""
     designmat::D
-function ClosureConfig(ac, dmat)
-    A = typeof(ac)
-    sdmat = blockdiag(sparse.(dmat)...)
-    D = typeof(sdmat)
-    return new{A,D}(ac, sdmat)
-end
-end
-
-
-"""
-    getuv
-
-Get the u, v positions of the array.
-"""
-function getuv(ac::ArrayConfiguration)
-    return (U=ac.data.U, V=ac.data.V)
+    function ClosureConfig(ac, dmat)
+        A = typeof(ac)
+        sdmat = blockdiag(sparse.(dmat)...)
+        D = typeof(sdmat)
+        return new{A,D}(ac, sdmat)
+    end
 end
 
 
+ra(c::ClosureConfig)        = ra(c.ac)
+dec(c::ClosureConfig)       = dec(c.ac)
+source(c::ClosureConfig)    = source(c.ac)
+bandwidth(c::ClosureConfig) = bandwidth(c.ac)
+telescope(c::ClosureConfig) = telescope(c.ac)
+scans(c::ClosureConfig)     = scans(c.ac)
 
-function getuv(ac::ClosureConfig)
-    return getuv(ac.ac)
-end
 
 """
     $(SIGNATURES)
@@ -144,7 +218,7 @@ struct ArrayBaselineDatum{T,E,V}
     """
     elevation::Tuple{V,V}
     """
-    parallactic angle of baslines
+    parallactic angle of baselines
     """
     parallactic::Tuple{V,V}
     function ArrayBaselineDatum(u, v, time, freq, baseline, error, elevation, parallactic)
@@ -166,7 +240,7 @@ const ArrayTriangleDatum = NTuple{3, ArrayBaselineDatum{T}} where {T}
 
 Get the uvp positions of an inferometric datum.
 """
-uvpositions(D::AbstractVisibilityDatum) = D.U, D.V
+uvpositions(D::AbstractVisibilityDatum) = (U=D.U, V=D.V)
 
 """
     $(TYPEDEF)
@@ -177,52 +251,31 @@ of any `AbstractInterferometryDatum` type.
 # Fields
 $FIELDS
 """
-Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},S<:StructArray{T}, A, N} <: Observation{F}
+Base.@kwdef struct EHTObservation{F,T<:AbstractInterferometryDatum{F},M,S<:StructArray{T}, A, N} <: Observation{F}
     """
     StructArray of data productts
     """
-    data::S
+    measurement::M
     """
     Array config holds ancillary information about array
     """
     config::A
-    """
-    modified julia date of the observation
-    """
-    mjd::N
-    """
-    RA of the observation in J2000 (deg)
-    """
-    ra::F
-    """
-    DEC of the observation in J2000 (deg)
-    """
-    dec::F
-    """
-    bandwidth of the observation (Hz)
-    """
-    bandwidth::F
-    """
-    Common source name
-    """
-    source::Symbol
-    """
-    Time zone used.
-    """
-    timetype::Symbol = :UTC
 end
 
 """
-    getdata(obs::EHTObservation, s::Symbol)
+    data(obs::EHTObservation, s::Symbol)
 
-Pass-through function that gets the array of `s` from the EHTObservation. For example
-say you want the times of all measurement then
+Pass-through function that gets the array of `s` from the EHTObservation.
 
+For example say you want the times of all measurement then
 ```julia
-getdata(obs, :time)
+data(obs, :T)
 ```
 """
-getdata(obs::Observation, s::Symbol) = getproperty(getfield(obs, :data), s)
+function data(obs::Observation, s::Symbol)
+    s == :measurement && return measurement(obs)
+    return data(arrayconfig(obs), s)
+end
 
 function getuv(ac::EHTObservation)
     return (U=ac.data.U, V=ac.data.V)
