@@ -8,8 +8,8 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
     m, vis, amp, lcamp, cphase = load_data()
     prior = test_prior()
-    lklhd = RadioLikelihood(lcamp, cphase)
-    post = Posterior(lklhd, prior, test_model)
+    lklhd = RadioLikelihood(test_model, lcamp, cphase)
+    post = Posterior(lklhd, prior)
     a1 = AdaptMCMC(ntemp=5)
     a2 = AdaptMCMC(ntemp=5, all_levels=true)
 

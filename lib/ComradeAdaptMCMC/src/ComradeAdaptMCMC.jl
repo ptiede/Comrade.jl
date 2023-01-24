@@ -4,6 +4,7 @@ using AdaptiveMCMC
 using Comrade
 using TypedTables
 using AbstractMCMC
+using Random
 
 export AdaptMCMC
 

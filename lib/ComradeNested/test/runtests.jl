@@ -7,8 +7,8 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 @testset "ComradeNested.jl" begin
     m, vis, amp, lcamp, cphase = load_data()
     prior = test_prior()
-    lklhd = RadioLikelihood(lcamp, cphase)
-    post = Posterior(lklhd, prior, test_model)
+    lklhd = RadioLikelihood(test_model, lcamp, cphase)
+    post = Posterior(lklhd, prior)
     a1 = Nested(dimension(post), 1000)
 
     chain, stats = sample(post, a1; dlogz=0.01, progress=false)
