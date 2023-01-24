@@ -22,7 +22,7 @@ Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 [compat]
 ComradeAHMC = "0.1,0.2"
 ComradeAdaptMCMC = "0.2"
-ComradeBase = "0.3"
+ComradeBase = "0.3, 0.4"
 ComradeDynesty = "0.2"
 ComradeNested = "0.2"
 ComradeOptimization = "0.1"
