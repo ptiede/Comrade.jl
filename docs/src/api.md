@@ -22,7 +22,7 @@ Pages = ["api.md"]
 Comrade.corrupt
 Comrade.CalTable
 Comrade.caltable(::Comrade.JonesCache, ::AbstractVector)
-Comrade.caltable(::Comrade.EHTObservation, ::AbstractVector)
+Comrade.caltable(::Comrade.EHTDataTable, ::AbstractVector)
 Comrade.DesignMatrix
 Comrade.JonesCache
 Comrade.JonesModel
@@ -147,7 +147,7 @@ Comrade.stations
 Comrade.uvpositions
 Comrade.ClosureConfig
 Comrade.ArrayBaselineDatum
-Comrade.EHTObservation
+Comrade.EHTDataTable
 Comrade.EHTArrayConfiguration
 Comrade.EHTClosurePhaseDatum
 Comrade.EHTLogClosureAmplitudeDatum

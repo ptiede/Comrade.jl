@@ -3,7 +3,7 @@ export NFFTAlg
 using NFFT
 
 """
-    NFFTAlg(obs::EHTObservation; kwargs...)
+    NFFTAlg(obs::EHTDataTable; kwargs...)
 
 Create an algorithm object using the non-unform Fourier transform object from the observation
 `obs`. This will extract the uv positions from the observation to allow for a more efficient
@@ -11,7 +11,7 @@ FT cache.
 
 The possible optional arguments are given in the [`NFFTAlg`](@ref) struct.
 """
-function NFFTAlg(obs::EHTObservation; kwargs...)
+function NFFTAlg(obs::EHTDataTable; kwargs...)
     (;U, V) = getuv(arrayconfig(obs))
     return NFFTAlg(U, V; kwargs...)
 end

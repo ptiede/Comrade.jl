@@ -75,18 +75,18 @@ stations(j::JonesCache) = j.stations
 ChainRulesCore.@non_differentiable stations(j::JonesCache)
 
 """
-    JonesCache(obs::EHTObservation, segmentation::ObsSegmentation)
+    JonesCache(obs::EHTDataTable, segmentation::ObsSegmentation)
 
 Constructs a `JonesCache` from a given observation `obs` using the segmentation scheme
 `segmentation`.
 
 # Example
 ```julia-repl
-# coh is a EHTObservation
+# coh is a EHTDataTable
 julia> JonesCache(coh, ScanSeg())
 ```
 """
-function JonesCache(obs::EHTObservation, s::TrackSeg)
+function JonesCache(obs::EHTDataTable, s::TrackSeg)
 
     # extract relevant observation info
     times = obs[:T]
@@ -133,7 +133,7 @@ function gain_stations(st::ScanTable)
 end
 
 
-function JonesCache(obs::EHTObservation, s::ScanSeg)
+function JonesCache(obs::EHTDataTable, s::ScanSeg)
 
     # extract relevant observation info
     times = obs[:T]
@@ -273,7 +273,7 @@ find_js(::Any, rest) = find_js(rest)
 
 
 
-function JonesCache(obs::EHTObservation, s::IntegSeg)
+function JonesCache(obs::DataTable, s::IntegSeg)
     # extract relevant observation info
     times = obs[:T]
     bls = obs[:baseline]
@@ -424,7 +424,7 @@ struct TransformCache{M, B<:PolBasis}
 end
 
 """
-    TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=true, ref::PolBasis=CirBasis())
+    TransformCache(obs::EHTDataTable; add_fr=true, ehtim_fr_convention=true, ref::PolBasis=CirBasis())
 
 Constructs the cache that holds the transformation from the **chosen** on-sky reference basis
 to the basis that the telescope measures the electric fields given an observation `obs`.
@@ -444,7 +444,7 @@ We use the following definition for our feed rotations
 eht-imaging can sometimes pre-rotate the coherency matrices. As a result the field rotation can sometimes
 be applied twice. To compensate for this we have added a `ehtim_fr_convention` which will fix this.
 """
-function TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=true, ref::PolBasis=CirBasis())
+function TransformCache(obs::EHTDataTable; add_fr=true, ehtim_fr_convention=true, ref::PolBasis=CirBasis())
     T1 = StructArray(map(x -> basis_transform(ref, x[1]), obs.data.polbasis))
     T2 = StructArray(map(x -> basis_transform(ref, x[2]), obs.data.polbasis))
     if add_fr
@@ -584,19 +584,19 @@ eht-imaging can sometimes pre-rotate the coherency matrices. As a result the fie
 be applied twice. To compensate for this we have added a `ehtim_fr_convention` which will fix this.
 
 """
-function extract_FRs(obs::EHTObservation; ehtim_fr_convention=true)
+function extract_FRs(obs::EHTDataTable; ehtim_fr_convention=true)
 
     # read elevation angles for each station
     config = arrayconfig(obs)
-    el1 = StructArrays.component(config.data.elevation, 1)
-    el2 = StructArrays.component(config.data.elevation, 2)
+    el1 = StructArrays.component(config[:elevation], 1)
+    el2 = StructArrays.component(config[:elevation], 2)
 
     # read parallactic angles for each station
-    par1 = StructArrays.component(config.data.parallactic, 1)
-    par2 = StructArrays.component(config.data.parallactic, 2)
+    par1 = StructArrays.component(config[:parallactic], 1)
+    par2 = StructArrays.component(config[:parallactic], 2)
 
 
-    # get ehtobservation array info
+    # get EHTDataTable array info
     tarr  = config.tarr
     ants  = tarr.sites
     elevs = tarr.fr_elevation

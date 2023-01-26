@@ -34,7 +34,7 @@ function (m::ModelMetadata)(θ)
 end
 
 
-function RadioLikelihood(model, data::EHTObservation...)
+function RadioLikelihood(model, data::EHTDataTable...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
     positions = getuvtimefreq(data[1].config)
@@ -43,7 +43,7 @@ function RadioLikelihood(model, data::EHTObservation...)
 end
 
 """
-    RadioLikelihood(model, metadata, obs::EHTObservation...)
+    RadioLikelihood(model, metadata, obs::EHTDataTable...)
 
 Creates a RadioLikelihood using the `model` and its related `metadata`. The `model`
 is a function that converts from parameters `θ` to a Comrade
@@ -76,7 +76,7 @@ prior = (
 RadioLikelihood(model, (cache = cache), obs)
 ```
 """
-function RadioLikelihood(model, metadata::NamedTuple, data::EHTObservation...)
+function RadioLikelihood(model, metadata::NamedTuple, data::EHTDataTable...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
     positions = getuvtimefreq(data[1].config)
@@ -181,7 +181,7 @@ end
 
 
 # internal function that creates the likelihood for a set of complex visibilities
-function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
+function makelikelihood(data::Comrade.EHTDataTable{<:Real, <:Comrade.EHTVisibilityDatum})
     Σ = data[:error].^2
     vis = data[:measurement]
     ℓ = Likelihood(vis) do μ
@@ -190,7 +190,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
     return ℓ
 end
 
-function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTCoherencyDatum})
+function makelikelihood(data::Comrade.EHTDataTable{<:Real, <:Comrade.EHTCoherencyDatum})
     Σ = map(x->x.^2, data[:error])
     vis = data[:measurement]
     ℓ = Likelihood(vis) do μ
@@ -200,7 +200,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTCohere
 end
 
 # internal function that creates the likelihood for a set of visibility amplitudes
-function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
+function makelikelihood(data::Comrade.EHTDataTable{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     Σ = data[:error].^2
     amp = data[:measurement]
     ℓ = Likelihood(amp) do μ
@@ -210,7 +210,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
 end
 
 # internal function that creates the likelihood for a set of log closure amplitudes
-function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
+function makelikelihood(data::Comrade.EHTDataTable{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
     dmat = data.config.designmat
     #amp2 = abs.(data.config.ac.data.measurement)
     #Σlamp = data.config.ac.data.error.^2 ./ amp2
@@ -228,7 +228,7 @@ end
 
 
 # internal function that creates the likelihood for a set of closure phase datum
-function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosurePhaseDatum})
+function makelikelihood(data::Comrade.EHTDataTable{<:Real, <:Comrade.EHTClosurePhaseDatum})
     dmat = data.config.designmat
     #amp2 = abs2.(data.config.ac.data.measurement)
     #Σphase = data.config.ac.data.error.^2 ./ amp2

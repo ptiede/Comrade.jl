@@ -3,71 +3,47 @@ export extract_amp, extract_vis, extract_lcamp, extract_cphase,
        load_ehtim_uvfits, scan_average
 using PyCall: set!
 
-"""
-    load_ehtim_uvfits(uvfile, arrayfile=nothing; kwargs...)
 
-Load a uvfits file with eht-imaging and returns a eht-imaging `Obsdata`
-object. You can optionally pass an array file as well that will load
-additional information such at the telescopes field rotation information
-with the arrayfile. This is expected to be an eht-imaging produced array
-or antenna file.
-"""
-function load_ehtim_uvfits(uvfile, arrayfile=nothing; kwargs...)
-    obs = ehtim.obsdata.load_uvfits(uvfile; kwargs...)
-    if arrayfile !== nothing
-        tarr = ehtim.io.load.load_array_txt(arrayfile).tarr
-        obs.tarr = tarr
+struct EHTIMObs{O} <: Observation{Float64}
+    obsdata::O
+end
+
+scans(obs::EHTIMObs)         = Table(start=@view obs.obsdata.scans[:,1], stop=@view obs.obsdata.scans[:,2])
+telescope_array(d::EHTIMObs) = make_array_table(d.obsdata)
+bandwidth(d::EHTIMObs)       = d.obsdata.bw
+source(d::EHTIMObs)          = Symbol(d.obsdata.source)
+ra(d::EHTIMObs)              = d.obsdata.ra
+dec(d::EHTIMObs)             = d.obsdata.dec
+
+
+ehtimstokes(::IPol) = ""
+ehtimstokes(::QPol) = "q"
+ehtimstokes(::UPol) = "u"
+ehtimstokes(::VPol) = "v"
+
+function getvisfield(obs::EHTIMObs, pol::Stokes = IPol())
+    config = ehtarrayconfig(obs, pol)
+    e = ehtimstokes(pol)
+    err = deepcopy((get(obsamps, Vector{Float64}, e*"sigma")))
+    vis = deepcopy((get(obsamps, Vector{Complex{Float64}}, e*"vis")))
+    return  config, vis, err
+end
+
+
+function getampfield(obs, pol::Stokes = IPol(), debias=false)
+    config = ehtarrayconfig(obs, pol)
+    lvis, lsig = ehtimstokes(pol)
+    e = ehtimstokes(pol)
+    err = deepcopy((get(obsamps, Vector{Float64}, e*"sigma")))
+    vis = deepcopy((get(obsamps, Vector{Complex{Float64}}, e*"vis")))
+
+    if debias
+        amp = sqrt.(max.(abs.(vis).^2 - err.^2, 0.0))
+    else
+        amp = abs.(vis)
     end
-    return obs
-end
 
-function getvisfield(obs)
-    obsamps = obs.data::PyObject
-    u = deepcopy((get(obsamps, Vector{Float64}, "u")))
-    v = deepcopy((get(obsamps, Vector{Float64}, "v")))
-    err = deepcopy((get(obsamps, Vector{Float64}, "sigma")))
-    vis = deepcopy((get(obsamps, Vector{Complex{Float64}}, "vis")))
-    t1 = Symbol.(deepcopy((get(obsamps, Vector{String}, "t1"))))
-    t2 = Symbol.(deepcopy((get(obsamps, Vector{String}, "t2"))))
-    baseline = tuple.(t1, t2)
-    time = deepcopy((get(obsamps, Vector{Float64}, "time")))
-    freq = fill(obs.rf, length(time))
-    bw = zeros(length(time))
-
-    return  StructArray{Comrade.EHTVisibilityDatum{Float64}}(
-        measurement = vis,
-        U = u,
-        V = v,
-        error = err,
-        T = time,
-        F = freq,
-        bandwidth = bw,
-        baseline = baseline
-    )
-end
-
-
-function getampfield(obs)
-    obsamps = obs.amp::PyObject
-    uamp = deepcopy(get(obsamps, Vector{Float64}, "u"))
-    vamp = deepcopy(get(obsamps, Vector{Float64}, "v"))
-    erramp = deepcopy(get(obsamps, Vector{Float64}, "sigma"))
-    amps = deepcopy(get(obsamps, Vector{Float64}, "amp"))
-    t1 = Symbol.(deepcopy(get(obsamps, Vector{String}, "t1")))
-    t2 = Symbol.(deepcopy(get(obsamps, Vector{String}, "t2")))
-    baseline = tuple.(t1, t2)
-    time = deepcopy(get(obsamps, Vector{Float64}, "time"))
-    freq = fill(obs.rf, length(time))
-
-    return  StructArray{Comrade.EHTVisibilityAmplitudeDatum{Float64}}(
-        measurement = amps,
-        U = uamp,
-        V = vamp,
-        error = erramp,
-        T = time,
-        F = freq,
-        baseline = baseline
-    )
+    return config, amp, err
 end
 
 function getcpfield(obs)
@@ -235,7 +211,10 @@ function extract_amp(obsc; kwargs...)
     rf = obs.rf
     angles = get_fr_angles(obs)
     tarr = make_array_table(obsc)
-    ac = _arrayconfig(data, angles, tarr, bw)
+    obs.add_scans()
+    scans = Table((start=obs.scans[:,1], stop=obs.scans[:,2]))
+
+    ac = _arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    config = ac,
@@ -289,7 +268,11 @@ function extract_vis(obsc; kwargs...)
     rf = obs.rf
     angles = get_fr_angles(obs)
     tarr = make_array_table(obsc)
-    ac = _arrayconfig(data, angles, tarr, bw)
+
+    obs.add_scans()
+    scans = Table((start=obs.scans[:,1], stop=obs.scans[:,2]))
+
+    ac = _arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(
                    data = data, mjd = mjd,
                    config=ac,
@@ -316,7 +299,10 @@ function extract_coherency(obs)
     rf = obs.rf
     angles = get_fr_angles(obs)
     tarr = make_array_table(obs)
-    ac = _arrayconfig(data, angles, tarr, bw)
+    obs.add_scans()
+    scans = Table((start=obs.scans[:,1], stop=obs.scans[:,2]))
+
+    ac = _arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    config = ac,
@@ -414,13 +400,10 @@ function minimal_lcamp(obsc; kwargs...)
 end
 
 
-function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs...)
+function _ehtim_cphase(obs; count="max", cut_trivial=false, uvmin=0.1e9, kwargs...)
     obs = obsc.copy()
 
     # cut 0 baselines since these are trivial triangles
-    if cut_trivial
-        obs = obs.flag_uvdist(uv_min=uvmin)
-    end
 
     obs.reorder_tarr_snr()
 
@@ -473,7 +456,7 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
     end
 
     ac = arrayconfig(dvis)
-    clac = ClosureConfig(dvis, dmat)
+    clac = ClosureConfig(ac, dmat)
     return  EHTObservation(data = data, mjd = mjd,
                            config=clac,
                            ra = ra, dec= dec,
@@ -592,8 +575,8 @@ this can mess up both the closure construction and the gain scan times.
 Note that this is only a problem if we
 are fitting **scan averaged** data.
 """
-function scan_average(obs)
-    obsc = obs.copy()
+function scan_average(obs::EHTIMObs)
+    obsc = copy(obs.obsdata)
     obsc.add_scans()
     obsc = obsc.avg_coherent(0.0, scan_avg=true)
     stimes = obsc.scans
@@ -611,6 +594,46 @@ function scan_average(obs)
     return obsc
 end
 
+function add_fractional_noise(obs::EHTIMObs, frac_noise::Real, debias::Bool = false)
+    obsdatac = obs.obsdata.add_fractional(frac_noise, debias)
+    return EHTIMObs(obsdatac)
+end
+
+function coherency_average(obs::EHTIMObs, dt::Real)
+    obsavg = obs.obsdata.avg_coherent(dt)
+    return EHTIMObs(obsavg)
+end
+
+function extract_table(obs::EHTIMObs, ::ComplexVis; kwargs...)
+    return extract_vis(obs.obsdata, kwargs...)
+end
+
+function extract_table(obs::EHTIMObs, p::CPhase; kwargs...)
+    if p.minimal
+        count = "min-correct"
+    else
+        count = "max"
+    end
+    dcp = extract_cphase(obs.obsdata, count=count, kwargs...)
+end
+
+function extract_table(obs::EHTIMObs, p::LogCamp; kwargs...)
+    if p.minimal
+        count = "min-correct"
+    else
+        count = "max"
+    end
+    dlca = extract_cphase(obs.obsdata, count=count, kwargs...)
+end
+
+
+function extract_table(obs::EHTIMObs, ::Coherency; kwargs...)
+    return extract_coherency(obs.obsdata)
+end
+
+function extract_table(obs::EHTIMObs, ::Amplitude, kwargs...)
+    return extract_amp(obs.obsdata, kwargs...)
+end
 
 function _minimal_closure(stcl, st)
 
@@ -656,16 +679,6 @@ function _minimal_closure(stcl, st)
         # determine the expected size of the minimal set
         # this is needed to make sure we aren't killing too many triangles
         nmin = rank(design_mat)
-
-        # print some info
-        #println("For timestamp $(stcl.times[i]):")
-
-        # get the current stations
-        #println("Observing stations are $(stations(scancl))")
-
-        #println("Size of maximal set of closure products = $(length(scancl))")
-        #println("Size of minimal set of closure products = $(nmin)")
-        #println("...")
 
         ##########################################################
         # start of loop to recover minimal set

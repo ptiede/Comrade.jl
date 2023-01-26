@@ -4,13 +4,13 @@ padfac(::DFTAlg) = 1
 padimage(::DFTAlg, img::IntensityMap) = img
 
 """
-    DFTAlg(obs::EHTObservation)
+    DFTAlg(obs::EHTDataTable)
 
 Create an algorithm object using the direct Fourier transform object from the observation
 `obs`. This will extract the uv positions from the observation to allow for a more efficient
 FT cache.
 """
-function DFTAlg(obs::EHTObservation)
+function DFTAlg(obs::EHTDataTable)
     (;U,V) = getuv(obs.config)
     return DFTAlg(U, V)
 end
