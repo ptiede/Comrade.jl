@@ -13,6 +13,7 @@ with the arrayfile. This is expected to be an eht-imaging produced array
 or antenna file.
 """
 function load_ehtim_uvfits(uvfile, arrayfile=nothing; kwargs...)
+    ehtim == PyNULL() && load_ehtim()
     obs = ehtim.obsdata.load_uvfits(uvfile; kwargs...)
     if arrayfile !== nothing
         tarr = ehtim.io.load.load_array_txt(arrayfile).tarr
@@ -235,7 +236,8 @@ function extract_amp(obsc; kwargs...)
     rf = obs.rf
     angles = get_fr_angles(obs)
     tarr = make_array_table(obsc)
-    ac = _arrayconfig(data, angles, tarr, bw)
+    scans = Table((start=obs.scans[:,1], stop = obs.scans[:,2]))
+    ac = _arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    config = ac,
@@ -289,7 +291,8 @@ function extract_vis(obsc; kwargs...)
     rf = obs.rf
     angles = get_fr_angles(obs)
     tarr = make_array_table(obsc)
-    ac = _arrayconfig(data, angles, tarr, bw)
+    scans = Table((start=obs.scans[:,1], stop = obs.scans[:,2]))
+    ac = _arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(
                    data = data, mjd = mjd,
                    config=ac,
@@ -308,6 +311,7 @@ This grabs the raw `data` object from the obs object. Any keyword arguments are 
 Returns an EHTObservation with coherency matrix
 """
 function extract_coherency(obs)
+    obs.reorder_tarr_snr()
     data = getcoherency(obs)
     ra, dec = Comrade.getradec(obs)
     mjd = Comrade.getmjd(obs)
@@ -316,7 +320,8 @@ function extract_coherency(obs)
     rf = obs.rf
     angles = get_fr_angles(obs)
     tarr = make_array_table(obs)
-    ac = _arrayconfig(data, angles, tarr, bw)
+    scans = Table((start=obs.scans[:,1], stop = obs.scans[:,2]))
+    ac = _arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    config = ac,
