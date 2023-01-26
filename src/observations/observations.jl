@@ -37,7 +37,7 @@ model visibilities.
 # Fields
 $(FIELDS)
 """
-struct EHTArrayConfiguration{F,T,D<:AbstractArray} <: ArrayConfiguration
+struct EHTArrayConfiguration{F,T,S,D<:AbstractArray} <: ArrayConfiguration
     """
     Observing bandwith (Hz)
     """
@@ -46,6 +46,10 @@ struct EHTArrayConfiguration{F,T,D<:AbstractArray} <: ArrayConfiguration
     Telescope array file
     """
     tarr::T
+    """
+    Scan times
+    """
+    scans::S
     """
     A struct array of `ArrayBaselineDatum` holding time, freq, u, v, baselines.
     """
@@ -665,7 +669,7 @@ function arrayconfig(vis::EHTObservation)
 end
 
 
-function _arrayconfig(data, angles, tarr, bandwidth)
+function _arrayconfig(data, angles, tarr, scans, bandwidth)
     u = getproperty(data, :U)
     v = getproperty(data, :V)
     times = getproperty(data, :T)
@@ -681,7 +685,7 @@ function _arrayconfig(data, angles, tarr, bandwidth)
                                         elevation = StructArray(angles[1]),
                                         parallactic  = StructArray(angles[2])
                                     )
-    return EHTArrayConfiguration(bandwidth, tarr, uvsamples)
+    return EHTArrayConfiguration(bandwidth, tarr, scans, uvsamples)
 end
 
 const VisAmpDatum = Union{EHTVisibilityAmplitudeDatum, EHTVisibilityDatum}
