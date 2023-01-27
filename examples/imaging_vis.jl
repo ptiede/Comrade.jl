@@ -15,13 +15,12 @@ load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
 # obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_101_lo_hops_netcal_StokesI.uvfits"))
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
 obsavg = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
-obs_split = obsavg.split_obs()
 # extract log closure amplitudes and closure phases
 dvis = extract_vis(obsavg)
 
@@ -53,13 +52,13 @@ distamp = (AA = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1),
            )
 
-distphase = (AA = DiagonalVonMises([0.0], [inv(1e-3)]),
-             AP = DiagonalVonMises([0.0], [inv(π^2)]),
-             LM = DiagonalVonMises([0.0], [inv(π^2)]),
-             AZ = DiagonalVonMises([0.0], [inv(π^2)]),
-             JC = DiagonalVonMises([0.0], [inv(π^2)]),
-             PV = DiagonalVonMises([0.0], [inv(π^2)]),
-             SM = DiagonalVonMises([0.0], [inv(π^2)]),
+distphase = (AA = DiagonalVonMises(0.0, inv(1e-3)),
+             AP = DiagonalVonMises(0.0, inv(π^2)),
+             LM = DiagonalVonMises(0.0, inv(π^2)),
+             AZ = DiagonalVonMises(0.0, inv(π^2)),
+             JC = DiagonalVonMises(0.0, inv(π^2)),
+             PV = DiagonalVonMises(0.0, inv(π^2)),
+             SM = DiagonalVonMises(0.0, inv(π^2)),
            )
 
 # distamp = (AA = Normal(0.0, 0.1),
@@ -98,7 +97,7 @@ metadata = (;cache, fovx, fovy, gcache)
 X, Y = imagepixels(buffer)
 prior = (
           c = ImageDirichlet(2.0, nx, ny),
-          lgamp = CalPrior(distamp, gcache),
+          lgamp = Hei(distamp, gcache),
           gphase = CalPrior(distphase, gcache)
         )
 
