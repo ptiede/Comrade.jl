@@ -1,19 +1,29 @@
 export extract_amp, extract_vis, extract_lcamp, extract_cphase,
        extract_coherency,
        load_ehtim_uvfits, scan_average
-using PyCall: set!
+using PyCall: set!, PyObject
 
 
 struct EHTIMObs{O} <: Observation{Float64}
     obsdata::O
 end
 
-scans(obs::EHTIMObs)         = Table(start=@view obs.obsdata.scans[:,1], stop=@view obs.obsdata.scans[:,2])
-telescope_array(d::EHTIMObs) = make_array_table(d.obsdata)
-bandwidth(d::EHTIMObs)       = d.obsdata.bw
-source(d::EHTIMObs)          = Symbol(d.obsdata.source)
-ra(d::EHTIMObs)              = d.obsdata.ra
-dec(d::EHTIMObs)             = d.obsdata.dec
+function getproperty(obs::EHTIMObs, v::Any)
+    out = getproperty(getfield(obs, :obsdata), v)
+    if out isa PyObject
+        return EHTIMObs(out)
+    else
+        return out
+    end
+end
+obsdata(obs::EHTIMObs) = getfield(obs, :obsdata)
+scans(obs::EHTIMObs)         = Table(start=@view obsdata(obs).scans[:,1], stop=@view obsdata(obs).scans[:,2])
+telescope_array(d::EHTIMObs) = make_array_table(obsdata(d))
+bandwidth(d::EHTIMObs)       = obsdata(bw)
+source(d::EHTIMObs)          = Symbol(obsdata(d).source)
+ra(d::EHTIMObs)              = obsdata(d).ra
+dec(d::EHTIMObs)             = obsdata(d).dec
+
 
 
 ehtimstokes(::IPol) = ""
@@ -21,7 +31,7 @@ ehtimstokes(::QPol) = "q"
 ehtimstokes(::UPol) = "u"
 ehtimstokes(::VPol) = "v"
 
-function getvisfield(obs::EHTIMObs, pol::Stokes = IPol())
+function getvisfield(obs::EHTIMObs, pol::StokesBasis = IPol())
     config = ehtarrayconfig(obs, pol)
     e = ehtimstokes(pol)
     err = deepcopy((get(obsamps, Vector{Float64}, e*"sigma")))
@@ -30,18 +40,7 @@ function getvisfield(obs::EHTIMObs, pol::Stokes = IPol())
 end
 
 
-function getampfield(obs, pol::Stokes = IPol(), debias=false)
-    config = ehtarrayconfig(obs, pol)
-    lvis, lsig = ehtimstokes(pol)
-    e = ehtimstokes(pol)
-    err = deepcopy((get(obsamps, Vector{Float64}, e*"sigma")))
-    vis = deepcopy((get(obsamps, Vector{Complex{Float64}}, e*"vis")))
-
-    if debias
-        amp = sqrt.(max.(abs.(vis).^2 - err.^2, 0.0))
-    else
-        amp = abs.(vis)
-    end
+function getampfield(obs, pol::StokesBasis = IPol(), debias=false)
 
     return config, amp, err
 end
@@ -63,7 +62,6 @@ function getcpfield(obs)
     baseline = tuple.(t1, t2, t3)
     time = deepcopy(get(obscp, Vector{Float64}, "time"))
     freq = fill(obs.rf, length(time))
-    bw = zeros(length(time))
 
     return StructArray{Comrade.EHTClosurePhaseDatum{Float64}}(
         measurement = cp,
@@ -122,60 +120,7 @@ function getlcampfield(obs)
 end
 
 
-function getcoherency(obs)
 
-    # ensure that the visibilities are represented in a circular basis
-    obs = obs.switch_polrep("circ")
-
-    # get (u,v) coordinates
-    u = get(obs.data, "u")
-    v = get(obs.data, "v")
-
-    # get visibilities
-    c11 = get(obs.data, "rrvis")
-    c12 = get(obs.data, "rlvis")
-    c21 = get(obs.data, "lrvis")
-    c22 = get(obs.data, "llvis")
-
-    cohmat = StructArray{SMatrix{2,2,eltype(c11), 4}}((c11, c21, c12, c22))
-
-    # get uncertainties
-    e11 = get(obs.data, "rrsigma")
-    e12 = get(obs.data, "rlsigma")
-    e21 = get(obs.data, "lrsigma")
-    e22 = get(obs.data, "llsigma")
-
-    errmat = StructArray{SMatrix{2,2,eltype(e11), 4}}((e11, e21, e12, e22))
-
-
-    # get timestamps and frequencies
-    time = get(obs.data, "time")
-    freq = fill(obs.rf, length(time))
-
-    # get baseline info
-    t1 = get(obs.data, Vector{Symbol}, "t1")
-    t2 = get(obs.data, Vector{Symbol}, "t2")
-    baseline = tuple.(t1, t2)
-
-    # provide the polarization basis info
-    single_polbasis = (CirBasis(), CirBasis())
-    polbasis = fill(single_polbasis,length(u))
-
-    # prepare output
-    output = StructArray{EHTCoherencyDatum{eltype(u)}}(
-        measurement = cohmat,
-        error = errmat,
-        U = u,
-        V = v,
-        T = time,
-        F = freq,
-        baseline = baseline,
-        polbasis = polbasis
-        )
-
-    return output
-
-end
 
 
 function getradec(obs)::Tuple{Float64, Float64}
@@ -199,31 +144,31 @@ Any valid keyword arguments to `add_amp` in ehtim can be passed through extract_
 
 Returns an EHTObservation with visibility amplitude data
 """
-function extract_amp(obsc; kwargs...)
+function extract_amp(obs::EHTIMObs, pol=IPol(); debias=false, kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
-    obs.add_amp(;kwargs...)
-    data = getampfield(obs)
-    ra, dec = getradec(obs)
-    mjd = getmjd(obs)
-    source = getsource(obs)
-    bw = obs.bw
-    rf = obs.rf
-    angles = get_fr_angles(obs)
-    tarr = make_array_table(obsc)
-    obs.add_scans()
-    scans = Table((start=obs.scans[:,1], stop=obs.scans[:,2]))
 
-    ac = _arrayconfig(data, angles, tarr, scans, bw)
-    return Comrade.EHTObservation(data = data, mjd = mjd,
-                   ra = ra, dec= dec,
-                   config = ac,
-                   bandwidth=bw,
-                   source = source,
-    )
+    config = ehtarrayconfig(obs, pol)
+
+    e = ehtimstokes(pol)
+    err = deepcopy((get(obsamps, Vector{Float64}, e*"sigma")))
+    vis = deepcopy((get(obsamps, Vector{Complex{Float64}}, e*"vis")))
+
+    if debias
+        amp = sqrt.(max.(abs.(vis).^2 - err.^2, 0.0))
+    else
+        amp = abs.(vis)
+    end
+
+    return EHTDataTable{EHTAmplitudeDatum}(
+                 meas, error, config,
+                 mjd(obs), ra(obs), dec(obs),
+                 source(obs), obs
+                )
 end
 
-function get_fr_angles(ehtobs)
+function get_fr_angles(obs::EHTIMObs)
+    ehtobs = obsdata(obs)
     el1 = get(ehtobs.unpack(["el1"],ang_unit="rad"),"el1")
     el2 = get(ehtobs.unpack(["el2"],ang_unit="rad"),"el2")
 
@@ -233,7 +178,8 @@ function get_fr_angles(ehtobs)
     return (el1, el2), (par1, par2)
 end
 
-function make_array_table(obs)
+function make_array_table(obse::EHTIMObs)
+    obs = obsdata(obse)
     return Table(
         sites = collect(Symbol.(get(obs.tarr, "site"))),
         X     = collect(get(obs.tarr, "x")),
@@ -256,30 +202,20 @@ This grabs the raw `data` object from the obs object. Any keyword arguments are 
 
 Returns an EHTObservation with complex visibility data
 """
-function extract_vis(obsc; kwargs...)
+function extract_vis(obsc::EHTIMObs, pol=IPol(); kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
 
-    data = getvisfield(obs)
-    ra, dec = getradec(obs)
-    mjd = getmjd(obs)
-    source = getsource(obs)
-    bw = obs.bw
-    rf = obs.rf
-    angles = get_fr_angles(obs)
-    tarr = make_array_table(obsc)
+    config = ehtarrayconfig(obs, pol)
+    e = ehtimstokes(pol)
+    error = deepcopy((get(obsdata(obs), Vector{Float64}, e*"sigma")))
+    meas = deepcopy((get(obsdata(obs), Vector{Complex{Float64}}, e*"vis")))
 
-    obs.add_scans()
-    scans = Table((start=obs.scans[:,1], stop=obs.scans[:,2]))
-
-    ac = _arrayconfig(data, angles, tarr, scans, bw)
-    return Comrade.EHTObservation(
-                   data = data, mjd = mjd,
-                   config=ac,
-                   ra = ra, dec= dec,
-                   bandwidth=bw,
-                   source = source,
-    )
+    return EHTDataTable{EHTVisibilityDatum}(
+                meas, error, config,
+                mjd(obs), ra(obs), dec(obs),
+                source(obs), obs
+                )
 end
 
 """
@@ -290,25 +226,33 @@ This grabs the raw `data` object from the obs object. Any keyword arguments are 
 
 Returns an EHTObservation with coherency matrix
 """
-function extract_coherency(obs)
-    data = getcoherency(obs)
-    ra, dec = Comrade.getradec(obs)
-    mjd = Comrade.getmjd(obs)
-    source = Comrade.getsource(obs)
-    bw = obs.bw
-    rf = obs.rf
-    angles = get_fr_angles(obs)
-    tarr = make_array_table(obs)
-    obs.add_scans()
-    scans = Table((start=obs.scans[:,1], stop=obs.scans[:,2]))
+function extract_coherency(obsc::EHTIMObs)
+    obs = obsc.copy()
+    obs.reorder_tarr_snr()
+    obsd = obsdata(obs)
 
-    ac = _arrayconfig(data, angles, tarr, scans, bw)
-    return Comrade.EHTObservation(data = data, mjd = mjd,
-                   ra = ra, dec= dec,
-                   config = ac,
-                   bandwidth=bw,
-                   source = source,
-    )
+    config = ehtarrayconfig(obs, pol)
+    # get visibilities
+    c11 = get(obsd.data, "rrvis")
+    c12 = get(obsd.data, "rlvis")
+    c21 = get(obsd.data, "lrvis")
+    c22 = get(obsd.data, "llvis")
+
+    meas = StructArray{SMatrix{2,2,eltype(c11), 4}}((c11, c21, c12, c22))
+
+    # get uncertainties
+    e11 = get(obsd.data, "rrsigma")
+    e12 = get(obsd.data, "rlsigma")
+    e21 = get(obsd.data, "lrsigma")
+    e22 = get(obsd.data, "llsigma")
+
+    error = StructArray{SMatrix{2,2,eltype(e11), 4}}((e11, e21, e12, e22))
+
+    return EHTDataTable{EHTCoherencyDatum}(
+                meas, error, config,
+                mjd(obs), ra(obs), dec(obs),
+                source(obs), obs
+                )
 end
 
 

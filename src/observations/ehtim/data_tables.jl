@@ -21,6 +21,10 @@ Base.@kwdef struct EHTDataTable{F,T<:AbstractInterferometryDatum{F},S,M,A,N,O<:O
     """
     config::A
     """
+    modified julian date of the observation
+    """
+    mjd::Int
+    """
     RA of the observation in J2000 (deg)
     """
     ra::F

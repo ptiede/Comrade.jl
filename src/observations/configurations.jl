@@ -47,3 +47,6 @@ end
 function getuvtimefreq(ac::ClosureConfig)
     return getuvtimefreq(ac.ac)
 end
+
+data(obs::ClosureConfig) = data(obs.ac)
+data(obs::ClosureConfig, v::Symbol) = data(obs.ac, v)

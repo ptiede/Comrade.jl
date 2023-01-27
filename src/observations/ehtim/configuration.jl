@@ -25,10 +25,6 @@ Base.@kwdef struct EHTArrayConfiguration{F,T,S,D<:AbstractArray} <: ArrayConfigu
     """
     timetype::Symbol = :UTC
     """
-    modified julia date of the observation
-    """
-    mjd::N
-    """
     A struct array of `ArrayBaselineDatum` holding time, freq, u, v, baselines.
     """
     data::D
@@ -93,5 +89,6 @@ function ehtarrayconfig(obs::EHTIMObs, pol=nothing)
                                         elevation = StructArray(angles[1]),
                                         parallactic  = StructArray(angles[2])
                                     )
-    return EHTArrayConfiguration(bandwidth, tarr, scans, uvsamples)
+    return EHTArrayConfiguration(;bandwidth, tarr, scans,
+                                  data = uvsamples)
 end
