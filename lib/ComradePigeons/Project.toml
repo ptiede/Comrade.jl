@@ -1,0 +1,22 @@
+name = "ComradePigeons"
+uuid = "97c400af-e8ed-537e-a7ed-b3c13b8ba6f3"
+authors = ["Paul Tiede <ptiede91@gmail.com> and contributors"]
+version = "0.1.0"
+
+[deps]
+Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+Pigeons = "0eb8d820-af6a-4919-95ae-11206f830c31"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+
+[compat]
+Comrade = "0.7"
+Reexport = "1"
+julia = "1.7"
+
+[extras]
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test", "Distributions"]
