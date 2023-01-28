@@ -23,7 +23,8 @@ are forwarded to `Dynesty` for more information see its [docs](https://github.co
 
 This returns a tuple where the first element are the weighted samples from dynesty in a TypedTable.
 The second element includes additional information about the samples, like the log-likelihood,
-evidence, evidence error, and the sample weights.
+evidence, evidence error, and the sample weights. The final element of the tuple is the original
+dynesty output file.
 
 To create equally weighted samples the user can use
 ```julia

@@ -4,6 +4,7 @@ using Comrade
 using AbstractMCMC
 using TypedTables
 using Reexport
+using Random
 
 @reexport using NestedSamplers
 
