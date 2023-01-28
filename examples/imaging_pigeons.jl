@@ -3,7 +3,7 @@ using Pkg; Pkg.activate(@__DIR__)
 Pkg.add("Comrade#main")
 using Comrade
 using Distributions
-# Add the repo package
+# Add the interface package
 Pkg.add("https://github.com/ptiede/Comrade.jl/lib/ComradePigeons")
 using ComradePigeons
 using Pigeons
@@ -60,7 +60,7 @@ tpost = asflat(post)
 ℓ = logdensityof(tpost)
 
 
-input = Pigeons.Inputs(tpost; recorder_builders=[Pigeons.index_process], n_rounds=9, n_chains=25)
+input = Pigeons.Inputs(tpost; recorder_builders=[Pigeons.index_process], n_rounds=5, n_chains=50)
 
 out = pigeons(input)
 
