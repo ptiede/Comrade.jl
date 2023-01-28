@@ -5,7 +5,7 @@ function bench(npix, lklhd, dlcamp, )
     fovxy = μas2rad(65.0)
     # Now we can feed in the array information to form the cache. We will be using a DFT since
     # it is efficient for so few pixels
-    cache = create_cache(Comrade.DFTAlg(dlcamp), IntensityMap(rand(npix,npix), fovxy, fovxy, BSplinePulse{3}()))
+    cache = create_cache(DFTAlg(dlcamp), IntensityMap(rand(npix,npix), fovxy, fovxy, BSplinePulse{3}()))
     mms = ImModel(cache, fovxy, npix)
     # We will use a Dirichlet prior to enforce that the flux sums to unity since closures are
     # degenerate to total flux.
