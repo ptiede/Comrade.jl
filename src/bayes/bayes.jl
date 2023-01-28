@@ -46,23 +46,25 @@ function DensityInterface.logdensityof(post::Posterior, x)
 end
 
 """
-    prior_sample(post::Posterior, args...)
+    prior_sample([rng::AbstractRandom], post::Posterior, args...)
 
 Samples the prior distribution from the posterior. The `args...` are forwarded to the
 `Base.rand` method.
 """
-function prior_sample(post::Posterior, args...)
-    return rand(post.prior, args...)
+function prior_sample(rng, post::Posterior, args...)
+    return rand(rng, post.prior, args...)
 end
 
 """
-    prior_sample(post::Posterior)
+    prior_sample([rng::AbstractRandom], post::Posterior)
 
 Returns a single sample from the prior distribution.
 """
-function prior_sample(post::Posterior)
-    return rand(post.prior)
+function prior_sample(rng, post::Posterior)
+    return rand(rng, post.prior)
 end
+
+prior_sample(post::Posterior) = prior_sample(Random.default_rng(), post)
 
 """
     $(TYPEDEF)
@@ -76,15 +78,17 @@ struct TransformedPosterior{P<:Posterior,T}
     transform::T
 end
 
-function prior_sample(tpost::TransformedPosterior, args...)
+function prior_sample(rng, tpost::TransformedPosterior, args...)
     inv = Base.Fix1(HypercubeTransform.inverse, tpost)
-    map(inv, prior_sample(tpost.lpost, args...))
+    map(inv, prior_sample(rng, tpost.lpost, args...))
 end
 
-function prior_sample(tpost::TransformedPosterior)
+function prior_sample(rng, tpost::TransformedPosterior)
     inv = Base.Fix1(HypercubeTransform.inverse, tpost)
-    inv(prior_sample(tpost.lpost))
+    inv(prior_sample(rng, tpost.lpost))
 end
+
+prior_sample(tpost::TransformedPosterior) = prior_sample(Random.default_rng(), tpost)
 
 
 @inline DensityInterface.DensityKind(::TransformedPosterior) = DensityInterface.IsDensity()
