@@ -65,12 +65,6 @@ input = Pigeons.Inputs(tpost; recorder_builders=[Pigeons.index_process], seed=40
 
 out = pigeons(input)
 
-# Move from unconstrained space to physical parameter space
-xopt = transform(tpost, sol)
-
-# Let's see how the fit looks
-xopt = transform(tpost, res.draws[:,1])
-img = intensitymap(mms(xopt), fovx, fovy, 512, 512)
-plot(img, colorbar_scale=:log10, size=(450,600), clims=(1e-6, 1e-3))
-residual(mms(xopt), dlcamp)
-residual(mms(xopt), dcphase)
+#Plot the image
+ind = sortperm(logdensityof.(Ref(tpost), getproperty.(out.replicas, :state)))
+plot(model(transform(tpost, out.replicas[ind[end]].state), metadata), xlims=(-32.5, 32.5), ylims=(-32.5, 32.5))
