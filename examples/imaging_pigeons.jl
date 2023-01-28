@@ -40,7 +40,7 @@ end
 
 # Set up the grid
 npix = 8
-fovxy = μas2rad(70.0)
+fovxy = μas2rad(72.0)
 # Now we can feed in the array information to form the cache. We will be using a DFT since
 # it is efficient for so few pixels
 grid = imagepixels(fovxy, fovxy, npix, npix)
@@ -50,7 +50,7 @@ pulse = BSplinePulse{3}()
 img = IntensityMap(zeros(npix,npix), grid)
 cache = create_cache(DFTAlg(damp), img, pulse)
 metadata = (;cache, img, grid, pulse)
-prior = (c = ImageDirichlet(1.0, npix, npix),)
+prior = (c = ImageDirichlet(0.5, npix, npix),)
 
 lklhd = RadioLikelihood(model, metadata, dlcamp, dcphase)
 post = Posterior(lklhd, prior)
@@ -60,7 +60,8 @@ tpost = asflat(post)
 ℓ = logdensityof(tpost)
 
 
-input = Pigeons.Inputs(tpost; recorder_builders=[Pigeons.index_process], n_rounds=5, n_chains=50)
+using OnlineStats
+input = Pigeons.Inputs(tpost; recorder_builders=[Pigeons.index_process], seed=40, n_rounds=12, n_chains=50)
 
 out = pigeons(input)
 
