@@ -52,11 +52,11 @@ ComradeBase.axisdims(m::ContinuousImage) = axisdims(parent(m))
 
 Base.similar(m::ContinuousImage, ::Type{S}, dims) where {S} = ContinuousImage(similar(parent(m), S, dims), m.kernel)
 
-function ContinuousImage(img::IntensityMap, pulse::Pulse)
+function ContinuousImage(img::IntensityMapTypes, pulse::Pulse)
     return ContinuousImage{typeof(img), typeof(pulse)}(img, pulse)
 end
 
-ContinuousImage(img::IntensityMap, cache::AbstractCache) = modelimage(ContinuousImage(img, cache.pulse), cache)
+ContinuousImage(img::IntensityMapTypes, cache::AbstractCache) = modelimage(ContinuousImage(img, cache.pulse), cache)
 
 function ContinuousImage(im::AbstractMatrix, fovx::Real, fovy::Real, x0::Real, y0::Real, pulse, header=nothing)
     xitr, yitr = imagepixels(fovx, fovy, size(img, 1), size(img,2), x0, y0)
