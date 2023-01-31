@@ -20,7 +20,7 @@ obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_Stok
 obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
-obsavg = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
+obsavg = obs.add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
 # extract log closure amplitudes and closure phases
 dvis = extract_vis(obsavg)
 
@@ -36,7 +36,7 @@ function model(θ, metadata)
     m = modelimage(cimg, cache)
     #gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
-    j = jonesStokes(exp.(lgamp).*cis.(gphase), gcache)
+    j = @fastmath jonesStokes(exp.(lgamp).*cis.(gphase), gcache)
     return JonesModel(j, m)
 end
 
@@ -97,7 +97,7 @@ metadata = (;cache, fovx, fovy, gcache)
 X, Y = imagepixels(buffer)
 prior = (
           c = ImageDirichlet(2.0, nx, ny),
-          lgamp = Hei(distamp, gcache),
+          lgamp = CalPrior(distamp, gcache),
           gphase = CalPrior(distphase, gcache)
         )
 
