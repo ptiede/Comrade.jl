@@ -226,6 +226,7 @@ Returns an EHTObservation with visibility amplitude data
 """
 function extract_amp(obsc; kwargs...)
     obs = obsc.copy()
+    obs.add_scans()
     obs.reorder_tarr_snr()
     obs.add_amp(;kwargs...)
     data = getampfield(obs)
@@ -281,6 +282,7 @@ Returns an EHTObservation with complex visibility data
 """
 function extract_vis(obsc; kwargs...)
     obs = obsc.copy()
+    obs.add_scans()
     obs.reorder_tarr_snr()
 
     data = getvisfield(obs)
@@ -310,8 +312,10 @@ This grabs the raw `data` object from the obs object. Any keyword arguments are 
 
 Returns an EHTObservation with coherency matrix
 """
-function extract_coherency(obs)
+function extract_coherency(obsc)
+    obs = obsc.copy()
     obs.reorder_tarr_snr()
+    obs.add_scans()
     data = getcoherency(obs)
     ra, dec = Comrade.getradec(obs)
     mjd = Comrade.getmjd(obs)
@@ -389,6 +393,7 @@ end
 function minimal_lcamp(obsc; kwargs...)
 
     obs = obsc.copy()
+    obs.add_scans()
     # reorder to maximize the snr
     obs.reorder_tarr_snr()
 
@@ -489,7 +494,7 @@ end
 
 function _make_lcamp(obsc, count="max"; kwargs...)
     obs = obsc.copy()
-
+    obs.add_scans()
     obs.reorder_tarr_snr()
 
     obs.add_logcamp(;count=count, kwargs...)
@@ -560,7 +565,7 @@ end
 function minimal_cphase(obsc; kwargs...)
     # compute a maximum set of closure phases
     obs = obsc.copy()
-
+    obs.add_scans()
     # reorder to maximize the snr
     obs.reorder_tarr_snr()
 
