@@ -78,7 +78,7 @@ For analytic models this is a no-op and returns the model.
 For non-analytic models this creates a `ModelImage` object which uses `alg` to compute
 the non-analytic Fourier transform.
 """
-@inline function modelimage(model::M, image::Union{StokesIntensityMap, IntensityMap}, alg::FourierTransform=FFTAlg(), pulse=DeltaPulse()) where {M}
+@inline function modelimage(model::M, image::Union{StokesIntensityMap, IntensityMap}, alg::FourierTransform=FFTAlg(), pulse=DeltaPulse(), threaded=true) where {M}
     return modelimage(visanalytic(M), model, image, alg, pulse)
 end
 

@@ -147,11 +147,13 @@ end
 
 
 # phasecenter the FFT.
-function ComradeBase.phasecenter(vis, X, Y, U, V)
+using FastBroadcast
+@fastmath function ComradeBase.phasecenter(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
-    return conj.(vis).*cispi.(2 .* (U.*x0 .+ V'.*y0))
+    @.. thread=true conj(vis)*cispi(2 * (U*x0 + V'*y0))
 end
+
 
 function applyfft(plan, img::AbstractArray{<:Number})
     return fftshift(plan*img)
@@ -176,7 +178,6 @@ function create_cache(alg::FFTAlg, img::IntensityMapTypes, pulse::Pulse=DeltaPul
     #Construct the uv grid
     (;X, Y) = imagepixels(img)
     (;U, V) = uviterator(size(pimg, 1), step(X), size(pimg, 2), step(Y))
-
 
     vispc = phasecenter(vis, X, Y, U, V)
     sitp = create_interpolator(U, V, vispc, stretched(pulse, step(X), step(Y)))
