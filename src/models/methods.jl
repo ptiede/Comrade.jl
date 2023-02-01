@@ -343,10 +343,11 @@ function intensitymap!(::NotAnalytic, img::IntensityMap, m)
     # nx, ny = size(img)
     (;X, Y) = axisdims(img)
     vis = fouriermap(m, axisdims(img))
-    vis = ifftshift(phasedecenter!(vis, X, Y))
-    ifft!(vis)
-    img .= real.(vis[I])
-    return
+    U, V = uviterator(length(X), step(X), length(Y), step(Y))
+    visk = ifftshift(keyless_unname(phasedecenter!(vis, X, Y, U, V)))
+    ifft!(visk)
+    img .= real.(visk)
+    return img
 end
 
 function intensitymap(A::NotAnalytic, m, grid::AbstractDims)
