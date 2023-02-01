@@ -113,6 +113,10 @@ struct TransformState{T<:Number,C}
     scale::C
 end
 
+unitscale(T, ::Type{M}) where {M} = unitscale(T, ispolarized(M))
+unitscale(T, ::NotPolarized) = one(T)
+unitscale(T, ::IsPolarized) = I
+
 
 
 # @inline function apply_uv_transform(m::AbstractModifier, t::TransformState)
@@ -277,14 +281,14 @@ in the x and y directions respectively.
 """
 shifted(model, Δx, Δy) = ShiftedModel(model, Δx, Δy)
 # This is a simple overload to simplify the type system
-shifted(model::ShiftedModel, Δx, Δy) = ShiftedModel(basemodel(model), Δx+model.Δx, Δy+model.Δy)
+shifted(model::ShiftedModel, Δx, Δy)      = ShiftedModel(basemodel(model), Δx+model.Δx, Δy+model.Δy)
 radialextent(model::ShiftedModel, Δx, Δy) = radialextent(model.model) + hypot(abs(Δx), abs(Δy))
 
 @inline transform_image(model::ShiftedModel, x, y) = (x-model.Δx, y-model.Δy)
 @inline transform_uv(::ShiftedModel, u, v) = (u, v)
 
-@inline scale_image(model::ShiftedModel, x, y) = 1.0
-@inline scale_uv(model::ShiftedModel, u, v) = cispi(2*(u*model.Δx + v*model.Δy))
+@inline scale_image(model::ShiftedModel{M}, x, y) where {M} = unitscale(typeof(model.Δx), M)
+@inline scale_uv(model::ShiftedModel{M}, u, v) where {M}    = cispi(2*(u*model.Δx + v*model.Δy))*unitscale(typeof(model.Δx), M)
 
 @inline visanalytic(::Type{<:ShiftedModel{M}}) where {M} = visanalytic(M)
 
@@ -339,8 +343,8 @@ flux(m::RenormalizedModel) = m.scale*flux(m.model)
 @inline transform_image(::RenormalizedModel, x, y) = (x, y)
 @inline transform_uv(::RenormalizedModel, u, v) = (u, v)
 
-@inline scale_image(model::RenormalizedModel, x, y) = model.scale
-@inline scale_uv(model::RenormalizedModel, u, v) = model.scale
+@inline scale_image(model::RenormalizedModel{M}, x, y) where {M} = model.scale*unitscale(typeof(model.scale), M)
+@inline scale_uv(model::RenormalizedModel{M}, u, v) where {M}    = model.scale*unitscale(typeof(model.scale), M)
 
 #function _visibilities(m::RenormalizedModel, u::AbstractArray, v::AbstractArray)
 #    m.scale*_visibilities(basemodel(m), u, v)
@@ -383,8 +387,8 @@ radialextent(model::StretchedModel) = hypot(model.α, model.β)*radialextent(bas
 @inline transform_image(model::StretchedModel, x, y) = (x/model.α, y/model.β)
 @inline transform_uv(model::StretchedModel, u, v) = (u*model.α, v*model.β)
 
-@inline scale_image(model::StretchedModel, x, y) = inv(model.α*model.β)
-@inline scale_uv(::StretchedModel, u, v) = one(eltype(u))
+@inline scale_image(model::StretchedModel{M,T}, x, y) where {M,T} = inv(model.α*model.β)*unitscale(T, M)
+@inline scale_uv(::StretchedModel{M,T}, u, v) where {M,T} = unitscale(T, M)
 
 @inline visanalytic(::Type{<:StretchedModel{M}}) where {M} = visanalytic(M)
 
@@ -426,7 +430,7 @@ posangle(model::RotatedModel) = atan(model.s, model.c)
 
 @inline function transform_image(model::RotatedModel, x, y)
     s,c = model.s, model.c
-    return c*x + s*y, -s*x + c*y
+    return c*x - s*y, s*x + c*y
 end
 
 @inline function transform_uv(model::RotatedModel, u, v)
@@ -435,5 +439,36 @@ end
 end
 
 
-@inline scale_image(model::RotatedModel, x, y) = 1.0
-@inline scale_uv(model::RotatedModel, u, v) = 1.0
+function scale_image(model::RotatedModel{M}, x, y) where {M}
+    scale_image(ispolarized(M), model, x, y)
+end
+
+
+@inline scale_image(::NotPolarized, model::RotatedModel{M,T}, x, y) where {M,T} = unitscale(T, M)
+
+@inline function spinor2_rotate(c, s)
+    u = oneunit(c)
+    z = zero(s)
+    c2 = c^2 - s^2
+    s2 = 2*c*s
+    return SMatrix{4,4}(u,  z,  z,  z,
+                        z,  c2, s2, z,
+                        z, -s2, c2, z,
+                        z,   z,  z, u)
+
+end
+
+@inline function scale_image(::IsPolarized, model::RotatedModel, x, y)
+    return spinor2_rotate(model.c, model.s)
+end
+
+@inline function scale_uv(model::RotatedModel{M}, u, v) where {M}
+    scale_uv(ispolarized(M), model, u, v)
+end
+
+
+@inline scale_uv(::NotPolarized, model::RotatedModel, u, v) = oneunit(model.c)
+
+@inline function scale_uv(::IsPolarized, model::RotatedModel, x, y)
+    return spinor2_rotate(model.c, model.s)
+end

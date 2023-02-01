@@ -29,6 +29,8 @@ struct PolarizedModel{TI,TQ,TU,TV} <: AbstractPolarizedModel
     V::TV
 end
 
+@inline radialextent(m::PolarizedModel) = radialextent(stokes(m, :I))
+
 function Base.show(io::IO, model::PolarizedModel)
     println(io, "PolarizedModel")
     println(io, "\tI: $(summary(model.I))")
@@ -54,11 +56,11 @@ end
 
 Computes the visibility in the stokes basis of the polarized model
 """
-@inline function visibility(pimg::PolarizedModel, p)
-    si = visibility(stokes(pimg, :I), p)
-    sq = visibility(stokes(pimg, :Q), p)
-    su = visibility(stokes(pimg, :U), p)
-    sv = visibility(stokes(pimg, :V), p)
+@inline function visibility_point(pimg::PolarizedModel, u, v, time, freq)
+    si = visibility_point(stokes(pimg, :I), u, v, time, freq)
+    sq = visibility_point(stokes(pimg, :Q), u, v, time, freq)
+    su = visibility_point(stokes(pimg, :U), u, v, time, freq)
+    sv = visibility_point(stokes(pimg, :V), u, v, time, freq)
     return StokesParams(si, sq, su, sv)
 end
 
