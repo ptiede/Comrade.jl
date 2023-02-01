@@ -611,7 +611,7 @@ function residuals(m, dvis::EHTObservation{T, A}) where {T, A<:EHTCoherencyDatum
     coh = dvis[:measurement]
     mcoh = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
     res = map((x,y,z)->((x .- y)./z), coh, mcoh, dvis[:error])
-    return res
+    return hypot.(u, v), res
 end
 
 

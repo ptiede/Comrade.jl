@@ -273,8 +273,6 @@ flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
 function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::AbstractDims)
     (;X, Y) = dims
-    nx = length(X)
-    ny = length(Y)
     vis1 = fouriermap(model.m1, dims)
     vis2 = fouriermap(model.m2, dims)
     U = vis1.U
