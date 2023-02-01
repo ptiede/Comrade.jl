@@ -143,7 +143,7 @@ using FastBroadcast
 @fastmath function ComradeBase.phasecenter(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
-    @.. thread=true conj(vis)*cispi(2 * (U*x0 + V'*y0))
+    return conj.(vis).*cispi.(2 * (U.*x0 .+ V'.*y0))
 end
 
 
