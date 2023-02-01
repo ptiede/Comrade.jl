@@ -4,7 +4,11 @@ using ChainRulesCore
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     plot(m)
-    img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), npix, npix)
+    g = imagepixels(2*Comrade.radialextent(m), 2*Comrade.radialextent(m), npix, npix)
+    img = intensitymap(m, g)
+    imgt = intensitymap(m, g, true)
+    imgt2 = intensitymap(m, g, false)
+    @test all(==(1), img .≈ imgt.≈ imgt2)
     plot(img)
     img2 = similar(img)
     intensitymap!(img2, m)
@@ -163,6 +167,12 @@ end
         testmodel(m,1024,1e-3)
     end
 
+    @testset "SlashedDisk" begin
+        m = smoothed(SlashedDisk(0.1), 1.0)
+        testmodel(m,1024,1e-3)
+    end
+
+
     @testset "ExtendedRing" begin
         mr = ExtendedRing(8.0)
         rad = 2.5*Comrade.radialextent(mr)
@@ -191,8 +201,8 @@ end
     ma = Gaussian()
     mb = ExtendedRing(8.0)
     @testset "Shifted" begin
-        mas = shifted(ma, 0.5, 0.5)
-        mbs = shifted(mb, 0.5, 0.5)
+        mas = shifted(ma, 0.1, 0.1)
+        mbs = shifted(mb, 0.1, 0.1)
         testmodel(mas)
         testmodel(modelimage(mbs, IntensityMap(zeros(1024, 1024),
                                                2*Comrade.radialextent(mbs),

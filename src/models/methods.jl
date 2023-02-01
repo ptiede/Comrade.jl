@@ -340,16 +340,24 @@ end
 # internal method for computing an image of a non-analytic image model. The
 # `executor` if for parallelization but is not used for this method.
 function intensitymap!(::NotAnalytic, img::IntensityMap, m)
-    ny, nx = size(img)
-    vis = fouriermap(m, dims(img))
-    vis = ifftshift(phasedecenter!(vis, xitr, yitr))
-    ifft!(vis, dimnum(img, (X,Y)))
-    img .= real.(vis[I])./(nx*ny)
-
-end
-
-function intensitymap(::NotAnalytic, m, dims)
-    vis = ifftshift(ComradeBase.AxisKeys.keyless_unname(phasedecenter!(fouriermap(m, dims), dims.X, dims.Y)))
+    # nx, ny = size(img)
+    (;X, Y) = axisdims(img)
+    vis = fouriermap(m, axisdims(img))
+    vis = ifftshift(phasedecenter!(vis, X, Y))
     ifft!(vis)
-    return IntensityMap(real.(vis)./length(vis), dims)
+    img .= real.(vis[I])
+    return
 end
+
+function intensitymap(A::NotAnalytic, m, grid::AbstractDims)
+    img = IntensityMap(zeros(map(length, dims(grid))), grid)
+    intensitymap!(A, img, m)
+    return img
+end
+
+
+# function intensitymap(::NotAnalytic, m, dims)
+#     vis = ifftshift(ComradeBase.AxisKeys.keyless_unname(phasedecenter!(fouriermap(m, dims), dims.X, dims.Y)))
+#     ifft!(vis)
+#     return IntensityMap(real.(vis)./length(vis), dims)
+# end

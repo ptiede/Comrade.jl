@@ -153,10 +153,12 @@ EHTImage object and plots it according to EHT conventions.
 Note that is does not save the figure.
 """
 @recipe function f(m::AbstractModel; uvscale=rad2μas,
-                   fovx = 2*radialextent(m), fovy=2*radialextent(m), dims=(512, 512),
-                   phasecenter = (0.0, 0.0), pulse=DeltaPulse())
+                   fovx = 2*radialextent(m), fovy=2*radialextent(m),
+                   nx = 512, ny = 512,
+                   x0 = 0.0, y0=0.0)
 
-    image = intensitymap(m, fovx, fovy, dims[1], dims[2], phasecenter[1], phasecenter[2])
+    grid = imagepixels(fovx, fovy, nx, ny, x0, y0)
+    image = intensitymap(m, grid)
     xitr, yitr = values(imagepixels(image))
     x0, x1 = uvscale.(extrema(xitr))
     y0, y1 = uvscale.(extrema(yitr))
