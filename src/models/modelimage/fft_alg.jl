@@ -232,16 +232,29 @@ Create a Fourier or visibility map of a model `m`
 where the image is specified in the image domain by the
 pixel locations `x` and `y`
 """
-function fouriermap(m, dims::AbstractDims)
+function fouriermap(m::M, dims::AbstractDims) where {M}
+    fouriermap(visanalytic(M), m, dims)
+end
+
+function fouriermap(::IsAnalytic, m, dims::AbstractDims)
     X = dims.X
     Y = dims.Y
     uu,vv = uviterator(length(X), step(X), length(Y), step(Y))
     uvgrid = ComradeBase.grid(U=uu, V=vv)
     vis = visibility.(Ref(m), uvgrid)
-
     return vis
 end
 
+
+function fouriermap(::NotAnalytic, m, g::AbstractDims)
+    X = g.X
+    Y = g.Y
+    img = IntensityMap(zeros(map(length, dims(g))), g)
+    mimg = modelimage(m, img, FFTAlg(), DeltaPulse())
+    uu,vv = uviterator(length(X), step(X), length(Y), step(Y))
+    uvgrid = ComradeBase.grid(U=uu, V=vv)
+    return visibility.(Ref(mimg), uvgrid)
+end
 
 
 
@@ -263,16 +276,10 @@ end
 
 # end
 
-function phasedecenter!(vis, X, Y)
-    nx = length(X)
-    ny = length(Y)
-    uu,vv = uviterator(nx, step(X), ny, step(Y))
+@fastmath function phasedecenter!(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
-    for I in CartesianIndices(vis)
-        iy, ix = Tuple(I)
-        vis[I] = conj(vis[I])*cispi(2*(uu[ix]*x0 + vv[iy]*y0))*nx*ny
-    end
+    @.. thread=true vis = conj(vis*cispi(-2 * (U*x0 + V'*y0)))
     return vis
 end
 

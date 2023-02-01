@@ -8,10 +8,16 @@ struct ThreadedModel{M} <: AbstractModel
     model::M
 end
 
+@inline ThreadedModel(model::ThreadedModel) = model
+@inline ThreadedModel(model::M) where {M<:CompositeModel} = ThreadedModel(imanalytic(M), model)
+@inline ThreadedModel(::IsAnalytic, model::CompositeModel)        = ThreadedModel{typeof(model)}(model)
+@inline ThreadedModel(::NotAnalytic, model::AddModel)             = AddModel(ThreadedModel(model.m1), ThreadedModel(model.m2))
+@inline ThreadedModel(::NotAnalytic, model::ConvolvedModel)       = ConvolvedModel(ThreadedModel(model.m1), ThreadedModel(model.m2))
+@inline ThreadedModel(model::ModelImage) = @set model.model = ThreadedModel(model.model)
 
-Base.@constprop :aggressive @inline visanalytic(::Type{<:AbstractModifier{M}}) where {M} = visanalytic(M)
-Base.@constprop :aggressive @inline imanalytic(::Type{<:AbstractModifier{M}}) where {M} = imanalytic(M)
-Base.@constprop :aggressive @inline ispolarized(::Type{<:AbstractModifier{M}}) where {M} = ispolarized(M)
+Base.@constprop :aggressive @inline visanalytic(::Type{<:ThreadedModel{M}}) where {M} = visanalytic(M)
+Base.@constprop :aggressive @inline imanalytic(::Type{<:ThreadedModel{M}}) where {M} = imanalytic(M)
+Base.@constprop :aggressive @inline ispolarized(::Type{<:ThreadedModel{M}}) where {M} = ispolarized(M)
 
 
 @inline visibility_point(m::ThreadedModel, u, v, time, freq) = visibility_point(m.model, u, v, time, freq)
@@ -20,25 +26,41 @@ Base.@constprop :aggressive @inline ispolarized(::Type{<:AbstractModifier{M}}) w
 @inline radialextent(m::ThreadedModel) = radialextent(basemodel(m))
 @inline flux(m::ThreadedModel) = flux(basemodel(m))
 
-function intensitymap(::IsAnalytic, s::ThreadedModel, p::GriddedKeys)
-    dx = step(dims.X)
-    dy = step(dims.Y)
-    img = @.. true intensity_point.(Ref(s), imagegrid(p)).*dx.*dy
-    return IntensityMap(AxisKeys.keyless_unname(img), dims)
-    return img
+using AxisKeys: keyless_unname
+using Polyester
+function intensitymap(::IsAnalytic, s::ThreadedModel, g::GriddedKeys)
+    T = typeof(intensity_point(s, (X=g.X[begin], Y=g.Y[begin])))
+    img = IntensityMap(Array{T}(undef, length(g.X), length(g.Y)), g)
+    return intensitymap!(IsAnalytic(), img, s)
 end
 
-function intensitymap!(::IsAnalytic, img::AbstractIntensityMap, s::ThreadedModel)
+intensitymap(m, p, threaded::Bool) = intensitymap(m, p, static(threaded))
+intensitymap(m, p, ::False) = intensitymap(m, p)
+intensitymap(m, p, ::True)  = intensitymap(ThreadedModel(m), p)
+
+intensitymap!(img::IntensityMapTypes, m, threaded::Bool) = intensitymap!(img, m, static(threaded))
+intensitymap!(img::IntensityMapTypes, m, ::False) = intensitymap!(img, m)
+intensitymap!(img::IntensityMapTypes, m, ::True)  = intensitymap!(img, ThreadedModel(m))
+
+function intensitymap!(::IsAnalytic, img::IntensityMap, s::ThreadedModel)
     dx, dy = pixelsizes(img)
+    mm = Base.Fix1(intensity_point, s)
     g = imagegrid(img)
-    img .= intensity_point.(Ref(s), g).*dx.*dy
+    Threads.@threads for I in CartesianIndices(img)
+        @inbounds img[I] = mm(g[I])*dx*dy
+    end
     return img
 end
 
-function fouriermap(m::ThreadedModel, dims::AbstractDims)
+function fouriermap(::IsAnalytic, m::ThreadedModel, dims::AbstractDims)
     X = dims.X
     Y = dims.Y
     uu,vv = uviterator(length(X), step(X), length(Y), step(Y))
     uvgrid = ComradeBase.grid(U=uu, V=vv)
-    vis = @.. true visibility.(Ref(m), uvgrid)
+    T = typeof(visibility(m, uvgrid[1]))
+    vis = similar(uvgrid, T)
+    Threads.@threads for I in CartesianIndices(vis)
+        vis[I] = visibility(m, uvgrid[I])
+    end
+    return vis
 end
