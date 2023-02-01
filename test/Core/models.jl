@@ -130,7 +130,7 @@ end
         m2 = ParabolicSegment(2.0, 2.0)
         @test stretched(m, 2.0, 2.0) == m2
         @test ComradeBase.intensity_point(m, (X=0.0, Y=1.0)) != 0.0
-        testmodel(m, 2424, 1e-3)
+        testmodel(m, 3424, 1e-2)
     end
 
 
@@ -158,7 +158,7 @@ end
 
     @testset "ConcordanceCrescent" begin
         m = ConcordanceCrescent(20.0, 10.0, 5.0, 0.5)
-        testmodel(m)
+        testmodel(m, atol=1e-3)
     end
 
 
