@@ -158,7 +158,7 @@ end
 
     @testset "ConcordanceCrescent" begin
         m = ConcordanceCrescent(20.0, 10.0, 5.0, 0.5)
-        testmodel(m, atol=1e-3)
+        testmodel(m, 2048, 1e-3)
     end
 
 
