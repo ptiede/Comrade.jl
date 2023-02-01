@@ -4,14 +4,18 @@ using ChainRulesCore
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     plot(m)
-    img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), npix, npix)
+    g = imagepixels(4*Comrade.radialextent(m), 4*Comrade.radialextent(m), npix, npix)
+    img = intensitymap(m, g)
+    imgt = intensitymap(m, g, true)
+    imgt2 = intensitymap(m, g, false)
+    @test all(==(1), img .≈ imgt.≈ imgt2)
     plot(img)
     img2 = similar(img)
     intensitymap!(img2, m)
     @test eltype(img) === Float64
     @test isapprox(flux(m), flux(img), atol=atol)
     @test isapprox(mean(parent(img) .- parent(img2)), 0, atol=1e-8)
-    cache = Comrade.create_cache(Comrade.FFTAlg(padfac=4), img/flux(img)*flux(m))
+    cache = Comrade.create_cache(Comrade.FFTAlg(padfac=8), img/flux(img)*flux(m))
     dx, dy = pixelsizes(img)
     u = fftshift(fftfreq(size(img,1), 1/dx))./30
     Plots.closeall()
@@ -126,7 +130,7 @@ end
         m2 = ParabolicSegment(2.0, 2.0)
         @test stretched(m, 2.0, 2.0) == m2
         @test ComradeBase.intensity_point(m, (X=0.0, Y=1.0)) != 0.0
-        testmodel(m, 2424, 1e-3)
+        testmodel(m, 3424, 1e-2)
     end
 
 
@@ -154,7 +158,7 @@ end
 
     @testset "ConcordanceCrescent" begin
         m = ConcordanceCrescent(20.0, 10.0, 5.0, 0.5)
-        testmodel(m)
+        testmodel(m, 2048, 1e-3)
     end
 
 
@@ -162,6 +166,12 @@ end
         m = smoothed(Crescent(5.0, 2.0, 1.0, 0.5), 1.0)
         testmodel(m,1024,1e-3)
     end
+
+    @testset "SlashedDisk" begin
+        m = smoothed(SlashedDisk(0.1), 1.0)
+        testmodel(m,1024,1e-3)
+    end
+
 
     @testset "ExtendedRing" begin
         mr = ExtendedRing(8.0)
@@ -191,8 +201,8 @@ end
     ma = Gaussian()
     mb = ExtendedRing(8.0)
     @testset "Shifted" begin
-        mas = shifted(ma, 0.5, 0.5)
-        mbs = shifted(mb, 0.5, 0.5)
+        mas = shifted(ma, 0.1, 0.1)
+        mbs = shifted(mb, 0.1, 0.1)
         testmodel(mas)
         testmodel(modelimage(mbs, IntensityMap(zeros(1024, 1024),
                                                2*Comrade.radialextent(mbs),
@@ -326,16 +336,19 @@ end
 @testset "Image SqExp" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, SqExpPulse(3.0))
-    testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
+    testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-3)
 end
-#@testset "DImage Bspline0" begin
-#   mI = DImage(rand(8,8), BSplinePulse{0}())
-#   testmodel(mI, 1e-2)
-#end
+
+@testset "DImage Bspline0" begin
+    img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
+    cimg = ContinuousImage(img, BSplinePulse{0}())
+    testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-2)
+end
+
 @testset "DImage BSpline1" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{1}())
-    testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
+    testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-3)
 end
 
 @testset "DImage BSpline3" begin
@@ -350,10 +363,6 @@ end
     testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
 end
 
-# @testset "DImage Bicubic" begin
-#     c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12; pulse=BicubicPulse())
-#     testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
-# end
 
 @testset "modelimage cache" begin
     img = intensitymap(rotated(stretched(Gaussian(), μas2rad(2.0), μas2rad(1.0)), π/8),

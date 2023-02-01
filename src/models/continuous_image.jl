@@ -83,9 +83,10 @@ radialextent(c::ContinuousImage) = maximum(values(fieldofview(c.img)))/2
 function intensity_point(m::ContinuousImage, p)
     dx, dy = pixelsizes(m.img)
     sum = zero(eltype(m.img))
+    ms = stretched(m.kernel, dx, dy)
     @inbounds for (I, p0) in pairs(imagegrid(m.img))
         dp = (X=(p.X - p0.X), Y=(p.Y - p0.Y))
-        k = intensity_point(stretched(m.kernel, dx, dy) , dp)
+        k = intensity_point(ms, dp)
         sum += m.img[I]*k
     end
     return sum

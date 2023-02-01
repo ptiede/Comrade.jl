@@ -271,25 +271,29 @@ smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 
 flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
-function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::AbstractDims, header=nothing)
+function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::AbstractDims)
     (;X, Y) = dims
     nx = length(X)
     ny = length(Y)
     vis1 = fouriermap(model.m1, dims)
     vis2 = fouriermap(model.m2, dims)
-    vis = ifftshift(phasedecenter!(vis1.*vis2, X, Y))
-    img = ComradeBase.AxisKeys.keyless_unname(ifft(vis))
-    return IntensityMap(real.(img)./(nx*ny), dims)
+    U = vis1.U
+    V = vis1.V
+    vis = ifftshift(phasedecenter!(vis1.*vis2, X, Y, U, V))
+    ifft!(keyless_unname(vis))
+    return IntensityMap(real.(keyless_unname(vis)), dims)
 end
 
-function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel, header=nothing)
+function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel)
     dims = axisdims(sim)
     (;X, Y) = dims
     vis1 = fouriermap(model.m1, dims)
     vis2 = fouriermap(model.m2, dims)
-    vis = ComradeBase.AxisKeys.keyless_unname(ifftshift(phasedecenter!(vis1.*vis2, X, Y)))
+    U = vis1.U
+    V = vis1.V
+    vis = ifftshift(phasedecenter!(keyless_unname(vis1.*vis2), X, Y, U, V))
     ifft!(vis)
-    sim .= real.(vis)./length(sim)
+    sim .= real.(vis)
 end
 
 #ChainRulesCore.@non_differentiable getproperty(m::ConvolvedModel, x::Symbol)

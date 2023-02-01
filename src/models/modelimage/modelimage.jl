@@ -56,7 +56,10 @@ flux(mimg::ModelImage) = flux(mimg.image)
 #     mimg.image
 # end
 
-radialextent(m::ModelImage) = hypot(fieldofview(m.image)...)
+intensitymap(mimg::ModelImage, g::AbstractDims) = intensitymap(mimg.model, g)
+intensitymap!(img::IntensityMap, mimg::ModelImage) = intensitymap!(img, mimg.model)
+
+radialextent(m::ModelImage) = hypot(fieldofview(m.image)...)/2
 
 #@inline visibility_point(m::AbstractModelImage, u, v) = visibility_point(model(m), u, v)
 
@@ -66,6 +69,7 @@ radialextent(m::ModelImage) = hypot(fieldofview(m.image)...)
 
 include(joinpath(@__DIR__, "cache.jl"))
 
+using Static
 
 """
     modelimage(model::AbstractIntensityMap, image::AbstractIntensityMap, alg=FFTAlg())
@@ -78,27 +82,29 @@ For analytic models this is a no-op and returns the model.
 For non-analytic models this creates a `ModelImage` object which uses `alg` to compute
 the non-analytic Fourier transform.
 """
-@inline function modelimage(model::M, image::Union{StokesIntensityMap, IntensityMap}, alg::FourierTransform=FFTAlg(), pulse=DeltaPulse()) where {M}
-    return modelimage(visanalytic(M), model, image, alg, pulse)
+@inline function modelimage(model::M, image::Union{StokesIntensityMap, IntensityMap}, alg::FourierTransform=FFTAlg(), pulse=DeltaPulse(), thread::Bool=false) where {M}
+    return modelimage(visanalytic(M), model, image, alg, pulse, static(thread))
 end
 
 @inline function modelimage(::IsAnalytic, model, args...; kwargs...)
     return model
 end
 
-function _modelimage(model, image, alg, pulse)
-    intensitymap!(image, model)
+function _modelimage(model, image, alg, pulse, thread)
+    intensitymap!(image, model, thread)
     cache = create_cache(alg, image, pulse)
     return ModelImage(model, image, cache)
 end
 
 
+
 @inline function modelimage(::NotAnalytic, model,
                             image::IntensityMap,
                             alg::FourierTransform=FFTAlg(),
-                            pulse = DeltaPulse()
+                            pulse = DeltaPulse(),
+                            thread = False()
                             )
-    _modelimage(model, image, alg, pulse)
+    _modelimage(model, image, alg, pulse, thread)
 end
 
 """
@@ -113,21 +119,21 @@ the`.
 ```julia-repl
 julia> m = ExtendedRing(10.0)
 julia> cache = create_cache(DFTAlg(), IntensityMap(zeros(128, 128), 50.0, 50.0)) # used threads to make the image
-julia> mimg = modelimage(m, cache, ThreadedEx())
+julia> mimg = modelimage(m, cache, true)
 ```
 
 # Notes
 For analytic models this is a no-op and returns the model.
 
 """
-@inline function modelimage(model::M, cache::AbstractCache) where {M}
-    return modelimage(visanalytic(M), model, cache)
+@inline function modelimage(model::M, cache::AbstractCache, thread::Bool=false) where {M}
+    return modelimage(visanalytic(M), model, cache, static(thread))
 end
 
 
-@inline function modelimage(::NotAnalytic, model, cache::AbstractCache)
+@inline function modelimage(::NotAnalytic, model, cache::AbstractCache, thread)
     img = cache.img
-    intensitymap!(img, model)
+    intensitymap!(img, model, thread)
     #newcache = update_cache(cache, img)
     return ModelImage(model, img, cache)
 end
@@ -161,7 +167,8 @@ function modelimage(m::M;
                     x0 = 0.0,
                     y0 = 0.0,
                     alg=FFTAlg(),
-                    pulse = DeltaPulse()
+                    pulse = DeltaPulse(),
+                    thread::Bool = false
                     ) where {M}
     if visanalytic(M) == IsAnalytic()
         return m
@@ -170,11 +177,11 @@ function modelimage(m::M;
         if ispolarized(M) === IsPolarized()
             T = eltype(intensity_point(m, (X=zero(fovx), Y=zero(fovy))))
             img = StokesIntensityMap(zeros(T, nx, ny), zeros(T, nx, ny), zeros(T, nx, ny), zeros(T, nx, ny), dims)
-            return modelimage(m, img, alg, pulse)
+            return modelimage(m, img, alg, pulse, thread)
         else
             T = typeof(intensity_point(m, (X=zero(fovx), Y=zero(fovy))))
             img = IntensityMap(zeros(T, nx, ny), dims)
-            return modelimage(m, img, alg, pulse)
+            return modelimage(m, img, alg, pulse, thread)
         end
     end
 end
