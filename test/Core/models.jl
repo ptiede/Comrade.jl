@@ -179,6 +179,30 @@ end
         m = modelimage(mr, IntensityMap(zeros(1024,1024), rad, rad), Comrade.FFTAlg(padfac=4))
         testmodel(m)
     end
+
+    @testset "M87 model test" begin
+        xopt = (rad = 21.895093363492155,
+                wid = 2.1113838380637815,
+                a = -0.3276141879612847,
+                b = -0.13845264228109883,
+                f = 0.4584364142294795,
+                sig = 30.902344705962914,
+                asy = 0.8036630375887827,
+                pa = 0.6955748496122764,
+                x = -43.84496132303754,
+                y = -18.750141889035508
+               )
+        function model(θ)
+            (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
+            ring = f*smoothed(stretched(MRing((a,), (b,)), μas2rad(rad), μas2rad(rad)), μas2rad(wid))
+            g = (1-f)*shifted(rotated(stretched(Gaussian(), μas2rad(sig)*asy, μas2rad(sig)), pa), μas2rad(x), μas2rad(y))
+            return ring + g
+        end
+
+        m = model(xopt)
+        testmodel(m)
+
+    end
 end
 
 @testset "ModelImage" begin
