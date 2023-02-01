@@ -151,7 +151,7 @@ using FastBroadcast
 @fastmath function ComradeBase.phasecenter(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
-    @.. thread=true conj(vis)*cispi(2 * (U*x0 + V'*y0))
+    return conj.(vis).*cispi.(2 * (U.*x0 .+ V'.*y0))
 end
 
 
@@ -195,7 +195,7 @@ function update_cache(cache::FFTCache, img::IntensityMapTypes, pulse)
     (;U, V) = uviterator(size(pimg, 1), step(X), size(pimg, 2), step(Y))
 
     vispc = phasecenter(vis, X, Y, U, V)
-    sitp = create_interpolator(uu, vv, vispc, img)
+    sitp = create_interpolator(uu, vv, vispc, pulse)
     return FFTCache(cache.alg, plan, img, sitp)
 end
 
