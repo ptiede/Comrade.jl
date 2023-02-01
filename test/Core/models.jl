@@ -4,7 +4,7 @@ using ChainRulesCore
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     plot(m)
-    g = imagepixels(2*Comrade.radialextent(m), 2*Comrade.radialextent(m), npix, npix)
+    g = imagepixels(4*Comrade.radialextent(m), 4*Comrade.radialextent(m), npix, npix)
     img = intensitymap(m, g)
     imgt = intensitymap(m, g, true)
     imgt2 = intensitymap(m, g, false)
@@ -15,7 +15,7 @@ function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     @test eltype(img) === Float64
     @test isapprox(flux(m), flux(img), atol=atol)
     @test isapprox(mean(parent(img) .- parent(img2)), 0, atol=1e-8)
-    cache = Comrade.create_cache(Comrade.FFTAlg(padfac=4), img/flux(img)*flux(m))
+    cache = Comrade.create_cache(Comrade.FFTAlg(padfac=8), img/flux(img)*flux(m))
     dx, dy = pixelsizes(img)
     u = fftshift(fftfreq(size(img,1), 1/dx))./30
     Plots.closeall()
@@ -336,16 +336,19 @@ end
 @testset "Image SqExp" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, SqExpPulse(3.0))
-    testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
+    testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-3)
 end
-#@testset "DImage Bspline0" begin
-#   mI = DImage(rand(8,8), BSplinePulse{0}())
-#   testmodel(mI, 1e-2)
-#end
+
+@testset "DImage Bspline0" begin
+    img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
+    cimg = ContinuousImage(img, BSplinePulse{0}())
+    testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-2)
+end
+
 @testset "DImage BSpline1" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{1}())
-    testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
+    testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-3)
 end
 
 @testset "DImage BSpline3" begin
@@ -360,10 +363,6 @@ end
     testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
 end
 
-# @testset "DImage Bicubic" begin
-#     c = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12; pulse=BicubicPulse())
-#     testmodel(modelimage(c, FFTAlg(padfac=3)), 1024, 1e-3)
-# end
 
 @testset "modelimage cache" begin
     img = intensitymap(rotated(stretched(Gaussian(), μas2rad(2.0), μas2rad(1.0)), π/8),
