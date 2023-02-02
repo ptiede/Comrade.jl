@@ -6,12 +6,14 @@ function testpol(m)
 
     @test all(==(1), img .≈ img2)
 
-    uv = (U=randn(100), V=randn(100))
+    u = fftshift(fftfreq(length(g.X), 1/step(g.X)))
+    uv = (U=u, V=u)
     v  = visibilities(m, uv)
 
     plot(m)
     plot(img)
     Plots.closeall()
+    return v
 end
 
 @testset "Polarized Analytic" begin
@@ -20,10 +22,16 @@ end
 end
 
 @testset "Polarized Semi Analytic" begin
-    m = PolarizedModel(ExtendedRing(2.0), 0.1*Gaussian(), 0.1*Gaussian(), 0.1*Gaussian())
-    g = GriddedKeys(imagepixels(5.0, 5.0, 128, 128))
+    m = PolarizedModel(ExtendedRing(8.0), 0.1*Gaussian(), 0.1*Gaussian(), 0.1*Gaussian())
+    g = GriddedKeys(imagepixels(10.0, 10.0, 512, 512))
     s = map(length, dims(g))
-    testpol(modelimage(m, IntensityMap(zeros(StokesParams{Float64}, s), g)))
+    vff = testpol(modelimage(m, IntensityMap(zeros(StokesParams{Float64}, s), g), FFTAlg()))
+    vnf = testpol(modelimage(m, IntensityMap(zeros(StokesParams{Float64}, s), g), NFFTAlg()))
+    vdf = testpol(modelimage(m, IntensityMap(zeros(StokesParams{Float64}, s), g), DFTAlg()))
+
+    @test isapprox(vff, vnf, atol=1e-6)
+    @test isapprox(vff, vdf, atol=1e-6)
+    @test isapprox(vnf, vdf, atol=1e-6)
 end
 
 @testset "Polarized Modified" begin
