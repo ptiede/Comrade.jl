@@ -299,8 +299,8 @@ function _mring_adjoint(α, β, u, v)
 
     ∂u = -complex(j1*2π*u/ρ)
     ∂v = -complex(j1*2π*v/ρ)
-    ∂α = similar(α ,Complex{T})
-    ∂β = similar(α ,Complex{T})
+    ∂α = zeros(Complex{T}, length(α))
+    ∂β = zeros(Complex{T}, length(α))
 
     ∂ku = 2π*u/ρ
     ∂kv = 2π*v/ρ
