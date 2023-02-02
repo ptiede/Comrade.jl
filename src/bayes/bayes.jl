@@ -65,7 +65,8 @@ function prior_sample(rng, post::Posterior)
     return rand(rng, post.prior)
 end
 
-prior_sample(post::Posterior, args...) = prior_sample(Random.default_rng(), post, args...)
+prior_sample(post::Union{TransformedPosterior, Posterior}, args...) = prior_sample(Random.default_rng(), post, args...)
+
 
 """
     $(TYPEDEF)
