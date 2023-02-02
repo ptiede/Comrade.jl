@@ -97,3 +97,20 @@ end
     img5 = intensitymap(rotated(m,  -π/4), g)
     @test all(==(1), img4 .≈ img5)
 end
+
+@testset "ContinuousImage" begin
+    m = PolarizedModel(Gaussian(), Gaussian(), ZeroModel(), 0.1*Gaussian())
+    g = GriddedKeys(imagepixels(10.0, 10.0, 24, 24))
+    img = intensitymap(m, g)
+    cimg = ContinuousImage(img, BicubicPulse(0.0))
+    @test Comrade.ispolarized(typeof(cimg)) === Comrade.IsPolarized()
+    @test Comrade.ispolarized(typeof(stokes(cimg, :I))) === Comrade.NotPolarized()
+
+    img0 = intensitymap(cimg, g)
+
+    rimg1 = intensitymap(rotated(cimg, π/4), g)
+    @test all(==(1), stokes(rimg1, :U) .≈ stokes(rimg1, :I))
+    @test all(==(1), isapprox.(stokes(rimg1, :Q), 0.0, atol=1e-16))
+    @test all(==(1), stokes(rimg1, :V) .≈ 0.1*stokes(rimg1, :I))
+
+end
