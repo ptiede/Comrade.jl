@@ -26,6 +26,7 @@ ComradeBase.flux
 ComradeBase.isprimitive
 ComradeBase.visanalytic
 ComradeBase.imanalytic
+ComradeBase.ispolarized
 ComradeBase.radialextent
 ComradeBase.visibility_point
 ComradeBase.intensity_point
@@ -38,20 +39,43 @@ ComradeBase.NotAnalytic
 ComradeBase.IntensityMap
 ```
 
-## Image Pulses
+### Image Types
 ```@docs
-ComradeBase.Pulse
-ComradeBase.DeltaPulse
-ComradeBase.SqExpPulse
-ComradeBase.BSplinePulse
+ComradeBase.IntensityMap(::AbstractArray, ::AbstractDims)
+ComradeBase.StokesIntensityMap
+ComradeBase.imagepixels
+ComradeBase.GriddedKeys
+ComradeBase.dims
+ComradeBase.axisdims
+ComradeBase.stokes
+ComradeBase.imagegrid
+ComradeBase.fieldofview
+ComradeBase.pixelsizes
+ComradeBase.phasecenter
+ComradeBase.centroid
+ComradeBase.second_moment
 ```
+
 
 ## Polarization
 
 ```@docs
-ComradeBase.StokesVector
+ComradeBase.AbstractPolarizedModel
+ComradeBase.StokesParams
+ComradeBase.ElectricFieldBasis
+ComradeBase.RPol
+ComradeBase.LPol
+ComradeBase.XPol
+ComradeBase.YPol
+ComradeBase.PolBasis
+ComradeBase.CirBasis
+ComradeBase.LinBasis
 ComradeBase.CoherencyMatrix
 ComradeBase.evpa
 ComradeBase.m̆
+ComradeBase.linearpol
 ComradeBase.SingleStokes
+ComradeBase.innerprod
+ComradeBase.basis_components
+ComradeBase.basis_transform
 ```

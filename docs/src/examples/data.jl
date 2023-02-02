@@ -13,25 +13,26 @@
 using Comrade
 using Plots
 
-# Now we load ehtim. This assumes you have a working installation of `eht-imaging`.
-# To install eht-imaging see the [ehtim](https://github.com/achael/eht-imaging) github repo.
-
-load_ehtim()
-
-# Now we load the data. We will use the 2017 public M87 data which can be downloaded from
+# To load the data we will use `eht-imaging`. We will use the 2017 public M87 data which can be downloaded from
 # [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019)
 
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obseht = load_ehtim_uvfits(joinpath(@__DIR__, "../assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 # Add scan and coherently average over them. The eht data has been phase calibrated so that
 # this is fine to do.
-obs.add_scans()
-obs = obs.avg_coherent(0.0, scan_avg=true)
+obs = scan_average(obseht)
+# !!! Warning
+#    We use a custom scan-averaging function to ensure that the scan-times are homogenized.
 
 # We can now extract data products that `Comrade` can use
+coh = extract_coherency(obs) # Coherency matrices
 vis = extract_vis(obs) #complex visibilites
 amp = extract_amp(obs) # visibility amplitudes
 cphase = extract_cphase(obs) # extract minimal set of closure phases
 lcamp = extract_lcamp(obs) # extract minimal set of log-closure amplitudes
+
+# !!! Warning
+#    Always use our `extract_cphase` and `extract_lcamp` functions to find the closures
+#    eht-imaging will sometimes incorrectly calculate a non-redundant set of closures.
 
 # We can also recover the array used in the observation using
 ac = arrayconfig(vis)
@@ -40,6 +41,7 @@ plot(ac) # Plot the baseline coverage
 # To plot the data we just call
 
 l = @layout [a b; c d]
+pc = plot(coh)
 pv = plot(vis)
 pa = plot(amp)
 pcp = plot(cphase)

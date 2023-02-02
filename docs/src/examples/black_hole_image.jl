@@ -16,37 +16,40 @@ using Comrade
 # from [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019).
 # For an introduction to data loading see [Loading Data into Comrade](@ref).
 
-load_ehtim()
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-obs.add_scans()
-# kill 0-baselines since we don't care about large scale flux and make scan-average data
-obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true)
-# grab data products we want to fit: log closure amplitudes and closure phases
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "../assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+# Now we will kill 0-baselines since we don't care about large scale flux and
+# since we know that the gains in this dataset are coherent across a scan we make scan-average data
+obs = scan_average(obs.flag_uvdist(uv_min=0.1e9))
+# Now we extract the data products we want to fit:
+#   1. log closure amplitudes
+#   2. closure phases
 dlcamp = extract_lcamp(obs)
 dcphase = extract_cphase(obs)
 
-# For this demo only consider closure products since these are invariant to station specific
-# gain systematics. Given these data products we can then form our radio likelihood:
+# Now the next thing we need to specify is our image model.
+# !!! note
+#     If we were fitting other data products like complex visibilities we would also need
+#     to include a intrument or RIME model to forward model the gains.
 
-lklhd = RadioLikelihood(dlcamp, dcphase)
-
-# The `lklhd` constructs a measure using `MeasureTheory.jl`. To evaluate the likelihood
-# we need to pass it a type that implements the `Comrade` model interface which is described
-# in [Model Interface](@ref).
-
-# To finish the construction of our posterior we need to specify an image model and a prior.
 # For the image model we will be using a modified `MRing`, which is a
 # infinitely thin delta ring with an azimuthal structure given by a Fourier expansion.
 # To give the ring some width we will convolve the ring with a gaussian, and add an
 # additional gaussian to the image to model any non-ring flux. For the model a user
 # must give a function that accepts a named tuple and return the constructed model:
+# !!! note
+#    The function model must always return an object that implements the Comrade [`Model Interface`](@ref)
 
 function model(θ)
-  (;radius, width, α, β, f, σG, τG, ξG, xG, yG) = θ
-  ring = f*smoothed(stretched(MRing((α,), (β,)), radius, radius), width)
-  g = (1-f)*shifted(rotated(stretched(Gaussian(), σG, σG*(1+τG)), ξG), xG, yG)
-  return ring + g
+    (;radius, width, α, β, f, σG, τG, ξG, xG, yG) = θ
+    ring = f*smoothed(stretched(MRing((α,), (β,)), radius, radius), width)
+    g = (1-f)*shifted(rotated(stretched(Gaussian(), σG, σG*(1+τG)), ξG), xG, yG)
+    return ring + g
 end
+
+# Now we can construct our likelihood `p(V|M)` where `V` is our data and `M` is our model.
+# The first argument of `RadioLikelihood` is always a function that contructs our Comrade
+# model from the set of parameters `θ`
+lklhd = RadioLikelihood(model, dlcamp, dcphase)
 
 # We now need to specify the priors for our model. The easiest way to do this is to
 # specify a NamedTuple of distributions:
@@ -67,10 +70,10 @@ prior = (
 
 # To form the posterior we now call
 
-post = Posterior(lklhd, prior, model)
+post = Posterior(lklhd, prior)
 
 # This constructs a posterior density that can be evaluated by calling `logdensityof`.
-# For example
+# For example,
 
 logdensityof(post, (radius = μas2rad(20.0),
                   width = μas2rad(10.0),
@@ -83,18 +86,19 @@ logdensityof(post, (radius = μas2rad(20.0),
                   xG = 0.0,
                   yG = 0.0))
 
-# We can now try to sample from our posterior `post` so that we can make probabilstic
-# inferences about our data.
+# ## Reconstruction
+# Now that we have fully specified our model we now will try to find the optimal reconstruction
+# of our model given our observed data.
 
-# Now this model is in **parameter** space. Often optimization and sampling algorithms
+# Currently `post` is in **parameter** space. Often optimization and sampling algorithms
 # want it in some modified space. For example, nested sampling algorithms want the
 # parameters in the unit hypercube. To transform the posterior to the unit hypercube we
 # can use the `ascube` function
 
 cpost = ascube(post)
 
-# If we want to flatten the parameter space and move to (-∞, ∞) support we can use the
-# `asflat` function
+# If we want to flatten the parameter space and move from constrained parameters to (-∞, ∞)
+# support we can use the `asflat` function
 
 fpost = asflat(post)
 
@@ -104,13 +108,20 @@ fpost = asflat(post)
 logdensityof(cpost, rand(dimension(cpost)))
 logdensityof(fpost, randn(dimension(fpost)))
 
-# Note that this automatically takes care of the jacobian in the parameter transformation.
+# note that `cpost` logdensity vector expects that each element lives in `[0,1]`.
 
-# ## Sampling the posterior
 
-# Our strategy here will be to use Hamiltonian Monte Carlo. However, to lower burn-in time
-# we will first use an optimizer to find a reasonable starting location. Since this is a lower
-# dimensional problem we will use BlackboxOptim or the OptimizationBBO package
+# ### Finding the Optimal Image
+
+# Typically most VLBI modeling codes only care about finding the optimal or best guess
+# image of our posterior `post` To do this we will use [`Optimization.jl`](@ref) and
+# specifically the [`BlackBoxOptim.jl`](@ref) package. For Comrade this workflow is
+# very similar to the usual `Optimization.jl` workflow. The only thing to keep in
+# mind is that `Optimization.jl` expects that the function we are evaluating expects the
+# parameters to be represented as a flat `Vector` of float. Therefore, we must use
+# one of our transformed posteriors `cpost` or `fpost`. For the purposes of this example
+# we will use `cpost` since it restricts the domain to live within the compact Unit hypercube
+# which is easier to explore for non-gradient based optimizers like `BBO`.
 
 using ComradeOptimization
 using OptimizationBBO
@@ -118,20 +129,34 @@ using OptimizationBBO
 ndim = dimension(fpost)
 f = OptimizationFunction(fpost)
 prob = OptimizationProblem(f, randn(ndim), nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
+
+# Now we solve for our optimial image.
+
 sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000)
 
 # The sol vector is in the transformed space, so first we need to transform back to parameter space
+# to that we can give meaning back to our solution.
 
 xopt = transform(fpost, sol)
 
-# And we can also plot the map
+# Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 
 using Plots
 plot(model(xopt), title="MAP image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
 
-# The main goal of `Comrade` is to explore the posterior of the model parameters.
-# Currently the go to tool is [AdvancedHMC.jl](https://github.com/TuringLang/AdvancedHMC.jl).
-# To sample from the posterior you can use the following:
+# ### Quantifying the Uncertainty of the Reconstruction
+
+# While finding the optimal image is useful often in science the most important thing is to
+# quantify the certainty of our inferences. This is really the goal of Comrade. In the language
+# of Bayesian statistics we want to find representation of the posterior of possible image
+# reconstructions given our choice of model and the data.
+#
+# Comrade provides a number of sampling and other posterior approximation tools. To see the
+# list please see [`Libraries`](@ref). For this example we will be using
+# [AdvancedHMC.jl](https://github.com/TuringLang/AdvancedHMC.jl) which uses
+# an adaptive Hamiltonian Monte Carlo sampler called NUTS to approximate the posterior.
+# Most of `Comrade`'s external libraries follow a very similar interface. To use AdvancedHMC
+# do the following:
 
 using ComradeAHMC
 chain, stats = sample(post, AHMC(metric=DiagEuclideanMetric(ndim)), 2000; nadapts=1000, init_params=xopt)
@@ -142,7 +167,8 @@ chain, stats = sample(post, AHMC(metric=DiagEuclideanMetric(ndim)), 2000; nadapt
 
 plot(model(chain[end]), title="Random image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
 
-# What about the mean image? Well let's grab 100 images from the chain
+# What about the mean image? Well let's grab 100 images from the chain, where we first remove the
+# adaptation steps since they don't sample from the correct posterior distribution
 meanimg = mean(intensitymap.(model.(sample(chain[1000:end], 100)), μas2rad(120.0), μas2rad(120.0), 128, 128))
 plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
 
@@ -173,20 +199,19 @@ residual(model(xopt), dlcamp)
 
 
 # For a real run we should also check that the MCMC chain has converged. For
-# this we can use MCMCDiagnostics
-using MCMCDiagnostics, Tables
-# First lets look at the effective sample size or ESS. This is important since
-# the Monte Carlo standard error for MCMC estimates is proportional to 1/√ESS (for some problems).
-ess = map(effective_sample_size, Tables.columns(chain))
-# We can also calculate the split-rhat or potential scale reduction. For this we should actually
-# use at least 4 chains. However for demonstation purposes we will use one chain that we split in two
-rhats = map(Tables.columns(chain)) do c
-    c1 = @view c[1001:1500]
-    c2 = @view c[1501:2000]
-    return potential_scale_reduction(c1, c2)
-end
-# Ok we have a split-rhat < 1.01 on all parameters so we have success (in reality run more chains!).
+# this we can use MCMCDiagnosticTools
+using MCMCDiagnosticTools, Tables
+# First lets look at the effective sample size (ESS) and R̂. This is important since
+# the Monte Carlo standard error for MCMC estimates is proportional to 1/√ESS (for some problems)
+# and R̂ is a measure of chain convergence. To find both we can use:
+essrhat = map(ess_rhat∘(x->reshape(x, :, 1, 1)), Tables.columns(chain))
+# Here the first value is the ESS and the second is the R̂. Note that we typically want R̂ < 1.01
+# for all parameters, but you should also be running the problem at least 4 times from 4 different
+# starting locations.
 
+# In our example here we see that we have an ESS > 100 for all parameters and the R̂ < 1.01
+# meaning that our MCMC chain mixing well. For more diagnostics see
+# [`MCMCDiagnosticTools.jl`](https://turinglang.github.io/MCMCDiagnosticTools.jl/stable/).
 
 
 # Computing information

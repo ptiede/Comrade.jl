@@ -56,11 +56,9 @@ using ForwardDiff
 
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-obs.add_scans()
-obs = obs.avg_coherent(0.0, scan_avg=true)
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = scan_average(obs)
 amp = extract_amp(obs)
-lklhd = RadioLikelihood(amp)
 
 function model(θ)
     (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
@@ -68,6 +66,8 @@ function model(θ)
     g = (1-f)*shifted(rotated(stretched(Gaussian(), μas2rad(sig)*asy, μas2rad(sig)), pa), μas2rad(x), μas2rad(y))
     return ring + g
 end
+
+lklhd = RadioLikelihood(model, amp)
 prior = (
           rad = Uniform(10.0, 30.0),
           wid = Uniform(1.0, 10.0),
@@ -79,13 +79,11 @@ prior = (
           x = Uniform(-(80.0), (80.0)),
           y = Uniform(-(80.0), (80.0))
         )
-# Now form the posterior
-post = Posterior(lklhd, prior, model)
 
 θ = (rad= 22.0, wid= 3.0, a = 0.0, b = 0.15, f=0.8, sig = 20.0, asy=0.2, pa=π/2, x=20.0, y=20.0)
 m = model(θ)
 
-post = Posterior(lklhd, prior, model)
+post = Posterior(lklhd, prior)
 tpost = asflat(post)
 
 # Transform to the unconstrained space
@@ -105,9 +103,8 @@ gℓ = Comrade.make_pullback(ℓ, AD.ForwardDiffBackend())
 ```julia
 load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-obs.add_scans()
-obs = obs.avg_coherent(0.0, scan_avg=true)
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = scan_average(obs)
 
 
 

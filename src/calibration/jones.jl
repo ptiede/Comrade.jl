@@ -1,6 +1,11 @@
 export JonesCache, TrackSeg, ScanSeg, IntegSeg, jonesG, jonesD, jonesT,
        TransformCache, JonesModel
 
+"""
+    $(TYPEDEF)
+
+The data segmentation scheme to use. This is important for constructing a [`JonesCache`](@ref)
+"""
 abstract type ObsSegmentation end
 
 # Track is for quantities that remain static across an entire observation
@@ -455,6 +460,12 @@ function TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=tr
     return TransformCache{typeof(T1), typeof(ref)}(T1, T2, ref)
 end
 
+"""
+    jonesT(tcache::TransformCache)
+
+Returns a `JonesPair` of matrices that transform from the model coherency matrices basis
+to the on-sky coherency basis, this includes the feed rotation and choice of polarization feeds.
+"""
 jonesT(tcache::TransformCache) = JonesPairs(tcache.T1, tcache.T2)
 
 

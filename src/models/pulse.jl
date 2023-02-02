@@ -35,19 +35,6 @@ DeltaPulse() = DeltaPulse{Float64}()
 @inline ω(::DeltaPulse{T}, u) where {T} = one(T)
 @inline radialextent(::Pulse) = 1.0
 
-"""
-    $(TYPEDEF)
-Normalized square exponential kernel, i.e. a Gaussian. Note the
-smoothness is modfied with `ϵ` which is the inverse variance in units of
-1/pixels².
-"""
-struct SqExpPulse{T} <: Pulse
-    ϵ::T
-end
-@inline @fastmath κ(b::SqExpPulse, x) = exp(-0.5*b.ϵ^2*x^2)/sqrt(2*π/b.ϵ^2)
-@inline κflux(::SqExpPulse{T}) where {T} = one(T)
-@inline @fastmath ω(b::SqExpPulse, u) = exp(-2*(π*u/b.ϵ)^2)
-@inline radialextent(p::SqExpPulse) = 5/p.ϵ
 
 @doc raw"""
     $(TYPEDEF)
@@ -91,7 +78,14 @@ end
     end
 end
 
+"""
+    $(TYPEDEF)
+    BicubicPulse(b = 0.5)
 
+The bicubic pulse for imaging. This pulse tends to have a flat spectrum but for most values
+of `b` can produce negative intensities in an image. This is the pulse used in
+[`Broderick et al. 2020`](https://iopscience.iop.org/article/10.3847/1538-4357/ab9c1f).
+"""
 struct BicubicPulse{T} <: Pulse
     b::T
 end
@@ -121,6 +115,14 @@ function ω(m::BicubicPulse, u)
     return -4*s*(2*b*c + 4*b + 3)*inv(k3) + 12*inv(k4)*(b*(1-c2) + 2*(1-c))
 end
 
+"""
+    $(TYPEDEF)
+    RaisedCosinePulse()
+    RaisedCosinePulse(rolloff)
+
+Raised cosine pulse function. This tends to be a very flat response, where the roll off
+controls the speed of decay. By default we set `rolloff = 0.5`.
+"""
 struct RaisedCosinePulse{T} <: Pulse
     rolloff::T
 end

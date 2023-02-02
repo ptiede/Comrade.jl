@@ -25,10 +25,22 @@ Comrade.caltable(::Comrade.JonesCache, ::AbstractVector)
 Comrade.caltable(::Comrade.EHTObservation, ::AbstractVector)
 Comrade.DesignMatrix
 Comrade.JonesCache
+Comrade.TransformCache
 Comrade.JonesModel
 Comrade.CalPrior
 Comrade.CalPrior(::NamedTuple, ::JonesCache)
 Comrade.RIMEModel
+Comrade.ObsSegmentation
+Comrade.IntegSeg
+Comrade.ScanSeg
+Comrade.TrackSeg
+Comrade.jonesStokes
+Comrade.jonesG
+Comrade.jonesD
+Comrade.jonesT
+Comrade.PoincareSphere2Map
+Comrade.caltable
+Comrade.JonesPairs
 ```
 
 ### Combinators
@@ -44,23 +56,33 @@ Comrade.AddModel
 Comrade.ConvolvedModel
 ```
 
-### GeometricModels
+### Geometric and Image Models
 
 ```@docs
-Comrade.scale_uv
-Comrade.scale_image
-Comrade.transform_uv
-Comrade.transform_image
 Comrade.GeometricModel
 Comrade.ConcordanceCrescent
 Comrade.Crescent
 Comrade.Disk
+Comrade.SlashedDisk
 Comrade.ExtendedRing
 Comrade.Gaussian
 Comrade.MRing
 Comrade.Ring
 Comrade.ParabolicSegment
+Comrade.ContinuousImage
+Comrade.ZeroModel
 ```
+
+### Image Pulses
+```@docs
+Comrade.Pulse
+Comrade.DeltaPulse
+Comrade.BSplinePulse
+Comrade.RaisedCosinePulse
+Comrade.BicubicPulse
+Comrade.Butterworth
+```
+
 
 ### Model Image (non analytic FFT)
 
@@ -87,6 +109,7 @@ Comrade.ObservedNUFT
 
 ```@docs
 Comrade.basemodel
+Comrade.unmodified
 Comrade.renormed
 Comrade.rotated
 Comrade.posangle
@@ -102,10 +125,8 @@ Comrade.StretchedModel
 ### Polarized Models
 
 ```@docs
-Comrade.m̆(pimg::ComradeBase.AbstractPolarizedModel, u, v)
 Comrade.mbreve
-Comrade.evpa(pimg::ComradeBase.AbstractPolarizedModel, u, v)
-Comrade.coherencymatrix(pimg::PolarizedModel, u, v)
+Comrade.evpa(pimg::ComradeBase.AbstractPolarizedModel, p)
 Comrade.PolarizedModel
 ```
 
@@ -141,14 +162,16 @@ Comrade.closure_phase(::Comrade.EHTVisibilityDatum, ::Comrade.EHTVisibilityDatum
 Comrade.getdata
 Comrade.getuv
 Comrade.getuvtimefreq
-Comrade.rescaleuv!
 Comrade.scantable
 Comrade.stations
 Comrade.uvpositions
+Comrade.ArrayConfiguration
 Comrade.ClosureConfig
+Comrade.AbstractInterferometryDatum
 Comrade.ArrayBaselineDatum
 Comrade.EHTObservation
 Comrade.EHTArrayConfiguration
+Comrade.EHTCoherencyDatum
 Comrade.EHTClosurePhaseDatum
 Comrade.EHTLogClosureAmplitudeDatum
 Comrade.EHTVisibilityDatum
@@ -160,22 +183,17 @@ Comrade.ScanTable
 ## eht-imaging interface
 
 ```@docs
+Comrade.extract_coherency
 Comrade.extract_amp
 Comrade.extract_cphase
 Comrade.extract_lcamp
 Comrade.extract_vis
+Comrade.load_ehtim_uvfits
 Comrade.load_ehtim
+Comrade.scan_average
 ```
 
 ## Bayesian Tools
-
-### Distributions
-
-```@docs
-Comrade.AmpNormal
-Comrade.ComplexNormal
-Comrade.CPVonMises
-```
 
 ### Posterior Constructions
 
@@ -185,12 +203,15 @@ Comrade.asflat
 Comrade.flatten
 Comrade.inverse
 Comrade.prior_sample
+Comrade.likelihood
 Comrade.sample(::Posterior)
 Comrade.transform
 Comrade.MultiRadioLikelihood
 Comrade.Posterior
 Comrade.TransformedPosterior
 Comrade.RadioLikelihood
+Comrade.IsFlat
+Comrade.IsCube
 ```
 
 ## Misc
@@ -198,7 +219,20 @@ Comrade.RadioLikelihood
 ```@docs
 Comrade.μas2rad
 Comrade.rad2μas
-Comrade.fileio_load
-Comrade.fileio_save
-Comrade.make_pullback
+Comrade.load
+Comrade.save
+Comrade.NonAnalyticTest
 ```
+
+## Internal (Not Public API)
+```@docs
+Comrade.make_pullback
+Comrade.scale_uv
+Comrade.scale_image
+Comrade.transform_uv
+Comrade.transform_image
+Comrade.ThreadedModel
+Comrade.fishermatrix
+Comrade.extract_FRs
+```
+
