@@ -1,7 +1,10 @@
-using MeasureBase: logdensityof, Likelihood
-export RadioLikelihood, logdensityof, MultiRadioLikelihood
+export RadioLikelihood, logdensityof, MultiRadioLikelihood, likelihood
 using LinearAlgebra
 using VLBILikelihoods
+
+abstract type VLBILikelihood end
+@inline DensityInterface.DensityKind(::VLBILikelihood) = DensityInterface.IsDensity()
+
 
 """
     RadioLikelihood(model, data1, data2, ...)
@@ -17,7 +20,7 @@ such as when fitting different wavelengths or days, you can combine them using
 julia> RadioLikelihood(model, dcphase1, dlcamp1)
 ```
 """
-struct RadioLikelihood{M,T,A,P} <: MB.AbstractMeasure
+struct RadioLikelihood{M,T,A,P} <: VLBILikelihood
     model::M
     lklhds::T
     ac::A
@@ -97,7 +100,7 @@ julia> MultiRadioLikelihood(lklhd1, lklhd2)
 ```
 
 """
-struct MultiRadioLikelihood{L} <: MB.AbstractMeasure
+struct MultiRadioLikelihood{L} <: VLBILikelihood
     lklhds::L
 end
 
@@ -111,14 +114,11 @@ function Base.show(io::IO, d::MultiRadioLikelihood)
     end
 end
 
-function MB.logdensityof(lklhds::MultiRadioLikelihood, m)
+function DensityInterface.logdensityof(lklhds::MultiRadioLikelihood, m)
     sum(Base.Fix2(logdensityof, m), lklhds.lklhds)
 end
 
 
-function RadioLikelihood(model, data::MB.Likelihood...)
-    return RadioLikelihood{typeof(model), typeof(data), Nothing}(model, data, nothing)
-end
 
 
 function Base.show(io::IO, d::RadioLikelihood{T}) where {T}
@@ -159,7 +159,7 @@ phase(vis::AbstractArray{<:Complex}) = angle.(vis)
 
 
 
-function MB.logdensityof(d::RadioLikelihood, θ::NamedTuple)
+function DensityInterface.logdensityof(d::RadioLikelihood, θ::NamedTuple)
     ac = d.positions
     m = d.model(θ)
     # Convert because of conventions
@@ -179,12 +179,34 @@ function _logdensityofvis(d::RadioLikelihood, vis::AbstractArray)
         return acc
 end
 
+struct ConditionedLikelihood{F, O} <: VLBILikelihood
+    kernel::F
+    obs::O
+end
+
+DensityInterface.logdensityof(d::ConditionedLikelihood, μ) = logdensityof(d.kernel(μ), d.obs)
+
+function RadioLikelihood(model, data::ConditionedLikelihood...)
+    return RadioLikelihood{typeof(model), typeof(data), Nothing}(model, data, nothing)
+end
+
+
+"""
+    likelihood(d::ConditionedLikelihood, μ)
+
+Returns the likelihood of the model, with parameters μ. That is, we return the
+distribution of the data given the model parameters μ. This is an actual probability
+distribution.
+"""
+likelihood(d::ConditionedLikelihood, μ) = d.kernel(μ)
+
+
 
 # internal function that creates the likelihood for a set of complex visibilities
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
     Σ = data[:error].^2
     vis = data[:measurement]
-    ℓ = Likelihood(vis) do μ
+    ℓ = ConditionedLikelihood(vis) do μ
         ComplexVisLikelihood(μ, Σ, 0.0)
     end
     return ℓ
@@ -193,7 +215,7 @@ end
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTCoherencyDatum})
     Σ = map(x->x.^2, data[:error])
     vis = data[:measurement]
-    ℓ = Likelihood(vis) do μ
+    ℓ = ConditionedLikelihood(vis) do μ
         CoherencyLikelihood(μ, Σ, 0.0)
     end
     return ℓ
@@ -203,7 +225,7 @@ end
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     Σ = data[:error].^2
     amp = data[:measurement]
-    ℓ = Likelihood(amp) do μ
+    ℓ = ConditionedLikelihood(amp) do μ
         AmplitudeLikelihood(abs.(μ), Σ, 0.0)
     end
     return ℓ
@@ -220,7 +242,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
     Σlca = data[:error].^2
     f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:measurement]
-    ℓ = Likelihood(amp) do μ
+    ℓ = ConditionedLikelihood(amp) do μ
         AmplitudeLikelihood(f(μ), Σlca, 0.0)
     end
     return ℓ
@@ -238,7 +260,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosur
     Σcp = data[:error].^2
     f = Base.Fix2(closure_phases, data.config)
     phase = data[:measurement]
-    ℓ = Likelihood(phase) do μ
+    ℓ = ConditionedLikelihood(phase) do μ
         ClosurePhaseLikelihood(f(μ), Σcp, 0.0)
     end
 

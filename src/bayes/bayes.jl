@@ -14,7 +14,7 @@ end
 """
     Posterior(lklhd, prior)
 Creates a Posterior density that follows obeys [DensityInferface](https://github.com/JuliaMath/DensityInferface.jl).
-The `lklhd` object is expected to be a `MeasureBase.Likelihood` object. For instance, these can be
+The `lklhd` object is expected to be a `VLB` object. For instance, these can be
 created using [`RadioLikelihood`](@ref). `prior` is expected to be a `NamedTuple`
 of distributions that reflect the priors on the parameters you are considering.
 

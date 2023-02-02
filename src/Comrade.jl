@@ -9,18 +9,17 @@ using AbstractMCMC
 using Accessors: @set
 using ArgCheck: @argcheck
 using BasicInterpolators
+using DensityInterface
 import Distributions as Dists
 using DocStringExtensions
 using ChainRulesCore
 using ComradeBase
 using FITSIO
-using FileIO: File, @format_str
 using FillArrays: Fill
 using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
 using FFTW
 #using MappedArrays: mappedarray
-import MeasureBase as MB
 using NFFT
 using PaddedViews
 using PDMats
@@ -30,7 +29,6 @@ using SpecialFunctions #: gamma, erf
 using Random
 using RectiGrids
 using Reexport
-using Requires: @require
 using StaticArraysCore
 using StructArrays: StructVector, StructArray, append!!
 import StructArrays

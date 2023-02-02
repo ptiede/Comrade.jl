@@ -27,7 +27,6 @@ Base.@constprop :aggressive @inline ispolarized(::Type{<:ThreadedModel{M}}) wher
 @inline flux(m::ThreadedModel) = flux(basemodel(m))
 
 using AxisKeys: keyless_unname
-using Polyester
 function intensitymap(::IsAnalytic, s::ThreadedModel, g::GriddedKeys)
     T = typeof(intensity_point(s, (X=g.X[begin], Y=g.Y[begin])))
     img = IntensityMap(Array{T}(undef, length(g.X), length(g.Y)), g)
