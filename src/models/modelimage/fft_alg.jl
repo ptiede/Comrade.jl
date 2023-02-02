@@ -232,8 +232,8 @@ function fouriermap(::IsAnalytic, m, dims::AbstractDims)
     X = dims.X
     Y = dims.Y
     uu,vv = uviterator(length(X), step(X), length(Y), step(Y))
-    # uvgrid = ComradeBase.grid(U=uu, V=vv)
-    vis = visibility_point.(Ref(m), uu, vv', 0.0, 0.0)
+    uvgrid = ComradeBase.grid(U=uu, V=vv)
+    vis = visibility.(Ref(m), uvgrid)
     return vis
 end
 
