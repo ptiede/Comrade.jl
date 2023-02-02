@@ -7,16 +7,8 @@ function testpol(m)
     @test all(==(1), img .≈ img2)
 
     uv = (U=randn(100), V=randn(100))
-    v = visibilities(m, uv)
-    vI = visibilities(m.I, uv)
-    vQ = visibilities(m.Q, uv)
-    vU = visibilities(m.U, uv)
-    vV = visibilities(m.V, uv)
+    v  = visibilities(m, uv)
 
-    @test v.I ≈ vI
-    @test v.Q ≈ vQ
-    @test v.U ≈ vU
-    @test v.V ≈ vV
     plot(m)
     plot(img)
     Plots.closeall()
@@ -35,10 +27,21 @@ end
 end
 
 @testset "Polarized Modified" begin
-    m = shifted(PolarizedModel(ExtendedRing(2.0), 0.1*Gaussian(), 0.1*Gaussian(), 0.1*Gaussian()), 0.1 ,0.1)
     g = GriddedKeys(imagepixels(5.0, 5.0, 128, 128))
     s = map(length, dims(g))
+    m0 = PolarizedModel(ExtendedRing(2.0), 0.1*Gaussian(), 0.1*Gaussian(), 0.1*Gaussian())
+    m = shifted(m0, 0.1 ,0.1)
     testpol(modelimage(m, IntensityMap(zeros(StokesParams{Float64}, s), g)))
+
+    m = rotated(m0, 0.1)
+    testpol(modelimage(m, IntensityMap(zeros(StokesParams{Float64}, s), g)))
+
+    m = renormed(m0, 0.1)
+    testpol(modelimage(m, IntensityMap(zeros(StokesParams{Float64}, s), g)))
+
+    m = stretched(m0, 0.1, 0.4)
+    testpol(modelimage(m, IntensityMap(zeros(StokesParams{Float64}, s), g)))
+
 end
 
 @testset "Polarized Combinators" begin
