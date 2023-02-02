@@ -253,7 +253,7 @@ function fouriermap(::NotAnalytic, m, g::AbstractDims)
     mimg = modelimage(m, img, FFTAlg(), DeltaPulse())
     uu,vv = uviterator(length(X), step(X), length(Y), step(Y))
     uvgrid = ComradeBase.grid(U=uu, V=vv)
-    return visibility_point.(Ref(mimg), uu, vv', 0.0, 0.0)
+    return visibility.(Ref(mimg), uvgrid)
 end
 
 
