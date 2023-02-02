@@ -12,7 +12,6 @@ abstract type ClosureProducts{T} <: AbstractInterferometryDatum{T} end
 
 abstract type Observation{T} end
 
-using DelimitedFiles
 using AstroTime: modified_julian
 
 export uvpositions, stations, getdata, arrayconfig,
