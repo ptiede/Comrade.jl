@@ -126,6 +126,25 @@ end
         )
 end
 
+@inline function added(m::PolarizedModel, p::AbstractModel)
+    return PolarizedModel(
+                added(stokes(m, :I), p),
+                added(stokes(m, :Q), p),
+                added(stokes(m, :U), p),
+                added(stokes(m, :V), p),
+                )
+end
+
+@inline added(p::AbstractModel, m::PolarizedModel) = added(m, p)
+@inline function added(p::PolarizedModel, m::PolarizedModel)
+    return PolarizedModel(
+            added(stokes(p, :I), stokes(m, :I)),
+            added(stokes(p, :Q), stokes(m, :Q)),
+            added(stokes(p, :U), stokes(m, :U)),
+            added(stokes(p, :V), stokes(m, :V)),
+        )
+end
+
 # for m in (:renormed, :rotated, :shifted, :stretched)
 #     @eval begin
 #       @inline function $m(z::PolarizedModel, arg::Vararg{X,N}) where {X,N}
@@ -138,6 +157,15 @@ end
 #       end
 #     end
 # end
+
+function modelimage(model::PolarizedModel, image::Union{StokesIntensityMap, IntensityMap{<:StokesParams}}, alg::FourierTransform=FFTAlg(), pulse=DeltaPulse(), thread::Bool=false)
+    return PolarizedModel(
+        modelimage(stokes(model, :I), stokes(image, :I), alg, pulse, thread),
+        modelimage(stokes(model, :Q), stokes(image, :Q), alg, pulse, thread),
+        modelimage(stokes(model, :U), stokes(image, :U), alg, pulse, thread),
+        modelimage(stokes(model, :V), stokes(image, :V), alg, pulse, thread)
+        )
+end
 
 function modelimage(model::PolarizedModel, image::Union{StokesIntensityMap, IntensityMap{<:StokesParams}}, alg::FourierTransform=FFTAlg(), pulse=DeltaPulse(), thread::Bool=false)
     return PolarizedModel(
