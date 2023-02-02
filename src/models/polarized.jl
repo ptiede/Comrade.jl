@@ -29,6 +29,8 @@ struct PolarizedModel{TI,TQ,TU,TV} <: AbstractPolarizedModel
     V::TV
 end
 
+@inline radialextent(m::PolarizedModel) = radialextent(stokes(m, :I))
+
 function Base.show(io::IO, model::PolarizedModel)
     println(io, "PolarizedModel")
     println(io, "\tI: $(summary(model.I))")
@@ -54,15 +56,15 @@ end
 
 Computes the visibility in the stokes basis of the polarized model
 """
-@inline function visibility(pimg::PolarizedModel, p)
-    si = visibility(stokes(pimg, :I), p)
-    sq = visibility(stokes(pimg, :Q), p)
-    su = visibility(stokes(pimg, :U), p)
-    sv = visibility(stokes(pimg, :V), p)
+@inline function visibility_point(pimg::PolarizedModel, u, v, time, freq)
+    si = visibility_point(stokes(pimg, :I), u, v, time, freq)
+    sq = visibility_point(stokes(pimg, :Q), u, v, time, freq)
+    su = visibility_point(stokes(pimg, :U), u, v, time, freq)
+    sv = visibility_point(stokes(pimg, :V), u, v, time, freq)
     return StokesParams(si, sq, su, sv)
 end
 
-function visibilities(pimg::PolarizedModel, p)
+function visibilities(pimg::PolarizedModel, p::NamedTuple)
     si = visibilities(stokes(pimg, :I), p)
     sq = visibilities(stokes(pimg, :Q), p)
     su = visibilities(stokes(pimg, :U), p)
@@ -70,7 +72,7 @@ function visibilities(pimg::PolarizedModel, p)
     return StructArray{StokesParams{eltype(si)}}((si, sq, su, sv))
 end
 
-function intensitymap!(pimg::StokesIntensityMap, pmodel::PolarizedModel)
+function intensitymap!(pimg::Union{StokesIntensityMap, IntensityMap{<:StokesParams}}, pmodel::PolarizedModel)
     intensitymap!(stokes(pimg, :I), pmodel.I)
     intensitymap!(stokes(pimg, :Q), pmodel.Q)
     intensitymap!(stokes(pimg, :U), pmodel.U)
@@ -79,12 +81,73 @@ function intensitymap!(pimg::StokesIntensityMap, pmodel::PolarizedModel)
 end
 
 function intensitymap(pmodel::PolarizedModel, dims::AbstractDims)
-    imgI = intensitymap(stokes(pmodel, :I), dims)
-    imgQ = intensitymap(stokes(pmodel, :Q), dims)
-    imgU = intensitymap(stokes(pmodel, :U), dims)
-    imgV = intensitymap(stokes(pmodel, :V), dims)
-    return StokesIntensityMap(imgI, imgQ, imgU, imgV)
+    imgI = baseimage(intensitymap(stokes(pmodel, :I), dims))
+    imgQ = baseimage(intensitymap(stokes(pmodel, :Q), dims))
+    imgU = baseimage(intensitymap(stokes(pmodel, :U), dims))
+    imgV = baseimage(intensitymap(stokes(pmodel, :V), dims))
+    return IntensityMap(StructArray{StokesParams{eltype(imgI)}}((imgI, imgQ, imgU, imgV)), dims)
 end
+
+@inline function convolved(m::PolarizedModel, p::AbstractModel)
+    return PolarizedModel(
+                convolved(stokes(m, :I), p),
+                convolved(stokes(m, :Q), p),
+                convolved(stokes(m, :U), p),
+                convolved(stokes(m, :V), p),
+                )
+end
+
+@inline convolved(p::AbstractModel, m::PolarizedModel) = convolved(m, p)
+@inline function convolved(p::PolarizedModel, m::PolarizedModel)
+    return PolarizedModel(
+            convolved(stokes(p, :I), stokes(m, :I)),
+            convolved(stokes(p, :Q), stokes(m, :Q)),
+            convolved(stokes(p, :U), stokes(m, :U)),
+            convolved(stokes(p, :V), stokes(m, :V)),
+        )
+end
+
+@inline function added(m::PolarizedModel, p::AbstractModel)
+    return PolarizedModel(
+                added(stokes(m, :I), p),
+                added(stokes(m, :Q), p),
+                added(stokes(m, :U), p),
+                added(stokes(m, :V), p),
+                )
+end
+
+@inline added(p::AbstractModel, m::PolarizedModel) = added(m, p)
+@inline function added(p::PolarizedModel, m::PolarizedModel)
+    return PolarizedModel(
+            added(stokes(p, :I), stokes(m, :I)),
+            added(stokes(p, :Q), stokes(m, :Q)),
+            added(stokes(p, :U), stokes(m, :U)),
+            added(stokes(p, :V), stokes(m, :V)),
+        )
+end
+
+# for m in (:renormed, :rotated, :shifted, :stretched)
+#     @eval begin
+#       @inline function $m(z::PolarizedModel, arg::Vararg{X,N}) where {X,N}
+#             return PolarizedModel(
+#                     $m(stokes(z, :I), arg...),
+#                     $m(stokes(z, :Q), arg...),
+#                     $m(stokes(z, :U), arg...),
+#                     $m(stokes(z, :V), arg...),
+#             )
+#       end
+#     end
+# end
+
+function modelimage(model::PolarizedModel, image::Union{StokesIntensityMap, IntensityMap{<:StokesParams}}, alg::FourierTransform=FFTAlg(), pulse=DeltaPulse(), thread::Bool=false)
+    return PolarizedModel(
+        modelimage(stokes(model, :I), stokes(image, :I), alg, pulse, thread),
+        modelimage(stokes(model, :Q), stokes(image, :Q), alg, pulse, thread),
+        modelimage(stokes(model, :U), stokes(image, :U), alg, pulse, thread),
+        modelimage(stokes(model, :V), stokes(image, :V), alg, pulse, thread)
+        )
+end
+
 
 
 """

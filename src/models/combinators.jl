@@ -74,6 +74,21 @@ struct AddModel{T1,T2} <: CompositeModel{T1,T2}
 end
 
 """
+    added(m1::AbstractModel, m2::AbstractModel)
+
+Combine two models to create a composite [`AddModel`](@ref Comrade.AddModel).
+This adds two models pointwise, i.e.
+```julia-repl
+julia> m1 = Gaussian()
+julia> m2 = Disk()
+julia> visibility(added(m1,m2), 1.0, 1.0) == visibility(m1, 1.0, 1.0) + visibility(m2, 1.0, 1.0)
+true
+```
+"""
+@inline added(m1::AbstractModel, m2::AbstractModel) = AddModel(m1, m2)
+
+
+"""
     Base.:+(m1::AbstractModel, m2::AbstractModel)
 
 Combine two models to create a composite [`AddModel`](@ref Comrade.AddModel).
@@ -87,22 +102,9 @@ true
 ```
 
 """
-Base.:+(m1::AbstractModel, m2::AbstractModel) = AddModel(m1, m2)
-Base.:-(m1::AbstractModel, m2::AbstractModel) = AddModel(m1, -1.0*m2)
+Base.:+(m1::AbstractModel, m2::AbstractModel) = added(m1, m2)
+Base.:-(m1::AbstractModel, m2::AbstractModel) = added(m1, -1.0*m2)
 
-"""
-    added(m1::AbstractModel, m2::AbstractModel)
-
-Combine two models to create a composite [`AddModel`](@ref Comrade.AddModel).
-This adds two models pointwise, i.e.
-```julia-repl
-julia> m1 = Gaussian()
-julia> m2 = Disk()
-julia> visibility(added(m1,m2), 1.0, 1.0) == visibility(m1, 1.0, 1.0) + visibility(m2, 1.0, 1.0)
-true
-```
-"""
-added(m1::AbstractModel, m2::AbstractModel) = AddModel(m1, m2)
 
 
 # struct NModel{V<:AbstractVector, M<:AbstractModel}
@@ -273,8 +275,6 @@ flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
 function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::AbstractDims)
     (;X, Y) = dims
-    nx = length(X)
-    ny = length(Y)
     vis1 = fouriermap(model.m1, dims)
     vis2 = fouriermap(model.m2, dims)
     U = vis1.U

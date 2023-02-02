@@ -157,7 +157,7 @@ Note that is does not save the figure.
                    nx = 512, ny = 512,
                    x0 = 0.0, y0=0.0)
 
-    grid = imagepixels(fovx, fovy, nx, ny, x0, y0)
+    grid = GriddedKeys(imagepixels(fovx, fovy, nx, ny, x0, y0))
     image = intensitymap(m, grid)
     xitr, yitr = values(imagepixels(image))
     x0, x1 = uvscale.(extrema(xitr))

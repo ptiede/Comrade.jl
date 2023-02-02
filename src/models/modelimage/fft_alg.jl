@@ -129,15 +129,7 @@ function padimage(img::IntensityMap, alg::FFTAlg)
     PaddedView(zero(eltype(img)), img, (nny, nnx))
 end
 
-function padimage(img::StokesIntensityMap, alg::FFTAlg)
-    pI = padimage(stokes(img, :I), alg)
-    pQ = padimage(stokes(img, :Q), alg)
-    pU = padimage(stokes(img, :U), alg)
-    pV = padimage(stokes(img, :V), alg)
-    return StructArray{eltype(img)}((I=pI, Q=pQ, U=pU, V=pV))
-end
-
-function padimage(img::IntensityMap{<:StokesParams}, alg::FFTAlg)
+function padimage(img::Union{StokesIntensityMap, IntensityMap{<:StokesParams}}, alg::FFTAlg)
     pI = padimage(stokes(img, :I), alg)
     pQ = padimage(stokes(img, :Q), alg)
     pU = padimage(stokes(img, :U), alg)
@@ -167,7 +159,7 @@ function applyfft(plan, img::AbstractArray{<:StokesParams})
     return StructArray{StokesParams{eltype(visI)}}((I=visI, Q=visQ, U=visU, V=visV))
 end
 
-
+FFTW.plan_fft(A::AbstractArray{<:StokesParams}, args...) = plan_fft(stokes(A, :I), args...)
 
 function create_cache(alg::FFTAlg, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
     pimg = padimage(img, alg)
