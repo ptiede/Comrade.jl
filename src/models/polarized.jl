@@ -126,18 +126,18 @@ end
         )
 end
 
-for m in (:renormed, :rotated, :shifted, :stretched)
-    @eval begin
-      @inline function $m(z::PolarizedModel, arg::Vararg{X,N}) where {X,N}
-            return PolarizedModel(
-                    $m(stokes(z, :I), arg...),
-                    $m(stokes(z, :Q), arg...),
-                    $m(stokes(z, :U), arg...),
-                    $m(stokes(z, :V), arg...),
-            )
-      end
-    end
-end
+# for m in (:renormed, :rotated, :shifted, :stretched)
+#     @eval begin
+#       @inline function $m(z::PolarizedModel, arg::Vararg{X,N}) where {X,N}
+#             return PolarizedModel(
+#                     $m(stokes(z, :I), arg...),
+#                     $m(stokes(z, :Q), arg...),
+#                     $m(stokes(z, :U), arg...),
+#                     $m(stokes(z, :V), arg...),
+#             )
+#       end
+#     end
+# end
 
 function modelimage(model::PolarizedModel, image::Union{StokesIntensityMap, IntensityMap{<:StokesParams}}, alg::FourierTransform=FFTAlg(), pulse=DeltaPulse(), thread::Bool=false)
     return PolarizedModel(
