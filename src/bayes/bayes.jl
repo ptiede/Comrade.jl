@@ -65,7 +65,6 @@ function prior_sample(rng, post::Posterior)
     return rand(rng, post.prior)
 end
 
-prior_sample(post::Union{TransformedPosterior, Posterior}, args...) = prior_sample(Random.default_rng(), post, args...)
 
 
 """
@@ -90,8 +89,7 @@ function prior_sample(rng, tpost::TransformedPosterior)
     inv(prior_sample(rng, tpost.lpost))
 end
 
-prior_sample(tpost::TransformedPosterior) = prior_sample(Random.default_rng(), tpost)
-
+prior_sample(post::Union{TransformedPosterior, Posterior}, args...) = prior_sample(Random.default_rng(), post, args...)
 
 @inline DensityInterface.DensityKind(::TransformedPosterior) = DensityInterface.IsDensity()
 
