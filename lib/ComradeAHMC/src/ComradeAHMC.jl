@@ -137,7 +137,7 @@ function AbstractMCMC.sample(
     ) where {A<:AHMC}
     tpost = asflat(post)
     if isnothing(init_params)
-        θ0 = prior_sample(tpost, nchains)
+        θ0 = prior_sample(rng, tpost, nchains)
     else
         θ0 = Comrade.HypercubeTransform.inverse.(Ref(tpost), init_params)
     end
@@ -217,7 +217,7 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
     θ0 = init_params
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from prior"
-        θ0 = prior_sample(post)
+        θ0 = prior_sample(rng, post)
     end
     model = AdvancedHMC.DifferentiableDensityModel(ℓ, ∇ℓ)
     metric = sampler.metric
