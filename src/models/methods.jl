@@ -109,13 +109,22 @@ end
 Computes the visibilities of the model `m` using the coordinates `p`. The coordinates `p`
 are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
 """
-@inline function visibilities(m, p::NamedTuple)
-    return _visibilities(m, p.U, p.V, p.T, p.F)
+@inline function visibilities(m::AbstractModel, p::NamedTuple)
+    U, V, T, F = extract_pos(p)
+    return _visibilities(m, U, V, T, F)
 end
 
-@inline function visibilities(m, p::NamedTuple{(:U, :V)})
-    return _visibilities(m, p.U, p.V, zero(eltype(p.U)), zero(eltype(p.U)))
+function extract_pos(p::NamedTuple)
+    return p.U, p.V, p.T, p.F
 end
+
+function extract_pos(p::NamedTuple{(:U,:V)})
+    return p.U, p.V, zero(eltype(p.U)), zero(eltype(p.V))
+end
+
+# @inline function visibilities(m::AbstractModel, p::NamedTuple{(:U, :V)})
+#     return _visibilities(m, p.U, p.V, zero(eltype(p.U)), zero(eltype(p.U)))
+# end
 
 
 @inline function visibilities(m, p::ArrayConfiguration)
