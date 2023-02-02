@@ -34,12 +34,12 @@ equal_weighted_chain = sample(chain, Weights(stats.weights), 10_000)
 ```
 """
 function AbstractMCMC.sample(::Random.AbstractRNG, post::Comrade.TransformedPosterior,
-                             sampler::Union{NestedSampler, DynamicNestedSampler},
-                             args...; init_params=nothing,
+                             sampler::Union{NestedSampler, DynamicNestedSampler}
+                             ; init_params=nothing,
                              kwargs...)
     ℓ = logdensityof(post)
     kw = delete!(Dict(kwargs), :init_params)
-    res = sample(ℓ, identity, sampler, args...; kw...)
+    res = dysample(ℓ, identity, sampler; kw...)
     # Make sure that res["sample"] is an array and use transpose
     samples, weights = transpose(Dynesty.PyCall.PyArray(res["samples"])), exp.(res["logwt"] .- res["logz"][end])
     chain = transform.(Ref(post), eachcol(samples)) |> Table

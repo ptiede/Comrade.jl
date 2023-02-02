@@ -67,7 +67,7 @@ This return a tuple where:
    `accexp` for each tempering level, and average temperate swap acceptance rates `accswp`
     for each tempering level.
 """
-function AbstractMCMC.sample(::Random.AbstractRNG, post::Comrade.TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; init_params=nothing, kwargs...)
+function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; init_params=nothing, kwargs...)
     ℓ = logdensityof(post)
     function lpr(xx)
         for x in xx
@@ -79,7 +79,7 @@ function AbstractMCMC.sample(::Random.AbstractRNG, post::Comrade.TransformedPost
     θ0 = init_params
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from random"
-        θ0 = prior_sample(post)
+        θ0 = prior_sample(rng, post)
     end
 
     apt = adaptive_rwm(θ0, ℓ, nsamples;

@@ -51,9 +51,5 @@ mimage = modelimage(m, image, Comrade.FFTAlg())
 u = randn(1000)/2
 v = randn(1000)/2
 
-vis = visibilities(mimage, u, v)
-amp = amplitudes(mimage, u, v)
-
-# We can also compute derivatives of these models. However, currently only `ForwardDiff`
-# is able to propogate derivatives through `modelimage`. This is due to the interpolation
-# step. In the future this limitation will be removed.
+vis = visibilities(mimage, (U=u, V=v))
+amp = amplitudes(mimage, (U=u, V=v))

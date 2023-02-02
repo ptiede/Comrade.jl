@@ -1,57 +1,72 @@
-using Pkg; Pkg.activate(@__DIR__)
-Pkg.add(url="https://github.com/ptiede/RadioImagePriors.jl")
-using Comrade
-using Distributions
-using Plots
-using ComradeOptimization
-using OptimizationOptimJL
-using OptimizationBBO
-using ComradeAHMC
-using RadioImagePriors
+# # Hybrid Imaging of a Black Hole
 
-# load eht-imaging we use this to load eht data
+# In this tutorial we will use **hybrid imaging** to analyze the 2017 EHT data.
+# By hybrid imaging we mean decomposing the model into simple geometric models, e.g., rings
+# and such, plus a rasterized image model to soak up additional structure in the image.
+# This was first developed in [`BB20`](https://iopscience.iop.org/article/10.3847/1538-4357/ab9c1f)
+# and applied to EHT 2017 data. In this work we will use a modified model to analyze the data.
+
+# ## Introduction to Hybrid modeling and imaging
+# The benfits of using a hybrid based modeling approach is the effective compression of
+# information/parameters when fitting the data. Hybrid modeling requires the user to
+# incorporate specific knowledge of how you expect the source to look like. For instance
+# for M87 we expect the image to be dominated by a ring-like structure. Therefore, rather
+# than using a high-dimensional raster to recover the ring we can use a ring model plus
+# a very low-dimensional or large pixel size raster to soak up the rest of the parameters.
+# This is the approach we will take in this tutorial to analyze the April 11 2017 EHT data
+# of M87.
+
+# To get started we will load Comrade
+using Comrade
+
+# and eht-imaging so we can load the data
 load_ehtim()
+
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
-obs.add_scans()
-# kill 0-baselines since we don't care about
-# large scale flux and make scan-average data
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_101_lo_hops_netcal_StokesI.uvfits"))
+
+# Now we do some minor preprocessing:
+#   1. We kill 0-baselines since we don't care about large scale flux
+#   2. Scan average the data since the data have been preprocessed so that the gain phases
+#      coherent.
 obs = scan_average(obs.flag_uvdist(uv_min=0.1e9)).add_fractional_noise(0.01)
-# extract log closure amplitudes and closure phases
+
+# For this tutorial we will stick to fitting closure only data.
 dlcamp = extract_lcamp(obs)
 dcphase = extract_cphase(obs)
-lklhd = RadioLikelihood(dlcamp, dcphase)
 
-# build the model here we will fit a hybrid image using a image and a
-# MRing that has been smoothed and stretched. We will create a
-# struct to hold some cached variables to help with imaging. Namely,
-# `create_cache` will be used to create the DTFT matrix and a image buffer.
-# This will prevent the DTFT matrix from being recomputed everytime try to evaluate the
+# Now we must build our intensity/visibility model. That is, the model that takes in a
+# named tuple of parameters and perhaps some metadata required to construct the model.
+# For our model we will be using a raster or `ContinuousImage` model plus a `m-ring` model.
+# See XYZ for an introduction to the image model, and XYZ for an introduction to the m-ring
 # model.
-struct Model{C,F}
-    cache::C
-    fov::F
-    npix::Int
-    function Model(obs::Comrade.EHTObservation, fov::Real, npix::Int)
-        buffer = IntensityMap(zeros(npix, npix), fov, fov, BSplinePulse{3}())
-        cache = create_cache(DFTAlg(obs), buffer)
-        return new{typeof(cache), typeof(fov)}(cache, fov, npix)
-    end
-end
 
-# Now define the actual model creation using a Julia "functor".
-function (model::Model)(θ)
+function model(θ, metadata)
     (;c, f, r, σ, τ, ξ, ma, mp) = θ
-    img = IntensityMap(f*c, model.fov, model.fov, BSplinePulse{3}())
-    mimg = modelimage(img, model.cache)
+    (; grid, pulse, cache) = metadata
+    img = IntensityMap(f*c, grid)
+    cimg = ContinuousImage(img, pulse)
+    mimg = modelimage(cimg, cache)
     s,c = sincos(mp)
     α = ma*c
     β = ma*s
-    ring = (1-f)*rotated(smoothed(stretched(MRing((α,), (β,)), r, r*τ),σ), ξ)
+    ring = (1-f)*rotated(smoothed(stretched(MRing(α, β), r, r*τ),σ), ξ)
     return ring + mimg
 end
 
+# Before we move on let's go into the `model` function a bit. This function takes two arguments
+# `θ` and `metadata`. The `θ` argument is a named tuple of parameters that will be fit directly
+# to the data. The `metadata` argument is all the ancillary information we need to construct the model.
+# For our hybrid model we will need 3 variables for the metadata which will be defined below.
+# Note that unlike geometric model fitting here we also use the [`modelimage`](@ref) function.
+# This wraps our `ContinuousImage` model with additional information contained in the cache
+# that allows us to move from our grid of image fluxes to the model visibilities.
+# To combine the models we use `Comrade`'s overloaded `+` operators which will combine the
+# images such that there intensities and visibilities are added pointwise.
 
+
+# To finish specifying our model we will now specify our metadata
+# First we need to define the `grid` variable
 # Now form model we are going to fit
 fovxy = μas2rad(120.0)
 npix = 6
