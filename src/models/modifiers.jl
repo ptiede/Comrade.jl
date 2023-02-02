@@ -435,7 +435,7 @@ end
 
 @inline function transform_uv(model::RotatedModel, u, v)
     s,c = model.s, model.c
-    return c*u + s*v, -s*u + c*v
+    return c*u - s*v, + s*u + c*v
 end
 
 
