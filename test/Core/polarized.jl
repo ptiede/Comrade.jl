@@ -51,6 +51,7 @@ end
     m1 = PolarizedModel(Gaussian(), 0.1*Gaussian(), 0.1*Gaussian(), 0.1*Gaussian())
     m2 = PolarizedModel(ExtendedRing(8.0), shifted(Disk(), 0.1, 1.0), ZeroModel(), ZeroModel())
     m = convolved(m1,m2)+m1
-
+    g = GriddedKeys(imagepixels(5.0, 5.0, 128, 128))
+    s = map(length, dims(g))
     testpol(modelimage(m, IntensityMap(zeros(StokesParams{Float64}, s), g)))
 end
