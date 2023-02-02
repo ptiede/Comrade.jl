@@ -88,6 +88,39 @@ function intensitymap(pmodel::PolarizedModel, dims::AbstractDims)
     return StokesIntensityMap(imgI, imgQ, imgU, imgV)
 end
 
+function convolved(m::PolarizedModel, p::AbstractModel)
+    return PolarizedModel(
+                convolved(stokes(m, :I), p),
+                convolved(stokes(m, :Q), p),
+                convolved(stokes(m, :U), p),
+                convolved(stokes(m, :V), p),
+                )
+end
+
+convolved(p::AbstractModel, m::PolarizedModel) = convolved(m, p)
+function convolved(p::PolarizedModel, m::PolarizedModel)
+    return PolarizedModel(
+            convolved(stokes(p, :I), stokes(m, :I)),
+            convolved(stokes(p, :Q), stokes(m, :Q)),
+            convolved(stokes(p, :U), stokes(m, :U)),
+            convolved(stokes(p, :V), stokes(m, :V)),
+        )
+end
+
+for m in (:renormed, :rotated, :shifted, :stretched)
+    @eval begin
+      function $m(z::PolarizedModel, arg::Vararg{X,N}) where {X,N}
+            return PolarizedModel(
+                    $m(stokes(z, :I), arg),
+                    $m(stokes(z, :Q), arg),
+                    $m(stokes(z, :U), arg),
+                    $m(stokes(z, :V), arg),
+            )
+      end
+    end
+end
+
+
 
 """
     PoincareSphere2Map(I, p, X, grid)
