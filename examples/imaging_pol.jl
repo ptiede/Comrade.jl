@@ -1,26 +1,40 @@
+# # Polarized Image and Instrumental Modeling
+
+# In this tutorial we will analyze an simulated simple polarized dataset to demonstrate
+# Comrade's polarized capabilities.
+
+# ## Introduction to Polarized Imaging
+
+
 using Pkg; Pkg.activate(@__DIR__)
-#Pkg.add(url="https://github.com/ptiede/RadioImagePriors.jl")
+
 using Comrade
-using Distributions
-using ComradeOptimization
-using ComradeAHMC
-using OptimizationBBO
-using Plots
-using StatsBase
-using OptimizationOptimJL
-using RadioImagePriors
-using DistributionsAD
 
-# load eht-imaging we use this to load eht data
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian_all_corruptions.uvfits"),
-                                joinpath(@__DIR__, "PolarizedExamples/array.txt"))
+# ## Load the Data
+# To download the data visit https://doi.org/10.25739/g85n-f134
+# To load the eht-imaging obsdata object we do:
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 
-# kill 0-baselines since we don't care about
-# large scale flux and make scan-average data
-obsavg = scan_average(obs)
-# extract log closure amplitudes and closure phases
-dvis = extract_coherency(obsavg)
+# Now we do some minor preprocessing:
+#   - Scan average the data since the data have been preprocessed so that the gain phases
+#      coherent.
+#   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
+obs = scan_average(obs)
 
+# Now we extract our coherency matrices
+dvis = extract_coherency(obs)
+
+# ##Building the Model/Posterior
+
+# Now we must build our intensity/visibility model. That is, the model that takes in a
+# named tuple of parameters and perhaps some metadata required to construct the model.
+# For our model we will be using a raster or `ContinuousImage` for our image model.
+# Unlike other imaging examples
+# (e.g., [Imaging a Black Hole using only Closure Quantities](@ref)) we also need to include
+# a model for the intrument, i.e., gains as well. The gains will be broken into two components
+#   - Gain amplitudes which are typically known to 10-20% except for LMT which has large issues
+#   - Gain phases which are more difficult to constrain and can shift rapidly.
+# The model is given below:
 
 
 function model(θ, metadata)
@@ -29,18 +43,22 @@ function model(θ, metadata)
     # Construct the image model
     # produce Stokes images from parameters
     imgI = f.*c
+    # Converts from poincare sphere parameterization of polzarization to Stokes Parameters
     pimg = PoincareSphere2Map(imgI, p, angparams, grid)
     cimg = ContinuousImage(pimg, pulse)
 
     m = modelimage(cimg, cache)
     jT = jonesT(tcache)
     # calibration parameters
-    gR = exp.(lgR).*cis.(gpR)
-    gL = exp.(lgL).*cis.(gpL)
-    G = jonesG(gR, gL, gcache)
+    # Gain product parameters
+    gP = exp.(lgp./2).*cis.(gpp./2)
+    Gp = jonesG(gP, gP, gcache)
+    # Gain ratio
+    gRat = exp.(lgr./2).*cis.(gpr./2)
+    Gr = jonesG(gRat, inv.(gRat), dcache)
     D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), dcache)
-    J = G*D*jT
-    return JonesModel(J, m, CirBasis())
+    J = Gp*Gr*D*jT
+    return JonesModel(J, m, tcache)
 end
 
 
