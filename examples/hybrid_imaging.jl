@@ -19,8 +19,7 @@
 # To get started we will load Comrade
 using Comrade
 
-# and eht-imaging so we can load the data
-load_ehtim()
+# ## Loading the Data
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
@@ -36,6 +35,8 @@ obs = scan_average(obs).add_fractional_noise(0.02)
 # to assuming infinite gain priors.
 dlcamp = extract_lcamp(obs)
 dcphase = extract_cphase(obs)
+
+# ## Building the Model/Posterior
 
 # Now we must build our intensity/visibility model. That is, the model that takes in a
 # named tuple of parameters and perhaps some metadata required to construct the model.
@@ -124,6 +125,8 @@ xrand = prior_sample(post)
 using Plots
 img = intensitymap(model(xrand, metadata), 1.5*fovxy, 1.5*fovxy, 128, 128)
 plot(img, title="Random sample")
+
+# ## Reconstructing the Image
 
 # To sample from this posterior it is convienent to first move from our constrained paramter space
 # to a unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This is
@@ -214,7 +217,7 @@ plot(p1, p2, p3, p4, p5, size=(900, 600), legend=nothing)
 # This is very consistent with the original M87 results and it only took 20 minutes compared to the week it used
 # to take using old imaging tools.
 
-# Computing information
+# ## Computing information
 # ```
 # Julia Version 1.8.5
 # Commit 17cfb8e65ea (2023-01-08 06:45 UTC)
