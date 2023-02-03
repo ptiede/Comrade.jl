@@ -1,40 +1,45 @@
-using Pkg; Pkg.activate(@__DIR__)
-using Comrade
-using Distributions
-using ComradeOptimization
-using ComradeAHMC
-using OptimizationBBO
-using Plots
-using StatsBase
-using OptimizationOptimJL
-using VLBIImagePriors
-using DistributionsAD
+# # Stokes I simultaneous Image and Instrument Modeling
 
-# load eht-imaging we use this to load eht data
-load_ehtim()
+# In this tutorial we will create a preliminary reconstruction of the 2017 M87 data on April 6
+# by simultaneously creating and image and model for the instrument. By instrument model we
+# mean something akin to self-calibration in traditional VLBI imaging terminology. However,
+# unlike traditional self-cal we will at each point in our parameter space effectively explore
+# the possible self-cal solutions. This will allow us to constrain and marginalize over the
+# instrument effects such as time variable gains.
+
+# ## Introduction to Complex Visibility Fitting
+
+
+using Pkg; Pkg.activate(@__DIR__)
+
+# To get started we will load Comrade
+using Comrade
+
+# ## Load the Data
 # To download the data visit https://doi.org/10.25739/g85n-f134
-# obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
-# obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+# To load the eht-imaging obsdata object we do:
 obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 
-obs.add_scans()
-# kill 0-baselines since we don't care about
-# large scale flux and make scan-average data
-obsavg = obs.add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
-# extract log closure amplitudes and closure phases
-dvis = extract_vis(obsavg)
+# Now we do some minor preprocessing:
+#   - Scan average the data since the data have been preprocessed so that the gain phases
+#      coherent.
+#   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
+obs = scan_average(obs).add_fractional_noise(0.015).flag_uvdist(uv_min=0.1e9)
 
-# Build the Model. Here we we a struct to hold some caches
+# Now we extract our complex visibilities.
+dvis = extract_vis(obs)
+
+# ##Building the Model/Posterior
+# Unlike Here we we a struct to hold some caches
 # This will be useful to hold precomputed caches
 
 function model(θ, metadata)
     (;c, lgamp, gphase) = θ
-    (; fovx, fovy, cache, gcache) = metadata
-    # Construct the image model
-    img = IntensityMap(0.6*c, fovx, fovy)
+    (; grid, cache, gcache) = metadata
+    # Construct the image model we fix the flux to 0.6 Jy in this case
+    img = IntensityMap(0.6*c, grid)
     cimg = ContinuousImage(img, BSplinePulse{3}())
     m = modelimage(cimg, cache)
-    #gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
     # Now corrupt the model with Gains
     j = @fastmath jonesStokes(exp.(lgamp).*cis.(gphase), gcache)
     return JonesModel(j, m)
@@ -60,26 +65,6 @@ distphase = (AA = DiagonalVonMises(0.0, inv(1e-3)),
              PV = DiagonalVonMises(0.0, inv(π^2)),
              SM = DiagonalVonMises(0.0, inv(π^2)),
            )
-
-# distamp = (AA = Normal(0.0, 0.1),
-#            PV = Normal(0.0, 0.1),
-#            AX = Normal(0.0, 0.1),
-#            MG = Normal(0.0, 0.1),
-#            LM = Normal(0.0, 0.3),
-#            MM = Normal(0.0, 0.1),
-#            SW = Normal(0.0, 0.1),
-#            #GL = Normal(0.0, 0.5)
-#            )
-
-# distphase = (AA = DiagonalVonMises([0.0], [inv(π^2)]),
-#              PV = DiagonalVonMises([0.0], [inv(π^2)]),
-#              AX = DiagonalVonMises([0.0], [inv(π^2)]),
-#              MG = DiagonalVonMises([0.0], [inv(π^2)]),
-#              LM = DiagonalVonMises([0.0], [inv(π^2)]),
-#              MM = DiagonalVonMises([0.0], [inv(π^2)]),
-#              SW = DiagonalVonMises([0.0], [inv(π^2)]),
-#              #GL = DiagonalVonMises([0.0], [inv(π^2)])
-#            )
 
 
 
