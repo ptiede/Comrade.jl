@@ -1,4 +1,4 @@
-# ComradDynesty
+# ComradeDynesty
 
 `ComradeDynesty` interfaces `Comrade` to the excellent [`dynesty`](https://github.com/joshspeagle/dynesty) package, more specifically
 the [`Dynesty.jl`](github.com/ptiede/Dynesty.jl) Julia wrapper.

@@ -7,7 +7,7 @@
 
 `eht-imaging`[^1] or `ehtim` is a Python package that is widely used within the EHT for its imaging and modeling interfaces. It is easy to use and is widely used in the EHT. However, to specify the model the user must specify how to calculate the models complex visibilities **and** its gradients. This allows eht-imaging's modeling package to achieve acceptable speeds.
 
-Themis is a C++ package that is focused on providing Bayesian estimates of the image structure. In fact, `Comrade` took some design queue's from `Themis`.  Additionally, Themis was designed to solely work with distributed computing systems. Themis however, has been used in a variety of EHT publications and is the standard Bayesian modeling tool used in the EHT. However, `Themis` is quite challenging to use and requires a high level of knowledge from its users, requiring them to understand makefile, C++, and the MPI standard.
+Themis is a C++ package that is focused on providing Bayesian estimates of the image structure. In fact, `Comrade` took some design cues's from `Themis`.  Additionally, Themis was designed to solely work with distributed computing systems. Themis however, has been used in a variety of EHT publications and is the standard Bayesian modeling tool used in the EHT. However, `Themis` is quite challenging to use and requires a high level of knowledge from its users, requiring them to understand makefile, C++, and the MPI standard.
 
 ## Benchmarking Problem
 
