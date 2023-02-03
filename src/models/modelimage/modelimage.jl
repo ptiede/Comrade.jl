@@ -72,7 +72,7 @@ include(joinpath(@__DIR__, "cache.jl"))
 using Static
 
 """
-    modelimage(model::AbstractIntensityMap, image::AbstractIntensityMap, alg=FFTAlg())
+    modelimage(model::AbstractModel, image::AbstractIntensityMap, alg=FFTAlg())
 
 Construct a `ModelImage` from a `model`, `image` and the optionally
 specified visibility algorithm `alg`
