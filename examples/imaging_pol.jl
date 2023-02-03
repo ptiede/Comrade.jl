@@ -12,16 +12,9 @@ using RadioImagePriors
 using DistributionsAD
 
 # load eht-imaging we use this to load eht data
-load_ehtim()
-# To download the data visit https://doi.org/10.25739/g85n-f134
-# obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
-# obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedData/convention_test1/convention_test1.uvfits"), joinpath(@__DIR__, "PolarizedData/convention_test1/template_array.txt"))
-# obs = load_ehtim_uvfits(joinpath(@__DIR__, "polarized_synthetic_data.uvfits"))
-# obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedData/hops_lo_3601_M87+ALMArot.uvfits"), joinpath(@__DIR__, "PolarizedData/array.txt"))
 obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian_all_corruptions.uvfits"),
                                 joinpath(@__DIR__, "PolarizedExamples/array.txt"))
 
-obs.add_scans()
 # kill 0-baselines since we don't care about
 # large scale flux and make scan-average data
 obsavg = scan_average(obs)
