@@ -13,13 +13,13 @@ end
 
 """
     Posterior(lklhd, prior)
-Creates a Posterior density that follows obeys [DensityInferface](https://github.com/JuliaMath/DensityInferface.jl).
+Creates a Posterior density that follows obeys [DensityInterface](https://github.com/JuliaMath/DensityInterface.jl).
 The `lklhd` object is expected to be a `VLB` object. For instance, these can be
 created using [`RadioLikelihood`](@ref). `prior` is expected to be a `NamedTuple`
 of distributions that reflect the priors on the parameters you are considering.
 
 # Notes
-Since this function obeys `DensityInferface` you can evaluate it with
+Since this function obeys `DensityInterface` you can evaluate it with
 ```julia-repl
 julia> ℓ = logdensityof(post)
 julia> ℓ(x)
