@@ -82,7 +82,7 @@ For analytic models this is a no-op and returns the model.
 For non-analytic models this creates a `ModelImage` object which uses `alg` to compute
 the non-analytic Fourier transform.
 """
-@inline function modelimage(model::M, image::Union{StokesIntensityMap, IntensityMap}, alg::FourierTransform=FFTAlg(), pulse=DeltaPulse(), thread::Bool=false) where {M}
+@inline function modelimage(model::M, image::Union{StokesIntensityMap, IntensityMap}, alg::FourierTransform=FFTAlg(), pulse=DeltaPulse(), thread::Union{Bool, StaticBool}=false) where {M}
     return modelimage(visanalytic(M), model, image, alg, pulse, static(thread))
 end
 
@@ -90,7 +90,7 @@ end
     return model
 end
 
-function _modelimage(model, image, alg, pulse, thread)
+function _modelimage(model, image, alg, pulse, thread::StaticBool)
     intensitymap!(image, model, thread)
     cache = create_cache(alg, image, pulse)
     return ModelImage(model, image, cache)
@@ -102,7 +102,7 @@ end
                             image::IntensityMap,
                             alg::FourierTransform=FFTAlg(),
                             pulse = DeltaPulse(),
-                            thread = False()
+                            thread::StaticBool = False()
                             )
     _modelimage(model, image, alg, pulse, thread)
 end
@@ -126,12 +126,12 @@ julia> mimg = modelimage(m, cache, true)
 For analytic models this is a no-op and returns the model.
 
 """
-@inline function modelimage(model::M, cache::AbstractCache, thread::Bool=false) where {M}
+@inline function modelimage(model::M, cache::AbstractCache, thread::Union{Bool, StaticBool}=false) where {M}
     return modelimage(visanalytic(M), model, cache, static(thread))
 end
 
 
-@inline function modelimage(::NotAnalytic, model, cache::AbstractCache, thread)
+@inline function modelimage(::NotAnalytic, model, cache::AbstractCache, thread::StaticBool)
     img = cache.img
     intensitymap!(img, model, thread)
     #newcache = update_cache(cache, img)

@@ -26,15 +26,17 @@ function modelimage(::NotAnalytic,
     model::CompositeModel,
     image::IntensityMap,
     alg::FourierTransform=FFTAlg(),
-    pulse = DeltaPulse())
+    pulse = DeltaPulse(),
+    thread::StaticBool = False())
 
-    m1 = @set model.m1 = modelimage(model.m1, image, alg, pulse)
-    @set m1.m2 = modelimage(m1.m2, copy(image), alg, pulse)
+    m1 = @set model.m1 = modelimage(model.m1, image, alg, pulse, thread)
+    @set m1.m2 = modelimage(m1.m2, copy(image), alg, pulse, thread)
 end
 
 function modelimage(::NotAnalytic,
     model::CompositeModel,
-    cache::AbstractCache)
+    cache::AbstractCache,
+    thread::StaticBool = False())
 
     m1 = @set model.m1 = modelimage(model.m1, cache)
     @set m1.m2 = modelimage(m1.m2, cache)
