@@ -31,7 +31,7 @@ ComradeBase.ispolarized(::Type{<:ContinuousImage{A}}) where {A<:StokesIntensityM
 ComradeBase.ispolarized(::Type{<:ContinuousImage{A}}) where {A<:IntensityMap{<:StokesParams}} = IsPolarized()
 ComradeBase.ispolarized(::Type{<:ContinuousImage{A}}) where {A<:IntensityMap{<:Real}} = NotPolarized()
 
-stokes(cimg::ContinuousImage, v) = ContinuousImage(stokes(parent(cimg), v), cimg.kernel)
+ComradeBase.stokes(cimg::ContinuousImage, v) = ContinuousImage(stokes(parent(cimg), v), cimg.kernel)
 
 Base.parent(m::ContinuousImage)         = m.img
 Base.length(m::ContinuousImage)         = length(parent(m))
