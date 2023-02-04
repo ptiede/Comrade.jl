@@ -71,14 +71,14 @@ end
 # the EHT is not very sensitive to larger field of views, typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this we only need to use a small number of pixels
 # to describe our image.
-npix = 14
-fovxy = μas2rad(80.0)
+npix = 24
+fovxy = μas2rad(67.5)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
 grid = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(size(grid)), grid)
-cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
+cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
 # to the model visibilities. However, to construct this map we also need to specify the observation
 # segmentation over which we expect the gains to change. This is specified in the second argument
@@ -132,9 +132,10 @@ distphase = (AA = DiagonalVonMises(0.0, inv(π^2)),
 # for all visibilities in a scan are invariant to a constant phase being added to all station gains.
 (;X, Y) = grid
 prior = (
-          c = CenteredImage(X, Y, μas2rad(5.0), ImageDirichlet(1.0, npix, npix)),
-          lgamp = CalPrior(distamp, gcache),
-          gphase = CalPrior(distphase, gcache, DiagonalVonMises(0.0, 1e8))
+        # c = CenteredImage(X, Y, μas2rad(5.0), ImageDirichlet(1.0, npix, npix)),
+        c = ImageDirichlet(1.0, npix, npix),
+        lgamp = CalPrior(distamp, gcache),
+        gphase = CalPrior(distphase, gcache, DiagonalVonMises(0.0, 1e8))
         )
 
 
@@ -171,7 +172,7 @@ sol = solve(prob, LBFGS(), maxiters=10_000, callback=((x,p)->(@info ℓ(x);false
 #    The upside is that we usually get nicer images.
 
 # Before we analyze our solution we first need to transform back to parameter space.
-xopt = transform(tpost, sol +  0.01*randn(ndim))
+xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
 using Plots
@@ -208,7 +209,7 @@ plot(gt, layout=(3,3), size=(600,500))
 # inferences should be appropriately skeptical.
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 3000; nadapts=2000, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 30_000; nadapts=25_000, init_params=chain[end])
 
 # Now plot the gain table with error bars
 gphase  = hcat(chain.gphase...)
