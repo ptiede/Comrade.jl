@@ -21,13 +21,13 @@ using Comrade
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
-
+# obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian.uvfits"))
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs).add_fractional_noise(0.015).flag_uvdist(uv_min=0.1e9)
+obs = scan_average(obs)
 
 # Now we extract our complex visibilities.
 dvis = extract_vis(obs)
@@ -45,13 +45,17 @@ dvis = extract_vis(obs)
 # The model is given below:
 
 function model(θ, metadata)
-    (;c, lgamp, gphase) = θ
+    # (;f, c, lgamp, gphase) = θ
+    (;f, c) = θ
     (; grid, cache) = metadata
     # Construct the image model we fix the flux to 0.6 Jy in this case
+    img = IntensityMap(f.*c, grid)
+    cimg = ContinuousImage(img,cache)
     img = IntensityMap(0.6*c, grid)
     m = ContinuousImage(img,cache)
     # Now form our instrument model
-    j = @fastmath jonesStokes(exp.(lgamp).*cis.(gphase), gcache)
+    cimg
+    #j = @fastmath jonesStokes(exp.(lgamp).*cis.(gphase), gcache)
     # Now return the total model
     return JonesModel(j, m)
 end
@@ -90,7 +94,7 @@ cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
 #   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
 # For this work we use the scan segmentation since that is roughly the timescale we expect the
 # complex gains to vary.
-gcache = JonesCache(dvis, ScanSeg())
+gcache = JonesCache(dvis, TrackSeg())
 
 # Now we can form our metadata we need to fully define our model.
 metadata = (;grid, cache, gcache)
@@ -164,7 +168,7 @@ using ComradeOptimization
 using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
+prob = OptimizationProblem(f, prior_sample(tpost), nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(), maxiters=10_000, callback=((x,p)->(@info ℓ(x);false)), g_tol=1e-1)
 
