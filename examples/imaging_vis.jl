@@ -46,11 +46,11 @@ function model(θ, metadata)
     (; grid, cache) = metadata
     # Construct the image model we fix the flux to 0.6 Jy in this case
     img = IntensityMap(0.6*c, grid)
-    cimg = ContinuousImage(img,cache)
+    m = ContinuousImage(img,cache)
     # Now form our instrument model
     j = @fastmath jonesStokes(exp.(lgamp).*cis.(gphase), gcache)
     # Now return the total model
-    return JonesModel(j, cimg)
+    return JonesModel(j, m)
 end
 
 # The model construction is very similar to [`Imaging a Black Hole using only Closure Quantities`](@ref),
@@ -71,7 +71,7 @@ end
 # the EHT is not very sensitive to larger field of views, typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this we only need to use a small number of pixels
 # to describe our image.
-npix = 24
+npix = 8
 fovxy = μas2rad(67.5)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
@@ -114,7 +114,7 @@ distamp = (AA = Normal(0.0, 0.1),
 # Since the gain phases are periodic we also use a von Mises priors for all stations with
 # essentially a flat distribution.
 using VLBIImagePriors
-distphase = (AA = DiagonalVonMises(0.0, inv(π^2)),
+distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
              AP = DiagonalVonMises(0.0, inv(π^2)),
              LM = DiagonalVonMises(0.0, inv(π^2)),
              AZ = DiagonalVonMises(0.0, inv(π^2)),
@@ -132,10 +132,9 @@ distphase = (AA = DiagonalVonMises(0.0, inv(π^2)),
 # for all visibilities in a scan are invariant to a constant phase being added to all station gains.
 (;X, Y) = grid
 prior = (
-        # c = CenteredImage(X, Y, μas2rad(5.0), ImageDirichlet(1.0, npix, npix)),
-        c = ImageDirichlet(1.0, npix, npix),
-        lgamp = CalPrior(distamp, gcache),
-        gphase = CalPrior(distphase, gcache, DiagonalVonMises(0.0, 1e8))
+         c = ImageDirichlet(1.0, npix, npix),
+         lgamp = CalPrior(distamp, gcache),
+         gphase = CalPrior(distphase, gcache),#, DiagonalVonMises(0.0, 1e8)),
         )
 
 
@@ -209,43 +208,48 @@ plot(gt, layout=(3,3), size=(600,500))
 # inferences should be appropriately skeptical.
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 30_000; nadapts=25_000, init_params=chain[end])
+chain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 200; nadapts=100, init_params=xopt)
 
-# Now plot the gain table with error bars
+# Now that we have our posterior we can start to put errorbars on all of our plots above.
+# Let's start by finding the mean and standard deviation of the gain phases
 gphase  = hcat(chain.gphase...)
 mgphase = mean(gphase, dims=2)
 sgphase = std(gphase, dims=2)
 
+# and now the gain amplitudes
 gamp  = exp.(hcat(chain.lgamp...))
 mgamp = mean(gamp, dims=2)
 sgamp = std(gamp, dims=2)
 
-
+# Now we can use the measurements package to automatically plot everything with error bars.
+# First we create a `caltable` the same way but making sure all of our variables have errors
+# attached to them.
 using Measurements
 gmeas_am = measurement.(mgamp, sgamp)
-ctable_am = caltable(gcache, vec(gmeas_am))
-plot(ctable_am, layout=(3,3), size=(600,500))
-
+ctable_am = caltable(gcache, vec(gmeas_am)) # caltable expects gmeas_am to be a Vector
 gmeas_ph = measurement.(mgphase, sgphase)
 ctable_ph = caltable(gcache, vec(gmeas_ph))
+
+# Now let's plot the phase curves
 plot(ctable_ph, layout=(3,3), size=(600,500))
+# and now the amplitude curves
+plot(ctable_am, layout=(3,3), size=(600,500))
 
-
-# This takes about 1.75 hours on my laptop. Which isn't bad for a 575 dimensional model!
-
-# Plot the mean image and standard deviation image
-using StatsBase
-samples = model.(sample(chain, 50), Ref(metadata))
+# Finally let's construct some representative image reconstructions.
+samples = model.(chain[100:5:end], Ref(metadata))
 imgs = intensitymap.(samples, fovxy, fovxy, 128,  128)
 
 mimg, simg = mean_and_std(imgs)
-
 p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)))
 p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)))
 p3 = plot(imgs[1],  title="Draw 1", clims = (0.0, maximum(mimg)))
 p4 = plot(imgs[2],  title="Draw 2", clims = (0.0, maximum(mimg)))
 
 plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
+
+# And viola you have just finished making a preliminary image and instrument model reconstruction.
+# In reality you should run the `sample` step for many more MCMC steps to get a reliable estimate
+# for the reconstructed image and instrument model parameters.
 
 # Computing information
 # ```
