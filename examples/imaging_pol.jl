@@ -1,7 +1,7 @@
 # # Polarized Image and Instrumental Modeling
 
 # In this tutorial we will analyze an simulated simple polarized dataset to demonstrate
-# Comrade's polarized capabilities.
+# Comrade's polarized imaging capabilities.
 
 # ## Introduction to Polarized Imaging
 
@@ -13,7 +13,8 @@ using Comrade
 # ## Load the Data
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian.uvfits"),
+                        joinpath(@__DIR__, "PolarizedExamples/array.txt"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
@@ -38,11 +39,11 @@ dvis = extract_coherency(obs)
 
 
 function model(θ, metadata)
-    (;c, f, p, angparams, dRx, dRy, dLx, dLy, lgR, lgL, gpR, gpL) = θ
+    (;c, f, p, angparams, dRx, dRy, dLx, dLy, lgp, gpp, lgr, gpr) = θ
     (; grid, cache, pulse, tcache, gcache, dcache) = metadata
     # Construct the image model
     # produce Stokes images from parameters
-    imgI = f.*c
+    imgI = f*c
     # Converts from poincare sphere parameterization of polzarization to Stokes Parameters
     pimg = PoincareSphere2Map(imgI, p, angparams, grid)
     cimg = ContinuousImage(pimg, pulse)
@@ -51,10 +52,10 @@ function model(θ, metadata)
     jT = jonesT(tcache)
     # calibration parameters
     # Gain product parameters
-    gP = exp.(lgp./2).*cis.(gpp./2)
+    gP = cis.(lgp./2 .+ 1im.*gpp./2)
     Gp = jonesG(gP, gP, gcache)
     # Gain ratio
-    gRat = exp.(lgr./2).*cis.(gpr./2)
+    gRat = cis.(lgr./2 .+ 1im.*gpr./2)
     Gr = jonesG(gRat, inv.(gRat), dcache)
     D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), dcache)
     J = Gp*Gr*D*jT
@@ -85,27 +86,27 @@ distphase = (AA = DiagonalVonMises([0.0], [inv(1e-4)]),
              SM = DiagonalVonMises([0.0], [inv(π^2)]),
            )
 
-distD = (   AA = Normal(0.0, 0.1),
-             AP = Normal(0.0, 0.1),
-             LM = Normal(0.0, 0.1),
-             AZ = Normal(0.0, 0.1),
-             JC = Normal(0.0, 0.1),
-             PV = Normal(0.0, 0.1),
-             SM = Normal(0.0, 0.1),
-           )
+distD = ( AA = Normal(0.0, 0.1),
+          AP = Normal(0.0, 0.1),
+          LM = Normal(0.0, 0.1),
+          AZ = Normal(0.0, 0.1),
+          JC = Normal(0.0, 0.1),
+          PV = Normal(0.0, 0.1),
+          SM = Normal(0.0, 0.1),
+        )
 
 
 # Set up the cache structure
-fovx = μas2rad(50.0)
-fovy = μas2rad(50.0)
-nx = 24
+fovx = μas2rad(30.0)
+fovy = μas2rad(30.0)
+nx = 3
 ny = floor(Int, fovy/fovx*nx)
 
 grid = imagepixels(fovx, fovy, nx, ny)
 buffer = IntensityMap(zeros(nx, ny), grid)
 pulse = BSplinePulse{3}()
 cache = create_cache(NFFTAlg(dvis), buffer, pulse)
-tcache = TransformCache(dvis; add_fr=true, ehtim_fr_convention=false)
+tcache = TransformCache(dvis; add_fr=false)
 gcache = JonesCache(dvis, ScanSeg())
 dcache = JonesCache(dvis, TrackSeg())
 metadata = (;cache, grid, pulse, tcache, gcache, dcache)
@@ -116,10 +117,10 @@ prior = (
           f = Uniform(0.7, 1.3),
           p = ImageUniform(nx, ny),
           angparams = ImageSphericalUniform(nx, ny),
-          lgR = CalPrior(distamp, gcache),
-          lgL = CalPrior(distamp, gcache),
-          gpR = CalPrior(distphase, gcache),
-          gpL = CalPrior(distphase, gcache),
+          lgp = CalPrior(distamp, gcache),
+          gpp = CalPrior(distphase, gcache),
+          lgr = CalPrior(distamp, dcache),
+          gpr = CalPrior(distphase, dcache),
           dRx = CalPrior(distD, dcache),
           dRy = CalPrior(distD, dcache),
           dLx = CalPrior(distD, dcache),
@@ -138,27 +139,27 @@ ndim = dimension(tpost)
 ℓ = logdensityof(tpost)
 
 
-# We will use HMC to sample the posterior.
 
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
-sol = solve(prob, LBFGS(); maxiters=10_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
+prob = OptimizationProblem(f, prior_sample(tpost), nothing)
+sol = solve(prob, LBFGS(); maxiters=8_000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
 xopt = transform(tpost, sol)
 
 
-plot(model(xopt, metadata), fovx=fovx, fovy=fovy)
-# Let's see how the fit looks
+# Let's see how the fit look. First let's load the ground truth image to compare everything
+imgtrue = Comrade.load(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian.fits"), StokesIntensityMap)
 
-img = intensitymap(model(xopt, metadata), fovx, fovy, 128, 128)
+# Now let's see what our MAP image looks like
+img = intensitymap(model(xopt, metadata), fovxy, fovxy, npix*5, npix*5)
 plot(img)
-Comrade.save(joinpath(@__DIR__, "DomTest/comrade_fit_3601_lo_allcorr.fits"), img)
+Comrade.save(joinpath(@__DIR__, "test.fits"), img)
 
 residual(model(xopt, metadata), dvis)
 plot(model(xopt, metadata), dvis)
 
 # Let's also plot the calibration tables for gains
-gL = Comrade.caltable(gcache, exp.(xopt.lgL))
+gL = Comrade.caltable(gcache, exp.(xopt.lgp .+ xopt.lgr))
 plot(gL, layout=(3,3), size=(600,500))
 
 gR = Comrade.caltable(gcache, exp.(xopt.lgR))
@@ -176,18 +177,6 @@ dR = caltable(dcache, complex.(xopt.dRx, xopt.dRy))
 dL = caltable(dcache, complex.(xopt.dLx, xopt.dLy))
 
 
-using Measurements
-
-using Pathfinder
-res = pathfinder(
-        ℓ, ℓ';
-        init=sol.u .+ 0.05*randn(ndim),
-        dim = ndim,
-        optimizer=LBFGS(m=6),
-        g_tol=1e-1,
-        maxiters=1000,
-        callback = (x,p)->(l = ℓ(x); @info l; isnan(l))
-)
 
 vis = dvis[:measurement]
 err = dvis[:error]
@@ -216,37 +205,6 @@ scatter!(uvdist, imag.(getindex.(vis, 2, 2)), color=:yellow, alpha=0.5, marker=:
 
 plot(p1, p2, p3, p4, layout=(2,2))
 
-# now we sample using hmc
-using LinearAlgebra
-metric = DenseEuclideanMetric(res.fit_distribution.Σ)
-hchain, stats = sample(tpost, AHMC(;metric, autodiff=AD.ZygoteBackend()), 10_000; nadapts=9_000, init_params=res.draws[:,1])
-
-# Now plot the gain table with error bars
-gamps = (hcat(hchain.dLx...))
-mga = mean(gamps, dims=2)
-sga = std(gamps, dims=2)
-
-using Measurements
-gmeas = measurement.(mga, sga)
-ctable = caltable(dcache, vec(gmeas))
-plot(ctable, layout=(3,3), size=(600,500))
-
-# This takes about 1.75 hours on my laptop. Which isn't bad for a 575 dimensional model!
-
-# Plot the mean image and standard deviation image
-using StatsBase
-samples = model.(sample(hchain, 50), Ref(metadata))
-imgs = intensitymap.(samples, fovx, fovy, 128,  128)
-
-mimg, simg = mean_and_std(imgs)
-
-p1 = plot(mimg, title="Mean")
-p2 = plot(simg,  title="Std. Dev.")
-p3 = plot(mimg./simg,  title="SNR")
-p4 = plot(simg./mimg,  title="Fractional Error")
-
-plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
-savefig("3c84_complex_vis_2min_avg.png")
 # Computing information
 # ```
 # Julia Version 1.7.3
