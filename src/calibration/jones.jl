@@ -358,6 +358,12 @@ function jonesG(g1::AbstractVector, g2::AbstractVector, jcache::JonesCache)
     return JonesPairs(gm1, gm2)
 end
 
+@inline function jonesG_prod_ratio(gproduct, product_cache, gratio, ratio_cache)
+    Gp = jonesG(gproduct, gproduct, product_cache)
+    Gr = jonesG(gratio, inv.(gratio), ratio_cache)
+    return Gp*Gr
+end
+
 # DMat(d1::T, d2::T) where {T} = SMatrix{2,2,T}(one(T), d2, d1, one(T))
 function dmat(d1, d2, m)
     S = eltype(d1)
