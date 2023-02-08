@@ -44,8 +44,11 @@ function _load_fits(fname, ::Type{StokesIntensityMap})
         imgQ = try_loading(f, "Q", imgI)
         imgU = try_loading(f, "U", imgI)
         imgV = try_loading(f, "V", imgI)
-
-        return StokesIntensityMap(imgI, imgQ, imgU, imgV), head
+        return IntensityMap(
+            StructArray{StokesParams{eltype(imgI)}}((I=baseimage(imgI), Q=baseimage(imgQ), U=baseimage(imgU), V=baseimage(imgV))),
+            axiskeys(imgI)
+            )
+        # return StokesIntensityMap(imgI, imgQ, imgU, imgV)
     end
     return img
 end
