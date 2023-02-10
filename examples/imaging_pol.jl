@@ -6,10 +6,12 @@
 # ## Introduction to Polarized Imaging
 # The EHT is a polarized interferometer. However, like all VLBI interferometers it does not
 # directly measure the Stokes parameters (I, Q, U, V). Instead it measures components
-# related to the electric field at the telescope along two *directions* using feeds. The EHT uses
-# a circular feed telescope meaning that is measures the right and left. Most sites in the
+# related to the electric field at the telescope along two *directions* using feeds.
+# There two types of feeds at telescopes, the circular which measure $R/L$ components of the
+# the electric field and and the linear feeds, which measure $X/Y$ components of the electric field.
+# Most sites in the
 # EHT use circular feeds meaning they measure the right (R) and left electric field (L) at each telescope.
-# These products are then correlated producing **coherency matrices**,
+# These electric field measurements are then correlated producing **coherency matrices**,
 #
 # ```math
 #  C_{ij} = \begin{pmatrix}
@@ -32,11 +34,14 @@
 #      RL^* + LR^* \\
 #      i(LR^* - RL^*)\\
 #      RR^* - LL^*
-#   \end{pmatrix}.
+#   \end{pmatrix},
 # ```
-# Note however, that Comrade has the capabilities to model Linear (XX,XY, ...) and even mixed basis
-# polarization (e.g., RX, RY, ...) as well.
-#
+# for circularly polarized measurements.
+#-
+# !!! note
+#     In this tutorial we stick to circular feeds by Comrade has the capabilities
+#     to model Linear (XX,XY, ...) and even mixed basis coherencies (e.g., RX, RY, ...) as well.
+#-
 # In reality the measure coherencies are corrupted by both the atmosphere and the
 # telescope itself. In `Comrade` we use the RIME formalism [^1] to represent these corruptions,
 # namely our measured coherency matrices $V_{ij}$ are given by
@@ -55,7 +60,7 @@
 #        ```
 #   - [`jonesD`](@ref) which builds the set of complex d-terms Jones matrices
 #        ```math
-#          G = \begin{pmatrix}
+#          D = \begin{pmatrix}
 #                  1   & d_a\\
 #                  d_b     &1\\
 #              \end{pmatrix}
@@ -84,76 +89,70 @@ using Pkg; Pkg.activate(@__DIR__)
 using Comrade
 
 
-# To download the data visit https://doi.org/10.25739/g85n-f134
-# To load the eht-imaging obsdata object we do:
+# Now we will load some synthetic polarized data.
 obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian_nogains_withdterms_withfr.uvfits"),
                         joinpath(@__DIR__, "PolarizedExamples/array.txt"))
-# Notive that unlike other non-polarized tutorials we need to include a second argument.
-# This is the array file of the observation and is required to determine the feed rotations
+# Notice that, unlike other non-polarized tutorials, we need to include a second argument.
+# This is the **array file** of the observation and is required to determine the feed rotation
 # of the array.
 
-# Now we do some minor preprocessing:
-#   - Scan average the data since the data have been preprocessed so that the gain phases
-#      coherent.
+# Now we scan average the data since the data to boost the SNR and reduce the total data volume.
 obs = scan_average(obs)
 #-
-# Now we extract our coherency matrices.
+# Now we extract our observed/corrupted coherency matrices.
 dvis = extract_coherency(obs)
 
 # ##Building the Model/Posterior
 
-# Now we must build our intensity/visibility model and the instrument or RIME model
-# mentioned above.
-# The model below is broken into two parts:
-#    1. The image model: In Comrade all polarized image models are written in terms of the Stokes parameters.
+
+# To build the model we first break it down into two parts:
+#    1. **The image model**. In Comrade all polarized image models are written in terms of the Stokes parameters.
 #       The reason for this choice is that this usually what physical models consider and it is
 #       the easiest to reason about.
 #       For our model in this tutorial we will be using a polarized image model based on Pesce (2021)[^2].
 #       This model parameterizes the polarized image in terms of the [`Poincare sphere`](https://en.wikipedia.org/wiki/Unpolarized_light#Poincar%C3%A9_sphere),
 #       and allows us to easily incorporate physical restrictions such as $I^2 ≥ Q^2 + U^2 + V^2$.
-#    2. The instrument or Jones model. This is our model that describes the impact of instrumental and atmospheric effects.
-#       We will be using the `J = GDF` decomposition we described above. However, to parameterize the
+#    2. **The instrument model**. The instrument model specifies the model that describes the impact of instrumental and atmospheric effects.
+#       We will be using the $J = GDF$ decomposition we described above. However, to parameterize the
 #       R/L complex gains we will be using a gain product and ratio decomposition. The reason for this decomposition
 #       is that in realistic measurements the gain ratios and products have different temporal characteristics.
 #       Namely, many of the EHT observations tend to demonstrate constant R/L gain ratios across an
-#       nights observations, while the gain products tend to vary from scan to scan. Using this apriori
-#       knowledge we can build this into our model and reduce the total number of parameters we need to model.
+#       nights observations, compared to the gain products which vary every scan. Additionally, the gain ratios tend to be smaller (i.e. closer to unity) than the gain products.
+#       Using this apriori knowledge we can build this into our model and reduce
+#       the total number of parameters we need to model.
 
 
 function model(θ, metadata)
     (;c, f, p, angparams, dRx, dRy, dLx, dLy, lgp, gpp, lgr, gpr) = θ
-    # (;c, f, p, angparams, dRx, dRy, dLx, dLy) = θ
-    # (;c, f, p, angparams) = θ
     (; grid, cache, tcache, scancache, trackcache) = metadata
-    #Construct the image model
-    #produce Stokes images from parameters
+    ##Construct the image model
+    ##produce Stokes images from parameters
     imgI = f*c
-    #Converts from poincare sphere parameterization of polzarization to Stokes Parameters
+    ##Converts from poincare sphere parameterization of polzarization to Stokes Parameters
     pimg = PoincareSphere2Map(imgI, p, angparams, grid)
     m = ContinuousImage(pimg, cache)
 
-    #Now construct the basis transformation cache
+    ##Now construct the basis transformation cache
     jT = jonesT(tcache)
 
-    # #Gain product parameters
+    ##Gain product parameters
     gP = exp.(lgp/2 .+ 1im.*gpp/2)
     Gp = jonesG(gP, gP, scancache)
-     # Gain ratio
+    ##Gain ratio
     gR = exp.(lgr/2 .+ 1im.*gpr/2)
     Gr = jonesG(gR, inv.(gR), trackcache)
-    # # D-terms
+    ##D-terms
     D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), trackcache)
-    #sandwich all the jones matrices together
+    ##sandwich all the jones matrices together
     J = Gp*Gr*D*jT
-    # J = D*jT
-    # J = jT
-    #form the complete Jones or RIME model. We use tcache here
-    #to set the reference basis of the model.
+    ##form the complete Jones or RIME model. We use tcache here
+    ##to set the reference basis of the model.
     return JonesModel(J, m, tcache)
 end
 
-# Now can define our model metadata to complete the specification.
-# First we specify our image grid and cache model.
+# Now define our model metadata that is required to build the model.
+# First we specify our image grid and cache model that are needed to define the polarimetric
+# image model.
 fovx = μas2rad(50.0)
 fovy = μas2rad(50.0)
 nx = 5
@@ -163,10 +162,11 @@ buffer = IntensityMap(zeros(nx, ny), grid) # buffer to store temporary image
 pulse = BSplinePulse{3}() # pulse we will be using
 cache = create_cache(DFTAlg(dvis), buffer, pulse) # cache to define the NFFT transform
 
-# To define the instrument models, T, G, D we need to define a cache (see [`JonesCache`](@ref)) that maps from a flat
-# vector of gain/dterms to the specific sites for each baseline. First we will define our
-# deterministic transform cache. Note that this dataset has need been pre-corrected for
-# feed rotation so we need to add those into the `tcache`.
+# To define the instrument models, $T$, $G$, $D$ we need to build some Jones cache's (see [`JonesCache`](@ref)) that maps from a flat
+# vector of gain/dterms to the specific sites for each baseline.
+#
+# First we will define our deterministic transform cache. Note that this dataset has need
+# been pre-corrected for feed rotation so we need to add those into the `tcache`.
 tcache = TransformCache(dvis; add_fr=true, ehtim_fr_convention=false)
 #-
 # Next we define our cache that maps quantities e.g., gain products, that change from scan-to-scan.
@@ -234,14 +234,16 @@ distD = ( AA = Normal(0.0, 0.1),
 
 
 
-# We can now form our model parameter priors. Like our other imaging examples we use a
-# Dirichlet prior for our stokes I image pixels. For the total polarization fraction we assume
-# an uncorrelated uniform prior for each pixel. Finally, to specify the orientation of the
-# polarization on the Poincare sphere, we use a uniform spherical distribution.
-# For all the calibration parameters we use a helper function `CalPrior` which
-# builds the prior given the named tuple of station priors and a `JonesCache` that specifies the
-# segmentation scheme. For the gain products we use the `scancache` while for every other
-# quantity we use the `trackcache`.
+# Our image priors are:
+#   - We use a Dirichlet prior, `ImageDirichlet` with unit concentration for our stokes I image pixels, `c`.
+#   - For the total polarization fraction, `p`, we assume an uncorrelated uniform prior `ImageUniform` for each pixel.
+#   - To specify the orientation of the polarization, `angparams`, on the Poincare sphere,
+#     we use a uniform spherical distribution `ImageSphericalUniform`.
+#-
+# For all the calibration parameters we use a helper function `CalPrior` which builds the
+# prior given the named tuple of station priors and a `JonesCache`
+# that specifies the segmentation scheme. For the gain products we use the `scancache` while
+# for every other quantity we use the `trackcache`.
 prior = (
           c = ImageDirichlet(1.0, nx, ny),
           f = Uniform(0.7, 1.2),
@@ -275,7 +277,7 @@ tpost = asflat(post)
 #     This can often be different from what you would expect. This is especially true when using
 #     angular variables where to make sampling easier we often artifically increase the dimension
 #     of the parameter space.
-
+#-
 
 ndim = dimension(tpost)
 
@@ -324,24 +326,25 @@ plot(imgtruesub, title="True Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
 dR = caltable(trackcache, complex.(xopt.dRx, xopt.dRy))
 
 # We can compare this to the ground truth d-terms
-# ───────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────
-#       time │            AA              AP             AZ           JC           LM            PV             SM
-# ───────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────
-#  0.0+0.0im │ 0.01-0.02im    -0.08+0.07im     0.09-0.10im  -0.04+0.05im   0.03-0.02im   -0.01+0.02im  0.08-0.07im
-# ───────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────
+#
+# |      time |            AA   |           AP   |         AZ   |        JC    |        LM    |       PV     |      SM |
+# |-----------|-----------------|----------------|--------------|--------------|--------------|--------------|---------|
+# | 0.0       | 0.01-0.02im      | -0.08+0.07im  |  0.09-0.10im | -0.04+0.05im |  0.03-0.02im | -0.01+0.02im | 0.08-0.07im |
+#
 
 # And same for the left-handed dterms
 #
 dL = caltable(trackcache, complex.(xopt.dLx, xopt.dLy))
 #
-# ───────────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────
-#       time │            AA              AP             AZ             JC             LM            PV             SM
-# ───────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────
-#  0.0+0.0im │ 0.03-0.04im    -0.06+0.05im     0.09-0.08im    -0.06+0.07im     0.01-0.00im  -0.03+0.04im  0.06-0.05im
-# ───────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────
+# |      time |            AA   |           AP   |         AZ   |        JC    |        LM    |       PV     |      SM |
+# |-----------|-----------------|----------------|--------------|--------------|--------------|--------------|---------|
+# | 0.0       | 0.03-0.04im      | -0.06+0.05im  |  0.09-0.08im | -0.06+0.07im |  0.01-0.00im | -0.03+0.04im | 0.06-0.05im |
+#
+
 
 # Looking at the gain phase ratio
 gphase_ratio = caltable(trackcache, xopt.gpr)
+#-
 # we see that they are all very small. Which should be the case since this data doesn't have gain corruptions!
 # Similarly our gain ratio amplitudes are also very close to unity as expected.
 gamp_ratio   = caltable(trackcache, exp.(xopt.lgr))
@@ -363,15 +366,10 @@ plot(gamp_prod, layout=(3,3), size=(650,500))
 # due to the time it takes to sample we will skip that for this tutorial. Note that on computer environment listed
 # below 20_000 MCMC steps takes 4 hours.
 
-# # now we sample using hmc
-# using ComradeAHMC
-metric = DenseEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Comrade.AD.ZygoteBackend()), 52_000; nadapts=42_000, init_params=xopt)
 
-# ## References
 # [^1]: Hamaker J.P, Bregman J.D., Sault R.J. (1996) [https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H]
 # [^2]: Pesce D. (2021) [https://ui.adsabs.harvard.edu/abs/2021AJ....161..178P/abstract]
-
+#-
 
 # ## Computing information
 # ```
