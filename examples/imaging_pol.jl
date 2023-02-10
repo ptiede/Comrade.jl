@@ -96,7 +96,7 @@ obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
 obs = scan_average(obs)
-
+#-
 # Now we extract our coherency matrices.
 dvis = extract_coherency(obs)
 
@@ -144,7 +144,7 @@ function model(θ, metadata)
     # # D-terms
     D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), trackcache)
     #sandwich all the jones matrices together
-    J = Gr*D*jT
+    J = Gp*Gr*D*jT
     # J = D*jT
     # J = jT
     #form the complete Jones or RIME model. We use tcache here
@@ -161,15 +161,17 @@ ny = floor(Int, fovy/fovx*nx)
 grid = imagepixels(fovx, fovy, nx, ny) # image grid
 buffer = IntensityMap(zeros(nx, ny), grid) # buffer to store temporary image
 pulse = BSplinePulse{3}() # pulse we will be using
-cache = create_cache(NFFTAlg(dvis), buffer, pulse) # cache to define the NFFT transform
+cache = create_cache(DFTAlg(dvis), buffer, pulse) # cache to define the NFFT transform
 
 # To define the instrument models, T, G, D we need to define a cache (see [`JonesCache`](@ref)) that maps from a flat
 # vector of gain/dterms to the specific sites for each baseline. First we will define our
 # deterministic transform cache. Note that this dataset has need been pre-corrected for
 # feed rotation so we need to add those into the `tcache`.
 tcache = TransformCache(dvis; add_fr=true, ehtim_fr_convention=false)
+#-
 # Next we define our cache that maps quantities e.g., gain products, that change from scan-to-scan.
 scancache = JonesCache(dvis, ScanSeg())
+#-
 # Finally, we define our cache that maps quantities, e.g., gain ratios and d-terms, that are constant
 # across a observation night, and we collect everything together.
 trackcache = JonesCache(dvis, TrackSeg())
@@ -177,11 +179,11 @@ metadata = (;cache, grid, tcache, scancache, trackcache)
 
 # Moving onto our prior we first focus on the instrument model priors.
 # Each station gain requires its own prior on both the amplitudes and phases.
-# For the amplitudes
-# we assume that the gains are aprior well calibrated around unit gains (or 0 log gain amplitudes)
+# For the amplitudes we assume that the gains are aprior well calibrated around unit gains (or 0 log gain amplitudes)
 # which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
 # all stations except LMT representing that from scan-to-scan we expect 10% deviations. For LMT
 # we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
+
 using Distributions
 using DistributionsAD
 distamp = (AA = Normal(0.0, 0.1),
@@ -192,7 +194,7 @@ distamp = (AA = Normal(0.0, 0.1),
            PV = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1),
            )
-
+#-
 # For the phases we assume that the gains are effectively scrambled by the atmosphere.
 # Since the gain phases are periodic we also use a von Mises priors for all stations with
 # essentially a flat distribution.
@@ -205,6 +207,7 @@ distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
              PV = DiagonalVonMises(0.0, inv(π^2)),
              SM = DiagonalVonMises(0.0, inv(π^2)),
            )
+#-
 # However, we can now also use a little additional information about the phase offsets
 # where in most cases they are much better behaved than the products
 distphase_ratio = (AA = DiagonalVonMises(0.0, inv(1e-6)),
@@ -229,8 +232,6 @@ distD = ( AA = Normal(0.0, 0.1),
           SM = Normal(0.0, 0.1),
         )
 
-
-# Set up the cache structure
 
 
 # We can now form our model parameter priors. Like our other imaging examples we use a
@@ -270,10 +271,10 @@ post = Posterior(lklhd, prior)
 tpost = asflat(post)
 
 # We can now also find the dimension of our posterior, or the number of parameters we are going to sample.
-# !!! Warning
-#  This can often be different from what you would expect. This is especially true when using
-#  angular variables where to make sampling easier we often artifically increase the dimension
-#  of the parameter space.
+# !!! warning
+#     This can often be different from what you would expect. This is especially true when using
+#     angular variables where to make sampling easier we often artifically increase the dimension
+#     of the parameter space.
 
 
 ndim = dimension(tpost)
@@ -288,12 +289,12 @@ using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 ℓ = logdensityof(tpost)
 prob = OptimizationProblem(f, prior_sample(tpost), nothing)
-sol = solve(prob, LBFGS(), maxiters=10_000, callback=((x,p)->(@info ℓ(x);false)), g_tol=1e-1)
+sol = solve(prob, LBFGS(), maxiters=15_000, callback=((x,p)->(@info ℓ(x);false)), g_tol=1e-1)
 
-# !!! Warning
-# Fitting polarized images is generally much harder than stokes I imaging. This means that
-# optimizing properly can take some effort, and starting from a reasonable staring location
-# is often required.
+# !!! warning
+#     Fitting polarized images is generally much harder than stokes I imaging. This means that
+#     optimizing properly can take some effort, and starting from a reasonable staring location
+#     is often required.
 
 # Before we analyze our solution we first need to transform back to parameter space.
 xopt = transform(tpost, sol)
@@ -306,6 +307,7 @@ residual(model(xopt, metadata), dvis)
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Let's quickly compare our results to the ground truth values which we know in this example.
 # First we will load the polarized truth
+using AxisKeys
 imgtrue = Comrade.load(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian.fits"), StokesIntensityMap)
 imgtruesub = imgtrue(Interval(-fovx/2, fovx/2), Interval(-fovy/2, fovy/2))
 img = intensitymap!(copy(imgtruesub), model(xopt, metadata))
@@ -343,44 +345,46 @@ gphase_ratio = caltable(trackcache, xopt.gpr)
 # we see that they are all very small. Which should be the case since this data doesn't have gain corruptions!
 # Similarly our gain ratio amplitudes are also very close to unity as expected.
 gamp_ratio   = caltable(trackcache, exp.(xopt.lgr))
-
+#-
 # Plotting the gain phases we see some offsets from zero. This is because the prior on the gain product
 # phases is very broad and so we don't have the ability to phase center the image. For realistic data
 # this is always the case since the atmosphere effecticely scrambles the phases.
 gphase_prod = caltable(scancache, xopt.gpp)
 plot(gphase_prod, layout=(3,3), size=(650,500))
-
+#-
 # Finally the product gain amplitudes are all very close to unity as well, as expected since gain corruptions
 # have not been added to the data.
 gamp_prod = caltable(scancache, exp.(xopt.lgp))
 plot(gamp_prod, layout=(3,3), size=(650,500))
-
-
+#-
 # At this point you should run the sampler to recover an uncertainty estimate,
 # which is identical to every other imaging example
 # (see e.g., [ Stokes I simultaneous Image and Instrument Modeling](@ref). However,
-# due to the time it takes to sample we will skip that for this tutorial.
+# due to the time it takes to sample we will skip that for this tutorial. Note that on computer environment listed
+# below 20_000 MCMC steps takes 4 hours.
 
-# now we sample using hmc
-using ComradeAHMC
-metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Comrade.AD.ZygoteBackend()), 20_000; nadapts=15_000, init_params=xopt)
+# # now we sample using hmc
+# using ComradeAHMC
+metric = DenseEuclideanMetric(ndim)
+chain, stats = sample(post, AHMC(;metric, autodiff=Comrade.AD.ZygoteBackend()), 52_000; nadapts=42_000, init_params=xopt)
+
+# ## References
+# [^1]: Hamaker J.P, Bregman J.D., Sault R.J. (1996) [https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H]
+# [^2]: Pesce D. (2021) [https://ui.adsabs.harvard.edu/abs/2021AJ....161..178P/abstract]
 
 
-
-# Computing information
+# ## Computing information
 # ```
-# Julia Version 1.7.3
-# Commit 742b9abb4d (2022-05-06 12:58 UTC)
+# Julia Version 1.8.5
+# Commit 17cfb8e65ea (2023-01-08 06:45 UTC)
 # Platform Info:
-#   OS: Linux (x86_64-pc-linux-gnu)
-#   CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
+#   OS: Linux (x86_64-linux-gnu)
+#   CPU: 32 × AMD Ryzen 9 7950X 16-Core Processor
 #   WORD_SIZE: 64
 #   LIBM: libopenlibm
-#   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
+#   LLVM: libLLVM-13.0.1 (ORCJIT, znver3)
+#   Threads: 1 on 32 virtual cores
+# Environment:
+#   JULIA_EDITOR = code
+#   JULIA_NUM_THREADS = 1
 # ```
-#
-#
-# ## References
-# [^1]: Hamaker J.P, Bregman J.D., Sault R.J. (1996) https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H
-# [^2]:
