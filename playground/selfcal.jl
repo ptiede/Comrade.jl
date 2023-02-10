@@ -57,33 +57,6 @@ function selfcal(obs::PyCall.PyObject, model::GainModel)
 end
 
 
-using Serialization
-
-struct GModel{C,G}
-    cache::C
-    gcache::G
-    fovx::Float64
-    fovy::Float64
-    npixx::Int
-    npixy::Int
-    function GModel(obs::Comrade.EHTObservation, fovx, fovy, npixx, npixy)
-        buffer = IntensityMap(zeros(npixx, npixy), fovx, fovy, (0.0,0.0), BSplinePulse{3}())
-        cache = create_cache(DFTAlg(obs), buffer)
-        gcache = GainCache(scantable(obs))
-        return new{typeof(cache), typeof(gcache)}(cache, gcache, fovx, fovy, npixx, npixy)
-    end
-end
-
-function (model::GModel)(θ)
-    (;c, f, lgamp) = θ
-    # Construct the image model
-    img = IntensityMap(f*c, model.fovx, model.fovy, (0.0, 0.0), BSplinePulse{3}())
-    m = modelimage(img, model.cache)
-    # Now corrupt the model with Gains
-    g = exp.(lgamp)
-    Comrade.GainModel(model.gcache, g, m)
-end
-
 """
     selfcal_submission(results, obsfile, outdir, nsamples, nburn)
 
@@ -91,7 +64,7 @@ Creates a directory with the selfcalibrated data sets and their corresponding im
 
 # Arguments
     - `results::String`: The .jls serialized file from a run
-    - `obsfile::String`: The data you fit
+    - `obs`: The eht-imaging obsdata object for the data you fit
     - `outdir::String`: The directory you wish to save the images and uvfits files to
     - `nsamples::Int`: The number of samples from the posterior you want to create self-cal data sets for
     - `nburn::Int`: The number of adaptation steps used in the sample. This is required because you need to remove these
@@ -100,12 +73,12 @@ Creates a directory with the selfcalibrated data sets and their corresponding im
 We have assumed a number of things about how the data was processed, i.e. we cut zero baselines. If this
 is not the case then this function will need to be modified.
 """
-function selfcal_submission(results::String, obsfile::String, outdir::String, nsamples::Int, nburn::Int)
+function selfcal_submission(results::String, obs, outdir::String, nsamples::Int, nburn::Int)
     res = deserialize(results)
-    obs = ehtim.obsdata.load_uvfits(obsfile)
-	obs.add_scans()
-	# make scan-average data #.flag_uvdist(uv_min=0.1e9)
-	obs = obs.flag_uvdist(uv_min=0.1e9).avg_coherent(0.0, scan_avg=true).add_fractional_noise(0.01)
+    # obs = ehtim.obsdata.load_uvfits(obsfile)
+	# obs.add_scans()
+	# # make scan-average data #.flag_uvdist(uv_min=0.1e9)
+	# obs = scan_average(obs.flag_uvdist(uv_min=0.1e9).add_fractional_noise(0.01))
 
 	# extract amplitudes and closure phases
 	damp = extract_amp(obs)
@@ -129,4 +102,12 @@ function selfcal_submission(results::String, obsfile::String, outdir::String, ns
         obscal.save_uvfits(joinpath(outdir, outcal))
     end
     return nothing
+end
+
+function selfcal_2018(results, obsfile, outdir, nsamples, nburn)
+    obs = ehtim.obsdata.load_uvfits(obsfile)
+	obs.add_scans()
+	# make scan-average data #.flag_uvdist(uv_min=0.1e9)
+	obs = scan_average(obs.flag_uvdist(uv_min=0.1e9).add_fractional_noise(0.01))
+    return selfcal_submission(results, obs, outdir, nsamples, nburn)
 end
