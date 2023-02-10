@@ -23,7 +23,7 @@ using Plots
 
 
 # Make the examples using Literate
-GENERATED = joinpath(@__DIR__, "src", "examples")
+GENERATED = joinpath(@__DIR__, "../", "examples")
 SOURCE_FILES = Glob.glob("*.jl", GENERATED)
 foreach(fn -> Literate.markdown(fn, GENERATED), SOURCE_FILES)
 
@@ -53,9 +53,13 @@ makedocs(;
         "benchmarks.md",
         "vlbi_imaging_problem.md",
         "Tutorials" => [
-                       "examples/data.md",
-                       "examples/black_hole_image.md",
-                       "examples/nonanalytic.md"
+                       "../../examples/data.md",
+                       "../../examples/nonanalytic.md"
+                       "../../examples/black_hole_image.md",
+                       "../../examples/imaging_closures.md",
+                       "../../examples/hybrid_imaging.md",
+                       "../../examples/imaging_vis.md",
+                       "../../examples/imaging_pol.md",
                        ],
         "Libraries" => [
                         "libs/optimization.md",
