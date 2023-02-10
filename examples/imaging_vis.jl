@@ -10,12 +10,15 @@
 # ## Introduction to Complex Visibility Fitting
 
 
+
+# ## Load the Data
+
 using Pkg; Pkg.activate(@__DIR__)
 
 # To get started we will load Comrade
 using Comrade
 
-# ## Load the Data
+
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
 obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
@@ -112,7 +115,9 @@ distamp = (AA = Normal(0.0, 0.1),
 
 # For the phases we assume that the gains are effectively scrambled by the atmosphere.
 # Since the gain phases are periodic we also use a von Mises priors for all stations with
-# essentially a flat distribution.
+# essentially a flat distribution. Also we set a very tight phase prior on the ALMA (AA)
+# gain phase. This is to prevent a trivial degeneracy in the gain phases, where the total gain
+# phase for a visibility is invariant to a constant phase offset being added to all baselines.
 using VLBIImagePriors
 distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
              AP = DiagonalVonMises(0.0, inv(π^2)),
@@ -126,19 +131,16 @@ distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
 # We can now form our model parameter priors. Like our other imaging examples we use a
 # Dirichlet prior for our image pixels. For the log gain amplitudes we use the `CalPrior`
 # which automatically constructs the prior for the given jones cache `gcache`.
-# For the gain phases we also use `CalPrior` but we include a third argument which specifies
-# the prior to be used for the reference station for each scan. This is typically a very tight
-# prior that forces the phase to zero. This is required to remove a trivial degeneracy, where the total gain phase
-# for all visibilities in a scan are invariant to a constant phase being added to all station gains.
 (;X, Y) = grid
 prior = (
          c = ImageDirichlet(1.0, npix, npix),
          lgamp = CalPrior(distamp, gcache),
-         gphase = CalPrior(distphase, gcache),#, DiagonalVonMises(0.0, 1e8)),
+         gphase = CalPrior(distphase, gcache),
         )
 
 
-
+# Putting it all together we form our likelihood and posterior objects for optimization and
+# sampling.
 lklhd = RadioLikelihood(model, metadata, dvis)
 post = Posterior(lklhd, prior)
 

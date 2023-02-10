@@ -16,10 +16,15 @@
 # This is the approach we will take in this tutorial to analyze the April 11 2017 EHT data
 # of M87.
 
-# To get started we will load Comrade
-using Comrade
 
 # ## Loading the Data
+
+# To get started we will load Comrade
+# ## Load the Data
+using Pkg; Pkg.activate(@__DIR__)
+
+using Comrade
+
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
