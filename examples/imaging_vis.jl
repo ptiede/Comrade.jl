@@ -1,4 +1,4 @@
-# # Stokes I simultaneous Image and Instrument Modeling
+# # Stokes I Simultaneous Image and Instrument Modeling
 
 # In this tutorial we will create a preliminary reconstruction of the 2017 M87 data on April 6
 # by simultaneously creating and image and model for the instrument. By instrument model we
@@ -9,25 +9,26 @@
 
 # ## Introduction to Complex Visibility Fitting
 
+using Comrade
+
+# For reproducibility we use a stable random number genreator
+using StableRNGs
+rng = StableRNG(43)
 
 
 # ## Load the Data
 
-using Pkg; Pkg.activate(@__DIR__)
-
-# To get started we will load Comrade
-using Comrade
-
+using Pkg #hide
+Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
-# To load the eht-imaging obsdata object we do:
-# obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian.uvfits"))
+# First we will load our data:
+obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs)
+obs = scan_average(obs.flag_uvdist(0.1e9).add_fractional_noise(0.01))
 
 # Now we extract our complex visibilities.
 dvis = extract_vis(obs)
@@ -45,22 +46,17 @@ dvis = extract_vis(obs)
 # The model is given below:
 
 function model(θ, metadata)
-    # (;f, c, lgamp, gphase) = θ
-    (;f, c) = θ
+    (;c, lgamp, gphase) = θ
     (; grid, cache) = metadata
-    # Construct the image model we fix the flux to 0.6 Jy in this case
-    img = IntensityMap(f.*c, grid)
-    cimg = ContinuousImage(img,cache)
-    img = IntensityMap(0.6*c, grid)
+    ## Construct the image model we fix the flux to 0.6 Jy in this case
+    img = IntensityMap(0.6.*c, grid)
     m = ContinuousImage(img,cache)
-    # Now form our instrument model
-    cimg
-    #j = @fastmath jonesStokes(exp.(lgamp).*cis.(gphase), gcache)
-    # Now return the total model
+    ## Now form our instrument model
+    j = @fastmath jonesStokes(exp.(lgamp).*cis.(gphase), gcache)
     return JonesModel(j, m)
 end
 
-# The model construction is very similar to [`Imaging a Black Hole using only Closure Quantities`](@ref),
+# The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
 # except we fix the compact flux to 0.6 Jy for simplicity in this run. For more information about the image model
 # please read the closure only example. Let's discuss the instrument model `j`.
 # Thanks the the EHT pre-calibration the gains are stable over scans to we just need to
@@ -84,7 +80,7 @@ fovxy = μas2rad(67.5)
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
 grid = imagepixels(fovxy, fovxy, npix, npix)
-buffer = IntensityMap(zeros(size(grid)), grid)
+buffer = IntensityMap(zeros(npix, npix), grid)
 cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
 # to the model visibilities. However, to construct this map we also need to specify the observation
@@ -94,7 +90,7 @@ cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
 #   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
 # For this work we use the scan segmentation since that is roughly the timescale we expect the
 # complex gains to vary.
-gcache = JonesCache(dvis, TrackSeg())
+gcache = JonesCache(dvis, ScanSeg())
 
 # Now we can form our metadata we need to fully define our model.
 metadata = (;grid, cache, gcache)
@@ -157,9 +153,10 @@ tpost = asflat(post)
 
 # We can now also find the dimension of our posterior, or the number of parameters we are going to sample.
 # !!! Warning
-#    This can often be different from what you would expect. This is especially true when using
-#    angular variables where to make sampling easier we often artifically increase the dimension
-#    of the parameter space.
+#     This can often be different from what you would expect. This is especially true when using
+#     angular variables where to make sampling easier we often artifically increase the dimension
+#     of the parameter space.
+#-
 ndim = dimension(tpost)
 
 # Now we optimize. Unlike other imaging examples here we move straight to gradient optimizers
@@ -168,9 +165,9 @@ using ComradeOptimization
 using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, prior_sample(tpost), nothing)
+prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=10_000, callback=((x,p)->(@info ℓ(x);false)), g_tol=1e-1)
+sol = solve(prob, LBFGS(), maxiters=10_000, g_tol=1e-1)
 
 # !!! Warning
 #    Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -186,7 +183,7 @@ residual(model(xopt, metadata), dvis)
 # These look reasonable, although maybe there is some minor overfitting. This could probably be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image we see that we a much clearner version of the closure only image from
-# [`Imaging a Black Hole using only Closure Quantities`](@ref).
+# [Imaging a Black Hole using only Closure Quantities](@ref).
 img = intensitymap(model(xopt, metadata), fovxy, fovxy, 128, 128)
 plot(img, title="MAP Image")
 
@@ -212,9 +209,15 @@ plot(gt, layout=(3,3), size=(600,500))
 # However, due to the need to sample a large number of gain parameters constructing the posterior
 # is rather difficult here. Therefore, for this tutorial we will only do a very quick run, and any posterior
 # inferences should be appropriately skeptical.
+#-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 200; nadapts=100, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 400; nadapts=200, init_params=xopt)
+#-
+# !!! warning
+#     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
+#-
+
 
 # Now that we have our posterior we can start to put errorbars on all of our plots above.
 # Let's start by finding the mean and standard deviation of the gain phases
@@ -238,19 +241,20 @@ ctable_ph = caltable(gcache, vec(gmeas_ph))
 
 # Now let's plot the phase curves
 plot(ctable_ph, layout=(3,3), size=(600,500))
+#-
 # and now the amplitude curves
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
 samples = model.(chain[100:5:end], Ref(metadata))
-imgs = intensitymap.(samples, fovxy, fovxy, 128,  128)
+imgs = intensitymap.(samples, fovxy, fovxy, 128,  128);
 
-mimg, simg = mean_and_std(imgs)
-p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)))
-p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)))
-p3 = plot(imgs[1],  title="Draw 1", clims = (0.0, maximum(mimg)))
-p4 = plot(imgs[2],  title="Draw 2", clims = (0.0, maximum(mimg)))
-
+mimg = mean(imgs)
+simg = std(imgs)
+p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)));
+p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)));
+p3 = plot(imgs[1],  title="Draw 1", clims = (0.0, maximum(mimg)));
+p4 = plot(imgs[2],  title="Draw 2", clims = (0.0, maximum(mimg)));
 plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
 
 # And viola you have just finished making a preliminary image and instrument model reconstruction.

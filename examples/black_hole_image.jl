@@ -11,12 +11,20 @@
 
 using Comrade
 
+using Pkg #hide
+Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+
+# For reproducibility we use a stable random number genreator
+using StableRNGs
+rng = StableRNG(42)
+#-
+
 # The next step is to load the data. For this we will use the publically
 # available M 87 data which can be downloaded
 # from [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019).
 # For an introduction to data loading see [Loading Data into Comrade](@ref).
 
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "../assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 # Now we will kill 0-baselines since we don't care about large scale flux and
 # since we know that the gains in this dataset are coherent across a scan we make scan-average data
 obs = scan_average(obs.flag_uvdist(uv_min=0.1e9))
@@ -37,8 +45,8 @@ dcphase = extract_cphase(obs)
 # additional gaussian to the image to model any non-ring flux. For the model a user
 # must give a function that accepts a named tuple and return the constructed model:
 # !!! note
-#    The function model must always return an object that implements the Comrade [`Model Interface`](@ref)
-
+#     The function model must always return an object that implements the Comrade [Model Interface](@ref)
+#-
 function model(θ)
     (;radius, width, α, β, f, σG, τG, ξG, xG, yG) = θ
     ring = f*smoothed(stretched(MRing((α,), (β,)), radius, radius), width)
@@ -105,8 +113,8 @@ fpost = asflat(post)
 # These transformed posterior expect a vector of parameters. That is we can evaluate the
 # transformed log density by calling
 
-logdensityof(cpost, rand(dimension(cpost)))
-logdensityof(fpost, randn(dimension(fpost)))
+logdensityof(cpost, rand(rng, dimension(cpost)))
+logdensityof(fpost, randn(rng, dimension(fpost)))
 
 # note that `cpost` logdensity vector expects that each element lives in `[0,1]`.
 
@@ -114,8 +122,8 @@ logdensityof(fpost, randn(dimension(fpost)))
 # ### Finding the Optimal Image
 
 # Typically most VLBI modeling codes only care about finding the optimal or best guess
-# image of our posterior `post` To do this we will use [`Optimization.jl`](@ref) and
-# specifically the [`BlackBoxOptim.jl`](@ref) package. For Comrade this workflow is
+# image of our posterior `post` To do this we will use [`Optimization.jl`](https://docs.sciml.ai/Optimization/stable/) and
+# specifically the [`BlackBoxOptim.jl`](https://github.com/robertfeldt/BlackBoxOptim.jl) package. For Comrade this workflow is
 # very similar to the usual `Optimization.jl` workflow. The only thing to keep in
 # mind is that `Optimization.jl` expects that the function we are evaluating expects the
 # parameters to be represented as a flat `Vector` of float. Therefore, we must use
@@ -128,7 +136,7 @@ using OptimizationBBO
 
 ndim = dimension(fpost)
 f = OptimizationFunction(fpost)
-prob = OptimizationProblem(f, randn(ndim), nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
+prob = Optimization.OptimizationProblem(f, randn(rng, ndim), nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
 
 # Now we solve for our optimial image.
 
@@ -152,14 +160,14 @@ plot(model(xopt), title="MAP image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
 # reconstructions given our choice of model and the data.
 #
 # Comrade provides a number of sampling and other posterior approximation tools. To see the
-# list please see [`Libraries`](@ref). For this example we will be using
+# list please see [Libraries](@ref). For this example we will be using
 # [AdvancedHMC.jl](https://github.com/TuringLang/AdvancedHMC.jl) which uses
 # an adaptive Hamiltonian Monte Carlo sampler called NUTS to approximate the posterior.
 # Most of `Comrade`'s external libraries follow a very similar interface. To use AdvancedHMC
 # do the following:
 
 using ComradeAHMC
-chain, stats = sample(post, AHMC(metric=DiagEuclideanMetric(ndim)), 2000; nadapts=1000, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim)), 2000; nadapts=1000, init_params=xopt)
 
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.
 
@@ -178,10 +186,10 @@ plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale 
 plot(model(xopt), dlcamp, label="MAP")
 
 # We can also plot what many draws from the posterior look like
-p = plot(dlcamp)
+p = plot(dlcamp);
 uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
 for i in 1:10
-    m = logclosure_amplitudes(model(chain[rand(1000:2000)]), arrayconfig(dlcamp))
+    m = logclosure_amplitudes(model(chain[rand(rng, 1000:2000)]), arrayconfig(dlcamp))
     scatter!(uva, m, color=:grey, label=:none, alpha=0.1)
 end
 p

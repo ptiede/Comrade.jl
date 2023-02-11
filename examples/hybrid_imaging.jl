@@ -20,15 +20,20 @@
 # ## Loading the Data
 
 # To get started we will load Comrade
-# ## Load the Data
-using Pkg; Pkg.activate(@__DIR__)
-
 using Comrade
+
+# ## Load the Data
+using Pkg #hide
+Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+
+# For reproducibility we use a stable random number genreator
+using StableRNGs
+rng = StableRNG(42)
 
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
@@ -51,8 +56,10 @@ dcphase = extract_cphase(obs)
 function model(θ, metadata)
     (;c, f, r, σ, ma, mp, fg, σg, τg, ξg) = θ
     (; grid, cache) = metadata
+    ## Form the image model
     img = IntensityMap(f*c, grid)
     mimg = ContinuousImage(img, cache)
+    ## Form the ring model
     s,c = sincos(mp)
     α = ma*c
     β = ma*s
@@ -90,7 +97,7 @@ metadata = (;grid, cache)
 
 # This is everything we need to form our likelihood, note the first two arguments must be
 # the model and then the metadata for the likelihood. The rest of the arguments are required
-# to be [`EHTObservations`](@ref)
+# to be [`Comrade.EHTObservation`](@ref)
 lklhd = RadioLikelihood(model, metadata, dlcamp, dcphase)
 
 # This forms our model. The next step is defining our image priors.
@@ -125,7 +132,7 @@ prior = (
 post = Posterior(lklhd, prior)
 
 # To sample from our prior we can do
-xrand = prior_sample(post)
+xrand = prior_sample(rng, post)
 # and then plot the results
 using Plots
 img = intensitymap(model(xrand, metadata), 1.5*fovxy, 1.5*fovxy, 128, 128)
@@ -150,14 +157,14 @@ ndim = dimension(tpost)
 using ComradeOptimization
 using OptimizationBBO
 f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
-prob = OptimizationProblem(f, prior_sample(tpost), nothing, lb=fill(-5.0, ndim), ub=fill(5.0,ndim))
+prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing, lb=fill(-5.0, ndim), ub=fill(5.0,ndim))
 sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=100_000)
 
 # Alright now we can zoom to the peak!
 using OptimizationOptimJL
-prob = OptimizationProblem(f, sol.u, nothing)
+prob = Optimization.OptimizationProblem(f, sol.u, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=1_000, callback=((x,p)->(@info ℓ(x);false)), g_tol=1e-1)
+sol = solve(prob, LBFGS(), maxiters=1_000, g_tol=1e-1)
 
 # Before we analyze our solution we first need to transform back to parameter space.
 xopt = transform(tpost, sol)
@@ -177,16 +184,17 @@ plot(img, title="MAP Image")
 # now we sample using hmc
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Comrade.AD.ForwardDiffBackend()), 2500; nadapts=1500, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Comrade.AD.ForwardDiffBackend()), 500; nadapts=250, init_params=xopt)
 
-# this took 25 minutes on my desktop which has a Ryzen 7950x cpu. Let's analyze the resulting
-# approximate posterior samples
+# !!! warning
+#    This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
+#-
 
-# First we plot the mean image and standard deviation images.
+# Now lets plot the mean image and standard deviation images.
 # To do this we first clip the first 1,500 MCMC steps since that is during tuning and
 # so the posterior is not sampling from the correct stationary distribution.
 using StatsBase
-msamples = model.(chain[1501:5:end], Ref(metadata))
+msamples = model.(chain[251:2:end], Ref(metadata))
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, 1.5*fovxy, 1.5*fovxy, 128, 128)
