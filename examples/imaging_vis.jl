@@ -1,48 +1,109 @@
-using Pkg; Pkg.activate(@__DIR__)
+# # Stokes I Simultaneous Image and Instrument Modeling
+
+# In this tutorial we will create a preliminary reconstruction of the 2017 M87 data on April 6
+# by simultaneously creating and image and model for the instrument. By instrument model we
+# mean something akin to self-calibration in traditional VLBI imaging terminology. However,
+# unlike traditional self-cal we will at each point in our parameter space effectively explore
+# the possible self-cal solutions. This will allow us to constrain and marginalize over the
+# instrument effects such as time variable gains.
+
+# ## Introduction to Complex Visibility Fitting
+
 using Comrade
-using Distributions
-using ComradeOptimization
-using ComradeAHMC
-using OptimizationBBO
-using Plots
-using StatsBase
-using OptimizationOptimJL
-using VLBIImagePriors
-using DistributionsAD
 
-# load eht-imaging we use this to load eht data
-load_ehtim()
+# For reproducibility we use a stable random number genreator
+using StableRNGs
+rng = StableRNG(43)
+
+
+# ## Load the Data
+
+using Pkg #hide
+Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+
 # To download the data visit https://doi.org/10.25739/g85n-f134
-# obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "0316+413.2013.08.26.uvfits"))
-# obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+# First we will load our data:
+obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+# Now we do some minor preprocessing:
+#   - Scan average the data since the data have been preprocessed so that the gain phases
+#      coherent.
+#   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
+obs = scan_average(obs.flag_uvdist(0.1e9).add_fractional_noise(0.01))
 
-obs.add_scans()
-# kill 0-baselines since we don't care about
-# large scale flux and make scan-average data
-obsavg = obs.add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
-# extract log closure amplitudes and closure phases
-dvis = extract_vis(obsavg)
+# Now we extract our complex visibilities.
+dvis = extract_vis(obs)
 
-# Build the Model. Here we we a struct to hold some caches
-# This will be useful to hold precomputed caches
+# ##Building the Model/Posterior
+
+# Now we must build our intensity/visibility model. That is, the model that takes in a
+# named tuple of parameters and perhaps some metadata required to construct the model.
+# For our model we will be using a raster or `ContinuousImage` for our image model.
+# Unlike other imaging examples
+# (e.g., [Imaging a Black Hole using only Closure Quantities](@ref)) we also need to include
+# a model for the intrument, i.e., gains as well. The gains will be broken into two components
+#   - Gain amplitudes which are typically known to 10-20% except for LMT which has large issues
+#   - Gain phases which are more difficult to constrain and can shift rapidly.
+# The model is given below:
 
 function model(θ, metadata)
     (;c, lgamp, gphase) = θ
-    (; fovx, fovy, cache, gcache) = metadata
-    # Construct the image model
-    img = IntensityMap(0.6*c, fovx, fovy)
-    cimg = ContinuousImage(img, BSplinePulse{3}())
-    m = modelimage(cimg, cache)
-    #gaussian = fg*stretched(Gaussian(), μas2rad(1000.0), μas2rad(1000.0))
-    # Now corrupt the model with Gains
+    (; grid, cache) = metadata
+    ## Construct the image model we fix the flux to 0.6 Jy in this case
+    img = IntensityMap(0.6.*c, grid)
+    m = ContinuousImage(img,cache)
+    ## Now form our instrument model
     j = @fastmath jonesStokes(exp.(lgamp).*cis.(gphase), gcache)
     return JonesModel(j, m)
 end
 
+# The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
+# except we fix the compact flux to 0.6 Jy for simplicity in this run. For more information about the image model
+# please read the closure only example. Let's discuss the instrument model `j`.
+# Thanks the the EHT pre-calibration the gains are stable over scans to we just need to
+# model the gains on a scan-by-scan basis. To form the instrument model we need our
+#   1. Our (log) gain amplitudes and phases given below by `lgamp` and `gphase`
+#   2. Our function or cache that maps the gains from a list to the stations they impact `gcache`
+#   3. The set of `JonesPairs` produced by `jonesStokes`
+# These three ingredients then specify our instrument model `j`. The instrument model can then be
+# combined with our image model `cimg` to form the total `JonesModel`.
 
 
-# First we define the station gain priors
+
+
+# Now 'et's set up our image model. The EHT's nominal resolution is 20-25 μas. Additionally,
+# the EHT is not very sensitive to larger field of views, typically 60-80 μas is enough to
+# describe the compact flux of M87. Given this we only need to use a small number of pixels
+# to describe our image.
+npix = 8
+fovxy = μas2rad(67.5)
+
+# Now let's form our cache's. First, we have our usual image cache which is needed to numerically
+# compute the visibilities.
+grid = imagepixels(fovxy, fovxy, npix, npix)
+buffer = IntensityMap(zeros(npix, npix), grid)
+cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
+# Second, we now construct our instrument model cache. This tells us how to map from the gains
+# to the model visibilities. However, to construct this map we also need to specify the observation
+# segmentation over which we expect the gains to change. This is specified in the second argument
+# to `JonesCache`, and currently there are two options
+#   - `ScanSeg()`: which forces the corruptions to only change from scan-to-scan
+#   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
+# For this work we use the scan segmentation since that is roughly the timescale we expect the
+# complex gains to vary.
+gcache = JonesCache(dvis, ScanSeg())
+
+# Now we can form our metadata we need to fully define our model.
+metadata = (;grid, cache, gcache)
+
+# Moving onto our prior we first focus on the instrument model priors.
+# Each station requires its own prior on both the amplitudes and phases.
+# For the amplitudes
+# we assume that the gains are aprior well calibrated around unit gains (or 0 log gain amplitudes)
+# which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
+# all stations except LMT representing that from scan-to-scan we expect 10% deviations. For LMT
+# we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
+using Distributions
+using DistributionsAD
 distamp = (AA = Normal(0.0, 0.1),
            AP = Normal(0.0, 0.1),
            LM = Normal(0.0, 1.0),
@@ -52,7 +113,13 @@ distamp = (AA = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1),
            )
 
-distphase = (AA = DiagonalVonMises(0.0, inv(1e-3)),
+# For the phases we assume that the gains are effectively scrambled by the atmosphere.
+# Since the gain phases are periodic we also use a von Mises priors for all stations with
+# essentially a flat distribution. Also we set a very tight phase prior on the ALMA (AA)
+# gain phase. This is to prevent a trivial degeneracy in the gain phases, where the total gain
+# phase for a visibility is invariant to a constant phase offset being added to all baselines.
+using VLBIImagePriors
+distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
              AP = DiagonalVonMises(0.0, inv(π^2)),
              LM = DiagonalVonMises(0.0, inv(π^2)),
              AZ = DiagonalVonMises(0.0, inv(π^2)),
@@ -61,141 +128,139 @@ distphase = (AA = DiagonalVonMises(0.0, inv(1e-3)),
              SM = DiagonalVonMises(0.0, inv(π^2)),
            )
 
-# distamp = (AA = Normal(0.0, 0.1),
-#            PV = Normal(0.0, 0.1),
-#            AX = Normal(0.0, 0.1),
-#            MG = Normal(0.0, 0.1),
-#            LM = Normal(0.0, 0.3),
-#            MM = Normal(0.0, 0.1),
-#            SW = Normal(0.0, 0.1),
-#            #GL = Normal(0.0, 0.5)
-#            )
-
-# distphase = (AA = DiagonalVonMises([0.0], [inv(π^2)]),
-#              PV = DiagonalVonMises([0.0], [inv(π^2)]),
-#              AX = DiagonalVonMises([0.0], [inv(π^2)]),
-#              MG = DiagonalVonMises([0.0], [inv(π^2)]),
-#              LM = DiagonalVonMises([0.0], [inv(π^2)]),
-#              MM = DiagonalVonMises([0.0], [inv(π^2)]),
-#              SW = DiagonalVonMises([0.0], [inv(π^2)]),
-#              #GL = DiagonalVonMises([0.0], [inv(π^2)])
-#            )
-
-
-
-fovx = μas2rad(75.0)
-fovy = μas2rad(75.0)
-nx = 7
-ny = floor(Int, fovy/fovx*nx)
-
-buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
-cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
-gcache = JonesCache(dvis, ScanSeg())
-metadata = (;cache, fovx, fovy, gcache)
-
-
-X, Y = imagepixels(buffer)
+# We can now form our model parameter priors. Like our other imaging examples we use a
+# Dirichlet prior for our image pixels. For the log gain amplitudes we use the `CalPrior`
+# which automatically constructs the prior for the given jones cache `gcache`.
+(;X, Y) = grid
 prior = (
-          c = ImageDirichlet(2.0, nx, ny),
-          lgamp = CalPrior(distamp, gcache),
-          gphase = CalPrior(distphase, gcache)
+         c = ImageDirichlet(1.0, npix, npix),
+         lgamp = CalPrior(distamp, gcache),
+         gphase = CalPrior(distphase, gcache),
         )
 
 
-
+# Putting it all together we form our likelihood and posterior objects for optimization and
+# sampling.
 lklhd = RadioLikelihood(model, metadata, dvis)
-
 post = Posterior(lklhd, prior)
 
+# ## Reconstructing the Image and Instrument Effects
+
+# To sample from this posterior it is convienent to first move from our constrained paramter space
+# to a unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This is
+# done using the `asflat` function.
 tpost = asflat(post)
 
+# We can now also find the dimension of our posterior, or the number of parameters we are going to sample.
+# !!! Warning
+#     This can often be different from what you would expect. This is especially true when using
+#     angular variables where to make sampling easier we often artifically increase the dimension
+#     of the parameter space.
+#-
 ndim = dimension(tpost)
-ℓ = logdensityof(tpost)
 
-# We will use HMC to sample the posterior.
-
+# Now we optimize. Unlike other imaging examples here we move straight to gradient optimizers
+# due to the higher dimension of the space.
+using ComradeOptimization
+using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
-sol = solve(prob, LBFGS(); maxiters=3000, callback=(x,p)->(@info ℓ(x); false), g_tol=1e-1)
+prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
+ℓ = logdensityof(tpost)
+sol = solve(prob, LBFGS(), maxiters=10_000, g_tol=1e-1)
+
+# !!! Warning
+#    Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
+#    The upside is that we usually get nicer images.
+
+# Before we analyze our solution we first need to transform back to parameter space.
 xopt = transform(tpost, sol)
 
-
-# Let's see how the fit looks
-img = intensitymap(model(xopt, metadata), fovx, fovy, 128, 128)
-plot(img)
-
+# First we will evaluate our fit by plotting the residuals
+using Plots
 residual(model(xopt, metadata), dvis)
-#residual(mms(xopt), dcphase)
 
-# Let's also plot the gain curves
+# These look reasonable, although maybe there is some minor overfitting. This could probably be
+# improved in a few ways, but that is beyond the goal of this quick tutorial.
+# Plotting the image we see that we a much clearner version of the closure only image from
+# [Imaging a Black Hole using only Closure Quantities](@ref).
+img = intensitymap(model(xopt, metadata), fovxy, fovxy, 128, 128)
+plot(img, title="MAP Image")
+
+
+# Now because we also fit the instrument model we can also inspect their parameters.
+# To do this `Comrade` provides a `caltable` function that converts the flattened gain parameters
+# to a tabular format based on the time and its segmentation.
 gt = Comrade.caltable(gcache, xopt.gphase)
 plot(gt, layout=(3,3), size=(600,500))
+# The gain phases are pretty random, although much of this is due to us picking a random
+# reference station for each scan.
 
+# Moving onto the gain amplitudes we see that most of the gain variation is within 10% as expected
+# except LMT which is having massive variations.
 gt = Comrade.caltable(gcache, exp.(xopt.lgamp))
 plot(gt, layout=(3,3), size=(600,500))
 
 
+# To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
+# see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
+# !!! note
+#    For our `metric` we use a diagonal matrix due to easier tuning.
+# However, due to the need to sample a large number of gain parameters constructing the posterior
+# is rather difficult here. Therefore, for this tutorial we will only do a very quick run, and any posterior
+# inferences should be appropriately skeptical.
+#-
+using ComradeAHMC
+metric = DiagEuclideanMetric(ndim)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 400; nadapts=200, init_params=xopt)
+#-
+# !!! warning
+#     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
+#-
+
+
+# Now that we have our posterior we can start to put errorbars on all of our plots above.
+# Let's start by finding the mean and standard deviation of the gain phases
+gphase  = hcat(chain.gphase...)
+mgphase = mean(gphase, dims=2)
+sgphase = std(gphase, dims=2)
+
+# and now the gain amplitudes
+gamp  = exp.(hcat(chain.lgamp...))
+mgamp = mean(gamp, dims=2)
+sgamp = std(gamp, dims=2)
+
+# Now we can use the measurements package to automatically plot everything with error bars.
+# First we create a `caltable` the same way but making sure all of our variables have errors
+# attached to them.
 using Measurements
+gmeas_am = measurement.(mgamp, sgamp)
+ctable_am = caltable(gcache, vec(gmeas_am)) # caltable expects gmeas_am to be a Vector
+gmeas_ph = measurement.(mgphase, sgphase)
+ctable_ph = caltable(gcache, vec(gmeas_ph))
 
-using Pathfinder
-res = pathfinder(
-        ℓ, ℓ';
-        init=sol.u .+ 0.035*randn(ndim),
-        dim = ndim,
-        optimizer=LBFGS(m=6),
-        g_tol=1e-1,
-        maxiters=1500,
-        callback = (x,p)->(l = ℓ(x); @info l; isnan(l))
-)
+# Now let's plot the phase curves
+plot(ctable_ph, layout=(3,3), size=(600,500))
+#-
+# and now the amplitude curves
+plot(ctable_am, layout=(3,3), size=(600,500))
 
+# Finally let's construct some representative image reconstructions.
+samples = model.(chain[100:5:end], Ref(metadata))
+imgs = intensitymap.(samples, fovxy, fovxy, 128,  128);
 
-
-# now we sample using hmc
-using LinearAlgebra
-metric = DenseEuclideanMetric((res.fit_distribution.Σ))
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 12_000; nadapts=11_000, init_params=transform(tpost, res.draws[:,1]))
-
-# Now plot the gain table with error bars
-gamps = (hcat(hchain.gphase...))
-mga = mean(gamps, dims=2)
-sga = std(gamps, dims=2)
-
-using Measurements
-gmeas = measurement.(mga, sga)
-ctable = caltable(gcache, vec(gmeas))
-plot(ctable, layout=(3,3), size=(600,500))
-
-# This takes about 1.75 hours on my laptop. Which isn't bad for a 575 dimensional model!
-
-# Plot the mean image and standard deviation image
-using StatsBase
-samples = model.(sample(hchain, 50), Ref(metadata))
-imgs = intensitymap.(samples, μas2rad(115.0), μas2rad(115.0), 128,  128)
-
-mimg, simg = mean_and_std(imgs)
-
-using CairoMakie
-function Makie.convert_arguments(::SurfaceLike, img::Comrade.IntensityMap)
-    return rad2μas.(values(imagepixels(img)))..., Comrade.baseimage(img)
-end
-
-fig = Figure(;resolution=(400,400))
-ax = Axis(fig[1,1], xreversed=true, aspect=DataAspect())
-hidedecorations!(ax)
-image!(ax, mimg, colormap=:afmhot)
-lines!(ax, [15.0, 55.0], [-45.0, -45.0], color=:white, linewidth=3)
-text!(ax, 35.0, -50.0, text=L"$40\,\mu$as", color=:white, align=(:center, :center), fontsize=20)
-fig
-save("test.png", fig)
-
-p1 = plot(mimg, title="Mean")
-p2 = plot(simg,  title="Std. Dev.")
-p3 = plot(mimg./simg,  title="SNR")
-p4 = plot(simg./mimg,  title="Fractional Error")
-
+mimg = mean(imgs)
+simg = std(imgs)
+p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)));
+p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)));
+p3 = plot(imgs[1],  title="Draw 1", clims = (0.0, maximum(mimg)));
+p4 = plot(imgs[2],  title="Draw 2", clims = (0.0, maximum(mimg)));
 plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
-savefig("3c84_complex_vis_2min_avg.png")
+
+# And viola you have just finished making a preliminary image and instrument model reconstruction.
+# In reality you should run the `sample` step for many more MCMC steps to get a reliable estimate
+# for the reconstructed image and instrument model parameters.
+
 # Computing information
 # ```
 # Julia Version 1.7.3

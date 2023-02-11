@@ -563,17 +563,61 @@ ndata(d::EHTObservation{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d)
         error("Residual should be given a model and data product.  Got: $(typeof(h.args))")
     end
     m, damp = h.args
-
     uvdist, res = residuals(m, damp)
-    chi2 = sum(abs2, res)
-    xguide --> "uv-distance (λ)"
-    yguide --> "Normalized Residual"
-    markershape --> :circle
-    linecolor --> nothing
-    legend --> false
+    c2 = chi2(m, damp)
+    # title-->"Norm. Residuals"
+    legend-->nothing
 
-    title --> @sprintf "<χ²> = %.2f" chi2/ndata(damp)
-    uvdist, res
+    if damp isa EHTObservation{<:Any, <:EHTCoherencyDatum}
+        layout := (2,2)
+        res2 = reinterpret(reshape, Float64, res)'
+        @series begin
+            yguide := "RR"
+            subplot := 1
+            seriestype := :scatter
+            alpha := 0.5
+            linecolor := nothing
+            title --> @sprintf "χ² = %.2f" sum(abs2, @view res2[:,1:2])/(2*size(res2,1))
+            uvdist, res2[:,1:2]
+        end
+        @series begin
+            xguide --> "uv-distance (λ)"
+            yguide := "LR"
+            subplot := 3
+            seriestype := :scatter
+            alpha := 0.5
+            linecolor := nothing
+            title --> @sprintf "χ² = %.2f" sum(abs2, @view res2[:,3:4])/(2*size(res2,1))
+            uvdist, res2[:,3:4]
+        end
+        @series begin
+            yguide := "RL"
+            subplot := 2
+            seriestype := :scatter
+            alpha := 0.5
+            linecolor := nothing
+            title --> @sprintf "χ² = %.2f" sum(abs2, @view res2[:,5:6])/(2*size(res2,1))
+            uvdist, res2[:,5:6]
+        end
+        @series begin
+            yguide := "LL"
+            subplot := 4
+            seriestype := :scatter
+            alpha := 0.5
+            linecolor := nothing
+            title --> @sprintf "χ² = %.2f" sum(abs2, @view res2[:,7:8])/(2*size(res2,1))
+            uvdist, res2[:,7:8]
+        end
+    else
+        xguide --> "uv-distance (λ)"
+        yguide --> "Normalized Residual"
+        markershape --> :circle
+        linecolor --> nothing
+        legend --> false
+
+        title --> @sprintf "<χ²> = %.2f" c2/ndata(damp)
+        return uvdist, res
+    end
 end
 
 
@@ -611,7 +655,7 @@ function residuals(m, dvis::EHTObservation{T, A}) where {T, A<:EHTCoherencyDatum
     coh = dvis[:measurement]
     mcoh = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
     res = map((x,y,z)->((x .- y)./z), coh, mcoh, dvis[:error])
-    return hypot.(u, v), res
+    return hypot.(u, v), StructArray(res)
 end
 
 

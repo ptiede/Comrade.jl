@@ -9,14 +9,18 @@
 # astronomy group grows.
 
 # To get started we will load `Comrade` and `Plots` to enable visualizations of the data
-
 using Comrade
+
+using Pkg #hide
+Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+
+
 using Plots
 
 # To load the data we will use `eht-imaging`. We will use the 2017 public M87 data which can be downloaded from
 # [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019)
 
-obseht = load_ehtim_uvfits(joinpath(@__DIR__, "../assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obseht = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 # Add scan and coherently average over them. The eht data has been phase calibrated so that
 # this is fine to do.
 obs = scan_average(obseht)
@@ -41,10 +45,12 @@ plot(ac) # Plot the baseline coverage
 # To plot the data we just call
 
 l = @layout [a b; c d]
-pc = plot(coh)
 pv = plot(vis)
 pa = plot(amp)
 pcp = plot(cphase)
 plc = plot(lcamp)
 
 plot(pv, pa, pcp, plc; layout=l)
+
+# And also the coherency matrices
+plot(coh)

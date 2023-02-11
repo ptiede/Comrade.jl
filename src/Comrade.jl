@@ -37,6 +37,7 @@ using TypedTables
 # Write your package code here.
 
 @reexport using ComradeBase
+export linearpol, mbreve, evpa
 export AD
 using ComradeBase: AbstractDims
 

@@ -6,7 +6,7 @@ struct CalPrior{S,J<:JonesCache} <: Distributions.ContinuousMultivariateDistribu
 end
 
 """
-    CalPrior(dists, cache::JonesCache)
+    CalPrior(dists, cache::JonesCache, reference=:none)
 
 Creates a distribution for the gain priors for gain cache `cache`. The `dists` should be
 a NamedTuple of `Distributions`, where each name corresponds to a telescope or station
@@ -64,7 +64,6 @@ function _makelist(dists, gstat, jcache, refprior)
         # Select the reference station (we cycle through)
         inds = findall(==(t), times)
         ref, idxnew = _selectref(gstat[inds], sites, idx)
-        println(ref)
         idx = idxnew
         return gainlist_scan(gstat[inds], ref, dists, refprior)
     end

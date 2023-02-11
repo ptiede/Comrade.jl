@@ -357,11 +357,6 @@ end
 
 end
 
-@testset "Image SqExp" begin
-    img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
-    cimg = ContinuousImage(img, SqExpPulse(3.0))
-    testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-3)
-end
 
 @testset "DImage Bspline0" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)

@@ -1,6 +1,9 @@
 # # Modeling with non-analytic Fourier transforms
-
 using Comrade
+
+using Pkg #hide
+Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+
 using Plots
 
 # While most of the models implemented in `Comrade` have an analytic
@@ -51,5 +54,11 @@ mimage = modelimage(m, image, Comrade.FFTAlg())
 u = randn(1000)/2
 v = randn(1000)/2
 
+# Now we can plot our sampled visibilities
 vis = visibilities(mimage, (U=u, V=v))
+scatter(hypot.(u, v), real.(vis), label="Real")
+scatter!(hypot.(u, v), imag.(vis), label="Imag")
+
+# We can also directly get the amplitudes using:
 amp = amplitudes(mimage, (U=u, V=v))
+scatter(hypot.(u, v), amp, label="Amplitude")
