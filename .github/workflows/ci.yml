@@ -99,12 +99,7 @@ jobs:
         with:
           version: '1'
       - name: Install examples dependencies
-        run: julia --project=examples -e '
-                using Pkg
-                Pkg.develop(PackageSpec(path=pwd()))
-                Pkg.develop(PackageSpec(path=joinpath(pwd(), "lib/ComradeAHMC")))
-                Pkg.develop(PackageSpec(path=joinpath(pwd(), "lib/ComradeOptimization")))
-                Pkg.instantiate()'
+        run: julia --project=examples -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.develop(PackageSpec(path=joinpath(pwd(), "lib/ComradeAHMC"))); Pkg.develop(PackageSpec(path=joinpath(pwd(), "lib/ComradeOptimization"))); Pkg.instantiate()'
       - run: |
           julia --project=docs -e '
             using Pkg
