@@ -24,9 +24,14 @@ using Plots
 
 # Make the examples using Literate
 GENERATED = joinpath(@__DIR__, "../", "examples")
-SOURCE_FILES = Glob.glob("*.jl", GENERATED)
-foreach(fn -> Literate.markdown(fn, GENERATED), SOURCE_FILES)
+OUTDIR = joinpath(@__DIR__, "src", "examples")
 
+SOURCE_FILES = Glob.glob("*.jl", GENERATED)
+println(SOURCE_FILES)
+foreach(fn -> Literate.markdown(fn, OUTDIR, documenter=true), SOURCE_FILES)
+
+MD_FILES = joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
+println(MD_FILES)
 
 
 format = Documenter.HTML(edit_link = "source",
@@ -36,6 +41,9 @@ format = Documenter.HTML(edit_link = "source",
 
 ENV["GKSwstype"] = "nul" # needed for the GR backend on headless servers
 gr()
+
+deployconfig = Documenter.auto_detect_deploy_system()
+Documenter.post_status(deployconfig; type="pending", repo="github.com/avik-pal/Lux.jl.git")
 
 
 
@@ -52,15 +60,7 @@ makedocs(;
         "Home" => "index.md",
         "benchmarks.md",
         "vlbi_imaging_problem.md",
-        "Tutorials" => [
-                       "../../examples/data.md",
-                       "../../examples/nonanalytic.md"
-                       "../../examples/black_hole_image.md",
-                       "../../examples/imaging_closures.md",
-                       "../../examples/hybrid_imaging.md",
-                       "../../examples/imaging_vis.md",
-                       "../../examples/imaging_pol.md",
-                       ],
+        "Tutorials" => MD_FILES,
         "Libraries" => [
                         "libs/optimization.md",
                         "libs/ahmc.md",
@@ -72,6 +72,7 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
+    build = joinpath(@__DIR__, "docs")
 )
 
 deploydocs(;

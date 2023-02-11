@@ -564,13 +564,13 @@ ndata(d::EHTObservation{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d)
     end
     m, damp = h.args
     uvdist, res = residuals(m, damp)
-    res2 = reinterpret(reshape, Float64, res)'
     c2 = chi2(m, damp)
     # title-->"Norm. Residuals"
     legend-->nothing
 
     if damp isa EHTObservation{<:Any, <:EHTCoherencyDatum}
         layout := (2,2)
+        res2 = reinterpret(reshape, Float64, res)'
         @series begin
             yguide := "RR"
             subplot := 1
@@ -609,14 +609,14 @@ ndata(d::EHTObservation{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d)
             uvdist, res2[:,7:8]
         end
     else
-        # xguide --> "uv-distance (λ)"
-        # yguide --> "Normalized Residual"
-        # markershape --> :circle
-        # linecolor --> nothing
-        # legend --> false
+        xguide --> "uv-distance (λ)"
+        yguide --> "Normalized Residual"
+        markershape --> :circle
+        linecolor --> nothing
+        legend --> false
 
-        # title --> @sprintf "<χ²> = %.2f" c2/ndata(damp)
-        # return uvdist, res
+        title --> @sprintf "<χ²> = %.2f" c2/ndata(damp)
+        return uvdist, res
     end
 end
 

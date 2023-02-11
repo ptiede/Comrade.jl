@@ -3,7 +3,7 @@
 # In this tutorial we will create a preliminary reconstruction of the 2017 M87 data on April 6
 # using closure only imaging. This serves as a general introduction to imaging in Comrade,
 # but it ignores the need to also model the instrument. For an introduction to simulaneous
-# image and instrument modeling see [`Stokes I Simultaneuous Image and Instrument Modeling`](@ref)
+# image and instrument modeling see [Stokes I Simultaneous Image and Instrument Modeling](@ref)
 
 
 # ## Introduction to Closure Imaging
@@ -20,15 +20,18 @@
 # I this tutorial we will do closure only modeling of M87 to produce preliminary images of M87.
 # Note that for publication ready images we really should also consider fitting complex visibilities.
 
-using Pkg; Pkg.activate(@__DIR__)
-
 # To get started we will load Comrade
 using Comrade
+
+
+using Pkg #hide
+Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+
 
 # ## Load the Data
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
@@ -48,7 +51,7 @@ dcphase = extract_cphase(obs)
 function model(θ, metadata)
     (;c) = θ
     (; grid, cache) = metadata
-    # Construct the image model
+    ## Construct the image model
     img = IntensityMap(c, grid)
     return  ContinuousImage(img, cache)
 end
@@ -98,12 +101,12 @@ ndim = dimension(tpost)
 using ComradeOptimization
 using OptimizationBBO
 f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
-prob = OptimizationProblem(f, prior_sample(tpost), nothing, lb=fill(-5.0, ndim), ub=fill(5.0,ndim))
+prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing, lb=fill(-5.0, ndim), ub=fill(5.0,ndim))
 sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=100_000)
 
 # Alright now let's zoom to the peak
 using OptimizationOptimJL
-prob = OptimizationProblem(f, sol.u, nothing)
+prob = Optimization.OptimizationProblem(f, sol.u, nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(), maxiters=1_000, callback=((x,p)->(@info ℓ(x);false)), g_tol=1e-1)
 
@@ -111,6 +114,7 @@ sol = solve(prob, LBFGS(), maxiters=1_000, callback=((x,p)->(@info ℓ(x);false)
 xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
+using Plots
 residual(model(xopt, metadata), dlcamp)
 residual(model(xopt, metadata), dcphase)
 
@@ -127,23 +131,25 @@ plot(img, title="MAP Image")
 # !!! note
 #    For our `metric` we use a diagonal matrix due to easier tuning.
 using ComradeAHMC
+using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 3000; nadapts=2000, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 500; nadapts=250, init_params=xopt)
 
-# !!! note
-#    This takes roughly 6 minutes on my machine but depending on your computer your run time may be a bit longer.
-#
+# !!! warning
+#    This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
+#-
 # Now that we have our posterior we can start to assess which parts of the image is strongly inferred by the
 # data. This is rather unique to `Comrade` where more traditional imaging algorithms like CLEAN and RML are inherently
 # unable to assess uncertainty in their reconstructions.
 #
 # To explore our posterior let's first create images from a bunch of draws from the posterior
-msamples = model.(chain[2000:10:end], Ref(metadata))
+msamples = model.(chain[251:2:end], Ref(metadata))
 
 # The mean image is then given by
 using StatsBase
 imgs = intensitymap.(msamples, fovxy, fovxy, 128, 128)
-mimg, simg = mean_and_std(imgs)
+mimg = mean(imgs)
+simg = std(imgs)
 p1 = plot(mimg, title="Mean Image")
 p2 = plot(simg./mimg, title="1/SNR")
 p3 = plot(imgs[1], title="Draw 1")
@@ -152,12 +158,12 @@ plot(p1, p2, p3, p4, size=(800,800), colorbar=:none)
 
 # And viola you have a quick and prelminary image of M87 fitting only closure products.
 # For a publication level version we would recommend
-#    1. Running the chain longer and multiple time to properly assess things like ESS and R̂ (see [`Making an Image of a Black Hole`](@ref))
+#    1. Running the chain longer and multiple time to properly assess things like ESS and R̂ (see [Making an Image of a Black Hole](@ref))
 #    2. Also fitting gains, typically gain amplitudes are good to 10-20% for the EHT not the infinite uncertainty closures implicitly assume
 #    3. Making sure the posterior is unimodel (hint for this example it isn't!). The EHT image posteriors can be quite complicated so typically
 #       you want to use a sampler that can deal with multi-modal posteriors. Check out the package [`Pigeons.jl`](https://github.com/Julia-Tempering/Pigeons.jl)
 #       for an **in-development** package that should easily enable this type of sampling.
-
+#-
 
 
 # ## Computing information

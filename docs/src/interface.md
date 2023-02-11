@@ -33,16 +33,22 @@ Comrade.visanalytic(::Type{<:MyGaussian}) = IsAnalytic()
 Comrade.imanalytic(::Type{<:MyGaussian}) = IsAnalytic()
 ```
 
+Finally, we can specify if the model is intrinsically polarized by using the `IsPolarized` and `NotPolarized()` trait
+```julia
+Comrade.ispolarized(::Type{<:MyGaussian}) = NotPolarized()
+```
+
 **Note** that again for `<: Comrade.GeometricModel` this is again automatically defined. However, for models that aren't a subtype of `GeometricModel` we assume the image domain `IsAnalytic()` and the Fourier domain is `NotAnalytic()`.
 
 Since both the image and visibility domain representation of the Gaussian are analytic we need to define a `intensity_point` and `visibility_point` method. For a Gaussian these are given by
 
 ```julia
-function intensity_point(::MyGaussian, x,y)
-    return exp(-(x^2+y^2)/2)/2π
+function intensity_point(::MyGaussian, p)
+    (;X, Y) = p
+    return exp(-(X^2+Y^2)/2)/2π
 end
 
-function visibility_point(::MyGaussian, u, v, args...) where {T}
+function visibility_point(::MyGaussian, u, v, time, freq) where {T}
     return exp(-2π^2*(u^2 + v^2)) + 0im
 end
 ```

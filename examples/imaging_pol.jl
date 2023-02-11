@@ -42,13 +42,15 @@
 #     In this tutorial we stick to circular feeds by Comrade has the capabilities
 #     to model Linear (XX,XY, ...) and even mixed basis coherencies (e.g., RX, RY, ...) as well.
 #-
+#
 # In reality the measure coherencies are corrupted by both the atmosphere and the
 # telescope itself. In `Comrade` we use the RIME formalism [^1] to represent these corruptions,
 # namely our measured coherency matrices $V_{ij}$ are given by
-#  ```math
-#     V_{ij} = J_iC_{ij}J_j^\dagger
-#  ```
+# ```math
+#    V_{ij} = J_iC_{ij}J_j^\dagger
+# ```
 # where $J$ is known as a *Jones matrix* and $ij$ denotes the baseline $ij$ with sites $i$ and $j$.
+#-
 # `Comrade` is highly flexible with how the Jones matrices are formed by we provide a number of
 # convienience fuctions that parameterize standard Jones matrices. These include:
 #   - [`jonesG`](@ref) which builds the set of complex gain Jones matrices
@@ -82,16 +84,22 @@
 #  In the rest of the tutorial we are going to solve for all of these instrument model terms on
 #  in addition to our image structure to reconstruct a polarized image of a synthetic dataset.
 
+using Comrade
+
+# For reproducibility we use a stable random number genreator
+using StableRNGs
+rng = StableRNG(123)
+
 
 # ## Load the Data
-using Pkg; Pkg.activate(@__DIR__)
+using Pkg #hide
+Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
-using Comrade
 
 
 # Now we will load some synthetic polarized data.
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian_nogains_withdterms_withfr.uvfits"),
-                        joinpath(@__DIR__, "PolarizedExamples/array.txt"))
+obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian_nogains_withdterms_withfr.uvfits"),
+                        joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/array.txt"))
 # Notice that, unlike other non-polarized tutorials, we need to include a second argument.
 # This is the **array file** of the observation and is required to determine the feed rotation
 # of the array.
@@ -125,28 +133,28 @@ dvis = extract_coherency(obs)
 function model(θ, metadata)
     (;c, f, p, angparams, dRx, dRy, dLx, dLy, lgp, gpp, lgr, gpr) = θ
     (; grid, cache, tcache, scancache, trackcache) = metadata
-    ##Construct the image model
-    ##produce Stokes images from parameters
+    ## Construct the image model
+    ## produce Stokes images from parameters
     imgI = f*c
-    ##Converts from poincare sphere parameterization of polzarization to Stokes Parameters
+    ## Converts from poincare sphere parameterization of polzarization to Stokes Parameters
     pimg = PoincareSphere2Map(imgI, p, angparams, grid)
     m = ContinuousImage(pimg, cache)
 
-    ##Now construct the basis transformation cache
+    ## Now construct the basis transformation cache
     jT = jonesT(tcache)
 
-    ##Gain product parameters
+    ## Gain product parameters
     gP = exp.(lgp/2 .+ 1im.*gpp/2)
     Gp = jonesG(gP, gP, scancache)
-    ##Gain ratio
+    ## Gain ratio
     gR = exp.(lgr/2 .+ 1im.*gpr/2)
     Gr = jonesG(gR, inv.(gR), trackcache)
     ##D-terms
     D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), trackcache)
-    ##sandwich all the jones matrices together
+    ## sandwich all the jones matrices together
     J = Gp*Gr*D*jT
-    ##form the complete Jones or RIME model. We use tcache here
-    ##to set the reference basis of the model.
+    ## form the complete Jones or RIME model. We use tcache here
+    ## to set the reference basis of the model.
     return JonesModel(J, m, tcache)
 end
 
@@ -290,7 +298,7 @@ using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 ℓ = logdensityof(tpost)
-prob = OptimizationProblem(f, prior_sample(tpost), nothing)
+prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 sol = solve(prob, LBFGS(), maxiters=15_000, callback=((x,p)->(@info ℓ(x);false)), g_tol=1e-1)
 
 # !!! warning
@@ -310,15 +318,24 @@ residual(model(xopt, metadata), dvis)
 # Let's quickly compare our results to the ground truth values which we know in this example.
 # First we will load the polarized truth
 using AxisKeys
-imgtrue = Comrade.load(joinpath(@__DIR__, "PolarizedExamples/polarized_gaussian.fits"), StokesIntensityMap)
+imgtrue = Comrade.load(joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian.fits"), StokesIntensityMap)
+# Select a reasonable zoom in of the image.
 imgtruesub = imgtrue(Interval(-fovx/2, fovx/2), Interval(-fovy/2, fovy/2))
-img = intensitymap!(copy(imgtruesub), model(xopt, metadata))
-
-
-plot(img, title="Reconstructed Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
-#-
 plot(imgtruesub, title="True Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
+#-
+img = intensitymap!(copy(imgtruesub), model(xopt, metadata))
+plot(img, title="Reconstructed Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
 
+# Let's compare some image statics, like the total linear polarization fraction
+using Comrade.ComradeBase: linearpol
+ftrue = flux(imgtruesub);
+@info "Linear polarization true image: $(abs(linearpol(ftrue))/ftrue.I)"
+frecon = flux(img);
+@info "Linear polarization recon image: $(abs(linearpol(frecon))/frecon.I)"
+
+# And the Circular polarization fraction
+@info "Circular polarization true image: $(ftrue.V/ftrue.I)"
+@info "Circular polarization recon image: $(frecon.V/frecon.I)"
 
 # Now because we also fit the instrument model we can also inspect their parameters.
 # To do this `Comrade` provides a `caltable` function that converts the flattened gain parameters
@@ -362,7 +379,7 @@ plot(gamp_prod, layout=(3,3), size=(650,500))
 #-
 # At this point you should run the sampler to recover an uncertainty estimate,
 # which is identical to every other imaging example
-# (see e.g., [ Stokes I simultaneous Image and Instrument Modeling](@ref). However,
+# (see e.g., [Stokes I Simultaneous Image and Instrument Modeling](@ref). However,
 # due to the time it takes to sample we will skip that for this tutorial. Note that on computer environment listed
 # below 20_000 MCMC steps takes 4 hours.
 
