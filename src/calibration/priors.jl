@@ -43,6 +43,44 @@ function CalPrior(dists::NamedTuple, jcache::JonesCache, reference=:none)
     return CalPrior{typeof(gprior), typeof(jcache)}(gprior, jcache)
 end
 
+"""
+    CalPrior(dist0::NamedTuple, dist_transition::NamedTuple, jcache::RelativeJonesCache)
+
+Constructs a calibration prior in two steps. The first two arguments have to be a named tuple
+of distributions, where each name corresponds to a site. The first argument is gain prior
+for the first time stamp. The second argument is the relative gain prior for each subsequent
+time stamp. For instance, if we have
+```julia
+dist0 = (AA = Normal(0.0, 1.0), )
+distt = (AA = Normal(0.0, 0.1), )
+```
+then the gain prior for first time stamp that AA obserserves will be `Normal(0.0, 1.0)`.
+The next time stamp gain is the construted from
+```
+g2 = g1 + ϵ1
+```
+where `ϵ1 ~ Normal(0.0, 0.1) = distt.AA`, and `g1` is the gain from the first time stamp.
+In other words `distt` is the uncorrelated transition probability when moving from timestamp
+i to timestamp i+1. For the typical pre-calibrated dataset the gain prior on `distt` can be
+tighter than the prior on `dist0`.
+"""
+function CalPrior(dist0::NamedTuple, distt::NamedTuple, jcache::RelativeJonesCache)
+    sites = Tuple(unique(jcache.stations))
+    @argcheck Set(keys(dists0)) == Set(sites)
+    @argcheck Set(keys(distst)) == Set(sites)
+
+    times = jcache.times
+    stations = jcache.stations
+    stimes = NamedTuple{sites}(map(x->times[findall(==(x), stations)], sites))
+    cdist = map(zip(jcache.stations, jcache.times)) do (g, t)
+        t > first(getproperty(stimes, g)) && return getproperty(distt, g)
+        return getproperty(dist0, g)
+    end
+
+    gprior = Dists.product_distribution(cdist)
+    return CalPrior{typeof(gprior), typeof(jcache)}(gprior, jcache)
+end
+
 
 function make_gdist(dists, gstat, jcache)
     gg = map(p->getproperty(dists, p), gstat)

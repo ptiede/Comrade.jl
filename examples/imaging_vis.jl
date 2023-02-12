@@ -23,7 +23,7 @@ Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
@@ -47,13 +47,14 @@ dvis = extract_vis(obs)
 
 function model(θ, metadata)
     (;c, lgamp, gphase) = θ
-    (; grid, cache) = metadata
+    (; grid, cache, gcache, gcacher) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
     img = IntensityMap(0.6.*c, grid)
     m = ContinuousImage(img,cache)
     ## Now form our instrument model
-    j = @fastmath jonesStokes(exp.(lgamp).*cis.(gphase), gcache)
-    return JonesModel(j, m)
+    jp = @fastmath jonesStokesExp(gphase.*1im, gcacher)
+    jg = @fastmath jonesStokesExp(lgamp, gcache)
+    return JonesModel(jp*jg, m)
 end
 
 # The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
@@ -74,14 +75,14 @@ end
 # the EHT is not very sensitive to larger field of views, typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this we only need to use a small number of pixels
 # to describe our image.
-npix = 8
-fovxy = μas2rad(67.5)
+npix = 10
+fovxy = μas2rad(65.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
 grid = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix, npix), grid)
-cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
+cache = create_cache(NFFTAlg(dvis), buffer, BicubicPulse(0.0))
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
 # to the model visibilities. However, to construct this map we also need to specify the observation
 # segmentation over which we expect the gains to change. This is specified in the second argument
@@ -90,10 +91,11 @@ cache = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
 #   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
 # For this work we use the scan segmentation since that is roughly the timescale we expect the
 # complex gains to vary.
+gcacher = JonesCache(dvis, ScanSeg(), true)
 gcache = JonesCache(dvis, ScanSeg())
 
 # Now we can form our metadata we need to fully define our model.
-metadata = (;grid, cache, gcache)
+metadata = (;grid, cache, gcache, gcacher)
 
 # Moving onto our prior we first focus on the instrument model priors.
 # Each station requires its own prior on both the amplitudes and phases.
@@ -120,6 +122,15 @@ distamp = (AA = Normal(0.0, 0.1),
 # phase for a visibility is invariant to a constant phase offset being added to all baselines.
 using VLBIImagePriors
 distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
+             AP = DiagonalVonMises(0.0, inv(0.2^2)),
+             LM = DiagonalVonMises(0.0, inv(0.2^2)),
+             AZ = DiagonalVonMises(0.0, inv(0.2^2)),
+             JC = DiagonalVonMises(0.0, inv(0.2^2)),
+             PV = DiagonalVonMises(0.0, inv(0.2^2)),
+             SM = DiagonalVonMises(0.0, inv(0.2^2)),
+           )
+
+distphase0 = (AA = DiagonalVonMises(0.0, inv(1e-6)),
              AP = DiagonalVonMises(0.0, inv(π^2)),
              LM = DiagonalVonMises(0.0, inv(π^2)),
              AZ = DiagonalVonMises(0.0, inv(π^2)),
@@ -128,6 +139,7 @@ distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
              SM = DiagonalVonMises(0.0, inv(π^2)),
            )
 
+
 # We can now form our model parameter priors. Like our other imaging examples we use a
 # Dirichlet prior for our image pixels. For the log gain amplitudes we use the `CalPrior`
 # which automatically constructs the prior for the given jones cache `gcache`.
@@ -135,7 +147,7 @@ distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
 prior = (
          c = ImageDirichlet(1.0, npix, npix),
          lgamp = CalPrior(distamp, gcache),
-         gphase = CalPrior(distphase, gcache),
+         gphase = CalPrior(distphase0, distphase, gcacher),
         )
 
 
@@ -167,7 +179,7 @@ using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=10_000, g_tol=1e-1)
+sol = solve(prob, LBFGS(), maxiters=10_000, g_tol=1e-1, callback=(x,p)->(@info ℓ(x); false) )
 
 # !!! Warning
 #    Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -205,14 +217,15 @@ plot(gt, layout=(3,3), size=(600,500))
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
 # !!! note
-#    For our `metric` we use a diagonal matrix due to easier tuning.
+#    For our `metric` we use a diagonal matrix due to easier tuning
+#-
 # However, due to the need to sample a large number of gain parameters constructing the posterior
 # is rather difficult here. Therefore, for this tutorial we will only do a very quick run, and any posterior
 # inferences should be appropriately skeptical.
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 400; nadapts=200, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 12_000; nadapts=10_000, init_params=xopt)
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
@@ -246,7 +259,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = model.(chain[100:5:end], Ref(metadata))
+samples = model.(chain[6001:5:end], Ref(metadata))
 imgs = intensitymap.(samples, fovxy, fovxy, 128,  128);
 
 mimg = mean(imgs)
@@ -254,7 +267,7 @@ simg = std(imgs)
 p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)));
 p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)));
 p3 = plot(imgs[1],  title="Draw 1", clims = (0.0, maximum(mimg)));
-p4 = plot(imgs[2],  title="Draw 2", clims = (0.0, maximum(mimg)));
+p4 = plot(imgs[end-50],  title="Draw 2", clims = (0.0, maximum(mimg)));
 plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
 
 # And viola you have just finished making a preliminary image and instrument model reconstruction.

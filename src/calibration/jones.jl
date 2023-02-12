@@ -43,6 +43,8 @@ function LinearAlgebra.mul!(y::AbstractArray, M::DesignMatrix, x::AbstractArray)
     LinearAlgebra.mul!(y, M.matrix, x)
 end
 
+abstract type AbstractJonesCache end
+
 """
     $(TYPEDEF)
 
@@ -53,7 +55,7 @@ that are measured from the telescope.
 # Fields
 $(FIELDS)
 """
-struct JonesCache{D,S<:ObsSegmentation, ST, Ti}
+struct JonesCache{D,S<:ObsSegmentation, ST, Ti} <: AbstractJonesCache
     """
     Design matrix for the first station
     """
@@ -76,11 +78,46 @@ struct JonesCache{D,S<:ObsSegmentation, ST, Ti}
     times::Ti
 end
 
-stations(j::JonesCache) = j.stations
-ChainRulesCore.@non_differentiable stations(j::JonesCache)
+"""
+    $(TYPEDEF)
+
+Holds the ancillary information for a the design matrix cache for Jones matrices. That is,
+it defines the cached map that moves from model visibilities to the corrupted voltages
+that are measured from the telescope. This uses a relative decomposition so that the
+gain at a single timestamp is the sum of the previous gains. In this formulation the
+gains parameters are the relative gain offsets from timestamp to timestamp
+
+# Fields
+$(FIELDS)
+"""
+struct RelativeJonesCache{D,S<:ObsSegmentation, ST, Ti} <: AbstractJonesCache
+    """
+    Design matrix for the first station
+    """
+    m1::D
+    """
+    Design matrix for the second station
+    """
+    m2::D
+    """
+    Segmentation scheme for this cache
+    """
+    seg::S
+    """
+    station codes
+    """
+    stations::ST
+    """
+    times
+    """
+    times::Ti
+end
+
+stations(j::AbstractJonesCache) = j.stations
+ChainRulesCore.@non_differentiable stations(j::AbstractJonesCache)
 
 """
-    JonesCache(obs::EHTObservation, segmentation::ObsSegmentation)
+    jonescache(obs::EHTObservation, segmentation::ObsSegmentation)
 
 Constructs a `JonesCache` from a given observation `obs` using the segmentation scheme
 `segmentation`.
@@ -88,10 +125,10 @@ Constructs a `JonesCache` from a given observation `obs` using the segmentation 
 # Example
 ```julia-repl
 # coh is a EHTObservation
-julia> JonesCache(coh, ScanSeg())
+julia> jonescache(coh, ScanSeg())
 ```
 """
-function JonesCache(obs::EHTObservation, s::TrackSeg)
+function jonescache(obs::EHTObservation, s::TrackSeg)
 
     # extract relevant observation info
     times = obs[:T]
@@ -137,8 +174,17 @@ function gain_stations(st::ScanTable)
     return times, gainstat
 end
 
+"""
+    jonescache(obs::EHTObservation, s::ScanSeg, relative = false)
 
-function JonesCache(obs::EHTObservation, s::ScanSeg)
+Construct a JonesCache from obs observation `obs` and the scan-based segmentation scheme.
+The optional argument relative denotes whether to use a absolute cache breakdown or a
+relative one. If using `relative=true`, then the cache is constructed so that the
+gain parameters are interpreted as relative gain offsets. This can be useful when constructing,
+relative gain priors where from scan-to-scan the gains aren't expected to change drastically.
+To construct the prior see [`CalPrior(::NamedTuple, ::NamedTuple, ::RelativeJonesCache`](@ref)
+"""
+function jonescache(obs::EHTObservation, s::ScanSeg, relative = false)
 
     # extract relevant observation info
     times = obs[:T]
@@ -152,12 +198,36 @@ function JonesCache(obs::EHTObservation, s::ScanSeg)
     rowInd2 = Int[]
     colInd2 = Int[]
 
-    for i in 1:length(times)
+    sites = Tuple(stations(obs))
+    stimes = NamedTuple{sites}(map(x->gaintime[findall(==(x), gainstat)], sites))
 
+    # TODO this will becomes a lot cleaner if I do this split based on scans and not time
+    for i in 1:length(times)
         t = times[i]
         s1, s2 = bls[i]
-        ind1 = findall(x -> ((x[1]==t) && (x[2]==s1)), gts)
-        ind2 = findall(x -> ((x[1]==t) && (x[2]==s2)), gts)
+        # If we are in the second scan and are using relative gains then also include
+        # the previous scans gain value
+        s1times = getproperty(stimes, s1)
+        println(t)
+        println(first(s1times))
+        if relative && t > first(s1times)
+            # t01 = s1times[findfirst(==(t), s1times)-1]
+            # ind1 = findall(x -> (((x[1]==t)||(x[1]==t01)) && (x[2]==s1)), gts)
+            ind1 = findall(x -> (((x[1]<=t)) && (x[2]==s1)), gts)
+            # ind1 = findall(x -> (((x[1]==t)||(x[1]==first(s1times))) && (x[2]==s1)), gts)
+        else
+            ind1 = findall(x -> ((x[1]==t) && (x[2]==s1)), gts)
+        end
+
+        s2times = getproperty(stimes, s2)
+        if relative && t > first(s2times)
+            t02 = s2times[findfirst(==(t), s2times)-1]
+            # ind2 = findall(x -> (((x[1]==t)||(x[1]==t02)) && (x[2]==s2)), gts)
+            ind2 = findall(x -> (((x[1]<=t)) && (x[2]==s2)), gts)
+            # ind2 = findall(x -> (((x[1]==t)||(x[1]==first(s2times))) && (x[2]==s2)), gts)
+        else
+            ind2 = findall(x -> ((x[1]==t) && (x[2]==s2)), gts)
+        end
 
         append!(colInd1,ind1)
         append!(colInd2,ind2)
@@ -166,11 +236,15 @@ function JonesCache(obs::EHTObservation, s::ScanSeg)
     end
 
     # populate sparse design matrices
-    z = fill(1.0, length(rowInd1))
-    m1 = sparse(rowInd1, colInd1, z, length(times), length(gaintime))
-    m2 = sparse(rowInd2, colInd2, z, length(times), length(gaintime))
-
-    return JonesCache{typeof(m1),typeof(s),  typeof(gainstat), typeof(gaintime)}(m1,m2,s, gainstat, gaintime)
+    z1 = fill(1.0, length(rowInd1))
+    z2 = fill(1.0, length(rowInd2))
+    m1 = sparse(rowInd1, colInd1, z1, length(times), length(gaintime))
+    m2 = sparse(rowInd2, colInd2, z2, length(times), length(gaintime))
+    if relative
+        RelativeJonesCache{typeof(m1),typeof(s),  typeof(gainstat), typeof(gaintime)}(m1,m2,s, gainstat, gaintime)
+    else
+        JonesCache{typeof(m1),typeof(s),  typeof(gainstat), typeof(gaintime)}(m1,m2,s, gainstat, gaintime)
+    end
 end
 
 """
@@ -278,7 +352,7 @@ find_js(::Any, rest) = find_js(rest)
 
 
 
-function JonesCache(obs::EHTObservation, s::IntegSeg)
+function jonescache(obs::EHTObservation, s::IntegSeg)
     # extract relevant observation info
     times = obs[:T]
     bls = obs[:baseline]
@@ -326,25 +400,29 @@ function JonesCache(obs::EHTObservation, s::IntegSeg)
 end
 
 
-function apply_design(gmat::T, jcache::JonesCache) where {T}
+function apply_design(gmat::T, jcache::AbstractJonesCache) where {T}
     return JonesPairs(jcache.m1*gmat, jcache.m2*gmat)
 end
 
 # GMat(g1::T, g2::T) where {T} = SMatrix{2,2,T}(g1, zero(T), zero(T), g2)
-function gmat(g1, g2, m)
+function gmat(f::F, g1, g2, m) where {F}
    S = eltype(g1)
-   gs1 = m*g1
-   gs2 = m*g2
+   gs1 = f.(m*g1)
+   gs2 = f.(m*g2)
    n = length(gs1)
    offdiag = fill(zero(S), n)
    StructArray{SMatrix{2,2,S,4}}((gs1, offdiag, offdiag, gs2))
 end
 
 """
-    jonesG(g1::AbstractVector, g2::AbstractVector, jcache::JonesCache)
+    jonesG(g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache)
+    jonesG(f, g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache)
 
 Constructs the pairs Jones `G` matrices for each pair of stations. The `g1` are the
 gains for the first polarization basis and `g2` are the gains for the other polarization.
+The first argument is optional and denotes a function that is applied to every element of
+jones cache. For instance if `g1` and `g2` are the log-gains then `f=exp` will convert them
+into the gains.
 
 The layout for each matrix is as follows:
 ```
@@ -352,11 +430,12 @@ The layout for each matrix is as follows:
     0  g2
 ```
 """
-function jonesG(g1::AbstractVector, g2::AbstractVector, jcache::JonesCache)
-    gm1 = gmat(g1, g2, jcache.m1)
-    gm2 = gmat(g1, g2, jcache.m2)
+function jonesG(f::F, g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache) where {F}
+    gm1 = gmat(f, g1, g2, jcache.m1)
+    gm2 = gmat(f, g1, g2, jcache.m2)
     return JonesPairs(gm1, gm2)
 end
+jonesG(g1::AbstractVector, g2::AbstractVector, jcache::AbstracctJonesCache) = jonesG(identity, g1, g2, jcache)
 
 @inline function jonesG_prod_ratio(gproduct, product_cache, gratio, ratio_cache)
     Gp = jonesG(gproduct, gproduct, product_cache)
@@ -365,20 +444,24 @@ end
 end
 
 # DMat(d1::T, d2::T) where {T} = SMatrix{2,2,T}(one(T), d2, d1, one(T))
-function dmat(d1, d2, m)
+function dmat(f::F, d1, d2, m) where {F}
     S = eltype(d1)
-    ds1 = m*d1
-    ds2 = m*d2
+    ds1 = f.(m*d1)
+    ds2 = f.(m*d2)
     n = length(ds1)
     unit = fill(one(S), n)
     return StructArray{SMatrix{2,2,S,4}}((unit, ds2, ds1, unit))
 end
 
 """
-    jonesD(d1::AbstractVector, d2::AbstractVector, jcache::JonesCache)
+    jonesD(d1::AbstractVector, d2::AbstractVector, jcache::AbstractJonesCache)
+    jonesD(f, d1::AbstractVector, d2::AbstractVector, jcache::AbstractJonesCache)
 
 Constructs the pairs Jones `D` matrices for each pair of stations. The `d1` are the
 d-termsfor the first polarization basis and `d2` are the d-terms for the other polarization.
+The first argument is optional and denotes a function that is applied to every element of
+jones cache. For instance if `d1` and `d2` are the log-dterms then `f=exp` will convert them
+into the dterms.
 
 The layout for each matrix is as follows:
 ```
@@ -386,27 +469,35 @@ The layout for each matrix is as follows:
     d2 1
 ```
 """
-function jonesD(d1::T,d2::T,jcache::JonesCache) where {T}
-    dm1 = dmat(d1, d2, jcache.m1)
-    dm2 = dmat(d1, d2, jcache.m2)
+function jonesD(f::F, d1::T,d2::T,jcache::AbstractJonesCache) where {F, T}
+    dm1 = dmat(f, d1, d2, jcache.m1)
+    dm2 = dmat(f, d1, d2, jcache.m2)
     return JonesPairs(dm1, dm2)
 end
+jonesD(d1::AbstractVector, d2::AbstractVector, jcache::AbstractJonesCache) = jonesD(identity, d1, d2, jcache)
 
 export jonesStokes
 """
-    jonesStokes(g1::AbstractArray, gcache::JonesCache)
+    jonesStokes(g1::AbstractArray, gcache::AbstractJonesCache)
+    jonesStokes(f, g1::AbstractArray, gcache::AbstractJonesCache)
 
 Construct the Jones Pairs for the stokes I image only. That is, we only need to
 pass a single vector corresponding to the gain for the stokes I visibility. This is
 for when you only want to image Stokes I.
+The first argument is optional and denotes a function that is applied to every element of
+jones cache. For instance if `g1` and `g2` are the log-gains then `f=exp` will convert them
+into the gains.
+
 
 # Warning
 In the future this functionality may be removed when stokes I fitting is replaced with the
 more correct `trace(coherency)`, i.e. RR+LL for a circular basis.
 """
-function jonesStokes(g, gcache)
-    return JonesPairs(gcache.m1*g, gcache.m2*g)
+function jonesStokes(f::F, g::AbstractVector, gcache::AbstractJonesCache) where {F}
+    return JonesPairs(f.(gcache.m1*g), f.(gcache.m2*g))
 end
+jonesStokes(g::AbstractVector, gcache::AbstractJonesCache) = jonesStokes(identity, g, gcache)
+
 
 
 
@@ -419,7 +510,7 @@ on sky reference basis.
 # Fields
 $(FIELDS)
 """
-struct TransformCache{M, B<:PolBasis}
+struct TransformCache{M, B<:PolBasis} <: AbstractJonesCache
     """
     Transform matrices for the first stations
     """
