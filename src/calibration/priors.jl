@@ -1,6 +1,6 @@
 export CalPrior, HeirarchicalCalPrior
 
-struct CalPrior{S,J<:JonesCache} <: Distributions.ContinuousMultivariateDistribution
+struct CalPrior{S,J<:AbstractJonesCache} <: Distributions.ContinuousMultivariateDistribution
     dists::S
     jcache::J
 end
@@ -66,8 +66,8 @@ tighter than the prior on `dist0`.
 """
 function CalPrior(dist0::NamedTuple, distt::NamedTuple, jcache::RelativeJonesCache)
     sites = Tuple(unique(jcache.stations))
-    @argcheck Set(keys(dists0)) == Set(sites)
-    @argcheck Set(keys(distst)) == Set(sites)
+    @argcheck Set(keys(dist0)) == Set(sites)
+    @argcheck Set(keys(distt)) == Set(sites)
 
     times = jcache.times
     stations = jcache.stations

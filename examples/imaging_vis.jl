@@ -10,17 +10,18 @@
 # ## Introduction to Complex Visibility Fitting
 
 using Comrade
+using Pkg #hide
+Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(43)
+rng = StableRNG(123)
 
 
 
 # ## Load the Data
 
-using Pkg #hide
-Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
@@ -54,8 +55,8 @@ function model(θ, metadata)
     img = IntensityMap(0.6.*c, grid)
     m = ContinuousImage(img,cache)
     ## Now form our instrument model
-    jp = @fastmath jonesStokesExp(gphase.*1im, gcacher)
-    jg = @fastmath jonesStokesExp(lgamp, gcache)
+    jp = @fastmath jonesStokes(exp, gphase.*1im, gcacher)
+    jg = @fastmath jonesStokes(exp, lgamp, gcache)
     return JonesModel(jp*jg, m)
 end
 
@@ -77,24 +78,24 @@ end
 # the EHT is not very sensitive to larger field of views, typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this we only need to use a small number of pixels
 # to describe our image.
-npix = 10
-fovxy = μas2rad(65.0)
+npix = 8
+fovxy = μas2rad(67.5)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
 grid = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix, npix), grid)
-cache = create_cache(NFFTAlg(dvis), buffer, BicubicPulse(0.0))
+cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
 # to the model visibilities. However, to construct this map we also need to specify the observation
 # segmentation over which we expect the gains to change. This is specified in the second argument
-# to `JonesCache`, and currently there are two options
+# to `jonescache`, and currently there are two options
 #   - `ScanSeg()`: which forces the corruptions to only change from scan-to-scan
 #   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
 # For this work we use the scan segmentation since that is roughly the timescale we expect the
 # complex gains to vary.
-gcacher = JonesCache(dvis, ScanSeg(), true)
-gcache = JonesCache(dvis, ScanSeg())
+gcacher = jonescache(dvis, ScanSeg(), true)
+gcache = jonescache(dvis, ScanSeg())
 
 # Now we can form our metadata we need to fully define our model.
 metadata = (;grid, cache, gcache, gcacher)
@@ -117,12 +118,24 @@ distamp = (AA = Normal(0.0, 0.1),
            SM = Normal(0.0, 0.1),
            )
 
-# For the phases we assume that the gains are effectively scrambled by the atmosphere.
-# Since the gain phases are periodic we also use a von Mises priors for all stations with
-# essentially a flat distribution. Also we set a very tight phase prior on the ALMA (AA)
-# gain phase. This is to prevent a trivial degeneracy in the gain phases, where the total gain
-# phase for a visibility is invariant to a constant phase offset being added to all baselines.
+# For the phases we will use a relative gain prior. This means that rather than the parameters
+# being directly the gains, we rather first directly the first gain for each site and then
+# the other parameters are the relative gains compared to the previous time. To model this
+# we then break the gain phase prior into two parts. The first is the gain phase prior
+# for the first observing timestamp of each site, `distphase0`, and the second is the
+# prior for relative gain from time i to i+1, given by `distphase`. For the EHT we are
+# dealing with pre-calibrated data so often the gain phase jumps from scan-to-scan are
+# minor. As such we can put a more informative prior on `distphase`.
 using VLBIImagePriors
+distphase0 = (AA = DiagonalVonMises(0.0, inv(1e-6)),
+             AP = DiagonalVonMises(0.0, inv(π^2)),
+             LM = DiagonalVonMises(0.0, inv(π^2)),
+             AZ = DiagonalVonMises(0.0, inv(π^2)),
+             JC = DiagonalVonMises(0.0, inv(π^2)),
+             PV = DiagonalVonMises(0.0, inv(π^2)),
+             SM = DiagonalVonMises(0.0, inv(π^2)),
+           )
+
 distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
              AP = DiagonalVonMises(0.0, inv(0.2^2)),
              LM = DiagonalVonMises(0.0, inv(0.2^2)),
@@ -132,14 +145,6 @@ distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
              SM = DiagonalVonMises(0.0, inv(0.2^2)),
            )
 
-distphase0 = (AA = DiagonalVonMises(0.0, inv(1e-6)),
-             AP = DiagonalVonMises(0.0, inv(π^2)),
-             LM = DiagonalVonMises(0.0, inv(π^2)),
-             AZ = DiagonalVonMises(0.0, inv(π^2)),
-             JC = DiagonalVonMises(0.0, inv(π^2)),
-             PV = DiagonalVonMises(0.0, inv(π^2)),
-             SM = DiagonalVonMises(0.0, inv(π^2)),
-           )
 
 # We can now form our model parameter priors. Like our other imaging examples we use a
 # Dirichlet prior for our image pixels. For the log gain amplitudes we use the `CalPrior`
@@ -267,8 +272,8 @@ mimg = mean(imgs)
 simg = std(imgs)
 p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)));
 p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)));
-p3 = plot(imgs[1],  title="Draw 1", clims = (0.0, maximum(mimg)));
-p4 = plot(imgs[2],  title="Draw 2", clims = (0.0, maximum(mimg)));
+p3 = plot(imgs[begin],  title="Draw 1", clims = (0.0, maximum(mimg)));
+p4 = plot(imgs[end],  title="Draw 2", clims = (0.0, maximum(mimg)));
 plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
 
 # And viola you have just finished making a preliminary image and instrument model reconstruction.

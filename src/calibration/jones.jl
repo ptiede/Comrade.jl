@@ -1,5 +1,5 @@
 export JonesCache, TrackSeg, ScanSeg, IntegSeg, jonesG, jonesD, jonesT,
-       TransformCache, JonesModel
+       TransformCache, JonesModel, jonescache
 
 """
     $(TYPEDEF)
@@ -208,8 +208,6 @@ function jonescache(obs::EHTObservation, s::ScanSeg, relative = false)
         # If we are in the second scan and are using relative gains then also include
         # the previous scans gain value
         s1times = getproperty(stimes, s1)
-        println(t)
-        println(first(s1times))
         if relative && t > first(s1times)
             # t01 = s1times[findfirst(==(t), s1times)-1]
             # ind1 = findall(x -> (((x[1]==t)||(x[1]==t01)) && (x[2]==s1)), gts)
@@ -435,13 +433,7 @@ function jonesG(f::F, g1::AbstractVector, g2::AbstractVector, jcache::AbstractJo
     gm2 = gmat(f, g1, g2, jcache.m2)
     return JonesPairs(gm1, gm2)
 end
-jonesG(g1::AbstractVector, g2::AbstractVector, jcache::AbstracctJonesCache) = jonesG(identity, g1, g2, jcache)
-
-@inline function jonesG_prod_ratio(gproduct, product_cache, gratio, ratio_cache)
-    Gp = jonesG(gproduct, gproduct, product_cache)
-    Gr = jonesG(gratio, inv.(gratio), ratio_cache)
-    return Gp*Gr
-end
+jonesG(g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache) = jonesG(identity, g1, g2, jcache)
 
 @inline function jonesG_prod_ratio(gproduct, product_cache, gratio, ratio_cache)
     Gp = jonesG(gproduct, gproduct, product_cache)
