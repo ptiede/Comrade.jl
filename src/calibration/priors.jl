@@ -31,7 +31,7 @@ julia> x = rand(gdist)
 julia> logdensityof(gdist, x)
 ```
 """
-function CalPrior(dists::NamedTuple, jcache::JonesCache, reference=:none)
+function CalPrior(dists::NamedTuple, jcache::AbstractJonesCache, reference=:none)
     gstat = jcache.stations
     @argcheck Set(keys(dists)) == Set(gstat)
 

@@ -86,15 +86,15 @@
 
 using Comrade
 
-# For reproducibility we use a stable random number genreator
-using StableRNGs
-rng = StableRNG(123)
 
 
 # ## Load the Data
 using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
+# For reproducibility we use a stable random number genreator
+using StableRNGs
+rng = StableRNG(123)
 
 
 # Now we will load some synthetic polarized data.
