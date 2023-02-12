@@ -16,6 +16,7 @@ using StableRNGs
 rng = StableRNG(43)
 
 
+
 # ## Load the Data
 
 using Pkg #hide
@@ -24,6 +25,7 @@ Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
 obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
@@ -139,7 +141,6 @@ distphase0 = (AA = DiagonalVonMises(0.0, inv(1e-6)),
              SM = DiagonalVonMises(0.0, inv(π^2)),
            )
 
-
 # We can now form our model parameter priors. Like our other imaging examples we use a
 # Dirichlet prior for our image pixels. For the log gain amplitudes we use the `CalPrior`
 # which automatically constructs the prior for the given jones cache `gcache`.
@@ -225,7 +226,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 12_000; nadapts=10_000, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 400; nadapts=200, init_params=xopt)
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
@@ -259,7 +260,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = model.(chain[6001:5:end], Ref(metadata))
+samples = model.(chain[100:5:end], Ref(metadata))
 imgs = intensitymap.(samples, fovxy, fovxy, 128,  128);
 
 mimg = mean(imgs)
@@ -267,7 +268,7 @@ simg = std(imgs)
 p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)));
 p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)));
 p3 = plot(imgs[1],  title="Draw 1", clims = (0.0, maximum(mimg)));
-p4 = plot(imgs[end-50],  title="Draw 2", clims = (0.0, maximum(mimg)));
+p4 = plot(imgs[2],  title="Draw 2", clims = (0.0, maximum(mimg)));
 plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
 
 # And viola you have just finished making a preliminary image and instrument model reconstruction.
