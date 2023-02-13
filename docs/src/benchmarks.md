@@ -17,7 +17,7 @@ For our benchmarking problem we analyze a problem very similar to the problem ex
 
 All tests were run using the following system
 
-```
+```julia
 Julia Version 1.7.3
 Python Version 3.10.5
 Comrade Version 0.4.0
