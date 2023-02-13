@@ -278,8 +278,9 @@ function caltable(g::RelativeJonesCache, gains::AbstractVector)
         gmat[t,c] = gains[i]
     end
 
-    eachcol(gmat) .= map(cumsum, eachcol(gmat))
-    replace!(x->x==0 ? missing : x, @view gmat[:,begin+1:end])
+
+    cumsum!(gmat, gmat; dims=1)
+    replace!(x->x==0 ? missing : x, @view gmat[:,begin:end])
 
     return CalTable(stations, lookup, times, gmat)
 end

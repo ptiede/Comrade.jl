@@ -48,6 +48,7 @@ using Tables
     c1 = caltable(jcache, ga)
     c1r = caltable(jcacher, ga)
     @test c1.time == c1r.time
+    @test cumsum(c1.AA) == c1r.AA
     c2 = caltable(amp, ga)
 
     @testset "caltable test" begin
@@ -99,6 +100,8 @@ end
 
 @testset "dterms" begin
     _,vis, amp, lcamp, cphase, dcoh = load_data()
+    tel = stations(vis)
+
     dReal = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
     dImag = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
 
@@ -123,6 +126,8 @@ end
 
 @testset "rlgains" begin
     _,vis, amp, lcamp, cphase, dcoh = load_data()
+    tel = stations(vis)
+
     gprior0 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.5), length(tel)))
     gprior1 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
 
@@ -145,10 +150,10 @@ end
     Gr = jonesG(grat, inv.(grat), scancache)
 
     j1 = Gp*Gr
-    j2 = jonesG(gp.*gr, gp./gr, scancache)
+    j2 = jonesG(gpro.*grat, gpro./grat, scancache)
 
-    @test j1.m1 == j2.m1
-    @test j1.m2 == j2.m2
+    @test j1.m1 ≈ j2.m1
+    @test j1.m2 ≈ j2.m2
 
     m1 = map(x->getproperty(x, :m1), (Gp,Gr))
     m2 = map(x->getproperty(x, :m2), (Gp,Gr))

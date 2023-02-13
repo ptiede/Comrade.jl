@@ -91,6 +91,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.arch }}
       - run: python -m pip install --upgrade pip
+      - run: python -m pip install numpy==1.23.1
       - run: python -m pip install ipython requests
       - run: python -m pip install ehtim
       - run: python -m pip install dynesty
@@ -98,13 +99,10 @@ jobs:
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1'
+      - name: Install docs dependencies
+        run: julia --project=docs -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.develop(PackageSpec(path=joinpath(pwd(), "lib/ComradeAHMC"))); Pkg.develop(PackageSpec(path=joinpath(pwd(), "lib/ComradeOptimization"))); Pkg.instantiate()'
       - name: Install examples dependencies
         run: julia --project=examples -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.develop(PackageSpec(path=joinpath(pwd(), "lib/ComradeAHMC"))); Pkg.develop(PackageSpec(path=joinpath(pwd(), "lib/ComradeOptimization"))); Pkg.instantiate()'
-      - run: |
-          julia --project=docs -e '
-            using Pkg
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()'
       - run: |
           julia --project=docs -e '
             using Documenter: doctest
