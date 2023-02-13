@@ -339,11 +339,17 @@ end
     mU = 0.2*stretched(MRing((0.1,), (-0.6,)), 20.0, 20.0)
     mV = 0.0*stretched(MRing((0.0,), (-0.6,)), 20.0, 20.0)
     m = PolarizedModel(mI, mQ, mU, mV)
+    mG = PolarizedModel(Gaussian(), Gaussian(), Gaussian(), Gaussian())
+    cm = convolved(m, Gaussian())
+    @test cm == convolved(m, mG)
+    @test m+mG == m+Gaussian()
+    show(m)
 
     p = (U = 0.005, V=0.01)
     v = visibility(m, p)
     @test evpa(v) ≈ evpa(m, p)
     @test m̆(v) ≈ m̆(m, p)
+    @test mbreve(v) ≈ mbreve(m, p)
 
     I = IntensityMap(zeros(1024,1024), 100.0, 100.0)
     Q = similar(I)
