@@ -125,8 +125,8 @@ Comrade.StretchedModel
 ### Polarized Models
 
 ```@docs
-Comrade.mbreve
-Comrade.evpa(pimg::ComradeBase.AbstractPolarizedModel, p)
+ComradeBase.mbreve
+ComradeBase.evpa(pimg::ComradeBase.AbstractPolarizedModel, p)
 Comrade.PolarizedModel
 ```
 
