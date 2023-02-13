@@ -23,15 +23,14 @@ using Plots
 
 
 # Make the examples using Literate
-GENERATED = joinpath(@__DIR__, "../", "examples")
-OUTDIR = joinpath(@__DIR__, "src", "examples")
+# GENERATED = joinpath(@__DIR__, "../", "examples")
+# OUTDIR = joinpath(@__DIR__, "src", "examples")
 
-SOURCE_FILES = Glob.glob("*.jl", GENERATED)
-println(SOURCE_FILES)
-foreach(fn -> Literate.markdown(fn, OUTDIR, documenter=true), SOURCE_FILES)
+# SOURCE_FILES = Glob.glob("*.jl", GENERATED)
+# println(SOURCE_FILES)
+# foreach(fn -> Literate.markdown(fn, OUTDIR, documenter=true), SOURCE_FILES)
 
-MD_FILES = joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
-println(MD_FILES)
+# MD_FILES = joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
 
 
 format = Documenter.HTML(edit_link = "source",
@@ -60,7 +59,7 @@ makedocs(;
         "Home" => "index.md",
         "benchmarks.md",
         "vlbi_imaging_problem.md",
-        "Tutorials" => MD_FILES,
+        #"Tutorials" => MD_FILES,
         "Libraries" => [
                         "libs/optimization.md",
                         "libs/ahmc.md",
