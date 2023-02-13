@@ -22,6 +22,9 @@
     lcamp = extract_lcamp(obsavg)
     plot(lcamp)
     show(lcamp)
+    dcoh = extract_coherency(obsavg)
+    plot(dcoh)
+    show(dcoh)
 
     @test getuv(arrayconfig(lcamp))[1] == getuv(arrayconfig(cphase))[1]
     @test getuv(arrayconfig(amp))[1] == getuv(arrayconfig(cphase))[1]
@@ -33,10 +36,15 @@
     plot(m, amp)
     plot(m, lcamp)
     plot(m,cphase)
+    jt = jonesT(TransformCache(dcoh))
+    mp = JonesModel(jt, PolarizedModel(m, ZeroModel(), ZeroModel(), 0.1*Gaussian()), TransformCache(dcoh))
+    plot(mp, dcoh)
     #residual(m, vis)
     residual(m, amp)
     residual(m, cphase)
     residual(m, lcamp)
+    residual(mp, dcoh)
+    chi2(mp, dcoh)
 
     @test length(vis) == length(obsavg.data)
     @test length(amp) == length(obsavg.amp)

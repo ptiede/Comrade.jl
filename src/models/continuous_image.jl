@@ -61,9 +61,9 @@ end
 
 ContinuousImage(img::IntensityMapTypes, cache::AbstractCache) = modelimage(ContinuousImage(img, cache.pulse), cache)
 
-function ContinuousImage(im::AbstractMatrix, fovx::Real, fovy::Real, x0::Real, y0::Real, pulse, header=nothing)
+function ContinuousImage(img::AbstractMatrix, fovx::Real, fovy::Real, x0::Real, y0::Real, pulse, header=nothing)
     xitr, yitr = imagepixels(fovx, fovy, size(img, 1), size(img,2), x0, y0)
-    img = IntensityMap(im, (X=xitr, Y=yitr), header)
+    img = IntensityMap(img, (X=xitr, Y=yitr), header)
     # spulse = stretched(pulse, step(xitr), step(yitr))
     return ContinuousImage(img, pulse)
 end
@@ -74,7 +74,7 @@ end
 
 
 
-ComradeBase.imagepixels(img::ContinuousImage) = NamedTuple{names.(dims(img.img))}(dims(img.img))
+ComradeBase.imagepixels(img::ContinuousImage) = axiskeys(img)
 
 # IntensityMap will obey the Comrade interface. This is so I can make easy models
 visanalytic(::Type{<:ContinuousImage}) = NotAnalytic() # not analytic b/c we want to hook into FFT stuff
@@ -95,7 +95,8 @@ function intensity_point(m::ContinuousImage, p)
     return sum
 end
 
-convolved(cimg::ContinuousImage, m::AbstractModel) = ContinuousImage(cimg.img, convolved(cimg.pulse, m))
+convolved(cimg::ContinuousImage, m::AbstractModel) = ContinuousImage(cimg.img, convolved(cimg.kernel, m))
+convolved(cimg::AbstractModel, m::ContinuousImage) = convolved(m, cimg)
 
 
 """

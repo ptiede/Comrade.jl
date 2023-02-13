@@ -35,6 +35,8 @@ using Tables
 
     # test the design matrix
     d1 = Comrade.DesignMatrix(jcache.m1, jcache.times, jcache.stations)
+    v = rand(size(d1, 2))
+    @test d1*v ≈ jcache.m1*v
     @test size(d1) == size(jcache.m1)
     @test d1[1,1] == jcache.m1[1,1]
     @test Base.IndexStyle(d1) == Base.IndexStyle(jcache.m1)
@@ -181,6 +183,41 @@ end
 
     caltable(dcache, complex.(dRx, dRy))
 
+end
+
+@testset "JonesPairs" begin
+    _,vis, amp, lcamp, cphase, dcoh = load_data()
+    tel = stations(vis)
+
+    gprior0 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.5), length(tel)))
+    gprior1 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
+
+    trackcache = jonescache(dcoh, TrackSeg())
+    scancache = jonescache(dcoh, ScanSeg())
+    integcache = jonescache(dcoh, IntegSeg())
+
+    dlgp = CalPrior(gprior0, scancache)
+    dgpp = CalPrior(gprior1, scancache)
+    dlgr = CalPrior(gprior0, scancache)
+    dgpr = CalPrior(gprior1,scancache)
+
+    lgp = rand(dlgp)
+    gpp = rand(dgpp)
+    lgr = rand(dlgr)
+    gpr = rand(dgpr)
+
+
+
+    gpro = exp.(lgp .+ 1im.*gpp)
+    grat = exp.(lgr .+ 1im.*gpr)
+    Gp = jonesG(gpro, gpro, scancache)
+    Gr = jonesG(grat, inv.(grat), scancache)
+
+    @test length(Gp) == length(dcoh)
+    @test size(Gp)[1] == size(scancache.m1,1)
+    @test Gr[1] == (Gr.m1[1], Gr.m2[1])
+
+    # Gr2 = similar(Gp)
 end
 
 

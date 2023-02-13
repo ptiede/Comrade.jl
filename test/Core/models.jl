@@ -391,7 +391,10 @@ end
 
     cimg = ContinuousImage(img, DeltaPulse())
     cache_nf = create_cache(NFFTAlg(amp), img, DeltaPulse())
+    cimg2 = ContinuousImage(img, cache_nf)
     cache_df = create_cache(DFTAlg(amp), img, DeltaPulse())
+    cimg3 = ContinuousImage(img, cache_df)
+
     ac_amp = arrayconfig(amp)
     ac_lcamp = arrayconfig(lcamp)
     ac_cphase = arrayconfig(cphase)
@@ -422,4 +425,30 @@ end
     @testset "nuft pullback" begin
         test_rrule(Comrade.nuft, cache_nf.plan ⊢ NoTangent(), complex.(parent(parent(img))))
     end
+end
+
+@testset "ContinuousImage" begin
+    g = imagepixels(10.0, 10.0, 128, 128)
+    data = rand(128, 128)
+    img = ContinuousImage(IntensityMap(data, g), BSplinePulse{3}())
+    img2 = ContinuousImage(data, 10.0, 10.0, 0.0, 0.0, BSplinePulse{3}())
+
+    @test length(img) == length(data)
+    @test size(img) == size(data)
+    @test firstindex(img) == firstindex(data)
+    @test lastindex(img) == lastindex(img)
+    collect(iterate(img))
+    @test eltype(img) == eltype(data)
+    @test img[1,1] == data[1,1]
+    @test img[1:5,1] == data[1:5,1]
+
+    @test all(==(1), imagegrid(img) .== ComradeBase.grid(named_dims(axiskeys(img))))
+    @test Comrade.axisdims(img) == axiskeys(img)
+
+    @test g == imagepixels(img)
+    @test Comrade.radialextent(img) ≈ 10.0/2
+
+    @test convolved(img, Gaussian()) isa ContinuousImage
+    @test convolved(Gaussian(), img) isa ContinuousImage
+
 end
