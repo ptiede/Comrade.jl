@@ -120,6 +120,19 @@ end
         testmodel(m)
     end
 
+    @testset "Pulses" begin
+        m0 = BSplinePulse{0}()
+        testmodel(m0)
+        m1 = BSplinePulse{1}()
+        testmodel(m1)
+        m3 = BSplinePulse{3}()
+        testmodel(m3)
+        m4 = BicubicPulse()
+        testmodel(m4)
+        #m5 = RaisedCosinePulse()
+        #testmodel(m5)
+    end
+
 
     @testset "Ring" begin
         m = smoothed(Ring(), 0.25)

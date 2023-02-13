@@ -127,6 +127,8 @@ struct RaisedCosinePulse{T} <: Pulse
     rolloff::T
 end
 
+κflux(::Pulse) = 1
+
 RaisedCosinePulse() = RaisedCosinePulse{Float64}(0.5)
 
 function κ(k::RaisedCosinePulse, x::T) where {T}
