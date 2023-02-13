@@ -32,12 +32,33 @@ using Tables
 
     jcache = jonescache(vis, ScanSeg())
     jcacher = jonescache(vis, ScanSeg(), true)
+
+    # test the design matrix
+    d1 = Comrade.DesignMatrix(jcache.m1, jcache.times, jcache.stations)
+    @test size(d1) == size(jcache.m1)
+    @test d1[1,1] == jcache.m1[1,1]
+    @test Base.IndexStyle(d1) == Base.IndexStyle(jcache.m1)
+
+    similar(d1)
+
+
     gamp = CalPrior(gamp_prior, jcache)
     gpha = CalPrior(gph_prior,  jcache)
     gphar = CalPrior(gph_prior_0, gph_prior, jcacher)
 
     ga = fill(1.0, size(rand(gamp))...)
     gm = JonesModel(jonesStokes(ga, jcache), m)
+
+    @inferred Comrade.intensity_point(gm, (X=0.0, Y=0.0))
+    @test gm.model === m
+
+    g = imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128)
+    img1 = intensitymap(gm, g)
+    img2 = intensitymap(m, g)
+
+    @test img1 ≈ img2
+
+    @test flux(m) ≈ flux(gm)
 
     j1 = jonesStokes(exp.(ga), jcache)
     j2 = jonesStokes(exp, ga, jcache)

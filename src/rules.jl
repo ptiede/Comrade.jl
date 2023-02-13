@@ -46,7 +46,6 @@ end
 #     return ret
 # end
 function (project::ProjectTo{StructArray})(dx::Tangent{<:StructArray})
-    println(typeof(dx.components))
     StructArray{project.eltype}(dx.components)
 end
 
@@ -84,9 +83,9 @@ end
 # end
 
 
-# # function (project::ProjectTo{StructArray{T}})(dx::AbstractArray{Tangent{T}}) where {T}
-# #     return StructArray{T}()
-# # end
+# function (project::ProjectTo{StructArray})(dx::AbstractArray{<:Tangent})
+#     return StructArray{project.eltype}(map(p->getproperty.(dx, p), propertynames(names)))
+# end
 
 
 # function (project::ProjectTo{StructArray{T}})(dx::AbstractZero) where {T}
