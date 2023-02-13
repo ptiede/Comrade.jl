@@ -104,6 +104,7 @@ end
 
     @testset "Gaussian" begin
         m = Gaussian()
+        @test amplitude(m, (U=0.0, V=0.0)) == abs(visibility(m, (U=0.0, V=0.0)))
         testmodel(m, 1024, 1e-5)
     end
 
@@ -383,6 +384,17 @@ end
     testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
 end
 
+@testset "methods " begin
+    _,_, amp, lcamp, cphase = load_data()
+
+    m = rotated(stretched(Gaussian(), μas2rad(2.0), μas2rad(1.0)), π/8)
+    u1, v1, u2, v2, u3, v3 = uvpositions(cphase[1])
+    @test closure_phase(m, (U=u1, V=v1), (U=u2, V=v2), (U=u3, V=v3)) ≈ 0.0
+
+    u1, v1, u2, v2, u3, v3, u4, v4 = uvpositions(lcamp[1])
+    logclosure_amplitude(m, (U=u1, V=v1), (U=u2, V=v2), (U=u3, V=v3), (U=u4, V=v4))
+
+end
 
 @testset "modelimage cache" begin
     img = intensitymap(rotated(stretched(Gaussian(), μas2rad(2.0), μas2rad(1.0)), π/8),
