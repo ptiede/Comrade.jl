@@ -3,14 +3,12 @@ using Plots
 using Tables
 
 @testset "gains" begin
-    _,vis, amp, lcamp, cphase = load_data()
+    _,vis, amp, lcamp, cphase, = load_data()
 
     st = scantable(vis)
     stamp = scantable(amp)
     stcp = scantable(cphase)
     stlca = scantable(lcamp)
-
-    gcache = JonesCache(vis, ScanSeg())
 
 
     θ = (f1 = 1.0,
@@ -28,17 +26,28 @@ using Tables
     m = test_model(θ)
 
     tel = stations(vis)
-    gamp_prior = NamedTuple{Tuple(tel)}(ntuple(_->LogNormal(0.0, 0.1), length(tel)))
+    gamp_prior = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
+    gph_prior_0 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.5), length(tel)))
     gph_prior = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
 
-    jcache = JonesCache(vis, ScanSeg())
+    jcache = jonescache(vis, ScanSeg())
+    jcacher = jonescache(vis, ScanSeg(), true)
     gamp = CalPrior(gamp_prior, jcache)
     gpha = CalPrior(gph_prior,  jcache)
+    gphar = CalPrior(gph_prior_0, gph_prior, jcacher)
 
     ga = fill(1.0, size(rand(gamp))...)
-    gm = JonesModel(jonesStokes(ga, gcache), m)
+    gm = JonesModel(jonesStokes(ga, jcache), m)
 
-    c1 = caltable(gcache, ga)
+    j1 = jonesStokes(exp.(ga), jcache)
+    j2 = jonesStokes(exp, ga, jcache)
+
+    @test j1.m1 == j2.m1
+    @test j1.m2 == j2.m2
+
+    c1 = caltable(jcache, ga)
+    c1r = caltable(jcacher, ga)
+    @test c1.time == c1r.time
     c2 = caltable(amp, ga)
 
     @testset "caltable test" begin
@@ -86,4 +95,64 @@ using Tables
     rph = rand(gpha)
     @inferred logdensityof(gamp, rga)
     @inferred logdensityof(gpha, rph)
+end
+
+@testset "dterms" begin
+    _,vis, amp, lcamp, cphase, dcoh = load_data()
+    dReal = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
+    dImag = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
+
+
+    dcache = jonescache(dcoh, TrackSeg())
+    pdReal = CalPrior(dReal, dcache)
+    pdImag = CalPrior(dImag, dcache)
+    dRx = rand(pdReal)
+    dRy = rand(pdReal)
+    jd1 = jonesD(identity, dRx, dRy, dcache)
+    jd2 = jonesD(dRx,  dRy, dcache)
+
+    @test jd1.m1 == jd2.m1
+    @test jd1.m2 == jd2.m2
+
+    @inferred jonesD(exp, rand(pdReal), rand(pdImag), dcache)
+
+    caltable(dcache, complex.(dRx, dRy))
+
+end
+
+
+@testset "rlgains" begin
+    _,vis, amp, lcamp, cphase, dcoh = load_data()
+    gprior0 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.5), length(tel)))
+    gprior1 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
+
+    trackcache = jonescache(dcoh, TrackSeg())
+    scancache = jonescache(dcoh, ScanSeg())
+
+    dlgp = CalPrior(gprior0, scancache)
+    dgpp = CalPrior(gprior1, scancache)
+    dlgr = CalPrior(gprior0, scancache)
+    dgpr = CalPrior(gprior1,scancache)
+
+    lgp = rand(dlgp)
+    gpp = rand(dgpp)
+    lgr = rand(dlgr)
+    gpr = rand(dgpr)
+
+    gpro = exp.(lgp .+ 1im.*gpp)
+    grat = exp.(lgr .+ 1im.*gpr)
+    Gp = jonesG(gpro, gpro, scancache)
+    Gr = jonesG(grat, inv.(grat), scancache)
+
+    j1 = Gp*Gr
+    j2 = jonesG(gp.*gr, gp./gr, scancache)
+
+    @test j1.m1 == j2.m1
+    @test j1.m2 == j2.m2
+
+    m1 = map(x->getproperty(x, :m1), (Gp,Gr))
+    m2 = map(x->getproperty(x, :m2), (Gp,Gr))
+
+    test_rrule(Comrade._allmul, m1, m2)
+
 end

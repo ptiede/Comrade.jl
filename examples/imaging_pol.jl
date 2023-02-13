@@ -86,15 +86,15 @@
 
 using Comrade
 
-# For reproducibility we use a stable random number genreator
-using StableRNGs
-rng = StableRNG(123)
 
 
 # ## Load the Data
 using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
+# For reproducibility we use a stable random number genreator
+using StableRNGs
+rng = StableRNG(123)
 
 
 # Now we will load some synthetic polarized data.
@@ -178,11 +178,11 @@ cache = create_cache(DFTAlg(dvis), buffer, pulse) # cache to define the NFFT tra
 tcache = TransformCache(dvis; add_fr=true, ehtim_fr_convention=false)
 #-
 # Next we define our cache that maps quantities e.g., gain products, that change from scan-to-scan.
-scancache = JonesCache(dvis, ScanSeg())
+scancache = jonescache(dvis, ScanSeg())
 #-
 # Finally, we define our cache that maps quantities, e.g., gain ratios and d-terms, that are constant
 # across a observation night, and we collect everything together.
-trackcache = JonesCache(dvis, TrackSeg())
+trackcache = jonescache(dvis, TrackSeg())
 metadata = (;cache, grid, tcache, scancache, trackcache)
 
 # Moving onto our prior we first focus on the instrument model priors.

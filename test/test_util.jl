@@ -12,8 +12,9 @@ function load_data()
     amp = extract_amp(obsm)
     lcamp = extract_lcamp(obsm)
     cphase = extract_cphase(obsm, cut_trivial=true)
+    dcoh = extract_coherency(obsm)
 
-    return m, vis, amp, lcamp, cphase
+    return m, vis, amp, lcamp, cphase, dcoh
 end
 
 

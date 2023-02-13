@@ -186,7 +186,7 @@ PoincareSphere2Map(I::IntensityMap, p, X) = PoincareSphere2Map(baseimage(I), p, 
 
 electric vector position angle or EVPA of the polarized model `pimg` at `u` and `v`
 """
-@inline function evpa(pimg::AbstractPolarizedModel, p)
+@inline function ComradeBase.evpa(pimg::AbstractPolarizedModel, p)
     sq = visibility(stokes(pimg, :Q), p)
     su = visibility(stokes(pimg, :U), p)
     return 1/2*angle(su/sq)
@@ -204,7 +204,7 @@ Computes the fractional linear polarization in the visibility domain
 To create the symbol type `m\\breve` in the REPL or use the
 [`mbreve`](@ref) function.
 """
-@inline function m̆(pimg::AbstractPolarizedModel, p)
+@inline function ComradeBase.m̆(pimg::AbstractPolarizedModel, p)
     Q = visibility(stokes(pimg, :Q), p)
     U = visibility(stokes(pimg, :U), p)
     I = visibility(stokes(pimg, :I), p)
@@ -216,4 +216,4 @@ end
 
 Explicit m̆ function used for convenience.
 """
-mbreve(pimg, p) = m̆(pimg, p)
+ComradeBase.mbreve(pimg::AbstractPolarizedModel, p) = m̆(pimg, p)

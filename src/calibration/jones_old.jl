@@ -267,8 +267,7 @@ end
 function Base.:*(x::JonesPairs, y::JonesPairs...)
     m1 = map(x->getproperty(x, :m1), (x,y...))
     m2 = map(x->getproperty(x, :m2), (x,y...))
-    o1, o2 = _allmul(m1, m2)
-    JonesPairs(o1, o2)
+    return _allmul(m1, m2)
 end
 
 function _allmul(m1, m2)
@@ -277,7 +276,7 @@ function _allmul(m1, m2)
     _allmul!(out1, out2, m1, m2)
     # out1 = reduce(.*, m1)
     # out2 = reduce(.*, m2)
-    return out1, out2
+    return JonesPairs(out1, out2)
 end
 
 function _allmul!(out1, out2, m1, m2)
@@ -294,10 +293,10 @@ function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
     pm1 = ProjectTo(m1)
     pm2 = ProjectTo(m2)
     function _allmul_pullback(Δ)
-        Δm1 = zero(out[1])
-        Δm1 .= unthunk(Δ[1])
-        Δm2 = zero(out[2])
-        Δm2 .= unthunk(Δ[2])
+        Δm1 = zero(out.m1)
+        Δm1 .= unthunk(Δ.m1)
+        Δm2 = zero(out.m1)
+        Δm2 .= unthunk(Δ.m2)
         dm1 = zero.(m1)
         dm2 = zero.(m2)
 
@@ -404,10 +403,10 @@ function apply_design(gmat::T, jcache::AbstractJonesCache) where {T}
 end
 
 # GMat(g1::T, g2::T) where {T} = SMatrix{2,2,T}(g1, zero(T), zero(T), g2)
-function gmat(f::F, g1, g2, m) where {F}
+function gmat(g1, g2, m)
    S = eltype(g1)
-   gs1 = f.(m*g1)
-   gs2 = f.(m*g2)
+   gs1 = (m*g1)
+   gs2 = (m*g2)
    n = length(gs1)
    offdiag = fill(zero(S), n)
    StructArray{SMatrix{2,2,S,4}}((gs1, offdiag, offdiag, gs2))
@@ -429,12 +428,12 @@ The layout for each matrix is as follows:
     0  g2
 ```
 """
-function jonesG(f::F, g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache) where {F}
-    gm1 = gmat(f, g1, g2, jcache.m1)
-    gm2 = gmat(f, g1, g2, jcache.m2)
+function jonesG(g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache)
+    gm1 = gmat(g1, g2, jcache.m1)
+    gm2 = gmat(g1, g2, jcache.m2)
     return JonesPairs(gm1, gm2)
 end
-jonesG(g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache) = jonesG(identity, g1, g2, jcache)
+# jonesG(g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache) = jonesG(identity, g1, g2, jcache)
 
 @inline function jonesG_prod_ratio(gproduct, product_cache, gratio, ratio_cache)
     Gp = jonesG(gproduct, gproduct, product_cache)
@@ -443,10 +442,10 @@ jonesG(g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache) = jon
 end
 
 # DMat(d1::T, d2::T) where {T} = SMatrix{2,2,T}(one(T), d2, d1, one(T))
-function dmat(f::F, d1, d2, m) where {F}
+function dmat(d1, d2, m)
     S = eltype(d1)
-    ds1 = f.(m*d1)
-    ds2 = f.(m*d2)
+    ds1 = (m*d1)
+    ds2 = (m*d2)
     n = length(ds1)
     unit = fill(one(S), n)
     return StructArray{SMatrix{2,2,S,4}}((unit, ds2, ds1, unit))
@@ -468,12 +467,12 @@ The layout for each matrix is as follows:
     d2 1
 ```
 """
-function jonesD(f::F, d1::T,d2::T,jcache::AbstractJonesCache) where {F, T}
-    dm1 = dmat(f, d1, d2, jcache.m1)
-    dm2 = dmat(f, d1, d2, jcache.m2)
+function jonesD(d1::T,d2::T,jcache::AbstractJonesCache) where {T}
+    dm1 = dmat(d1, d2, jcache.m1)
+    dm2 = dmat(d1, d2, jcache.m2)
     return JonesPairs(dm1, dm2)
 end
-jonesD(d1::AbstractVector, d2::AbstractVector, jcache::AbstractJonesCache) = jonesD(identity, d1, d2, jcache)
+# jonesD(d1::AbstractVector, d2::AbstractVector, jcache::AbstractJonesCache) = jonesD(identity, d1, d2, jcache)
 
 export jonesStokes
 """
@@ -492,10 +491,10 @@ into the gains.
 In the future this functionality may be removed when stokes I fitting is replaced with the
 more correct `trace(coherency)`, i.e. RR+LL for a circular basis.
 """
-function jonesStokes(f::F, g::AbstractVector, gcache::AbstractJonesCache) where {F}
-    return JonesPairs(f.(gcache.m1*g), f.(gcache.m2*g))
+function jonesStokes(g::AbstractVector, gcache::AbstractJonesCache)
+    return JonesPairs((gcache.m1*g), (gcache.m2*g))
 end
-jonesStokes(g::AbstractVector, gcache::AbstractJonesCache) = jonesStokes(identity, g, gcache)
+# jonesStokes(g::AbstractVector, gcache::AbstractJonesCache) = jonesStokes(identity, g, gcache)
 
 
 
