@@ -217,8 +217,8 @@ ct.AA
 ct[1, :]
 ```
 """
-function caltable(obs::EHTObservation, gains::AbstractVector, seg = ScanSeg())
-    gcache = JonesCache(obs, seg)
+function caltable(obs::EHTObservation, gains::AbstractVector, seg = ScanSeg(), relative=false)
+    gcache = jonescache(obs, seg, relative)
     return caltable(gcache, gains)
 end
 
@@ -257,6 +257,29 @@ function caltable(g::JonesCache, gains::AbstractVector)
         c = lookup[allstations[i]]
         gmat[t,c] = gains[i]
     end
+
+    return CalTable(stations, lookup, times, gmat)
+end
+
+function caltable(g::RelativeJonesCache, gains::AbstractVector)
+    @argcheck length(g.times) == length(gains)
+
+    stations = sort(unique(g.stations))
+    times = unique(g.times)
+    gmat = Matrix{Union{eltype(gains), Missing}}(undef, length(times), length(stations))
+    gmat .= 0.0
+    alltimes = g.times
+    allstations = g.stations
+    # Create the lookup dict
+    lookup = Dict(stations[i]=>i for i in eachindex(stations))
+    for i in eachindex(gains)
+        t = findfirst(t->(t==alltimes[i]), times)
+        c = lookup[allstations[i]]
+        gmat[t,c] = gains[i]
+    end
+
+    eachcol(gmat) .= map(cumsum, eachcol(gmat))
+    replace!(x->x==0 ? missing : x, @view gmat[:,begin+1:end])
 
     return CalTable(stations, lookup, times, gmat)
 end

@@ -267,7 +267,8 @@ end
 function Base.:*(x::JonesPairs, y::JonesPairs...)
     m1 = map(x->getproperty(x, :m1), (x,y...))
     m2 = map(x->getproperty(x, :m2), (x,y...))
-    return _allmul(m1, m2)
+    o1, o2 = _allmul(m1, m2)
+    JonesPairs(o1, o2)
 end
 
 function _allmul(m1, m2)
@@ -276,7 +277,7 @@ function _allmul(m1, m2)
     _allmul!(out1, out2, m1, m2)
     # out1 = reduce(.*, m1)
     # out2 = reduce(.*, m2)
-    return JonesPairs(out1, out2)
+    return out1, out2
 end
 
 function _allmul!(out1, out2, m1, m2)
@@ -293,10 +294,10 @@ function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
     pm1 = ProjectTo(m1)
     pm2 = ProjectTo(m2)
     function _allmul_pullback(Δ)
-        Δm1 = zero(out.m1)
-        Δm1 .= unthunk(Δ.m1)
-        Δm2 = zero(out.m1)
-        Δm2 .= unthunk(Δ.m2)
+        Δm1 = zero(out[1])
+        Δm1 .= unthunk(Δ[1])
+        Δm2 = zero(out[2])
+        Δm2 .= unthunk(Δ[2])
         dm1 = zero.(m1)
         dm2 = zero.(m2)
 
