@@ -223,7 +223,7 @@ end
 function Dists.rand(rng::AbstractRNG, d::HeirarchicalCalPrior{G}) where {G}
     m = rand(rng, d.mean)
     s = rand(rng, d.std)
-    dg = _construct_gain_prior(m, s, G, d.stations)
+    dg = _construct_gain_prior(m, s, G, d.jcache.stations)
     g = rand(rng, dg)
     return (mean=m, std=s, gains=g)
 end
@@ -233,11 +233,10 @@ Base.length(d::HeirarchicalCalPrior) = length(d.mean) + length(d.std) + length(d
 function HypercubeTransform.asflat(d::HeirarchicalCalPrior{G}) where {G}
     m = rand(d.mean)
     s = rand(d.std)
-    dg = _construct_gain_prior(m, s, G, d.stations)
+    dg = _construct_gain_prior(m, s, G, d.jcache.stations)
     return TransformVariables.as((mean = asflat(d.mean), std = asflat(d.std), gains = asflat(dg)))
 end
 
-Statistics.mean(d::CalPrior) = mean(d.dist)
-Statistics.var(d::CalPrior) = var(d.dist)
-Distributions.entropy(d::CalPrior) = entropy(d.dist)
-Statistics.cov(d::CalPrior) = cov(d.dist)
+Statistics.mean(d::CalPrior) = mean(d.dists)
+Statistics.var(d::CalPrior) = var(d.dists)
+Statistics.cov(d::CalPrior) = cov(d.dists)

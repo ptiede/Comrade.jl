@@ -119,6 +119,45 @@ using Tables
     @inferred logdensityof(gpha, rph)
 end
 
+@testset "calibration priors" begin
+    _,vis, amp, lcamp, cphase, dcoh = load_data()
+    tel = stations(vis)
+
+    dReal = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
+    dImag = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
+
+
+    dcache = jonescache(dcoh, ScanSeg())
+    pdReal = CalPrior(dReal, dcache)
+    pdImag = CalPrior(dImag, dcache, Normal(0.0, 0.001))
+
+    @test mean(pdReal) ≈ zeros(length(pdReal))
+    @test var(pdReal) ≈ fill(0.1^2, length(pdReal))
+
+
+    asflat(pdReal)
+    asflat(pdImag)
+    ascube(pdReal)
+    ascube(pdImag)
+end
+
+@testset "heirarchical calibration priors" begin
+    _,vis, amp, lcamp, cphase, dcoh = load_data()
+    tel = stations(vis)
+
+    meand = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
+    stdd = NamedTuple{Tuple(tel)}(ntuple(_->LogNormal(0.0, 0.1), length(tel)))
+
+
+    dcache = jonescache(dcoh, ScanSeg())
+    dc = HeirarchicalCalPrior{Normal{Float64}}(meand, stdd, dcache)
+
+    asflat(dc)
+
+    logdensityof(dc, rand(dc))
+end
+
+
 @testset "dterms" begin
     _,vis, amp, lcamp, cphase, dcoh = load_data()
     tel = stations(vis)
