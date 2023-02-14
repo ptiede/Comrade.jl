@@ -35,9 +35,9 @@ Comrade.ObsSegmentation
 Comrade.IntegSeg
 Comrade.ScanSeg
 Comrade.TrackSeg
-Comrade.jonescache(::EHTObservation, ::TrackSeg)
-Comrade.jonescache(::EHTObservation, ::ScanSeg)
-Comrade.jonescache(::EHTObservation, ::TrackSeg, ::Any)
+Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.TrackSeg)
+Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.ScanSeg)
+Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.TrackSeg, ::Any)
 Comrade.jonesStokes
 Comrade.jonesG
 Comrade.jonesD
