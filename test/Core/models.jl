@@ -129,8 +129,17 @@ end
         testmodel(m3)
         m4 = BicubicPulse()
         testmodel(m4)
-        #m5 = RaisedCosinePulse()
-        #testmodel(m5)
+        m5 = RaisedCosinePulse()
+        testmodel(m5)
+    end
+
+    @testset "Butterworth" begin
+        m1 = Butterworth{1}()
+        testmodel(m1)
+        m2 = Butterworth{2}()
+        testmodel(m2)
+        m3 = Butterworth{3}()
+        testmodel(m3)
     end
 
 
@@ -158,16 +167,20 @@ end
         m2 = convolved(MRing(α[1], β[1]), stretched(Gaussian(), 0.1, 0.1))
         @test visibility(m, (U=0.1, V=0.1)) == visibility(m2, (U=0.1, V=0.1))
         testmodel(m, 2048, 1e-3)
+
+        # Test rrule
+        test_rrule(Comrade._mring_vis, m.m1, 0.1, 0.1)
     end
 
     @testset "MRing2" begin
-        α = (0.25, -0.1)
-        β = (0.1, 0.2)
+        α = [0.25, -0.1]
+        β = [0.1, 0.2]
         #test_rrule(Comrade.visibility_point, MRing(α, β), 0.5, 0.25)
 
         # We convolve it to remove some pixel effects
         m = convolved(MRing(α, β), stretched(Gaussian(), 0.1, 0.1))
         testmodel(m, 2048, 1e-3)
+        test_rrule(Comrade._mring_vis, m.m1, 0.1, 0.1)
     end
 
 

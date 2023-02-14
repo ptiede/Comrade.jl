@@ -74,3 +74,62 @@ load_ehtim()
 
 
 end
+
+using ForwardDiff
+using FiniteDifferences
+@testset "Bayes Non-analytic ForwardDiff" begin
+    _,vis, amp, lcamp, cphase = load_data()
+
+    mfd = central_fdm(5,1)
+    @testset "DFT" begin
+        mt = (fovx = μas2rad(150.0), fovy=μas2rad(150.0), nx=256, ny=256, alg=DFTAlg())
+        lklhd = RadioLikelihood(test_model2, mt, lcamp, cphase)
+
+        prior = test_prior2()
+
+        post = Posterior(lklhd, prior)
+        tpostf = asflat(post)
+        x0 = prior_sample(tpostf)
+
+        @inferred logdensityof(tpostf, x0)
+        ℓ = logdensityof(tpostf)
+        gf = ForwardDiff.gradient(ℓ, x0)
+        gn = FiniteDifferences.grad(mfd, ℓ, x0)
+        @test gf ≈ gn[1]
+    end
+
+    @testset "NFFT" begin
+        mt = (fovx = μas2rad(150.0), fovy=μas2rad(150.0), nx=256, ny=256, alg=NFFTAlg(lcamp))
+        lklhd = RadioLikelihood(test_model2, mt, lcamp, cphase)
+
+        prior = test_prior2()
+
+        post = Posterior(lklhd, prior)
+        tpostf = asflat(post)
+        x0 = prior_sample(tpostf)
+
+        # @inferred logdensityof(tpostf, x0)
+        ℓ = logdensityof(tpostf)
+        gf = ForwardDiff.gradient(ℓ, x0)
+        gn = FiniteDifferences.grad(mfd, ℓ, x0)
+        @test gf ≈ gn[1]
+    end
+
+    @testset "FFT" begin
+        mt = (fovx = 10.0, fovy=10.0, nx=256, ny=256, alg=FFTAlg())
+        lklhd = RadioLikelihood(test_model2, mt, lcamp, cphase)
+
+        prior = test_prior2()
+
+        post = Posterior(lklhd, prior)
+        tpostf = asflat(post)
+        x0 = prior_sample(tpostf)
+
+        @inferred logdensityof(tpostf, x0)
+        ℓ = logdensityof(tpostf)
+        gf = ForwardDiff.gradient(ℓ, x0)
+        gn = FiniteDifferences.grad(mfd, ℓ, x0)
+        @test gf ≈ gn[1]
+    end
+
+end

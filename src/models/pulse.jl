@@ -32,7 +32,7 @@ DeltaPulse() = DeltaPulse{Float64}()
 # This should really be a delta function but whatever
 κflux(::DeltaPulse{T}) where {T} = one(T)
 @inline κ(::DeltaPulse{T}, x) where {T} = abs(x) < 0.5 ? one(T) : zero(T)
-@inline ω(::DeltaPulse{T}, u) where {T} = one(T)
+@inline ω(::DeltaPulse{T}, u) where {T} = complex(one(T))
 @inline radialextent(::Pulse) = 1.0
 
 
@@ -57,7 +57,7 @@ for us.
 Currently only the 0,1,3 order kernels are implemented.
 """
 struct BSplinePulse{N} <: Pulse end
-@inline ω(::BSplinePulse{N}, u) where {N} = sinc(u)^(N+1)
+@inline ω(::BSplinePulse{N}, u) where {N} = complex(sinc(u)^(N+1))
 @inline κflux(::BSplinePulse) = 1.0
 
 @inline κ(::BSplinePulse{0}, x::T) where {T} = abs(x) < 0.5 ? one(T) : zero(T)
@@ -112,7 +112,7 @@ function ω(m::BicubicPulse, u)
     k3 = k^3
     k4 = k3*k
     c2 = c^2 - s^2
-    return -4*s*(2*b*c + 4*b + 3)*inv(k3) + 12*inv(k4)*(b*(1-c2) + 2*(1-c))
+    return -4*s*(2*b*c + 4*b + 3)*inv(k3) + 12*inv(k4)*(b*(1-c2) + 2*(1-c)) + 0im
 end
 
 """
@@ -145,5 +145,6 @@ end
 
 function ω(k::RaisedCosinePulse, u::T) where {T}
     β = k.rolloff
-    return sinc(u)*cos(β*u)*inv(1 - (2β*u/π)^2)
+    abs(u) ≈ inv(2*β) && return complex(π/4*sinc(inv(2*β)))
+    return complex(sinc(u)*cospi(β*u)*inv(1 - (2β*u)^2))
 end

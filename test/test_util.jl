@@ -24,6 +24,20 @@ function test_model(θ)
     return m1 + shifted(m2, θ.x, θ.y)
 end
 
+function test_model2(θ, metadata)
+    (; alg, fovx, fovy, nx, ny) = metadata
+    m2 = θ.f*stretched(ExtendedRing(θ.α), θ.r*(1+θ.τ), θ.r)
+    return modelimage(m2; fovx, fovy, nx, ny, alg, thread=true)
+end
+
+function test_prior2()
+    return (f = Uniform(0.8, 1.2),
+            r = Uniform(μas2rad(5.0), μas2rad(30.0)),
+            τ = Uniform(0.0, 0.5),
+            α = Uniform(2.0, 8.0)
+            )
+end
+
 function test_prior()
     return (f1=Uniform(0.8, 1.2),
              σ1 = Uniform(μas2rad(1.0), μas2rad(40.0)),

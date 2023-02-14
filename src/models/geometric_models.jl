@@ -11,7 +11,7 @@ export Gaussian,
         SlashedDisk
 
 # helper functions for below
-@inline _getuv(p) = (p.U, p.V)
+# @inline _getuv(p) = (p.U, p.V)
 @inline _getxy(p) = (p.X, p.Y)
 
 
@@ -329,10 +329,12 @@ end
 
 function ChainRulesCore.rrule(::typeof(_mring_vis), m::MRing, u, v)
     (;α, β) = m
+    # pda = ProjectTo(α)
+    # pdb = ProjectTo(β)
     vis, ∂α, ∂β, ∂u, ∂v = _mring_adjoint(α, β, u, v)
 
     function _mring_pullback(Δv)
-        return (NoTangent(), Tangent{typeof(m)}(α=real(Δv'.*∂α), β=real(Δv'.*∂β)), real(Δv'.*∂u), real(Δv'.*∂v))
+        return (NoTangent(), Tangent{typeof(m)}(α=real(Δv'.*∂α), β=(real(Δv'.*∂β))), real(Δv'.*∂u), real(Δv'.*∂v))
     end
 
     return vis, _mring_pullback
