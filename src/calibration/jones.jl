@@ -83,14 +83,14 @@ end
 
 Holds the ancillary information for a the design matrix cache for Jones matrices. That is,
 it defines the cached map that moves from model visibilities to the corrupted voltages
-that are measured from the telescope. This uses a relative decomposition so that the
+that are measured from the telescope. This uses a segmented decomposition so that the
 gain at a single timestamp is the sum of the previous gains. In this formulation the
-gains parameters are the relative gain offsets from timestamp to timestamp
+gains parameters are the segmented gain offsets from timestamp to timestamp
 
 # Fields
 $(FIELDS)
 """
-struct RelativeJonesCache{D,S<:ObsSegmentation, ST, Ti} <: AbstractJonesCache
+struct SegmentedJonesCache{D,S<:ObsSegmentation, ST, Ti} <: AbstractJonesCache
     """
     Design matrix for the first station
     """
@@ -175,16 +175,16 @@ function gain_stations(st::ScanTable)
 end
 
 """
-    jonescache(obs::EHTObservation, s::ScanSeg, relative = false)
+    jonescache(obs::EHTObservation, s::ScanSeg, segmented = false)
 
 Construct a JonesCache from obs observation `obs` and the scan-based segmentation scheme.
-The optional argument relative denotes whether to use a absolute cache breakdown or a
-relative one. If using `relative=true`, then the cache is constructed so that the
-gain parameters are interpreted as relative gain offsets. This can be useful when constructing,
-relative gain priors where from scan-to-scan the gains aren't expected to change drastically.
-To construct the prior see [`CalPrior(::NamedTuple, ::NamedTuple, ::RelativeJonesCache`](@ref)
+The optional argument segmented denotes whether to use a absolute cache breakdown or a
+segmented one. If using `segmented=true`, then the cache is constructed so that the
+gain parameters are interpreted as segmented gain offsets. This can be useful when constructing,
+segmented gain priors where from scan-to-scan the gains aren't expected to change drastically.
+To construct the prior see [`CalPrior(::NamedTuple, ::NamedTuple, ::SegmentedJonesCache`](@ref)
 """
-function jonescache(obs::EHTObservation, s::ScanSeg, relative = false)
+function jonescache(obs::EHTObservation, s::ScanSeg, segmented = false)
 
     # extract relevant observation info
     times = obs[:T]
@@ -205,10 +205,10 @@ function jonescache(obs::EHTObservation, s::ScanSeg, relative = false)
     for i in 1:length(times)
         t = times[i]
         s1, s2 = bls[i]
-        # If we are in the second scan and are using relative gains then also include
+        # If we are in the second scan and are using segmented gains then also include
         # the previous scans gain value
         s1times = getproperty(stimes, s1)
-        if relative && t > first(s1times)
+        if segmented && t > first(s1times)
             # t01 = s1times[findfirst(==(t), s1times)-1]
             # ind1 = findall(x -> (((x[1]==t)||(x[1]==t01)) && (x[2]==s1)), gts)
             ind1 = findall(x -> (((x[1]<=t)) && (x[2]==s1)), gts)
@@ -218,7 +218,7 @@ function jonescache(obs::EHTObservation, s::ScanSeg, relative = false)
         end
 
         s2times = getproperty(stimes, s2)
-        if relative && t > first(s2times)
+        if segmented && t > first(s2times)
             t02 = s2times[findfirst(==(t), s2times)-1]
             # ind2 = findall(x -> (((x[1]==t)||(x[1]==t02)) && (x[2]==s2)), gts)
             ind2 = findall(x -> (((x[1]<=t)) && (x[2]==s2)), gts)
@@ -238,8 +238,8 @@ function jonescache(obs::EHTObservation, s::ScanSeg, relative = false)
     z2 = fill(1.0, length(rowInd2))
     m1 = sparse(rowInd1, colInd1, z1, length(times), length(gaintime))
     m2 = sparse(rowInd2, colInd2, z2, length(times), length(gaintime))
-    if relative
-        RelativeJonesCache{typeof(m1),typeof(s),  typeof(gainstat), typeof(gaintime)}(m1,m2,s, gainstat, gaintime)
+    if segmented
+        SegmentedJonesCache{typeof(m1),typeof(s),  typeof(gainstat), typeof(gaintime)}(m1,m2,s, gainstat, gaintime)
     else
         JonesCache{typeof(m1),typeof(s),  typeof(gainstat), typeof(gaintime)}(m1,m2,s, gainstat, gaintime)
     end

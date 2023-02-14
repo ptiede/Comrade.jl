@@ -1,31 +1,35 @@
 # # Imaging a Black Hole using only Closure Quantities
 
-# In this tutorial we will create a preliminary reconstruction of the 2017 M87 data on April 6
-# using closure only imaging. This serves as a general introduction to imaging in Comrade,
-# but it ignores the need to also model the instrument. For an introduction to simulaneous
-# image and instrument modeling see [Stokes I Simultaneous Image and Instrument Modeling](@ref)
+# In this tutorial, we will create a preliminary reconstruction of the 2017 M87 data on April 6
+# using closure-only imaging. This tutorial is a general introduction to closure-only imaging in Comrade.
+# For an introduction to simultaneous
+# image and instrument modeling, see [Stokes I Simultaneous Image and Instrument Modeling](@ref)
 
 
 # ## Introduction to Closure Imaging
-# The EHT is the highest resolution telescope ever created. Its resolution is equivalent
-# to roughly tracking a hockey puck on the moon when viewing it from earth. However,
-# the EHT is also a unique interferometer. For one the data is produces is incredible sparse.
-# The telescope it only from 8 geographic locations around the planet, each with its unique
+# The EHT is the highest-resolution telescope ever created. Its resolution is equivalent
+# to roughly tracking a hockey puck on the moon when viewing it from the earth. However,
+# the EHT is also a unique interferometer. For one, the data it produces is incredibly sparse.
+# The array is formed from only eight geographic locations around the planet, each with its unique
 # telescope. Additionally, the EHT observes at a much higher frequency than typical interferometers.
-# As a result, the EHT data is often poorly calibrated. Meaning there can be large instrumental effects
+# As a result, it is often difficult to directly provide calibrated data since the source model can be complicated. This implies there can be large instrumental effects
 # often called *gains* that can corrupt our signal. One way to deal with this is to fit quantities
-# that are independent of gains, these are often called **closure quantities**. The types of
+# that are independent of gains. These are often called **closure quantities**. The types of
 # closure quantities are briefly described in [Introduction to the VLBI Imaging Problem](@ref).
 #
-# I this tutorial we will do closure only modeling of M87 to produce preliminary images of M87.
-# Note that for publication ready images we really should also consider fitting complex visibilities.
+# In this tutorial, we will do closure-only modeling of M87 to produce preliminary images of M87.
 
-# To get started we will load Comrade
+
+# To get started, we will load Comrade
 using Comrade
 
 
 using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+
+# For reproducibility we use a stable random number genreator
+using StableRNGs
+rng = StableRNG(123)
 
 
 # ## Load the Data
@@ -35,18 +39,18 @@ obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
-#      coherent.
-#   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs).add_fractional_noise(0.015)
+#      are coherent.
+#   - Add 2% systematic noise to deal with calibration issues that cause 1% non-closing errors.
+obs = scan_average(obs).add_fractional_noise(0.02)
 
-# Now we extract our closure quantities from the EHT data set.
-dlcamp = extract_lcamp(obs)
-dcphase = extract_cphase(obs)
+# Now, we extract our closure quantities from the EHT data set.
+dlcamp = extract_lcamp(obs; snrcut=3.0)
+dcphase = extract_cphase(obs; snrcut=3.0)
 
 # ## Build the Model/Posterior
-# For our model we will be using a image model that consists of a raster of point sources,
-# convolved with some pulse or kernel to make a `ContinuousImage` object with it `Comrade's`
-# generic image model. Note that `ContinuousImage(img, cache)` actually creates a `ModelImage`
+# For our model, we will be using an image model that consists of a raster of point sources,
+# convolved with some pulse or kernel to make a `ContinuousImage` object with it `Comrade's.`
+# generic image model. Note that `ContinuousImage(img, cache)` actually creates a [`ModelImage`](@ref)
 # object that allows `Comrade` to numerically compute the Fourier transform of the image.
 function model(θ, metadata)
     (;c) = θ
@@ -57,16 +61,16 @@ function model(θ, metadata)
 end
 
 
-# Now 'et's set up our image model. The EHT's nominal resolution is 20-25 μas. Additionally,
-# the EHT is not very sensitive to larger field of views, typically 60-80 μas is enough to
-# describe the compact flux of M87. Given this we only need to use a small number of pixels
+# Now, let's set up our image model. The EHT's nominal resolution is 20-25 μas. Additionally,
+# the EHT is not very sensitive to a larger field of views; typically, 60-80 μas is enough to
+# describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 8
-fovxy = μas2rad(75.0)
+npix = 7
+fovxy = μas2rad(77.5)
 
-# Now we can feed in the array information to form the cache. We will be using a DFT since
+# Now, we can feed in the array information to form the cache. We will be using a DFT since
 # it is efficient for so few pixels
-# We will use a Dirichlet prior to enforce that the flux sums to unity since closures are
+# We will use a Dirichlet prior, enforcing that the flux sums to unity since closures are
 # degenerate to total flux.
 grid = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
@@ -83,16 +87,16 @@ post = Posterior(lklhd, prior)
 
 # ## Reconstructing the Image
 
-# To sample from this posterior it is convienent to first move from our constrained paramter space
-# to a unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This is
+# To sample from this posterior, it is convenient to first move from our constrained parameter space
+# to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This is
 # done using the `asflat` function.
 tpost = asflat(post)
 
-# We can now also find the dimension of our posterior, or the number of parameters we are going to sample.
+# We can now also find the dimension of our posterior or the number of parameters we will sample.
 # !!! Warning
 #    This can often be different from what you would expect. This is especially true when using
-#    angular variables where to make sampling easier we often artifically increase the dimension
-#    of the parameter space.
+#    angular variables, where we often artificially increase the dimension
+#    of the parameter space to make sampling easier.
 ndim = dimension(tpost)
 
 
@@ -120,9 +124,7 @@ residual(model(xopt, metadata), dcphase)
 
 # These look pretty reasonable, although maybe they are a bit high. This could probably be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
-# Plotting the image we see that we have a ring and an image that looks like a sharper version
-# of the original M87 image. This is because we used a more physically motivated model, namely assuming that
-# the image should have a ring component in it.
+# Plotting the image, we have recovered a ring-like image reproducing the first EHT results.
 img = intensitymap(model(xopt, metadata), fovxy, fovxy, 128, 128)
 plot(img, title="MAP Image")
 
@@ -136,9 +138,9 @@ metric = DiagEuclideanMetric(ndim)
 chain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 500; nadapts=250, init_params=xopt)
 
 # !!! warning
-#    This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
+#    This should be run for likely an order of magnitude more steps to estimate expectations of the posterior properly
 #-
-# Now that we have our posterior we can start to assess which parts of the image is strongly inferred by the
+# Now that we have our posterior, we can assess which parts of the image are strongly inferred by the
 # data. This is rather unique to `Comrade` where more traditional imaging algorithms like CLEAN and RML are inherently
 # unable to assess uncertainty in their reconstructions.
 #
@@ -156,11 +158,11 @@ p3 = plot(imgs[1], title="Draw 1")
 p4 = plot(imgs[end], title="Draw 2")
 plot(p1, p2, p3, p4, size=(800,800), colorbar=:none)
 
-# And viola you have a quick and prelminary image of M87 fitting only closure products.
-# For a publication level version we would recommend
-#    1. Running the chain longer and multiple time to properly assess things like ESS and R̂ (see [Making an Image of a Black Hole](@ref))
-#    2. Also fitting gains, typically gain amplitudes are good to 10-20% for the EHT not the infinite uncertainty closures implicitly assume
-#    3. Making sure the posterior is unimodel (hint for this example it isn't!). The EHT image posteriors can be quite complicated so typically
+# And viola, you have a quick and preliminary image of M87 fitting only closure products.
+# For a publication-level version we would recommend
+#    1. Running the chain longer and multiple times to properly assess things like ESS and R̂ (see [Making an Image of a Black Hole](@ref))
+#    2. Fitting gains. Typically gain amplitudes are good to 10-20% for the EHT not the infinite uncertainty closures implicitly assume
+#    3. Making sure the posterior is unimodal (hint for this example it isn't!). The EHT image posteriors can be pretty complicated, so typically
 #       you want to use a sampler that can deal with multi-modal posteriors. Check out the package [`Pigeons.jl`](https://github.com/Julia-Tempering/Pigeons.jl)
 #       for an **in-development** package that should easily enable this type of sampling.
 #-

@@ -1,13 +1,11 @@
-# Comrade VLBI Conventions
-
-VLBI and radio astronomy in general has a large number of conventions making it difficult 
-to know exactly what assumptions different data sets and code are making. We will detail the 
-specific conventions that Comrade adhere's to.
+VLBI and radio astronomy has many non-standard conventions when coming from physics. Additionally, these conventions change from telescope to telescope, often making it difficult 
+to know what assumptions different data sets and codes are making. We will detail the 
+specific conventions that Comrade adheres to.
 
 
 ## Rotation Convention
 
-We follow the standard EHT and rotate starting from the upper y-axis, and rotating in a counter-clockwise direction. 
+We follow the standard EHT and rotate starting from the upper y-axis and moving in a counter-clockwise direction. 
 
 !!! note
     We still use the standard astronomy definition where the positive x-axis is to the left.
@@ -15,11 +13,14 @@ We follow the standard EHT and rotate starting from the upper y-axis, and rotati
 
 ## Fourier Transform Convention
 
-We use the positive exponent definition of the Fourier transform to define our visibilties. That is, we assume that the visibilities measured by a perfect interferometer are given by
+We use the positive exponent definition of the Fourier transform to define our visibilities. That is, we assume that the visibilities measured by a perfect interferometer are given by
 ```math
  V(u, v) = \int I(x, y)e^{2\pi (ux + vy)}dx dy.
 ```
-This convention is consistent with the AIPS convention and what is used in other EHT codes, such as eht-imaging. Note that this is the opposite convention than what is written in the EHT papers. 
+This convention is consistent with the AIPS convention and what is used in other EHT codes, such as eht-imaging. 
+
+!!! warning
+    This is the opposite convention of what is written in the EHT papers, but it is the correct version for the released data.
 
 
 ## Coherency matrix Convention
@@ -38,7 +39,7 @@ where $v_{pa}$ is the voltage measured from station $p$ and feed $a$.
 
 #### Circular Polarization Conversions
 
-To convert from measured $R/L$ circular cross-correlation products to the Fourier transform of the Stokes parameters we use:
+To convert from measured $R/L$ circular cross-correlation products to the Fourier transform of the Stokes parameters, we use:
 
 ```math
   \begin{pmatrix}
@@ -53,7 +54,7 @@ To convert from measured $R/L$ circular cross-correlation products to the Fourie
   \end{pmatrix}.
 ```
 
-The inverse transformation is then
+The inverse transformation is then:
 
 ```math
   C = 
@@ -65,7 +66,7 @@ The inverse transformation is then
 
 #### Linear Polarization Conversions
 
-To convert from measured $X/Y$ linear cross-correlation products to the Fourier transform of the Stokes parameters we use:
+To convert from measured $X/Y$ linear cross-correlation products to the Fourier transform of the Stokes parameters, we use:
 
 ```math
   \begin{pmatrix}
@@ -80,7 +81,7 @@ To convert from measured $X/Y$ linear cross-correlation products to the Fourier 
   \end{pmatrix}.
 ```
 
-The inverse transformation is then
+The inverse transformation is then:
 
 ```math
   C = 

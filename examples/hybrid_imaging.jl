@@ -1,19 +1,19 @@
 # # Hybrid Imaging of a Black Hole
 
-# In this tutorial we will use **hybrid imaging** to analyze the 2017 EHT data.
-# By hybrid imaging we mean decomposing the model into simple geometric models, e.g., rings
-# and such, plus a rasterized image model to soak up additional structure in the image.
-# This was first developed in [`BB20`](https://iopscience.iop.org/article/10.3847/1538-4357/ab9c1f)
-# and applied to EHT 2017 data. In this work we will use a modified model to analyze the data.
+# In this tutorial, we will use **hybrid imaging** to analyze the 2017 EHT data.
+# By hybrid imaging, we mean decomposing the model into simple geometric models, e.g., rings
+# and such, plus a rasterized image model to soak up the additional structure.
+# This approach was first developed in [`BB20`](https://iopscience.iop.org/article/10.3847/1538-4357/ab9c1f)
+# and applied to EHT 2017 data. We will use a similar model in this tutorial.
 
 # ## Introduction to Hybrid modeling and imaging
-# The benfits of using a hybrid based modeling approach is the effective compression of
+# The benefit of using a hybrid-based modeling approach is the effective compression of
 # information/parameters when fitting the data. Hybrid modeling requires the user to
 # incorporate specific knowledge of how you expect the source to look like. For instance
-# for M87 we expect the image to be dominated by a ring-like structure. Therefore, rather
-# than using a high-dimensional raster to recover the ring we can use a ring model plus
-# a very low-dimensional or large pixel size raster to soak up the rest of the parameters.
-# This is the approach we will take in this tutorial to analyze the April 11 2017 EHT data
+# for M87, we expect the image to be dominated by a ring-like structure. Therefore, instead
+# of using a high-dimensional raster to recover the ring, we can use a ring model plus
+#, a very low-dimensional or large pixel size raster to soak up the rest of the emission.
+# This is the approach we will take in this tutorial to analyze the April 6 2017 EHT data
 # of M87.
 
 
@@ -38,7 +38,7 @@ obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
-obs = scan_average(obs).add_fractional_noise(0.02)
+obs = scan_average(obs).add_fractional_noise(0.01)
 
 # For this tutorial we will stick to fitting closure only data, although we can
 # get better results by also modeling gains, since closure only modeling is equivalent
@@ -48,10 +48,10 @@ dcphase = extract_cphase(obs)
 
 # ## Building the Model/Posterior
 
-# Now we must build our intensity/visibility model. That is, the model that takes in a
+# Now we build our intensity/visibility model. That is, the model that takes in a
 # named tuple of parameters and perhaps some metadata required to construct the model.
-# For our model we will be using a raster or `ContinuousImage` model plus a `m-ring` model
-# and a large asymmetric gaussian component to model the unresolved short-baseline flux.
+# For our model, we will use a raster or `ContinuousImage` model, an `m-ring` model,
+# and a large asymmetric Gaussian component to model the unresolved short-baseline flux.
 
 function model(θ, metadata)
     (;c, f, r, σ, ma, mp, fg, σg, τg, ξg) = θ
@@ -68,15 +68,16 @@ function model(θ, metadata)
     return (1-fg)*(ring + mimg) + gauss
 end
 
-# Before we move on let's go into the `model` function a bit. This function takes two arguments
-# `θ` and `metadata`. The `θ` argument is a named tuple of parameters that will be fit directly
+# Before we move on, let's go into the `model` function a bit. This function takes two arguments
+# `θ` and `metadata`. The `θ` argument is a named tuple of parameters that are fit
 # to the data. The `metadata` argument is all the ancillary information we need to construct the model.
-# For our hybrid model we will need 2 variables for the metadata which will be defined below.
-# Note that unlike geometric model fitting here we also use the [`modelimage`](@ref) function.
-# This wraps our `ContinuousImage` model with additional information contained in the cache
-# that allows us to move from our grid of image fluxes to the model visibilities.
-# To combine the models we use `Comrade`'s overloaded `+` operators which will combine the
-# images such that there intensities and visibilities are added pointwise.
+# For our hybrid model, we will need two variables for the metadata, a `grid` that specifies
+# the locations of the image pixels and a `cache` that defines the algorithm used to calculate
+# the visibilities given the image model. This is required since `ContinuousImage` is most easily
+# computed using number Fourier transforms like the [`NFFT`](https://github.com/JuliaMath/NFFT.jl)
+# or [FFT](https://github.com/JuliaMath/FFTW.jl).
+# To combine the models, we use `Comrade`'s overloaded `+` operators, which will combine the
+# images such that their intensities and visibilities are added pointwise.
 
 # Now let's define our metadata. First we will define the cache for the image. This is
 # required to compute the numerical Fourier transform.
@@ -84,32 +85,32 @@ fovxy  = μas2rad(90.0)
 npix   = 6
 grid   = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
-# For our image we will be using the
-# discrete Fourier transform (`DFTAlg`) since we are using such a small dimensional image. For
-# larger rasters (8x8 and above) we recommend to use `NFFTAlg` instead of `DFFTAlg`
+# For our image, we will use the
+# discrete Fourier transform (`DFTAlg`) since we use such a small dimensional image. For
+# larger rasters (8x8 and above) we recommend using `NFFTAlg` instead of `DFFTAlg`
 # due to the improved scaling. The last argument to the `create_cache` call is the image
-# *kernel* or *pulse* and is defines the continuous function that we convolve our image with
-# to produce a continuous on sky-image.
+# *kernel* or *pulse* defines the continuous function we convolve our image with
+# to produce a continuous on-sky image.
 cache  = create_cache(DFTAlg(dlcamp), buffer, BSplinePulse{3}())
 
 # Now we form the metadata
 metadata = (;grid, cache)
 
-# This is everything we need to form our likelihood, note the first two arguments must be
+# This is everything we need to form our likelihood. Note the first two arguments must be
 # the model and then the metadata for the likelihood. The rest of the arguments are required
 # to be [`Comrade.EHTObservation`](@ref)
 lklhd = RadioLikelihood(model, metadata, dlcamp, dcphase)
 
 # This forms our model. The next step is defining our image priors.
-# For our raster `c` we will use a *Dirichlet* prior which is a multivariate prior
-# that exists on the simples. That is, the sum of all the numbers from a `Dirichlet`
-# distribution always equals unity. The first paramter is the concentration parameter `α`.
-# As `α→0` the images tend to become very sparse, while for `α >> 1` the images tend to
-# have uniform brightness. The `α=1` distribution is then just the uniform distribution
-# on the simplex. For our work here we use the uniform distribution.
+# For our raster `c`, we will use a *Dirichlet* prior, a multivariate prior
+# that exists on the simplex. That is, the sum of all the numbers from a `Dirichlet`
+# distribution always equals unity. The first parameter is the concentration parameter `α`.
+# As `α→0`, the images tend to become very sparse, while for `α >> 1`, the images tend to
+# have uniform brightness. The `α=1` distribution is the uniform distribution
+# on the simplex. For our work here, we use the uniform simplex distribution.
 
 # !!! Warning
-#    As α gets small sampling get very difficult and quite multimodals due to the nature
+#    As α gets small sampling, it gets very difficult and quite multimodal due to the nature
 #    of the sparsity prior, be careful when checking convergence when using such a prior.
 
 using VLBIImagePriors
@@ -140,20 +141,20 @@ plot(img, title="Random sample")
 
 # ## Reconstructing the Image
 
-# To sample from this posterior it is convienent to first move from our constrained paramter space
-# to a unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This is
+# To sample from this posterior, it is convenient to first move from our constrained parameter space
+# to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This is
 # done using the `asflat` function.
 tpost = asflat(post)
 
-# We can now also find the dimension of our posterior, or the number of parameters we are going to sample.
+# We can now also find the dimension of our posterior or the number of parameters we will sample.
 # !!! Warning
 #    This can often be different from what you would expect. This is especially true when using
-#    angular variables where to make sampling easier we often artifically increase the dimension
-#    of the parameter space.
+#    angular variables, where we often artificially increase the dimension
+#    of the parameter space to make sampling easier.
 ndim = dimension(tpost)
 
-# Now we optimize. First we will use BlackBoxOptim which is a genetic algorithm to get us
-# in the region of the best fit model.
+# Now we optimize. First, we will use BlackBoxOptim, which is a genetic algorithm, to get us
+# in the region of the best-fit model.
 using ComradeOptimization
 using OptimizationBBO
 f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
@@ -173,11 +174,11 @@ xopt = transform(tpost, sol)
 residual(model(xopt, metadata), dlcamp)
 residual(model(xopt, metadata), dcphase)
 
-# These look pretty reasonable, although maybe they are a bit high. This could probably be
+# These look reasonable, although they are a bit high. This could be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
-# Plotting the image we see that we have a ring and an image that looks like a sharper version
-# of the original M87 image. This is because we used a more physically motivated model, namely assuming that
-# the image should have a ring component in it.
+# Plotting the image, we see that we have a ring and an image that looks like a sharper version
+# of the original M87 image. This is because we used a more physically motivated model by assuming that
+# the image should have a ring component.
 img = intensitymap(model(xopt, metadata), 1.5*fovxy, 1.5*fovxy, 128, 128)
 plot(img, title="MAP Image")
 
@@ -191,7 +192,7 @@ chain, stats = sample(rng, post, AHMC(;metric, autodiff=Comrade.AD.ForwardDiffBa
 #-
 
 # Now lets plot the mean image and standard deviation images.
-# To do this we first clip the first 1,500 MCMC steps since that is during tuning and
+# To do this we first clip the first 250 MCMC steps since that is during tuning and
 # so the posterior is not sampling from the correct stationary distribution.
 using StatsBase
 msamples = model.(chain[251:2:end], Ref(metadata))

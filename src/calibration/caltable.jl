@@ -217,8 +217,8 @@ ct.AA
 ct[1, :]
 ```
 """
-function caltable(obs::EHTObservation, gains::AbstractVector, seg = ScanSeg(), relative=false)
-    gcache = jonescache(obs, seg, relative)
+function caltable(obs::EHTObservation, gains::AbstractVector, seg = ScanSeg(), segmented=false)
+    gcache = jonescache(obs, seg, segmented)
     return caltable(gcache, gains)
 end
 
@@ -261,7 +261,7 @@ function caltable(g::JonesCache, gains::AbstractVector)
     return CalTable(stations, lookup, times, gmat)
 end
 
-function caltable(g::RelativeJonesCache, gains::AbstractVector)
+function caltable(g::SegmentedJonesCache, gains::AbstractVector)
     @argcheck length(g.times) == length(gains)
 
     stations = sort(unique(g.stations))

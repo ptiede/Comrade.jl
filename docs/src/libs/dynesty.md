@@ -1,13 +1,13 @@
 # ComradeDynesty
 
 `ComradeDynesty` interfaces `Comrade` to the excellent [`dynesty`](https://github.com/joshspeagle/dynesty) package, more specifically
-the [Dynesty.jl](github.com/ptiede/Dynesty.jl) Julia wrapper.
+the [Dynesty.jl](https://github.com/ptiede/Dynesty.jl) Julia wrapper.
 
-We follow `Dynesty.jl` interface extremely closely. However, 
-instead of having to pass a log-likelihood function and prior transform we instead just pass a `Comrade.Posterior` object
-and `Comrade` takes care of defining the prior transform and 
+We follow `Dynesty.jl` interface closely. However, 
+instead of having to pass a log-likelihood function and prior transform, we instead just pass a `Comrade.Posterior` object
+and `Comrade` takes care of defining the prior transformation and 
 log-likelihood for us.
-For more information about `Dynesty.jl` please see its [docs](https://github.com/ptiede/Dynesty.jl) and docstrings.
+For more information about `Dynesty.jl`, please see its [docs](https://github.com/ptiede/Dynesty.jl) and docstrings.
 
 ## Example
 

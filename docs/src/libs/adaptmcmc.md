@@ -1,6 +1,6 @@
 # ComradeAdaptMCMC
 
-Experimental interface to the [`AdaptiveMCMC.jl](https://github.com/mvihola/AdaptiveMCMC.jl) MCMC package. This uses parallel tempering to sample from the posterior. We typically recommend using one of the nested sampling packages.
+Interface to the [`AdaptiveMCMC.jl](https://github.com/mvihola/AdaptiveMCMC.jl) MCMC package. This uses parallel tempering to sample from the posterior. We typically recommend using one of the nested sampling packages.
 This interface follows `Comrade`'s usual sampling interface for uniformity.
 
 ## Example

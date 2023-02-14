@@ -44,11 +44,11 @@ function CalPrior(dists::NamedTuple, jcache::AbstractJonesCache, reference=:none
 end
 
 """
-    CalPrior(dist0::NamedTuple, dist_transition::NamedTuple, jcache::RelativeJonesCache)
+    CalPrior(dist0::NamedTuple, dist_transition::NamedTuple, jcache::SegmentedJonesCache)
 
 Constructs a calibration prior in two steps. The first two arguments have to be a named tuple
 of distributions, where each name corresponds to a site. The first argument is gain prior
-for the first time stamp. The second argument is the relative gain prior for each subsequent
+for the first time stamp. The second argument is the segmented gain prior for each subsequent
 time stamp. For instance, if we have
 ```julia
 dist0 = (AA = Normal(0.0, 1.0), )
@@ -64,7 +64,7 @@ In other words `distt` is the uncorrelated transition probability when moving fr
 i to timestamp i+1. For the typical pre-calibrated dataset the gain prior on `distt` can be
 tighter than the prior on `dist0`.
 """
-function CalPrior(dist0::NamedTuple, distt::NamedTuple, jcache::RelativeJonesCache)
+function CalPrior(dist0::NamedTuple, distt::NamedTuple, jcache::SegmentedJonesCache)
     sites = Tuple(unique(jcache.stations))
     @argcheck Set(keys(dist0)) == Set(sites)
     @argcheck Set(keys(distt)) == Set(sites)

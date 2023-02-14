@@ -14,6 +14,11 @@ function load_data()
     cphase = extract_cphase(obsm, cut_trivial=true)
     dcoh = extract_coherency(obsm)
 
+    derr = dcoh[:error]
+    derr.:2 .= derr.:1
+    derr.:3 .= derr.:1
+    dcoh.data.error .= derr
+
     return m, vis, amp, lcamp, cphase, dcoh
 end
 
@@ -22,6 +27,14 @@ function test_model(θ)
     m1 = θ.f1*rotated(stretched(Gaussian(), θ.σ1*θ.τ1, θ.σ1), θ.ξ1)
     m2 = θ.f2*rotated(stretched(Gaussian(), θ.σ2*θ.τ2, θ.σ2), θ.ξ2)
     return m1 + shifted(m2, θ.x, θ.y)
+end
+
+function test_model_polarized(θ, metadata)
+    m1 = θ.f1*rotated(stretched(Gaussian(), θ.σ1*θ.τ1, θ.σ1), θ.ξ1)
+    m2 = θ.f2*rotated(stretched(Gaussian(), θ.σ2*θ.τ2, θ.σ2), θ.ξ2)
+    mI =  m1 + shifted(m2, θ.x, θ.y)
+    jt = jonesT(metadata.tcache)
+    return JonesModel(jt, PolarizedModel(mI, 0.1*mI, 0.05*mI, 0.02*mI))
 end
 
 function test_model2(θ, metadata)

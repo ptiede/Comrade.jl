@@ -75,6 +75,33 @@ load_ehtim()
 
 end
 
+@testset "RadioLikelihood" begin
+    _,vis, amp, lcamp, cphase, coh = load_data()
+    tcache = TransformCache(coh)
+    lklhd_amp = RadioLikelihood(test_model, amp)
+    lklhd_cp = RadioLikelihood(test_model, cphase)
+    lklhd_lc = RadioLikelihood(test_model, lcamp)
+    lklhd_vis = RadioLikelihood(test_model, vis)
+    lklhd_coh = RadioLikelihood(test_model_polarized, (;tcache), coh)
+
+
+    prior = test_prior()
+    post = Posterior(lklhd_amp, prior)
+    x0 = prior_sample(post)
+
+    lamp = logdensityof(lklhd_amp, x0)
+    lcp  = logdensityof(lklhd_cp, x0)
+    llc  = logdensityof(lklhd_lc, x0)
+    lvis = logdensityof(lklhd_vis, x0)
+    lcoh = logdensityof(lklhd_coh, x0)
+
+    lklhd = MultiRadioLikelihood(lklhd_cp, lklhd_coh)
+    show(lklhd)
+    l = logdensityof(lklhd, x0)
+    @test l ≈ lcp + lcoh
+
+end
+
 using ForwardDiff
 using FiniteDifferences
 @testset "Bayes Non-analytic ForwardDiff" begin
