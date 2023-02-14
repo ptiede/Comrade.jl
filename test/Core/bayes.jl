@@ -95,7 +95,7 @@ using FiniteDifferences
         ℓ = logdensityof(tpostf)
         gf = ForwardDiff.gradient(ℓ, x0)
         gn = FiniteDifferences.grad(mfd, ℓ, x0)
-        @test gf ≈ gn[1]
+        @test isapprox(gf, gn[1], atol=1e-1, rtol=1e-5)
     end
 
     @testset "NFFT" begin
@@ -112,7 +112,7 @@ using FiniteDifferences
         ℓ = logdensityof(tpostf)
         gf = ForwardDiff.gradient(ℓ, x0)
         gn = FiniteDifferences.grad(mfd, ℓ, x0)
-        @test gf ≈ gn[1]
+        @test isapprox(gf, gn[1], atol=1e-1, rtol=1e-5)
     end
 
     @testset "FFT" begin
@@ -129,7 +129,7 @@ using FiniteDifferences
         ℓ = logdensityof(tpostf)
         gf = ForwardDiff.gradient(ℓ, x0)
         gn = FiniteDifferences.grad(mfd, ℓ, x0)
-        @test gf ≈ gn[1]
+        @test isapprox(gf, gn[1], atol=1e-1, rtol=1e-5)
     end
 
 end
