@@ -34,5 +34,7 @@ else
     dev_subpkg(GROUP)
     Pkg.develop(PackageSpec(url="https://github.com/ptiede/ComradeBase.jl"))
     subpkg_path = joinpath(dirname(@__DIR__), "lib", GROUP)
-    Pkg.test(PackageSpec(name=GROUP, path=subpkg_path))
+    run_coverage = get(ENV, "COVERAGE", "false")
+    Pkg.test(PackageSpec(name=GROUP, path=subpkg_path);
+             coverage=(run_coverage == "true"))
 end
