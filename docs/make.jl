@@ -59,7 +59,7 @@ makedocs(;
         "Home" => "index.md",
         "benchmarks.md",
         "vlbi_imaging_problem.md",
-        #"Tutorials" => MD_FILES,
+        "Tutorials" => MD_FILES,
         "Libraries" => [
                         "libs/optimization.md",
                         "libs/ahmc.md",
