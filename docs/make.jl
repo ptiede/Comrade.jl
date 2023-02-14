@@ -51,8 +51,6 @@ makedocs(;
              ComradeOptimization, ComradeAHMC,
              ComradeNested, ComradeDynesty,
              ComradeAdaptMCMC],
-    authors="Paul Tiede",
-    repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#L{line}",
     sitename="Comrade.jl",
     format=format,
     pages=Any[
@@ -77,4 +75,5 @@ makedocs(;
 deploydocs(;
     repo="github.com/ptiede/Comrade.jl",
     push_preview=true,
+    devbranch = "main"
 )
