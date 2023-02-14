@@ -77,6 +77,4 @@ makedocs(;
 deploydocs(;
     repo="github.com/ptiede/Comrade.jl",
     push_preview=true,
-    forcepush=true,
-    devbranch = "main",
 )
