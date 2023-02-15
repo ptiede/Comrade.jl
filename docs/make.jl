@@ -69,7 +69,7 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    build = joinpath(@__DIR__, "docs")
+    build = joinpath(@__DIR__, "docs"), draft = true
 )
 
 deploydocs(;
