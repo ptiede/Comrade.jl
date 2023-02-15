@@ -4,14 +4,6 @@ using ComradeBase
 
 using Literate
 
-using Pkg
-Pkg.develop(path=joinpath(dirname(@__DIR__), "."))
-Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeAHMC"))
-Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeOptimization"))
-Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeAdaptMCMC"))
-Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeDynesty"))
-Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeNested"))
-
 using ComradeAHMC
 using ComradeOptimization
 using ComradeNested
@@ -27,7 +19,6 @@ GENERATED = joinpath(@__DIR__, "../", "examples")
 OUTDIR = joinpath(@__DIR__, "src", "examples")
 
 SOURCE_FILES = Glob.glob("*.jl", GENERATED)
-println(SOURCE_FILES)
 foreach(fn -> Literate.markdown(fn, OUTDIR, documenter=true), SOURCE_FILES)
 
 MD_FILES = joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
@@ -56,15 +47,11 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    build = joinpath(@__DIR__, "docs"), draft = true,
-    format = Documenter.HTML()
+    format = Documenter.HTML(), draft=true
 )
 
 deploydocs(;
     repo="github.com/ptiede/Comrade.jl",
     push_preview=true,
     devbranch = "main",
-    devurl = "dev",
-    branch = "gh-pages",
-    versions = ["stable" => "v^", "v#.#", "dev" => "dev"],
 )
