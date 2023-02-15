@@ -46,14 +46,11 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    build = joinpath(@__DIR__, "docs"), draft = true,
-    format = Documenter.HTML()
+    format = Documenter.HTML(), draft=true
 )
 
 deploydocs(;
     repo="github.com/ptiede/Comrade.jl",
     push_preview=true,
     devbranch = "main",
-    devurl = "dev",
-    versions = ["stable" => "v^", "v#.#", "dev" => "dev"],
 )
