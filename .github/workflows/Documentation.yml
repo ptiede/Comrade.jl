@@ -6,7 +6,6 @@ on:
       - main
     tags: '*'
   pull_request:
-
 concurrency:
   # Skip intermediate builds: always.
   # Cancel intermediate builds: only if it is a pull request build.
@@ -14,7 +13,7 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 jobs:
-  docs:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -28,10 +27,19 @@ jobs:
       - run: python -m pip install ipython requests
       - run: python -m pip install ehtim
       - run: python -m pip install dynesty
-
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1'
+      - uses: actions/cache@v1
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
       - name: Install docs dependencies
         run: julia --project=docs -e 'using Pkg; Pkg.develop([PackageSpec(path=pwd()), PackageSpec(url="https://github.com/ptiede/ComradeBase.jl"), PackageSpec(path=joinpath(pwd(), "lib/ComradeAHMC")), PackageSpec(path=joinpath(pwd(), "lib/ComradeOptimization")), PackageSpec(path=joinpath(pwd(), "lib/ComradeDynesty")), PackageSpec(path=joinpath(pwd(), "lib/ComradeNested")), PackageSpec(path=joinpath(pwd(), "lib/ComradeAdaptMCMC"))]); Pkg.instantiate()'
       - name: Install examples dependencies
