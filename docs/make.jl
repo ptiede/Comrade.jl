@@ -4,14 +4,6 @@ using ComradeBase
 
 using Literate
 
-using Pkg
-Pkg.develop(path=joinpath(dirname(@__DIR__), "."))
-Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeAHMC"))
-Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeOptimization"))
-Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeAdaptMCMC"))
-Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeDynesty"))
-Pkg.develop(path=joinpath(dirname(@__DIR__), "lib", "ComradeNested"))
-
 using ComradeAHMC
 using ComradeOptimization
 using ComradeNested
