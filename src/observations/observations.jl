@@ -250,6 +250,8 @@ Base.getindex(data::EHTObservation, s::Symbol) = Tables.getcolumn(data, s)
 Base.getindex(data::EHTObservation, i::Int) = data.data[i]
 Base.getindex(data::EHTObservation, I...) = getindex(data.data, I...)
 Base.length(data::EHTObservation) = length(data.data)
+Base.lastindex(data::EHTObservation) = lastindex(data.data)
+Base.firstindex(data::EHTObservation) = firstindex(data.data)
 
 """
     stations(d::EHTObservation)

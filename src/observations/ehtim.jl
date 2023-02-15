@@ -187,7 +187,11 @@ function getcoherency(obs)
     polbasis = fill(single_polbasis,length(u))
 
     # prepare output
-    output = StructArray{EHTCoherencyDatum{eltype(u)}}(
+    output = StructArray{EHTCoherencyDatum{eltype(u),
+                         typeof(single_polbasis[1]),
+                         typeof(single_polbasis[2]),
+                         eltype(cohmat),
+                         eltype(errmat)}}(
         measurement = cohmat,
         error = errmat,
         U = u,
