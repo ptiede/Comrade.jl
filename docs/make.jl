@@ -43,7 +43,6 @@ makedocs(;
              ComradeNested, ComradeDynesty,
              ComradeAdaptMCMC],
     sitename="Comrade.jl",
-    format=format,
     pages=Any[
         "Home" => "index.md",
         "benchmarks.md",
