@@ -32,10 +32,6 @@ foreach(fn -> Literate.markdown(fn, OUTDIR, documenter=true), SOURCE_FILES)
 
 MD_FILES = joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
 
-deployconfig = Documenter.auto_detect_deploy_system()
-Documenter.post_status(deployconfig; type="pending", repo="github.com/avik-pal/Lux.jl.git")
-
-
 
 makedocs(;
     modules=[ComradeBase, Comrade,
