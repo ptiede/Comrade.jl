@@ -3,7 +3,6 @@
 *.jl.mem
 /.vscode/
 /Manifest.toml
-/docs/build/
 test/Manifest.toml
 examples/jukebox.jl
 examples/Manifest.toml
