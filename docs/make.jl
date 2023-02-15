@@ -68,5 +68,6 @@ deploydocs(;
     repo="github.com/ptiede/Comrade.jl",
     push_preview=true,
     devbranch = "main",
-    forcepush = true
+    devurl = "dev",
+    versions = ["stable" => "v^", "v#.#", devurl => devurl],
 )
