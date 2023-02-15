@@ -15,5 +15,4 @@ To install Comrade.jl you must use Julia's package manager. For example you can 
 ```julia
 add Comrade
 ```
-To perform inference i.e. parameter estimation you should look at the `lib` packages. 
 

@@ -43,7 +43,6 @@ makedocs(;
              ComradeNested, ComradeDynesty,
              ComradeAdaptMCMC],
     sitename="Comrade.jl",
-    format=format,
     pages=Any[
         "Home" => "index.md",
         "benchmarks.md",
@@ -69,5 +68,5 @@ deploydocs(;
     push_preview=true,
     devbranch = "main",
     devurl = "dev",
-    versions = ["stable" => "v^", "v#.#", devurl => devurl],
+    versions = ["stable" => "v^", "v#.#", "dev" => "dev"],
 )
