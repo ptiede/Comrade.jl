@@ -30,7 +30,7 @@ Comrade.TransformCache
 Comrade.JonesModel
 Comrade.CalPrior
 Comrade.CalPrior(::NamedTuple, ::JonesCache)
-Comrade.CalPrior(::NamedTuple, ::NamedTuple, ::SegmentedJonesCache)
+Comrade.CalPrior(::NamedTuple, ::NamedTuple, ::Comrade.SegmentedJonesCache)
 Comrade.RIMEModel
 Comrade.ObsSegmentation
 Comrade.IntegSeg

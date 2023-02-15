@@ -38,6 +38,7 @@ makedocs(;
              ComradeOptimization, ComradeAHMC,
              ComradeNested, ComradeDynesty,
              ComradeAdaptMCMC],
+    repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
     pages=Any[
         "Home" => "index.md",
@@ -64,5 +65,6 @@ deploydocs(;
     push_preview=true,
     devbranch = "main",
     devurl = "dev",
+    branch = "gh-pages",
     versions = ["stable" => "v^", "v#.#", "dev" => "dev"],
 )
