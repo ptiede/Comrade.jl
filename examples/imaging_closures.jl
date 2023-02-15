@@ -50,7 +50,7 @@ dcphase = extract_cphase(obs; snrcut=3.0)
 # ## Build the Model/Posterior
 # For our model, we will be using an image model that consists of a raster of point sources,
 # convolved with some pulse or kernel to make a `ContinuousImage` object with it `Comrade's.`
-# generic image model. Note that `ContinuousImage(img, cache)` actually creates a [`ModelImage`](@ref)
+# generic image model. Note that `ContinuousImage(img, cache)` actually creates a [`Comrade.ModelImage`](@ref)
 # object that allows `Comrade` to numerically compute the Fourier transform of the image.
 function model(θ, metadata)
     (;c) = θ

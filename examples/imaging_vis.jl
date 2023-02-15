@@ -68,7 +68,7 @@ end
 # model the gains on a scan-by-scan basis. To form the instrument model, we need our
 #   1. Our (log) gain amplitudes and phases are given below by `lgamp` and `gphase`
 #   2. Our function or cache that maps the gains from a list to the stations they impact `gcache.`
-#   3. The set of [`JonesPairs`](@ref) produced by [`jonesStokes`](@ref)
+#   3. The set of [`Comrade.JonesPairs`](@ref) produced by [`jonesStokes`](@ref)
 # These three ingredients then specify our instrument model. The instrument model can then be
 # combined with our image model `cimg` to form the total `JonesModel`.
 

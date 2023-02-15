@@ -46,6 +46,7 @@ ComradeBase.StokesIntensityMap
 ComradeBase.imagepixels
 ComradeBase.GriddedKeys
 ComradeBase.dims
+ComradeBase.named_dims
 ComradeBase.axisdims
 ComradeBase.stokes
 ComradeBase.imagegrid

@@ -182,7 +182,7 @@ The optional argument segmented denotes whether to use a absolute cache breakdow
 segmented one. If using `segmented=true`, then the cache is constructed so that the
 gain parameters are interpreted as segmented gain offsets. This can be useful when constructing,
 segmented gain priors where from scan-to-scan the gains aren't expected to change drastically.
-To construct the prior see [`CalPrior(::NamedTuple, ::NamedTuple, ::SegmentedJonesCache`](@ref)
+To construct the prior see [`CalPrior(::NamedTuple, ::NamedTuple, ::SegmentedJonesCache)`](@ref)
 """
 function jonescache(obs::EHTObservation, s::ScanSeg, segmented = false)
 

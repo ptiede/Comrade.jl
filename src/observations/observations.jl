@@ -1,6 +1,6 @@
 """
     $(TYPEDEF)
-An abstract type for all VLBI interfermetry data types. See [EHTVisibilityDatum](@ref) for an example.
+An abstract type for all VLBI interfermetry data types. See [Comrade.EHTVisibilityDatum](@ref) for an example.
 """
 abstract type AbstractInterferometryDatum{T} end
 

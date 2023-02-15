@@ -48,83 +48,63 @@ end
 
     u = getdata(dvis, :U)
     v = getdata(dvis, :V)
-    uvdist = hypot.(u,v)
+    uvdist = hypot.(u,v)./1e9
     vis = dvis[:measurement]
     error = getdata(dvis, :error)
     vmod = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
-
+    layout := (2,2)
     #add data errorbars
     @series begin
         v = getindex.(vis, 1, 1)
+        vm = getindex.(vmod, 1, 1)
         err = getindex.(error, 1, 1)
         subplot := 1
-
-        @series begin
-            seriestype := :scatter
-            markershape := datamarker
-            markercolor := datacolor
-            alpha := 0.5
-            yerr := err
-            linecolor := nothing
-            label := "Data Real"
-            uvdist, real.(v)
-        end
-        @series begin
-            seriestype := :scatter
-            markershape := :square
-            markercolor := :grey
-            markeralpha := 0.5
-            markerstrokecolor := :black
-            markerstrokealpha := 1.0
-            linecolor :=nothing
-            label := "Data Imag"
-            yerr := err
-            uvdist, imag.(v)
-        end
-
         yguide := "C₁₁ (Jy)"
         seriestype := :scatter
-        legend := false
-        yguide := "C₁₁ (Jy)"
-        label := ["Model Re" "Model Imag"]
+
+        @series begin
+            markershape := [:+ :x]
+            markercolor := datacolor
+            seriestype := :scatter
+            alpha := 0.9
+            yerr := err
+            linecolor := nothing
+            label := ["Data Real" "DataImag"]
+            uvdist, hcat(real.(v), imag.(v))
+        end
+
+        label := ["Model Real" "Model Imag"]
+        markershape := :o
         markercolor := [:red :orange]
-        vm = getindex.(vmod, 1, 1)
-        [uvdist uvdist], hcat(real.(vm), imag.(vm))
+        markerstrokecolor := [:red :orange]
+        markeralpha := 0.2
+        uvdist, hcat(real.(vm), imag.(vm))
     end
 
     @series begin
         subplot := 2
         v = getindex.(vis, 1, 2)
+        vm = getindex.(vis, 1, 2)
         err = getindex.(error, 1, 2)
+        yguide := "C₁₂ (Jy)"
+        legend := nothing
+        seriestype := :scatter
         @series begin
-            seriestype := :scatter
-            markershape := datamarker
+            markershape := [:+ :x]
             markercolor := datacolor
-            alpha := 0.5
+            seriestype := :scatter
+            alpha := 0.9
             yerr := err
             linecolor := nothing
-            label := "Data Real"
-            uvdist, real.(v)
-        end
-        @series begin
-            seriestype := :scatter
-            markershape := datamarker
-            markercolor := :white
-            markeralpha := 0.01
-            markerstrokecolor := :black
-            markerstrokealpha := 1.0
-            linecolor :=nothing
-            label := "Data Imag"
-            yerr := err
-            uvdist, imag.(v)
+            label := ["Data Real" "DataImag"]
+            uvdist, hcat(real.(v), imag.(v))
         end
 
-        seriestype := :scatter
-        legend := false
-        yguide := "C₁₂ (Jy)"
-        label := ["Model Re" "Model Imag"]
+        label := ["Model Real" "Model Imag"]
+        markershape := :o
         markercolor := [:red :orange]
-        vm = getindex.(vmod, 1, 2)
+        markerstrokecolor := [:red :orange]
+        markeralpha := 0.2
         uvdist, hcat(real.(vm), imag.(vm))
     end
 
@@ -132,75 +112,58 @@ end
     @series begin
         subplot := 3
         v = getindex.(vis, 2, 1)
+        vm = getindex.(vis, 2, 1)
         err = getindex.(error, 2, 1)
+        legend := nothing
+        seriestype := :scatter
+        yguide := "C₂₁ (Jy)"
         @series begin
-            seriestype := :scatter
-            markershape := datamarker
+            markershape := [:+ :x]
             markercolor := datacolor
-            alpha := 0.5
+            seriestype := :scatter
+            alpha := 0.9
             yerr := err
             linecolor := nothing
-            label := "Data Real"
-            uvdist, real.(v)
-        end
-        @series begin
-            seriestype := :scatter
-            markershape := datamarker
-            markercolor := :white
-            markeralpha := 0.01
-            markerstrokecolor := :black
-            markerstrokealpha := 0.5
-            linecolor :=nothing
-            label := "Data Imag"
-            yerr := err
-            uvdist, imag.(v)
+            label := ["Data Real" "DataImag"]
+            uvdist, hcat(real.(v), imag.(v))
         end
 
-        seriestype := :scatter
-        legend := false
-        yguide := "C₂₁ (Jy)"
-        label := ["Model Re" "Model Imag"]
+        xguide := "uv distance (Gλ)"
+        label := ["Model Real" "Model Imag"]
+        markershape := :o
         markercolor := [:red :orange]
-        vm = getindex.(vmod, 2, 1)
+        markerstrokecolor := [:red :orange]
+        markeralpha := 0.2
         uvdist, hcat(real.(vm), imag.(vm))
-
     end
 
     @series begin
         subplot := 4
-        title := "C₂₂"
         v = getindex.(vis, 2, 2)
+        vm = getindex.(vis, 2, 2)
         err = getindex.(error, 2, 2)
+        legend := nothing
+        seriestype := :scatter
+        yguide := "C₂₂ (Jy)"
         @series begin
-            seriestype := :scatter
-            markershape := datamarker
+            markershape := [:+ :x]
             markercolor := datacolor
-            alpha := 0.5
+            seriestype := :scatter
+            alpha := 0.9
             yerr := err
             linecolor := nothing
-            label := "Data Real"
-            uvdist, real.(v)
+            label := ["Data Real" "DataImag"]
+            uvdist, hcat(real.(v), imag.(v))
         end
-        @series begin
-            seriestype := :scatter
-            markershape := datamarker
-            markercolor := :white
-            markeralpha := 0.01
-            markerstrokecolor := :black
-            markerstrokealpha := 1.0
-            linecolor :=nothing
-            label := "Data Imag"
-            yerr := err
-            uvdist, imag.(v)
-        end
-        seriestype := :scatter
-        legend := false
-        labels --> "Model"
-        vm = getindex.(vmod, 2, 2)
+
+        label := ["Model Real" "Model Imag"]
+        markershape := :o
+        markercolor := [:red :orange]
+        markerstrokecolor := [:red :orange]
+        markeralpha := 0.2
         uvdist, hcat(real.(vm), imag.(vm))
 
     end
-    layout --> (2,2)
 
 end
 
