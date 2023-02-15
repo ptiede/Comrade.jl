@@ -32,15 +32,6 @@ foreach(fn -> Literate.markdown(fn, OUTDIR, documenter=true), SOURCE_FILES)
 
 MD_FILES = joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
 
-
-format = Documenter.HTML(edit_link = "source",
-                         prettyurls = get(ENV, "CI", nothing) == "true",
-                         assets = String[])
-
-
-ENV["GKSwstype"] = "nul" # needed for the GR backend on headless servers
-gr()
-
 deployconfig = Documenter.auto_detect_deploy_system()
 Documenter.post_status(deployconfig; type="pending", repo="github.com/avik-pal/Lux.jl.git")
 
@@ -69,11 +60,13 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    build = joinpath(@__DIR__, "docs"), draft = true
+    build = joinpath(@__DIR__, "docs"), draft = true,
+    format = Documenter.HTML()
 )
 
 deploydocs(;
     repo="github.com/ptiede/Comrade.jl",
     push_preview=true,
-    devbranch = "main"
+    devbranch = "main",
+    forcepush = true
 )
