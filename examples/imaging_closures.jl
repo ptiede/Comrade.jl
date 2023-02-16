@@ -131,14 +131,15 @@ plot(img, title="MAP Image")
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
 # !!! note
-#    For our `metric` we use a diagonal matrix due to easier tuning.
+#     For our `metric` we use a diagonal matrix due to easier tuning.
+#-
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
 chain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 500; nadapts=250, init_params=xopt)
 
 # !!! warning
-#    This should be run for likely an order of magnitude more steps to estimate expectations of the posterior properly
+#     This should be run for likely an order of magnitude more steps to estimate expectations of the posterior properly
 #-
 # Now that we have our posterior, we can assess which parts of the image are strongly inferred by the
 # data. This is rather unique to `Comrade` where more traditional imaging algorithms like CLEAN and RML are inherently

@@ -188,7 +188,7 @@ metric = DiagEuclideanMetric(ndim)
 chain, stats = sample(rng, post, AHMC(;metric, autodiff=Comrade.AD.ForwardDiffBackend()), 500; nadapts=250, init_params=xopt)
 
 # !!! warning
-#    This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
+#     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
 #-
 
 # Now lets plot the mean image and standard deviation images.

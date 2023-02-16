@@ -39,8 +39,8 @@
 # for circularly polarized measurements.
 #-
 # !!! note
-#     In this tutorial, we stick to circular feeds by Comrade has the capabilities
-#     to model Linear (XX,XY, ...) and mixed basis coherencies (e.g., RX, RY, ...).
+#     In this tutorial, we stick to circular feeds but Comrade has the capabilities
+#     to model linear (XX,XY, ...) and mixed basis coherencies (e.g., RX, RY, ...).
 #-
 #
 # In reality, the measure coherencies are corrupted by both the atmosphere and the

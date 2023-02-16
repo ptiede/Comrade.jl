@@ -228,7 +228,7 @@ plot(gt, layout=(3,3), size=(600,500))
 # To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For information about NUTS,
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
 # !!! note
-#    For our `metric,` we use a diagonal matrix due to easier tuning
+#     For our `metric,` we use a diagonal matrix due to easier tuning
 #-
 # However, due to the need to sample a large number of gain parameters, constructing the posterior
 # is rather time-consuming. Therefore, for this tutorial, we will only do a quick preliminary run, and any posterior
