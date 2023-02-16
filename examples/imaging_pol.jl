@@ -71,14 +71,14 @@
 #      combines two things. The first is the transformation from
 #      some reference basis to the observed visibility basis (this allows for mixed basis measurements).
 #      The second is the feed rotation that transforms from some reference axis to the axis of the
-#      telescope, as the source moves in the sky. The feed rotation matrix `F` is given by
-#  ```math
-#    F = \begin{pmatrix}
-#            e^{-i\varphi}   & 0\\
-#            0     & e^{i\varphi}\\
-#        \end{pmatrix}
-#  ```
-#        where $\varphi$ is the deterministic rotation angle that can be directly obtained from the data.
+#      telescope, as the source moves in the sky. The feed rotation matrix `F` in terms of $\varphi$
+#      the determinstic feed rotation angle is
+# ```math
+#   F = \begin{pmatrix}
+#           e^{-i\varphi}   & 0\\
+#           0     & e^{i\varphi}\\
+#       \end{pmatrix}
+# ```
 #
 #
 #  In the rest of the tutorial, we are going to solve for all of these instrument model terms on
