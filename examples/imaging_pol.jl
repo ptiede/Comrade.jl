@@ -54,12 +54,12 @@
 # `Comrade` is highly flexible with how the Jones matrices are formed and provides several
 # convenience functions that parameterize standard Jones matrices. These matrices include:
 #   - [`jonesG`](@ref) which builds the set of complex gain Jones matrices
-#        ```math
-#          G = \begin{pmatrix}
-#                  g_a   &0\\
-#                  0     &g_b\\
-#              \end{pmatrix}
-#        ```
+# ```math
+#   G = \begin{pmatrix}
+#           g_a   &0\\
+#           0     &g_b\\
+#       \end{pmatrix}
+# ```
 #   - [`jonesD`](@ref) which builds the set of complex d-terms Jones matrices
 #        ```math
 #          D = \begin{pmatrix}
