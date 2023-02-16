@@ -35,6 +35,7 @@ makedocs(;
         "Home" => "index.md",
         "benchmarks.md",
         "vlbi_imaging_problem.md",
+        "conventions.md",
         "Tutorials" => MD_FILES,
         "Libraries" => [
                         "libs/optimization.md",
@@ -47,7 +48,7 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    format = Documenter.HTML(), draft=true
+    format = Documenter.HTML(), draft=false
 )
 
 deploydocs(;
