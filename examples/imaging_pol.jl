@@ -116,8 +116,7 @@ dvis = extract_coherency(obs)
 # To build the model, we first break it down into two parts:
 #    1. **The image model**. In Comrade, all polarized image models are written in terms of the Stokes parameters.
 #       The reason for using Stokes parameters is that it is usually what physical models consider and is
-#       the often easiest to reason about since they are additive.
-# In this tutorial, we will use a polarized image model based on Pesce (2021)[^2].
+#       the often easiest to reason about since they are additive. In this tutorial, we will use a polarized image model based on Pesce (2021)[^2].
 #       This model parameterizes the polarized image in terms of the [`Poincare sphere`](https://en.wikipedia.org/wiki/Unpolarized_light#Poincar%C3%A9_sphere),
 #       and allows us to easily incorporate physical restrictions such as $I^2 ≥ Q^2 + U^2 + V^2$.
 #    2. **The instrument model**. The instrument model specifies the model that describes the impact of instrumental and atmospheric effects.
