@@ -17,7 +17,7 @@ We follow the standard EHT and rotate starting from the upper y-axis and moving 
 
 We use the positive exponent definition of the Fourier transform to define our visibilities. That is, we assume that the visibilities measured by a perfect interferometer are given by
 ```math
- V(u, v) = \int I(x, y)e^{2\pi (ux + vy)}dx dy.
+ V(u, v) = \int I(x, y)e^{2\pi i(ux + vy)}dx dy.
 ```
 This convention is consistent with the AIPS convention and what is used in other EHT codes, such as eht-imaging. 
 
