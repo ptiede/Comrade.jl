@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.7.0-DEV"
+version = "0.7.0"
 
 [deps]
 AbstractDifferentiation = "c29ec348-61ec-40c8-8164-b8c60e9d9f3d"
@@ -76,6 +76,7 @@ ParameterHandling = "0.4"
 PrettyTables = "1, 2"
 PyCall = "1"
 RecipesBase = "1"
+RectiGrids = "0.1"
 Reexport = "1"
 SpecialFunctions = "0.10, 1, 2"
 Static = "0.6, 0.7, 0.8"
@@ -84,6 +85,7 @@ StatsBase = "0.31,0.32,0.33"
 StructArrays = "0.3,0.4,0.5,0.6"
 Tables = "1"
 TransformVariables = "0.5, 0.6, 0.7"
+TypedTables = "1"
 VLBILikelihoods = "0.1"
 julia = "^1.6"
 
