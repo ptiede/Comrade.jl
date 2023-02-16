@@ -540,7 +540,7 @@ ndata(d::EHTObservation{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d)
             seriestype := :scatter
             alpha := 0.5
             linecolor := nothing
-            title --> @sprintf "χ² = %.2f" sum(abs2, @view res2[:,1:2])/(2*size(res2,1))
+            title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,1:2]))/(2*size(res2,1))
             uvdist, res2[:,1:2]
         end
         @series begin
@@ -550,7 +550,7 @@ ndata(d::EHTObservation{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d)
             seriestype := :scatter
             alpha := 0.5
             linecolor := nothing
-            title --> @sprintf "χ² = %.2f" sum(abs2, @view res2[:,3:4])/(2*size(res2,1))
+            title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,3:4]))/(2*size(res2,1))
             uvdist, res2[:,3:4]
         end
         @series begin
@@ -559,7 +559,7 @@ ndata(d::EHTObservation{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d)
             seriestype := :scatter
             alpha := 0.5
             linecolor := nothing
-            title --> @sprintf "χ² = %.2f" sum(abs2, @view res2[:,5:6])/(2*size(res2,1))
+            title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,5:6]))/(2*size(res2,1))
             uvdist, res2[:,5:6]
         end
         @series begin
@@ -568,7 +568,7 @@ ndata(d::EHTObservation{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d)
             seriestype := :scatter
             alpha := 0.5
             linecolor := nothing
-            title --> @sprintf "χ² = %.2f" sum(abs2, @view res2[:,7:8])/(2*size(res2,1))
+            title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,7:8]))/(2*size(res2,1))
             uvdist, res2[:,7:8]
         end
     else
@@ -591,7 +591,7 @@ end
 function chi2(m, data::EHTObservation{T, A}) where {T, A<:EHTCoherencyDatum}
     res = last(residuals(m, data))
     return mapreduce(+, 1:4) do i
-        sum(abs2, getindex.(res, i))
+        sum(abs2, filter(!isnan, getproperty(res, i)))
     end
 end
 
