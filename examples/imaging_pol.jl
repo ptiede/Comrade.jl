@@ -61,23 +61,23 @@
 #       \end{pmatrix}
 # ```
 #   - [`jonesD`](@ref) which builds the set of complex d-terms Jones matrices
-#        ```math
-#          D = \begin{pmatrix}
-#                  1   & d_a\\
-#                  d_b     &1\\
-#              \end{pmatrix}
-#        ```
+# ```math
+#   D = \begin{pmatrix}
+#           1   & d_a\\
+#           d_b     &1\\
+#       \end{pmatrix}
+# ```
 #   - [`jonesT`](@ref) is the basis transform matrix. This transformation is special and
 #      combines two things. The first is the transformation from
 #      some reference basis to the observed visibility basis (this allows for mixed basis measurements).
 #      The second is the feed rotation that transforms from some reference axis to the axis of the
 #      telescope, as the source moves in the sky. The feed rotation matrix `F` is given by
-#        ```math
-#          F = \begin{pmatrix}
-#                  e^{-i\varphi}   & 0\\
-#                  0     & e^{i\varphi}\\
-#              \end{pmatrix}
-#        ```
+#  ```math
+#    F = \begin{pmatrix}
+#            e^{-i\varphi}   & 0\\
+#            0     & e^{i\varphi}\\
+#        \end{pmatrix}
+#  ```
 #        where $\varphi$ is the deterministic rotation angle that can be directly obtained from the data.
 #
 #
