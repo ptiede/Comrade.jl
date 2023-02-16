@@ -67,19 +67,19 @@
 #           d_b     &1\\
 #       \end{pmatrix}
 # ```
-#   - [`jonesT`](@ref) is the basis transform matrix. This transformation is special and
-#      combines two things. The first is the transformation from
-#      some reference basis to the observed visibility basis (this allows for mixed basis measurements).
-#      The second is the feed rotation that transforms from some reference axis to the axis of the
-#      telescope, as the source moves in the sky. The feed rotation matrix `F` in terms of $\varphi$
-#      the determinstic feed rotation angle is
+#   - [`jonesT`](@ref) is the basis transform matrix $T$. This transformation is special and
+#      combines two things using the decomposition $T=FB$. The first, $B$, is the transformation from
+#      some reference basis to the observed coherency basis (this allows for mixed basis measurements).
+#      The second is the feed rotation, $F$, that transforms from some reference axis to the axis of the
+#      telescope as the source moves in the sky. The feed rotation matrix `F` in terms of
+#      the per station feed rotation angle $\varphi$ is
 # ```math
 #   F = \begin{pmatrix}
 #           e^{-i\varphi}   & 0\\
 #           0     & e^{i\varphi}\\
 #       \end{pmatrix}
 # ```
-#
+#-
 #
 #  In the rest of the tutorial, we are going to solve for all of these instrument model terms on
 #  in addition to our image structure to reconstruct a polarized image of a synthetic dataset.
@@ -120,7 +120,7 @@ dvis = extract_coherency(obs)
 #       This model parameterizes the polarized image in terms of the [`Poincare sphere`](https://en.wikipedia.org/wiki/Unpolarized_light#Poincar%C3%A9_sphere),
 #       and allows us to easily incorporate physical restrictions such as $I^2 ≥ Q^2 + U^2 + V^2$.
 #    2. **The instrument model**. The instrument model specifies the model that describes the impact of instrumental and atmospheric effects.
-#       We will be using the $J = GDF$ decomposition we described above. However, to parameterize the
+#       We will be using the $J = GDT$ decomposition we described above. However, to parameterize the
 #       R/L complex gains, we will be using a gain product and ratio decomposition. The reason for this decomposition
 #       is that in realistic measurements, the gain ratios and products have different temporal characteristics.
 #       Namely, many of the EHT observations tend to demonstrate constant R/L gain ratios across an
