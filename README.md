@@ -1,8 +1,9 @@
 # Comrade
+Composable Modeling of Radio Emission
 
 ## Documentation
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://ptiede.github.io/Comrade.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://ptiede.github.io/Comrade.jl/latest/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://ptiede.github.io/Comrade.jl/dev/)
 ## Repo Status
 [![Build Status](https://github.com/ptiede/Comrade.jl/workflows/CI/badge.svg)](https://github.com/ptiede/Comrade.jl/actions)
 [![Coverage](https://codecov.io/gh/ptiede/Comrade.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/ptiede/Comrade.jl)
@@ -10,7 +11,6 @@
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.04457/status.svg)](https://doi.org/10.21105/joss.04457)
 
 
-Composable Modeling of Radio Emission
 
 # Installation
 To install Comrade.jl you must use Julia's package manager. For example you can launch your Julia session with then type `]` to move into Pkg mode. Once in pkg mode type
