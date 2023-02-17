@@ -5,7 +5,7 @@ using AbstractMCMC
 using Reexport
 @reexport using AdvancedHMC
 using Comrade
-using TypedTables
+using InferenceObjects
 using ArgCheck: @argcheck
 using Random
 
@@ -175,12 +175,11 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
     adaptor = sampler.adaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(sampler.targetacc, integrator))
 
     res = AbstractMCMC.sample(rng, model, kernel, metric, adaptor, parallel, nsamples, nchains; init_params=θ0, chain_type=Array, kwargs...)
-
-    stats = [Table(getproperty.(r, :stat)) for r in res]
+    sample_stats = [(getproperty.(r, :stat)) for r in res]
     samples = [getproperty.(getproperty.(r, :z), :θ) for r in res]
-    chains = [Table(transform.(Ref(tpost), s)) for s in samples]
-    return chains, stats
-
+    chains = [(transform.(Ref(tpost), s)) for s in samples]
+    library = "Comrade AdvancedHMC.jl"
+    return from_namedtuple(chains; sample_stats, library), last.(res)
 end
 
 """
@@ -207,9 +206,12 @@ and the second argument is a set of ancilliary information about the sampler.
 
 This will automatically transform the posterior to the flattened unconstrained space.
 """
-function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC, nsamples, args...;
-                             init_params=nothing,
-                             kwargs...)
+function AbstractMCMC.sample(
+        rng::Random.AbstractRNG,
+        tpost::Comrade.TransformedPosterior, sampler::AHMC,
+        nsamples, args...;
+        init_params=nothing,
+        kwargs...)
     ℓ = logdensityof(tpost)
 
     ∇ℓ = Comrade.make_pullback(ℓ, sampler.autodiff)
@@ -232,10 +234,11 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
 
     res = AbstractMCMC.sample(model, kernel, metric, adaptor, nsamples, args...; init_params=θ0, chain_type=Array, kwargs...)
 
-    stats = Table(getproperty.(res, :stat))
+    sample_stats = [getproperty.(res, :stat)]
     samples = getproperty.(getproperty.(res, :z), :θ)
     chain = transform.(Ref(tpost), samples)
-    return Table(chain), stats
+    library = "Comrade AdvancedHMC.jl"
+    return from_namedtuple([chain]; sample_stats, library), res[end]
 end
 
 
