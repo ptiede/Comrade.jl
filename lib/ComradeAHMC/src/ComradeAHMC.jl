@@ -121,9 +121,8 @@ is specified `nchains` random samples from the prior will be chosen for the star
 
 For possible `kwargs` please see the [`AdvancedHMC.jl docs`](https://github.com/TuringLang/AdvancedHMC.jl)
 
-This returns a tuple where the first element is `nchains` of `TypedTable`'s
-each which contains the MCMC samples of one of the parallel chain and the second argument
-is a set of ancilliary information about each set of samples.
+This returns a tuple where the first element is a InferenceData object and the second is the
+state of the sampler at the last MCMC step.
 
 # Notes
 
@@ -198,8 +197,8 @@ is specified `nchains` random samples from the prior will be chosen for the star
 
 For possible `kwargs` please see the [`AdvancedHMC.jl docs`](https://github.com/TuringLang/AdvancedHMC.jl)
 
-This returns a tuple where the first element is a `TypedTable` of the MCMC samples in parameter space
-and the second argument is a set of ancilliary information about the sampler.
+This returns a tuple where the first element is a InferenceData object and the second is the
+state of the sampler at the last MCMC step.
 
 
 # Notes
