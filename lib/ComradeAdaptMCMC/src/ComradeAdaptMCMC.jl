@@ -1,9 +1,9 @@
 module ComradeAdaptMCMC
 
 using AdaptiveMCMC
-using Comrade
-using TypedTables
 using AbstractMCMC
+using Comrade
+using InferenceObjects
 using Random
 
 export AdaptMCMC
@@ -94,13 +94,11 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedP
                        kwargs...
                        )
 
-    stats = (logl = apt.D, state = apt.R, accexp = apt.accRWM, accswp=apt.accSW)
-    if sampler.all_levels
-        chains = Tuple(Table(transform.(Ref(post), eachcol(apt.allX[i]))) for i in eachindex(apt.allX))
-    else
-        chains = transform.(Ref(post), eachcol(apt.X)) |> Table
-    end
-    return chains, stats
+
+    stats = Dict(:logl => apt.D)
+    library = "Comrade, AdaptiveMCMC.jl"
+    chains = map(x->transform.(Ref(post), eachcol(x)), apt.allX)
+    return from_namedtuple(chains; sample_stats=stats, library, attrs=Dict(:accexp => apt.accRWM, :accswp=>apt.accSW)), apt.R
 end
 
 
