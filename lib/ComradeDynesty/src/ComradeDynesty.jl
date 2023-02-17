@@ -28,7 +28,6 @@ samples produced by dynesty.
 
 To create equally weighted samples the user can do
 ```julia
-using StatsBase
 samples, dy = sample(post, NestedSampler(dimension(post), 1000))
 equal_weighted_chain = ComradeDynesty.equalresample(samples, 1000)
 ```
