@@ -19,6 +19,7 @@ AbstractMCMC = "3,4"
 AdvancedHMC = "0.3"
 ArgCheck = "2"
 Comrade = "0.7"
+InferenceObjects = "0.3"
 Reexport = "1"
 julia = "1.7"
 
