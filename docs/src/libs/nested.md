@@ -25,7 +25,7 @@ samples = sample(post, smplr; d_logz=1.0)
 
 # Optionally resample the chain to create an equal weighted output
 using StatsBase
-equal_weight_chain = ComradeNested.equalresample(samples, 10000)
+equal_weight_chain = ComradeNested.equalresample(samples, 10_000)
 ```
 
 ## API
