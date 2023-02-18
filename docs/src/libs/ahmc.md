@@ -28,7 +28,7 @@ post # of type Comrade.Posterior
 metric = DiagEuclideanMetric(dimension(post))
 smplr = AHMC(metric=metric, autodiff=AD.ForwardDiffBackend())
 
-chain, stats = sample(post, smplr, 2_000; nadapts=1_000)
+samples, endstate = sample(post, smplr, 2_000; nadapts=1_000)
 ```
 
 ## API
