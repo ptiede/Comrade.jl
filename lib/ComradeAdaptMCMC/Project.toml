@@ -1,7 +1,7 @@
 name = "ComradeAdaptMCMC"
 uuid = "5a6518a2-e6ab-4020-97b8-110ebf16b849"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.2.3"
+version = "0.3.0"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
