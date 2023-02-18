@@ -1,20 +1,20 @@
 name = "ComradeAdaptMCMC"
 uuid = "5a6518a2-e6ab-4020-97b8-110ebf16b849"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.2.3"
+version = "0.3.0"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
 AdaptiveMCMC = "717c3277-546c-407d-8270-09a39a0919a0"
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+InferenceObjects = "b5cf5a8d-e756-4ee3-b014-01d49d192c00"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
 
 [compat]
 AbstractMCMC = "3, 4"
 AdaptiveMCMC = "0.1"
 Comrade = "0.7"
-TypedTables = "1"
+InferenceObjects = "0.3"
 julia = "1.7"
 
 [extras]

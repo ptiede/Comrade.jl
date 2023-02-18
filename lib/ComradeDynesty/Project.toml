@@ -1,22 +1,26 @@
 name = "ComradeDynesty"
 uuid = "0e22d245-d796-46d0-bd67-132aa2ceb697"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.2.4"
+version = "0.3.0"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 Dynesty = "eb527566-0f3e-4aab-bb5f-9d2e403dba70"
+InferenceObjects = "b5cf5a8d-e756-4ee3-b014-01d49d192c00"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
-TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
 [compat]
 AbstractMCMC = "3, 4"
 Comrade = "0.7"
 Dynesty = "0.2"
+InferenceObjects = "0.3"
 Reexport = "1"
-TypedTables = "1"
+StatsBase = "0.33"
+Tables = "1"
 julia = "1.7"
 
 [extras]

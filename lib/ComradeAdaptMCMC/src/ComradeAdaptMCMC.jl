@@ -1,9 +1,9 @@
 module ComradeAdaptMCMC
 
 using AdaptiveMCMC
-using Comrade
-using TypedTables
 using AbstractMCMC
+using Comrade
+using InferenceObjects
 using Random
 
 export AdaptMCMC
@@ -60,12 +60,12 @@ Possible additional kwargs are:
 - `thin::Int = 1`: which says to save only every `thin` sample to memory
 - `rng`: Specify a random number generator (default uses GLOBAL_RNG)
 
-This return a tuple where:
- - First element are the chains from the sampler. If `all_levels=false` the only the unit temperature (posterior) chain is returned
- - Second element is the additional ancilliary information about the samples including the
-   loglikelihood `logl`, sampler state `state`, average exploration kernel acceptance rate
-   `accexp` for each tempering level, and average temperate swap acceptance rates `accswp`
-    for each tempering level.
+This returns a tuple where the first element is a InferenceData object and the second is the
+state of the sampler at the last MCMC step.
+
+In the inference data object the posterior dataset has additional metadata the consists of
+average exploration kernel acceptance rate `accexp` for each tempering level, and average
+temperate swap acceptance rates `accswp` for each tempering level.
 """
 function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; init_params=nothing, kwargs...)
     ℓ = logdensityof(post)
@@ -94,13 +94,11 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedP
                        kwargs...
                        )
 
-    stats = (logl = apt.D, state = apt.R, accexp = apt.accRWM, accswp=apt.accSW)
-    if sampler.all_levels
-        chains = Tuple(Table(transform.(Ref(post), eachcol(apt.allX[i]))) for i in eachindex(apt.allX))
-    else
-        chains = transform.(Ref(post), eachcol(apt.X)) |> Table
-    end
-    return chains, stats
+
+    stats = (log_density = apt.D,)
+    library = "Comrade, AdaptiveMCMC.jl"
+    chains = map(x->transform.(Ref(post), eachcol(x)), apt.allX)
+    return from_namedtuple(chains; sample_stats=stats, library, attrs=Dict(:accexp => apt.accRWM, :accswp=>apt.accSW)), apt.R
 end
 
 
