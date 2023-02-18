@@ -21,5 +21,5 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
     cpost = ascube(post)
     l0 = logdensityof(cpost, Comrade.HypercubeTransform.inverse(cpost, x0))
-    @test l0 < mean(samples.sample_stats.logl)
+    @test l0 < mean(samples.sample_stats.log_density)
 end
