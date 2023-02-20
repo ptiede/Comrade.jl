@@ -1,0 +1,12 @@
+[deps]
+AbstractDifferentiation = "c29ec348-61ec-40c8-8164-b8c60e9d9f3d"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+DistributionsAD = "ced4e74d-a319-5a8a-b0ac-84af2272839c"
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
+StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
