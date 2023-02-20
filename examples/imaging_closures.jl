@@ -125,7 +125,7 @@ residual(model(xopt, metadata), dcphase)
 # These look pretty reasonable, although maybe they are a bit high. This could probably be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we have recovered a ring-like image reproducing the first EHT results.
-img = intensitymap(model(xopt, metadata), fovxy, fovxy, 128, 128)
+img = intensitymap(model(xopt, metadata), μas2rad(120.0), μas2rad(120.0), 128, 128)
 plot(img, title="MAP Image")
 
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
@@ -150,7 +150,7 @@ msamples = model.(chain[251:2:end], Ref(metadata))
 
 # The mean image is then given by
 using StatsBase
-imgs = intensitymap.(msamples, fovxy, fovxy, 128, 128)
+imgs = intensitymap.(msamples, μas2rad(120.0), μas2rad(120.0), 128, 128)
 mimg = mean(imgs)
 simg = std(imgs)
 p1 = plot(mimg, title="Mean Image")

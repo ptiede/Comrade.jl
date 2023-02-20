@@ -136,7 +136,7 @@ post = Posterior(lklhd, prior)
 xrand = prior_sample(rng, post)
 # and then plot the results
 using Plots
-img = intensitymap(model(xrand, metadata), 1.5*fovxy, 1.5*fovxy, 128, 128)
+img = intensitymap(model(xrand, metadata), μas2rad(120.0), μas2rad(120.0), 128, 128)
 plot(img, title="Random sample")
 
 # ## Reconstructing the Image

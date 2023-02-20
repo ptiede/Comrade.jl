@@ -167,7 +167,7 @@ chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim)), 2000; n
 
 # First to plot the image we call
 
-plot(model(chain[end]), title="Random image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
+plot(model(chain[end]), title="Random image", xlims=(-60.0,60.0), ylims=(-60.0,60.0))
 
 # What about the mean image? Well let's grab 100 images from the chain, where we first remove the
 # adaptation steps since they don't sample from the correct posterior distribution

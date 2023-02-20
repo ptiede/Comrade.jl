@@ -207,7 +207,7 @@ residual(model(xopt, metadata), dvis)
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
-img = intensitymap(model(xopt, metadata), fovxy, fovxy, 128, 128)
+img = intensitymap(model(xopt, metadata), μas2rad(120.0), μas2rad(120.0), 128, 128)
 plot(img, title="MAP Image")
 
 
@@ -271,7 +271,7 @@ plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
 samples = model.(chain[100:5:end], Ref(metadata))
-imgs = intensitymap.(samples, fovxy, fovxy, 128,  128);
+imgs = intensitymap.(samples, μas2rad(120.0), μas2rad(120.0), 128,  128);
 
 mimg = mean(imgs)
 simg = std(imgs)
