@@ -167,7 +167,7 @@ ny = floor(Int, fovy/fovx*nx)
 grid = imagepixels(fovx, fovy, nx, ny) # image grid
 buffer = IntensityMap(zeros(nx, ny), grid) # buffer to store temporary image
 pulse = BSplinePulse{3}() # pulse we will be using
-cache = create_cache(DFTAlg(dvis), buffer, pulse) # cache to define the NFFT transform
+cache = create_cache(NFFTAlg(dvis), buffer, pulse) # cache to define the NFFT transform
 
 # To define the instrument models, $T$, $G$, $D$, we need to build some Jones caches (see [`JonesCache`](@ref)) that map from a flat
 # vector of gain/dterms to the specific sites for each baseline.
