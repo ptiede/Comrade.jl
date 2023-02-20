@@ -261,7 +261,7 @@ function caltable(g::JonesCache, gains::AbstractVector)
     return CalTable(stations, lookup, times, gmat)
 end
 
-function caltable(g::SegmentedJonesCache, gains::AbstractVector)
+function caltable(g::SegmentedJonesCache, gains::AbstractVector, f = identity)
     @argcheck length(g.times) == length(gains)
 
     stations = sort(unique(g.stations))
@@ -275,12 +275,11 @@ function caltable(g::SegmentedJonesCache, gains::AbstractVector)
     for i in eachindex(gains)
         t = findfirst(t->(t==alltimes[i]), times)
         c = lookup[allstations[i]]
-        gmat[t,c] = gains[i]
+        indprev = findlast(!=(0.0), @view(gmat[begin:t-1, c]))
+        gmat[t,c] = gains[i] + (!isnothing(indprev) ? gmat[indprev, c] : 0)
     end
 
-
-    cumsum!(gmat, gmat; dims=1)
-    replace!(x->x==0 ? missing : x, @view gmat[:,begin:end])
-
+    replace!(x->(x==0 ? missing : x), gmat)
+    gmat .= f.(gmat)
     return CalTable(stations, lookup, times, gmat)
 end
