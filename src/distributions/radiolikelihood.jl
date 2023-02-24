@@ -20,11 +20,12 @@ such as when fitting different wavelengths or days, you can combine them using
 julia> RadioLikelihood(model, dcphase1, dlcamp1)
 ```
 """
-struct RadioLikelihood{M,T,A,P} <: VLBILikelihood
+struct RadioLikelihood{M,T,A,P,V} <: VLBILikelihood
     model::M
     lklhds::T
     ac::A
     positions::P
+    vis::V
 end
 
 struct ModelMetadata{M, C}
@@ -41,8 +42,10 @@ function RadioLikelihood(model, data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
     positions = getuvtimefreq(data[1].config)
+    vis = similar(positions.U, Complex{eltype(positions.U)})
+    vis .= 0
     #@argcheck acs[1] == acs[2]
-    RadioLikelihood{typeof(model), typeof(ls), typeof(acs[1]), typeof(positions)}(model, ls, acs[1], positions)
+    RadioLikelihood{typeof(model), typeof(ls), typeof(acs[1]), typeof(positions), typeof(vis)}(model, ls, acs[1], positions, vis)
 end
 
 """
@@ -163,7 +166,7 @@ function DensityInterface.logdensityof(d::RadioLikelihood, θ::NamedTuple)
     ac = d.positions
     m = d.model(θ)
     # Convert because of conventions
-    vis = visibilities(m, ac)
+    vis = visibilities!(d.vis, m, ac)
     return _logdensityofvis(d, vis)
 end
 

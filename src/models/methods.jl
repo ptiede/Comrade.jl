@@ -114,6 +114,12 @@ are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
     return _visibilities(m, U, V, T, F)
 end
 
+@inline function visibilities!(vis::AbstractArray, m::AbstractModel, p::NamedTuple)
+    U, V, T, F = extract_pos(p)
+    vis .= visibility_point.(Ref(m), U, V, T, F)
+    return vis
+end
+
 function extract_pos(p::NamedTuple)
     return p.U, p.V, p.T, p.F
 end

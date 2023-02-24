@@ -130,33 +130,33 @@ unitscale(T, ::IsPolarized) = I
 # end
 
 
-@inline function apply_uv_transform(m::AbstractModifier, u, v, scale)
-    ut, vt = transform_uv(m, u, v)
-    scale = scale*scale_uv(m, u, v)
-    return apply_uv_transform(basemodel(m), ut, vt, scale)
-end
-
-@inline function apply_uv_transform(::AbstractModel, u, v, scale)
-    return (u, v), scale
-end
-
-@inline function _visibilities(m::AbstractModifier, u, v, time, freq)
-    uv, scale = apply_uv_transform(m, u, v)
-    ut = first.(uv)
-    vt = last.(uv)
-    scale.*_visibilities(unmodified(m), ut, vt, time, freq)
-end
-
-
-# function visibilities(m, p::NamedTuple)
-#     m = Base.Fix1(m∘NamedTuple{keys(p)})
-#     return visibilities(m, NamedTuple{keys(p)}(p))
+# @inline function apply_uv_transform(m::AbstractModifier, u, v, scale)
+#     ut, vt = transform_uv(m, u, v)
+#     scale = scale*scale_uv(m, u, v)
+#     return apply_uv_transform(basemodel(m), ut, vt, scale)
 # end
 
-function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
-    res = apply_uv_transform.(Ref(m), u, v, 1.0)
-    return first.(res), last.(res)
-end
+# @inline function apply_uv_transform(::AbstractModel, u, v, scale)
+#     return (u, v), scale
+# end
+
+# @inline function _visibilities(m::AbstractModifier, u, v, time, freq)
+#     uv, scale = apply_uv_transform(m, u, v)
+#     ut = first.(uv)
+#     vt = last.(uv)
+#     scale.*_visibilities(unmodified(m), ut, vt, time, freq)
+# end
+
+
+# # function visibilities(m, p::NamedTuple)
+# #     m = Base.Fix1(m∘NamedTuple{keys(p)})
+# #     return visibilities(m, NamedTuple{keys(p)}(p))
+# # end
+
+# function apply_uv_transform(m::AbstractModifier, u::AbstractVector, v::AbstractVector)
+#     res = apply_uv_transform.(Ref(m), u, v, 1.0)
+#     return first.(res), last.(res)
+# end
 
 
 
