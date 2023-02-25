@@ -56,12 +56,12 @@ function nocachevis(m::ModelImage{M,I,<:NUFTCache}, u, v, time, freq) where {M,I
     alg = ObservedNUFT(m.cache.alg, vcat(u', v'))
     cache = create_cache(alg, m.image)
     m = @set m.cache = cache
-    return _visibilities(m, u, v, time, freq)
+    return visibilitymap_numeric(m, u, v, time, freq)
 end
 
 function checkuv(uv, u, v)
-    @assert u == @view(uv[1,:]) "Specified u don't match uv in cache. Did you pass the correct u,v?"
-    @assert v == @view(uv[2,:]) "Specified v don't match uv in cache. Did you pass the correct u,v?"
+    @argcheck u == @view(uv[1,:]) "Specified u don't match uv in cache. Did you pass the correct u,v?"
+    @argcheck v == @view(uv[2,:]) "Specified v don't match uv in cache. Did you pass the correct u,v?"
 end
 
 
@@ -74,22 +74,25 @@ end
 
 ChainRulesCore.@non_differentiable checkuv(alg, u::AbstractArray, v::AbstractArray)
 
-function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
-                      u, v, time, freq) where {M,I<:IntensityMap,A<:ObservedNUFT}
-    checkuv(m.cache.alg.uv, u, v)
+function visibilitymap_numeric(m::ModelImage{M,I,<:NUFTCache{A}},
+                      p) where {M,I<:IntensityMap,A<:ObservedNUFT}
+    U, V, T, F = extract_pos(p)
+    checkuv(m.cache.alg.uv, U, V)
     vis =  nuft(m.cache.plan, m.cache.img)
     return conj.(vis).*m.cache.phases
 end
 
 function visibilitymap!(vis::AbstractArray, m::ModelImage{M,I,<:NUFTCache{A}},
-    u, v, time, freq) where {M,I<:IntensityMap,A<:ObservedNUFT}
-    checkuv(m.cache.alg.uv, u, v)
+    p) where {M,I<:IntensityMap,A<:ObservedNUFT}
+    U, V, T, F = extract_pos(p)
+    checkuv(m.cache.alg.uv, U, V)
     nuft!(vis, m.cache.plan, m.cache.img)
-    return conj.(vis).*m.cache.phases
+    vis .= conj.(vis).*m.cache.phases
+    return vis
 end
 
 
-function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
+function visibilitymap_numeric(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I<:StokesIntensityMap,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
     visI =  conj.(nuft(m.cache.plan, complex.(stokes(m.cache.img, :I)))).*m.cache.phases
@@ -120,7 +123,7 @@ end
 
 
 
-function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
+function visibilitymap_numeric(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I,A<:NUFT}
     return nocachevis(m, u, v, time, freq)
 end

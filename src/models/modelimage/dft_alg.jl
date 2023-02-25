@@ -64,7 +64,7 @@ function make_phases(alg::ObservedNUFT{<:DFTAlg}, img::IntensityMapTypes, pulse:
     # We don't need to correct for the phase offset here since that
     # is taken care of in plan_nuft for DFTAlg
     dx, dy = pixelsizes(img)
-    return _visibilities(stretched(pulse, dx, dy), u, v, 0.0, 0.0)
+    return visibilitymap_analytic(stretched(pulse, dx, dy), u, v, 0.0, 0.0)
 end
 
 """

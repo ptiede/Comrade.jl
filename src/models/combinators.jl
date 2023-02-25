@@ -17,7 +17,8 @@ Any implementation of a composite type must define the following methods:
 - intensitymap if model intensity is `NotAnalytic`
 - flux
 - radialextent
-- _visibilities (optional)
+- visibilitymap_analytic (optional)
+- visibilitymap_numeric (optional)
 """
 abstract type CompositeModel{M1,M2} <: AbstractModel end
 

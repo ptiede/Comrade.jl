@@ -120,7 +120,7 @@ function _frule_vis(m::ModelImage{M,<:SpatialIntensityMap{<:ForwardDiff.Dual{T,V
     return out
 end
 
-function _visibilities(m::ModelImage{M,<:SpatialIntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{O}},
+function visibilitymap_numeric(m::ModelImage{M,<:SpatialIntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{O}},
     u::AbstractArray,
     v::AbstractArray,
     time,
@@ -135,7 +135,7 @@ end
 
 
 function nuft(A::NFFTPlan{T}, b::AbstractArray{<:Real}) where {T}
-    out = similar(b, Complex{T}, size(A,1))
+    out = similar(b, Complex{T}, size(A)[1])
     return nuft!(out, A, b)
 end
 

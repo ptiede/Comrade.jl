@@ -166,7 +166,7 @@ function DensityInterface.logdensityof(d::RadioLikelihood, θ::NamedTuple)
     ac = d.positions
     m = d.model(θ)
     # Convert because of conventions
-    vis = visibilities!(d.vis, m, ac)
+    vis = visibilitymap!(d.vis, m, ac)
     return _logdensityofvis(d, vis)
 end
 
