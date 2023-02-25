@@ -1,3 +1,4 @@
+export visibilitymap, visibilitymap!
 """
     visibility(mimg, p)
 
@@ -7,7 +8,7 @@ the coordinates of the model. These need to have the properties `U`, `V` and som
 
 # Notes
 If you want to compute the visibilities at a large number of positions
-consider using the [`visibilities`](@ref visibilities).
+consider using the [`visibilitymap`](@ref visibilities).
 """
 @inline function visibility(mimg::M, p) where {M}
     #first we split based on whether the model is primitive
@@ -110,17 +111,17 @@ Computes the visibilities of the model `m` using the coordinates `p`. The coordi
 are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
 """
 @inline function visibilitymap(m::AbstractModel, p)
-    return visibilitymap(visanalytic(typeof(m)), p)
+    return visibilitymap(visanalytic(typeof(m)), m, p)
 end
 
 """
-    visibilities!(vis, m, p)
+    visibilitymap!(vis, m, p)
 
 Computes the visibilities of the model `m` using the coordinates `p`. The coordinates `p`
-are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
+are expected to have the properties `U`, `V`, and sometimes `T` and `F`.
 """
 @inline function visibilitymap!(vis::AbstractArray, m::AbstractModel, p)
-    return visibilitymap!(visanalytic(typeof(m)) vis, m, p)
+    return visibilitymap!(visanalytic(typeof(m)), vis, m, p)
 end
 
 @inline visibilitymap(::IsAnalytic, m::AbstractModel, p)  = visibilitymap_analytic(m, p)

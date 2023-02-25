@@ -238,7 +238,7 @@ end
 @inline visibilitymap(::NotAnalytic, m, dims::AbstractDims) = visibilitymap_numeric(m, dims)
 
 @inline visibilitymap!(::IsAnalytic, out, m, dims::AbstractDims) = visibilitymap_analytic!(out, m, dims::AbstractDims)
-@inline visibilitymap!(::IsAnalytic, out, m, dims::AbstractDims) = visibilitymap_numeric!(out, m, dims::AbstractDims)
+@inline visibilitymap!(::NotAnalytic, out, m, dims::AbstractDims) = visibilitymap_numeric!(out, m, dims::AbstractDims)
 
 function visibilitymap_analytic(m, dims::AbstractDims)
     T = typeof(visibility(m, first(dims)))
