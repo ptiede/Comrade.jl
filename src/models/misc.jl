@@ -28,9 +28,4 @@ intensitymap(::ZeroModel{T}, p::AbstractDims) where {T} = IntensityMap(Fill(zero
 @inline ConvolvedModel(::Any, m::ZeroModel) = m
 
 
-# Now here we use a bit of meta programming to deal with combinators
-for m in (:RenormalizedModel, :RotatedModel, :ShiftedModel, :StretchedModel)
-    @eval begin
-      $m(z::ZeroModel{T}, arg::Vararg{X,N}) where {T,X<:Number,N} = z
-    end
-end
+ModifiedModel(m::ZeroModel, ::ModelTransform) = m
