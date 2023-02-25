@@ -42,9 +42,9 @@ function modelimage(::NotAnalytic,
     @set m1.m2 = modelimage(m1.m2, cache)
 end
 
-function fouriermap(m::CompositeModel, dims::AbstractDims)
-    m1 = fouriermap(m.m1, dims)
-    m2 = fouriermap(m.m2, dims)
+function visibilitymap(m::CompositeModel, dims::AbstractDims)
+    m1 = visibilitymap(m.m1, dims)
+    m2 = visibilitymap(m.m2, dims)
     return uv_combinator(m).(m1,m2)
 end
 
@@ -178,15 +178,9 @@ end
 # end
 
 
-@inline function _visibilities(model::AddModel, u, v, time, freq)
-    #f = uv_combinator(model)
-    return _visibilities(model.m1, u, v, time, freq) .+ _visibilities(model.m2, u, v, time, freq)
+@inline function visibilitymap_numeric(model::AddModel, p)
+    return visibilitymap_numeric(model.m1, p) .+ visibilitymap_numeric(model.m2, p)
 end
-
-# @inline function _visibilities(::IsAnalytic, model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
-#     f = uv_combinator(model)
-#     return f.(visibility_point.(Ref(model.m1), u, v), visibility_point.(Ref(model.m2), u, v))
-# end
 
 
 
@@ -275,22 +269,17 @@ smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 
 flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
-function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::AbstractDims)
-    (;X, Y) = dims
-    vis1 = fouriermap(model.m1, dims)
-    vis2 = fouriermap(model.m2, dims)
-    U = vis1.U
-    V = vis1.V
-    vis = ifftshift(phasedecenter!(vis1.*vis2, X, Y, U, V))
-    ifft!(keyless_unname(vis))
-    return IntensityMap(real.(keyless_unname(vis)), dims)
+function intensitymap_numeric(model::ConvolvedModel, dims::AbstractDims)
+    mat = similar(dims.X, size(dims))
+    img = IntensityMap(mat, dims)
+    return intensitymap_numeric!(img, model)
 end
 
-function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel)
-    dims = axisdims(sim)
+function intensitymap_numeric!(sim::IntensityMap, model::ConvolvedModel)
+    dims = axiskeys(sim)
     (;X, Y) = dims
-    vis1 = fouriermap(model.m1, dims)
-    vis2 = fouriermap(model.m2, dims)
+    vis1 = visibilitymap(model.m1, dims)
+    vis2 = visibilitymap(model.m2, dims)
     U = vis1.U
     V = vis1.V
     vis = ifftshift(phasedecenter!(keyless_unname(vis1.*vis2), X, Y, U, V))
@@ -298,37 +287,7 @@ function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel)
     sim .= real.(vis)
 end
 
-#ChainRulesCore.@non_differentiable getproperty(m::ConvolvedModel, x::Symbol)
 
-@inline function _visibilities(model::ConvolvedModel, u, v, time, freq)
-    #f = uv_combinator(model)
-    return _visibilities(model.m1, u, v, time, freq).*_visibilities(model.m2, u, v, time, freq)
+@inline function visibilitymap_numeric(model::ConvolvedModel, p)
+    return visibilitymap_numeric(model.m1, p).*visibilitymap_numeric(model.m2, p)
 end
-
-
-
-# function _combinatorvis(::IsAnalytic, ::IsAnalytic, f::F, m, u, v, t, ν, cache) where {F}
-#     @assert length(u) == length(u) "Number of visibilities must equal number of points"
-#     ff(u, v, t, ν) = f(visibility_point(m.m1, u, v, t, ν, cache), visibility_point(m.m2, u, v, t, ν, cache))
-#     return mappedarray(ff, u, v, t, ν)
-# end
-
-# function _combinatorvis(::IsAnalytic, ::NotAnalytic, f::F, m, u, v, args...) where {F}
-#     vis = _visibilities(m.m1, u, v, args...)
-#     for i in eachindex(vis)
-#         vis[i] = f(visibility_point(m.m2, u[i], v[i], args...), vis[i])
-#     end
-# end
-
-# function _combinatorvis(::NotAnalytic, ::IsAnalytic, f::F, m, u, v, args...) where {F}
-#     vis = _visibilities(m.m2, u, v, args...)
-#     for i in eachindex(vis)
-#         vis[i] = f(vis[i], visibility_point(m.m1, u[i], v[i], args...))
-#     end
-# end
-
-# function _combinatorvis(::NotAnalytic, ::NotAnalytic, m, f::F, u, v, args...) where {F}
-#     vis1 = _visibilities(m.m1, u, v, args...)
-#     vis2 = _visibilities(m.m2, u, v, args...)
-#     vis1 .= f.(vis1, vis2)
-# end

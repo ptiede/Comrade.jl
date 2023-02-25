@@ -132,9 +132,17 @@ function _visibilities(m::ModelImage{M,<:SpatialIntensityMap{<:ForwardDiff.Dual{
     return conj.(vis).*m.cache.phases
 end
 
-function nuft(A::NFFTPlan, b)
-    return A*b
+
+
+function nuft(A::NFFTPlan{T}, b::AbstractArray{<:Real}) where {T}
+    out = similar(b, Complex{T}, size(A,1))
+    return nuft!(out, A, b)
 end
+
+function nuft!(vis::AbstractArray, A::NFFTPlan, b)
+    return mul!(vis, A, b)
+end
+
 
 function ChainRulesCore.rrule(::typeof(nuft), A::NFFTPlan, b)
     pr = ChainRulesCore.ProjectTo(b)

@@ -109,16 +109,25 @@ end
 Computes the visibilities of the model `m` using the coordinates `p`. The coordinates `p`
 are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
 """
-@inline function visibilities(m::AbstractModel, p::NamedTuple)
-    U, V, T, F = extract_pos(p)
-    return _visibilities(m, U, V, T, F)
+@inline function visibilitymap(m::AbstractModel, p)
+    return visibilitymap(visanalytic(typeof(m)), p)
 end
 
-@inline function visibilities!(vis::AbstractArray, m::AbstractModel, p::NamedTuple)
-    U, V, T, F = extract_pos(p)
-    vis .= visibility_point.(Ref(m), U, V, T, F)
-    return vis
+"""
+    visibilities!(vis, m, p)
+
+Computes the visibilities of the model `m` using the coordinates `p`. The coordinates `p`
+are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
+"""
+@inline function visibilitymap!(vis::AbstractArray, m::AbstractModel, p)
+    return visibilitymap!(visanalytic(typeof(m)) vis, m, p)
 end
+
+@inline visibilitymap(::IsAnalytic, m::AbstractModel, p)  = visibilitymap_analytic(m, p)
+@inline visibilitymap(::NotAnalytic, m::AbstractModel, p) = visibilitymap_numeric(m, p)
+
+@inline visibilitymap!(::IsAnalytic, vis::AbstractArray, m::AbstractModel, p)  = visibilitymap_analytic!(vis, m, p)
+@inline visibilitymap!(::NotAnalytic, vis::AbstractArray, m::AbstractModel, p) = visibilitymap_numeric!(vis, m, p)
 
 function extract_pos(p::NamedTuple)
     return p.U, p.V, p.T, p.F
@@ -128,14 +137,23 @@ function extract_pos(p::NamedTuple{(:U,:V)})
     return p.U, p.V, zero(eltype(p.U)), zero(eltype(p.V))
 end
 
-# @inline function visibilities(m::AbstractModel, p::NamedTuple{(:U, :V)})
-#     return _visibilities(m, p.U, p.V, zero(eltype(p.U)), zero(eltype(p.U)))
-# end
-
-
-@inline function visibilities(m, p::ArrayConfiguration)
-    return _visibilities(m, p.data.U, p.data.V, p.data.T, p.data.F)
+function extract_pos(p::ArrayConfiguration)
+    return p.data.U, p.data.V, p.data.T, p.data.F
 end
+
+function visibilitymap_analytic(m::AbstractModel, p::Union{NamedTuple, ArrayConfiguration})
+    U, V, T, F = extract_pos(p)
+    T = typeof(visibility_point(m, first(U), first(V), first(T), first(F)))
+    vis = similar(U, T, size(U))
+    return visibilitymap_analytic!(vis, m, p)
+end
+
+@inline function visibilitymap_analytic!(vis::AbstractArray, m::AbstractModel, p::Union{NamedTuple, ArrayConfiguration})
+    U, V, T, F = extract_pos(p)
+    vis .= visibility_point.(Ref(m), U, V, T, F)
+    return vis
+end
+
 
 # function ChainRulesCore.rrule(::typeof(getuv), p::ArrayConfiguration)
 #     sa = getuv(p)
@@ -149,19 +167,6 @@ end
 
 
 
-# Internal function required for dispatch. This is a fallback method if
-# visibilities doesn't have a direct implementation.
-@inline function _visibilities(m, u, v, time, freq)
-    _visibilities_fallback(m, u, v, time, freq)
-end
-
-function _visibilities_fallback(m, u, v, time, freq)
-    return visibility_point.(Ref(m), u, v, time, freq)
-end
-
-
-
-
 
 """
     amplitudes(m::AbstractModel, u::AbstractArray, v::AbstractArray)
@@ -170,29 +175,33 @@ Computes the visibility amplitudes of the model `m` at the coordinates `p`.
 The coordinates `p` are expected to have the properties `U`, `V`,
 and sometimes `Ti` and `Fr`.
 """
-function amplitudes(m, p::NamedTuple{(:U, :V, :T, :F)})
-    _amplitudes(m, p.U, p.V, p.T, p.F)
+function amplitudemap(m::M, p) where {M}
+    amplitudemap(visanalytic(M), m, p)
 end
 
-function amplitudes(m, p::NamedTuple{(:U, :V)})
-    _amplitudes(m, p.U, p.V, 0.0, 0.0)
+@inline amplitudemap(::IsAnalytic, m::AbstractModel, p)  = amplitudemap_analytic(m, p)
+@inline amplitudemap(::NotAnalytic, m::AbstractModel, p) = amplitudemap_numeric(m, p)
+
+@inline amplitudemap!(::IsAnalytic, vis::AbstractArray, m::AbstractModel, p)  = amplitudemap_analytic!(vis, m, p)
+@inline amplitudemap!(::NotAnalytic, vis::AbstractArray, m::AbstractModel, p) = amplitudemap_numeric!(vis, m, p)
+
+
+function amplitudemap_analytic(m::AbstractModel, p)
+    U, V, T, F = extract_pos(p)
+    T = typeof(abs(visibility_point(m, first(U), first(V), first(T), first(F))))
+    amp = similar(U, T, size(U))
+    return amplitudemap_analytic!(amp, m, p)
 end
 
-amplitudes(m, p::ArrayConfiguration) = _amplitudes(m, p.data.U, p.data.V, p.data.T, p.data.F)
-
-
-function _amplitudes(m::S, u, v, time, freq) where {S}
-    _amplitudes(visanalytic(S), m, u, v, time, freq)
+function amplitudemap_analytic!(amp::AbstractArray, m::AbstractModel, p)
+    U, V, T, F = extract_pos(p)
+    return amp .= abs.(visibility_point.(Ref(m), U, V, T, F))
 end
 
-function _amplitudes(::IsAnalytic, m, u, v, time, freq)
-    abs.(visibility_point.(Ref(m), u, v, time, freq))
+# TODO figure out how to makes this non-allocating. It may require a special array
+function amplitudemap_numeric!(amp::AbstractArray, m::AbstractModel, p)
+    amp .= abs.(visibilitymap_numeric(m, p))
 end
-
-function _amplitudes(::NotAnalytic, m, u, v, time, freq)
-    abs.(_visibilities(m, u, v, time, freq))
-end
-
 
 """
     bispectra(m, p1, p2, p3)
@@ -356,8 +365,8 @@ end
 # `executor` if for parallelization but is not used for this method.
 function intensitymap!(::NotAnalytic, img::IntensityMap, m)
     # nx, ny = size(img)
-    (;X, Y) = axisdims(img)
-    vis = fouriermap(m, axisdims(img))
+    (;X, Y) = axiskeys(img)
+    vis = fouriermap(m, axiskeys(img))
     U, V = uviterator(length(X), step(X), length(Y), step(Y))
     visk = ifftshift(keyless_unname(phasedecenter!(vis, X, Y, U, V)))
     ifft!(visk)

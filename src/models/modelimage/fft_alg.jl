@@ -140,16 +140,22 @@ end
 
 # phasecenter the FFT.
 using FastBroadcast
-@fastmath function ComradeBase.phasecenter(vis, X, Y, U, V)
+@fastmath function phasecenter!(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
-    return conj.(vis).*cispi.(2 * (U.*x0 .+ V'.*y0))
+    @.. vis .= conj.(vis).*cispi.(2 * (U.*x0 .+ V'.*y0))
+    return vis
 end
 
 
 function applyfft(plan, img::AbstractArray{<:Number})
     return fftshift(plan*img)
 end
+
+function applyfft!(plan, img::AbstractArray{<:Number})
+    return fftshift(plan*img)
+end
+
 
 function applyfft(plan, img::AbstractArray{<:StokesParams})
     visI = applyfft(plan, stokes(img, :I))
@@ -224,21 +230,33 @@ Create a Fourier or visibility map of a model `m`
 where the image is specified in the image domain by the
 pixel locations `x` and `y`
 """
-function fouriermap(m::M, dims::AbstractDims) where {M}
-    fouriermap(visanalytic(M), m, dims)
+function visibilitymap(m::M, dims::AbstractDims) where {M}
+    visibilitymap(visanalytic(M), m, dims)
 end
 
-function fouriermap(::IsAnalytic, m, dims::AbstractDims)
+@inline visibilitymap(::IsAnalytic,  m, dims::AbstractDims) = visibilitymap_analytic(m, dims)
+@inline visibilitymap(::NotAnalytic, m, dims::AbstractDims) = visibilitymap_numeric(m, dims)
+
+@inline visibilitymap!(::IsAnalytic, out, m, dims::AbstractDims) = visibilitymap_analytic!(out, m, dims::AbstractDims)
+@inline visibilitymap!(::IsAnalytic, out, m, dims::AbstractDims) = visibilitymap_numeric!(out, m, dims::AbstractDims)
+
+function visibilitymap_analytic(m, dims::AbstractDims)
+    T = typeof(visibility(m, first(dims)))
+    vis = similar(dims.X, T, size(dims))
+    return visibilitymap_analytic!(vis, m, dims)
+end
+
+function visibilitymap_analytic!(vis, m, dims::AbstractDims)
     X = dims.X
     Y = dims.Y
     uu,vv = uviterator(length(X), step(X), length(Y), step(Y))
     uvgrid = ComradeBase.grid(U=uu, V=vv)
-    vis = visibility.(Ref(m), uvgrid)
+    vis .= visibility.(Ref(m), uvgrid)
     return vis
 end
 
 
-function fouriermap(::NotAnalytic, m, g::AbstractDims)
+function visibilitymap_numeric(m, g::AbstractDims)
     X = g.X
     Y = g.Y
     img = IntensityMap(zeros(map(length, dims(g))), g)

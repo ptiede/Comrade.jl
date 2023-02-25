@@ -77,9 +77,17 @@ ChainRulesCore.@non_differentiable checkuv(alg, u::AbstractArray, v::AbstractArr
 function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I<:IntensityMap,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
-    vis =  nuft(m.cache.plan, complex.(m.cache.img))
+    vis =  nuft(m.cache.plan, m.cache.img)
     return conj.(vis).*m.cache.phases
 end
+
+function visibilitymap!(vis::AbstractArray, m::ModelImage{M,I,<:NUFTCache{A}},
+    u, v, time, freq) where {M,I<:IntensityMap,A<:ObservedNUFT}
+    checkuv(m.cache.alg.uv, u, v)
+    nuft!(vis, m.cache.plan, m.cache.img)
+    return conj.(vis).*m.cache.phases
+end
+
 
 function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I<:StokesIntensityMap,A<:ObservedNUFT}
@@ -92,6 +100,22 @@ function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
     return r
 end
 
+function visibilitymap!(vis::StructArray{<:StokesParams}, m::ModelImage{M,I,<:NUFTCache{A}},
+    u, v, time, freq) where {M,I<:StokesIntensityMap,A<:ObservedNUFT}
+    checkuv(m.cache.alg.uv, u, v)
+
+    visI = nuft!(vis.I, m.cache.plan, stokes(m.cache.img, :I))
+    visQ = nuft!(vis.Q, m.cache.plan, stokes(m.cache.img, :Q))
+    visU = nuft!(vis.U, m.cache.plan, stokes(m.cache.img, :U))
+    visV = nuft!(vis.V, m.cache.plan, stokes(m.cache.img, :V))
+
+    visI .=  conj.(visI).*m.cache.phases
+    visQ .=  conj.(visQ).*m.cache.phases
+    visU .=  conj.(visU).*m.cache.phases
+    visV .=  conj.(visV).*m.cache.phases
+    return vis
+end
+
 
 
 
@@ -100,6 +124,14 @@ function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I,A<:NUFT}
     return nocachevis(m, u, v, time, freq)
 end
+
+function visibilitymap!(
+    vis::AbstractArray, m::ModelImage{M,I,<:NUFTCache{A}},
+    u, v, time, freq) where {M,I,A<:NUFT}
+
+    return nocachevis!(vis, m, u, v, time, freq)
+end
+
 
 
 """

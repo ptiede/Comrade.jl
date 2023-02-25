@@ -5,3 +5,7 @@ using ArgCheck
 function EnzymeRules.inactive(::typeof(ArgCheck.check), args...)
     return nothing
 end
+
+function EnzymeRules.inactive(::typeof(checkuv), args...)
+    return nothing
+end

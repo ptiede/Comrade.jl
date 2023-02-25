@@ -77,6 +77,11 @@ function create_cache(alg::ObservedNUFT{<:DFTAlg}, plan, phases, img, pulse::Pul
     return NUFTCache(alg, plan, phases, pulse, img)
 end
 
-function nuft(A::AbstractMatrix, b)
-    return A*reshape(b, :)
+function nuft!(vis::AbstractVector, A::AbstractMatrix, b::AbstractMatrix{<:Real})
+    return mul!(vis, A, reshape(b, :))
+end
+
+function nuft(A::AbstractMatrix, b::AbstractMatrix{<:Real})
+    out = similar(b, Complex{eltype(b)}, size(A, 1))
+    return mul!(out, A, b)
 end
