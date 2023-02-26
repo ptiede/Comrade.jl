@@ -33,9 +33,9 @@ function intensitymap(::IsAnalytic, s::ThreadedModel, g::GriddedKeys)
     return intensitymap!(IsAnalytic(), img, s)
 end
 
-intensitymap(m, p, threaded::Bool) = intensitymap(m, p, static(threaded))
-intensitymap(m, p, ::False) = intensitymap(m, p)
-intensitymap(m, p, ::True)  = intensitymap(ThreadedModel(m), p)
+intensitymap(m::AbstractModel, p, threaded::Bool) = intensitymap(m, p, static(threaded))
+intensitymap(m::AbstractModel, p, ::False) = intensitymap(m, p)
+intensitymap(m::AbstractModel, p, ::True)  = intensitymap(ThreadedModel(m), p)
 
 intensitymap!(img::IntensityMapTypes, m, threaded::Bool) = intensitymap!(img, m, static(threaded))
 intensitymap!(img::IntensityMapTypes, m, ::False) = intensitymap!(img, m)
@@ -51,7 +51,7 @@ function intensitymap!(::IsAnalytic, img::IntensityMap, s::ThreadedModel)
     return img
 end
 
-function fouriermap(::IsAnalytic, m::ThreadedModel, dims::AbstractDims)
+function visibilitymap_analytic(m::ThreadedModel, dims::AbstractDims)
     X = dims.X
     Y = dims.Y
     uu,vv = uviterator(length(X), step(X), length(Y), step(Y))

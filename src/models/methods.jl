@@ -104,32 +104,6 @@ end
 #     _visibilities(m, u, v)
 # end
 
-"""
-    visibilities(m, p)
-
-Computes the visibilities of the model `m` using the coordinates `p`. The coordinates `p`
-are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
-"""
-@inline function visibilitymap(m::AbstractModel, p)
-    return visibilitymap(visanalytic(typeof(m)), m, p)
-end
-
-"""
-    visibilitymap!(vis, m, p)
-
-Computes the visibilities of the model `m` using the coordinates `p`. The coordinates `p`
-are expected to have the properties `U`, `V`, and sometimes `T` and `F`.
-"""
-@inline function visibilitymap!(vis::AbstractArray, m::AbstractModel, p)
-    return visibilitymap!(visanalytic(typeof(m)), vis, m, p)
-end
-
-@inline visibilitymap(::IsAnalytic, m::AbstractModel, p)  = visibilitymap_analytic(m, p)
-@inline visibilitymap(::NotAnalytic, m::AbstractModel, p) = visibilitymap_numeric(m, p)
-
-@inline visibilitymap!(::IsAnalytic, vis::AbstractArray, m::AbstractModel, p)  = visibilitymap_analytic!(vis, m, p)
-@inline visibilitymap!(::NotAnalytic, vis::AbstractArray, m::AbstractModel, p) = visibilitymap_numeric!(vis, m, p)
-
 function extract_pos(p::NamedTuple)
     return p.U, p.V, p.T, p.F
 end

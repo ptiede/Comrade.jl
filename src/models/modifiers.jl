@@ -1,4 +1,4 @@
-export stretched, shifted, rotated, renormed, modify
+export stretched, shifted, rotated, renormed, modify, Stretch, Renormalize, Shift, Rotate
 
 
 """
@@ -119,7 +119,7 @@ radialextent(m::ModifiedModel) = radialextent(m.model)
 
 @inline visanalytic(::Type{ModifiedModel{M, T}}) where {M,T} = visanalytic(M)
 @inline imanalytic(::Type{ModifiedModel{M, T}}) where {M,T} = imanalytic(M)
-@inline ispolarized(::Type{ModifiedModel{M, T}}) where {M,T} = impolarized(M)
+@inline ispolarized(::Type{ModifiedModel{M, T}}) where {M,T} = ispolarized(M)
 
 
 
@@ -134,25 +134,25 @@ end
 end
 
 @inline function transform_uv(model, t::Tuple, u, v)
-    ut, vt = transform_uv(model, first(t), u, v)
+    ut, vt = transform_uv(model, last(t), u, v)
     return transform_uv(model, Base.front(t), ut, vt)
 end
 @inline transform_uv(model, ::Tuple{}, u, v) = u, v
 
 @inline function scale_uv(model, t::Tuple, u, v)
-    scale = scale_uv(model, first(t), u, v)
+    scale = scale_uv(model, last(t), u, v)
     return scale*scale_uv(model, Base.front(t), u, v)
 end
 @inline scale_uv(::M, t::Tuple{}, u, v) where {M} = unitscale(eltype(u), M)
 
 @inline function transform_image(model, t::Tuple, x, y)
-    xt, yt = transform_image(model, first(t), x, y)
+    xt, yt = transform_image(model, last(t), x, y)
     return transform_image(model, Base.front(t), xt, yt)
 end
 @inline transform_image(model, ::Tuple{}, x, y) = x, y
 
 @inline function scale_image(model, t::Tuple, x, y)
-    scale = scale_image(model, first(t), x, y)
+    scale = scale_image(model, last(t), x, y)
     return scale*scale_image(model, Base.front(t), x, y)
 end
 @inline scale_image(::M, t::Tuple{}, x, y) where {M} = unitscale(eltype(x), M)

@@ -25,7 +25,7 @@ struct RadioLikelihood{M,T,A,P,V} <: VLBILikelihood
     lklhds::T
     ac::A
     positions::P
-    vis::V
+    mvis::V
 end
 
 struct ModelMetadata{M, C}
@@ -42,11 +42,16 @@ function RadioLikelihood(model, data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = arrayconfig.(data)
     positions = getuvtimefreq(data[1].config)
-    vis = similar(positions.U, Complex{eltype(positions.U)})
-    vis .= 0
     #@argcheck acs[1] == acs[2]
-    RadioLikelihood{typeof(model), typeof(ls), typeof(acs[1]), typeof(positions), typeof(vis)}(model, ls, acs[1], positions, vis)
+    mvis = similar(vismeasurement(first(data)))
+    RadioLikelihood{typeof(model), typeof(ls), typeof(acs[1]), typeof(positions), typeof(mvis)}(model, ls, acs[1], positions, mvis)
 end
+
+vismeasurement(data::EHTObservation{T, <:EHTVisibilityDatum}) where {T} = data[:measurement]
+vismeasurement(data::EHTObservation{T, <:EHTCoherencyDatum}) where {T} = data[:measurement]
+vismeasurement(data::EHTObservation{T, <:EHTClosurePhaseDatum}) where {T} = data.config.ac[:measurement]
+vismeasurement(data::EHTObservation{T, <:EHTLogClosureAmplitudeDatum}) where {T} = data.config.ac[:measurement]
+vismeasurement(data::EHTObservation{T, <:EHTVisibilityAmplitudeDatum}) where {T} = complex.(data[:measurement])
 
 """
     RadioLikelihood(model, metadata, obs::EHTObservation...)
@@ -138,9 +143,9 @@ Compute the log-closure amplitudes for a set of visibilities and an array config
 # Notes
 This uses a closure design matrix for the computation.
 """
-function logclosure_amplitudes(vis::AbstractArray{<:Complex}, ac::ArrayConfiguration)
+function logclosure_amplitudes!(amp::AbstractArray{<:Real}, vis::AbstractArray{<:Complex}, ac::ArrayConfiguration)
     lva = log.(abs.(vis))
-    return ac.designmat*lva
+    return mul!(amp, ac.designmat, lva)
 end
 
 """
@@ -151,9 +156,9 @@ Compute the closure phases for a set of visibilities and an array configuration
 # Notes
 This uses a closure design matrix for the computation.
 """
-function closure_phases(vis::AbstractArray{<:Complex}, ac::ArrayConfiguration)
+function closure_phases!(phase::AbstractArray{<:Real}, vis::AbstractArray{<:Complex}, ac::ArrayConfiguration)
     ph = angle.(vis)
-    return ac.designmat*ph
+    return mul!(phase, ac.designmat, ph)
 end
 
 amplitudes(vis::AbstractArray{<:Complex}, ac::ArrayConfiguration) = abs.(vis)
@@ -166,7 +171,7 @@ function DensityInterface.logdensityof(d::RadioLikelihood, θ::NamedTuple)
     ac = d.positions
     m = d.model(θ)
     # Convert because of conventions
-    vis = visibilitymap!(d.vis, m, ac)
+    vis = visibilitymap!(d.mvis, m, ac)
     return _logdensityofvis(d, vis)
 end
 
@@ -228,7 +233,9 @@ end
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
     Σ = data[:error].^2
     amp = data[:measurement]
+    mamp = similar(amp)
     ℓ = ConditionedLikelihood(amp) do μ
+        mamp .= abs.(μ)
         AmplitudeLikelihood(abs.(μ), Σ, 0.0)
     end
     return ℓ
@@ -245,8 +252,10 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
     Σlca = data[:error].^2
     f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:measurement]
+    mamp = similar(amp)
     ℓ = ConditionedLikelihood(amp) do μ
-        AmplitudeLikelihood(f(μ), Σlca, 0.0)
+        mamp = logclosure_amplitudes!(mamp, μ, data.config)
+        AmplitudeLikelihood(mamp, Σlca, 0.0)
     end
     return ℓ
 end
@@ -263,8 +272,10 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosur
     Σcp = data[:error].^2
     f = Base.Fix2(closure_phases, data.config)
     phase = data[:measurement]
+    mphase = similar(phase)
     ℓ = ConditionedLikelihood(phase) do μ
-        ClosurePhaseLikelihood(f(μ), Σcp, 0.0)
+        mphase = closure_phases!(mphase, μ, data.config)
+        ClosurePhaseLikelihood(mphase, Σcp, 0.0)
     end
 
     return ℓ

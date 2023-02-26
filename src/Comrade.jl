@@ -79,7 +79,14 @@ Converts a number from micro-arcseconds (μas) to rad
 
 #include("interface.jl")
 #include("images/images.jl")
-import ComradeBase: flux, radialextent, intensitymap, intensitymap!
+import ComradeBase: flux, radialextent,
+       intensitymap, intensitymap!,
+       intensitymap_analytic!, intensitymap_numeric!,
+       intensitymap_analytic, intensitymap_numeric,
+       visibilitymap, visibilitymap!,
+       visibilitymap_analytic!, visibilitymap_numeric!,
+       visibilitymap_analytic, visibilitymap_numeric
+
 export create_cache
 include("observations/observations.jl")
 include("models/models.jl")
