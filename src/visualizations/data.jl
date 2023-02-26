@@ -39,7 +39,7 @@ export residuals, chi2
 
 
     seriestype-->:scatter
-    vmod = visibilities(m, arrayconfig(dvis))
+    vmod = visibilitymap(m, arrayconfig(dvis))
     labels --> "Model"
     uvdist, hcat(real.(vmod), imag.(vmod))
 end
@@ -51,7 +51,7 @@ end
     uvdist = hypot.(u,v)./1e9
     vis = dvis[:measurement]
     error = getdata(dvis, :error)
-    vmod = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
+    vmod = visibilitymap(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
     layout := (2,2)
     #add data errorbars
     @series begin
@@ -382,7 +382,7 @@ end
     end
 
     seriestype-->:scatter
-    amod = abs.(visibilities(m, arrayconfig(dvis)))
+    amod = abs.(visibilitymap(m, arrayconfig(dvis)))
     labels --> "Model"
     uvdist, amod
 end
@@ -605,7 +605,7 @@ function residuals(m, dvis::EHTObservation{T, A}) where {T, A<:EHTVisibilityDatu
     u = getdata(dvis, :U)
     v = getdata(dvis, :V)
     vis = dvis[:measurement]
-    mvis = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
+    mvis = visibilitymap(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
     res = (vis - mvis)./getdata(dvis, :error)
     re = real.(res)
     im = imag.(res)
@@ -616,7 +616,7 @@ function residuals(m, dvis::EHTObservation{T, A}) where {T, A<:EHTCoherencyDatum
     u = getdata(dvis, :U)
     v = getdata(dvis, :V)
     coh = dvis[:measurement]
-    mcoh = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
+    mcoh = visibilitymap(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
     res = map((x,y,z)->((x .- y)./z), coh, mcoh, dvis[:error])
     return hypot.(u, v), StructArray(res)
 end

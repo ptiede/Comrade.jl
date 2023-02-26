@@ -605,8 +605,8 @@ function JonesModel(jones, model)
     return JonesModel(jones, model, CirBasis())
 end
 
-function _visibilities(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
-    vis = _visibilities(model.model, u, v, time, freq)
+function visibilitymap(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
+    vis = visibilitymap(model.model, u, v, time, freq)
     coh = _coherency(vis, B)
     return corrupt(coh, model.jones.m1, model.jones.m2)
 end

@@ -64,7 +64,7 @@ function make_phases(alg::ObservedNUFT{<:DFTAlg}, img::IntensityMapTypes, pulse:
     # We don't need to correct for the phase offset here since that
     # is taken care of in plan_nuft for DFTAlg
     dx, dy = pixelsizes(img)
-    return _visibilities(stretched(pulse, dx, dy), u, v, 0.0, 0.0)
+    return visibilitymap_analytic(stretched(pulse, dx, dy), u, v, 0.0, 0.0)
 end
 
 """
@@ -77,6 +77,11 @@ function create_cache(alg::ObservedNUFT{<:DFTAlg}, plan, phases, img, pulse::Pul
     return NUFTCache(alg, plan, phases, pulse, img)
 end
 
-function nuft(A::AbstractMatrix, b)
-    return A*reshape(b, :)
+function nuft!(vis::AbstractVector, A::AbstractMatrix, b::AbstractMatrix{<:Real})
+    return mul!(vis, A, reshape(b, :))
+end
+
+function nuft(A::AbstractMatrix, b::AbstractMatrix{<:Real})
+    out = similar(b, Complex{eltype(b)}, size(A, 1))
+    return mul!(out, A, b)
 end

@@ -6,7 +6,7 @@ import ComradeBase: visibility_point,
                     flux
 
 export visibility, amplitude, closure_phase, logclosure_amplitude, bispectrum,
-       visibilities, amplitudes, closure_phases, logclosure_amplitudes, bispectra,
+       visibilitymap, amplitudes, closure_phases, logclosure_amplitudes, bispectra,
        flux, intensitymap, intensitymap!, PolarizedModel
 
 

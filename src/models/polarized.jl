@@ -50,6 +50,15 @@ Base.@constprop :aggressive @inline imanalytic(::Type{PolarizedModel{I,Q,U,V}}) 
     return StokesParams(I,Q,U,V)
 end
 
+function ModifiedModel(m::PolarizedModel, t::ModelTransform)
+    return PolarizedModel(
+            ModifiedModel(m.I, t),
+            ModifiedModel(m.Q, t),
+            ModifiedModel(m.U, t),
+            ModifiedModel(m.V, t)
+            )
+end
+
 
 """
     visibility(pimg::PolarizedModel, p)
@@ -64,11 +73,11 @@ Computes the visibility in the stokes basis of the polarized model
     return StokesParams(si, sq, su, sv)
 end
 
-function visibilities(pimg::PolarizedModel, p::NamedTuple)
-    si = visibilities(stokes(pimg, :I), p)
-    sq = visibilities(stokes(pimg, :Q), p)
-    su = visibilities(stokes(pimg, :U), p)
-    sv = visibilities(stokes(pimg, :V), p)
+function visibilitymap(pimg::PolarizedModel, p::NamedTuple)
+    si = visibilitymap(stokes(pimg, :I), p)
+    sq = visibilitymap(stokes(pimg, :Q), p)
+    su = visibilitymap(stokes(pimg, :U), p)
+    sv = visibilitymap(stokes(pimg, :V), p)
     return StructArray{StokesParams{eltype(si)}}((si, sq, su, sv))
 end
 

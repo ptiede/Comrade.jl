@@ -108,7 +108,7 @@ end
 end
 
 """
-    modelimage(model, cache::AbstractCach))
+    modelimage(model, cache::AbstractCache))
 
 Construct a `ModelImage` from the `model` and using a precompute Fourier transform `cache`.
 You can optionally specify th which will compute the internal image buffer using
