@@ -15,7 +15,7 @@ function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     intensitymap!(img2, m)
     @test eltype(img) === Float64
     @test isapprox(flux(m), flux(img), atol=atol)
-    @test isapprox(mean(parent(img) .- parent(img2)), 0, atol=1e-8)
+    @test isapprox(maximum(parent(img) .- parent(img2)), 0, atol=1e-8)
     cache = Comrade.create_cache(Comrade.FFTAlg(padfac=3), img/flux(img)*flux(m))
     dx, dy = pixelsizes(img)
     u = fftshift(fftfreq(size(img,1), 1/dx))./30
@@ -105,47 +105,66 @@ end
     @testset "Gaussian" begin
         m = Gaussian()
         @test amplitude(m, (U=0.0, V=0.0)) == abs(visibility(m, (U=0.0, V=0.0)))
+        @inferred Comrade.visibility(m, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m, (X=0.0, Y=0.0))
+
         testmodel(m, 1024, 1e-5)
     end
 
     @testset "Disk" begin
         m = smoothed(Disk(), 0.25)
-        ComradeBase.intensity_point(Disk(), (X=0.0, Y=0.0))
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
         testmodel(m)
     end
 
     @testset "SlashedDisk" begin
         m = smoothed(SlashedDisk(0.5), 0.25)
-        ComradeBase.intensity_point(SlashedDisk(0.5), (X=0.0, Y=0.0))
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
         testmodel(m)
     end
 
     @testset "Pulses" begin
         m0 = BSplinePulse{0}()
+        @inferred Comrade.visibility(m0, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m0, (X=0.0, Y=0.0))
         testmodel(m0)
         m1 = BSplinePulse{1}()
         testmodel(m1)
+        @inferred Comrade.visibility(m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m1, (X=0.0, Y=0.0))
         m3 = BSplinePulse{3}()
         testmodel(m3)
+        @inferred Comrade.visibility(m3, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m3, (X=0.0, Y=0.0))
         m4 = BicubicPulse()
         testmodel(m4)
+        @inferred Comrade.visibility(m4, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m4, (X=0.0, Y=0.0))
         m5 = RaisedCosinePulse()
         testmodel(m5)
+        @inferred Comrade.visibility(m5, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m5, (X=0.0, Y=0.0))
     end
 
     @testset "Butterworth" begin
         m1 = Butterworth{1}()
         testmodel(m1)
+        @inferred Comrade.visibility(m1, (U=0.0, V=0.0))
         m2 = Butterworth{2}()
         testmodel(m2)
+        @inferred Comrade.visibility(m2, (U=0.0, V=0.0))
         m3 = Butterworth{3}()
         testmodel(m3)
+        @inferred Comrade.visibility(m3, (U=0.0, V=0.0))
     end
 
 
     @testset "Ring" begin
         m = smoothed(Ring(), 0.25)
-        ComradeBase.intensity_point(Ring(), (X=0.0, Y=0.0))
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
         testmodel(m, 2048)
     end
 
@@ -154,6 +173,8 @@ end
         m2 = ParabolicSegment(2.0, 2.0)
         @test stretched(m, 2.0, 2.0) == m2
         @test ComradeBase.intensity_point(m, (X=0.0, Y=1.0)) != 0.0
+        @inferred Comrade.visibility(m, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m, (X=0.0, Y=0.0))
         testmodel(m, 2400, 1e-2)
     end
 
@@ -167,6 +188,8 @@ end
         m2 = convolved(MRing(α[1], β[1]), stretched(Gaussian(), 0.1, 0.1))
         @test visibility(m, (U=0.1, V=0.1)) == visibility(m2, (U=0.1, V=0.1))
         testmodel(m, 2048, 1e-3)
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
 
         # Test rrule
         test_rrule(Comrade._mring_vis, m.m1, 0.1, 0.1)
@@ -181,18 +204,25 @@ end
         m = convolved(MRing(α, β), stretched(Gaussian(), 0.1, 0.1))
         testmodel(m, 2048, 1e-3)
         test_rrule(Comrade._mring_vis, m.m1, 0.1, 0.1)
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
+
     end
 
 
     @testset "ConcordanceCrescent" begin
         m = ConcordanceCrescent(20.0, 10.0, 5.0, 0.5)
         testmodel(m, 2048, 1e-3)
+        @inferred Comrade.visibility(m, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m, (X=0.0, Y=0.0))
     end
 
 
     @testset "Crescent" begin
         m = smoothed(Crescent(5.0, 2.0, 1.0, 0.5), 1.0)
         testmodel(m,1024,1e-3)
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
     end
 
     @testset "SlashedDisk" begin
@@ -206,6 +236,7 @@ end
         rad = 2.5*Comrade.radialextent(mr)
         m = modelimage(mr, IntensityMap(zeros(1024,1024), rad, rad), Comrade.FFTAlg(padfac=4))
         testmodel(m)
+        @inferred Comrade.intensity_point(mr, (X=0.0, Y=0.0))
     end
 
     @testset "M87 model test" begin
@@ -229,6 +260,8 @@ end
 
         m = model(xopt)
         testmodel(m)
+        @inferred Comrade.visibility(m, (U=0.0, V=0.0))
+
 
     end
 end
@@ -365,6 +398,8 @@ end
     mU = 0.2*stretched(MRing((0.1,), (-0.6,)), 20.0, 20.0)
     mV = 0.0*stretched(MRing((0.0,), (-0.6,)), 20.0, 20.0)
     m = PolarizedModel(mI, mQ, mU, mV)
+    @inferred visibility(m, (U=0.0, V=0.0))
+    @inferred Comrade.intensity_point(m, (X=0.0, Y=0.0))
     mG = PolarizedModel(Gaussian(), Gaussian(), Gaussian(), Gaussian())
     cm = convolved(m, Gaussian())
     @test cm == convolved(m, mG)

@@ -107,7 +107,7 @@ end
 function ω(m::BicubicPulse, u)
     b = m.b
     k = 2π*u
-    abs(k) < 1e-2 && return 1 - (2*b + 1)*k^2/15 + (16*b + 1)*k^4/560
+    abs(k) < 1e-2 && return 1 - (2*b + 1)*k^2/15 + (16*b + 1)*k^4/560 + 0im
     s,c = sincos(k)
     k3 = k^3
     k4 = k3*k
