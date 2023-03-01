@@ -403,11 +403,18 @@ function apply_design(gmat::T, jcache::AbstractJonesCache) where {T}
     return JonesPairs(jcache.m1*gmat, jcache.m2*gmat)
 end
 
+function apply_designmats(f::F, g1, g2, m) where {F}
+    return f.(m*g1), f.(m*g2)
+end
+
+function apply_designmats(::typeof(identity), g1, g2, m)
+    return m*g1, m*g2
+end
+
 # GMat(g1::T, g2::T) where {T} = SMatrix{2,2,T}(g1, zero(T), zero(T), g2)
 function gmat(f::F, g1, g2, m) where {F}
    S = eltype(g1)
-   gs1 = f.(m*g1)
-   gs2 = f.(m*g2)
+   gs1, gs2 = apply_designmats(f, g1, g2, m)
    n = length(gs1)
    offdiag = fill(zero(S), n)
    StructArray{SMatrix{2,2,S,4}}((gs1, offdiag, offdiag, gs2))
@@ -445,8 +452,7 @@ end
 # DMat(d1::T, d2::T) where {T} = SMatrix{2,2,T}(one(T), d2, d1, one(T))
 function dmat(f::F, d1, d2, m) where {F}
     S = eltype(d1)
-    ds1 = f.(m*d1)
-    ds2 = f.(m*d2)
+    ds1, ds2 = apply_designmats(f, g1, g2, m)
     n = length(ds1)
     unit = fill(one(S), n)
     return StructArray{SMatrix{2,2,S,4}}((unit, ds2, ds1, unit))
@@ -493,9 +499,55 @@ In the future this functionality may be removed when stokes I fitting is replace
 more correct `trace(coherency)`, i.e. RR+LL for a circular basis.
 """
 function jonesStokes(f::F, g::AbstractVector, gcache::AbstractJonesCache) where {F}
-    return JonesPairs(f.(gcache.m1*g), f.(gcache.m2*g))
+    out1 = similar(g, size(gcache.m1, 1))
+    out2 = similar(g, size(gcache.m1, 1))
+    _jonesStokes!(out1, out2, f, g, gcache.m1, gcache.m2)
+    return JonesPairs(out1, out2)
 end
 jonesStokes(g::AbstractVector, gcache::AbstractJonesCache) = jonesStokes(identity, g, gcache)
+
+function jonesStokes(::typeof(identity), g::AbstractVector, gcache::AbstractJonesCache)
+    out1 = similar(g, size(gcache.m1, 1))
+    out2 = similar(g, size(gcache.m1, 1))
+    _jonesStokes!(out1, out2, identity, g, gcache.m1, gcache.m2)
+    return JonesPairs(out1, out2)
+end
+
+function _jonesStokes!(out1, out2, f::F, g::AbstractVector, m1, m2) where {F}
+    mul!(out1, m1, g)
+    mul!(out2, m2, g)
+    out1 .= f.(out1)
+    out2 .= f.(out2)
+    return nothing
+end
+
+function ChainRulesCore.rrule(::typeof(jonesStokes), f::F, g, gcache) where {F}
+    j = jonesStokes(f, g, gcache)
+    pg = ProjectTo(g)
+    function _jonesStokes_pullback(Δ)
+        dout1 = zero(j.m1)
+        dout1 .= unthunk(Δ.m1)
+        dout2 = zero(j.m2)
+        dout2 .= unthunk(Δ.m2)
+
+        dg = zero(g)
+
+        out1 = zero(j.m1)
+        out2 = zero(j.m2)
+
+        autodiff(Reverse, _jonesStokes!, Const, Duplicated(out1, dout1), Duplicated(out2, dout2), Const(f), Duplicated(g, dg), Duplicated(gcache.m1, copy(gcache.m1)), Duplicated(gcache.m2, copy(gcache.m2)))
+        return NoTangent(), NoTangent(), pg(dg), NoTangent()
+    end
+    return j, _jonesStokes_pullback
+end
+
+# function jonesStokes(f::F, g::AbstractVector, gcache::AbstractJonesCache) where {F}
+#     return JonesPairs(f.(gcache.m1*g), f.(gcache.m2*g))
+# end
+# jonesStokes(g::AbstractVector, gcache::AbstractJonesCache) = jonesStokes(identity, g, gcache)
+# function jonesStokes(::typeof(identity), g::AbstractVector, gcache::AbstractJonesCache)
+#     return JonesPairs(gcache.m1*g, gcache.m2*g)
+# end
 
 
 

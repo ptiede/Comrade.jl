@@ -79,12 +79,13 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 8
-fovxy = μas2rad(67.5)
+npix = 10
+fovx = μas2rad(67.5)
+fovy = μas2rad(67.5)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
-grid = imagepixels(fovxy, fovxy, npix, npix)
+grid = imagepixels(fovx, fovy, npix, npix)
 buffer = IntensityMap(zeros(npix, npix), grid)
 cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
@@ -131,8 +132,13 @@ distamp = (AA = Normal(0.0, 0.1),
 # prior for segmented gain ϵₜ from time i to i+1, given by `distphase`. For the EHT, we are
 # dealing with pre-calibrated data, so often, the gain phase jumps from scan to scan are
 # minor. As such, we can put a more informative prior on `distphase`.
+# !!! warning
+#     We use AA (ALMA) as a reference station so we use a more restrictied gain prior.
+#     We recommend that you do not set the reference prior tighter than this since it
+#     makes sampling very difficult.
+#-
 using VLBIImagePriors
-distphase0 = (AA = DiagonalVonMises(0.0, inv(1e-6)),
+distphase0 = (AA = DiagonalVonMises(0.0, inv(0.01)),
              AP = DiagonalVonMises(0.0, inv(π^2)),
              LM = DiagonalVonMises(0.0, inv(π^2)),
              AZ = DiagonalVonMises(0.0, inv(π^2)),
@@ -141,7 +147,7 @@ distphase0 = (AA = DiagonalVonMises(0.0, inv(1e-6)),
              SM = DiagonalVonMises(0.0, inv(π^2)),
            )
 
-distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
+distphase = (AA = DiagonalVonMises(0.0, inv(0.01)),
              AP = DiagonalVonMises(0.0, inv(0.2^2)),
              LM = DiagonalVonMises(0.0, inv(0.2^2)),
              AZ = DiagonalVonMises(0.0, inv(0.2^2)),
@@ -236,7 +242,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 400; nadapts=200, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 400; nadapts=300, init_params=xopt)
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
@@ -270,8 +276,8 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = model.(chain[100:5:end], Ref(metadata))
-imgs = intensitymap.(samples, μas2rad(120.0), μas2rad(120.0), 128,  128);
+samples = model.(chain[300:5:end], Ref(metadata))
+imgs = intensitymap.(samples, μas2rad(75.0), μas2rad(75.0), 128,  128);
 
 mimg = mean(imgs)
 simg = std(imgs)

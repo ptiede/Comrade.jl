@@ -205,7 +205,7 @@ distamp = (AA = Normal(0.0, 0.1),
 # For the phases, we assume that the atmosphere effectively scrambles the gains.
 # Since the gain phases are periodic, we also use broad von Mises priors for all stations.
 using VLBIImagePriors
-distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
+distphase = (AA = DiagonalVonMises(0.0, inv(0.01)),
              AP = DiagonalVonMises(0.0, inv(π^2)),
              LM = DiagonalVonMises(0.0, inv(π^2)),
              AZ = DiagonalVonMises(0.0, inv(π^2)),
@@ -216,7 +216,7 @@ distphase = (AA = DiagonalVonMises(0.0, inv(1e-6)),
 #-
 # However, we can now also use a little additional information about the phase offsets
 # where in most cases, they are much better behaved than the products
-distphase_ratio = (AA = DiagonalVonMises(0.0, inv(1e-6)),
+distphase_ratio = (AA = DiagonalVonMises(0.0, inv(0.01)),
              AP = DiagonalVonMises(0.0, inv(0.1^2)),
              LM = DiagonalVonMises(0.0, inv(0.1^2)),
              AZ = DiagonalVonMises(0.0, inv(0.1^2)),
