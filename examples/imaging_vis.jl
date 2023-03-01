@@ -179,6 +179,15 @@ post = Posterior(lklhd, prior)
 # to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This is
 # done using the `asflat` function.
 tpost = asflat(post)
+ndim = dimension(tpost)
+
+# Our Posterior and TransformedPosterior objects satisfy the `LogDensityProblems` interface.
+# This allows us to easily switch between different AD backends and many of Julia's statistical
+# inference packages use this interface as well.
+using LogDensityProblemsAD
+using Zygote
+gtpost = ADgradient(Val(:Zygote), tpost)
+LogDensityProblemsAD.logdensity_and_gradient(gtpost, randn(ndim))
 
 # We can now also find the dimension of our posterior or the number of parameters we are going to sample.
 # !!! Warning
@@ -186,24 +195,22 @@ tpost = asflat(post)
 #     angular variables where we often artificially increase the dimension
 #     of the parameter space to make sampling easier.
 #-
-ndim = dimension(tpost)
 
-# Now we optimize. Unlike other imaging examples here we move straight to gradient optimizers
-# due to the higher dimension of the space.
-using ComradeOptimization
-using OptimizationOptimJL
-using Zygote
-f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=10_000, g_tol=1e-1, callback=(x,p)->(@info ℓ(x); false) )
+# To initialize our sampler we will use [`Pathfinder.jl`](https://github.com/mlcolab/Pathfinder.jl)
+# which find a approximate sample in the typical set of the posterior and a initial mass matrix for HMC
+using Pathfinder
+result = pathfinder(gtpost; init_scale=1.0, maxiters=10_000, rng=rng, g_tol=1e-1)
+
+# Now we grab an approximate posterior draw from pathfinder
+xopt = transform(tpost, result.draws[:,1])
+
+# And an initial guess for the inverse metric, i.e. the HMC mass matrix
+using LinearAlgebra
+inv_metric = diag(result.fit_distribution.Σ)
 
 # !!! Warning
 #    Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
 #    The upside is that we usually get nicer images.
-
-# Before we analyze our solution, we first need to transform back to parameter space.
-xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
 using Plots
@@ -241,7 +248,7 @@ plot(gt, layout=(3,3), size=(600,500))
 # inferences should be appropriately skeptical.
 #-
 using ComradeAHMC
-metric = DiagEuclideanMetric(ndim)
+metric = DiagEuclideanMetric(inv_metric)
 chain, stats = sample(rng, post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 400; nadapts=300, init_params=xopt)
 #-
 # !!! warning

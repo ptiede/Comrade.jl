@@ -5,8 +5,16 @@ import ParameterHandling
 import ParameterHandling: flatten
 using HypercubeTransform
 using TransformVariables
+using LogDensityProblems
 
-struct Posterior{L,P}
+abstract type AbstractPosterior end
+
+# Satisfy the LogDensityProblems interface for easy AD!
+LogDensityProblems.logdensity(d::AbstractPosterior, θ) = logdensityof(d, θ)
+LogDensityProblems.dimension(d::AbstractPosterior) = dimension(d)
+LogDensityProblems.capabilities(::Type{<:AbstractPosterior}) = LogDensityProblems.LogDensityOrder{0}()
+
+struct Posterior{L,P} <: AbstractPosterior
     lklhd::L
     prior::P
 end
@@ -67,6 +75,8 @@ end
 
 
 
+
+
 """
     $(TYPEDEF)
 A transformed version of a `Posterior` object.
@@ -74,7 +84,7 @@ This is an internal type that an end user shouldn't have to directly construct.
 To construct a transformed posterior see the [`asflat`](@ref asflat), [`ascube`](@ref ascube),
 and [`flatten`](@ref Comrade.flatten) docstrings.
 """
-struct TransformedPosterior{P<:Posterior,T}
+struct TransformedPosterior{P<:Posterior,T} <: AbstractPosterior
     lpost::P
     transform::T
 end

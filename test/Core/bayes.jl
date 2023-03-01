@@ -3,6 +3,8 @@ using ComradeOptimization
 using OptimizationOptimJL
 using StatsBase
 using Plots
+using LogDensityProblems
+using LogDensityProblemsAD
 
 load_ehtim()
 
@@ -69,6 +71,22 @@ load_ehtim()
         residual(mopt, amp)
         residual(mopt, lcamp)
         residual(mopt, cphase)
+    end
+
+    @testset "LogDensityProblems" begin
+        x0 = prior_sample(post)
+        f0 = prior_sample(tpostf)
+        c0 = prior_sample(tpostc)
+        @test LogDensityProblems.logdensity(post, x0)   ≈ logdensityof(post, x0)
+        @test LogDensityProblems.logdensity(tpostf, f0) ≈ logdensityof(tpostf, f0)
+        @test LogDensityProblems.logdensity(tpostc, c0) ≈ logdensityof(tpostc, c0)
+
+        @test LogDensityProblems.dimension(tpostf) == length(f0)
+        @test LogDensityProblems.dimension(tpostc) == length(c0)
+
+        @test LogDensityProblems.capabilities(typeof(post)) === LogDensityProblems.LogDensityOrder{0}()
+        @test LogDensityProblems.capabilities(typeof(tpostf)) === LogDensityProblems.LogDensityOrder{0}()
+        @test LogDensityProblems.capabilities(typeof(tpostc)) === LogDensityProblems.LogDensityOrder{0}()
     end
 
 
