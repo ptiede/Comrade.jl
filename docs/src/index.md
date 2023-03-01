@@ -14,7 +14,7 @@ To sample from the posterior, we provide a somewhat barebones interface since, m
 Julia's PPL ecosystem matures.
 
 !!! note
-    The primitives the Comrade defines, however, would allow for it to be easily included in PPLs like [`Turing`](https://github.com/TuringLang/Turing.jl.
+    The primitives the Comrade defines, however, would allow for it to be easily included in PPLs like [`Turing`](https://github.com/TuringLang/Turing.jl).
 
 
 
