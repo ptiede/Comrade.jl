@@ -12,13 +12,11 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
     a1 = NestedSampler(dimension(post))
     a2 = DynamicNestedSampler(dimension(post))
 
-    samples, dy = sample(post, a1; dlogz=0.1, print_progress=false)
-    samples, dy = sample(post, a2; print_progress=false)
-
-    esamples = ComradeDynesty.equalresample(samples, 1000)
+    chain, stats = sample(post, a1; dlogz=0.1, print_progress=false)
+    chain, stats = sample(post, a2; print_progress=false)
 
     cpost = ascube(post)
-    xopt = samples.posterior[draw=end, chain=1]
+    xopt = chain[end]
     @test isapprox(xopt.f1/xopt.f2, 2.0, atol=1e-2)
     @test isapprox(xopt.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-2)
     @test isapprox(xopt.σ1*xopt.τ1*2*sqrt(2*log(2)), μas2rad(20.0), rtol=1e-2)

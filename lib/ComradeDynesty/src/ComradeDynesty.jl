@@ -3,11 +3,9 @@ module ComradeDynesty
 using Comrade
 
 using AbstractMCMC
-using InferenceObjects
+using TypedTables
 using Reexport
 using Random
-using StatsBase
-using Tables
 
 @reexport using Dynesty
 
@@ -23,13 +21,16 @@ Sample the posterior `post` using `Dynesty.jl` `NestedSampler/DynamicNestedSampl
 The `args/kwargs`
 are forwarded to `Dynesty` for more information see its [docs](https://github.com/ptiede/Dynesty.jl)
 
-This returns a tuple where the first element is a InferenceData object that contains the weighted
-samples produced by dynesty.
+This returns a tuple where the first element are the weighted samples from dynesty in a TypedTable.
+The second element includes additional information about the samples, like the log-likelihood,
+evidence, evidence error, and the sample weights. The final element of the tuple is the original
+dynesty output file.
 
-To create equally weighted samples the user can do
+To create equally weighted samples the user can use
 ```julia
-samples, dy = sample(post, NestedSampler(dimension(post), 1000))
-equal_weighted_chain = ComradeDynesty.equalresample(samples, 1000)
+using StatsBase
+chain, stats = sample(post, NestedSampler(dimension(post), 1000))
+equal_weighted_chain = sample(chain, Weights(stats.weights), 10_000)
 ```
 """
 function AbstractMCMC.sample(::Random.AbstractRNG, post::Comrade.TransformedPosterior,
@@ -41,19 +42,13 @@ function AbstractMCMC.sample(::Random.AbstractRNG, post::Comrade.TransformedPost
     res = dysample(ℓ, identity, sampler; kw...)
     # Make sure that res["sample"] is an array and use transpose
     samples, weights = transpose(Dynesty.PyCall.PyArray(res["samples"])), exp.(res["logwt"] .- res["logz"][end])
-    chain = [transform.(Ref(post), eachcol(samples))]
-    sample_stats = (log_density = [Array(Dynesty.PyCall.PyArray(res["logl"]))],
-                     weights = [weights],
-                    )
-    metadata = Dict(:logz => res["logz"][end], :logzerr => res["logzerr"][end])
-    library = "Comrade Dynesty.jl"
-    return from_namedtuple(chain; sample_stats, library, attrs=metadata), res
-end
-
-function equalresample(res::InferenceData, nsamples)
-    weights = vec(res.sample_stats.weights)
-    eq = sample(Tables.rowtable(res.posterior[chain=1]), Weights(weights), nsamples)
-    return from_namedtuple([eq])
+    chain = transform.(Ref(post), eachcol(samples)) |> Table
+    stats = (logl = res["logl"],
+             logz = res["logz"][end],
+             logzerr = res["logz"][end],
+             weights = weights,
+            )
+    return Table(chain), stats, res
 end
 
 
