@@ -451,8 +451,8 @@ end
 
 # DMat(d1::T, d2::T) where {T} = SMatrix{2,2,T}(one(T), d2, d1, one(T))
 function dmat(f::F, d1, d2, m) where {F}
-    S = eltype(d1)
-    ds1, ds2 = apply_designmats(f, g1, g2, m)
+    S = promote_type(eltype(d1), eltype(d2))
+    ds1, ds2 = apply_designmats(f, d1, d2, m)
     n = length(ds1)
     unit = fill(one(S), n)
     return StructArray{SMatrix{2,2,S,4}}((unit, ds2, ds1, unit))
