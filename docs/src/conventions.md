@@ -32,8 +32,8 @@ We use the factor of 2 definition when defining the coherency matrices. That is,
 ```math
   C_{pq} = 
   2\begin{pmatrix}
-    \left<v_{pa} v_{pa}^*\right> & \left< v_{pa}v_{qb}^*\right >\\
-    \left<v_{pb} v_{pa}^*\right> & \left< v_{pb}v_{qb}^*\right >
+    \left<v_{pa} v_{qa}^*\right> & \left< v_{pa}v_{qb}^*\right >\\
+    \left<v_{pb} v_{qa}^*\right> & \left< v_{pb}v_{qb}^*\right >
   \end{pmatrix}.
 ```
 
@@ -53,8 +53,10 @@ To convert from measured $R/L$ circular cross-correlation products to the Fourie
      \left<RL^*\right> + \left<LR^*\right> \\
      i(\left<LR^*\right> - \left<RL^*\right>)\\
      \left<RR^*\right> - \left<LL^*\right>
-  \end{pmatrix}.
+  \end{pmatrix},
 ```
+
+where e.g., $\left<RL^*\right> = 2\left<v_{pR}v^*_{pL}\right>$.
 
 The inverse transformation is then:
 
@@ -92,3 +94,6 @@ The inverse transformation is then:
      \tilde{U} - i\tilde{V} & \tilde{I} - \tilde{Q}
   \end{pmatrix}.
 ```
+
+where e.g., $\left<XY^*\right> = 2\left<v_{pX}v^*_{pY}\right>$.
+
