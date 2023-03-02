@@ -371,3 +371,43 @@ end
 #     ifft!(vis)
 #     return IntensityMap(real.(vis)./length(vis), dims)
 # end
+
+"""
+    convolve!(img::IntensityMap, m::AbstractModel)
+
+Convolves an `img` with a given analytic model `m`. This is useful for blurring the
+image with some model. For instance to convolve a image with a Gaussian you would do
+```julia
+convolve!(img, Gaussian())
+```
+
+# Notes
+This method does not automatically pad your image. If there is substantial flux at the boundaries
+you will start to see artifacts.
+"""
+function convolve!(img::IntensityMap{<:Real}, m::AbstractModel)
+    @assert visanalytic(typeof(m)) isa IsAnalytic "Convolving model must have an analytic Fourier transform currently"
+    p = plan_rfft(baseimage(img))
+
+    (;X, Y) = imagepixels(img)
+    # plan_rfft uses just the positive first axis to respect real conjugate symmetry
+    U = rfftfreq(size(img, 1), inv(step(X)))
+    V = fftfreq(size(img, 2), inv(step(Y)))
+
+    # TODO maybe ask a user to pass a vis buffer as well?
+    vis = p*baseimage(img)
+
+    # Conjugate because Comrade uses +2πi exponent
+    vis .*= conj(visibility_point.(Ref(m), U, V', 0, 0))
+    pinv = plan_irfft(vis, size(img, 1))
+    mul!(baseimage(img), pinv, vis)
+    return img
+end
+
+function convolve!(img::IntensityMap{<:StokesParams}, m)
+    convolve!(stokes(img, :I), m)
+    convolve!(stokes(img, :Q), m)
+    convolve!(stokes(img, :U), m)
+    convolve!(stokes(img, :V), m)
+    return img
+end

@@ -7,7 +7,7 @@ import ComradeBase: visibility_point,
 
 export visibility, amplitude, closure_phase, logclosure_amplitude, bispectrum,
        visibilities, amplitudes, closure_phases, logclosure_amplitudes, bispectra,
-       flux, intensitymap, intensitymap!, PolarizedModel
+       flux, intensitymap, intensitymap!, PolarizedModel, convolve!
 
 
 abstract type AbstractModelImage{M} <: ComradeBase.AbstractModel end
