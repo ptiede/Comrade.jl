@@ -236,7 +236,6 @@ Comrade.scale_image
 Comrade.transform_uv
 Comrade.transform_image
 Comrade.ThreadedModel
-Comrade.fishermatrix
 Comrade.extract_FRs
 ```
 

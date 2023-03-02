@@ -1,5 +1,3 @@
-using AbstractDifferentiation
-
 export fishermatrix
 
 
@@ -17,7 +15,7 @@ This returns a `Tuple` where the first entry is Fisher information metric and th
 is distribution assuming that the mean is the transformed `θ` and the covariance matrix
 is the inverse of the Fisher information.
 """
-function fishermatrix(model, t, θ::NamedTuple, ac::ArrayConfiguration, ad_type=AD.ForwardDiffBackend())
+function fishermatrix(model, t, θ::NamedTuple, ac::ArrayConfiguration)
     v = Base.Fix2(visibilities, ac)
     tr = Base.Fix1(transform, t)
 
