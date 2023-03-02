@@ -1,10 +1,11 @@
 module ComradeAHMC
 
-using AbstractDifferentiation
 using AbstractMCMC
 using Reexport
 @reexport using AdvancedHMC
 using Comrade
+using DocStringExtensions
+using LogDensityProblems, LogDensityProblemsAD
 using TypedTables
 using ArgCheck: @argcheck
 using Random
@@ -12,7 +13,7 @@ using Random
 export sample, AHMC
 
 """
-    AdvancedHMC
+    AHMC
 
 Creates a sampler that uses the `AdvancedHMC` framework to construct
 an Hamiltonian Monte Carlo NUTS sampler.
@@ -24,38 +25,13 @@ a good starting point. Please see the [AdvancedHMC docs](https://github.com/Turi
 for more information.
 
 # Notes
-For `autodiff` the user can either specify an `AbstractDifferentiation` backend. For
-smaller geometric models we recommend `AD.ForwardDiffBackend` while for imaging we
-recommend `AD.Zygote`.
+For `autodiff` the must provide a `Val(::Symbol)` that specifies the AD backend. Currently,
+we use `LogDensityProblemsAD`.
 
 
 # Fields
+$(FIELDS)
 
-```julia
-struct AHMC{S,I,P,T,A,D}
-    `AdvancedHMC` metric to use
-    metric::S
-    `AdvancedHMC` integrator
-    Defaults to `AdvancedHMC.Leapfrog`
-    integrator::I = Leapfrog
-    HMC trajectory sampler
-    Defaults to `AdvancedHMC.MultinomialTS`
-    trajectory::P = MultinomialTS
-    HMC termination condition
-    Defaults to `AdvancedHMC.StrictGeneralisedNoUTurn`
-    termination::T = StrictGeneralisedNoUTurn(10, 1000.0)
-    Adaptation strategy for mass matrix and stepsize
-    Defaults to `AdvancedHMC.StanHMCAdaptor`
-    adaptor::A = StanHMCAdaptor
-    Target acceptance rate for all trajectories on the tree
-    Defaults to 0.85
-    targetacc::Float64 = 0.8
-    `AbstractDifferentiation` autodiff backend
-    Defaults to `AbstractDifferentiation.ForwardDiffBackend()`
-    autodiff::D = AD.ForwardDiffBackend()
-end
-
-```
 """
 Base.@kwdef struct AHMC{S,I,P,T,A,D}
     """
@@ -88,11 +64,27 @@ Base.@kwdef struct AHMC{S,I,P,T,A,D}
     """
     targetacc::Float64 = 0.8
     """
-    `AbstractDifferentiation` autodiff backend
-    Defaults to `AbstractDifferentiation.ForwardDiffBackend()`
+    The number of steps for the initial tuning phase.
+    Defaults to 75 which is the Stan default
     """
-    autodiff::D = AD.ForwardDiffBackend()
+    init_buffer::Int = 75
+    """
+    The number of steps for the final fast step size adaptation
+    Default if 50 which is the Stan default
+    """
+    term_buffer::Int = 50
+    """
+    The number of steps to tune the covariance before the first doubling
+    Default is 23 which is the Stan default
+    """
+    window_size::Int = 25
+    """
+    autodiff backend see [`LogDensitProblemsAD.jl`](https://github.com/tpapp/LogDensityProblemsAD.jl)
+    for possible backends. The default is `Zygote` which is appropriate for high dimensional problems.
+    """
+    autodiff::D = Val(:Zygote)
 end
+
 
 Comrade.samplertype(::Type{<:AHMC}) = Comrade.IsFlat()
 
@@ -151,6 +143,18 @@ function AbstractMCMC.sample(
                             kwargs...)
 end
 
+function make_sampler(∇ℓ, sampler::AHMC, θ0)
+    model = AdvancedHMC.LogDensityModel(∇ℓ)
+    initial_ϵ = 1e-4
+    integrator = sampler.integrator(initial_ϵ)
+    proposal = HMCKernel(Trajectory{sampler.trajectory}(integrator, sampler.termination))
+    adaptor = sampler.adaptor(MassMatrixAdaptor(sampler.metric), StepSizeAdaptor(sampler.targetacc, integrator);
+                        init_buffer = sampler.init_buffer,
+                        term_buffer = sampler.term_buffer,
+                        window_size = sampler.window_size)
+
+    return model, proposal, sampler.metric, adaptor
+end
 
 
 function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
@@ -159,22 +163,20 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
                              init_params=nothing, kwargs...
                              )
 
-    ℓ = logdensityof(tpost)
 
-    ∇ℓ = Comrade.make_pullback(ℓ, sampler.autodiff)
+    ∇ℓ = ADgradient(sampler.autodiff, tpost)
     θ0 = _initialize_hmc(tpost, init_params, nchains)
-    model = AdvancedHMC.DifferentiableDensityModel(ℓ, ∇ℓ)
-    metric = sampler.metric
-    # This is a hack to get a good initial step size
-    hamiltonian = Hamiltonian(metric, ℓ, ∇ℓ)
-    ϵ0 = find_good_stepsize(hamiltonian, first(θ0))
-    integrator = sampler.integrator(ϵ0)
+    model, proposal, metric, adaptor = make_sampler(∇ℓ, sampler, first(θ0))
 
-    # form the HMCKernel
-    kernel = HMCKernel(Trajectory{sampler.trajectory}(integrator, sampler.termination))
-    adaptor = sampler.adaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(sampler.targetacc, integrator))
 
-    res = AbstractMCMC.sample(rng, model, kernel, metric, adaptor, parallel, nsamples, nchains; init_params=θ0, chain_type=Array, kwargs...)
+    res = AbstractMCMC.sample(
+                rng,
+                model, proposal,
+                metric, adaptor,
+                parallel, nsamples, nchains;
+                init_params=θ0,
+                chain_type = Array, kwargs...
+                )
 
     stats = [Table(getproperty.(r, :stat)) for r in res]
     samples = [getproperty.(getproperty.(r, :z), :θ) for r in res]
@@ -212,25 +214,25 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
                              kwargs...)
     ℓ = logdensityof(tpost)
 
-    ∇ℓ = Comrade.make_pullback(ℓ, sampler.autodiff)
-
+    ∇ℓ = ADgradient(sampler.autodiff, tpost)
     θ0 = init_params
+
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from prior"
         θ0 = prior_sample(rng, post)
     end
-    model = AdvancedHMC.DifferentiableDensityModel(ℓ, ∇ℓ)
-    metric = sampler.metric
-    # This is a hack to get a good initial step size
-    hamiltonian = Hamiltonian(metric, ℓ, ∇ℓ)
-    ϵ0 = find_good_stepsize(hamiltonian, θ0)
-    integrator = sampler.integrator(ϵ0)
 
-    # form the HMCKernel
-    kernel = HMCKernel(Trajectory{sampler.trajectory}(integrator, sampler.termination))
-    adaptor = sampler.adaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(sampler.targetacc, integrator))
+    model, proposal, metric, adaptor = make_sampler(∇ℓ, sampler, first(θ0))
 
-    res = AbstractMCMC.sample(model, kernel, metric, adaptor, nsamples, args...; init_params=θ0, chain_type=Array, kwargs...)
+
+    res = AbstractMCMC.sample(
+                rng,
+                model, proposal,
+                metric, adaptor,
+                nsamples;
+                init_params=θ0,
+                chain_type = Array, kwargs...
+                )
 
     stats = Table(getproperty.(res, :stat))
     samples = getproperty.(getproperty.(res, :z), :θ)
