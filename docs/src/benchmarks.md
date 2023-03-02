@@ -93,9 +93,10 @@ x0 = inverse(tpost, θ)
 ℓ = logdensityof(tpost)
 @benchmark ℓ($x0)
 
+using LogDensityProblemsAD
 # Now we benchmark the gradient
-gℓ = Comrade.make_pullback(ℓ, AD.ForwardDiffBackend())
-@benchmark gℓ($x0)
+gℓ = ADgradient(Val(:ForwardDiff), tpost)
+@benchmark LogDensityProblemsAD.logdensity_and_gradient($gℓ, $x0)
 ```
 
 ### eht-imaging Code

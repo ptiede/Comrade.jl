@@ -61,5 +61,4 @@ function _sample(::IsCube, rng, post, sampler, args...; init_params, kwargs...)
 end
 
 
-include(joinpath(@__DIR__, "pullbacks.jl"))
 include(joinpath(@__DIR__, "fishermatrix.jl"))

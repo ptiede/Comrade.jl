@@ -231,7 +231,6 @@ Comrade.NonAnalyticTest
 
 ## Internal (Not Public API)
 ```@docs
-Comrade.make_pullback
 Comrade.scale_uv
 Comrade.scale_image
 Comrade.transform_uv

@@ -42,8 +42,9 @@ x0 = inverse(tpost, θ)
 @benchmark ℓ($x0)
 
 using ForwardDiff
-gℓ = Comrade.make_pullback(ℓ, AD.ForwardDiffBackend())
-@benchmark gℓ($x0)
+using LogDensityProblemsAD
+gℓ = ADgradient(Val(:ForwardDiff), tpost)
+@benchmark LogDensityProblemsAD.logdensity_and_gradient($gℓ, $x0)
 
 # Now we do the eht-imaging benchmarks
 
