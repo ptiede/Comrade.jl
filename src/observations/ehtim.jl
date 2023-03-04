@@ -28,8 +28,8 @@ function getvisfield(obs)
     v = deepcopy((get(obsamps, Vector{Float64}, "v")))
     err = deepcopy((get(obsamps, Vector{Float64}, "sigma")))
     vis = deepcopy((get(obsamps, Vector{Complex{Float64}}, "vis")))
-    t1 = Symbol.(deepcopy((get(obsamps, Vector{String}, "t1"))))
-    t2 = Symbol.(deepcopy((get(obsamps, Vector{String}, "t2"))))
+    t1 = Symbol.(replace.(replace.(deepcopy((get(obsamps, Vector{String}, "t1"))), Ref("\x0"=>"0")), "\a"=>"a"))
+    t2 = Symbol.(replace.(replace.(deepcopy((get(obsamps, Vector{String}, "t2"))), Ref("\x0"=>"0")), "\a"=>"a"))
     baseline = tuple.(t1, t2)
     time = deepcopy((get(obsamps, Vector{Float64}, "time")))
     freq = fill(obs.rf, length(time))
@@ -263,7 +263,7 @@ end
 
 function make_array_table(obs)
     return Table(
-        sites = collect(Symbol.(get(obs.tarr, "site"))),
+        sites = collect(Symbol.(replace.(get(obs.tarr, "site"), "\x0"=>"0"))),
         X     = collect(get(obs.tarr, "x")),
         Y     = collect(get(obs.tarr, "y")),
         Z     = collect(get(obs.tarr, "z")),

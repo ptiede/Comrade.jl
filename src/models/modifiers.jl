@@ -134,7 +134,7 @@ function modify_uv(model, t::Tuple, u, v, scale)
     scalet = scale_uv(model, last(t), u, v)
     return modify_uv(model, Base.front(t), ut, vt, scalet*scale)
 end
-modify_uv(model, ::Tuple{}, u, v, scale) = u, v, scale
+modify_uv(model, ::Tuple{}, u, v, scale) = (u, v), scale
 
 function modify_image(model, t::Tuple, x, y, scale)
     xt, yt = transform_image(model, last(t), x, y)
@@ -316,16 +316,32 @@ end
 @inline function visibility_point(m::ModifiedModel, u, v, time, freq)
     mbase = m.model
     transform = m.transform
-    ut, vt, scale = modify_uv(m, transform, u, v, unitscale(Complex{eltype(u)}, typeof(mbase)))
+    (ut, vt), scale = modify_uv(mbase, transform, u, v, unitscale(Complex{eltype(u)}, typeof(mbase)))
     scale*visibility_point(mbase, ut, vt, time, freq)
 end
 
 @inline function intensity_point(m::ModifiedModel, p)
     mbase = m.model
     transform = m.transform
-    xt, yt, scale = modify_image(m, transform, p.X, p.Y, unitscale(eltype(p.X), typeof(mbase)))
+    xt, yt, scale = modify_image(mbase, transform, p.X, p.Y, unitscale(eltype(p.X), typeof(mbase)))
     scale*intensity_point(mbase, update_xy(p, (X=xt, Y=yt)))
 end
+
+function modify_uv(model, transform::Tuple, u::AbstractVector, v::AbstractVector, scale)
+    uvscale = modify_uv.(Ref(model), Ref(transform), u, v, scale)
+    return first.(uvscale), last.(uvscale)
+end
+
+
+function _visibilities(m::ModifiedModel, u, v, time, freq)
+    mbase = m.model
+    t = m.transform
+    z = unitscale(Complex{eltype(u)}, typeof(mbase))
+    uv, scale = modify_uv(mbase, t, u, v, z)
+    vis = scale.*visibility_point.(Ref(mbase), first.(uv), last.(uv), 0, 0)
+    return vis
+end
+
 
 """
     $(TYPEDEF)
