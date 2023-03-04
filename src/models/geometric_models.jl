@@ -37,6 +37,12 @@ abstract type GeometricModel <: AbstractModel end
 @inline imanalytic(::Type{<:GeometricModel}) = IsAnalytic()
 
 
+function _visibilities!(vis, m::GeometricModel, u, v, time, freq)
+    vis .= visibility_point.(Ref(m), u, v, time, freq)
+    return nothing
+end
+
+
 
 """
     $(TYPEDEF)

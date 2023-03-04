@@ -32,7 +32,7 @@ obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs.flag_uvdist(0.1e9).add_fractional_noise(0.01))
+obs = scan_average(obs.add_fractional_noise(0.01))
 
 # Now we extract our complex visibilities.
 dvis = extract_vis(obs)
@@ -50,15 +50,16 @@ dvis = extract_vis(obs)
 # The model is given below:
 
 function model(θ, metadata)
-    (;c, lgamp, gphase) = θ
+    (;f, fg, c, lgamp, gphase) = θ
     (; grid, cache, gcache, gcacher) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
-    img = IntensityMap(0.6.*c, grid)
+    img = IntensityMap((f*(1-fg)).*c, grid)
     m = ContinuousImage(img,cache)
+    g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(f*fg))
     ## Now form our instrument model
     jp = @fastmath jonesStokes(exp, gphase.*1im, gcacher)
     jg = @fastmath jonesStokes(exp, lgamp, gcache)
-    return JonesModel(jp*jg, m)
+    return JonesModel(jp*jg, m+g)
 end
 
 # The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
@@ -79,15 +80,15 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 10
-fovx = μas2rad(67.5)
-fovy = μas2rad(67.5)
+npix = 32
+fovx = μas2rad(65.0)
+fovy = μas2rad(65.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
 grid = imagepixels(fovx, fovy, npix, npix)
 buffer = IntensityMap(zeros(npix, npix), grid)
-cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
+cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{0}())
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
 # to the model visibilities. However, to construct this map, we also need to specify the observation
 # segmentation over which we expect the gains to change. This is specified in the second argument
@@ -148,12 +149,12 @@ distphase0 = (AA = DiagonalVonMises(0.0, inv(0.01)),
            )
 
 distphase = (AA = DiagonalVonMises(0.0, inv(0.01)),
-             AP = DiagonalVonMises(0.0, inv(0.2^2)),
-             LM = DiagonalVonMises(0.0, inv(0.2^2)),
-             AZ = DiagonalVonMises(0.0, inv(0.2^2)),
-             JC = DiagonalVonMises(0.0, inv(0.2^2)),
-             PV = DiagonalVonMises(0.0, inv(0.2^2)),
-             SM = DiagonalVonMises(0.0, inv(0.2^2)),
+             AP = DiagonalVonMises(0.0, inv(0.5^2)),
+             LM = DiagonalVonMises(0.0, inv(0.5^2)),
+             AZ = DiagonalVonMises(0.0, inv(0.5^2)),
+             JC = DiagonalVonMises(0.0, inv(0.5^2)),
+             PV = DiagonalVonMises(0.0, inv(0.5^2)),
+             SM = DiagonalVonMises(0.0, inv(0.5^2)),
            )
 
 
@@ -162,6 +163,8 @@ distphase = (AA = DiagonalVonMises(0.0, inv(0.01)),
 # which automatically constructs the prior for the given jones cache `gcache`.
 (;X, Y) = grid
 prior = (
+         f = Uniform(0.8, 1.3),
+         fg = Uniform(0.0, 1.0),
          c = ImageDirichlet(1.0, npix, npix),
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase0, distphase, gcacher),
@@ -187,7 +190,8 @@ ndim = dimension(tpost)
 using LogDensityProblemsAD
 using Zygote
 gtpost = ADgradient(Val(:Zygote), tpost)
-LogDensityProblemsAD.logdensity_and_gradient(gtpost, randn(ndim))
+x0 = randn(ndim)
+LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
 
 # We can now also find the dimension of our posterior or the number of parameters we are going to sample.
 # !!! Warning
@@ -198,15 +202,15 @@ LogDensityProblemsAD.logdensity_and_gradient(gtpost, randn(ndim))
 
 # To initialize our sampler we will use [`Pathfinder.jl`](https://github.com/mlcolab/Pathfinder.jl)
 # which find a approximate sample in the typical set of the posterior and a initial mass matrix for HMC
-using Pathfinder
-result = pathfinder(gtpost; init_scale=1.0, maxiters=10_000, rng=rng, g_tol=1e-1)
+using ComradeOptimization
+using OptimizationOptimJL
+f = OptimizationFunction(tpost, Optimization.AutoZygote())
+prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
+ℓ = logdensityof(tpost)
+sol = solve(prob, LBFGS(), maxiters=20_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)))
 
 # Now we grab an approximate posterior draw from pathfinder
-xopt = transform(tpost, result.draws[:,1])
-
-# And an initial guess for the inverse metric, i.e. the HMC mass matrix
-using LinearAlgebra
-inv_metric = diag(result.fit_distribution.Σ)
+xopt = transform(tpost, sol.u)
 
 # !!! Warning
 #    Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -220,7 +224,7 @@ residual(model(xopt, metadata), dvis)
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
-img = intensitymap(model(xopt, metadata), μas2rad(120.0), μas2rad(120.0), 128, 128)
+img = intensitymap(model(xopt, metadata), μas2rad(120.0), μas2rad(120.0), 200, 200)
 plot(img, title="MAP Image")
 
 
@@ -248,8 +252,8 @@ plot(gt, layout=(3,3), size=(600,500))
 # inferences should be appropriately skeptical.
 #-
 using ComradeAHMC
-metric = DiagEuclideanMetric(inv_metric)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 400; nadapts=300, init_params=xopt)
+metric = DiagEuclideanMetric(ndim)
+chain, stats = sample(rng, post, AHMC(;metric), 12_000; nadapts=8_000, init_params=xopt)
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior

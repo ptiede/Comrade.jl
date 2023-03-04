@@ -333,14 +333,56 @@ function modify_uv(model, transform::Tuple, u::AbstractVector, v::AbstractVector
 end
 
 
-function _visibilities(m::ModifiedModel, u, v, time, freq)
-    mbase = m.model
-    t = m.transform
-    z = unitscale(Complex{eltype(u)}, typeof(mbase))
-    uv, scale = modify_uv(mbase, t, u, v, z)
-    vis = scale.*visibility_point.(Ref(mbase), first.(uv), last.(uv), 0, 0)
+function _visibilities(m::ModifiedModel{<:GeometricModel}, u, v, time, freq)
+    vis = similar(u, Complex{eltype(u)})
+    _visibilities!(vis, m, u, v, time, freq)
     return vis
+    # mbase = m.model
+    # t = m.transform
+    # z = unitscale(Complex{eltype(u)}, typeof(mbase))
+    # uv, scale = modify_uv(mbase, t, u, v, z)
+    # vis = scale.*visibility_point.(Ref(mbase), first.(uv), last.(uv), 0, 0)
+    # return vis
 end
+
+function _visibilities!(vis, m::ModifiedModel{<:GeometricModel}, u, v, time, freq)
+    vis .= visibility_point.(Ref(m), u, v, time, freq)
+    return nothing
+end
+
+using NamedTupleTools
+function ChainRulesCore.rrule(::typeof(_visibilities), m::ModifiedModel{<:GeometricModel}, u, v, time, freq)
+    vis = _visibilities(m, u, v, time, freq)
+    function _visibilities_mm_pullback(Δ)
+        du = zero(u)
+        dv = zero(v)
+        df = zero(freq)
+        dt = zero(time)
+
+        dvis = zero(vis)
+        dvis .= unthunk(Δ)
+        rvis = zero(vis)
+        d = autodiff(Reverse, _visibilities!, Duplicated(rvis, dvis), Active(m), Duplicated(u, du), Duplicated(v, dv), Duplicated(time, dt), Duplicated(freq, df))
+        dm = d[1][2]
+
+        dbm = dm.model
+        ntbm = ntfromstruct(dbm)
+        if ntbm isa NamedTuple{(), Tuple{}}
+            tbm = ZeroTangent()
+        else
+            tbm = Tangent{typeof(dbm)}(;ntbm...)
+        end
+        dtm = dm.transform
+        ttm = map(x->Tangent{typeof(x)}(;ntfromstruct(x)...), dtm)
+        tm = Tangent{typeof(m)}(model=tbm, transform=ttm)
+        return NoTangent(), tm, du, dv, df, dt
+    end
+    return vis, _visibilities_mm_pullback
+end
+
+
+
+
 
 
 """
