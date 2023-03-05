@@ -28,6 +28,7 @@ function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     GC.gc()
 end
 
+
 function testft(m, npix=256, atol=1e-4)
     mn = Comrade.NonAnalyticTest(m)
     uu = 0.25*randn(1000)

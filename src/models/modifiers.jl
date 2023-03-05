@@ -334,7 +334,8 @@ end
 
 
 function _visibilities(m::ModifiedModel{<:GeometricModel}, u, v, time, freq)
-    vis = similar(u, Complex{eltype(u)})
+    T = typeof(visibility_point(m, first(u), first(v), first(time), first(freq)))
+    vis = similar(u, T)
     _visibilities!(vis, m, u, v, time, freq)
     return vis
     # mbase = m.model
