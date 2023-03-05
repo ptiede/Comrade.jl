@@ -50,12 +50,12 @@ dvis = extract_vis(obs)
 # The model is given below:
 
 function model(θ, metadata)
-    (;f, fg, c, lgamp, gphase) = θ
+    (;fg, c, lgamp, gphase) = θ
     (; grid, cache, gcache, gcacher) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
-    img = IntensityMap((f*(1-fg)).*c, grid)
+    img = IntensityMap((1.1*(1-fg)).*c, grid)
     m = ContinuousImage(img,cache)
-    g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(f*fg))
+    g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(1.1*fg))
     ## Now form our instrument model
     jp = @fastmath jonesStokes(exp, gphase.*1im, gcacher)
     jg = @fastmath jonesStokes(exp, lgamp, gcache)
@@ -163,7 +163,6 @@ distphase = (AA = DiagonalVonMises(0.0, inv(0.01)),
 # which automatically constructs the prior for the given jones cache `gcache`.
 (;X, Y) = grid
 prior = (
-         f = Uniform(0.8, 1.3),
          fg = Uniform(0.0, 1.0),
          c = ImageDirichlet(1.0, npix, npix),
          lgamp = CalPrior(distamp, gcache),
@@ -287,7 +286,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = model.(chain[300:5:end], Ref(metadata))
+samples = model.(chain[8_001:10:end], Ref(metadata))
 imgs = intensitymap.(samples, μas2rad(75.0), μas2rad(75.0), 128,  128);
 
 mimg = mean(imgs)

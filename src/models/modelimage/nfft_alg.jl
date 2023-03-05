@@ -120,7 +120,7 @@ function _frule_vis(m::ModelImage{M,<:SpatialIntensityMap{<:ForwardDiff.Dual{T,V
     return out
 end
 
-function _visibilities(m::ModelImage{M,<:SpatialIntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{O}},
+function visibilities_numeric(m::ModelImage{M,<:SpatialIntensityMap{<:ForwardDiff.Dual{T,V,P}},<:NUFTCache{O}},
     u::AbstractArray,
     v::AbstractArray,
     time,

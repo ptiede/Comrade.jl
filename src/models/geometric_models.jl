@@ -37,12 +37,6 @@ abstract type GeometricModel <: AbstractModel end
 @inline imanalytic(::Type{<:GeometricModel}) = IsAnalytic()
 
 
-function _visibilities!(vis, m::GeometricModel, u, v, time, freq)
-    vis .= visibility_point.(Ref(m), u, v, time, freq)
-    return nothing
-end
-
-
 
 """
     $(TYPEDEF)
@@ -89,7 +83,7 @@ Disk() = Disk{Float64}()
 end
 
 @inline function visibility_point(::Disk{T}, u, v, time, freq) where {T}
-    ur = 2π*(hypot(u,v) + eps(T))
+    ur = 2π*(sqrt(u^2 + v^2) + eps(T))
     return 2*besselj1(ur)/(ur) + zero(T)im
 end
 

@@ -13,11 +13,19 @@ Any implementation of a composite type must define the following methods:
 - imanalytic
 - visanalytic
 - ComradeBase.intensity_point if model intensity is `IsAnalytic`
-- intensitymap! if model intensity is `NotAnalytic`
-- intensitymap if model intensity is `NotAnalytic`
+- intensitymap_numeric! if model intensity is `NotAnalytic`
+- intensitymap_numeric if model intensity is `NotAnalytic`
 - flux
 - radialextent
-- _visibilities (optional)
+
+In addition there are additional optional methods a person can define if needed:
+
+- intensitymap_analytic! if model intensity is `IsAnalytic`  (optional)
+- intensitymap_analytic if model intensity is `IsAnalytic` (optional)
+- visibilities_analytic if visanalytic is `IsAnalytic` (optional)
+- visibilities_numeric  if visanalytic is `Not Analytic` (optional)
+- visibilities_analytic! if visanalytic is `IsAnalytic` (optional)
+- visibilities_numeric!  if visanalytic is `Not Analytic` (optional)
 """
 abstract type CompositeModel{M1,M2} <: AbstractModel end
 
@@ -178,9 +186,10 @@ end
 # end
 
 
-@inline function _visibilities(model::AddModel, u, v, time, freq)
+@inline function visibilities_numeric(model::AddModel{M1,M2}, u, v, time, freq) where {M1, M2}
     #f = uv_combinator(model)
-    return _visibilities(model.m1, u, v, time, freq) .+ _visibilities(model.m2, u, v, time, freq)
+    return _visibilities(visanalytic(M1), model.m1, u, v, time, freq) .+
+           _visibilities(visanalytic(M2), model.m2, u, v, time, freq)
 end
 
 # @inline function _visibilities(::IsAnalytic, model::CompositeModel, u::AbstractArray, v::AbstractArray, args...)
@@ -189,22 +198,35 @@ end
 # end
 
 
+function __extract_tangent(dm::CompositeModel)
+    m1 = dm.m1
+    m2 = dm.m2
+    tm1 = __extract_tangent(m1)
+    tm2 = __extract_tangent(m2)
+    return Tangent{typeof(dm)}(m1=tm1, m2=tm2)
+end
 
-#function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_visibilities), model::AddModel, u::AbstractArray, v::AbstractArray, args...)
-#    v1_and_vdot = rrule_via_ad(config, _visibilities, model.m1, u, v, args...)
-#    v2_and_vdot = rrule_via_ad(config, _visibilities, model.m2, u, v, args...)
-#
-#    vdot1 = last(v1_and_vdot)
-#    vdot2 = last(v2_and_vdot)
-#    project_model = ProjectTo(model)
-#    function _addmodel_visibilities_pullback(Δy)
-#        vd1 = vdot1(Δy)
-#        vd2 = vdot2(Δy)
-#        println(project_model(vd1[2],vd2[2]))
-#        return (NoTangent(), project_model())
-#    end
-#    return first(v1_and_vdot) + first(v2_and_vdot), _addmodel_visibilities_pullback
-#end
+
+
+function ChainRulesCore.rrule(::typeof(visibilities_analytic), m::CompositeModel, u::AbstractArray, v::AbstractArray, t::AbstractArray, f::AbstractArray)
+    vis = visibilities_analytic(m, u, v, t, f)
+    function _composite_visibilities_analytic_pullback(Δ)
+        du = zero(u)
+        dv = zero(v)
+        df = zero(f)
+        dt = zero(t)
+
+        dvis = zero(vis)
+        dvis .= unthunk(Δ)
+        rvis = zero(vis)
+        d = autodiff(Reverse, visibilities_analytic!, Const, Duplicated(rvis, dvis), Active(m), Duplicated(u, du), Duplicated(v, dv), Duplicated(t, dt), Duplicated(f, df))
+        dm = d[1]
+        tm = __extract_tangent(dm)
+        return NoTangent(), tm, du, dv, df, dt
+    end
+
+    return vis, _composite_visibilities_analytic_pullback
+end
 
 # function _visibilities(model::AddModel, u::AbstractArray, v::AbstractArray, args...)
 #     return visibilities(model.m1, u, v) + visibilities(model.m2, u, v)
@@ -275,7 +297,7 @@ smoothed(m, σ::Number) = convolved(m, stretched(Gaussian(), σ, σ))
 
 flux(m::ConvolvedModel) = flux(m.m1)*flux(m.m2)
 
-function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::AbstractDims)
+function intensitymap_numeric(model::ConvolvedModel, dims::AbstractDims)
     (;X, Y) = dims
     vis1 = fouriermap(model.m1, dims)
     vis2 = fouriermap(model.m2, dims)
@@ -286,7 +308,7 @@ function intensitymap(::NotAnalytic, model::ConvolvedModel, dims::AbstractDims)
     return IntensityMap(real.(keyless_unname(vis)), dims)
 end
 
-function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel)
+function intensitymap_numeric!(sim::IntensityMap, model::ConvolvedModel)
     dims = axisdims(sim)
     (;X, Y) = dims
     vis1 = fouriermap(model.m1, dims)
@@ -298,11 +320,9 @@ function intensitymap!(::NotAnalytic, sim::IntensityMap, model::ConvolvedModel)
     sim .= real.(vis)
 end
 
-#ChainRulesCore.@non_differentiable getproperty(m::ConvolvedModel, x::Symbol)
-
-@inline function _visibilities(model::ConvolvedModel, u, v, time, freq)
-    #f = uv_combinator(model)
-    return _visibilities(model.m1, u, v, time, freq).*_visibilities(model.m2, u, v, time, freq)
+@inline function visibilities_numeric(model::ConvolvedModel{M1,M2}, u, v, time, freq) where {M1, M2}
+    return _visibilities(visanalytic(M1), model.m1, u, v, time, freq).*
+           _visibilities(visanalytic(M2), model.m2, u, v, time, freq)
 end
 
 

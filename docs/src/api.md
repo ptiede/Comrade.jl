@@ -149,10 +149,7 @@ Comrade.closure_phase
 Comrade.closure_phases
 Comrade.logclosure_amplitude
 Comrade.logclosure_amplitudes
-Comrade.visibilities
 Comrade.visibility
-Comrade.intensitymap
-Comrade.intensitymap!
 ```
 
 ## Data Types

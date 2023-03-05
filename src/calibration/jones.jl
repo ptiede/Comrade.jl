@@ -657,11 +657,18 @@ function JonesModel(jones, model)
     return JonesModel(jones, model, CirBasis())
 end
 
-function _visibilities(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
-    vis = _visibilities(model.model, u, v, time, freq)
+function visibilities_analytic(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
+    vis = visibilities_analytic(model.model, u, v, time, freq)
     coh = _coherency(vis, B)
     return corrupt(coh, model.jones.m1, model.jones.m2)
 end
+
+function visibilities_numeric(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
+    vis = visibilities_numeric(model.model, u, v, time, freq)
+    coh = _coherency(vis, B)
+    return corrupt(coh, model.jones.m1, model.jones.m2)
+end
+
 
 """
     corrupt(vis, j1, j2)
