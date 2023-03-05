@@ -430,6 +430,7 @@ shifted(model, Δx, Δy) = ModifiedModel(model, Shift(Δx, Δy))
 @inline transform_uv(model, ::Shift, u, v) = (u, v)
 
 @inline scale_image(::M, transform::Shift, x, y) where {M} = unitscale(typeof(transform.Δx), M)
+# Curently we use exp here because enzyme has an issue with cispi that will be fixed soon.
 @inline scale_uv(::M, transform::Shift, u, v) where {M}    = exp(2im*π*(u*transform.Δx + v*transform.Δy))*unitscale(typeof(transform.Δx), M)
 
 

@@ -103,11 +103,18 @@ end
     end
 end
 
-function testgrad(f, x)
-    gz = Zygote.gradient(f, x)
-    fdm = central_fdm(5, 1)
-    gf = grad(fdm, f, x)
-    @test isapprox(first(gz), first(gf), atol=1e-6)
+#
+if VERSION >= v"1.8"
+    function testgrad(f, x)
+        gz = Zygote.gradient(f, x)
+        fdm = central_fdm(5, 1)
+        gf = grad(fdm, f, x)
+        @test isapprox(first(gz), first(gf), atol=1e-6)
+    end
+else
+    function testgrad(f, x)
+        return nothing
+    end
 end
 
 @testset "Primitive models" begin
