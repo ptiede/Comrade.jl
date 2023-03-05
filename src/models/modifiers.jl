@@ -76,6 +76,18 @@ struct ModifiedModel{M<:AbstractModel, T<:Tuple}<: AbstractModel
     transform::T
 end
 
+function Base.show(io::IO, mi::ModifiedModel)
+    #io = IOContext(io, :compact=>true)
+    #s = summary(mi)
+    println(io, "ModifiedModel")
+    println(io, "  base model: ", summary(mi.model))
+    println(io, "  Modifiers:")
+    for i in eachindex(mi.transform)
+        println(io, "    $i. ", summary(mi.transform[i]))
+    end
+ end
+
+
 """
     unmodified(model::ModifiedModel)
 
@@ -333,14 +345,56 @@ function modify_uv(model, transform::Tuple, u::AbstractVector, v::AbstractVector
 end
 
 
-function _visibilities(m::ModifiedModel, u, v, time, freq)
-    mbase = m.model
-    t = m.transform
-    z = unitscale(Complex{eltype(u)}, typeof(mbase))
-    uv, scale = modify_uv(mbase, t, u, v, z)
-    vis = scale.*visibility_point.(Ref(mbase), first.(uv), last.(uv), 0, 0)
+function visibilities_analytic(m::ModifiedModel, u, v, time, freq)
+    T = typeof(visibility_point(m, first(u), first(v), first(time), first(freq)))
+    vis = similar(u, T)
+    visibilities_analytic!(vis, m, u, v, time, freq)
     return vis
 end
+
+using NamedTupleTools
+function ChainRulesCore.rrule(::typeof(visibilities_analytic), m::ModifiedModel, u, v, time, freq)
+    vis = visibilities_analytic(m, u, v, time, freq)
+    function _visibilities_analytic_mm_pullback(Δ)
+        du = zero(u)
+        dv = zero(v)
+        df = zero(freq)
+        dt = zero(time)
+
+        dvis = zero(vis)
+        dvis .= unthunk(Δ)
+        rvis = zero(vis)
+        d = autodiff(Reverse, visibilities_analytic!, Const, Duplicated(rvis, dvis), Active(m), Duplicated(u, du), Duplicated(v, dv), Duplicated(time, dt), Duplicated(freq, df))
+        dm = d[1]
+        tm = __extract_tangent(dm)
+        return NoTangent(), tm, du, dv, df, dt
+    end
+    return vis, _visibilities_analytic_mm_pullback
+end
+
+
+function __extract_tangent(dm::ModifiedModel)
+    tm = __extract_tangent(dm.model)
+    dtm = dm.transform
+    ttm = map(x->Tangent{typeof(x)}(;ntfromstruct(x)...), dtm)
+    tm = Tangent{typeof(dm)}(model=tm, transform=ttm)
+end
+
+
+function __extract_tangent(dm::GeometricModel)
+    ntm = ntfromstruct(dm)
+    if ntm isa NamedTuple{(), Tuple{}}
+        tbm = ZeroTangent()
+    else
+        tbm = Tangent{typeof(dm)}(;ntm...)
+    end
+    return tbm
+end
+
+
+
+
+
 
 
 """
@@ -370,13 +424,14 @@ in the x and y directions respectively.
 """
 shifted(model, Δx, Δy) = ModifiedModel(model, Shift(Δx, Δy))
 # This is a simple overload to simplify the type system
-@inline radialextent_modified(r::Real, t::Shift) = r + hypot(abs(t.Δx), abs(t.Δy))
+@inline radialextent_modified(r::Real, t::Shift) = r + max(abs(t.Δx), abs(t.Δy))
 
 @inline transform_image(model, transform::Shift, x, y) = (x-transform.Δx, y-transform.Δy)
 @inline transform_uv(model, ::Shift, u, v) = (u, v)
 
 @inline scale_image(::M, transform::Shift, x, y) where {M} = unitscale(typeof(transform.Δx), M)
-@inline scale_uv(::M, transform::Shift, u, v) where {M}    = cispi(2*(u*transform.Δx + v*transform.Δy))*unitscale(typeof(transform.Δx), M)
+# Curently we use exp here because enzyme has an issue with cispi that will be fixed soon.
+@inline scale_uv(::M, transform::Shift, u, v) where {M}    = exp(2im*π*(u*transform.Δx + v*transform.Δy))*unitscale(typeof(transform.Δx), M)
 
 
 

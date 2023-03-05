@@ -143,7 +143,7 @@ using FastBroadcast
 @fastmath function ComradeBase.phasecenter(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
-    return conj.(vis).*cispi.(2 * (U.*x0 .+ V'.*y0))
+    return @.. thread=true conj.(vis).*cispi.(2 * (U.*x0 .+ V'.*y0))
 end
 
 
@@ -268,6 +268,9 @@ end
 
 # end
 
+# HACK because FFT+interpolation can be evaled pointwise
+visanalytic(::Type{<:ModelImage{M, I, <:FFTCache}}) where {M, I} = IsAnalytic()
+
 @fastmath function phasedecenter!(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
@@ -275,9 +278,9 @@ end
     return vis
 end
 
-# function _visibilities(mimg::ModelImage{M, I, <:FFTCache}, u, v, args...) where {M,I}
-#     return visibility.(Ref(mimg), u, v, args...)
-# end
+function visibilities_numeric(mimg::ModelImage{M, I, <:FFTCache}, u, v, time, freq) where {M,I}
+    return visibility_point.(Ref(mimg), u, v, time, freq)
+end
 
 @inline function visibility_point(mimg::ModelImage{M,I,<:FFTCache}, u, v, time, freq) where {M,I}
     return mimg.cache.sitp(u, v)

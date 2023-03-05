@@ -56,7 +56,7 @@ function nocachevis(m::ModelImage{M,I,<:NUFTCache}, u, v, time, freq) where {M,I
     alg = ObservedNUFT(m.cache.alg, vcat(u', v'))
     cache = create_cache(alg, m.image)
     m = @set m.cache = cache
-    return _visibilities(m, u, v, time, freq)
+    return visibilities_numeric(m, u, v, time, freq)
 end
 
 function checkuv(uv, u, v)
@@ -74,14 +74,14 @@ end
 
 ChainRulesCore.@non_differentiable checkuv(alg, u::AbstractArray, v::AbstractArray)
 
-function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
+function visibilities_numeric(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I<:IntensityMap,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
     vis =  nuft(m.cache.plan, complex.(m.cache.img))
     return conj.(vis).*m.cache.phases
 end
 
-function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
+function visibilities_numeric(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I<:StokesIntensityMap,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
     visI =  conj.(nuft(m.cache.plan, complex.(stokes(m.cache.img, :I)))).*m.cache.phases
@@ -96,7 +96,7 @@ end
 
 
 
-function _visibilities(m::ModelImage{M,I,<:NUFTCache{A}},
+function visibilities_numeric(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I,A<:NUFT}
     return nocachevis(m, u, v, time, freq)
 end

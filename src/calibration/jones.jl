@@ -303,7 +303,7 @@ function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
 
         out1 = zero(first(m1))
         out2 = zero(first(m2))
-        autodiff(_allmul!, Const, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
+        autodiff(Reverse, _allmul!, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
         return NoTangent(), pm1(dm1), pm2(dm2)
     end
     return out, _allmul_pullback
@@ -657,11 +657,18 @@ function JonesModel(jones, model)
     return JonesModel(jones, model, CirBasis())
 end
 
-function _visibilities(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
-    vis = _visibilities(model.model, u, v, time, freq)
+function visibilities_analytic(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
+    vis = visibilities_analytic(model.model, u, v, time, freq)
     coh = _coherency(vis, B)
     return corrupt(coh, model.jones.m1, model.jones.m2)
 end
+
+function visibilities_numeric(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
+    vis = visibilities_numeric(model.model, u, v, time, freq)
+    coh = _coherency(vis, B)
+    return corrupt(coh, model.jones.m1, model.jones.m2)
+end
+
 
 """
     corrupt(vis, j1, j2)

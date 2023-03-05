@@ -33,6 +33,21 @@ function intensitymap(::IsAnalytic, s::ThreadedModel, g::GriddedKeys)
     return intensitymap!(IsAnalytic(), img, s)
 end
 
+# function visibilities_analytic(m::ThreadedModel, u, v, time, freq)
+#     T = typeof(visibility_point(m, first(u), first(v), first(time), first(freq)))
+#     vis = similar(u, T)
+#     visibilities_analytic!(vis, m, u, v, time, freq)
+#     return vis
+# end
+
+# function visibilities_analytic!(vis::AbstractArray, m::ThreadedModel, u, v, time, freq)
+#     mbase = m.model
+#     Threads.@threads for i in eachindex(vis, u, v, time, freq)
+#         vis[i] = visibility_point(mbase, u[i], v[i], time[i], freq[i])
+#     end
+#     return nothing
+# end
+
 intensitymap(m, p, threaded::Bool) = intensitymap(m, p, static(threaded))
 intensitymap(m, p, ::False) = intensitymap(m, p)
 intensitymap(m, p, ::True)  = intensitymap(ThreadedModel(m), p)

@@ -18,7 +18,7 @@ function intensity_point(model::RIMEModel, p)
     return intensity_point(basemodel(model), p)
 end
 
-_amplitudes(m::RIMEModel, u, v, t, f) = abs.(_visibilities(m, u, v, t, f))
+_amplitudes(m::M, u, v, t, f) where {M<:RIMEModel} = abs.(_visibilities(visanalytic(M), m, u, v, t, f))
 
 
 """
