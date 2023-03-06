@@ -56,6 +56,29 @@ function testft(m, npix=256, atol=1e-4)
     GC.gc()
 end
 
+
+function testft_cimg(m, atol=1e-4)
+    dx, dy = pixelsizes(m.img)
+    u = fftshift(fftfreq(500, 1/dx))
+    v = fftshift(fftfreq(500, 1/dy))
+    mimg_ff = modelimage(m, FFTAlg(padfac=8))
+    mimg_nf = modelimage(m, NFFTAlg(u, v))
+    mimg_df = modelimage(m, DFTAlg(u, v))
+
+    p = (U=u, V=v)
+    vff = visibilities(mimg_ff, p)
+    vnf = visibilities(mimg_nf, p)
+    vdf = visibilities(mimg_df, p)
+
+    @test isapprox(maximum(abs, vdf .- vnf), 0, atol=atol)
+    @test isapprox(maximum(abs, vff .- vdf), 0, atol=atol)
+    img = nothing
+    mimg_ff = nothing
+    mimg_nf = nothing
+    mimg_df = nothing
+    GC.gc()
+end
+
 @testset "Moments" begin
     img = IntensityMap(zeros(512, 512), 30.0, 30.0)
     m1 = Gaussian()
@@ -558,24 +581,28 @@ end
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{0}())
     testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-2)
+    testft_cimg(cimg)
 end
 
 @testset "DImage BSpline1" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{1}())
     testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-3)
+    testft_cimg(cimg)
 end
 
 @testset "DImage BSpline3" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{3}())
     testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
+    testft_cimg(cimg)
 end
 
 @testset "DImage Bicubic" begin
-    img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
+    img = intensitymap(shifted(rotated(stretched(smoothed(Ring(), 0.5), 2.0, 1.0), π/8), 0.1, 0.1), 24.0, 24.0, 12, 12)
     cimg = ContinuousImage(img, BicubicPulse())
     testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
+    testft_cimg(cimg)
 end
 
 @testset "methods " begin
