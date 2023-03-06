@@ -14,7 +14,7 @@ For `AdvancedHMC`, the user can create the sampler by calling the [`AHMC`](@ref)
     - `DenseEuclideanMetric` which uses a dense or full rank metric for covariance adaptation
 
 We recommend that a user starts with `DiagEuclideanMetric` since the dense metric typically requires many more samples to tune correctly. 
-The other options for `AHMC` (sans `autodiff`) specify which version of HMC to use. Our default options match the choices made by the [Stan](https://mc-stan.org/) programming language. The final option to consider is the `autodiff` optional argument. This specifies which auto differentiation package to use. For geometric modeling, we recommend the `AD.ForwardDiffBackend()`, while for Bayesian Imaging, `AD.ZygoteBackend()`.
+The other options for `AHMC` (sans `autodiff`) specify which version of HMC to use. Our default options match the choices made by the [Stan](https://mc-stan.org/) programming language. The final option to consider is the `autodiff` optional argument. This specifies which auto differentiation package to use. For geometric modeling, we recommend the `Val(:ForwardDiff)`, while for Bayesian Imaging, `Val(:Zygote)`.
 
 ## Example 
 
@@ -26,7 +26,7 @@ using ComradeAHMC
 post # of type Comrade.Posterior
 
 metric = DiagEuclideanMetric(dimension(post))
-smplr = AHMC(metric=metric, autodiff=AD.ForwardDiffBackend())
+smplr = AHMC(metric=metric, autodiff=Val(:ForwardDiff))
 
 samples, endstate = sample(post, smplr, 2_000; nadapts=1_000)
 ```

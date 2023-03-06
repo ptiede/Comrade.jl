@@ -136,7 +136,7 @@ plot(img, title="MAP Image")
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 500; nadapts=250, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 500; nadapts=250, init_params=xopt)
 
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to estimate expectations of the posterior properly

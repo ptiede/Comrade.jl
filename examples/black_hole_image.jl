@@ -160,8 +160,8 @@ plot(model(xopt), title="MAP image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
 # Most of Comrade's external libraries follow a similar interface. To use AdvancedHMC
 # do the following:
 
-using ComradeAHMC
-chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim)), 2000; nadapts=1000, init_params=xopt)
+using ComradeAHMC, ForwardDiff
+chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim), autodiff=Val(:ForwardDiff)), 2000; nadapts=1000, init_params=xopt)
 
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.
 
