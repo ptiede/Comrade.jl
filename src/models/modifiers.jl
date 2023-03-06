@@ -475,10 +475,9 @@ Base.:/(f::Number, model::AbstractModel) = renormed(model, inv(f))
 Base.:/(model::AbstractModel, f::Number) = renormed(model, inv(f))
 # Dispatch on RenormalizedModel so that I just make a new RenormalizedModel with a different f
 # This will make it easier on the compiler.
-Base.:*(model::Renormalize, f::Number) = renormed(model.model, model.scale*f)
+# Base.:*(model::ModifiedModel, f::Number) = renormed(model.model, model.scale*f)
 # Overload the unary negation operator to be the same model with negative flux
 Base.:-(model::AbstractModel) = renormed(model, -1.0)
-flux(m::Renormalize) = m.scale
 
 @inline transform_image(m, ::Renormalize, x, y) = (x, y)
 @inline transform_uv(m, ::Renormalize, u, v) = (u, v)
