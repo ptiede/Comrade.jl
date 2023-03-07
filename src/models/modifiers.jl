@@ -478,6 +478,7 @@ Base.:/(model::AbstractModel, f::Number) = renormed(model, inv(f))
 # Base.:*(model::ModifiedModel, f::Number) = renormed(model.model, model.scale*f)
 # Overload the unary negation operator to be the same model with negative flux
 Base.:-(model::AbstractModel) = renormed(model, -1.0)
+flux(t::Renormalize) = t.scale
 
 @inline transform_image(m, ::Renormalize, x, y) = (x, y)
 @inline transform_uv(m, ::Renormalize, u, v) = (u, v)
