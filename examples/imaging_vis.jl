@@ -17,7 +17,7 @@ Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(123)
+rng = StableRNG(124)
 
 
 
@@ -53,7 +53,7 @@ function model(θ, metadata)
     (;fg, c, lgamp, gphase) = θ
     (; grid, cache, gcache, gcacher) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
-    img = IntensityMap((1.1*(1-fg)).*c, grid)
+    img = IntensityMap((1.1*fg).*c, grid)
     m = ContinuousImage(img,cache)
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(1.1*fg))
     ## Now form our instrument model
@@ -204,17 +204,17 @@ LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
 using ComradeOptimization
 using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
+prob = Optimization.OptimizationProblem(f, rand(rng, ndim) .- 0.5, nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(), maxiters=20_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)))
 
 # Now we grab an approximate posterior draw from pathfinder
 xopt = transform(tpost, sol.u)
 
-# !!! Warning
+# !!! warning
 #    Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
 #    The upside is that we usually get nicer images.
-
+#-
 # First we will evaluate our fit by plotting the residuals
 using Plots
 residual(model(xopt, metadata), dvis)
@@ -223,7 +223,7 @@ residual(model(xopt, metadata), dvis)
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
-img = intensitymap(model(xopt, metadata), μas2rad(120.0), μas2rad(120.0), 200, 200)
+img = intensitymap(model(xopt, metadata), fovx, fovy, 60, 60)
 plot(img, title="MAP Image")
 
 
