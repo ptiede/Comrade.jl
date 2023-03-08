@@ -28,7 +28,7 @@ Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(42)
+rng = StableRNG(1234)
 
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
@@ -43,8 +43,7 @@ obs = scan_average(obs).add_fractional_noise(0.01)
 # For this tutorial we will stick to fitting closure only data, although we can
 # get better results by also modeling gains, since closure only modeling is equivalent
 # to assuming infinite gain priors.
-dlcamp = extract_lcamp(obs)
-dcphase = extract_cphase(obs)
+dvis = extract_vis(obs)
 
 # ## Building the Model/Posterior
 
@@ -54,18 +53,23 @@ dcphase = extract_cphase(obs)
 # and a large asymmetric Gaussian component to model the unresolved short-baseline flux.
 
 function model(θ, metadata)
-    (;c, f, r, σ, ma, mp, fg, σg, τg, ξg) = θ
-    (; grid, cache) = metadata
+    (;c, f, r, σ, ma, mp, fg, σg, τg, ξg, lgamp, gphase) = θ
+    (; grid, cache, gcache) = metadata
     ## Form the image model
-    img = IntensityMap(f*(1-fg)*c, grid)
+    ## We multiple the flux by 1.1 since that is the measured total flux of M87
+    img = IntensityMap(1.1*f*(1-fg)*c, grid)
     mimg = ContinuousImage(img, cache)
     ## Form the ring model
     s,c = sincos(mp)
     α = ma*c
     β = ma*s
-    ring = ((1-f)*(1-fg))*smoothed(stretched(MRing(α, β), r, r),σ)
-    gauss = fg*rotated(stretched(Gaussian(), σg, σg*(1+τg)), ξg)
-    return mimg + (ring + gauss)
+    ring = (1.1*(1-f)*(1-fg))*smoothed(stretched(MRing(α, β), r, r),σ)
+    gauss = (1.1*fg)*rotated(stretched(Gaussian(), σg, σg*(1+τg)), ξg)
+    m = mimg + (ring + gauss)
+    ## Construct the gain model
+    gvis = exp.(lgamp .+ 1im.*gphase)
+    jg = jonesStokes(gvis, gcache)
+    return JonesModel(jg, m)
 end
 
 # Before we move on, let's go into the `model` function a bit. This function takes two arguments
@@ -91,17 +95,55 @@ buffer = IntensityMap(zeros(npix,npix), grid)
 # due to the improved scaling. The last argument to the `create_cache` call is the image
 # *kernel* or *pulse* defines the continuous function we convolve our image with
 # to produce a continuous on-sky image.
-cache  = create_cache(DFTAlg(dlcamp), buffer, BSplinePulse{3}())
+cache  = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
+
+# Now we construct our gain segmenting cache
+gcache = jonescache(dvis, ScanSeg())
 
 # Now we form the metadata
-metadata = (;grid, cache)
+metadata = (;grid, cache, gcache)
 
 # This is everything we need to form our likelihood. Note the first two arguments must be
 # the model and then the metadata for the likelihood. The rest of the arguments are required
 # to be [`Comrade.EHTObservation`](@ref)
-lklhd = RadioLikelihood(model, metadata, dlcamp, dcphase)
+lklhd = RadioLikelihood(model, metadata, dvis)
 
-# This forms our model. The next step is defining our image priors.
+# Moving onto our prior, we first focus on the instrument model priors.
+# Each station requires its own prior on both the amplitudes and phases.
+# For the amplitudes
+# we assume that the gains are apriori well calibrated around unit gains (or 0 log gain amplitudes)
+# which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
+# all stations except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT
+# we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
+using Distributions
+using DistributionsAD
+distamp = (AA = Normal(0.0, 0.1),
+           AP = Normal(0.0, 0.1),
+           LM = Normal(0.0, 1.0),
+           AZ = Normal(0.0, 0.1),
+           JC = Normal(0.0, 0.1),
+           PV = Normal(0.0, 0.1),
+           SM = Normal(0.0, 0.1),
+           )
+
+# For the phases, we use a wrapped von Mises prior to respect the periodicity of the variable.
+# !!! warning
+#     We use AA (ALMA) as a reference station so we use a more restrictied gain prior.
+#     We recommend that you do not set the reference prior tighter than this since it
+#     makes sampling very difficult.
+#-
+using VLBIImagePriors
+distphase = (AA = DiagonalVonMises(0.0, inv(0.01)),
+             AP = DiagonalVonMises(0.0, inv(π^2)),
+             LM = DiagonalVonMises(0.0, inv(π^2)),
+             AZ = DiagonalVonMises(0.0, inv(π^2)),
+             JC = DiagonalVonMises(0.0, inv(π^2)),
+             PV = DiagonalVonMises(0.0, inv(π^2)),
+             SM = DiagonalVonMises(0.0, inv(π^2)),
+           )
+
+
+# The next step is defining our image priors.
 # For our raster `c`, we will use a *Dirichlet* prior, a multivariate prior
 # that exists on the simplex. That is, the sum of all the numbers from a `Dirichlet`
 # distribution always equals unity. The first parameter is the concentration parameter `α`.
@@ -109,12 +151,11 @@ lklhd = RadioLikelihood(model, metadata, dlcamp, dcphase)
 # have uniform brightness. The `α=1` distribution is the uniform distribution
 # on the simplex. For our work here, we use the uniform simplex distribution.
 
+
 # !!! Warning
 #    As α gets small sampling, it gets very difficult and quite multimodal due to the nature
 #    of the sparsity prior, be careful when checking convergence when using such a prior.
 
-using VLBIImagePriors
-using Distributions
 prior = (
           c  = ImageDirichlet(1.0, npix, npix),
           f  = Uniform(0.0, 1.0),
@@ -125,7 +166,9 @@ prior = (
           fg = Uniform(0.2, 1.0),
           σg = Uniform(μas2rad(50.0), μas2rad(500.0)),
           τg = Uniform(0.0, 1.0),
-          ξg = Uniform(0, π)
+          ξg = Uniform(0, π),
+          lgamp = CalPrior(distamp, gcache),
+          gphase = CalPrior(distphase, gcache)
         )
 
 # This is everything we need to specify our posterior distribution, which our is the main
@@ -153,27 +196,18 @@ tpost = asflat(post)
 #    of the parameter space to make sampling easier.
 ndim = dimension(tpost)
 
-# Now we optimize. First, we will use BlackBoxOptim, which is a genetic algorithm, to get us
-# in the region of the best-fit model.
-using ComradeOptimization
-using OptimizationBBO
-using Zygote
-f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing, lb=fill(-5.0, ndim), ub=fill(5.0,ndim))
-sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=100_000)
-
-# Alright now we can zoom to the peak!
+# Now we optimize.
 using OptimizationOptimJL
-prob = Optimization.OptimizationProblem(f, sol.u, nothing)
+f = OptimizationFunction(tpost, Optimization.AutoZygote())
+prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=1_000, g_tol=1e-1)
+sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1)
 
 # Before we analyze our solution we first need to transform back to parameter space.
 xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
-residual(model(xopt, metadata), dlcamp)
-residual(model(xopt, metadata), dcphase)
+residual(model(xopt, metadata), dvis)
 
 # These look reasonable, although they are a bit high. This could be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
@@ -186,17 +220,17 @@ plot(img, title="MAP Image")
 # now we sample using hmc
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 500; nadapts=250, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 1000; nadapts=700, init_params=xopt)
 
 # !!! warning
-#     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
+#     This should be run for likely 2-3x more steps to properly estimate expectations of the posterior
 #-
 
 # Now lets plot the mean image and standard deviation images.
 # To do this we first clip the first 250 MCMC steps since that is during tuning and
 # so the posterior is not sampling from the correct stationary distribution.
 using StatsBase
-msamples = model.(chain[251:2:end], Ref(metadata))
+msamples = model.(chain[701:2:end], Ref(metadata))
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, 1.5*fovxy, 1.5*fovxy, 128, 128)
@@ -205,8 +239,8 @@ plot(std(imgs), title="Std Dev.")
 
 # We can also split up the model into its components and analyze each separately
 comp = Comrade.components.(Comrade.basemodel.(first.(Comrade.components.(msamples))))
-ring_samples = first.(comp)
-rast_samples = last.(comp)
+ring_samples = getindex.(comp,2)
+rast_samples = first.(comp)
 ring_imgs = intensitymap.(ring_samples, fovxy, fovxy, 128, 128)
 rast_imgs = intensitymap.(rast_samples, fovxy, fovxy, 128, 128)
 
@@ -229,8 +263,7 @@ p4 = density(2*chain.ma, xlabel="Brightness asymmetry")
 p5 = density(1 .- chain.f, xlabel="Ring flux fraction")
 plot(p1, p2, p3, p4, p5, size=(900, 600), legend=nothing)
 
-# This is very consistent with the original M87 results and it only took 20 minutes compared to the week it used
-# to take using old imaging tools.
+# And viola hybrid imaging is now simple and takes under 10 minutes
 
 # ## Computing information
 # ```
