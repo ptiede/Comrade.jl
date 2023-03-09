@@ -26,7 +26,9 @@ Data segmentation such that the quantity is constant over a `scan`.
 Currently we do not explicity track the telescope scans. This will be fixed in a future version.
 Right now `ScanSeg` and `TrackSeg` are the same
 """
-struct ScanSeg <: ObsSegmentation end
+struct ScanSeg{S} <: ObsSegmentation end
+
+ScanSeg(segmented=false) = ScanSeg{false}()
 
 # Integration is for quantities that change every integration time
 """
@@ -34,13 +36,25 @@ struct ScanSeg <: ObsSegmentation end
 
 Data segmentation such that the quantity is constant over a correlation integration.
 """
-struct IntegSeg <: ObsSegmentation end
+struct IntegSeg{S} <: ObsSegmentation end
 
 
+struct Fixed{T} <: ObsSegmentation
+    value::T
+end
 
 
 function LinearAlgebra.mul!(y::AbstractArray, M::DesignMatrix, x::AbstractArray)
     LinearAlgebra.mul!(y, M.matrix, x)
+end
+
+struct AffineDesignMatrix{M, B}
+    mat::M
+    b::B
+end
+
+function Base.:*(A::AffineDesignMatrix, v::AbstractVector)
+    return muladd(A.mat, v, A.b)
 end
 
 abstract type AbstractJonesCache end
@@ -65,7 +79,7 @@ struct JonesCache{D,S<:ObsSegmentation, ST, Ti} <: AbstractJonesCache
     """
     m2::D
     """
-    Segmentation scheme for this cache
+    Segmentation schemes for this cache
     """
     seg::S
     """
@@ -115,6 +129,75 @@ end
 
 stations(j::AbstractJonesCache) = j.stations
 ChainRulesCore.@non_differentiable stations(j::AbstractJonesCache)
+
+
+function jonescache(obs::EHTObservation, segmentation::NamedTuple)
+    @argcheck sort(stations(obs)) == sort(keys(segmentation))
+
+
+end
+struct GainScheme{S,T}
+    sites::S
+    times::T
+end
+
+function gain_scheme(segmentation::NamedTuple, obs::EHTObservation)
+    st = scantable(obs)
+    times = eltype(obs[:T])[]
+    sites = Symbol[]
+    for i in 1:length(st)
+        s = stations(st[i])
+        t = st[i].time
+        for j in eachindex(s)
+            append_time_site!(times, sites, s[j], t, getproperty(segmentation, s[j]))
+        end
+    end
+    return GainScheme(sites, times)
+end
+
+function gain_scheme(segmentation::ObsSegmentation, obs::EHTObservation)
+    sites = Tuple(stations(obs))
+    return gain_scheme(NamedTuple{sites}(Tuple(segmentation for _ in sites)), obs)
+end
+
+function append_time_site!(times, sites, site, t, ::ScanSeg)
+    push!(sites, site)
+    push!(times, t)
+end
+
+function append_time_site!(times, sites, site, t, ::IntegSeg)
+    push!(sites, site)
+    push!(times, t)
+end
+
+function append_time_site!(times, sites, site, t, ::TrackSeg)
+    # Check is the site is already in the list, if it isn't add it to the schema
+    !(site ∈ sites) && (push!(sites, site); push!(times, zero(t)))
+end
+
+function append_time_site!(times, sites, site, t, ::Fixed)
+    nothing
+end
+
+
+function fill_designmat!(
+        colInd::AbstractVector{Int}, rowInd::AbstractVector{Int}, vecInd::AbstractVector{Int},
+        ::TrackSeg, vis_ind, site, time, scheme::GainScheme)
+    stats = keys(site_times)
+    ind = findfirst(==(site), stats)
+    append!(colInd, ind)
+    append!(rowInd, vis_ind)
+end
+
+function fill_designmat!(
+    colInd::AbstractVector{Int}, rowInd::AbstractVector{Int}, vecInd::AbstractVector{Int},
+    ::ScanSeg{false}, vis_ind, site, time, scheme::GainScheme)
+
+    ind1 = findall(x -> ((x[1]==time) && (x[2]==site)), gain_station_times)
+
+end
+
+
 
 """
     jonescache(obs::EHTObservation, segmentation::ObsSegmentation)
