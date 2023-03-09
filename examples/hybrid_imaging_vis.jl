@@ -1,4 +1,4 @@
-# # Hybrid Imaging of a Black Hole
+# # Hybrid Imaging with of a Black Hole
 
 # In this tutorial, we will use **hybrid imaging** to analyze the 2017 EHT data.
 # By hybrid imaging, we mean decomposing the model into simple geometric models, e.g., rings
@@ -40,9 +40,8 @@ obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR
 #      coherent.
 obs = scan_average(obs).add_fractional_noise(0.01)
 
-# For this tutorial we will stick to fitting closure only data, although we can
-# get better results by also modeling gains, since closure only modeling is equivalent
-# to assuming infinite gain priors.
+# For this tutorial we will analyze complex visibilities since they allow us to
+# more reliably fit low SNR points.
 dvis = extract_vis(obs)
 
 # ## Building the Model/Posterior
@@ -133,7 +132,7 @@ distamp = (AA = Normal(0.0, 0.1),
 #     makes sampling very difficult.
 #-
 using VLBIImagePriors
-distphase = (AA = DiagonalVonMises(0.0, inv(0.01)),
+distphase = (AA = DiagonalVonMises(0.0, inv(0.001)),
              AP = DiagonalVonMises(0.0, inv(π^2)),
              LM = DiagonalVonMises(0.0, inv(π^2)),
              AZ = DiagonalVonMises(0.0, inv(π^2)),
@@ -197,7 +196,9 @@ tpost = asflat(post)
 ndim = dimension(tpost)
 
 # Now we optimize.
+using ComradeOptimization
 using OptimizationOptimJL
+using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)

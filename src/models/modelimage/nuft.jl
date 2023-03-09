@@ -33,7 +33,7 @@ end
 
 function create_cache(alg::NUFT, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
     pimg = padimage(alg, img)
-    return NUFTCache(alg, nothing, nothing, pimg, pulse)
+    return NUFTCache(alg, nothing, nothing, pulse, pimg)
 end
 
 function update_cache(cache::NUFTCache, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
