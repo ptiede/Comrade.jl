@@ -69,10 +69,8 @@ function Base.:*(A::AffineDesignMatrix, v::AbstractVector)
 end
 
 function LinearAlgebra.mul!(y::AbstractArray, M::AffineDesignMatrix, x::AbstractArray)
-    # println(size(M.mat))
-    # println(size(x))
-    y .= M.b
-    mul!(y, M.mat, x, true, true)
+    mul!(y, M.mat, x)
+    y .= y .+ M.b
     return y
 end
 

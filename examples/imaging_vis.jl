@@ -197,8 +197,7 @@ LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
 #     of the parameter space to make sampling easier.
 #-
 
-# To initialize our sampler we will use [`Pathfinder.jl`](https://github.com/mlcolab/Pathfinder.jl)
-# which find a approximate sample in the typical set of the posterior and a initial mass matrix for HMC
+# To initialize our sampler we will use optimize using LBFGS
 using ComradeOptimization
 using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
@@ -206,7 +205,7 @@ prob = Optimization.OptimizationProblem(f, 2*rand(rng, ndim) .- 1.0, nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(), maxiters=20_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)))
 
-# Now we grab an approximate posterior draw from pathfinder
+# Now transform back to parameter space
 xopt = transform(tpost, sol.u)
 
 # !!! warning
