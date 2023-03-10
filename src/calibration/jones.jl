@@ -366,9 +366,12 @@ function Base.:*(x::JonesPairs, y::JonesPairs...)
     JonesPairs(o1, o2)
 end
 
+out_type(::AbstractArray{T}) where {T<:Real} = Complex{T}
+out_type(::AbstractArray{T}) where {T<:Complex} = T
+
 function _allmul(m1, m2)
-    out1 = zero(first(m1))
-    out2 = zero(first(m2))
+    out1 = similar(first(m1), out_type(first(m1)))
+    out2 = similar(first(m2), out_type(first(m2)))
     _allmul!(out1, out2, m1, m2)
     # out1 = reduce(.*, m1)
     # out2 = reduce(.*, m2)
@@ -396,8 +399,8 @@ function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
         dm1 = zero.(m1)
         dm2 = zero.(m2)
 
-        out1 = zero(first(m1))
-        out2 = zero(first(m2))
+        out1 = similar(first(m1), out_type(first(m1)))
+        out2 = similar(first(m2), out_type(first(m2)))
         autodiff(Reverse, _allmul!, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
         return NoTangent(), pm1(dm1), pm2(dm2)
     end
