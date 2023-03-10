@@ -39,7 +39,7 @@ Data segmentation such that the quantity is constant over a correlation integrat
 struct IntegSeg{S} <: ObsSegmentation end
 
 """
-    $(TYPDEF)
+    $(TYPEDEF)
 
 Enforces that the station calibraton value will have a fixed `value`. This is most
 commonly used when enforcing a reference station for gain phases.
@@ -339,77 +339,6 @@ function gain_stations(st::ScanTable)
     return times, gainstat
 end
 
-"""
-    jonescache(obs::EHTObservation, s::ScanSeg, segmented = false)
-
-Construct a JonesCache from obs observation `obs` and the scan-based segmentation scheme.
-The optional argument segmented denotes whether to use a absolute cache breakdown or a
-segmented one. If using `segmented=true`, then the cache is constructed so that the
-gain parameters are interpreted as segmented gain offsets. This can be useful when constructing,
-segmented gain priors where from scan-to-scan the gains aren't expected to change drastically.
-To construct the prior see [`CalPrior(::NamedTuple, ::NamedTuple, ::SegmentedJonesCache)`](@ref)
-"""
-function jonescache(obs::EHTObservation, s::ScanSeg, segmented = false)
-
-    # extract relevant observation info
-    times = obs[:T]
-    bls = obs[:baseline]
-    gaintime, gainstat = gain_stations(scantable(obs))
-    schema = gain_schema(s, obs)
-    gts = collect(zip(gaintime, gainstat))
-
-    # initialize vectors containing row and column index locations
-    rowInd1 = Int[]
-    colInd1 = Int[]
-    rowInd2 = Int[]
-    colInd2 = Int[]
-
-    sites = Tuple(stations(obs))
-    stimes = NamedTuple{sites}(map(x->gaintime[findall(==(x), gainstat)], sites))
-
-    # TODO this will becomes a lot cleaner if I do this split based on scans and not time
-    for i in 1:length(times)
-        t = times[i]
-        s1, s2 = bls[i]
-        # If we are in the second scan and are using segmented gains then also include
-        # the previous scans gain value
-        s1times = getproperty(stimes, s1)
-        if segmented && t > first(s1times)
-            # t01 = s1times[findfirst(==(t), s1times)-1]
-            # ind1 = findall(x -> (((x[1]==t)||(x[1]==t01)) && (x[2]==s1)), gts)
-            ind1 = findall(x -> (((x[1]<=t)) && (x[2]==s1)), gts)
-            # ind1 = findall(x -> (((x[1]==t)||(x[1]==first(s1times))) && (x[2]==s1)), gts)
-        else
-            ind1 = findall(x -> ((x[1]==t) && (x[2]==s1)), gts)
-        end
-
-        s2times = getproperty(stimes, s2)
-        if segmented && t > first(s2times)
-            # t02 = s2times[findfirst(==(t), s2times)-1]
-            # ind2 = findall(x -> (((x[1]==t)||(x[1]==t02)) && (x[2]==s2)), gts)
-            ind2 = findall(x -> (((x[1]<=t)) && (x[2]==s2)), gts)
-            # ind2 = findall(x -> (((x[1]==t)||(x[1]==first(s2times))) && (x[2]==s2)), gts)
-        else
-            ind2 = findall(x -> ((x[1]==t) && (x[2]==s2)), gts)
-        end
-
-        append!(colInd1,ind1)
-        append!(colInd2,ind2)
-        append!(rowInd1,fill(i, length(ind1)))
-        append!(rowInd2,fill(i, length(ind2)))
-    end
-
-    # populate sparse design matrices
-    z1 = fill(1.0, length(rowInd1))
-    z2 = fill(1.0, length(rowInd2))
-    m1 = sparse(rowInd1, colInd1, z1, length(times), length(gaintime))
-    m2 = sparse(rowInd2, colInd2, z2, length(times), length(gaintime))
-    if segmented
-        SegmentedJonesCache{typeof(m1),typeof(s),  typeof(gainstat), typeof(gaintime)}(m1,m2,s, gainstat, gaintime)
-    else
-        JonesCache{typeof(m1), typeof(m1), typeof(s),  typeof(schema)}(m1, m2,s, schema)
-    end
-end
 
 """
     $(TYPEDEF)
@@ -513,56 +442,6 @@ find_js(x) = x
 find_js(::Tuple{}) = nothing
 find_js(a::JonesPairs, rest) = a
 find_js(::Any, rest) = find_js(rest)
-
-
-
-
-function jonescache(obs::EHTObservation, s::IntegSeg)
-    # extract relevant observation info
-    times = obs[:T]
-    bls = obs[:baseline]
-    stats = stations(obs)
-
-    # organize time-station info
-    tuniq = unique(times)
-    tbl = Tuple{eltype(tuniq),eltype(stats)}[]
-    for i in 1:length(tuniq)
-        t = tuniq[i]
-        ind = findall(x -> (x==t), times)
-        s1 = getindex.(bls[ind],1)
-        s2 = getindex.(bls[ind],2)
-        statshere = unique(hcat(s1,s2))
-        for j in 1:length(statshere)
-            push!(tbl,(t,statshere[j]))
-        end
-    end
-
-    # initialize vectors containing row and column index locations
-    rowInd1 = Int[]
-    colInd1 = Int[]
-    rowInd2 = Int[]
-    colInd2 = Int[]
-
-    for i in 1:length(times)
-
-        t = times[i]
-        s1, s2 = bls[i]
-        ind1 = findall(x -> ((x[1]==t) && (x[2]==s1)), tbl)
-        ind2 = findall(x -> ((x[1]==t) && (x[2]==s2)), tbl)
-
-        append!(colInd1,ind1)
-        append!(colInd2,ind2)
-        append!(rowInd1,fill(i, length(ind1)))
-        append!(rowInd2,fill(i, length(ind2)))
-    end
-
-    # populate sparse design matrices
-    z = fill(1.0, length(rowInd1))
-    m1 = sparse(rowInd1, colInd1, z, length(times), length(tbl))
-    m2 = sparse(rowInd2, colInd2, z, length(times), length(tbl))
-
-    return JonesCache{typeof(m1),typeof(s), typeof(bls), typeof(times)}(m1,m2, s, bls, times)
-end
 
 
 function apply_design(gmat::T, jcache::AbstractJonesCache) where {T}
