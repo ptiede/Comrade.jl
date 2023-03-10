@@ -58,6 +58,7 @@ struct AffineDesignMatrix{M, B}
     b::B
 end
 
+Base.eltype(A::AffineDesignMatrix) = promote_type(eltype(A.mat), eltype(A.b))
 Base.size(d::AffineDesignMatrix) = size(d.mat)
 Base.size(d::AffineDesignMatrix, i::Int) = size(d.mat, i)
 Base.copy(d::AffineDesignMatrix) = AffineDesignMatrix(copy(d.mat), copy(d.b))
@@ -66,6 +67,7 @@ function Base.:*(A::AffineDesignMatrix, v::AbstractVector)
     T = promote_type(eltype(A), eltype(v))
     y = similar(v, T, size(A, 1))
     return LinearAlgebra.mul!(y, A, v)
+    # muladd(A.mat, v, A.b)
 end
 
 function LinearAlgebra.mul!(y::AbstractArray, M::AffineDesignMatrix, x::AbstractArray)
@@ -604,6 +606,12 @@ end
 # function jonesStokes(f::F, g::AbstractVector, gcache::AbstractJonesCache) where {F}
 #     return JonesPairs(f.(gcache.m1*g), f.(gcache.m2*g))
 # end
+
+# function jonesStokes(::typeof(identity), g::AbstractVector, gcache::AbstractJonesCache)
+#     return JonesPairs((gcache.m1*g), (gcache.m2*g))
+# end
+
+
 # jonesStokes(g::AbstractVector, gcache::AbstractJonesCache) = jonesStokes(identity, g, gcache)
 # function jonesStokes(::typeof(identity), g::AbstractVector, gcache::AbstractJonesCache)
 #     return JonesPairs(gcache.m1*g, gcache.m2*g)

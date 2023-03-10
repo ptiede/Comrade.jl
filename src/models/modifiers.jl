@@ -324,6 +324,14 @@ function modelimage(::NotAnalytic,
     _modelimage(model, image, alg, pulse, thread)
 end
 
+@inline function modelimage(::NotAnalytic, model, cache::FFTCache, thread::StaticBool)
+    img = cache.img
+    intensitymap!(img, model, thread)
+    newcache = update_cache(cache, img, cache.pulse)
+    return ModelImage(model, img, newcache)
+end
+
+
 
 @inline function visibility_point(m::ModifiedModel, u, v, time, freq)
     mbase = m.model

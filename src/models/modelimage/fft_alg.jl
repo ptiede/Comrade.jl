@@ -24,10 +24,11 @@ export FFTAlg
 The cache used when the `FFT` algorithm is used to compute
 visibilties. This is an internal type and is not part of the public API
 """
-struct FFTCache{A<:FFTAlg,P,I,S} <: AbstractCache
+struct FFTCache{A<:FFTAlg,P,I,Pu,S} <: AbstractCache
     alg::A # FFT algorithm
     plan::P # FFT plan or matrix
     img::I # image buffer used for FT
+    pulse::Pu
     sitp::S # interpolator function used to find vis at abritrary uv position.
 end
 
@@ -173,7 +174,7 @@ function create_cache(alg::FFTAlg, img::IntensityMapTypes, pulse::Pulse=DeltaPul
 
     vispc = phasecenter(vis, X, Y, U, V)
     sitp = create_interpolator(U, V, vispc, stretched(pulse, step(X), step(Y)))
-    return FFTCache(alg, plan, img, sitp)
+    return FFTCache(alg, plan, img, pulse, sitp)
 end
 
 function update_cache(cache::FFTCache, img::IntensityMapTypes, pulse)
@@ -187,8 +188,8 @@ function update_cache(cache::FFTCache, img::IntensityMapTypes, pulse)
     (;U, V) = uviterator(size(pimg, 1), step(X), size(pimg, 2), step(Y))
 
     vispc = phasecenter(vis, X, Y, U, V)
-    sitp = create_interpolator(uu, vv, vispc, pulse)
-    return FFTCache(cache.alg, plan, img, sitp)
+    sitp = create_interpolator(U, V, vispc, pulse)
+    return FFTCache(cache.alg, plan, img, pulse, sitp)
 end
 
 
