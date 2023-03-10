@@ -64,16 +64,16 @@ In other words `distt` is the uncorrelated transition probability when moving fr
 i to timestamp i+1. For the typical pre-calibrated dataset the gain prior on `distt` can be
 tighter than the prior on `dist0`.
 """
-function CalPrior(dist0::NamedTuple, distt::NamedTuple, jcache::SegmentedJonesCache)
-    sites = Tuple(unique(jcache.stations))
+function CalPrior(dist0::NamedTuple, distt::NamedTuple, jcache::JonesCache)
+    sites = Tuple(unique(jcache.schema.sites))
     @argcheck Set(keys(dist0)) == Set(sites)
     @argcheck Set(keys(distt)) == Set(sites)
 
-    times = jcache.times
-    stations = jcache.stations
+    times = jcache.schema.times
+    stations = jcache.schema.sites
     stimes = NamedTuple{sites}(map(x->times[findall(==(x), stations)], sites))
-    cdist = map(zip(jcache.stations, jcache.times)) do (g, t)
-        t > first(getproperty(stimes, g)) && return getproperty(distt, g)
+    cdist = map(zip(jcache.schema.sites, jcache.schema.times)) do (g, t)
+        ((t > first(getproperty(stimes, g))) && jcache.seg[g] isa ScanSeg{true} ) && return getproperty(distt, g)
         return getproperty(dist0, g)
     end
 
@@ -96,8 +96,8 @@ end
 function _makelist(dists, gstat, jcache, refprior)
     sites = collect(Set(gstat))
     idx = 1
-    times = jcache.times
-    scantimes = unique(jcache.times)
+    times = jcache.schema.times
+    scantimes = unique(jcache.schema.times)
     list = map(enumerate(scantimes)) do (i,t)
         # Select the reference station (we cycle through)
         inds = findall(==(t), times)
@@ -223,7 +223,7 @@ end
 function Dists.rand(rng::AbstractRNG, d::HeirarchicalCalPrior{G}) where {G}
     m = rand(rng, d.mean)
     s = rand(rng, d.std)
-    dg = _construct_gain_prior(m, s, G, d.jcache.stations)
+    dg = _construct_gain_prior(m, s, G, d.jcache.schema.sites)
     g = rand(rng, dg)
     return (mean=m, std=s, gains=g)
 end
@@ -233,7 +233,7 @@ Base.length(d::HeirarchicalCalPrior) = length(d.mean) + length(d.std) + length(d
 function HypercubeTransform.asflat(d::HeirarchicalCalPrior{G}) where {G}
     m = rand(d.mean)
     s = rand(d.std)
-    dg = _construct_gain_prior(m, s, G, d.jcache.stations)
+    dg = _construct_gain_prior(m, s, G, d.jcache.schema.sites)
     return TransformVariables.as((mean = asflat(d.mean), std = asflat(d.std), gains = asflat(dg)))
 end
 

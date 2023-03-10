@@ -31,10 +31,10 @@ using Tables
     gph_prior = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
 
     jcache = jonescache(vis, ScanSeg())
-    jcacher = jonescache(vis, ScanSeg(), true)
+    jcacher = jonescache(vis, ScanSeg(true))
 
     # test the design matrix
-    d1 = Comrade.DesignMatrix(jcache.m1, jcache.times, jcache.stations)
+    d1 = Comrade.DesignMatrix(jcache.m1, jcache.schema.times, jcache.schema.sites)
     v = rand(size(d1, 2))
     @test d1*v ≈ jcache.m1*v
     @test size(d1) == size(jcache.m1)
@@ -46,7 +46,7 @@ using Tables
 
     gamp = CalPrior(gamp_prior, jcache)
     gpha = CalPrior(gph_prior,  jcache)
-    gphar = CalPrior(gph_prior_0, gph_prior, jcacher)
+    gphar = CalPrior(gph_prior_0, gph_prior, jcache)
 
     ga = fill(1.0, size(rand(gamp))...)
     gm = JonesModel(jonesStokes(ga, jcache), m)
@@ -191,15 +191,34 @@ end
 
     gprior0 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.5), length(tel)))
     gprior1 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
+    segs = (AA = FixedSeg(1.0 + 0.0im),
+        AP = TrackSeg(),
+        AZ = ScanSeg(),
+        JC = ScanSeg(),
+        LM = ScanSeg(),
+        PV = ScanSeg(),
+        SM = ScanSeg())
+
+    gprior02 = NamedTuple{Tuple(tel)[2:end]}(ntuple(_->Normal(0.0, 0.5), length(tel)-1))
+    gprior12 = NamedTuple{Tuple(tel)[2:end]}(ntuple(_->Normal(0.0, 0.1), length(tel)-1))
+
 
     trackcache = jonescache(dcoh, TrackSeg())
     scancache = jonescache(dcoh, ScanSeg())
-    integcache = jonescache(dcoh, IntegSeg())
+    scancache2 = jonescache(dcoh, segs)
+
+
 
     dlgp = CalPrior(gprior0, scancache)
     dgpp = CalPrior(gprior1, scancache)
     dlgr = CalPrior(gprior0, scancache)
-    dgpr = CalPrior(gprior1,scancache)
+    dgpr = CalPrior(gprior1, scancache)
+
+    dlgp2 = CalPrior(gprior02, scancache2)
+    dgpp2 = CalPrior(gprior12, scancache2)
+    dlgr2 = CalPrior(gprior02, scancache2)
+    dgpr2 = CalPrior(gprior12, scancache2)
+
 
     lgp = rand(dlgp)
     gpp = rand(dgpp)
@@ -212,11 +231,32 @@ end
     grat = exp.(lgr .+ 1im.*gpr)
     Gp = jonesG(gpro, gpro, scancache)
     Gr = jonesG(grat, inv.(grat), scancache)
+    Gz = Gp*Gr
+    Gzz = jonesG(gpro.*grat, gpro.*inv.(grat), scancache)
+    @test Gz.m1 ≈ Gzz.m1
+    @test Gz.m2 ≈ Gzz.m2
+
+    lgp2 = rand(dlgp2)
+    gpp2 = rand(dgpp2)
+    lgr2 = rand(dlgr2)
+    gpr2 = rand(dgpr2)
+    gpro2 = exp.(lgp2 .+ 1im.*gpp2)
+    grat2 = exp.(lgr2 .+ 1im.*gpr2)
+    Gp2 = jonesG(gpro2, gpro2, scancache2)
+    Gr2 = jonesG(grat2, inv.(grat2), scancache2)
+    Gz2 = Gp2*Gr2
+    Gzz2 = jonesG(gpro2.*grat2, gpro2.*inv.(grat2), scancache2)
+    @test Gz2.m1 ≈ Gzz2.m1
+    @test Gz2.m2 ≈ Gzz2.m2
+
 
     @test length(Gp) == length(dcoh)
     @test size(Gp)[1] == size(scancache.m1,1)
     @test Gr[1] == (Gr.m1[1], Gr.m2[1])
 
+    @test length(Gp2) == length(dcoh)
+    @test size(Gp2)[1] == size(scancache2.m1,1)
+    @test Gr2[1] == (Gr2.m1[1], Gr2.m2[1])
     # Gr2 = similar(Gp)
 end
 

@@ -217,10 +217,36 @@ ct.AA
 ct[1, :]
 ```
 """
-function caltable(obs::EHTObservation, gains::AbstractVector, seg = ScanSeg(), segmented=false)
-    gcache = jonescache(obs, seg, segmented)
+function caltable(obs::EHTObservation, gains::AbstractVector, seg = ScanSeg())
+    gcache = jonescache(obs, seg)
     return caltable(gcache, gains)
 end
+
+function fill_gmat!(gmat, ::ScanSeg{false}, lookup, i, allstations, alltimes, gains)
+    t = findfirst(t->(t==alltimes[i]), unique(alltimes))
+    c = lookup[allstations[i]]
+    gmat[t,c] = gains[i]
+end
+
+function fill_gmat!(gmat, ::ScanSeg{true}, lookup, i, allstations, alltimes, gains)
+    t = findfirst(t->(t==alltimes[i]), unique(alltimes))
+    c = lookup[allstations[i]]
+    indprev = findlast(!=(0.0), @view(gmat[begin:t-1, c]))
+    gmat[t,c] = gains[i] + (!isnothing(indprev) ? gmat[indprev, c] : 0)
+end
+
+function fill_gmat!(gmat, ::TrackSeg, lookup, i, allstations, alltimes, gains)
+    t = findfirst(t->(t==alltimes[i]), unique(alltimes))
+    c = lookup[allstations[i]]
+    gmat[t,c] = gains[i]
+end
+
+function fill_gmat!(gmat, v::FixedSeg, lookup, i, allstations, alltimes, gains)
+    t = findfirst(t->(t==alltimes[i]), unique(alltimes))
+    c = lookup[allstations[i]]
+    gmat[t,c] = v.value
+end
+
 
 """
     caltable(g::JonesCache, jterms::AbstractVector)
@@ -241,42 +267,21 @@ ct.AA
 ct[1, :]
 ```
 """
-function caltable(g::JonesCache, gains::AbstractVector)
+function caltable(g::JonesCache, gains::AbstractVector, f=identity)
     @argcheck length(g.schema.times) == length(gains)
 
     stations = sort(unique(g.schema.sites))
     times = unique(g.schema.times)
     gmat = Matrix{Union{eltype(gains), Missing}}(missing, length(times), length(stations))
-
+    gmat .= 0.0
+    segs = g.seg
     alltimes = g.schema.times
     allstations = g.schema.sites
     # Create the lookup dict
     lookup = Dict(stations[i]=>i for i in eachindex(stations))
     for i in eachindex(gains)
-        t = findfirst(t->(t==alltimes[i]), times)
-        c = lookup[allstations[i]]
-        gmat[t,c] = gains[i]
-    end
-
-    return CalTable(stations, lookup, times, gmat)
-end
-
-function caltable(g::SegmentedJonesCache, gains::AbstractVector, f = identity)
-    @argcheck length(g.times) == length(gains)
-
-    stations = sort(unique(g.stations))
-    times = unique(g.times)
-    gmat = Matrix{Union{eltype(gains), Missing}}(undef, length(times), length(stations))
-    gmat .= 0.0
-    alltimes = g.times
-    allstations = g.stations
-    # Create the lookup dict
-    lookup = Dict(stations[i]=>i for i in eachindex(stations))
-    for i in eachindex(gains)
-        t = findfirst(t->(t==alltimes[i]), times)
-        c = lookup[allstations[i]]
-        indprev = findlast(!=(0.0), @view(gmat[begin:t-1, c]))
-        gmat[t,c] = gains[i] + (!isnothing(indprev) ? gmat[indprev, c] : 0)
+        seg = getproperty(segs, allstations[i])
+        fill_gmat!(gmat, seg, lookup, i, allstations, alltimes, gains)
     end
 
     replace!(x->(x==0 ? missing : x), gmat)

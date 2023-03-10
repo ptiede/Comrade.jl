@@ -28,7 +28,7 @@ Right now `ScanSeg` and `TrackSeg` are the same
 """
 struct ScanSeg{S} <: ObsSegmentation end
 
-ScanSeg(segmented=false) = ScanSeg{false}()
+ScanSeg(segmented=false) = ScanSeg{segmented}()
 
 # Integration is for quantities that change every integration time
 """
@@ -62,15 +62,17 @@ Base.size(d::AffineDesignMatrix) = size(d.mat)
 Base.size(d::AffineDesignMatrix, i::Int) = size(d.mat, i)
 Base.copy(d::AffineDesignMatrix) = AffineDesignMatrix(copy(d.mat), copy(d.b))
 
-# function Base.:*(A::AffineDesignMatrix, v::AbstractVector)
-#     return muladd(A.mat, v, A.b)
-# end
+function Base.:*(A::AffineDesignMatrix, v::AbstractVector)
+    T = promote_type(eltype(A), eltype(v))
+    y = similar(v, T, size(A, 1))
+    return LinearAlgebra.mul!(y, A, v)
+end
 
 function LinearAlgebra.mul!(y::AbstractArray, M::AffineDesignMatrix, x::AbstractArray)
     # println(size(M.mat))
     # println(size(x))
-    mul!(y, M.mat, x)
-    y .+= M.b
+    y .= M.b
+    mul!(y, M.mat, x, true, true)
     return y
 end
 
@@ -140,10 +142,15 @@ struct SegmentedJonesCache{D,S<:ObsSegmentation, ST, Ti} <: AbstractJonesCache
     times::Ti
 end
 
-stations(j::AbstractJonesCache) = j.stations
+stations(j::AbstractJonesCache) = j.schema.sites
 ChainRulesCore.@non_differentiable stations(j::AbstractJonesCache)
 
+"""
+    GainSchema(sites, times)
 
+Constructs a schema for the gains of an observation. The `sites` and `times` correspond to the
+specific site and time for each gain that will be modeled.
+"""
 struct GainSchema{S,T,G}
     sites::S
     times::T
@@ -222,16 +229,16 @@ function fill_designmat!(
     ::ScanSeg{true}, vis_ind, site, time, schema::GainSchema
     )
 
-    ifirst = findfirst(site, schema.sites)
-    t0 = scheme.times[ifirst]
-    if t > t0
+    ifirst = findfirst(==(site), schema.sites)
+    t0 = schema.times[ifirst]
+    if time > t0
         ind = findall(x -> (((x[1]<=time)) && (x[2]==site)), schema.gts)
     else
         ind = findall(x -> (((x[1]==time)) && (x[2]==site)), schema.gts)
     end
 
     append!(colInd, ind)
-    append!(rowInd, fill(i, length(ind)))
+    append!(rowInd, fill(vis_ind, length(ind)))
 end
 
 function fill_designmat!(
@@ -368,6 +375,7 @@ end
 
 out_type(::AbstractArray{T}) where {T<:Real} = Complex{T}
 out_type(::AbstractArray{T}) where {T<:Complex} = T
+out_type(::AbstractArray{T}) where {T} = T
 
 function _allmul(m1, m2)
     out1 = similar(first(m1), out_type(first(m1)))
