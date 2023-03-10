@@ -566,6 +566,12 @@ function _jonesStokes!(out1, out2, f::F, g::AbstractVector, m1, m2) where {F}
     return nothing
 end
 
+function _jonesStokes!(out1, out2, ::typeof(identity), g::AbstractVector, m1, m2)
+    mul!(out1, m1, g)
+    mul!(out2, m2, g)
+    return nothing
+end
+
 function ChainRulesCore.rrule(::typeof(jonesStokes), f::F, g, gcache) where {F}
     j = jonesStokes(f, g, gcache)
     pg = ProjectTo(g)
