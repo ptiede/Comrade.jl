@@ -32,7 +32,7 @@ julia> logdensityof(gdist, x)
 ```
 """
 function CalPrior(dists::NamedTuple, jcache::AbstractJonesCache, reference=:none)
-    gstat = jcache.stations
+    gstat = jcache.schema.sites
     @argcheck Set(keys(dists)) == Set(gstat)
 
     if reference === :none

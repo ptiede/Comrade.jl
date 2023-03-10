@@ -242,14 +242,14 @@ ct[1, :]
 ```
 """
 function caltable(g::JonesCache, gains::AbstractVector)
-    @argcheck length(g.times) == length(gains)
+    @argcheck length(g.schema.times) == length(gains)
 
-    stations = sort(unique(g.stations))
-    times = unique(g.times)
+    stations = sort(unique(g.schema.sites))
+    times = unique(g.schema.times)
     gmat = Matrix{Union{eltype(gains), Missing}}(missing, length(times), length(stations))
 
-    alltimes = g.times
-    allstations = g.stations
+    alltimes = g.schema.times
+    allstations = g.schema.sites
     # Create the lookup dict
     lookup = Dict(stations[i]=>i for i in eachindex(stations))
     for i in eachindex(gains)
