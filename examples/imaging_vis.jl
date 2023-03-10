@@ -51,15 +51,17 @@ dvis = extract_vis(obs)
 
 function model(θ, metadata)
     (;fg, c, lgamp, gphase) = θ
-    (; grid, cache, gcache, gcacher) = metadata
+    (; grid, cache, gcache, gcachep) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
     img = IntensityMap((1.1*fg).*c, grid)
     m = ContinuousImage(img,cache)
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(1.1*fg))
     ## Now form our instrument model
-    jp = @fastmath jonesStokes(exp, gphase.*1im, gcacher)
-    jg = @fastmath jonesStokes(exp, lgamp, gcache)
-    return JonesModel(jp*jg, m+g)
+    gvis = complex.(exp.(lgamp))
+    gphase = exp.(1im.*gphase)
+    jgamp = jonesStokes(gvis, gcache)
+    jgphase = jonesStokes(gphase, gcachep)
+    return JonesModel(jgamp*jgphase, m+g)
 end
 
 # The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
@@ -80,31 +82,37 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 32
-fovx = μas2rad(65.0)
-fovy = μas2rad(65.0)
+npix = 16
+fovx = μas2rad(72.0)
+fovy = μas2rad(72.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
 grid = imagepixels(fovx, fovy, npix, npix)
 buffer = IntensityMap(zeros(npix, npix), grid)
-cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{0}())
+cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
 # to the model visibilities. However, to construct this map, we also need to specify the observation
 # segmentation over which we expect the gains to change. This is specified in the second argument
 # to `jonescache`, and currently, there are two options
+#   - `FixedSeg(val)`: Fixes the corruption to the value `val` for all time. This is usefule for reference stations
 #   - `ScanSeg()`: which forces the corruptions to only change from scan-to-scan
 #   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
-# For this work, we use the scan segmentation since that is roughly the timescale we expect the
-# complex gains to vary. Finally, we model the phases and amplitudes separately. For the phases
-# we use a segmented cache where ϕₜ₋₁ + ϵₜ gives the gain at timestamp t, ϕₜ, and our
-# model parameters are the ϵₜ. This is specified in [`jonescache`](@ref) by a third argument
-# that specifies whether to use this segmented prior.
-gcacher = jonescache(dvis, ScanSeg(), true) ## use segmented prior
+# For this work, we use the scan segmentation for the gain amplitudes since that is roughly
+# the timescale we expect them to vary. For the phases we use a station specific scheme where
+# we set AA to be fixed to unit gain because it will function as a reference station.
 gcache = jonescache(dvis, ScanSeg())
+segs = (AA = FixedSeg(1.0 + 0.0im),
+        AP = ScanSeg(),
+        AZ = ScanSeg(),
+        JC = ScanSeg(),
+        LM = ScanSeg(),
+        PV = ScanSeg(),
+        SM = ScanSeg())
+gcachep = jonescache(dvis, segs)
 
 # Now we can form our metadata we need to fully define our model.
-metadata = (;grid, cache, gcache, gcacher)
+metadata = (;grid, cache, gcache, gcachep)
 
 # Moving onto our prior, we first focus on the instrument model priors.
 # Each station requires its own prior on both the amplitudes and phases.
@@ -131,30 +139,20 @@ distamp = (AA = Normal(0.0, 0.1),
 #, we break the gain phase prior into two parts. The first is the prior
 # for the first observing timestamp of each site, `distphase0`, and the second is the
 # prior for segmented gain ϵₜ from time i to i+1, given by `distphase`. For the EHT, we are
-# dealing with pre-calibrated data, so often, the gain phase jumps from scan to scan are
+# dealing with pre-2*rand(rng, ndim) .- 1.5calibrated data, so often, the gain phase jumps from scan to scan are
 # minor. As such, we can put a more informative prior on `distphase`.
 # !!! warning
-#     We use AA (ALMA) as a reference station so we use a more restrictied gain prior.
-#     We recommend that you do not set the reference prior tighter than this since it
-#     makes sampling very difficult.
+#     We use AA (ALMA) as a reference station so we do not have to specify a gain prior for it.
 #-
 using VLBIImagePriors
-distphase0 = (AA = DiagonalVonMises(0.0, inv(0.01)),
+
+distphase = (
              AP = DiagonalVonMises(0.0, inv(π^2)),
              LM = DiagonalVonMises(0.0, inv(π^2)),
              AZ = DiagonalVonMises(0.0, inv(π^2)),
              JC = DiagonalVonMises(0.0, inv(π^2)),
              PV = DiagonalVonMises(0.0, inv(π^2)),
              SM = DiagonalVonMises(0.0, inv(π^2)),
-           )
-
-distphase = (AA = DiagonalVonMises(0.0, inv(0.01)),
-             AP = DiagonalVonMises(0.0, inv(0.5^2)),
-             LM = DiagonalVonMises(0.0, inv(0.5^2)),
-             AZ = DiagonalVonMises(0.0, inv(0.5^2)),
-             JC = DiagonalVonMises(0.0, inv(0.5^2)),
-             PV = DiagonalVonMises(0.0, inv(0.5^2)),
-             SM = DiagonalVonMises(0.0, inv(0.5^2)),
            )
 
 
@@ -166,7 +164,7 @@ prior = (
          fg = Uniform(0.0, 1.0),
          c = ImageDirichlet(1.0, npix, npix),
          lgamp = CalPrior(distamp, gcache),
-         gphase = CalPrior(distphase0, distphase, gcacher),
+         gphase = CalPrior(distphase, gcachep),
         )
 
 
@@ -204,7 +202,7 @@ LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
 using ComradeOptimization
 using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, rand(rng, ndim) .- 0.5, nothing)
+prob = Optimization.OptimizationProblem(f, 2*rand(rng, ndim) .- 1.0, nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(), maxiters=20_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)))
 
@@ -223,14 +221,14 @@ residual(model(xopt, metadata), dvis)
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
-img = intensitymap(model(xopt, metadata), fovx, fovy, 60, 60)
+img = intensitymap(model(xopt, metadata), fovx, fovy, 128, 128)
 plot(img, title="MAP Image")
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
 # To do this, `Comrade` provides a `caltable` function that converts the flattened gain parameters
 # to a tabular format based on the time and its segmentation.
-gt = Comrade.caltable(gcacher, xopt.gphase)
+gt = Comrade.caltable(gcachep, xopt.gphase)
 plot(gt, layout=(3,3), size=(600,500))
 # The gain phases are pretty random, although much of this is due to us picking a random
 # reference station for each scan.
@@ -251,7 +249,7 @@ plot(gt, layout=(3,3), size=(600,500))
 # inferences should be appropriately skeptical.
 #-
 using ComradeAHMC
-metric = DiagEuclideanMetric(ndim)
+metric = DenseEuclideanMetric(ndim)
 chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 300; nadapts=200, init_params=xopt)
 #-
 # !!! warning
@@ -277,7 +275,7 @@ using Measurements
 gmeas_am = measurement.(mgamp, sgamp)
 ctable_am = caltable(gcache, vec(gmeas_am)) # caltable expects gmeas_am to be a Vector
 gmeas_ph = measurement.(mgphase, sgphase)
-ctable_ph = caltable(gcache, vec(gmeas_ph))
+ctable_ph = caltable(gcachep, vec(gmeas_ph))
 
 # Now let's plot the phase curves
 plot(ctable_ph, layout=(3,3), size=(600,500))
@@ -286,7 +284,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = model.(chain[201:5:end], Ref(metadata))
+samples = model.(chain[201:end], Ref(metadata))
 imgs = intensitymap.(samples, μas2rad(75.0), μas2rad(75.0), 128,  128);
 
 mimg = mean(imgs)
