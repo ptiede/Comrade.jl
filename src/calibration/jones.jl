@@ -1,4 +1,4 @@
-export JonesCache, TrackSeg, ScanSeg, IntegSeg, jonesG, jonesD, jonesT,
+export JonesCache, TrackSeg, ScanSeg, FixedSeg, IntegSeg, jonesG, jonesD, jonesT,
        TransformCache, JonesModel, jonescache
 
 """
@@ -26,7 +26,9 @@ Data segmentation such that the quantity is constant over a `scan`.
 Currently we do not explicity track the telescope scans. This will be fixed in a future version.
 Right now `ScanSeg` and `TrackSeg` are the same
 """
-struct ScanSeg <: ObsSegmentation end
+struct ScanSeg{S} <: ObsSegmentation end
+
+ScanSeg(segmented=false) = ScanSeg{segmented}()
 
 # Integration is for quantities that change every integration time
 """
@@ -34,13 +36,44 @@ struct ScanSeg <: ObsSegmentation end
 
 Data segmentation such that the quantity is constant over a correlation integration.
 """
-struct IntegSeg <: ObsSegmentation end
+struct IntegSeg{S} <: ObsSegmentation end
 
+"""
+    $(TYPEDEF)
 
+Enforces that the station calibraton value will have a fixed `value`. This is most
+commonly used when enforcing a reference station for gain phases.
+"""
+struct FixedSeg{T} <: ObsSegmentation
+    value::T
+end
 
 
 function LinearAlgebra.mul!(y::AbstractArray, M::DesignMatrix, x::AbstractArray)
     LinearAlgebra.mul!(y, M.matrix, x)
+end
+
+struct AffineDesignMatrix{M, B}
+    mat::M
+    b::B
+end
+
+Base.eltype(A::AffineDesignMatrix) = promote_type(eltype(A.mat), eltype(A.b))
+Base.size(d::AffineDesignMatrix) = size(d.mat)
+Base.size(d::AffineDesignMatrix, i::Int) = size(d.mat, i)
+Base.copy(d::AffineDesignMatrix) = AffineDesignMatrix(copy(d.mat), copy(d.b))
+
+function Base.:*(A::AffineDesignMatrix, v::AbstractVector)
+    T = promote_type(eltype(A), eltype(v))
+    y = similar(v, T, size(A, 1))
+    return LinearAlgebra.mul!(y, A, v)
+    # muladd(A.mat, v, A.b)
+end
+
+function LinearAlgebra.mul!(y::AbstractArray, M::AffineDesignMatrix, x::AbstractArray)
+    mul!(y, M.mat, x)
+    y .= y .+ M.b
+    return y
 end
 
 abstract type AbstractJonesCache end
@@ -55,27 +88,23 @@ that are measured from the telescope.
 # Fields
 $(FIELDS)
 """
-struct JonesCache{D,S<:ObsSegmentation, ST, Ti} <: AbstractJonesCache
+struct JonesCache{D1, D2, S, Sc} <: AbstractJonesCache
     """
     Design matrix for the first station
     """
-    m1::D
+    m1::D1
     """
     Design matrix for the second station
     """
-    m2::D
+    m2::D2
     """
-    Segmentation scheme for this cache
+    Segmentation schemes for this cache
     """
     seg::S
     """
-    station codes
+    Gain Schema
     """
-    stations::ST
-    """
-    times
-    """
-    times::Ti
+    schema::Sc
 end
 
 """
@@ -113,53 +142,196 @@ struct SegmentedJonesCache{D,S<:ObsSegmentation, ST, Ti} <: AbstractJonesCache
     times::Ti
 end
 
-stations(j::AbstractJonesCache) = j.stations
+stations(j::AbstractJonesCache) = j.schema.sites
 ChainRulesCore.@non_differentiable stations(j::AbstractJonesCache)
 
 """
-    jonescache(obs::EHTObservation, segmentation::ObsSegmentation)
+    GainSchema(sites, times)
 
-Constructs a `JonesCache` from a given observation `obs` using the segmentation scheme
-`segmentation`.
-
-# Example
-```julia-repl
-# coh is a EHTObservation
-julia> jonescache(coh, ScanSeg())
-```
+Constructs a schema for the gains of an observation. The `sites` and `times` correspond to the
+specific site and time for each gain that will be modeled.
 """
-function jonescache(obs::EHTObservation, s::TrackSeg)
+struct GainSchema{S,T,G}
+    sites::S
+    times::T
+    gts::G
+    function GainSchema(sites, times)
+        gts = collect(zip(times, sites))
+        return new{typeof(sites), typeof(times), typeof(gts)}(sites, times, gts)
+    end
+end
 
-    # extract relevant observation info
+function gain_schema(segmentation::NamedTuple, obs::EHTObservation)
+    st = scantable(obs)
+    times = eltype(obs[:T])[]
+    sites = Symbol[]
+    for i in 1:length(st)
+        s = stations(st[i])
+        t = st[i].time
+        for j in eachindex(s)
+            append_time_site!(times, sites, s[j], t, getproperty(segmentation, s[j]))
+        end
+    end
+    return GainSchema(sites, times)
+end
+
+function gain_schema(segmentation::ObsSegmentation, obs::EHTObservation)
+    sites = Tuple(stations(obs))
+    return gain_schema(NamedTuple{sites}(Tuple(segmentation for _ in sites)), obs)
+end
+
+function append_time_site!(times, sites, site, t, ::ScanSeg)
+    push!(sites, site)
+    push!(times, t)
+end
+
+function append_time_site!(times, sites, site, t, ::IntegSeg)
+    push!(sites, site)
+    push!(times, t)
+end
+
+function append_time_site!(times, sites, site, t, ::TrackSeg)
+    # Check is the site is already in the list, if it isn't add it to the schema
+    !(site ∈ sites) && (push!(sites, site); push!(times, zero(t)))
+end
+
+function append_time_site!(times, sites, site, t, ::FixedSeg)
+    nothing
+end
+
+
+
+function fill_designmat!(
+        colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
+        vecInd::AbstractVector{Int}, valInd::AbstractVector,
+        ::TrackSeg, vis_ind, site, time, schema::GainSchema
+        )
+    stats = schema.sites
+    ind = findfirst(==(site), stats)
+    append!(colInd, [ind])
+    append!(rowInd, [vis_ind])
+end
+
+function fill_designmat!(
+    colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
+    vecInd::AbstractVector{Int}, vals::AbstractVector,
+    ::ScanSeg{false}, vis_ind, site, time, schema::GainSchema
+    )
+
+    ind = findall(x->((x[1]==time) && (x[2]==site)), schema.gts)
+    append!(colInd, ind)
+    append!(rowInd, fill(vis_ind, length(ind)))
+end
+
+function fill_designmat!(
+    colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
+    vecInd::AbstractVector{Int}, vals::AbstractVector,
+    ::ScanSeg{true}, vis_ind, site, time, schema::GainSchema
+    )
+
+    ifirst = findfirst(==(site), schema.sites)
+    t0 = schema.times[ifirst]
+    if time > t0
+        ind = findall(x -> (((x[1]<=time)) && (x[2]==site)), schema.gts)
+    else
+        ind = findall(x -> (((x[1]==time)) && (x[2]==site)), schema.gts)
+    end
+
+    append!(colInd, ind)
+    append!(rowInd, fill(vis_ind, length(ind)))
+end
+
+function fill_designmat!(
+    colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
+    vecInd::AbstractVector{Int}, vals::AbstractVector,
+    f::FixedSeg, vis_ind, site, time, schema::GainSchema
+    )
+    push!(vecInd, vis_ind)
+    push!(vals, f.value)
+end
+
+# Helper function that extracts the expected types for the FixedSeg segmentation
+function fixed_type(segmenatation::NamedTuple)
+    vs = values(segmenatation)
+    inds = findall(x->(x isa FixedSeg), vs)
+    return promote_type(map(x->typeof(getproperty(x, :value)), vs[inds])...)
+end
+
+
+function jonescache(obs::EHTObservation, segmentation::NamedTuple)
+    @argcheck sort(collect(stations(obs))) == sort(collect(keys(segmentation)))
+
     times = obs[:T]
     bls = obs[:baseline]
-    stats = stations(obs)
-
-    # initialize vectors containing row and column index locations
+    schema = gain_schema(segmentation, obs)
     rowInd1 = Int[]
     colInd1 = Int[]
     rowInd2 = Int[]
     colInd2 = Int[]
 
-    for i in eachindex(bls)
-        s1, s2 = bls[i]
-        ind1 = findfirst(==(s1), stats)
-        ind2 = findfirst(==(s2), stats)
+    vecInd1 = Int[]
+    vecInd2 = Int[]
+    T = fixed_type(segmentation)
+    vals1 = T[]
+    vals2 = T[]
 
-        append!(colInd1,ind1)
-        append!(colInd2,ind2)
-        append!(rowInd1,i)
-        append!(rowInd2,i)
+
+    for i in eachindex(times)
+        t = times[i]
+        s1, s2 = bls[i]
+        seg1 = getproperty(segmentation, s1)
+        seg2 = getproperty(segmentation, s2)
+        fill_designmat!(colInd1, rowInd1, vecInd1, vals1, seg1, i, s1, t, schema)
+        fill_designmat!(colInd2, rowInd2, vecInd2, vals2, seg2, i, s2, t, schema)
     end
 
-    # populate sparse design matrices
-    z = fill(1.0, length(rowInd1))
-    m1 = sparse(rowInd1, colInd1, z, length(times), length(stats))
-    m2 = sparse(rowInd2, colInd2, z, length(times), length(stats))
+    z1 = fill(1.0, length(rowInd1))
+    m1 = sparse(rowInd1, colInd1, z1, length(times), length(schema.times))
+    z2 = fill(1.0, length(rowInd2))
+    m2 = sparse(rowInd2, colInd2, z2, length(times), length(schema.times))
 
-    ttimes = fill(times[begin], length(stats))
+    if length(vecInd1) > 0
+        v1 = sparsevec(vecInd1, vals1, length(times))
+        d1 = AffineDesignMatrix(m1, v1)
+    else
+        d1 = m1
+    end
 
-    return JonesCache{typeof(m1),typeof(s), typeof(stats), typeof(ttimes)}(m1,m2,s, stats, ttimes)
+    if length(vecInd2) > 0
+        v2 = sparsevec(vecInd2, vals2, length(times))
+        d2 = AffineDesignMatrix(m2, v2)
+    else
+        d2 = m2
+    end
+
+    return JonesCache{
+                typeof(d1), typeof(d2), typeof(segmentation),
+                typeof(schema)
+                }(d1, d2, segmentation, schema)
+end
+
+
+
+"""
+    jonescache(obs::EHTObservation, segmentation::ObsSegmentation)
+    jonescache(obs::EHTObservatoin, segmentation::NamedTuple)
+
+Constructs a `JonesCache` from a given observation `obs` using the segmentation scheme
+`segmentation`. If `segmentation` is a named tuple it is assumed that each symbol in the
+named tuple corresponds to a segmentation for thes sites in `obs`.
+
+# Example
+```julia-repl
+# coh is a EHTObservation
+julia> jonescache(coh, ScanSeg())
+julia> segs = (AA = ScanSeg(), AP = TrachSeg(), AZ=FixedSegSeg())
+julia> jonescache(coh, segs)
+```
+"""
+function jonescache(obs::EHTObservation, s::ObsSegmentation)
+    sites = Tuple(stations(obs))
+    segs = NamedTuple{sites}(Tuple(s for _ in 1:length(sites)))
+    return jonescache(obs, segs)
 end
 
 # This is an internal function that computes the set of stations from a ScanTable
@@ -174,76 +346,6 @@ function gain_stations(st::ScanTable)
     return times, gainstat
 end
 
-"""
-    jonescache(obs::EHTObservation, s::ScanSeg, segmented = false)
-
-Construct a JonesCache from obs observation `obs` and the scan-based segmentation scheme.
-The optional argument segmented denotes whether to use a absolute cache breakdown or a
-segmented one. If using `segmented=true`, then the cache is constructed so that the
-gain parameters are interpreted as segmented gain offsets. This can be useful when constructing,
-segmented gain priors where from scan-to-scan the gains aren't expected to change drastically.
-To construct the prior see [`CalPrior(::NamedTuple, ::NamedTuple, ::SegmentedJonesCache)`](@ref)
-"""
-function jonescache(obs::EHTObservation, s::ScanSeg, segmented = false)
-
-    # extract relevant observation info
-    times = obs[:T]
-    bls = obs[:baseline]
-    gaintime, gainstat = gain_stations(scantable(obs))
-    gts = collect(zip(gaintime, gainstat))
-
-    # initialize vectors containing row and column index locations
-    rowInd1 = Int[]
-    colInd1 = Int[]
-    rowInd2 = Int[]
-    colInd2 = Int[]
-
-    sites = Tuple(stations(obs))
-    stimes = NamedTuple{sites}(map(x->gaintime[findall(==(x), gainstat)], sites))
-
-    # TODO this will becomes a lot cleaner if I do this split based on scans and not time
-    for i in 1:length(times)
-        t = times[i]
-        s1, s2 = bls[i]
-        # If we are in the second scan and are using segmented gains then also include
-        # the previous scans gain value
-        s1times = getproperty(stimes, s1)
-        if segmented && t > first(s1times)
-            # t01 = s1times[findfirst(==(t), s1times)-1]
-            # ind1 = findall(x -> (((x[1]==t)||(x[1]==t01)) && (x[2]==s1)), gts)
-            ind1 = findall(x -> (((x[1]<=t)) && (x[2]==s1)), gts)
-            # ind1 = findall(x -> (((x[1]==t)||(x[1]==first(s1times))) && (x[2]==s1)), gts)
-        else
-            ind1 = findall(x -> ((x[1]==t) && (x[2]==s1)), gts)
-        end
-
-        s2times = getproperty(stimes, s2)
-        if segmented && t > first(s2times)
-            t02 = s2times[findfirst(==(t), s2times)-1]
-            # ind2 = findall(x -> (((x[1]==t)||(x[1]==t02)) && (x[2]==s2)), gts)
-            ind2 = findall(x -> (((x[1]<=t)) && (x[2]==s2)), gts)
-            # ind2 = findall(x -> (((x[1]==t)||(x[1]==first(s2times))) && (x[2]==s2)), gts)
-        else
-            ind2 = findall(x -> ((x[1]==t) && (x[2]==s2)), gts)
-        end
-
-        append!(colInd1,ind1)
-        append!(colInd2,ind2)
-        append!(rowInd1,fill(i, length(ind1)))
-        append!(rowInd2,fill(i, length(ind2)))
-    end
-
-    # populate sparse design matrices
-    z1 = fill(1.0, length(rowInd1))
-    z2 = fill(1.0, length(rowInd2))
-    m1 = sparse(rowInd1, colInd1, z1, length(times), length(gaintime))
-    m2 = sparse(rowInd2, colInd2, z2, length(times), length(gaintime))
-    if segmented
-        SegmentedJonesCache{typeof(m1),typeof(s),  typeof(gainstat), typeof(gaintime)}(m1,m2,s, gainstat, gaintime)
-    else
-        JonesCache{typeof(m1),typeof(s),  typeof(gainstat), typeof(gaintime)}(m1,m2,s, gainstat, gaintime)
-    end
-end
 
 """
     $(TYPEDEF)
@@ -271,9 +373,13 @@ function Base.:*(x::JonesPairs, y::JonesPairs...)
     JonesPairs(o1, o2)
 end
 
+out_type(::AbstractArray{T}) where {T<:Real} = Complex{T}
+out_type(::AbstractArray{T}) where {T<:Complex} = T
+out_type(::AbstractArray{T}) where {T} = T
+
 function _allmul(m1, m2)
-    out1 = zero(first(m1))
-    out2 = zero(first(m2))
+    out1 = similar(first(m1), out_type(first(m1)))
+    out2 = similar(first(m2), out_type(first(m2)))
     _allmul!(out1, out2, m1, m2)
     # out1 = reduce(.*, m1)
     # out2 = reduce(.*, m2)
@@ -301,8 +407,8 @@ function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
         dm1 = zero.(m1)
         dm2 = zero.(m2)
 
-        out1 = zero(first(m1))
-        out2 = zero(first(m2))
+        out1 = similar(first(m1), out_type(first(m1)))
+        out2 = similar(first(m2), out_type(first(m2)))
         autodiff(Reverse, _allmul!, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
         return NoTangent(), pm1(dm1), pm2(dm2)
     end
@@ -347,56 +453,6 @@ find_js(x) = x
 find_js(::Tuple{}) = nothing
 find_js(a::JonesPairs, rest) = a
 find_js(::Any, rest) = find_js(rest)
-
-
-
-
-function jonescache(obs::EHTObservation, s::IntegSeg)
-    # extract relevant observation info
-    times = obs[:T]
-    bls = obs[:baseline]
-    stats = stations(obs)
-
-    # organize time-station info
-    tuniq = unique(times)
-    tbl = Tuple{eltype(tuniq),eltype(stats)}[]
-    for i in 1:length(tuniq)
-        t = tuniq[i]
-        ind = findall(x -> (x==t), times)
-        s1 = getindex.(bls[ind],1)
-        s2 = getindex.(bls[ind],2)
-        statshere = unique(hcat(s1,s2))
-        for j in 1:length(statshere)
-            push!(tbl,(t,statshere[j]))
-        end
-    end
-
-    # initialize vectors containing row and column index locations
-    rowInd1 = Int[]
-    colInd1 = Int[]
-    rowInd2 = Int[]
-    colInd2 = Int[]
-
-    for i in 1:length(times)
-
-        t = times[i]
-        s1, s2 = bls[i]
-        ind1 = findall(x -> ((x[1]==t) && (x[2]==s1)), tbl)
-        ind2 = findall(x -> ((x[1]==t) && (x[2]==s2)), tbl)
-
-        append!(colInd1,ind1)
-        append!(colInd2,ind2)
-        append!(rowInd1,fill(i, length(ind1)))
-        append!(rowInd2,fill(i, length(ind2)))
-    end
-
-    # populate sparse design matrices
-    z = fill(1.0, length(rowInd1))
-    m1 = sparse(rowInd1, colInd1, z, length(times), length(tbl))
-    m2 = sparse(rowInd2, colInd2, z, length(times), length(tbl))
-
-    return JonesCache{typeof(m1),typeof(s), typeof(bls), typeof(times)}(m1,m2, s, bls, times)
-end
 
 
 function apply_design(gmat::T, jcache::AbstractJonesCache) where {T}
@@ -521,6 +577,12 @@ function _jonesStokes!(out1, out2, f::F, g::AbstractVector, m1, m2) where {F}
     return nothing
 end
 
+function _jonesStokes!(out1, out2, ::typeof(identity), g::AbstractVector, m1, m2)
+    mul!(out1, m1, g)
+    mul!(out2, m2, g)
+    return nothing
+end
+
 function ChainRulesCore.rrule(::typeof(jonesStokes), f::F, g, gcache) where {F}
     j = jonesStokes(f, g, gcache)
     pg = ProjectTo(g)
@@ -544,6 +606,12 @@ end
 # function jonesStokes(f::F, g::AbstractVector, gcache::AbstractJonesCache) where {F}
 #     return JonesPairs(f.(gcache.m1*g), f.(gcache.m2*g))
 # end
+
+# function jonesStokes(::typeof(identity), g::AbstractVector, gcache::AbstractJonesCache)
+#     return JonesPairs((gcache.m1*g), (gcache.m2*g))
+# end
+
+
 # jonesStokes(g::AbstractVector, gcache::AbstractJonesCache) = jonesStokes(identity, g, gcache)
 # function jonesStokes(::typeof(identity), g::AbstractVector, gcache::AbstractJonesCache)
 #     return JonesPairs(gcache.m1*g, gcache.m2*g)

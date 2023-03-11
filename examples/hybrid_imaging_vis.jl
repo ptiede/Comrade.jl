@@ -1,4 +1,4 @@
-# # Hybrid Imaging of a Black Hole
+# # Hybrid Imaging with of a Black Hole
 
 # In this tutorial, we will use **hybrid imaging** to analyze the 2017 EHT data.
 # By hybrid imaging, we mean decomposing the model into simple geometric models, e.g., rings
@@ -40,9 +40,8 @@ obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR
 #      coherent.
 obs = scan_average(obs).add_fractional_noise(0.01)
 
-# For this tutorial we will stick to fitting closure only data, although we can
-# get better results by also modeling gains, since closure only modeling is equivalent
-# to assuming infinite gain priors.
+# For this tutorial we will analyze complex visibilities since they allow us to
+# more reliably fit low SNR points.
 dvis = extract_vis(obs)
 
 # ## Building the Model/Posterior
@@ -67,9 +66,11 @@ function model(θ, metadata)
     gauss = (1.1*fg)*rotated(stretched(Gaussian(), σg, σg*(1+τg)), ξg)
     m = mimg + (ring + gauss)
     ## Construct the gain model
-    gvis = exp.(lgamp .+ 1im.*gphase)
-    jg = jonesStokes(gvis, gcache)
-    return JonesModel(jg, m)
+    gvis = exp.(lgamp)
+    gphase = exp.(1im.*gphase)
+    jgamp = jonesStokes(gvis, gcache)
+    jgphase = jonesStokes(gphase, gcachep)
+    return JonesModel(jgamp*jgphase, m)
 end
 
 # Before we move on, let's go into the `model` function a bit. This function takes two arguments
@@ -98,10 +99,18 @@ buffer = IntensityMap(zeros(npix,npix), grid)
 cache  = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
 
 # Now we construct our gain segmenting cache
+segs = (AA = FixedSeg(1.0 + 0.0im),
+        AP = ScanSeg(),
+        AZ = ScanSeg(),
+        JC = ScanSeg(),
+        LM = ScanSeg(),
+        PV = ScanSeg(),
+        SM = ScanSeg())
 gcache = jonescache(dvis, ScanSeg())
+gcachep = jonescache(dvis, segs)
 
 # Now we form the metadata
-metadata = (;grid, cache, gcache)
+metadata = (;grid, cache, gcache, gcachep)
 
 # This is everything we need to form our likelihood. Note the first two arguments must be
 # the model and then the metadata for the likelihood. The rest of the arguments are required
@@ -128,12 +137,10 @@ distamp = (AA = Normal(0.0, 0.1),
 
 # For the phases, we use a wrapped von Mises prior to respect the periodicity of the variable.
 # !!! warning
-#     We use AA (ALMA) as a reference station so we use a more restrictied gain prior.
-#     We recommend that you do not set the reference prior tighter than this since it
-#     makes sampling very difficult.
+#     We use AA (ALMA) as a reference station (it is `FixedSeg`) so we do not need to specify a gain prior for it.
 #-
 using VLBIImagePriors
-distphase = (AA = DiagonalVonMises(0.0, inv(0.01)),
+distphase = (
              AP = DiagonalVonMises(0.0, inv(π^2)),
              LM = DiagonalVonMises(0.0, inv(π^2)),
              AZ = DiagonalVonMises(0.0, inv(π^2)),
@@ -168,7 +175,7 @@ prior = (
           τg = Uniform(0.0, 1.0),
           ξg = Uniform(0, π),
           lgamp = CalPrior(distamp, gcache),
-          gphase = CalPrior(distphase, gcache)
+          gphase = CalPrior(distphase, gcachep)
         )
 
 # This is everything we need to specify our posterior distribution, which our is the main
@@ -197,7 +204,9 @@ tpost = asflat(post)
 ndim = dimension(tpost)
 
 # Now we optimize.
+using ComradeOptimization
 using OptimizationOptimJL
+using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
@@ -220,17 +229,17 @@ plot(img, title="MAP Image")
 # now we sample using hmc
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 1000; nadapts=700, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 600; nadapts=400, init_params=xopt)
 
 # !!! warning
 #     This should be run for likely 2-3x more steps to properly estimate expectations of the posterior
 #-
 
 # Now lets plot the mean image and standard deviation images.
-# To do this we first clip the first 250 MCMC steps since that is during tuning and
+# To do this we first clip the first 400 MCMC steps since that is during tuning and
 # so the posterior is not sampling from the correct stationary distribution.
 using StatsBase
-msamples = model.(chain[701:2:end], Ref(metadata))
+msamples = model.(chain[401:2:end], Ref(metadata))
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, 1.5*fovxy, 1.5*fovxy, 128, 128)

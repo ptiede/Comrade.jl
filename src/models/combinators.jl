@@ -50,6 +50,15 @@ function modelimage(::NotAnalytic,
     @set m1.m2 = modelimage(m1.m2, cache)
 end
 
+function modelimage(::NotAnalytic,
+    model::CompositeModel,
+    cache::FFTCache,
+    thread::StaticBool = False())
+
+    m1 = @set model.m1 = modelimage(model.m1, cache)
+    @set m1.m2 = modelimage(m1.m2, cache)
+end
+
 function fouriermap(m::CompositeModel, dims::AbstractDims)
     m1 = fouriermap(m.m1, dims)
     m2 = fouriermap(m.m2, dims)

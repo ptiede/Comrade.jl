@@ -25,7 +25,6 @@ Comrade.caltable(::Comrade.JonesCache, ::AbstractVector)
 Comrade.caltable(::Comrade.EHTObservation, ::AbstractVector)
 Comrade.DesignMatrix
 Comrade.JonesCache
-Comrade.SegmentedJonesCache
 Comrade.TransformCache
 Comrade.JonesModel
 Comrade.CalPrior
@@ -36,9 +35,8 @@ Comrade.ObsSegmentation
 Comrade.IntegSeg
 Comrade.ScanSeg
 Comrade.TrackSeg
-Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.TrackSeg)
-Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.ScanSeg)
-Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.ScanSeg, ::Any)
+Comrade.FixedSeg
+Comrade.jonescache(::Comrade.EHTObservation, ::NamedTuple)
 Comrade.jonesStokes
 Comrade.jonesG
 Comrade.jonesD

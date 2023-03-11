@@ -308,12 +308,12 @@ end
 
 # I need some special pass-throughs for the non-analytic FFT transform
 # since you evaluate the visibilities pointwise
-function modelimage(::NotAnalytic,
-    model::ModifiedModel,
-    image::IntensityMap, alg::FFTAlg, pulse = DeltaPulse(), thread::StaticBool=False())
+# function modelimage(::NotAnalytic,
+#     model::ModifiedModel,
+#     image::IntensityMap, alg::FFTAlg, pulse = DeltaPulse(), thread::StaticBool=False())
 
-    @set model.model = modelimage(NotAnalytic(), model.model, image, alg, pulse, thread)
-end
+#     @set model.model = modelimage(NotAnalytic(), model.model, image, alg, pulse, thread)
+# end
 
 # I need some special pass-throughs for the non-analytic NUFT transform
 # since you evaluate the visibilities as a vector
@@ -323,6 +323,14 @@ function modelimage(::NotAnalytic,
     pulse = DeltaPulse(), thread::StaticBool=False())
     _modelimage(model, image, alg, pulse, thread)
 end
+
+@inline function modelimage(::NotAnalytic, model::AbstractModel, cache::FFTCache, thread::StaticBool)
+    img = cache.img
+    intensitymap!(img, model, thread)
+    newcache = update_cache(cache, img, cache.pulse)
+    return ModelImage(model, img, newcache)
+end
+
 
 
 @inline function visibility_point(m::ModifiedModel, u, v, time, freq)
