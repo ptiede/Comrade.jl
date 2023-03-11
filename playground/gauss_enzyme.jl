@@ -88,7 +88,7 @@ end
 # These transformed posterior expect a vector of parameters. That is we can evaluate the
 # transformed log density by calling
 
-logdensityof(cpost, rand(rng, dimension(cpost)))
+# logdensityof(cpost, rand(rng, dimension(cpost)))
 logdensityof(fpost, randn(rng, dimension(fpost)))
 
 # note that `cpost` logdensity vector expects that each element lives in `[0,1]`.
