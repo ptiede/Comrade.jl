@@ -23,7 +23,6 @@ using FFTW
 using NFFT
 using PaddedViews
 using PDMats
-using PyCall: pyimport, PyNULL, PyObject
 using SpecialFunctions #: gamma, erf
 #using Bessels
 using Random
@@ -40,8 +39,8 @@ using TypedTables
 export linearpol, mbreve, evpa
 using ComradeBase: AbstractDims
 
-
-const ehtim = PyNULL()
+using PythonCall
+const ehtim = PythonCall.pynew()
 
 """
     load_ehtim()
@@ -54,7 +53,7 @@ This will fail if ehtim isn't installed in the python installation that PyCall r
 """
 function load_ehtim()
     #try
-    copy!(ehtim, pyimport("ehtim"))
+    PythonCall.pycopy!(ehtim, pyimport("ehtim"))
     #catch
     #    @warn "No ehtim installation found in python path. Some data functionality will not work"
     #end
