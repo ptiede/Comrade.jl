@@ -6,8 +6,8 @@ using FileIO
     @test size(ime.imarr("I")) == size(imc)
     @test flux(imc) ≈ ime.total_flux()
     fov = fieldofview(imc)
-    @test fov.X ≈ ime.fovx()
-    @test fov.Y ≈ ime.fovx()
+    @test fov.X ≈ pyconvert(Float64, ime.fovx())
+    @test fov.Y ≈ pyconvert(Float64, ime.fovx())
     Comrade.save("test.fits", imc)
     rm("test.fits")
 end
