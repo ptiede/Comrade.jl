@@ -41,14 +41,16 @@ function AbstractMCMC.sample(::Random.AbstractRNG, post::Comrade.TransformedPost
     kw = delete!(Dict(kwargs), :init_params)
     res = dysample(ℓ, identity, sampler; kw...)
     # Make sure that res["sample"] is an array and use transpose
-    samples, weights = transpose(Dynesty.PyCall.PyArray(res["samples"])), exp.(res["logwt"] .- res["logz"][end])
+    samples, weights = transpose(Dynesty.PythonCall.pyconvert(Array, res["samples"])),
+                       exp.(Dynesty.PythonCall.pyconvert(Vector, res["logwt"] - res["logz"][-1]))
     chain = transform.(Ref(post), eachcol(samples)) |> Table
-    stats = (logl = res["logl"],
-             logz = res["logz"][end],
-             logzerr = res["logz"][end],
+    stats = (logl = Dynesty.PythonCall.pyconvert(Vector, res["logl"]),
+             logz = Dynesty.PythonCall.pyconvert(Float64, res["logz"][-1]),
+             logzerr = Dynesty.PythonCall.pyconvert(Float64, res["logz"][-1]),
              weights = weights,
+             dynesty_obj = res
             )
-    return Table(chain), stats, res
+    return Table(chain), stats
 end
 
 
