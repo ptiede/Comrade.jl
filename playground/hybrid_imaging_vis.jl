@@ -11,8 +11,8 @@
 # information/parameters when fitting the data. Hybrid modeling requires the user to
 # incorporate specific knowledge of how you expect the source to look like. For instance
 # for M87, we expect the image to be dominated by a ring-like structure. Therefore, instead
-# of using a high-dimensional raster to recover the ring, we can use a ring model plus
-#, a very low-dimensional or large pixel size raster to soak up the rest of the emission.
+# of using a high-dimensional raster to recover the ring, we can use a ring model plus,
+# a very low-dimensional or large pixel size raster to soak up the rest of the emission.
 # This is the approach we will take in this tutorial to analyze the April 6 2017 EHT data
 # of M87.
 
@@ -87,7 +87,7 @@ end
 # Now let's define our metadata. First we will define the cache for the image. This is
 # required to compute the numerical Fourier transform.
 fovxy  = μas2rad(90.0)
-npix   = 6
+npix   = 7
 grid   = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
 # For our image, we will use the
@@ -208,9 +208,9 @@ using ComradeOptimization
 using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
+prob = Optimization.OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1)
+sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1, callback=(x,p)->(@info f(x,p); false))
 
 # Before we analyze our solution we first need to transform back to parameter space.
 xopt = transform(tpost, sol)
@@ -270,9 +270,9 @@ p2 = density(rad2μas(chain.σ)*2*sqrt(2*log(2)), xlabel="Ring FWHM (μas)")
 p3 = density(-rad2deg.(chain.mp) .+ 360.0, xlabel = "Ring PA (deg) E of N")
 p4 = density(2*chain.ma, xlabel="Brightness asymmetry")
 p5 = density(1 .- chain.f, xlabel="Ring flux fraction")
-plot(p1, p2, p3, p4, p5, size=(900, 600), legend=nothing)
+plot(p1, p2, p3, p4, p5, size=(900, 600), yticks=nothing, legend=nothing)
 
-# And viola hybrid imaging is now simple and takes under 10 minutes
+# And viola hybrid imaging via fitting complex vis is now possible on a lapttop/
 
 # ## Computing information
 # ```

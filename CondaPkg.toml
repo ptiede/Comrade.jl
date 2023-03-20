@@ -3,5 +3,4 @@
 ehtim = ""
 [deps]
 python = ">=3.6,<=3.10"
-pynfft = ""
 numpy = "<=1.23"
