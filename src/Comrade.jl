@@ -49,7 +49,8 @@ Loads the [eht-imaging](https://github.com/achael/eht-imaging) library and store
 exported `ehtim` variable.
 
 # Notes
-This will fail if ehtim isn't installed in the python installation that PyCall references.
+We use PythonCall and CondaPkg to install load all dependencies manually.
+If you want to use your own Python environment please see [CondaPkg.jl](https://github.com/cjdoris/CondaPkg.jl).
 """
 function load_ehtim()
     #try

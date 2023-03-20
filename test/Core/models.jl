@@ -2,6 +2,7 @@ using ChainRulesTestUtils
 using ChainRulesCore
 using FiniteDifferences
 using Zygote
+using PythonCall
 
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
