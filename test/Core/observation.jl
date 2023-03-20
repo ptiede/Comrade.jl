@@ -51,7 +51,7 @@
     @test length(extract_cphase(obsavg; count="min")) == length(obsavg.cphase)
     @test length(extract_lcamp(obsavg; count="min")) == length(obsavg.logcamp)
     #@test Set(stations(vis)) == Set(Symbol.(collect(get(obsavg.tarr, "site"))))
-    @test mean(getdata(amp, :measurement)) == mean(obsavg.amp["amp"])
+    @test mean(getdata(amp, :measurement)) == pyconvert(Float64, mean(obsavg.amp["amp"]))
 
     println("observation: ")
     uvpositions(vis[1])
