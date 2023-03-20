@@ -1,3 +1,5 @@
+using PythonCall
+
 @testset "observation" begin
 
     println("ehtim:")
