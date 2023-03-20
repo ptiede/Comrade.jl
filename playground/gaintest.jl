@@ -107,4 +107,4 @@ scatter(ctab[:time], inv.(ctab[:LM]),
         xlabel="Time (hr)",
         ylabel="LMT Gain Amp.",
         )
-scatter!(get(ctable.data["LM"], "time"), abs.(get(ctable.data["LM"], "rscale")), label="eht-imaging")
+scatter!(pyconvert(Vector, ctable.data["LM"]["time"]), abs.(pyconvert(Vector, ctable.data["LM"]["rscale"])), label="eht-imaging")

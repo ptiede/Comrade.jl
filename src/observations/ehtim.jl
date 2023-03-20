@@ -1,7 +1,6 @@
 export extract_amp, extract_vis, extract_lcamp, extract_cphase,
        extract_coherency,
        load_ehtim_uvfits, scan_average
-using PyCall: set!
 
 """
     load_ehtim_uvfits(uvfile, arrayfile=nothing; kwargs...)
@@ -13,7 +12,7 @@ with the arrayfile. This is expected to be an eht-imaging produced array
 or antenna file.
 """
 function load_ehtim_uvfits(uvfile, arrayfile=nothing; kwargs...)
-    ehtim == PyNULL() && load_ehtim()
+    PythonCall.pyisnull(ehtim) && load_ehtim()
     obs = ehtim.obsdata.load_uvfits(uvfile; kwargs...)
     if arrayfile !== nothing
         tarr = ehtim.io.load.load_array_txt(arrayfile).tarr
@@ -23,19 +22,19 @@ function load_ehtim_uvfits(uvfile, arrayfile=nothing; kwargs...)
 end
 
 function getvisfield(obs)
-    obsamps = obs.data::PyObject
-    u = deepcopy((get(obsamps, Vector{Float64}, "u")))
-    v = deepcopy((get(obsamps, Vector{Float64}, "v")))
-    err = deepcopy((get(obsamps, Vector{Float64}, "sigma")))
-    vis = deepcopy((get(obsamps, Vector{Complex{Float64}}, "vis")))
-    t1 = Symbol.(replace.(replace.(deepcopy((get(obsamps, Vector{String}, "t1"))), Ref("\x0"=>"0")), "\a"=>"a"))
-    t2 = Symbol.(replace.(replace.(deepcopy((get(obsamps, Vector{String}, "t2"))), Ref("\x0"=>"0")), "\a"=>"a"))
+    obsamps = obs.data
+    u   = pyconvert(Vector,         obsamps["u"])
+    v   = pyconvert(Vector,         obsamps["v"])
+    err = pyconvert(Vector,         obsamps["sigma"])
+    vis = pyconvert(Vector,         obsamps["vis"])
+    t1  = pyconvert(Vector{Symbol}, obsamps["t1"])
+    t2  = pyconvert(Vector{Symbol}, obsamps["t2"])
+    time= pyconvert(Vector,         obsamps["time"])
+    freq= fill(pyconvert(eltype(u), obs.rf), length(time))
+    bw  = fill(pyconvert(eltype(u), obs.bw), length(time))
     baseline = tuple.(t1, t2)
-    time = deepcopy((get(obsamps, Vector{Float64}, "time")))
-    freq = fill(obs.rf, length(time))
-    bw = zeros(length(time))
 
-    return  StructArray{Comrade.EHTVisibilityDatum{Float64}}(
+    return  StructArray{Comrade.EHTVisibilityDatum{eltype(u)}}(
         measurement = vis,
         U = u,
         V = v,
@@ -49,16 +48,16 @@ end
 
 
 function getampfield(obs)
-    obsamps = obs.amp::PyObject
-    uamp = deepcopy(get(obsamps, Vector{Float64}, "u"))
-    vamp = deepcopy(get(obsamps, Vector{Float64}, "v"))
-    erramp = deepcopy(get(obsamps, Vector{Float64}, "sigma"))
-    amps = deepcopy(get(obsamps, Vector{Float64}, "amp"))
-    t1 = Symbol.(deepcopy(get(obsamps, Vector{String}, "t1")))
-    t2 = Symbol.(deepcopy(get(obsamps, Vector{String}, "t2")))
+    obsamps = obs.amp
+    uamp   = pyconvert(Vector, obsamps["u"])
+    vamp   = pyconvert(Vector, obsamps["v"])
+    erramp = pyconvert(Vector, obsamps["sigma"])
+    amps   = pyconvert(Vector, obsamps["amp"])
+    t1     = pyconvert(Vector{Symbol}, obsamps["t1"])
+    t2     = pyconvert(Vector{Symbol}, obsamps["t2"])
     baseline = tuple.(t1, t2)
-    time = deepcopy(get(obsamps, Vector{Float64}, "time"))
-    freq = fill(obs.rf, length(time))
+    time = pyconvert(Vector, obsamps["time"])
+    freq = fill(getrf(obs), length(time))
 
     return  StructArray{Comrade.EHTVisibilityAmplitudeDatum{Float64}}(
         measurement = amps,
@@ -72,23 +71,22 @@ function getampfield(obs)
 end
 
 function getcpfield(obs)
-    obscp = obs.cphase::PyObject
-    u1 = deepcopy((get(obscp, Vector{Float64}, "u1")))
-    v1 = deepcopy((get(obscp, Vector{Float64}, "v1")))
-    u2 = deepcopy((get(obscp, Vector{Float64}, "u2")))
-    v2 = deepcopy((get(obscp, Vector{Float64}, "v2")))
-    u3 = deepcopy((get(obscp, Vector{Float64}, "u3")))
-    v3 = deepcopy((get(obscp, Vector{Float64}, "v3")))
-    cp = deg2rad.(deepcopy((get(obscp, Vector{Float64}, "cphase"))))
-    errcp = deg2rad.(deepcopy((get(obscp, Vector{Float64}, "sigmacp"))))
+    obscp = obs.cphase
+    u1 = pyconvert(Vector, obscp["u1"])
+    v1 = pyconvert(Vector, obscp["v1"])
+    u2 = pyconvert(Vector, obscp["u2"])
+    v2 = pyconvert(Vector, obscp["v2"])
+    u3 = pyconvert(Vector, obscp["u3"])
+    v3 = pyconvert(Vector, obscp["v3"])
+    cp    = deg2rad.(pyconvert(Vector, obscp["cphase"]))
+    errcp = deg2rad.(pyconvert(Vector, obscp["sigmacp"]))
 
-    t1 = Symbol.(deepcopy((get(obscp, Vector{String}, "t1"))))
-    t2 = Symbol.(deepcopy((get(obscp, Vector{String}, "t2"))))
-    t3 = Symbol.(deepcopy((get(obscp, Vector{String}, "t3"))))
+    t1 = pyconvert(Vector{Symbol}, obscp["t1"])
+    t2 = pyconvert(Vector{Symbol}, obscp["t2"])
+    t3 = pyconvert(Vector{Symbol}, obscp["t3"])
     baseline = tuple.(t1, t2, t3)
-    time = deepcopy(get(obscp, Vector{Float64}, "time"))
-    freq = fill(obs.rf, length(time))
-    bw = zeros(length(time))
+    time = pyconvert(Vector, obscp["time"])
+    freq = fill(getrf(obs), length(time))
 
     return StructArray{Comrade.EHTClosurePhaseDatum{Float64}}(
         measurement = cp,
@@ -107,26 +105,25 @@ function getcpfield(obs)
 end
 
 function getlcampfield(obs)
-    obslcamp = obs.logcamp::PyObject
-    u1 = get(obslcamp, Vector{Float64}, "u1")
-    v1 = get(obslcamp, Vector{Float64}, "v1")
-    u2 = get(obslcamp, Vector{Float64}, "u2")
-    v2 = get(obslcamp, Vector{Float64}, "v2")
-    u3 = get(obslcamp, Vector{Float64}, "u3")
-    v3 = get(obslcamp, Vector{Float64}, "v3")
-    u4 = get(obslcamp, Vector{Float64}, "u4")
-    v4 = get(obslcamp, Vector{Float64}, "v4")
-    camp = ((get(obslcamp, Vector{Float64}, "camp")))
-    errcamp = ((get(obslcamp, Vector{Float64}, "sigmaca")))
+    obslcamp = obs.logcamp
+    u1 = pyconvert(Vector, obslcamp["u1"])
+    v1 = pyconvert(Vector, obslcamp["v1"])
+    u2 = pyconvert(Vector, obslcamp["u2"])
+    v2 = pyconvert(Vector, obslcamp["v2"])
+    u3 = pyconvert(Vector, obslcamp["u3"])
+    v3 = pyconvert(Vector, obslcamp["v3"])
+    u4 = pyconvert(Vector, obslcamp["u4"])
+    v4 = pyconvert(Vector, obslcamp["v4"])
+    camp    = pyconvert(Vector, obslcamp["camp"])
+    errcamp = pyconvert(Vector, obslcamp["sigmaca"])
 
-    t1 = Symbol.(((get(obslcamp, Vector{String}, "t1"))))
-    t2 = Symbol.(((get(obslcamp, Vector{String}, "t2"))))
-    t3 = Symbol.(((get(obslcamp, Vector{String}, "t3"))))
-    t4 = Symbol.(((get(obslcamp, Vector{String}, "t4"))))
+    t1 = pyconvert(Vector{Symbol}, obslcamp["t1"])
+    t2 = pyconvert(Vector{Symbol}, obslcamp["t2"])
+    t3 = pyconvert(Vector{Symbol}, obslcamp["t3"])
+    t4 = pyconvert(Vector{Symbol}, obslcamp["t4"])
     baseline = tuple.(t1, t2, t3, t4)
-    time = (get(obslcamp, Vector{Float64}, "time"))
-    freq = fill(obs.rf, length(time))
-    bw = zeros(length(time))
+    time = pyconvert(Vector, obslcamp["time"])
+    freq = fill(getrf(obs), length(time))
 
     return StructArray{Comrade.EHTLogClosureAmplitudeDatum{Float64}}(
         measurement = camp,
@@ -153,33 +150,33 @@ function getcoherency(obs)
     obs = obs.switch_polrep("circ")
 
     # get (u,v) coordinates
-    u = get(obs.data, "u")
-    v = get(obs.data, "v")
+    u = pyconvert(Vector, obs.data["u"])
+    v = pyconvert(Vector, obs.data["v"])
 
     # get visibilities
-    c11 = get(obs.data, "rrvis")
-    c12 = get(obs.data, "rlvis")
-    c21 = get(obs.data, "lrvis")
-    c22 = get(obs.data, "llvis")
+    c11 = pyconvert(Vector, obs.data["rrvis"])
+    c12 = pyconvert(Vector, obs.data["rlvis"])
+    c21 = pyconvert(Vector, obs.data["lrvis"])
+    c22 = pyconvert(Vector, obs.data["llvis"])
 
     cohmat = StructArray{SMatrix{2,2,eltype(c11), 4}}((c11, c21, c12, c22))
 
     # get uncertainties
-    e11 = get(obs.data, "rrsigma")
-    e12 = get(obs.data, "rlsigma")
-    e21 = get(obs.data, "lrsigma")
-    e22 = get(obs.data, "llsigma")
+    e11 = pyconvert(Vector, obs.data["rrsigma"])
+    e12 = pyconvert(Vector, obs.data["rlsigma"])
+    e21 = pyconvert(Vector, obs.data["lrsigma"])
+    e22 = pyconvert(Vector, obs.data["llsigma"])
 
     errmat = StructArray{SMatrix{2,2,eltype(e11), 4}}((e11, e21, e12, e22))
 
 
     # get timestamps and frequencies
-    time = get(obs.data, "time")
-    freq = fill(obs.rf, length(time))
+    time = pyconvert(Vector, obs.data["time"])
+    freq = fill(getrf(obs), length(time))
 
     # get baseline info
-    t1 = get(obs.data, Vector{Symbol}, "t1")
-    t2 = get(obs.data, Vector{Symbol}, "t2")
+    t1 = pyconvert(Vector{Symbol}, obs.data["t1"])
+    t2 = pyconvert(Vector{Symbol}, obs.data["t2"])
     baseline = tuple.(t1, t2)
 
     # provide the polarization basis info
@@ -208,15 +205,24 @@ end
 
 
 function getradec(obs)::Tuple{Float64, Float64}
-    return (float(obs.ra), float(obs.dec))
+    return (pyconvert(Float64, obs.ra), pyconvert(Float64, obs.dec))
 end
 
 function getmjd(obs)::Int
-    return Int(obs.mjd)
+    return pyconvert(Int, obs.mjd)
 end
 
 function getsource(obs)::Symbol
-    return Symbol(obs.source)
+    return pyconvert(Symbol, obs.source)
+end
+
+getrf(obs) = pyconvert(Float64, obs.rf)
+getbw(obs) = pyconvert(Float64, obs.bw)
+
+function getscantable(obs)
+    obs.add_scans()
+    sc = pyconvert(Matrix, obs.scans)
+    return Table((start=sc[:,1], stop = sc[:,2]))
 end
 
 
@@ -237,11 +243,10 @@ function extract_amp(obsc; kwargs...)
     ra, dec = getradec(obs)
     mjd = getmjd(obs)
     source = getsource(obs)
-    bw = obs.bw
-    rf = obs.rf
+    bw = getbw(obs)
     angles = get_fr_angles(obs)
     tarr = make_array_table(obsc)
-    scans = Table((start=obs.scans[:,1], stop = obs.scans[:,2]))
+    scans = getscantable(obsc)
     ac = _arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
@@ -252,26 +257,26 @@ function extract_amp(obsc; kwargs...)
 end
 
 function get_fr_angles(ehtobs)
-    el1 = get(ehtobs.unpack(["el1"],ang_unit="rad"),"el1")
-    el2 = get(ehtobs.unpack(["el2"],ang_unit="rad"),"el2")
+    el1 = pyconvert(Vector, ehtobs.unpack(pylist(["el1"]),ang_unit="rad")["el1"])
+    el2 = pyconvert(Vector, ehtobs.unpack(pylist(["el2"]),ang_unit="rad")["el2"])
 
     # read parallactic angles for each station
-    par1 = get(ehtobs.unpack(["par_ang1"],ang_unit="rad"),"par_ang1")
-    par2 = get(ehtobs.unpack(["par_ang2"],ang_unit="rad"),"par_ang2")
+    par1 = pyconvert(Vector, ehtobs.unpack(pylist(["par_ang1"]),ang_unit="rad")["par_ang1"])
+    par2 = pyconvert(Vector, ehtobs.unpack(pylist(["par_ang2"]),ang_unit="rad")["par_ang2"])
     return (el1, el2), (par1, par2)
 end
 
 function make_array_table(obs)
     return Table(
-        sites = collect(Symbol.(replace.(get(obs.tarr, "site"), "\x0"=>"0"))),
-        X     = collect(get(obs.tarr, "x")),
-        Y     = collect(get(obs.tarr, "y")),
-        Z     = collect(get(obs.tarr, "z")),
-        SEFD1 = collect(get(obs.tarr, "sefdr")),
-        SEFD2 = collect(get(obs.tarr, "sefdl")),
-        fr_parallactic = collect(get(obs.tarr, "fr_par")),
-        fr_elevation = collect(get(obs.tarr, "fr_elev")),
-        fr_offset = deg2rad.(collect(get(obs.tarr, "fr_off"))),
+        sites = pyconvert(Vector{Symbol}, obs.tarr["site"]),
+        X     = pyconvert(Vector, obs.tarr["x"]),
+        Y     = pyconvert(Vector, obs.tarr["y"]),
+        Z     = pyconvert(Vector, obs.tarr["z"]),
+        SEFD1 = pyconvert(Vector, obs.tarr["sefdr"]),
+        SEFD2 = pyconvert(Vector, obs.tarr["sefdl"]),
+        fr_parallactic = pyconvert(Vector, obs.tarr["fr_par"]),
+        fr_elevation   = pyconvert(Vector, obs.tarr["fr_elev"]),
+        fr_offset      = deg2rad.(pyconvert(Vector, obs.tarr["fr_off"])),
     )
 end
 
@@ -293,11 +298,12 @@ function extract_vis(obsc; kwargs...)
     ra, dec = getradec(obs)
     mjd = getmjd(obs)
     source = getsource(obs)
-    bw = obs.bw
-    rf = obs.rf
+    bw = getbw(obs)
+    rf = getrf(obs)
     angles = get_fr_angles(obs)
     tarr = make_array_table(obsc)
-    scans = Table((start=obs.scans[:,1], stop = obs.scans[:,2]))
+    sc = pyconvert(Matrix, obs.scans)
+    scans = getscantable(obs)
     ac = _arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(
                    data = data, mjd = mjd,
@@ -324,11 +330,11 @@ function extract_coherency(obsc)
     ra, dec = Comrade.getradec(obs)
     mjd = Comrade.getmjd(obs)
     source = Comrade.getsource(obs)
-    bw = obs.bw
-    rf = obs.rf
+    bw = getbw(obs)
+    rf = getrf(obs)
     angles = get_fr_angles(obs)
     tarr = make_array_table(obs)
-    scans = Table((start=obs.scans[:,1], stop = obs.scans[:,2]))
+    scans = getscantable(obs)
     ac = _arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
@@ -414,9 +420,8 @@ function minimal_lcamp(obsc; kwargs...)
     ra, dec = getradec(obs)
     mjd = getmjd(obs)
     source = getsource(obs)
-    bw = obs.bw
-    rf = obs.rf
-    ac = arrayconfig(dvis)
+    bw = getbw(obs)
+    # ac = arrayconfig(dvis)
     clac = ClosureConfig(dvis, dmat)
     return EHTObservation(data = minset, mjd = mjd,
                           config=clac,
@@ -443,8 +448,7 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
     ra, dec = getradec(obs)
     mjd = getmjd(obs)
     source = getsource(obs)
-    bw = obs.bw
-    rf = obs.rf
+    bw = getbw(obs)
 
 
     cphase = EHTObservation(data = data, mjd = mjd,
@@ -486,7 +490,7 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
         dmat = dmat[2:end]
     end
 
-    ac = arrayconfig(dvis)
+    # ac = arrayconfig(dvis)
     clac = ClosureConfig(dvis, dmat)
     return  EHTObservation(data = data, mjd = mjd,
                            config=clac,
@@ -506,8 +510,7 @@ function _make_lcamp(obsc, count="max"; kwargs...)
     ra, dec = getradec(obs)
     mjd = getmjd(obs)
     source = getsource(obs)
-    bw = obs.bw
-    rf = obs.rf
+    bw = getbw(obs)
 
     return EHTObservation(data = data, mjd = mjd,
                    config=nothing,
@@ -555,7 +558,7 @@ function _ehtim_lcamp(obsc; count="max", kwargs...)
     end
 
 
-    ac = arrayconfig(dvis)
+    # ac = arrayconfig(dvis)
     clac = ClosureConfig(dvis, dmat)
     return  EHTObservation(data = lcamp.data, mjd = lcamp.mjd,
                            config=clac,
@@ -585,9 +588,8 @@ function minimal_cphase(obsc; kwargs...)
     ra, dec = getradec(obs)
     mjd = getmjd(obs)
     source = getsource(obs)
-    bw = obs.bw
-    rf = obs.rf
-    ac = arrayconfig(dvis)
+    bw = getbw(obs)
+    # ac = arrayconfig(dvis)
     clac = ClosureConfig(dvis, dmat)
     return EHTObservation(data = minset, mjd = mjd,
                           config=clac,
@@ -610,8 +612,8 @@ function scan_average(obs)
     obsc = obs.copy()
     obsc.add_scans()
     obsc = obsc.avg_coherent(0.0, scan_avg=true)
-    stimes = obsc.scans
-    times = get(obsc.data, "time")
+    stimes = pyconvert(Matrix, obsc.scans)
+    times = pyconvert(Vector, obsc.data["time"])
     @info "Before homogenizing we have $(length(unique(times))) unique times"
 
     for r in eachrow(stimes)
@@ -619,8 +621,8 @@ function scan_average(obs)
         indices = findall(x-> (sbegin < x <= send), times)
         times[indices] .= (send+sbegin)/2
     end
-    set!(obsc.data, "time", times)
-    @info "After homogenizing we have $(length(unique(times))) unique times"
+    obsc.data["time"] = pylist(times)
+    @info "After homogenizing we have $(length(unique(pyconvert(Vector, obsc.data["time"])))) unique times"
 
     return obsc
 end

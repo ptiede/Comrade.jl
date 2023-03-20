@@ -53,7 +53,7 @@ function model(θ, metadata)
     (;fg, c, lgamp, gphase) = θ
     (; grid, cache, gcache, gcachep) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
-    img = IntensityMap((1.1*fg).*c, grid)
+    img = IntensityMap((1.1*(1-fg)).*c, grid)
     m = ContinuousImage(img,cache)
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(1.1*fg))
     ## Now form our instrument model
@@ -203,7 +203,7 @@ using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, 2*rand(rng, ndim) .- 1.0, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=20_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)))
+sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)))
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)

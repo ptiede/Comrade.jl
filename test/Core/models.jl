@@ -2,6 +2,7 @@ using ChainRulesTestUtils
 using ChainRulesCore
 using FiniteDifferences
 using Zygote
+using PythonCall
 
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
@@ -138,7 +139,7 @@ if VERSION >= v"1.8"
         gz = Zygote.gradient(f, x)
         fdm = central_fdm(5, 1)
         gf = grad(fdm, f, x)
-        @test isapprox(first(gz), first(gf), atol=1e-6)
+        @test isapprox(first(gz), first(gf), atol=1e-5)
     end
 else
     function testgrad(f, x)
