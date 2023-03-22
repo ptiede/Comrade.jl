@@ -223,8 +223,7 @@ function station_tuple(stations::NTuple{N, Symbol}, default; kwargs...) where {N
     out = map(x->get(kwargs, x, default), stations)
     return NamedTuple{stations}(out)
 end
-
-station_tuple(dvis::EHTObservation, default; kwargs...) = station_tuple(Tuple(stations(obs)), default; kwargs...)
+station_tuple(dvis::EHTObservation, default; kwargs...) = station_tuple(Tuple(stations(dvis)), default; kwargs...)
 
 
 

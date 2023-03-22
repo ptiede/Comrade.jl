@@ -33,6 +33,9 @@ using Tables
     jcache = jonescache(vis, ScanSeg())
     jcacher = jonescache(vis, ScanSeg(true))
 
+    @test scan_tuple(tel, ScanSeg()) == scan_tuple(dvis, ScanSeg())
+    @test scan_tuple(tel, ScanSeg(); AA=FixedSeg(0.0)) == scan_tuple(dvis, ScanSeg(); AA=FixedSeg(0.0))
+
     # test the design matrix
     d1 = Comrade.DesignMatrix(jcache.m1, jcache.schema.times, jcache.schema.sites)
     v = rand(size(d1, 2))
