@@ -57,7 +57,7 @@ function model(θ, metadata)
     m = ContinuousImage(img,cache)
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(1.1*fg))
     ## Now form our instrument model
-    gvis = complex.(exp.(lgamp))
+    gvis = exp.(lgamp)
     gphase = exp.(1im.*gphase)
     jgamp = jonesStokes(gvis, gcache)
     jgphase = jonesStokes(gphase, gcachep)
@@ -82,9 +82,9 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 16
-fovx = μas2rad(72.0)
-fovy = μas2rad(72.0)
+npix = 32
+fovx = μas2rad(65.0)
+fovy = μas2rad(65.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -249,7 +249,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DenseEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 300; nadapts=200, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 10_000; nadapts=8_000, init_params=chain[end])
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
@@ -283,7 +283,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = model.(chain[201:end], Ref(metadata))
+samples = model.(chain[2001:10:end], Ref(metadata))
 imgs = intensitymap.(samples, μas2rad(75.0), μas2rad(75.0), 128,  128);
 
 mimg = mean(imgs)
