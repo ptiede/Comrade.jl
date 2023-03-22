@@ -118,11 +118,12 @@ Comrade.rotated
 Comrade.posangle
 Comrade.shifted
 Comrade.stretched
+Comrade.ModifiedModel
 Comrade.AbstractModifier
-Comrade.RenormalizedModel
-Comrade.RotatedModel
-Comrade.ShiftedModel
-Comrade.StretchedModel
+Comrade.Stretch
+Comrade.Shift
+Comrade.Rotate
+Comrade.Renormalize
 ```
 
 ### Polarized Models
