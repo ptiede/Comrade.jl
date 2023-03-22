@@ -222,6 +222,7 @@ Comrade.rad2μas
 Comrade.load
 Comrade.save
 Comrade.NonAnalyticTest
+Comrade.station_tuple
 ```
 
 ## Internal (Not Public API)

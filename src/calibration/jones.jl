@@ -1,5 +1,5 @@
 export JonesCache, TrackSeg, ScanSeg, FixedSeg, IntegSeg, jonesG, jonesD, jonesT,
-       TransformCache, JonesModel, jonescache
+       TransformCache, JonesModel, jonescache, station_tuple
 
 """
     $(TYPEDEF)
@@ -198,6 +198,33 @@ end
 function append_time_site!(times, sites, site, t, ::FixedSeg)
     nothing
 end
+
+"""
+    station_tuple(stations, default; kwargs...)
+    station_tuple(obs::EHTObservation, default; kwargs...)
+
+Convienence function that will construct a `NamedTuple` of objects
+whose names are the `stations` in the observation `obs` or explicitly in the argument
+`stations`. The `NamedTuple` will be filled with `default` if no kwargs are defined
+otherwise each kwarg (key, value) pair denotes a station and value pair.
+
+## Examples
+```julia-repl
+julia> stations = (:AA, :AP, :LM, :PV)
+julia> station_tuple(stations, ScanSeg())
+(AA = ScanSeg(), AP = ScanSeg(), LM = ScanSeg(), PV = ScanSeg())
+julia> station_tuple(stations, ScanSeg(); AA = FixedSeg(1.0))
+(AA = FixedSeg(1.0), AP = ScanSeg(), LM = ScanSeg(), PV = ScanSeg())
+julia> station_tuple(stations, ScanSeg(); AA = FixedSeg(1.0), PV = TrackSeg())
+(AA = FixedSeg(1.0), AP = ScanSeg(), LM = ScanSeg(), PV = TrackSeg())
+```
+"""
+function station_tuple(stations::NTuple{N, Symbol}, default; kwargs...) where {N}
+    out = map(x->get(kwargs, x, default), stations)
+    return NamedTuple{stations}(out)
+end
+
+station_tuple(dvis::EHTObservation, default; kwargs...) = station_tuple(Tuple(stations(obs)), default; kwargs...)
 
 
 
