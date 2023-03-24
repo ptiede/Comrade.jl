@@ -1,6 +1,4 @@
 
-[pip.deps]
-ehtim = ""
 [deps]
 python = ">=3.6,<=3.10"
 astropy = ""
@@ -15,3 +13,5 @@ numpy = "<=1.23"
 pandas = ""
 scipy = ""
 scikit-image = ""
+[pip.deps]
+ehtim = ""
