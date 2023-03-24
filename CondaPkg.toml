@@ -2,5 +2,16 @@
 [pip.deps]
 ehtim = ""
 [deps]
-python = ">=3.6,<=3.9"
+python = ">=3.6,<=3.10"
+astropy = ""
+ephem = ""
+future = ""
+h5py = ""
+html = "<3.1"
+ipython = ""
+matplotlib = ""
+networkx = ""
 numpy = "<=1.23"
+pandas = ""
+scipy = ""
+scikit-image = ""
