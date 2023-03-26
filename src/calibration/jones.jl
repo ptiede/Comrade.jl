@@ -224,7 +224,7 @@ function station_tuple(stations::NTuple{N, Symbol}, default; kwargs...) where {N
     return NamedTuple{stations}(out)
 end
 station_tuple(dvis::EHTObservation, default; kwargs...) = station_tuple(Tuple(stations(dvis)), default; kwargs...)
-
+station_tuple(st::AbstractVector{Symbol}, default; kwargs...) = station_tuple(Tuple(st), default; kwargs...)
 
 
 function fill_designmat!(
