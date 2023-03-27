@@ -33,12 +33,12 @@ rng = StableRNG(1234)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
-obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
-obs = scan_average(obs).add_fractional_noise(0.01)
+obs = scan_average(obs).add_fractional_noise(0.02)
 
 # For this tutorial we will analyze complex visibilities since they allow us to
 # more reliably fit low SNR points.
@@ -86,8 +86,8 @@ end
 
 # Now let's define our metadata. First we will define the cache for the image. This is
 # required to compute the numerical Fourier transform.
-fovxy  = μas2rad(90.0)
-npix   = 7
+fovxy  = μas2rad(110.0)
+npix   = 8
 grid   = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
 # For our image, we will use the
@@ -99,13 +99,7 @@ buffer = IntensityMap(zeros(npix,npix), grid)
 cache  = create_cache(DFTAlg(dvis), buffer, BSplinePulse{3}())
 
 # Now we construct our gain segmenting cache
-segs = (AA = FixedSeg(1.0 + 0.0im),
-        AP = ScanSeg(),
-        AZ = ScanSeg(),
-        JC = ScanSeg(),
-        LM = ScanSeg(),
-        PV = ScanSeg(),
-        SM = ScanSeg())
+segs = station_tuple(dvis, ScanSeg(); AA = FixedSeg(1.0 + 0.0im))
 gcache = jonescache(dvis, ScanSeg())
 gcachep = jonescache(dvis, segs)
 
@@ -126,14 +120,8 @@ lklhd = RadioLikelihood(model, metadata, dvis)
 # we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
 using Distributions
 using DistributionsAD
-distamp = (AA = Normal(0.0, 0.1),
-           AP = Normal(0.0, 0.1),
-           LM = Normal(0.0, 1.0),
-           AZ = Normal(0.0, 0.1),
-           JC = Normal(0.0, 0.1),
-           PV = Normal(0.0, 0.1),
-           SM = Normal(0.0, 0.1),
-           )
+distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(0.0, 1.0))
+
 
 # For the phases, we use a wrapped von Mises prior to respect the periodicity of the variable.
 # !!! warning
@@ -165,12 +153,12 @@ distphase = (
 
 prior = (
           c  = ImageDirichlet(1.0, npix, npix),
-          f  = Uniform(0.0, 1.0),
+          f  = Uniform(0.8, 1.0),
           r  = Uniform(μas2rad(10.0), μas2rad(30.0)),
-          σ  = Uniform(μas2rad(0.5), μas2rad(20.0)),
+          σ  = Uniform(μas2rad(0.1), μas2rad(20.0)),
           ma = Uniform(0.0, 0.5),
           mp = Uniform(0.0, 2π),
-          fg = Uniform(0.2, 1.0),
+          fg = Uniform(0.0, 1.0),
           σg = Uniform(μas2rad(50.0), μas2rad(500.0)),
           τg = Uniform(0.0, 1.0),
           ξg = Uniform(0, π),
@@ -208,7 +196,7 @@ using ComradeOptimization
 using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
+prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1, callback=(x,p)->(@info f(x,p); false))
 
@@ -229,7 +217,7 @@ plot(img, title="MAP Image")
 # now we sample using hmc
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 600; nadapts=400, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 2_500; nadapts=1_500, init_params=xopt)
 
 # !!! warning
 #     This should be run for likely 2-3x more steps to properly estimate expectations of the posterior
@@ -239,10 +227,10 @@ chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 600; nada
 # To do this we first clip the first 400 MCMC steps since that is during tuning and
 # so the posterior is not sampling from the correct stationary distribution.
 using StatsBase
-msamples = model.(chain[401:2:end], Ref(metadata))
+msamples = model.(chain[1501:10:end], Ref(metadata))
 
 # The mean image is then given by
-imgs = intensitymap.(msamples, 1.5*fovxy, 1.5*fovxy, 128, 128)
+imgs = intensitymap.(msamples, 1.5*fovxy, 1.5*fovxy, 256, 256)
 plot(mean(imgs), title="Mean Image")
 plot(std(imgs), title="Std Dev.")
 

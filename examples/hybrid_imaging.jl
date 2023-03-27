@@ -38,13 +38,13 @@ obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
-obs = scan_average(obs).add_fractional_noise(0.01)
+obs = scan_average(obs).add_fractional_noise(0.02)
 
 # For this tutorial we will stick to fitting closure only data, although we can
 # get better results by also modeling gains, since closure only modeling is equivalent
 # to assuming infinite gain priors.
-dlcamp = extract_lcamp(obs)
-dcphase = extract_cphase(obs)
+dlcamp = extract_lcamp(obs; snrcut=4)
+dcphase = extract_cphase(obs; snrcut=3)
 
 # ## Building the Model/Posterior
 
@@ -204,9 +204,9 @@ plot(mean(imgs), title="Mean Image")
 plot(std(imgs), title="Std Dev.")
 
 # We can also split up the model into its components and analyze each separately
-comp = Comrade.components.(Comrade.basemodel.(first.(Comrade.components.(msamples))))
-ring_samples = first.(comp)
-rast_samples = last.(comp)
+comp = Comrade.components.(msamples)
+ring_samples = getindex.(comp, 2)
+rast_samples = first.(comp)
 ring_imgs = intensitymap.(ring_samples, fovxy, fovxy, 128, 128)
 rast_imgs = intensitymap.(rast_samples, fovxy, fovxy, 128, 128)
 
