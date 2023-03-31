@@ -26,7 +26,7 @@ rng = StableRNG(124)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
@@ -50,10 +50,13 @@ dvis = extract_vis(obs)
 # The model is given below:
 
 function model(θ, metadata)
-    (;fg, c, lgamp, gphase) = θ
+    (;fg, cp, lgamp, gphase) = θ
     (; grid, cache, gcache, gcachep) = metadata
+
+    c = cp.params
     ## Construct the image model we fix the flux to 0.6 Jy in this case
-    img = IntensityMap(exp.(c), grid)
+    rast = (1.1*(1-fg))*alr(c)
+    img = IntensityMap(rast, grid)
     m = ContinuousImage(img,cache)
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(1.1*fg))
     ## Now form our instrument model
@@ -83,14 +86,14 @@ end
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
 npix = 32
-fovx = μas2rad(80.0)
-fovy = μas2rad(80.0)
+fovx = μas2rad(100.0)
+fovy = μas2rad(100.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
 grid = imagepixels(fovx, fovy, npix, npix)
 buffer = IntensityMap(zeros(npix, npix), grid)
-cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{0}())
+cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
 # to the model visibilities. However, to construct this map, we also need to specify the observation
 # segmentation over which we expect the gains to change. This is specified in the second argument
@@ -162,13 +165,22 @@ distphase = (
 (;X, Y) = grid
 
 
-imgpr = 0.6*intensitymap(stretched(Gaussian(), μas2rad(25.0), μas2rad(25.0)), grid)
+imgpr = intensitymap(stretched(Gaussian(), μas2rad(25.0), μas2rad(25.0)), grid)
+imgpr ./= flux(imgpr)
 
 
+meanpr = alrinv(Comrade.baseimage(imgpr))
+
+crcache = GMRFCache(meanpr)
+fmap = let meanpr=meanpr
+        x->GaussMarkovRF(meanpr, x.λ, x.κ, crcache)
+end
+
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((λ=truncated(Normal(1.0, 0.1), 0.1, 15.0), κ=truncated(Normal(2.0, 0.5), 0.1, 20.0))))
 
 prior = (
          fg = Uniform(0.0, 1.0),
-         c = GaussMarkovRF(log.(Comrade.baseimage(imgpr)), 1.0, 5.0),
+         cp = cprior,
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
         )
@@ -226,7 +238,7 @@ residual(model(xopt, metadata), dvis)
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
-img = intensitymap(model(xopt, metadata), fovx*1.1, fovy*1.1, 128, 128)
+img = intensitymap(model(xopt, metadata), fovx, fovy, 128, 128)
 plot(img, title="MAP Image")
 
 
@@ -290,7 +302,7 @@ plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
 samples = model.(chain[2001:10:end], Ref(metadata))
-imgs = intensitymap.(samples, μas2rad(75.0), μas2rad(75.0), 128,  128);
+imgs = intensitymap.(samples, fovx*1.1, fovy*1.1, 128,  128);
 
 mimg = mean(imgs)
 simg = std(imgs)
