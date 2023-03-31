@@ -146,7 +146,7 @@ end
     ascube(pdImag)
 end
 
-@testset "heirarchical calibration priors" begin
+@testset "Hierarchical calibration priors" begin
     _,vis, amp, lcamp, cphase, dcoh = load_data()
     tel = stations(vis)
 
@@ -155,7 +155,7 @@ end
 
 
     dcache = jonescache(dcoh, ScanSeg())
-    dc = HeirarchicalCalPrior{Normal{Float64}}(meand, stdd, dcache)
+    dc = HierarchicalCalPrior{Normal{Float64}}(meand, stdd, dcache)
 
     asflat(dc)
 

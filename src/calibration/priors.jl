@@ -1,4 +1,4 @@
-export CalPrior, HeirarchicalCalPrior
+export CalPrior, HierarchicalCalPrior
 
 struct CalPrior{S,J<:AbstractJonesCache} <: Distributions.ContinuousMultivariateDistribution
     dists::S
@@ -148,7 +148,7 @@ function Distributions._logpdf(d::CalPrior, x::AbstractArray)
     return Distributions._logpdf(d.dists, x)
 end
 
-struct HeirarchicalCalPrior{G,DM,DS,J}
+struct HierarchicalCalPrior{G,DM,DS,J}
     mean::DM
     std::DS
     jcache::J
@@ -190,8 +190,8 @@ HypercubeTransform.ascube(d::NamedDist{N}) where {N} = ascube(NamedTuple{N}(d.di
 DensityInterface.DensityKind(::NamedDist) = DensityInterface.IsDensity()
 DensityInterface.logdensityof(d::NamedDist, x) = Dists.logpdf(d, x)
 
-DensityInterface.DensityKind(::HeirarchicalCalPrior) = DensityInterface.IsDensity()
-DensityInterface.logdensityof(d::HeirarchicalCalPrior, x) = Dists.logpdf(d, x)
+DensityInterface.DensityKind(::HierarchicalCalPrior) = DensityInterface.IsDensity()
+DensityInterface.logdensityof(d::HierarchicalCalPrior, x) = Dists.logpdf(d, x)
 
 function _construct_gain_prior(means::NamedTuple{N}, stds::NamedTuple{N}, ::Type{G}, stations) where {N, G}
     gpr = NamedTuple{N}(map(G, (values(means), values(stds))))
@@ -200,14 +200,14 @@ function _construct_gain_prior(means::NamedTuple{N}, stds::NamedTuple{N}, ::Type
 end
 
 
-function HeirarchicalCalPrior{G}(means, std, jcache::JonesCache) where {G}
+function HierarchicalCalPrior{G}(means, std, jcache::JonesCache) where {G}
     mnt = NamedDist(means)
     snt = NamedDist(std)
 
-    return HeirarchicalCalPrior{G, typeof(mnt), typeof(snt), typeof(jcache)}(mnt, snt, jcache)
+    return HierarchicalCalPrior{G, typeof(mnt), typeof(snt), typeof(jcache)}(mnt, snt, jcache)
 end
 
-function Dists.logpdf(d::HeirarchicalCalPrior{G}, x::NamedTuple) where {G}
+function Dists.logpdf(d::HierarchicalCalPrior{G}, x::NamedTuple) where {G}
     lm = Dists.logpdf(d.mean, x.mean)
     ls = Dists.logpdf(d.std, x.std)
     dg = _construct_gain_prior(x.mean, x.std, G, stations(d.jcache))
@@ -215,12 +215,12 @@ function Dists.logpdf(d::HeirarchicalCalPrior{G}, x::NamedTuple) where {G}
     return lg+ls+lm
 end
 
-function _unwrapped_logpdf(d::HeirarchicalCalPrior, x::Tuple)
+function _unwrapped_logpdf(d::HierarchicalCalPrior, x::Tuple)
     return Dists.logpdf(d, NamedTuple{(:mean, :std, :gains)}(x))
 end
 
 
-function Dists.rand(rng::AbstractRNG, d::HeirarchicalCalPrior{G}) where {G}
+function Dists.rand(rng::AbstractRNG, d::HierarchicalCalPrior{G}) where {G}
     m = rand(rng, d.mean)
     s = rand(rng, d.std)
     dg = _construct_gain_prior(m, s, G, d.jcache.schema.sites)
@@ -228,9 +228,9 @@ function Dists.rand(rng::AbstractRNG, d::HeirarchicalCalPrior{G}) where {G}
     return (mean=m, std=s, gains=g)
 end
 
-Base.length(d::HeirarchicalCalPrior) = length(d.mean) + length(d.std) + length(d.times)
+Base.length(d::HierarchicalCalPrior) = length(d.mean) + length(d.std) + length(d.times)
 
-function HypercubeTransform.asflat(d::HeirarchicalCalPrior{G}) where {G}
+function HypercubeTransform.asflat(d::HierarchicalCalPrior{G}) where {G}
     m = rand(d.mean)
     s = rand(d.std)
     dg = _construct_gain_prior(m, s, G, d.jcache.schema.sites)
