@@ -194,7 +194,7 @@ DensityInterface.DensityKind(::HierarchicalCalPrior) = DensityInterface.IsDensit
 DensityInterface.logdensityof(d::HierarchicalCalPrior, x) = Dists.logpdf(d, x)
 
 function _construct_gain_prior(means::NamedTuple{N}, stds::NamedTuple{N}, ::Type{G}, stations) where {N, G}
-    gpr = NamedTuple{N}(map(G, (values(means), values(stds))))
+    gpr = NamedTuple{N}(map(G, values(means), values(stds)))
     d = map(p->getproperty(gpr, p), stations)
     return Dists.product_distribution(d)
 end
