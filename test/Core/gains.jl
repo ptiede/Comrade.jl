@@ -33,8 +33,8 @@ using Tables
     jcache = jonescache(vis, ScanSeg())
     jcacher = jonescache(vis, ScanSeg(true))
 
-    @test station_tuple(tel, ScanSeg()) == station_tuple(dvis, ScanSeg())
-    @test station_tuple(tel, ScanSeg(); AA=FixedSeg(0.0)) == station_tuple(dvis, ScanSeg(); AA=FixedSeg(0.0))
+    @test station_tuple(tel, ScanSeg()) == station_tuple(vis, ScanSeg())
+    @test station_tuple(tel, ScanSeg(); AA=FixedSeg(0.0)) == station_tuple(vis, ScanSeg(); AA=FixedSeg(0.0))
 
     # test the design matrix
     d1 = Comrade.DesignMatrix(jcache.m1, jcache.schema.times, jcache.schema.sites)
