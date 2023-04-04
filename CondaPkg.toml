@@ -9,7 +9,7 @@ python = ">=3.6,<=3.10"
 # matplotlib = ""
 # networkx = ""
 numpy = "<=1.23"
-# pandas = ""
+pandas = "<2"
 # scipy = ""
 # scikit-image = ""
 [pip.deps]
