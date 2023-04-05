@@ -1,11 +1,4 @@
 [deps]
-Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
-ComradeAHMC = "a4336a5c-78bc-4363-8a90-ce3fa9d3abe4"
-ComradeAdaptMCMC = "5a6518a2-e6ab-4020-97b8-110ebf16b849"
-ComradeBase = "6d8c423b-a35f-4ef1-850c-862fe21f82c4"
-ComradeDynesty = "0e22d245-d796-46d0-bd67-132aa2ceb697"
-ComradeNested = "233675ba-9426-43ce-b06d-28ea4529d7f1"
-ComradeOptimization = "26988f03-70df-4135-959e-06268cc6415a"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"

@@ -4,6 +4,19 @@ using ComradeBase
 
 using Literate
 
+function dev_subpkg(subpkg)
+    subpkg_path = joinpath(dirname(@__DIR__), "lib", subpkg)
+    Pkg.develop(PackageSpec(path=subpkg_path))
+end
+
+# Make sure we are using main branch versions of the packages for the docs
+Pkg.develop(PackageSpec(url="https://github.com/ptiede/ComradeBase.jl"))
+dev_subpkg("ComradeAHMC")
+dev_subpkg("ComradeOptimization")
+dev_subpkg("ComradeNested")
+dev_subpkg("ComradeDynesty")
+dev_subpkg("ComradeAdaptMCMC")
+
 using ComradeAHMC
 using ComradeOptimization
 using ComradeNested
