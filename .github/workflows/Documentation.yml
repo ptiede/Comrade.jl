@@ -18,6 +18,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - run: sudo apt-get install --reinstall libxcb-xinerama0
       - uses: actions/checkout@v2
       - name: Setup python
         uses: actions/setup-python@v1
