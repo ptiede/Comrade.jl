@@ -29,14 +29,14 @@ Comrade.TransformCache
 Comrade.JonesModel
 Comrade.CalPrior
 Comrade.CalPrior(::NamedTuple, ::JonesCache)
-Comrade.CalPrior(::NamedTuple, ::NamedTuple, ::Comrade.SegmentedJonesCache)
+Comrade.CalPrior(::NamedTuple, ::NamedTuple, ::JonesCache)
 Comrade.RIMEModel
 Comrade.ObsSegmentation
 Comrade.IntegSeg
 Comrade.ScanSeg
 Comrade.TrackSeg
 Comrade.FixedSeg
-Comrade.jonescache(::Comrade.EHTObservation, ::NamedTuple)
+Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.ObsSegmentation)
 Comrade.jonesStokes
 Comrade.jonesG
 Comrade.jonesD
@@ -119,7 +119,7 @@ Comrade.posangle
 Comrade.shifted
 Comrade.stretched
 Comrade.ModifiedModel
-Comrade.AbstractModifier
+Comrade.ModelModifiers
 Comrade.Stretch
 Comrade.Shift
 Comrade.Rotate

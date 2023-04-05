@@ -71,8 +71,20 @@ unitscale(T, ::Type{M}) where {M} = unitscale(T, ispolarized(M))
 unitscale(T, ::NotPolarized) = one(T)
 unitscale(T, ::IsPolarized) = I
 
+
+"""
+    $(TYPEDEF)
+
+Container type for models that have been transformed in some way.
+For a list of potential modifiers or transforms see `subtypes(ModelModifiers)`.
+
+# Fields
+$(FIELDS)
+"""
 struct ModifiedModel{M<:AbstractModel, T<:Tuple}<: AbstractModel
+    """base model"""
     model::M
+    """model transforms"""
     transform::T
 end
 

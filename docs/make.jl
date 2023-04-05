@@ -1,3 +1,8 @@
+# THis is because we are on a headless system
+# see https://github.com/jheinen/GR.jl/issues/510
+ENV["GKS_WSTYPE"]="nul"
+
+
 using Documenter
 using Comrade
 using ComradeBase
