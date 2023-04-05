@@ -283,7 +283,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = model.(chain[2001:10:end], Ref(metadata))
+samples = model.(chain[201:10:end], Ref(metadata))
 imgs = intensitymap.(samples, μas2rad(75.0), μas2rad(75.0), 128,  128);
 
 mimg = mean(imgs)
