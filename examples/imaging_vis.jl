@@ -249,7 +249,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DenseEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 10_000; nadapts=8_000, init_params=chain[end])
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 500; nadapts=200, init_params=chain[end])
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
