@@ -3,6 +3,7 @@ using Comrade
 using ComradeBase
 
 using Literate
+using Pkg
 
 function dev_subpkg(subpkg)
     subpkg_path = joinpath(dirname(@__DIR__), "lib", subpkg)
