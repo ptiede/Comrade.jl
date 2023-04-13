@@ -86,8 +86,8 @@ end
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
 npix = 32
-fovx = μas2rad(100.0)
-fovy = μas2rad(100.0)
+fovx = μas2rad(120.0)
+fovy = μas2rad(120.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -128,11 +128,11 @@ using Distributions
 using DistributionsAD
 distamp = (AA = Normal(0.0, 0.1),
            AP = Normal(0.0, 0.1),
-           LM = Normal(0.0, 1.5),
+           LM = Normal(0.0, 1.0),
            AZ = Normal(0.0, 0.1),
            JC = Normal(0.0, 0.1),
-           PV = Normal(0.0, 0.02),
-           SM = Normal(0.0, 0.02),
+           PV = Normal(0.0, 0.1),
+           SM = Normal(0.0, 0.1),
            )
 
 # For the phases, as mentioned above, we will use a segmented gain prior.
@@ -165,18 +165,23 @@ distphase = (
 (;X, Y) = grid
 
 
-imgpr = intensitymap(stretched(Gaussian(), μas2rad(25.0), μas2rad(25.0)), grid)
+imgpr = intensitymap(stretched(Gaussian(), μas2rad(30.0), μas2rad(30.0)), grid)
 imgpr ./= flux(imgpr)
 
 
 meanpr = alrinv(Comrade.baseimage(imgpr))
 
+hh(x) = hypot(x...)
+beam = inv(maximum(hh.(uvpositions.(dvis.data))))
+rat = (beam/(4*step(grid.X)))^4
+
+
 crcache = GMRFCache(meanpr)
-fmap = let meanpr=meanpr
-        x->GaussMarkovRF(meanpr, x.λ, x.κ, crcache)
+fmap = let meanpr=meanpr, rat=rat
+        x->GaussMarkovRF(meanpr, exp(x.λ)*rat, x.κ, crcache)
 end
 
-cprior = HierarchicalPrior(fmap, Comrade.NamedDist((λ=truncated(Normal(1.0, 0.1), 0.1, 15.0), κ=truncated(Normal(2.0, 0.5), 0.1, 20.0))))
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((λ=truncated(Normal(0.0, 0.1); lower=-2.0), κ=truncated(Normal(0.0, 100.0); lower=0.1))))
 
 prior = (
          fg = Uniform(0.0, 1.0),
@@ -219,7 +224,7 @@ LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
 using ComradeOptimization
 using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing)
+prob = Optimization.OptimizationProblem(f, randn(ndim).*0.1, nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(), maxiters=10_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)))
 
