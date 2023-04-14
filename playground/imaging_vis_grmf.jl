@@ -26,7 +26,7 @@ rng = StableRNG(124)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "EHTC_FirstM87Results_Apr2019/uvfits/SR1_M87_2017_100_hi_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
@@ -165,7 +165,7 @@ distphase = (
 (;X, Y) = grid
 
 
-imgpr = intensitymap(stretched(Gaussian(), μas2rad(30.0), μas2rad(30.0)), grid)
+imgpr = intensitymap(stretched(Gaussian(), μas2rad(25.0), μas2rad(25.0)), grid)
 imgpr ./= flux(imgpr)
 
 
@@ -181,7 +181,7 @@ fmap = let meanpr=meanpr, rat=rat
         x->GaussMarkovRF(meanpr, exp(x.λ)*rat, x.κ, crcache)
 end
 
-cprior = HierarchicalPrior(fmap, Comrade.NamedDist((λ=truncated(Normal(0.0, 0.1); lower=-2.0), κ=truncated(Normal(0.0, 100.0); lower=0.1))))
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((λ=Normal(0.0, 0.2), κ=truncated(Normal(0.0, 5.0); lower=0.1))))
 
 prior = (
          fg = Uniform(0.0, 1.0),
@@ -272,7 +272,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 3_000; nadapts=2_000, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 20_000; nadapts=10_000, init_params=xopt)
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
@@ -306,7 +306,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = model.(chain[2001:10:end], Ref(metadata))
+samples = model.(chain[10_001:50:end], Ref(metadata))
 imgs = intensitymap.(samples, fovx*1.1, fovy*1.1, 128,  128);
 
 mimg = mean(imgs)
