@@ -67,11 +67,11 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    format = Documenter.HTML(), draft=false
+    format = Documenter.HTML(), draft=true
 )
 
 deploydocs(;
     repo="github.com/ptiede/Comrade.jl",
-    push_preview=true,
+    push_preview=false,
     devbranch = "main",
 )
