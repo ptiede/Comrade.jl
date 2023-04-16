@@ -377,7 +377,7 @@ function ChainRulesCore.rrule(::typeof(visibilities_analytic), m::ModifiedModel,
         dvis .= unthunk(Δ)
         rvis = zero(vis)
         d = autodiff(Reverse, visibilities_analytic!, Const, Duplicated(rvis, dvis), Active(m), Duplicated(u, du), Duplicated(v, dv), Duplicated(time, dt), Duplicated(freq, df))
-        dm = d[1]
+        dm = d[1][2]
         tm = __extract_tangent(dm)
         return NoTangent(), tm, du, dv, df, dt
     end
