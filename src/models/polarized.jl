@@ -72,6 +72,11 @@ function visibilities_analytic(pimg::PolarizedModel, u, v, t, f)
     return StructArray{StokesParams{eltype(si)}}((si, sq, su, sv))
 end
 
+function __extract_tangent(m::PolarizedModel)
+    tmI, tmQ, tmU, tmV = __extract_tangent.(split_stokes(m))
+    return Tangent{typeof(m)}(I=tmI, Q=tmQ, U=tmU, V=tmV)
+end
+
 split_stokes(pimg::PolarizedModel) = (stokes(pimg, :I), stokes(pimg, :Q), stokes(pimg, :U), stokes(pimg, :V))
 
 # If the model is numeric we don't know whether just a component is numeric or all of them are so
