@@ -557,6 +557,17 @@ end
     m = PolarizedModel(mI, mQ, mU, mV)
     @inferred visibility(m, (U=0.0, V=0.0))
     @inferred Comrade.intensity_point(m, (X=0.0, Y=0.0))
+
+
+    foo(x) = sum(abs2, Comrade.visibilities_analytic(
+        PolarizedModel(
+            stretched(Gaussian(), x[1], x[2]),
+            stretched(Gaussian(), x[3], x[4]),
+            shifted(Gaussian(), x[5], x[6]),
+            x[7]*Gaussian()
+        )
+    ))
+
     mG = PolarizedModel(Gaussian(), Gaussian(), Gaussian(), Gaussian())
     cm = convolved(m, Gaussian())
     @test cm == convolved(m, mG)

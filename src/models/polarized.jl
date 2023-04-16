@@ -78,10 +78,10 @@ split_stokes(pimg::PolarizedModel) = (stokes(pimg, :I), stokes(pimg, :Q), stokes
 # we need to re-dispatch
 function visibilities_numeric(pimg::PolarizedModel, u, v, t, f)
     mI, mQ, mU, mV = split_stokes(pimg)
-    si = _visibilities(visanalytic(mI), mI, u, v, t, f)
-    sq = _visibilities(visanalytic(mQ), mQ, u, v, t, f)
-    su = _visibilities(visanalytic(mU), mU, u, v, t, f)
-    sv = _visibilities(visanalytic(mV), mV, u, v, t, f)
+    si = _visibilities(visanalytic(typeof(mI)), mI, u, v, t, f)
+    sq = _visibilities(visanalytic(typeof(mQ)), mQ, u, v, t, f)
+    su = _visibilities(visanalytic(typeof(mU)), mU, u, v, t, f)
+    sv = _visibilities(visanalytic(typeof(mV)), mV, u, v, t, f)
     return StructArray{StokesParams{eltype(si)}}((si, sq, su, sv))
 end
 

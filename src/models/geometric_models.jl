@@ -419,7 +419,7 @@ end
 function visibility_point(m::ConcordanceCrescent{T}, u, v, time, freq) where {T}
     k = 2π*sqrt(u^2 + v^2) + eps(T)
     norm = π*_crescentnorm(m)/k
-    phaseshift = cispi(2*m.shift*u)
+    phaseshift = exp(2*m.shift*u*π*1im)
     b0outer,b0inner = besselj0(k*m.router), besselj0(k*m.rinner)
     b1outer,b1inner = besselj1(k*m.router), besselj1(k*m.rinner)
     b2outer,b2inner = besselj(2,k*m.router), besselj(2, k*m.rinner)

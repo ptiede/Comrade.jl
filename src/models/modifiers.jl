@@ -364,26 +364,6 @@ function visibilities_analytic(m::ModifiedModel, u, v, time, freq)
     return vis
 end
 
-using NamedTupleTools
-function ChainRulesCore.rrule(::typeof(visibilities_analytic), m::ModifiedModel, u, v, time, freq)
-    vis = visibilities_analytic(m, u, v, time, freq)
-    function _visibilities_analytic_mm_pullback(Δ)
-        du = zero(u)
-        dv = zero(v)
-        df = zero(freq)
-        dt = zero(time)
-
-        dvis = zero(vis)
-        dvis .= unthunk(Δ)
-        rvis = zero(vis)
-        d = autodiff(Reverse, visibilities_analytic!, Const, Duplicated(rvis, dvis), Active(m), Duplicated(u, du), Duplicated(v, dv), Duplicated(time, dt), Duplicated(freq, df))
-        dm = d[1][2]
-        tm = __extract_tangent(dm)
-        return NoTangent(), tm, du, dv, df, dt
-    end
-    return vis, _visibilities_analytic_mm_pullback
-end
-
 
 function __extract_tangent(dm::ModifiedModel)
     tm = __extract_tangent(dm.model)
