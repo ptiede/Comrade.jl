@@ -11,7 +11,7 @@ Themis is a C++ package focused on providing Bayesian estimates of the image str
 
 ## Benchmarking Problem
 
-For our benchmarking problem, we analyze a situation very similar to the one explained in [Making an Image of a Black Hole](@ref). Namely, we will consider fitting 2017 M87 April 6 data using an m-ring and a single Gaussian component. Please see the end of this page to see the code we used for `Comrade` and `eht-imaging`.
+For our benchmarking problem, we analyze a situation very similar to the one explained in [Geometric Modeling of EHT Data](@ref). Namely, we will consider fitting 2017 M87 April 6 data using an m-ring and a single Gaussian component. Please see the end of this page to see the code we used for `Comrade` and `eht-imaging`.
 
 ## Results
 

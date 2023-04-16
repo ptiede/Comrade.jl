@@ -161,7 +161,7 @@ simg = std(imgs)
 
 # And viola, you have a quick and preliminary image of M87 fitting only closure products.
 # For a publication-level version we would recommend
-#    1. Running the chain longer and multiple times to properly assess things like ESS and R̂ (see [Making an Image of a Black Hole](@ref))
+#    1. Running the chain longer and multiple times to properly assess things like ESS and R̂ (see [Geometric Modeling of EHT Data](@ref))
 #    2. Fitting gains. Typically gain amplitudes are good to 10-20% for the EHT not the infinite uncertainty closures implicitly assume
 #    3. Making sure the posterior is unimodal (hint for this example it isn't!). The EHT image posteriors can be pretty complicated, so typically
 #       you want to use a sampler that can deal with multi-modal posteriors. Check out the package [`Pigeons.jl`](https://github.com/Julia-Tempering/Pigeons.jl)

@@ -67,6 +67,7 @@ ComradeBase.pixelsizes
 ComradeBase.phasecenter
 ComradeBase.centroid
 ComradeBase.second_moment
+ComradeBase.header
 ```
 
 

@@ -44,6 +44,7 @@ Comrade.jonesT
 Comrade.PoincareSphere2Map
 Comrade.caltable
 Comrade.JonesPairs
+Comrade.GainSchema
 ```
 
 ### Combinators
@@ -111,6 +112,7 @@ Comrade.ObservedNUFT
 ### Modifiers
 
 ```@docs
+Comrade.modify
 Comrade.basemodel
 Comrade.unmodified
 Comrade.renormed
@@ -119,7 +121,7 @@ Comrade.posangle
 Comrade.shifted
 Comrade.stretched
 Comrade.ModifiedModel
-Comrade.ModelModifiers
+Comrade.ModelModifier
 Comrade.Stretch
 Comrade.Shift
 Comrade.Rotate
@@ -224,6 +226,8 @@ Comrade.load
 Comrade.save
 Comrade.NonAnalyticTest
 Comrade.station_tuple
+Comrade.center_image
+Comrade.convolve!
 ```
 
 ## Internal (Not Public API)

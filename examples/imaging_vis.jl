@@ -249,7 +249,7 @@ gt = Comrade.caltable(gcache, exp.(xopt.lgamp))
 #-
 using ComradeAHMC
 metric = DenseEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 500; nadapts=200, init_params=chain[end])
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 400; nadapts=200, init_params=xopt)
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
