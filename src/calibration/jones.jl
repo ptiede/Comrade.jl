@@ -67,13 +67,25 @@ function Base.:*(A::AffineDesignMatrix, v::AbstractVector)
     T = promote_type(eltype(A), eltype(v))
     y = similar(v, T, size(A, 1))
     return LinearAlgebra.mul!(y, A, v)
-    # muladd(A.mat, v, A.b)
+    # return muladd(A.mat, v, A.b)
 end
 
 function LinearAlgebra.mul!(y::AbstractArray, M::AffineDesignMatrix, x::AbstractArray)
     mul!(y, M.mat, x)
     y .= y .+ M.b
     return y
+end
+
+function ChainRulesCore.rrule(::typeof(Base.:*), A::AffineDesignMatrix, v::AbstractVector)
+    out = A*v
+    pv = ProjectTo(v)
+    function _affinedesign_mul(Δ)
+        Δf = NoTangent()
+        ΔA = @thunk(Tangent{typeof(A)}(;mat = Δ*v', b = Δ))
+        Δv = @thunk(A.mat'*Δ)
+        return Δf, ΔA, pv(Δv)
+    end
+    return out, _affinedesign_mul
 end
 
 abstract type AbstractJonesCache end

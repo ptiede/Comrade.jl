@@ -131,7 +131,7 @@ dvis = extract_coherency(obs)
 
 function model(θ, metadata)
     (;c, f, p, angparams, dRx, dRy, dLx, dLy, lgp, gpp, lgr, gpr) = θ
-    (; grid, cache, tcache, scancache, trackcache) = metadata
+    (; grid, cache, tcache, scancache, trackcache, phasecache) = metadata
     ## Construct the image model
     ## produce Stokes images from parameters
     imgI = f*c
@@ -143,15 +143,17 @@ function model(θ, metadata)
     jT = jonesT(tcache)
 
     ## Gain product parameters
-    gP = exp.(lgp/2 .+ 1im.*gpp/2)
-    Gp = jonesG(gP, gP, scancache)
+    gPa = exp.(lgp/2 .+ 0im)
+    gPp = exp.(1im.*gpp/2)
+    Gpa = jonesG(gPa, gPa, scancache)
+    Gpp = jonesG(gPp, gPp, phasecache)
     ## Gain ratio
     gR = exp.(lgr/2 .+ 1im.*gpr/2)
     Gr = jonesG(gR, inv.(gR), trackcache)
     ##D-terms
     D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), trackcache)
     ## sandwich all the jones matrices together
-    J = Gp*Gr*D*jT
+    J = Gpa*Gpp*Gr*D*jT
     ## form the complete Jones or RIME model. We use tcache here
     ## to set the reference basis of the model.
     return JonesModel(J, m, tcache)
@@ -178,11 +180,17 @@ tcache = TransformCache(dvis; add_fr=true, ehtim_fr_convention=false)
 #-
 # Next we define our cache that maps quantities e.g., gain products, that change from scan-to-scan.
 scancache = jonescache(dvis, ScanSeg())
+
+# In addition we will assign a reference station. This is necessary for gain phases due to a trivial degeneracy being present.
+# To do this we will select ALMA `AA` as the reference station as is standard in EHT analyses.
+phase_segs = station_tuple(dvis, ScanSeg(); AA=FixedSeg(1.0 + 0.0im))
+phasecache = jonescache(dvis, phase_segs)
+
 #-
 # Finally, we define our cache that maps quantities, e.g., gain ratios and d-terms, that are constant
 # across a observation night, and we collect everything together.
 trackcache = jonescache(dvis, TrackSeg())
-metadata = (;cache, grid, tcache, scancache, trackcache)
+metadata = (;cache, grid, tcache, scancache, trackcache, phasecache)
 
 # Moving onto our prior, we first focus on the instrument model priors.
 # Each station gain requires its own prior on both the amplitudes and phases.
@@ -204,8 +212,9 @@ distamp = (AA = Normal(0.0, 0.1),
 #-
 # For the phases, we assume that the atmosphere effectively scrambles the gains.
 # Since the gain phases are periodic, we also use broad von Mises priors for all stations.
+# Notice that we don't assign a prior for AA since we have already fixed it.
 using VLBIImagePriors
-distphase = (AA = DiagonalVonMises(0.0, inv(0.01)),
+distphase = (
              AP = DiagonalVonMises(0.0, inv(π^2)),
              LM = DiagonalVonMises(0.0, inv(π^2)),
              AZ = DiagonalVonMises(0.0, inv(π^2)),
@@ -216,7 +225,8 @@ distphase = (AA = DiagonalVonMises(0.0, inv(0.01)),
 #-
 # However, we can now also use a little additional information about the phase offsets
 # where in most cases, they are much better behaved than the products
-distphase_ratio = (AA = DiagonalVonMises(0.0, inv(0.01)),
+distphase_ratio = (
+             AA = DiagonalVonMises(0.0, inv(0.01)),
              AP = DiagonalVonMises(0.0, inv(0.1^2)),
              LM = DiagonalVonMises(0.0, inv(0.1^2)),
              AZ = DiagonalVonMises(0.0, inv(0.1^2)),
@@ -260,7 +270,7 @@ prior = (
           dLx = CalPrior(distD, trackcache),
           dLy = CalPrior(distD, trackcache),
           lgp = CalPrior(distamp, scancache),
-          gpp = CalPrior(distphase, scancache),
+          gpp = CalPrior(distphase, phasecache),
           lgr = CalPrior(distamp, trackcache),
           gpr = CalPrior(distphase_ratio,trackcache),
           )
@@ -365,7 +375,7 @@ gamp_ratio   = caltable(trackcache, exp.(xopt.lgr))
 # Plotting the gain phases, we see some offsets from zero. This is because the prior on the gain product
 # phases is very broad, so we can't phase center the image. For realistic data
 # this is always the case since the atmosphere effectively scrambles the phases.
-gphase_prod = caltable(scancache, xopt.gpp)
+gphase_prod = caltable(phasecache, xopt.gpp)
 # plot(gphase_prod, layout=(3,3), size=(650,500))
 #-
 # Finally, the product gain amplitudes are all very close to unity as well, as expected since gain corruptions

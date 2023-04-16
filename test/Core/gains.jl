@@ -273,6 +273,8 @@ end
 
     trackcache = jonescache(dcoh, TrackSeg())
     scancache = jonescache(dcoh, ScanSeg())
+    segs = station_tuple(dcoh, ScanSeg(); AA = FixedSeg(1.0 + 0.0im))
+    phasecache = jonescache(dcoh, segs)
 
     dlgp = CalPrior(gprior0, scancache)
     dgpp = CalPrior(gprior1, scancache)
@@ -299,5 +301,12 @@ end
     m2 = map(x->getproperty(x, :m2), (Gp,Gr))
 
     test_rrule(Comrade._allmul, m1, m2)
+
+    am1 = phasecache.m1
+    am2 = phasecache.m2
+    dgpp = CalPrior(NamedTuple{keys(gprior1)[2:end]}(values(gprior1)[2:end]), phasecache)
+    v = rand(dgpp)
+    test_rrule(Base.:*, am1, v)
+    test_rrule(Base.:*, am2, v)
 
 end

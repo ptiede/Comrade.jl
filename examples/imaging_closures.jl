@@ -108,11 +108,6 @@ f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
 prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing, lb=fill(-5.0, ndim), ub=fill(5.0,ndim))
 sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=100_000)
 
-# Alright now let's zoom to the peak
-using OptimizationOptimJL
-prob = Optimization.OptimizationProblem(f, sol.u, nothing)
-ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=1_000, callback=((x,p)->(@info ℓ(x);false)), g_tol=1e-1)
 
 # Before we analyze our solution we first need to transform back to parameter space.
 xopt = transform(tpost, sol)
