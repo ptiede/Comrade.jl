@@ -93,10 +93,11 @@ post = Posterior(lklhd, prior)
 tpost = asflat(post)
 
 # We can now also find the dimension of our posterior or the number of parameters we will sample.
-# !!! Warning
+# !!! warning
 #    This can often be different from what you would expect. This is especially true when using
 #    angular variables, where we often artificially increase the dimension
 #    of the parameter space to make sampling easier.
+#-
 ndim = dimension(tpost)
 
 

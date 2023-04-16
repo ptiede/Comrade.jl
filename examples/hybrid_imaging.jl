@@ -109,10 +109,10 @@ lklhd = RadioLikelihood(model, metadata, dlcamp, dcphase)
 # have uniform brightness. The `α=1` distribution is the uniform distribution
 # on the simplex. For our work here, we use the uniform simplex distribution.
 
-# !!! Warning
+# !!! warning
 #    As α gets small sampling, it gets very difficult and quite multimodal due to the nature
 #    of the sparsity prior, be careful when checking convergence when using such a prior.
-
+#-
 using VLBIImagePriors
 using Distributions
 prior = (
@@ -147,10 +147,11 @@ img = intensitymap(model(xrand, metadata), μas2rad(120.0), μas2rad(120.0), 128
 tpost = asflat(post)
 
 # We can now also find the dimension of our posterior or the number of parameters we will sample.
-# !!! Warning
+# !!! warning
 #    This can often be different from what you would expect. This is especially true when using
 #    angular variables, where we often artificially increase the dimension
 #    of the parameter space to make sampling easier.
+#-
 ndim = dimension(tpost)
 
 # Now we optimize. First, we will use BlackBoxOptim, which is a genetic algorithm, to get us

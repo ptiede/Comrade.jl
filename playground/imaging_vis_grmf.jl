@@ -214,7 +214,7 @@ x0 = randn(ndim)
 LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
 
 # We can now also find the dimension of our posterior or the number of parameters we are going to sample.
-# !!! Warning
+# !!! warning
 #     This can often be different from what you would expect. This is especially true when using
 #     angular variables where we often artificially increase the dimension
 #     of the parameter space to make sampling easier.

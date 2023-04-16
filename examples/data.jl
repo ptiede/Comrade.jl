@@ -24,9 +24,9 @@ obseht = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", 
 # Now we will average the data over telescope scans. Note that the EHT data has been pre-calibrated so this averaging
 # doesn't induce large coherence losses.
 obs = scan_average(obseht)
-# !!! Warning
+# !!! warning
 #    We use a custom scan-averaging function to ensure that the scan-times are homogenized.
-
+#-
 # We can now extract data products that `Comrade` can use
 coh = extract_coherency(obs) # Coherency matrices
 vis = extract_vis(obs) #complex visibilites
@@ -34,10 +34,10 @@ amp = extract_amp(obs) # visibility amplitudes
 cphase = extract_cphase(obs) # extract minimal set of closure phases
 lcamp = extract_lcamp(obs) # extract minimal set of log-closure amplitudes
 
-# !!! Warning
+# !!! warning
 #    Always use our `extract_cphase` and `extract_lcamp` functions to find the closures
 #    eht-imaging will sometimes incorrectly calculate a non-redundant set of closures.
-
+#-
 # We can also recover the array used in the observation using
 ac = arrayconfig(vis)
 plot(ac) # Plot the baseline coverage
