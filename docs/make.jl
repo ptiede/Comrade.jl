@@ -64,9 +64,9 @@ makedocs(;
                         "libs/dynesty.md",
                         "libs/adaptmcmc.md"
                        ],
-        "interface.md",
-        "base_api.md",
-        "api.md"
+        #"interface.md",
+        #"base_api.md",
+        #"api.md"
     ],
     format = Documenter.HTML(), draft=false
 )
