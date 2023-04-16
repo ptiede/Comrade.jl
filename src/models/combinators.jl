@@ -217,25 +217,6 @@ end
 
 
 
-function ChainRulesCore.rrule(::typeof(visibilities_analytic), m::CompositeModel, u::AbstractArray, v::AbstractArray, t::AbstractArray, f::AbstractArray)
-    vis = visibilities_analytic(m, u, v, t, f)
-    function _composite_visibilities_analytic_pullback(Δ)
-        du = zero(u)
-        dv = zero(v)
-        df = zero(f)
-        dt = zero(t)
-
-        dvis = zero(vis)
-        dvis .= unthunk(Δ)
-        rvis = zero(vis)
-        d = autodiff(Reverse, visibilities_analytic!, Const, Duplicated(rvis, dvis), Active(m), Duplicated(u, du), Duplicated(v, dv), Duplicated(t, dt), Duplicated(f, df))
-        dm = d[1]
-        tm = __extract_tangent(dm)
-        return NoTangent(), tm, du, dv, df, dt
-    end
-
-    return vis, _composite_visibilities_analytic_pullback
-end
 
 # function _visibilities(model::AddModel, u::AbstractArray, v::AbstractArray, args...)
 #     return visibilities(model.m1, u, v) + visibilities(model.m2, u, v)

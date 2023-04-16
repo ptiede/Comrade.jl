@@ -20,6 +20,7 @@ using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
 using FFTW
 #using MappedArrays: mappedarray
+using NamedTupleTools
 using NFFT
 using PaddedViews
 using PDMats

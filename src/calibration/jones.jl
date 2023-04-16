@@ -833,6 +833,7 @@ function ChainRulesCore.rrule(::typeof(_coherency), vis::AbstractArray{<:Abstrac
     return coh, _coherency_pullback
 end
 
+
 """
     extract_FRs
 
