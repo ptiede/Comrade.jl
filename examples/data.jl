@@ -40,17 +40,17 @@ lcamp = extract_lcamp(obs) # extract minimal set of log-closure amplitudes
 
 # We can also recover the array used in the observation using
 ac = arrayconfig(vis)
-plot(ac) # Plot the baseline coverage
+# plot(ac) # Plot the baseline coverage
 
 # To plot the data we just call
 
-l = @layout [a b; c d]
-pv = plot(vis)
-pa = plot(amp)
-pcp = plot(cphase)
-plc = plot(lcamp)
+# l = @layout [a b; c d]
+# pv = plot(vis)
+# pa = plot(amp)
+# pcp = plot(cphase)
+# plc = plot(lcamp)
 
-plot(pv, pa, pcp, plc; layout=l)
+# plot(pv, pa, pcp, plc; layout=l)
 
 # And also the coherency matrices
-plot(coh)
+# plot(coh)

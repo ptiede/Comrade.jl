@@ -26,7 +26,7 @@ m = ExtendedRing(8.0)
 
 # This is an example of a ring model that has a substantially different flux profile.
 
-plot(m, xlims=(-5.0, 5.0), ylims=(-5.0, 5.0), uvscale=identity)
+# plot(m, xlims=(-5.0, 5.0), ylims=(-5.0, 5.0), uvscale=identity)
 
 # This function does not have a simple analytic Fourier transform, e.g.
 
@@ -56,9 +56,9 @@ v = randn(1000)/2
 
 # Now we can plot our sampled visibilities
 vis = visibilities(mimage, (U=u, V=v))
-scatter(hypot.(u, v), real.(vis), label="Real")
-scatter!(hypot.(u, v), imag.(vis), label="Imag")
+# scatter(hypot.(u, v), real.(vis), label="Real")
+# scatter!(hypot.(u, v), imag.(vis), label="Imag")
 
 # We can also directly get the amplitudes using:
 amp = amplitudes(mimage, (U=u, V=v))
-scatter(hypot.(u, v), amp, label="Amplitude")
+# scatter(hypot.(u, v), amp, label="Amplitude")

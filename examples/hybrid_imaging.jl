@@ -137,7 +137,7 @@ xrand = prior_sample(rng, post)
 # and then plot the results
 using Plots
 img = intensitymap(model(xrand, metadata), μas2rad(120.0), μas2rad(120.0), 128, 128)
-plot(img, title="Random sample")
+# plot(img, title="Random sample")
 
 # ## Reconstructing the Image
 
@@ -172,8 +172,8 @@ sol = solve(prob, LBFGS(), maxiters=1_000, g_tol=1e-1)
 xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
-residual(model(xopt, metadata), dlcamp)
-residual(model(xopt, metadata), dcphase)
+# residual(model(xopt, metadata), dlcamp)
+# residual(model(xopt, metadata), dcphase)
 
 # These look reasonable, although they are a bit high. This could be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
@@ -181,7 +181,7 @@ residual(model(xopt, metadata), dcphase)
 # of the original M87 image. This is because we used a more physically motivated model by assuming that
 # the image should have a ring component.
 img = intensitymap(model(xopt, metadata), 1.5*fovxy, 1.5*fovxy, 128, 128)
-plot(img, title="MAP Image")
+# plot(img, title="MAP Image")
 
 # now we sample using hmc
 using ComradeAHMC
@@ -200,8 +200,8 @@ msamples = model.(chain[251:2:end], Ref(metadata))
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, 1.5*fovxy, 1.5*fovxy, 128, 128)
-plot(mean(imgs), title="Mean Image")
-plot(std(imgs), title="Std Dev.")
+# plot(mean(imgs), title="Mean Image")
+# plot(std(imgs), title="Std Dev.")
 
 # We can also split up the model into its components and analyze each separately
 comp = Comrade.components.(msamples)
@@ -213,21 +213,21 @@ rast_imgs = intensitymap.(rast_samples, fovxy, fovxy, 128, 128)
 ring_mean, ring_std = mean_and_std(ring_imgs)
 rast_mean, rast_std = mean_and_std(rast_imgs)
 
-p1 = plot(ring_mean, title="Ring Mean", clims=(0.0, maximum(ring_mean)), colorbar=:none)
-p2 = plot(ring_std, title="Ring Std. Dev.", clims=(0.0, maximum(ring_mean)), colorbar=:none)
-p3 = plot(rast_mean, title="Raster Mean", clims=(0.0, maximum(ring_mean)), colorbar=:none)
-p4 = plot(rast_std,  title="Raster Std. Dev.", clims=(0.0, maximum(ring_mean)), colorbar=:none)
+# p1 = plot(ring_mean, title="Ring Mean", clims=(0.0, maximum(ring_mean)), colorbar=:none)
+# p2 = plot(ring_std, title="Ring Std. Dev.", clims=(0.0, maximum(ring_mean)), colorbar=:none)
+# p3 = plot(rast_mean, title="Raster Mean", clims=(0.0, maximum(ring_mean)), colorbar=:none)
+# p4 = plot(rast_std,  title="Raster Std. Dev.", clims=(0.0, maximum(ring_mean)), colorbar=:none)
 
-plot(p1,p2,p3,p4, layout=(2,2), size=(650, 650))
+# plot(p1,p2,p3,p4, layout=(2,2), size=(650, 650))
 
 # Finally, let's take a look at some of the ring parameters
 using StatsPlots
-p1 = density(rad2μas(chain.r)*2, xlabel="Ring Diameter (μas)")
-p2 = density(rad2μas(chain.σ)*2*sqrt(2*log(2)), xlabel="Ring FWHM (μas)")
-p3 = density(-rad2deg.(chain.mp) .+ 360.0, xlabel = "Ring PA (deg) E of N")
-p4 = density(2*chain.ma, xlabel="Brightness asymmetry")
-p5 = density(1 .- chain.f, xlabel="Ring flux fraction")
-plot(p1, p2, p3, p4, p5, size=(900, 600), legend=nothing)
+# p1 = density(rad2μas(chain.r)*2, xlabel="Ring Diameter (μas)")
+# p2 = density(rad2μas(chain.σ)*2*sqrt(2*log(2)), xlabel="Ring FWHM (μas)")
+# p3 = density(-rad2deg.(chain.mp) .+ 360.0, xlabel = "Ring PA (deg) E of N")
+# p4 = density(2*chain.ma, xlabel="Brightness asymmetry")
+# p5 = density(1 .- chain.f, xlabel="Ring flux fraction")
+# plot(p1, p2, p3, p4, p5, size=(900, 600), legend=nothing)
 
 # This is very consistent with the original M87 results and it only took 20 minutes compared to the week it used
 # to take using old imaging tools.

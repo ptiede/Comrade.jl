@@ -221,21 +221,21 @@ residual(model(xopt, metadata), dvis)
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
 img = intensitymap(model(xopt, metadata), fovx, fovy, 128, 128)
-plot(img, title="MAP Image")
+# plot(img, title="MAP Image")
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
 # To do this, `Comrade` provides a `caltable` function that converts the flattened gain parameters
 # to a tabular format based on the time and its segmentation.
 gt = Comrade.caltable(gcachep, xopt.gphase)
-plot(gt, layout=(3,3), size=(600,500))
+# plot(gt, layout=(3,3), size=(600,500))
 # The gain phases are pretty random, although much of this is due to us picking a random
 # reference station for each scan.
 
 # Moving onto the gain amplitudes, we see that most of the gain variation is within 10% as expected
 # except LMT, which has massive variations.
 gt = Comrade.caltable(gcache, exp.(xopt.lgamp))
-plot(gt, layout=(3,3), size=(600,500))
+# plot(gt, layout=(3,3), size=(600,500))
 
 
 # To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For information about NUTS,
@@ -277,10 +277,10 @@ gmeas_ph = measurement.(mgphase, sgphase)
 ctable_ph = caltable(gcachep, vec(gmeas_ph))
 
 # Now let's plot the phase curves
-plot(ctable_ph, layout=(3,3), size=(600,500))
+# plot(ctable_ph, layout=(3,3), size=(600,500))
 #-
 # and now the amplitude curves
-plot(ctable_am, layout=(3,3), size=(600,500))
+# plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
 samples = model.(chain[201:10:end], Ref(metadata))
@@ -288,11 +288,11 @@ imgs = intensitymap.(samples, μas2rad(75.0), μas2rad(75.0), 128,  128);
 
 mimg = mean(imgs)
 simg = std(imgs)
-p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)));
-p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)));
-p3 = plot(imgs[begin],  title="Draw 1", clims = (0.0, maximum(mimg)));
-p4 = plot(imgs[end],  title="Draw 2", clims = (0.0, maximum(mimg)));
-plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
+# p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)));
+# p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)));
+# p3 = plot(imgs[begin],  title="Draw 1", clims = (0.0, maximum(mimg)));
+# p4 = plot(imgs[end],  title="Draw 2", clims = (0.0, maximum(mimg)));
+# plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
 
 # And viola, you have just finished making a preliminary image and instrument model reconstruction.
 # In reality, you should run the `sample` step for many more MCMC steps to get a reliable estimate

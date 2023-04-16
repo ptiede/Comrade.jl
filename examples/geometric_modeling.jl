@@ -1,4 +1,4 @@
-# # Making an Image of a Black Hole
+# # Geometric Modeling of EHT Data
 
 # `Comrade` has been designed to work with the EHT and ngEHT.
 # In this tutorial, we will show how to reproduce some of the results
@@ -167,32 +167,32 @@ chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim), autodiff
 
 # First to plot the image we call
 
-plot(model(chain[end]), title="Random image", xlims=(-60.0,60.0), ylims=(-60.0,60.0))
+# plot(model(chain[end]), title="Random image", xlims=(-60.0,60.0), ylims=(-60.0,60.0))
 
 # What about the mean image? Well let's grab 100 images from the chain, where we first remove the
 # adaptation steps since they don't sample from the correct posterior distribution
 meanimg = mean(intensitymap.(model.(sample(chain[1000:end], 100)), μas2rad(120.0), μas2rad(120.0), 128, 128))
-plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
+# plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
 
-plot(model(xopt), dlcamp, label="MAP")
+# plot(model(xopt), dlcamp, label="MAP")
 
 # We can also plot what many draws from the posterior look like
-p = plot(dlcamp);
-uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
-for i in 1:10
-    m = logclosure_amplitudes(model(chain[rand(rng, 1000:2000)]), arrayconfig(dlcamp))
-    scatter!(uva, m, color=:grey, label=:none, alpha=0.1)
-end
-p
+# p = plot(dlcamp);
+# uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
+# for i in 1:10
+#     m = logclosure_amplitudes(model(chain[rand(rng, 1000:2000)]), arrayconfig(dlcamp))
+#     scatter!(uva, m, color=:grey, label=:none, alpha=0.1)
+# end
+# p
 
 # Finally, we can also put everything onto a common scale and plot the normalized residuals.
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
 
-residual(model(xopt), dlcamp)
+# residual(model(xopt), dlcamp)
 
 # All diagnostic plots suggest that the model is missing some emission sources.
 # In fact, this model is too simple to explain the data.
