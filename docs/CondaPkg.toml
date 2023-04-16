@@ -1,0 +1,16 @@
+
+[deps]
+python = ">=3.6,<=3.10"
+# astropy = ""
+# ephem = ""
+# future = ""
+# h5py = ""
+# ipython = ""
+# matplotlib = ""
+# networkx = ""
+numpy = "<=1.23"
+pandas = "<2"
+# scipy = ""
+# scikit-image = ""
+[pip.deps]
+ehtim = ""

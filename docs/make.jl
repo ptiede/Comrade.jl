@@ -40,7 +40,8 @@ OUTDIR = joinpath(@__DIR__, "src", "examples")
 SOURCE_FILES = Glob.glob("*.jl", GENERATED)
 foreach(fn -> Literate.markdown(fn, OUTDIR, documenter=true), SOURCE_FILES)
 
-MD_FILES = joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
+MD_FILES = [joinpath("examples", "data.md")]
+# joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
 
 
 makedocs(;
