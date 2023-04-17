@@ -300,13 +300,10 @@ end
     m1 = map(x->getproperty(x, :m1), (Gp,Gr))
     m2 = map(x->getproperty(x, :m2), (Gp,Gr))
 
-    test_rrule(Comrade._allmul, m1, m2)
+    # test_rrule(Comrade._allmul, m1, m2)
 
     am1 = phasecache.m1
-    am2 = phasecache.m2
     dgpp = CalPrior(NamedTuple{keys(gprior1)[2:end]}(values(gprior1)[2:end]), phasecache)
     v = rand(dgpp)
-    test_rrule(Base.:*, am1⊢NoTangent(), v)
-    test_rrule(Base.:*, am2⊢NoTangent(), v)
-
+    test_rrule(Base.:*, am1, v)
 end

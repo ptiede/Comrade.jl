@@ -147,7 +147,7 @@ distphase = (
 # on the simplex. For our work here, we use the uniform simplex distribution.
 
 
-# !!! Warning
+# !!! warning
 #    As α gets small sampling, it gets very difficult and quite multimodal due to the nature
 #    of the sparsity prior, be careful when checking convergence when using such a prior.
 
@@ -185,7 +185,7 @@ plot(img, title="Random sample")
 tpost = asflat(post)
 
 # We can now also find the dimension of our posterior or the number of parameters we will sample.
-# !!! Warning
+# !!! warning
 #    This can often be different from what you would expect. This is especially true when using
 #    angular variables, where we often artificially increase the dimension
 #    of the parameter space to make sampling easier.

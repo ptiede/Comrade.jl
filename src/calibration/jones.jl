@@ -78,10 +78,12 @@ end
 
 function ChainRulesCore.rrule(::typeof(Base.:*), A::AffineDesignMatrix, v::AbstractVector)
     out = A*v
-    pv = ProjectTo(v)
+    pv   = ProjectTo(v)
+    pmat = ProjectTo(A.mat)
+    pb   = ProjectTo(A.b)
     function _affinedesign_mul(Δ)
         Δf = NoTangent()
-        ΔA = @thunk(Tangent{typeof(A)}(;mat = Δ*v', b = Δ))
+        ΔA = @thunk(Tangent{typeof(A)}(;mat = pmat(Δ*v'), b = pb(Δ)))
         Δv = @thunk(A.mat'*Δ)
         return Δf, ΔA, pv(Δv)
     end
