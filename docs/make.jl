@@ -46,7 +46,7 @@ MD_FILES = [joinpath("examples", "data.md"),
             joinpath("examples", "imaging_closures.md"),
             joinpath("examples", "imaging_vis.md"),
             joinpath("examples", "imaging_pol.md"),
-            joinpath("examples", "hybrid_imaging.jl")
+            joinpath("examples", "hybrid_imaging.md")
            ]
 # joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
 
