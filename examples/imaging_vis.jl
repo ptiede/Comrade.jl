@@ -209,8 +209,8 @@ sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1, callback=((x,p)->(@info f
 xopt = transform(tpost, sol.u)
 
 # !!! warning
-#    Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
-#    The upside is that we usually get nicer images.
+#     Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
+#     The upside is that we usually get nicer images.
 #-
 # First we will evaluate our fit by plotting the residuals
 using Plots

@@ -43,7 +43,7 @@ image = IntensityMap(zeros(256, 256), 10.0, 10.0)
 # a model wrapper that holds the model and the image. `Comrade` provides the `modelimage`
 # function to do exactly that
 
-mimage = modelimage(m, image, Comrade.FFTAlg())
+mimage = modelimage(m, image, FFTAlg())
 
 # the `alg` keyword argument then specifies that we want to use an FFT to compute the
 # Fourier transform. When `modelimage` is called, the FFT is performed and then we use
