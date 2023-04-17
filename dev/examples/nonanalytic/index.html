@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Modeling with non-analytic Fourier transforms · Comrade.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">Comrade.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../benchmarks/">Benchmarks</a></li><li><a class="tocitem" href="../../vlbi_imaging_problem/">Introduction to the VLBI Imaging Problem</a></li><li><a class="tocitem" href="../../conventions/">Conventions</a></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../data/">Loading Data into Comrade</a></li><li class="is-active"><a class="tocitem" href>Modeling with non-analytic Fourier transforms</a></li><li><a class="tocitem" href="../geometric_modeling/">Geometric Modeling of EHT Data</a></li><li><a class="tocitem" href="../imaging_closures/">Imaging a Black Hole using only Closure Quantities</a></li><li><a class="tocitem" href="../imaging_vis/">Stokes I Simultaneous Image and Instrument Modeling</a></li><li><a class="tocitem" href="../imaging_pol/">Polarized Image and Instrumental Modeling</a></li></ul></li><li><span class="tocitem">Libraries</span><ul><li><a class="tocitem" href="../../libs/optimization/">ComradeOptimization</a></li><li><a class="tocitem" href="../../libs/ahmc/">ComradeAHMC</a></li><li><a class="tocitem" href="../../libs/nested/">ComradeNested</a></li><li><a class="tocitem" href="../../libs/dynesty/">ComradeDynesty</a></li><li><a class="tocitem" href="../../libs/adaptmcmc/">ComradeAdaptMCMC</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorials</a></li><li class="is-active"><a href>Modeling with non-analytic Fourier transforms</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Modeling with non-analytic Fourier transforms</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/ptiede/Comrade.jl/blob/main/examples/nonanalytic.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Modeling-with-non-analytic-Fourier-transforms"><a class="docs-heading-anchor" href="#Modeling-with-non-analytic-Fourier-transforms">Modeling with non-analytic Fourier transforms</a><a id="Modeling-with-non-analytic-Fourier-transforms-1"></a><a class="docs-heading-anchor-permalink" href="#Modeling-with-non-analytic-Fourier-transforms" title="Permalink"></a></h1><pre><code class="language-julia hljs">using Comrade
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Modeling with non-analytic Fourier transforms · Comrade.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">Comrade.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../benchmarks/">Benchmarks</a></li><li><a class="tocitem" href="../../vlbi_imaging_problem/">Introduction to the VLBI Imaging Problem</a></li><li><a class="tocitem" href="../../conventions/">Conventions</a></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../data/">Loading Data into Comrade</a></li><li class="is-active"><a class="tocitem" href>Modeling with non-analytic Fourier transforms</a></li><li><a class="tocitem" href="../geometric_modeling/">Geometric Modeling of EHT Data</a></li><li><a class="tocitem" href="../imaging_closures/">Imaging a Black Hole using only Closure Quantities</a></li><li><a class="tocitem" href="../imaging_vis/">Stokes I Simultaneous Image and Instrument Modeling</a></li><li><a class="tocitem" href="../imaging_pol/">Polarized Image and Instrumental Modeling</a></li><li><a class="tocitem" href="../hybrid_imaging/">Hybrid Imaging of a Black Hole</a></li></ul></li><li><span class="tocitem">Libraries</span><ul><li><a class="tocitem" href="../../libs/optimization/">ComradeOptimization</a></li><li><a class="tocitem" href="../../libs/ahmc/">ComradeAHMC</a></li><li><a class="tocitem" href="../../libs/nested/">ComradeNested</a></li><li><a class="tocitem" href="../../libs/dynesty/">ComradeDynesty</a></li><li><a class="tocitem" href="../../libs/adaptmcmc/">ComradeAdaptMCMC</a></li></ul></li><li><a class="tocitem" href="../../interface/">Model Interface</a></li><li><a class="tocitem" href="../../base_api/">ComradeBase API</a></li><li><a class="tocitem" href="../../api/">Comrade API</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorials</a></li><li class="is-active"><a href>Modeling with non-analytic Fourier transforms</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Modeling with non-analytic Fourier transforms</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/ptiede/Comrade.jl/blob/main/examples/nonanalytic.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Modeling-with-non-analytic-Fourier-transforms"><a class="docs-heading-anchor" href="#Modeling-with-non-analytic-Fourier-transforms">Modeling with non-analytic Fourier transforms</a><a id="Modeling-with-non-analytic-Fourier-transforms-1"></a><a class="docs-heading-anchor-permalink" href="#Modeling-with-non-analytic-Fourier-transforms" title="Permalink"></a></h1><pre><code class="language-julia hljs">using Comrade
 
 
 using Plots</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">  Activating project at `~/work/Comrade.jl/Comrade.jl/examples`</code></pre><p>While most of the models implemented in <code>Comrade</code> have an analytic Fourier transform this is not required. In this notebook we will describe how a user can do Bayesian model fitting with a non-analytic model.</p><p>The <code>ExtendedRing</code> model is an example of a non-analytic model. The image structure is given by</p><p class="math-container">\[I(r) = \frac{\beta^\alpha}{2\pi \Gamma(\alpha)} r^{-\alpha-2}e^{-\beta/r}\]</p><p>This can be created as follows</p><pre><code class="language-julia hljs">m = ExtendedRing(8.0)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ExtendedRing{Float64}(8.0)</code></pre><p>The argument is <code>\alpha</code> in the above equation. <code>beta</code> is given by <span>$(1+\alpha)$</span>.</p><p>This is an example of a ring model that has a substantially different flux profile.</p><p>plot(m, xlims=(-5.0, 5.0), ylims=(-5.0, 5.0), uvscale=identity)</p><p>This function does not have a simple analytic Fourier transform, e.g.</p><pre><code class="language-julia hljs">Comrade.visanalytic(ExtendedRing)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ComradeBase.NotAnalytic()</code></pre><p>Therefore, to find the Fourier transform of the image we need to revert to numerical methods. For this notebook we will use the <em>fast Fourier transform</em> or FFT. Specifically we will use FFTW. To compute a numerical Fourier transform we first need to specify the image.</p><pre><code class="language-julia hljs">image = IntensityMap(zeros(256, 256), 10.0, 10.0)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">2-dimensional KeyedArray(NamedDimsArray(...)) with keys:
@@ -29,63 +29,63 @@ And data, 256×256 NamedDimsArray(::Matrix{Float64}, (:X, :Y))
 	cache: Comrade.FFTCache
 </code></pre><p>the <code>alg</code> keyword argument then specifies that we want to use an FFT to compute the Fourier transform. When <code>modelimage</code> is called, the FFT is performed and then we use a bicubic interpolator on the resulting visibilities to construct a continuous representation of the Fourier transform. Once we have this everything else is the same. Namely we can calculatge the VLBI data products in the usual manner i.e.</p><pre><code class="language-julia hljs">u = randn(1000)/2
 v = randn(1000)/2</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1000-element Vector{Float64}:
- -0.43343426168968413
-  0.2549956847150898
- -0.3235154430840767
-  0.2464570263129628
- -0.26814655934887727
-  0.4272186538996516
- -0.6178342748539127
- -0.3292485959222557
- -0.12415809604550272
-  0.08817396767361389
+  0.12780978919552208
+  0.6552282093077249
+  0.05018025944324615
+ -0.3004113352467606
+  0.36349021403918436
+  0.09526079423805058
+ -0.14702850860569444
+ -1.0500709232920336
+ -0.1534383524237088
+  0.23154310991506283
   ⋮
-  0.34709094759602255
- -0.13350632254778041
-  0.2729207209874772
-  0.47209776764269096
- -0.6293077251902198
- -0.9626416456438064
- -0.9081590807257087
- -0.24688512458590858
-  0.8298295971430556</code></pre><p>Now we can plot our sampled visibilities</p><pre><code class="language-julia hljs">vis = visibilities(mimage, (U=u, V=v))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1000-element Vector{ComplexF64}:
-  -0.16150376104560624 - 9.7833849309652e-18im
-   -0.1681989041625371 - 1.0804360036866549e-17im
-   -0.1704219554760489 - 2.513475797837919e-18im
-   0.24975017722726442 - 2.0600486422293533e-17im
-   0.20255495759373277 + 2.6925051417613737e-17im
-  -0.05033600525748693 + 1.9964813689237916e-17im
-  -0.09426674231512533 + 7.325622404181983e-18im
-  0.017784123338856046 + 8.617487130685399e-18im
-  0.024693708392897678 - 6.131031900495349e-18im
-  -0.11005273080440969 + 2.0004575432401308e-17im
-                       ⋮
-  -0.07847514302186931 - 1.2135715743007198e-17im
-     0.415232494683236 + 1.564735402209926e-17im
-   0.02632687359552935 - 1.621839267002496e-17im
-   -0.1638046486704222 - 7.790600210240307e-18im
-  -0.08593766825561691 + 1.3475268205955822e-17im
-  0.023473717656413033 + 2.0127051939077174e-18im
-  0.004312103173675956 + 2.123791190129726e-19im
-   -0.0967631322697811 - 2.2151109301057855e-17im
- -0.028863882413116358 - 2.5288490249604873e-17im</code></pre><p>scatter(hypot.(u, v), real.(vis), label=&quot;Real&quot;) scatter!(hypot.(u, v), imag.(vis), label=&quot;Imag&quot;)</p><p>We can also directly get the amplitudes using:</p><pre><code class="language-julia hljs">amp = amplitudes(mimage, (U=u, V=v))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1000-element Vector{Float64}:
- 0.16150376104560624
- 0.1681989041625371
- 0.1704219554760489
- 0.24975017722726442
- 0.20255495759373277
- 0.05033600525748693
- 0.09426674231512533
- 0.017784123338856046
- 0.024693708392897678
- 0.11005273080440969
+ -0.342587657920744
+ -0.1636944921698837
+  0.8865619966924305
+  0.37812951355221536
+ -0.7609498684677286
+ -0.8721748405082078
+ -0.05378598767104294
+ -0.15518832546378153
+  0.23658261368412753</code></pre><p>Now we can plot our sampled visibilities</p><pre><code class="language-julia hljs">vis = visibilities(mimage, (U=u, V=v))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1000-element Vector{ComplexF64}:
+ -0.14382643917454854 - 6.075197580424238e-18im
+ -0.08192236474422272 - 2.1701980816464345e-17im
+  -0.1729631461189112 + 6.718663283250495e-18im
+ -0.08125813042462594 + 9.983251975042401e-18im
+ -0.17219912245155083 - 2.3020216056967598e-17im
+ -0.16443661887154312 - 1.98764210536793e-18im
+   0.4573417788725148 + 2.630378045837826e-17im
+ 0.026600493194104544 - 1.9929545900244373e-17im
+  -0.1166766649572328 + 1.4031001266156477e-17im
+   -0.151739672379024 - 5.575533199498177e-18im
+                      ⋮
+ -0.02488953254696062 + 3.0754872340630803e-18im
+ -0.16530281149095938 - 3.977420321330542e-18im
+  0.02870256812183717 - 2.1868572079202774e-17im
+ -0.17286789497908375 - 2.1144041430162112e-17im
+ -0.02292594083747022 + 2.918929548518295e-17im
+  0.02299519497070086 - 7.57797615009508e-18im
+   0.7456902631970425 + 1.7822079597100525e-17im
+ -0.12010252886394487 + 1.5009203683203127e-17im
+  -0.1696079831051937 - 3.358698980618801e-18im</code></pre><p>scatter(hypot.(u, v), real.(vis), label=&quot;Real&quot;) scatter!(hypot.(u, v), imag.(vis), label=&quot;Imag&quot;)</p><p>We can also directly get the amplitudes using:</p><pre><code class="language-julia hljs">amp = amplitudes(mimage, (U=u, V=v))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1000-element Vector{Float64}:
+ 0.14382643917454854
+ 0.08192236474422272
+ 0.1729631461189112
+ 0.08125813042462594
+ 0.17219912245155083
+ 0.16443661887154312
+ 0.4573417788725148
+ 0.026600493194104544
+ 0.1166766649572328
+ 0.151739672379024
  ⋮
- 0.07847514302186931
- 0.415232494683236
- 0.02632687359552935
- 0.1638046486704222
- 0.08593766825561691
- 0.023473717656413033
- 0.004312103173675956
- 0.0967631322697811
- 0.028863882413116358</code></pre><p>scatter(hypot.(u, v), amp, label=&quot;Amplitude&quot;)</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../data/">« Loading Data into Comrade</a><a class="docs-footer-nextpage" href="../geometric_modeling/">Geometric Modeling of EHT Data »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Monday 17 April 2023 21:21">Monday 17 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+ 0.02488953254696062
+ 0.16530281149095938
+ 0.02870256812183717
+ 0.17286789497908375
+ 0.02292594083747022
+ 0.02299519497070086
+ 0.7456902631970425
+ 0.12010252886394487
+ 0.1696079831051937</code></pre><p>scatter(hypot.(u, v), amp, label=&quot;Amplitude&quot;)</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../data/">« Loading Data into Comrade</a><a class="docs-footer-nextpage" href="../geometric_modeling/">Geometric Modeling of EHT Data »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Monday 17 April 2023 23:33">Monday 17 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
