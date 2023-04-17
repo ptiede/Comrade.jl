@@ -306,7 +306,7 @@ end
     am2 = phasecache.m2
     dgpp = CalPrior(NamedTuple{keys(gprior1)[2:end]}(values(gprior1)[2:end]), phasecache)
     v = rand(dgpp)
-    test_rrule(Base.:*, am1, v)
-    test_rrule(Base.:*, am2, v)
+    test_rrule(Base.:*, am1⊢NoTangent(), v)
+    test_rrule(Base.:*, am2⊢NoTangent(), v)
 
 end
