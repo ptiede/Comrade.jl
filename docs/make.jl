@@ -41,7 +41,7 @@ SOURCE_FILES = Glob.glob("*.jl", GENERATED)
 foreach(fn -> Literate.markdown(fn, OUTDIR, documenter=true), SOURCE_FILES)
 
 MD_FILES = [joinpath("examples", "data.md"),
-            joinpath("examples", "geometric_modeling.jl"),
+            joinpath("examples", "geometric_modeling.md"),
            ]
 # joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
 
