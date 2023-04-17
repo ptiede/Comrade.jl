@@ -197,16 +197,19 @@ end
 function append_time_site!(times, sites, site, t, ::ScanSeg)
     push!(sites, site)
     push!(times, t)
+    return nothing
 end
 
 function append_time_site!(times, sites, site, t, ::IntegSeg)
     push!(sites, site)
     push!(times, t)
+    return nothing
 end
 
 function append_time_site!(times, sites, site, t, ::TrackSeg)
     # Check is the site is already in the list, if it isn't add it to the schema
     !(site ∈ sites) && (push!(sites, site); push!(times, zero(t)))
+    return nothing
 end
 
 function append_time_site!(times, sites, site, t, ::FixedSeg)
