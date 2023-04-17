@@ -45,7 +45,8 @@ MD_FILES = [joinpath("examples", "data.md"),
             joinpath("examples", "geometric_modeling.md"),
             joinpath("examples", "imaging_closures.md"),
             joinpath("examples", "imaging_vis.md"),
-            joinpath("examples", "imaging_pol.md")
+            joinpath("examples", "imaging_pol.md"),
+            joinpath("examples", "hybrid_imaging.jl")
            ]
 # joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
 
@@ -70,9 +71,9 @@ makedocs(;
                         "libs/dynesty.md",
                         "libs/adaptmcmc.md"
                        ],
-        #"interface.md",
-        #"base_api.md",
-        #"api.md"
+        "interface.md",
+        "base_api.md",
+        "api.md"
     ],
     format = Documenter.HTML(), draft=false
 )
