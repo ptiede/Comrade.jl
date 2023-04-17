@@ -29,63 +29,63 @@ And data, 256×256 NamedDimsArray(::Matrix{Float64}, (:X, :Y))
 	cache: Comrade.FFTCache
 </code></pre><p>the <code>alg</code> keyword argument then specifies that we want to use an FFT to compute the Fourier transform. When <code>modelimage</code> is called, the FFT is performed and then we use a bicubic interpolator on the resulting visibilities to construct a continuous representation of the Fourier transform. Once we have this everything else is the same. Namely we can calculatge the VLBI data products in the usual manner i.e.</p><pre><code class="language-julia hljs">u = randn(1000)/2
 v = randn(1000)/2</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1000-element Vector{Float64}:
- -0.6384025779967807
- -0.671313008515407
- -0.607941719595809
-  0.615370027726112
- -0.2942230812467815
- -0.15557012349668864
- -0.03874281788749084
-  0.7073297639194136
-  0.5448427467501524
- -0.39900052446025414
+ -0.07214849558902349
+ -0.5372669390107048
+ -0.04104610141524896
+  0.09830934045253724
+ -0.3157767326971595
+  0.06582064038593959
+  0.06416055252664857
+ -0.12617655168870567
+ -0.08187463423906982
+ -0.962875687176294
   ⋮
- -0.22727704371054905
- -0.48287481529116133
-  0.7032898532658891
- -0.399016685265653
-  0.5477822280637372
- -0.2578156827402181
-  0.7158779607947002
-  0.03562722030930855
- -0.7230733693926423</code></pre><p>Now we can plot our sampled visibilities</p><pre><code class="language-julia hljs">vis = visibilities(mimage, (U=u, V=v))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1000-element Vector{ComplexF64}:
-  -0.13660109215406308 + 3.014412635575431e-17im
- 0.0015762260179298753 + 5.465160272498848e-18im
- -0.059194833131081086 + 2.903634482227464e-18im
-  0.027797597996681737 + 2.1238122367597952e-17im
-   -0.1713137140961621 - 1.6824379005919426e-18im
-    0.6270404171157342 + 5.8141989555929935e-18im
-  0.023655589593522288 + 7.276788704656359e-18im
-  -0.05459087039855462 - 2.339661839276082e-17im
-   -0.1441351562319615 - 1.577527711576779e-17im
-  0.021004319864536544 - 2.897671767638395e-17im
-                       ⋮
-    0.3357981146751812 + 1.7150982436736613e-17im
-  0.005284237533108409 + 1.288671394031065e-17im
-  0.002299980330117383 - 1.1436833686490934e-17im
-  -0.13267077282804154 + 2.433736217270744e-18im
-  -0.11462687276916148 - 1.3719079518164772e-17im
-   0.16940438871460936 + 2.5594262851830987e-17im
-  -0.04032526896283531 - 2.252433019196656e-17im
-    0.6677871142052687 - 7.389556907204866e-18im
- -0.011888997974371589 + 2.3729635557921922e-17im</code></pre><p>scatter(hypot.(u, v), real.(vis), label=&quot;Real&quot;) scatter!(hypot.(u, v), imag.(vis), label=&quot;Imag&quot;)</p><p>We can also directly get the amplitudes using:</p><pre><code class="language-julia hljs">amp = amplitudes(mimage, (U=u, V=v))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1000-element Vector{Float64}:
- 0.13660109215406308
- 0.0015762260179298753
- 0.059194833131081086
- 0.027797597996681737
- 0.1713137140961621
- 0.6270404171157342
- 0.023655589593522288
- 0.05459087039855462
- 0.1441351562319615
- 0.021004319864536544
+  0.12595216298862122
+ -0.2399980741508854
+ -0.7219876334244408
+  0.7583780728170497
+ -0.2687569406366091
+  0.11134460987939658
+ -0.9268723683795101
+  0.5405155527537655
+  0.20471030671887838</code></pre><p>Now we can plot our sampled visibilities</p><pre><code class="language-julia hljs">vis = visibilities(mimage, (U=u, V=v))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1000-element Vector{ComplexF64}:
+ -0.06140389444294378 - 2.7680634897356994e-17im
+ -0.16843843218561363 + 5.382556277594418e-18im
+ -0.14928420360682576 - 7.13666818901756e-18im
+   0.7667647719542349 - 1.8819782367814337e-17im
+ -0.06823786149700867 + 4.4303421930048705e-18im
+  0.19555738029766198 + 1.663740171563143e-17im
+  0.09605816441795303 + 1.6574932084656632e-17im
+   0.6289479702354835 + 3.355220084040471e-17im
+  0.25305078130989034 + 2.3261488287389878e-17im
+ 0.016062721775839374 + 1.9077070758179082e-17im
+                      ⋮
+  -0.1569896230787129 - 1.1432752667654785e-17im
+ -0.16409101415323324 - 2.3034798999947713e-18im
+ -0.08198747698204227 + 2.7424385892746093e-17im
+ -0.03517771229734234 - 2.8053239135731767e-17im
+  -0.0979817135106667 - 3.6221494189730575e-19im
+ -0.15537683250376144 + 2.184693847821894e-18im
+ 0.024806469393791785 + 1.505605724819044e-17im
+  -0.1716771531617368 - 1.2318120683915216e-18im
+ 0.022408734171363208 + 1.7130068937324877e-17im</code></pre><p>scatter(hypot.(u, v), real.(vis), label=&quot;Real&quot;) scatter!(hypot.(u, v), imag.(vis), label=&quot;Imag&quot;)</p><p>We can also directly get the amplitudes using:</p><pre><code class="language-julia hljs">amp = amplitudes(mimage, (U=u, V=v))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1000-element Vector{Float64}:
+ 0.06140389444294378
+ 0.16843843218561363
+ 0.14928420360682576
+ 0.7667647719542349
+ 0.06823786149700867
+ 0.19555738029766198
+ 0.09605816441795303
+ 0.6289479702354835
+ 0.25305078130989034
+ 0.016062721775839374
  ⋮
- 0.3357981146751812
- 0.005284237533108409
- 0.002299980330117383
- 0.13267077282804154
- 0.11462687276916148
- 0.16940438871460936
- 0.04032526896283531
- 0.6677871142052687
- 0.011888997974371589</code></pre><p>scatter(hypot.(u, v), amp, label=&quot;Amplitude&quot;)</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Monday 17 April 2023 03:02">Monday 17 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+ 0.1569896230787129
+ 0.16409101415323324
+ 0.08198747698204227
+ 0.03517771229734234
+ 0.0979817135106667
+ 0.15537683250376144
+ 0.024806469393791785
+ 0.1716771531617368
+ 0.022408734171363208</code></pre><p>scatter(hypot.(u, v), amp, label=&quot;Amplitude&quot;)</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Monday 17 April 2023 05:27">Monday 17 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
