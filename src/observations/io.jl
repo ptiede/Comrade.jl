@@ -55,7 +55,7 @@ end
 
 
 
-function _extract_fits_image(f::FITSIO.ImageHDU{T,2}) where {T}
+function _extract_fits_image(f::FITSIO.ImageHDU{T}) where {T}
     image = read(f)[end:-1:begin,:]
     header = read_header(f)
     nx = Int(header["NAXIS1"])
@@ -64,8 +64,14 @@ function _extract_fits_image(f::FITSIO.ImageHDU{T,2}) where {T}
     psizex = abs(float(header["CDELT1"]))*π/180
     psizey = abs(float(header["CDELT2"]))*π/180
 
-    ra = float(header["OBSRA"])
-    dec = float(header["OBSDEC"])
+    ra = 180.0
+    dec = 0.0
+    try
+        ra = float(header["OBSRA"])
+        dec = float(header["OBSDEC"])
+    catch
+        @warn "No OBSRA or OBSDEC in header setting to 180.0, 0.0"
+    end
 
     #Get frequency
     freq = 0.0
