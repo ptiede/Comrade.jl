@@ -161,7 +161,7 @@ using OptimizationBBO
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing, lb=fill(-5.0, ndim), ub=fill(5.0,ndim))
-sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=100_000)
+sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=100_000);
 
 # Alright now we can zoom to the peak!
 using OptimizationOptimJL

@@ -203,7 +203,7 @@ using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, 2*rand(rng, ndim) .- 1.0, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)))
+sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)));
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)

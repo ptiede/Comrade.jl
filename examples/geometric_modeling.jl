@@ -134,7 +134,7 @@ prob = Optimization.OptimizationProblem(f, randn(rng, ndim), nothing, lb=fill(-5
 
 # Now we solve for our optimial image.
 
-sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000)
+sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000);
 
 # The sol vector is in the transformed space, so first we need to transform back to parameter space
 # to that we can interpret the solution.
