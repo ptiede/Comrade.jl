@@ -22,7 +22,7 @@
           0     &amp; e^{i\varphi}\\
       \end{pmatrix}\]</p><p>In the rest of the tutorial, we are going to solve for all of these instrument model terms on  in addition to our image structure to reconstruct a polarized image of a synthetic dataset.</p><pre><code class="language-julia hljs">using Comrade</code></pre><h2 id="Load-the-Data"><a class="docs-heading-anchor" href="#Load-the-Data">Load the Data</a><a id="Load-the-Data-1"></a><a class="docs-heading-anchor-permalink" href="#Load-the-Data" title="Permalink"></a></h2><pre class="documenter-example-output"><code class="nohighlight hljs ansi">  Activating project at `~/work/Comrade.jl/Comrade.jl/examples`</code></pre><p>For reproducibility we use a stable random number genreator</p><pre><code class="language-julia hljs">using StableRNGs
 rng = StableRNG(123)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">StableRNGs.LehmerRNG(state=0x000000000000000000000000000000f7)</code></pre><p>Now we will load some synthetic polarized data.</p><pre><code class="language-julia hljs">obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), &quot;..&quot;, &quot;examples&quot;, &quot;PolarizedExamples/polarized_gaussian_nogains_withdterms_withfr.uvfits&quot;),
-                        joinpath(dirname(pathof(Comrade)), &quot;..&quot;, &quot;examples&quot;, &quot;PolarizedExamples/array.txt&quot;))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Python Obsdata: &lt;ehtim.obsdata.Obsdata object at 0x7f529fff3dc0&gt;</code></pre><p>Notice that, unlike other non-polarized tutorials, we need to include a second argument. This is the <strong>array file</strong> of the observation and is required to determine the feed rotation of the array.</p><p>Now we scan average the data since the data to boost the SNR and reduce the total data volume.</p><pre><code class="language-julia hljs">obs = scan_average(obs)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Python Obsdata: &lt;ehtim.obsdata.Obsdata object at 0x7f52ed54db10&gt;</code></pre><p>Now we extract our observed/corrupted coherency matrices.</p><pre><code class="language-julia hljs">dvis = extract_coherency(obs)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">EHTObservation{Float64,Comrade.EHTCoherencyDatum{Float64, CirBasis, CirBasis, StaticArraysCore.SMatrix{2, 2, ComplexF64, 4}, StaticArraysCore.SMatrix{2, 2, Float64, 4}}, ...}
+                        joinpath(dirname(pathof(Comrade)), &quot;..&quot;, &quot;examples&quot;, &quot;PolarizedExamples/array.txt&quot;))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Python Obsdata: &lt;ehtim.obsdata.Obsdata object at 0x7efba57d73d0&gt;</code></pre><p>Notice that, unlike other non-polarized tutorials, we need to include a second argument. This is the <strong>array file</strong> of the observation and is required to determine the feed rotation of the array.</p><p>Now we scan average the data since the data to boost the SNR and reduce the total data volume.</p><pre><code class="language-julia hljs">obs = scan_average(obs)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Python Obsdata: &lt;ehtim.obsdata.Obsdata object at 0x7efba8f6fbe0&gt;</code></pre><p>Now we extract our observed/corrupted coherency matrices.</p><pre><code class="language-julia hljs">dvis = extract_coherency(obs)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">EHTObservation{Float64,Comrade.EHTCoherencyDatum{Float64, CirBasis, CirBasis, StaticArraysCore.SMatrix{2, 2, ComplexF64, 4}, StaticArraysCore.SMatrix{2, 2, Float64, 4}}, ...}
   source: 17.761122472222223:-28.992189444444445
   mjd: 51544
   frequency: 2.3e11
@@ -471,43 +471,9 @@ And data, 1024×1024 NamedDimsArray(StructArray(::Matrix{Float64}, ::Matrix{Floa
   (4.815e-10)          [1.54192e-64, 9.17361e-78, 2.31287e-65, 2.31287e-66]
   (4.82446e-10)        [1.17804e-64, 7.00873e-78, 1.76706e-65, 1.76706e-66]
   (4.83393e-10)        [8.99558e-65, 5.35191e-78, 1.34934e-65, 1.34934e-66]
-  (4.8434e-10)         [6.86545e-65, 4.08459e-78, 1.02982e-65, 1.02982e-66]</code></pre><p>Select a reasonable zoom in of the image.</p><pre><code class="language-julia hljs">imgtruesub = imgtrue(Interval(-fovx/2, fovx/2), Interval(-fovy/2, fovy/2))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">2-dimensional KeyedArray(NamedDimsArray(...)) with keys:
-↓   X ∈ 256-element LinRange{Float64,...}
-→   Y ∈ 256-element LinRange{Float64,...}
-And data, 256×256 NamedDimsArray(StructArray(view(::Matrix{Float64}, 385:640, 385:640), view(::Matrix{Float64}, 385:640, 385:640), view(::Matrix{Float64}, 385:640, 385:640), view(::Matrix{Float64}, 385:640, 385:640)), (:X, :Y)):
-                 …  (1.2073e-10)
- (-1.2073e-10)         [1.55454e-8, 9.2487e-22, 2.3318e-9, 2.3318e-10]
- (-1.19783e-10)        [1.66253e-8, 9.89119e-22, 2.49379e-9, 2.49379e-10]
- (-1.18836e-10)        [1.77708e-8, 1.05727e-21, 2.66562e-9, 2.66562e-10]
- (-1.17889e-10)        [1.89852e-8, 1.12952e-21, 2.84778e-9, 2.84778e-10]
- (-1.16942e-10)  …     [2.02719e-8, 1.20607e-21, 3.04078e-9, 3.04078e-10]
- (-1.15995e-10)        [2.16343e-8, 1.28713e-21, 3.24515e-9, 3.24515e-10]
-    ⋮            ⋱  
-  (1.15049e-10)        [2.30761e-8, 1.37291e-21, 3.46142e-9, 3.46142e-10]
-  (1.15995e-10)        [2.16343e-8, 1.28713e-21, 3.24515e-9, 3.24515e-10]
-  (1.16942e-10)  …     [2.02719e-8, 1.20607e-21, 3.04078e-9, 3.04078e-10]
-  (1.17889e-10)        [1.89852e-8, 1.12952e-21, 2.84778e-9, 2.84778e-10]
-  (1.18836e-10)        [1.77708e-8, 1.05727e-21, 2.66562e-9, 2.66562e-10]
-  (1.19783e-10)        [1.66253e-8, 9.89119e-22, 2.49379e-9, 2.49379e-10]
-  (1.2073e-10)         [1.55454e-8, 9.2487e-22, 2.3318e-9, 2.3318e-10]</code></pre><p>plot(imgtruesub, title=&quot;True Image&quot;, xlims=(-25.0,25.0), ylims=(-25.0,25.0))</p><pre><code class="language-julia hljs">img = intensitymap!(copy(imgtruesub), model(xopt, metadata))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">2-dimensional KeyedArray(NamedDimsArray(...)) with keys:
-↓   X ∈ 256-element LinRange{Float64,...}
-→   Y ∈ 256-element LinRange{Float64,...}
-And data, 256×256 NamedDimsArray(StructArray(::Matrix{Float64}, ::Matrix{Float64}, ::Matrix{Float64}, ::Matrix{Float64}), (:X, :Y)):
-                 …  (1.2073e-10)
- (-1.2073e-10)         [3.99759e-8, -1.44625e-8, 5.47411e-9, 1.79719e-9]
- (-1.19783e-10)        [4.11281e-8, -1.48171e-8, 5.6857e-9, 1.86101e-9]
- (-1.18836e-10)        [4.22783e-8, -1.51646e-8, 5.9025e-9, 1.92596e-9]
- (-1.17889e-10)        [4.34254e-8, -1.55044e-8, 6.12455e-9, 1.99205e-9]
- (-1.16942e-10)  …     [4.45683e-8, -1.58358e-8, 6.35192e-9, 2.05926e-9]
- (-1.15995e-10)        [4.57058e-8, -1.61582e-8, 6.58466e-9, 2.1276e-9]
-    ⋮            ⋱  
-  (1.15049e-10)        [1.34041e-8, 2.33155e-9, -6.34712e-10, 4.94268e-9]
-  (1.15995e-10)        [1.3061e-8, 2.2638e-9, -6.74439e-10, 4.85773e-9]
-  (1.16942e-10)  …     [1.27176e-8, 2.19672e-9, -7.09283e-10, 4.7691e-9]
-  (1.17889e-10)        [1.23744e-8, 2.13033e-9, -7.39433e-10, 4.677e-9]
-  (1.18836e-10)        [1.20315e-8, 2.06465e-9, -7.65075e-10, 4.58167e-9]
-  (1.19783e-10)        [1.16892e-8, 1.99971e-9, -7.86396e-10, 4.48335e-9]
-  (1.2073e-10)         [1.13479e-8, 1.93553e-9, -8.03584e-10, 4.38225e-9]</code></pre><p>plot(img, title=&quot;Reconstructed Image&quot;, xlims=(-25.0,25.0), ylims=(-25.0,25.0))</p><p>Let&#39;s compare some image statics, like the total linear polarization fraction</p><pre><code class="language-julia hljs">using Comrade.ComradeBase: linearpol
+  (4.8434e-10)         [6.86545e-65, 4.08459e-78, 1.02982e-65, 1.02982e-66]</code></pre><p>Select a reasonable zoom in of the image.</p><pre><code class="language-julia hljs">imgtruesub = imgtrue(Interval(-fovx/2, fovx/2), Interval(-fovy/2, fovy/2))
+plot(imgtruesub, title=&quot;True Image&quot;, xlims=(-25.0,25.0), ylims=(-25.0,25.0))</code></pre><pre><code class="language-julia hljs">img = intensitymap!(copy(imgtruesub), model(xopt, metadata))
+plot(img, title=&quot;Reconstructed Image&quot;, xlims=(-25.0,25.0), ylims=(-25.0,25.0))</code></pre><p>Let&#39;s compare some image statics, like the total linear polarization fraction</p><pre><code class="language-julia hljs">using Comrade.ComradeBase: linearpol
 ftrue = flux(imgtruesub);
 @info &quot;Linear polarization true image: $(abs(linearpol(ftrue))/ftrue.I)&quot;
 frecon = flux(img);
@@ -536,51 +502,9 @@ frecon = flux(img);
 ──────┼─────────────────────────────────────────────────
   0.0 │ 1.025  1.025  1.024  1.025  1.025  1.014  1.024
 ──────┴─────────────────────────────────────────────────
-</code></pre><p>Plotting the gain phases, we see some offsets from zero. This is because the prior on the gain product phases is very broad, so we can&#39;t phase center the image. For realistic data this is always the case since the atmosphere effectively scrambles the phases.</p><pre><code class="language-julia hljs">gphase_prod = caltable(phasecache, xopt.gpp)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">────────┬──────────────────────────────────────────────────────
-   time │      AP       AZ       JC       LM       PV       SM
-────────┼──────────────────────────────────────────────────────
-    0.0 │ missing  missing    0.071  missing  missing    0.085
-  0.333 │ missing  missing   -1.048  missing  missing   -1.049
-  0.667 │ missing  missing   -2.166  missing  missing    -2.16
-    1.0 │ missing  missing   -0.513  missing  missing   -0.508
-  1.333 │ missing  missing    1.777  missing  missing     1.78
-  1.667 │ missing  missing    0.694  missing  missing    0.698
-  9.667 │   0.001  missing  missing  missing    1.513  missing
-   10.0 │    -0.0  missing  missing  missing    1.513  missing
- 10.333 │   0.002  missing  missing  missing    1.512  missing
- 10.667 │    -0.0  missing  missing  missing      1.5  missing
-   11.0 │    -0.0  missing  missing  missing    1.487  missing
- 11.333 │  -0.001  missing  missing  missing    1.476  missing
- 11.667 │   0.001  missing  missing  missing    1.454  missing
-   12.0 │   0.001  missing  missing  missing    1.426  missing
- 12.333 │     0.0  missing  missing  missing    1.398  missing
- 12.667 │   0.002  missing  missing  missing    1.359  missing
-   ⋮    │    ⋮        ⋮        ⋮        ⋮        ⋮        ⋮
-────────┴──────────────────────────────────────────────────────
-                                                33 rows omitted
-</code></pre><p>plot(gphase_prod, layout=(3,3), size=(650,500))</p><p>Finally, the product gain amplitudes are all very close to unity as well, as expected since gain corruptions have not been added to the data.</p><pre><code class="language-julia hljs">gamp_prod = caltable(scancache, exp.(xopt.lgp))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">────────┬───────────────────────────────────────────────────────────────
-   time │      AA       AP       AZ       JC       LM       PV       SM
-────────┼───────────────────────────────────────────────────────────────
-    0.0 │ missing  missing  missing    0.986  missing  missing    0.986
-  0.333 │ missing  missing  missing    0.991  missing  missing     0.99
-  0.667 │ missing  missing  missing     0.99  missing  missing    0.991
-    1.0 │ missing  missing  missing    0.998  missing  missing    0.996
-  1.333 │ missing  missing  missing    0.995  missing  missing    0.995
-  1.667 │ missing  missing  missing    0.994  missing  missing    0.991
-  9.667 │   0.989    0.999  missing  missing  missing    1.048  missing
-   10.0 │   0.979    1.013  missing  missing  missing    1.064  missing
- 10.333 │   1.001    0.988  missing  missing  missing    1.033  missing
- 10.667 │   0.997    0.993  missing  missing  missing    1.038  missing
-   11.0 │   0.995    0.995  missing  missing  missing    1.042  missing
- 11.333 │   0.999    0.991  missing  missing  missing    1.033  missing
- 11.667 │   0.998    0.993  missing  missing  missing    1.026  missing
-   12.0 │   0.992    0.998  missing  missing  missing    1.036  missing
- 12.333 │   0.999    0.992  missing  missing  missing    1.023  missing
- 12.667 │   1.004    0.987  missing  missing  missing    1.012  missing
-   ⋮    │    ⋮        ⋮        ⋮        ⋮        ⋮        ⋮        ⋮
-────────┴───────────────────────────────────────────────────────────────
-                                                         33 rows omitted
-</code></pre><p>plot(gamp_prod, layout=(3,3), size=(650,500))</p><p>At this point, you should run the sampler to recover an uncertainty estimate, which is identical to every other imaging example (see, e.g., <a href="../imaging_vis/#Stokes-I-Simultaneous-Image-and-Instrument-Modeling">Stokes I Simultaneous Image and Instrument Modeling</a>. However, due to the time it takes to sample, we will skip that for this tutorial. Note that on the computer environment listed below, 20_000 MCMC steps take 4 hours.</p><h2 id="Computing-information"><a class="docs-heading-anchor" href="#Computing-information">Computing information</a><a id="Computing-information-1"></a><a class="docs-heading-anchor-permalink" href="#Computing-information" title="Permalink"></a></h2><pre><code class="nohighlight hljs">Julia Version 1.8.5
+</code></pre><p>Plotting the gain phases, we see some offsets from zero. This is because the prior on the gain product phases is very broad, so we can&#39;t phase center the image. For realistic data this is always the case since the atmosphere effectively scrambles the phases.</p><pre><code class="language-julia hljs">gphase_prod = caltable(phasecache, xopt.gpp)
+plot(gphase_prod, layout=(3,3), size=(650,500))</code></pre><p>Finally, the product gain amplitudes are all very close to unity as well, as expected since gain corruptions have not been added to the data.</p><pre><code class="language-julia hljs">gamp_prod = caltable(scancache, exp.(xopt.lgp))
+plot(gamp_prod, layout=(3,3), size=(650,500))</code></pre><p>At this point, you should run the sampler to recover an uncertainty estimate, which is identical to every other imaging example (see, e.g., <a href="../imaging_vis/#Stokes-I-Simultaneous-Image-and-Instrument-Modeling">Stokes I Simultaneous Image and Instrument Modeling</a>. However, due to the time it takes to sample, we will skip that for this tutorial. Note that on the computer environment listed below, 20_000 MCMC steps take 4 hours.</p><h2 id="Computing-information"><a class="docs-heading-anchor" href="#Computing-information">Computing information</a><a id="Computing-information-1"></a><a class="docs-heading-anchor-permalink" href="#Computing-information" title="Permalink"></a></h2><pre><code class="nohighlight hljs">Julia Version 1.8.5
 Commit 17cfb8e65ea (2023-01-08 06:45 UTC)
 Platform Info:
   OS: Linux (x86_64-linux-gnu)
@@ -591,4 +515,4 @@ Platform Info:
   Threads: 1 on 32 virtual cores
 Environment:
   JULIA_EDITOR = code
-  JULIA_NUM_THREADS = 1</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p><section class="footnotes is-size-7"><ul><li class="footnote" id="footnote-1"><a class="tag is-link" href="#citeref-1">1</a>Hamaker J.P, Bregman J.D., Sault R.J. (1996) [https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H]</li><li class="footnote" id="footnote-2"><a class="tag is-link" href="#citeref-2">2</a>Pesce D. (2021) [https://ui.adsabs.harvard.edu/abs/2021AJ....161..178P/abstract]</li></ul></section></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../imaging_vis/">« Stokes I Simultaneous Image and Instrument Modeling</a><a class="docs-footer-nextpage" href="../hybrid_imaging/">Hybrid Imaging of a Black Hole »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Monday 17 April 2023 23:33">Monday 17 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+  JULIA_NUM_THREADS = 1</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p><section class="footnotes is-size-7"><ul><li class="footnote" id="footnote-1"><a class="tag is-link" href="#citeref-1">1</a>Hamaker J.P, Bregman J.D., Sault R.J. (1996) [https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H]</li><li class="footnote" id="footnote-2"><a class="tag is-link" href="#citeref-2">2</a>Pesce D. (2021) [https://ui.adsabs.harvard.edu/abs/2021AJ....161..178P/abstract]</li></ul></section></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../imaging_vis/">« Stokes I Simultaneous Image and Instrument Modeling</a><a class="docs-footer-nextpage" href="../hybrid_imaging/">Hybrid Imaging of a Black Hole »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 18 April 2023 03:22">Tuesday 18 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
