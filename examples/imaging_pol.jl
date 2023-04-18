@@ -327,10 +327,10 @@ using AxisKeys
 imgtrue = Comrade.load(joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian.fits"), StokesIntensityMap)
 # Select a reasonable zoom in of the image.
 imgtruesub = imgtrue(Interval(-fovx/2, fovx/2), Interval(-fovy/2, fovy/2))
-# plot(imgtruesub, title="True Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
+plot(imgtruesub, title="True Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
 #-
 img = intensitymap!(copy(imgtruesub), model(xopt, metadata))
-# plot(img, title="Reconstructed Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
+plot(img, title="Reconstructed Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
 
 # Let's compare some image statics, like the total linear polarization fraction
 using Comrade.ComradeBase: linearpol
@@ -376,12 +376,12 @@ gamp_ratio   = caltable(trackcache, exp.(xopt.lgr))
 # phases is very broad, so we can't phase center the image. For realistic data
 # this is always the case since the atmosphere effectively scrambles the phases.
 gphase_prod = caltable(phasecache, xopt.gpp)
-# plot(gphase_prod, layout=(3,3), size=(650,500))
+plot(gphase_prod, layout=(3,3), size=(650,500))
 #-
 # Finally, the product gain amplitudes are all very close to unity as well, as expected since gain corruptions
 # have not been added to the data.
 gamp_prod = caltable(scancache, exp.(xopt.lgp))
-# plot(gamp_prod, layout=(3,3), size=(650,500))
+plot(gamp_prod, layout=(3,3), size=(650,500))
 #-
 # At this point, you should run the sampler to recover an uncertainty estimate,
 # which is identical to every other imaging example

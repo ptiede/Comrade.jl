@@ -115,14 +115,14 @@ xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
 using Plots
-# residual(model(xopt, metadata), dlcamp)
-# residual(model(xopt, metadata), dcphase)
+residual(model(xopt, metadata), dlcamp)
+residual(model(xopt, metadata), dcphase)
 
 # These look pretty reasonable, although maybe they are a bit high. This could probably be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we have recovered a ring-like image reproducing the first EHT results.
 img = intensitymap(model(xopt, metadata), μas2rad(120.0), μas2rad(120.0), 128, 128)
-# plot(img, title="MAP Image")
+plot(img, title="MAP Image")
 
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
@@ -149,11 +149,11 @@ using StatsBase
 imgs = intensitymap.(msamples, μas2rad(120.0), μas2rad(120.0), 128, 128)
 mimg = mean(imgs)
 simg = std(imgs)
-# p1 = plot(mimg, title="Mean Image")
-# p2 = plot(simg./mimg, title="1/SNR")
-# p3 = plot(imgs[1], title="Draw 1")
-# p4 = plot(imgs[end], title="Draw 2")
-# plot(p1, p2, p3, p4, size=(800,800), colorbar=:none)
+p1 = plot(mimg, title="Mean Image")
+p2 = plot(simg./mimg, title="1/SNR")
+p3 = plot(imgs[1], title="Draw 1")
+p4 = plot(imgs[end], title="Draw 2")
+plot(p1, p2, p3, p4, size=(800,800), colorbar=:none)
 
 # And viola, you have a quick and preliminary image of M87 fitting only closure products.
 # For a publication-level version we would recommend
