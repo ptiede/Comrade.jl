@@ -23,7 +23,7 @@ struct InterpolatedImage{I,P} <: AbstractModel
     img::I
     itp::P
     function InterpolatedImage(img::IntensityMap)
-        itp = BicubicInterpolator(img.X, img.Y, img, NoBoundaries())
+        itp = BicubicInterpolator(img.X, img.Y, img, StrictBoundaries())
         return new{typeof(img), typeof(itp)}(img, itp)
     end
 end
@@ -32,7 +32,11 @@ end
 imanalytic(::Type{<:InterpolatedImage})  = IsAnalytic()
 visanalytic(::Type{<:InterpolatedImage}) = NotAnalytic()
 
-intensity_point(m::InterpolatedImage, p) = m.itp(p.X, p.Y)/(step(m.img.X)*step(m.img.Y))
+function intensity_point(m::InterpolatedImage, p)
+    (m.img.X[begin] > p.X || p.X > m.img.X[end]) && return zero(p.X)
+    (m.img.Y[begin] > p.Y || p.Y > m.img.Y[end]) && return zero(p.X)
+    return m.itp(p.X, p.Y)/(step(m.img.X)*step(m.img.Y))
+end
 
 """
     modify(img::IntensityMap, transforms...)
