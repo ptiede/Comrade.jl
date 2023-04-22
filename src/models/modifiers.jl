@@ -395,8 +395,11 @@ end
 Shifts the model by `Δx` units in the x-direction and `Δy` units
 in the y-direction.
 
-An end user should not call this directly but instead
-the [`shifted`](@ref) function instead.
+# Example
+```julia-repl
+julia> modify(Gaussian(), Shift(2.0, 1.0)) == shifted(Gaussian(), 2.0, 1.0)
+true
+```
 """
 struct Shift{T} <: ModelModifier
     Δx::T
@@ -414,7 +417,7 @@ end
 Shifts the model `m` in the image domain by an amount `Δx,Δy`
 in the x and y directions respectively.
 """
-shifted(model, Δx, Δy) = modify(model, Shift(Δx, Δy))
+shifted(model, Δx, Δy) = ModifiedModel(model, Shift(Δx, Δy))
 # This is a simple overload to simplify the type system
 @inline radialextent_modified(r::Real, t::Shift) = r + max(abs(t.Δx), abs(t.Δy))
 
@@ -434,12 +437,10 @@ Renormalizes the flux of the model to the new value `scale*flux(model)`.
 We have also overloaded the Base.:* operator as syntactic sugar
 although I may get rid of this.
 
-An end user should not call this directly but instead
-the [`renormed`](@ref) function or Base.:* instead.
 
 # Example
 ```julia-repl
-julia> renormed(Gaussian(), 2.0) == 2.0*Gaussian()
+julia> modify(Gaussian(), Renormalize(2.0)) == 2.0*Gaussian()
 true
 ```
 """
@@ -460,7 +461,7 @@ julia> renormed(m, f) == f*M
 true
 ```
 """
-renormed(model::M, f) where {M<:AbstractModel} = modify(model, Renormalize(f))
+renormed(model::M, f) where {M<:AbstractModel} = ModifiedModel(model, Renormalize(f))
 Base.:*(model::AbstractModel, f::Number) = renormed(model, f)
 Base.:*(f::Number, model::AbstractModel) = renormed(model, f)
 Base.:/(f::Number, model::AbstractModel) = renormed(model, inv(f))
@@ -482,19 +483,33 @@ flux(t::Renormalize) = t.scale
 
 
 """
-    $(TYPEDEF)
+    Stretch(α, β)
+    Stretch(r)
 
 Stretched the model in the x and y directions, i.e. the new intensity is
     Iₛ(x,y) = 1/(αβ) I(x/α, y/β),
 where were renormalize the intensity to preserve the models flux.
 
-An end user should not call this directly but instead
-the [`stretched`](@ref) function instead.
+# Example
+```julia-repl
+julia> modify(Gaussian(), Stretch(2.0)) == stretched(Gaussian(), 2.0, 1.0)
+true
+```
+
+If only a single argument is given it assumes the same stretch is applied in both direction.
+
+```julia-repl
+julia> Stretch(2.0) == Stretch(2.0, 2.0)
+true
+```
 """
 struct Stretch{T} <: ModelModifier
     α::T
     β::T
 end
+
+
+Stretch(r) = Stretch(r, r)
 
 
 """
@@ -504,7 +519,7 @@ Stretches the model `m` according to the formula
     Iₛ(x,y) = 1/(αβ) I(x/α, y/β),
 where were renormalize the intensity to preserve the models flux.
 """
-stretched(model, α, β) = modify(model, Stretch(α, β))
+stretched(model, α, β) = ModifiedModel(model, Stretch(α, β))
 
 @inline transform_image(m, transform::Stretch, x, y) = (x/transform.α, y/transform.β)
 @inline transform_uv(m, transform::Stretch, u, v) = (u*transform.α, v*transform.β)
@@ -516,21 +531,24 @@ stretched(model, α, β) = modify(model, Stretch(α, β))
 
 
 """
-    $(TYPEDEF)
+    Rotate(ξ)
 
 Type for the rotated model. This is more fine grained constrol of
 rotated model.
 
-An end user should not call this directly but instead
-the [`rotated`](@ref) function instead.
+# Example
+```julia-repl
+julia> modify(Gaussian(), Rotate(2.0)) == rotated(Gaussian(), 2.0)
+true
+```
 """
 struct Rotate{T} <: ModelModifier
     s::T
     c::T
-end
-function Rotate(ξ::F) where {F}
-    s,c = sincos(ξ)
-    return Rotate(s, c)
+    function Rotate(ξ::F) where {F}
+        s,c = sincos(ξ)
+        return new{F}(s, c)
+    end
 end
 
 
@@ -539,7 +557,7 @@ end
 
 Rotates the model by an amount `ξ` in radians in the clockwise direction.
 """
-rotated(model, ξ) = modify(model, Rotate(ξ))
+rotated(model, ξ) = ModifiedModel(model, Rotate(ξ))
 
 """
     $(SIGNATURES)
