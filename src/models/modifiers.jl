@@ -414,7 +414,7 @@ end
 Shifts the model `m` in the image domain by an amount `Δx,Δy`
 in the x and y directions respectively.
 """
-shifted(model, Δx, Δy) = ModifiedModel(model, Shift(Δx, Δy))
+shifted(model, Δx, Δy) = modify(model, Shift(Δx, Δy))
 # This is a simple overload to simplify the type system
 @inline radialextent_modified(r::Real, t::Shift) = r + max(abs(t.Δx), abs(t.Δy))
 
@@ -460,7 +460,7 @@ julia> renormed(m, f) == f*M
 true
 ```
 """
-renormed(model::M, f) where {M<:AbstractModel} = ModifiedModel(model, Renormalize(f))
+renormed(model::M, f) where {M<:AbstractModel} = modify(model, Renormalize(f))
 Base.:*(model::AbstractModel, f::Number) = renormed(model, f)
 Base.:*(f::Number, model::AbstractModel) = renormed(model, f)
 Base.:/(f::Number, model::AbstractModel) = renormed(model, inv(f))
@@ -504,7 +504,7 @@ Stretches the model `m` according to the formula
     Iₛ(x,y) = 1/(αβ) I(x/α, y/β),
 where were renormalize the intensity to preserve the models flux.
 """
-stretched(model, α, β) = ModifiedModel(model, Stretch(α, β))
+stretched(model, α, β) = modify(model, Stretch(α, β))
 
 @inline transform_image(m, transform::Stretch, x, y) = (x/transform.α, y/transform.β)
 @inline transform_uv(m, transform::Stretch, u, v) = (u*transform.α, v*transform.β)
@@ -539,7 +539,7 @@ end
 
 Rotates the model by an amount `ξ` in radians in the clockwise direction.
 """
-rotated(model, ξ) = ModifiedModel(model, Rotate(ξ))
+rotated(model, ξ) = modify(model, Rotate(ξ))
 
 """
     $(SIGNATURES)
