@@ -130,7 +130,7 @@ end
 getm(m::AbstractModel) = m
 getm(m::Tuple) = m[2]
 
-function ChainRulesCore.rrule(::typeof(visibilities_analytic), m::AbstractModel, u::AbstractArray, v::AbstractArray, t::AbstractArray, f::AbstractArray)
+function ChainRulesCore.rrule(::typeof(visibilities_analytic), m::Union{GeometricModel, PolarizedModel, CompositeModel, ModifiedModel}, u::AbstractArray, v::AbstractArray, t::AbstractArray, f::AbstractArray)
     vis = visibilities_analytic(m, u, v, t, f)
     function _composite_visibilities_analytic_pullback(Δ)
         du = zero(u)
