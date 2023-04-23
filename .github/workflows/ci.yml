@@ -11,7 +11,7 @@ jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.group == 'Downstream'}}
+    continue-on-error: ${{ matrix.allow_failure }}
     strategy:
       fail-fast: false
       matrix:
@@ -22,19 +22,24 @@ jobs:
           - ComradeDynesty
           - ComradeOptimization
           - ComradeNested
-        version:
-          - '1'
-          - '1.7'
-          - 'nightly'
-        os:
-          - ubuntu-latest
-        arch:
-          - x64
-        python-version:
-          - '3.10'
-        exclude:
-          - os: macOS-latest
-            arch: x86
+        version: ['1.8', '1']
+        python-version: ['3.10']
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+        arch: [x64]
+        allow_failure: [false]
+        include:
+          - version: 'nightly'
+            os: ubuntu-latest
+            arch: x64
+            allow_failure: true
+          - version: 'nightly'
+            os: macOS-latest
+            arch: x64
+            allow_failure: true
+          - version: 'nightly'
+            os: windows-latest
+            arch: x64
+            allow_failure: true
         
 
     steps:
@@ -49,11 +54,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.arch }}
-      # - run: python -m pip install --upgrade pip
-      # - run: python -m pip install numpy==1.23.1
-      # - run: python -m pip install ipython requests
-      # - run: python -m pip install ehtim
-      # - run: python -m pip install dynesty
 
       - uses: julia-actions/setup-julia@v1
         with:
