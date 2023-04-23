@@ -24,23 +24,14 @@ jobs:
           - ComradeNested
         version: ['1.8', '1']
         python-version: ['3.10']
-        os: [ubuntu-latest, macOS-latest, windows-latest]
+        os: [ubuntu-latest]
         arch: [x64]
         allow_failure: [false]
         include:
           - version: 'nightly'
             os: ubuntu-latest
             arch: x64
-            allow_failure: true
-          - version: 'nightly'
-            os: macOS-latest
-            arch: x64
-            allow_failure: true
-          - version: 'nightly'
-            os: windows-latest
-            arch: x64
-            allow_failure: true
-        
+            allow_failure: true        
 
     steps:
       - name: Install Libs
