@@ -26,13 +26,13 @@ rng = StableRNG(124)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "EHTC_FirstM87Results_Apr2019/uvfits/SR1_M87_2017_100_hi_hops_netcal_StokesI.uvfits"))
+obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs.add_fractional_noise(0.02))
+obs = scan_average(obs.add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9))
 
 # Now we extract our complex visibilities.
 dvis = extract_vis(obs)
@@ -50,21 +50,20 @@ dvis = extract_vis(obs)
 # The model is given below:
 
 function model(θ, metadata)
-    (;fg, cp, lgamp, gphase) = θ
+    (;cp, lgamp, gphase) = θ
     (; grid, cache, gcache, gcachep) = metadata
 
     c = cp.params
     ## Construct the image model we fix the flux to 0.6 Jy in this case
-    rast = (1.1*(1-fg))*alr(c)
+    rast = 0.6*alr(c)
     img = IntensityMap(rast, grid)
     m = ContinuousImage(img,cache)
-    g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(1.1*fg))
     ## Now form our instrument model
     gvis = exp.(lgamp)
     gphase = exp.(1im.*gphase)
     jgamp = jonesStokes(gvis, gcache)
     jgphase = jonesStokes(gphase, gcachep)
-    return JonesModel(jgamp*jgphase, m+g)
+    return JonesModel(jgamp*jgphase, m)
 end
 
 # The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
@@ -105,13 +104,7 @@ cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
 # the timescale we expect them to vary. For the phases we use a station specific scheme where
 # we set AA to be fixed to unit gain because it will function as a reference station.
 gcache = jonescache(dvis, ScanSeg())
-segs = (AA = FixedSeg(1.0 + 0.0im),
-        AP = ScanSeg(),
-        AZ = ScanSeg(),
-        JC = ScanSeg(),
-        LM = ScanSeg(),
-        PV = ScanSeg(),
-        SM = ScanSeg())
+segs = station_tuple(dvis, ScanSeg(); AA=FixedSeg(1.0 + 0.0im))
 gcachep = jonescache(dvis, segs)
 
 # Now we can form our metadata we need to fully define our model.
@@ -126,14 +119,7 @@ metadata = (;grid, cache, gcache, gcachep)
 # we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
 using Distributions
 using DistributionsAD
-distamp = (AA = Normal(0.0, 0.1),
-           AP = Normal(0.0, 0.1),
-           LM = Normal(0.0, 1.0),
-           AZ = Normal(0.0, 0.1),
-           JC = Normal(0.0, 0.1),
-           PV = Normal(0.0, 0.1),
-           SM = Normal(0.0, 0.1),
-           )
+distamp = station_tuple(dvis, Normal(0.0, 0.1); LM=Normal(0.0, 1.0))
 
 # For the phases, as mentioned above, we will use a segmented gain prior.
 # This means that rather than the parameters
@@ -149,14 +135,7 @@ distamp = (AA = Normal(0.0, 0.1),
 #-
 using VLBIImagePriors
 
-distphase = (
-             AP = DiagonalVonMises(0.0, inv(π^2)),
-             LM = DiagonalVonMises(0.0, inv(π^2)),
-             AZ = DiagonalVonMises(0.0, inv(π^2)),
-             JC = DiagonalVonMises(0.0, inv(π^2)),
-             PV = DiagonalVonMises(0.0, inv(π^2)),
-             SM = DiagonalVonMises(0.0, inv(π^2)),
-           )
+distphase = station_tuple(stations(dvis)[2:end], DiagonalVonMises(0.0, inv(π^2)))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -164,8 +143,9 @@ distphase = (
 # which automatically constructs the prior for the given jones cache `gcache`.
 (;X, Y) = grid
 
-
-imgpr = intensitymap(stretched(Gaussian(), μas2rad(25.0), μas2rad(25.0)), grid)
+mpr = modify(Gaussian(), Stretch(μas2rad(30.0))) +
+      5*modify(Gaussian(), Stretch(fovx, fovy))
+imgpr = intensitymap(mpr, grid)
 imgpr ./= flux(imgpr)
 
 
@@ -181,10 +161,9 @@ fmap = let meanpr=meanpr, rat=rat
         x->GaussMarkovRF(meanpr, exp(x.λ)*rat, x.κ, crcache)
 end
 
-cprior = HierarchicalPrior(fmap, Comrade.NamedDist((λ=Normal(0.0, 0.2), κ=truncated(Normal(0.0, 5.0); lower=0.1))))
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((λ=Normal(0.0, 0.1), κ=truncated(Normal(0.0, 10^2); lower=0.1))))
 
 prior = (
-         fg = Uniform(0.0, 1.0),
          cp = cprior,
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
@@ -224,7 +203,7 @@ LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
 using ComradeOptimization
 using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, randn(ndim).*0.1, nothing)
+prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(), maxiters=10_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)))
 
@@ -272,7 +251,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 20_000; nadapts=10_000, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 2_500; nadapts=1_500, init_params=xopt)
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
@@ -306,8 +285,8 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = model.(chain[10_001:50:end], Ref(metadata))
-imgs = intensitymap.(samples, fovx*1.1, fovy*1.1, 128,  128);
+samples = model.(chain[1_501:10:end], Ref(metadata))
+imgs = intensitymap.(samples, fovx*1.1, fovy*1.1, 256,  256);
 
 mimg = mean(imgs)
 simg = std(imgs)
