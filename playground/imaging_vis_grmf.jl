@@ -8,17 +8,17 @@
 # instrument effects, such as time variable gains.
 
 # To get started we load Comrade.
-using Comrade
 
 
 using Pkg #hide
-Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+Pkg.activate(joinpath(@__DIR__, "../examples")) #hide
 
+using Pyehtim
+using Comrade
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(124)
-
 
 
 # ## Load the Data
@@ -26,7 +26,7 @@ rng = StableRNG(124)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+obs = load_uvfits_and_array(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
@@ -143,8 +143,8 @@ distphase = station_tuple(stations(dvis)[2:end], DiagonalVonMises(0.0, inv(π^2)
 # which automatically constructs the prior for the given jones cache `gcache`.
 (;X, Y) = grid
 
-mpr = modify(Gaussian(), Stretch(μas2rad(30.0))) +
-      5*modify(Gaussian(), Stretch(fovx, fovy))
+mpr = modify(Gaussian(), Stretch(μas2rad(25.0))) #+
+      #0.1*modify(Gaussian(), Stretch(fovx, fovy))
 imgpr = intensitymap(mpr, grid)
 imgpr ./= flux(imgpr)
 
@@ -205,7 +205,7 @@ using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=10_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)))
+sol = solve(prob, LBFGS(), maxiters=10_000, g_tol=1e-0, callback=((x,p)->(@info f(x,p); false)))
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
@@ -251,7 +251,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 2_500; nadapts=1_500, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 5_000; nadapts=4_000, init_params=xopt)
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
@@ -285,7 +285,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = model.(chain[1_501:10:end], Ref(metadata))
+samples = model.(chain[2_001:10:end], Ref(metadata))
 imgs = intensitymap.(samples, fovx*1.1, fovy*1.1, 256,  256);
 
 mimg = mean(imgs)
