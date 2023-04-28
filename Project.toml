@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.7.8"
+version = "0.8.0"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -13,7 +13,6 @@ AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
 BasicInterpolators = "26cce99e-4866-4b6d-ab74-862489e035e0"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 ComradeBase = "6d8c423b-a35f-4ef1-850c-862fe21f82c4"
-CondaPkg = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
 DensityInterface = "b429d917-457f-4dbc-8f4c-0cc954292b1d"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
@@ -33,11 +32,11 @@ PaddedViews = "5432bcbf-9aad-5242-b902-cca2824c8663"
 ParameterHandling = "2412ca09-6db7-441c-8e3a-88d5709968c5"
 PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
 RectiGrids = "8ac6971d-971d-971d-971d-971d5ab1a71a"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 Static = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
@@ -60,10 +59,10 @@ AxisKeys = "0.2"
 BasicInterpolators = "0.6, 0.7"
 ChainRulesCore = "1"
 ComradeBase = "0.4"
-CondaPkg = "0.2"
 DensityInterface = "0.4"
 Distributions = "0.24,0.25"
 DocStringExtensions = "0.6,0.7,0.8, 0.9"
+EHTImaging = "0.1"
 Enzyme = "0.11"
 FFTW = "^1"
 FITSIO = "0.16, 0.17"
@@ -78,7 +77,6 @@ PDMats = "0.10, 0.11"
 PaddedViews = "0.5"
 ParameterHandling = "0.4"
 PrettyTables = "1, 2"
-PythonCall = "0.9"
 RecipesBase = "1"
 RectiGrids = "0.1"
 Reexport = "1"
@@ -95,7 +93,14 @@ julia = "^1.6"
 
 [extras]
 CPUSummary = "2a0fbf3d-bb9c-48f3-b0a9-814d99fd7ab9"
+Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["Test", "Pyehtim"]
+
+[weakdeps]
+Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
+
+[extensions]
+ComradeEhtimExt = "Pyehtim"

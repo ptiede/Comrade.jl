@@ -5,8 +5,6 @@ using Printf
 """
     plot(image::IntensityMap)
 
-where `image` is templated off of EHTImage struct.
-
 # Details
 This was created to be close to the ehtim display object. It takes an
 EHTImage object and plots it according to EHT conventions.
@@ -144,13 +142,7 @@ end
 """
     plot(image::AbstractModel)
 
-where `image` is templated off of EHTImage struct.
 
-# Details
-This was created to be close to the ehtim display object. It takes an
-EHTImage object and plots it according to EHT conventions.
-
-Note that is does not save the figure.
 """
 @recipe function f(m::AbstractModel; uvscale=rad2μas,
                    fovx = 2*radialextent(m), fovy=2*radialextent(m),

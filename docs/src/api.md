@@ -186,14 +186,12 @@ Comrade.ScanTable
 ## eht-imaging interface
 
 ```@docs
-Comrade.extract_coherency
-Comrade.extract_amp
-Comrade.extract_cphase
-Comrade.extract_lcamp
-Comrade.extract_vis
-Comrade.load_ehtim_uvfits
-Comrade.load_ehtim
-Comrade.scan_average
+ComradeEHTIMExt.extract_coherency
+ComradeEHTIMExt.extract_amp
+ComradeEHTIMExt.extract_cphase
+ComradeEHTIMExt.extract_lcamp
+ComradeEHTIMExt.extract_vis
+ComradeEHTIMExt.scan_average
 ```
 
 ## Bayesian Tools
