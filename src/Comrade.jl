@@ -44,6 +44,7 @@ using ComradeBase: AbstractDims
 
 
 export rad2μas, μas2rad, logdensity_def, logdensityof
+export rad2μas, μas2rad, logdensity_def, logdensityof
 
 """
     rad2μas(x)
@@ -87,7 +88,7 @@ end
 
 @static if !isdefined(Base, :get_extension)
     function __init__()
-        @require Pyehtim="3d61700d-6e5b-419a-8e22-9c066cf00468" include("../ext/ComradeEhtimExt.jl")
+        @require "3d61700d-6e5b-419a-8e22-9c066cf00468" include("../ext/ComradeEhtimExt.jl")
     end
 end
 

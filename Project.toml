@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.8.0"
+version = "0.7.8"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -63,6 +63,7 @@ ComradeBase = "0.4"
 DensityInterface = "0.4"
 Distributions = "0.24,0.25"
 DocStringExtensions = "0.6,0.7,0.8, 0.9"
+EHTImaging = "0.1"
 Enzyme = "0.11"
 FFTW = "^1"
 FITSIO = "0.16, 0.17"
@@ -98,6 +99,7 @@ ComradeEhtimExt = "Pyehtim"
 [extras]
 CPUSummary = "2a0fbf3d-bb9c-48f3-b0a9-814d99fd7ab9"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
+Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
@@ -105,3 +107,6 @@ test = ["Test", "Pyehtim"]
 
 [weakdeps]
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
+
+[extensions]
+ComradeEhtimExt = "Pyehtim"
