@@ -1,7 +1,7 @@
 module ComradeEHTIMExt
 
 using Comrade
-using EHTImaging
+using Pyehtim
 
 export extract_amp, extract_vis, extract_lcamp, extract_cphase,
        extract_coherency, scan_average
