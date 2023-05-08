@@ -77,6 +77,7 @@ include("inference/inference.jl")
 include("calibration/calibration.jl")
 include("rules.jl")
 include("utility.jl")
+include("clean.jl")
 
 
 # Load extensions using requires for verions < 1.9

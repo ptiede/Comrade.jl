@@ -135,7 +135,7 @@ Base.@kwdef struct NFFTAlg{T,N,F} <: NUFT
     """
     precompute::N=NFFT.TENSOR
     """
-    Flag blcok partioning should be used to speed up computation
+    Flag block partioning should be used to speed up computation
     """
     blocking::Bool = true
     """
