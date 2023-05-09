@@ -4,6 +4,7 @@
 
 
 using Documenter
+using Pyehtim
 using Comrade
 using ComradeBase
 
