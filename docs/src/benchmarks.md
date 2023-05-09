@@ -55,7 +55,6 @@ using Distributions
 using BenchmarkTools
 using ForwardDiff
 
-load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 obs = ehtim.obsdata.load_uvfits((joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 obs = scan_average(obs)
@@ -103,7 +102,6 @@ gℓ = ADgradient(Val(:ForwardDiff), tpost)
 ### eht-imaging Code
 
 ```julia
-load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 obs = ehtim.obsdata.load_uvfits((joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 obs = scan_average(obs)
