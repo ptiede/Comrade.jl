@@ -81,6 +81,7 @@ include("utility.jl")
 include("clean.jl")
 
 
+
 # Load extensions using requires for verions < 1.9
 if !isdefined(Base, :get_extension)
     using Requires
@@ -88,7 +89,7 @@ end
 
 @static if !isdefined(Base, :get_extension)
     function __init__()
-        @require "3d61700d-6e5b-419a-8e22-9c066cf00468" include("../ext/ComradeEhtimExt.jl")
+        @require Pyehtim="3d61700d-6e5b-419a-8e22-9c066cf00468" include(joinpath(@__DIR__, "../ext/ComradePyehtimExt.jl"))
     end
 end
 

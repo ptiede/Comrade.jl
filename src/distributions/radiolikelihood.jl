@@ -2,30 +2,67 @@ export RadioLikelihood, logdensityof, MultiRadioLikelihood, likelihood
 using LinearAlgebra
 using VLBILikelihoods
 
+export vlbimodel
+
 abstract type VLBILikelihood end
 @inline DensityInterface.DensityKind(::VLBILikelihood) = DensityInterface.IsDensity()
 
 
-"""
-    RadioLikelihood(model, data1, data2, ...)
-
-Forms a radio likelihood from a set of data products. These data products must share
-the same array data/configuration. If you want to form a likelihood from multiple arrays
-such as when fitting different wavelengths or days, you can combine them using
-[`MultiRadioLikelihood`](@ref MultiRadioLikelihood)
-
-# Example
-
-```julia-repl
-julia> RadioLikelihood(model, dcphase1, dlcamp1)
-```
-"""
-struct RadioLikelihood{M,T,A,P} <: VLBILikelihood
-    model::M
+struct RadioLikelihood{MS,MI,D,T,A,P} <: VLBILikelihood
+    skymodel::MS
+    instrumentmodel::MI
+    data::D
     lklhds::T
     ac::A
     positions::P
 end
+
+"""
+    skymodel(post::RadioLikelihood, θ)
+
+Returns the sky model or image of a posterior using the parameter values`θ`
+"""
+function skymodel(lklhd::RadioLikelihood, θ)
+    lklhd.skymodel(θ)
+end
+
+"""
+    skymodel(lklhd::RadioLikelihood, θ)
+
+Returns the instrument model of a lklhderior using the parameter values`θ`
+"""
+function instrumentmodel(lklhd::RadioLikelihood, θ)
+    lklhd.instrumentmodel(θ)
+end
+
+"""
+    vlbimodel(post::Posterior, θ)
+
+Returns the instrument model and sky model as a [`VLBIModel`](@ref) of a posterior using the parameter values `θ`
+
+"""
+function vlbimodel(d::RadioLikelihood, θ)
+    skym = skymodel(d, θ)
+    intm = instrumentmodel(d, θ)
+    return VLBIModel(intm, skym)
+end
+
+function vlbimodel(d::RadioLikelihood{F,<:Nothing}, θ) where {F}
+    skym = skymodel(d, θ)
+    return skym
+end
+
+"""
+    dataproducts(d::RadioLikelihood)
+
+Returns the data products you are fitting as a tuple. The order of the tuple corresponds
+to the order of the `dataproducts` argument in [`RadioLikelihood`](@ref).
+"""
+function dataproducts(d::RadioLikelihood)
+    return d.data
+end
+
+
 
 struct ModelMetadata{M, C}
     model::M
@@ -37,18 +74,21 @@ function (m::ModelMetadata)(θ)
 end
 
 
-function RadioLikelihood(model, data::EHTObservation...)
+function _RadioLikelihood(skymodel, instrumentmodel, data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
-    acs = arrayconfig.(data)
+    acs = map(arrayconfig, data)
     positions = getuvtimefreq(data[1].config)
-    #@argcheck acs[1] == acs[2]
-    RadioLikelihood{typeof(model), typeof(ls), typeof(acs[1]), typeof(positions)}(model, ls, acs[1], positions)
+    RadioLikelihood{typeof(skymodel), typeof(instrumentmodel), typeof(data), typeof(ls), typeof(acs[1]), typeof(positions)}(skymodel, instrumentmodel, data, ls, acs[1], positions)
 end
 
 """
-    RadioLikelihood(model, metadata, obs::EHTObservation...)
+    RadioLikelihood(skymodel, instumentmodel, obs, dataproducts::DataProducts...;
+                    skymeta=nothing,
+                    instrumentmeta=nothing)
 
-Creates a RadioLikelihood using the `model` and its related `metadata`. The `model`
+Creates a RadioLikelihood using the `skymodel` its related metadata `skymeta`
+and the `instrumentmodel` and its metadata `instumentmeta`.
+. The `model`
 is a function that converts from parameters `θ` to a Comrade
 AbstractModel which can be used to compute [`visibilities`](@ref) and a set of
 `metadata` that is used by `model` to compute the model.
@@ -65,10 +105,17 @@ needs some precomputed cache to define the model.
 
 cache = create_cache(FFTAlg(), IntensityMap(zeros(128,128), μas2rad(100.0), μas2rad(100.0)))
 
-function model(θ, metadata)
+function skymodel(θ, metadata)
     (; r, a) = θ
+    (; cache) = metadata
     m = stretched(ExtendedRing(a), r, r)
     return modelimage(m, metadata.cache)
+end
+
+function instrumentmodel(g, metadata)
+    (;lg, gp) = g
+    (;gcache) = metadata
+    jonesStokes(lg.*exp.(1im.*gp), gcache)
 end
 
 prior = (
@@ -76,17 +123,63 @@ prior = (
          a = Uniform(0.1, 5.0)
          )
 
-RadioLikelihood(model, (cache = cache), obs)
+RadioLikelihood(skymodel, instrumentmodel, obs, dataproducts::EHTObservation...;
+                 skymeta=(;cache,),
+                 instrumentmeta=(;gcache))
 ```
 """
-function RadioLikelihood(model, metadata::NamedTuple, data::EHTObservation...)
-    ls = Tuple(map(makelikelihood, data))
-    acs = arrayconfig.(data)
-    positions = getuvtimefreq(data[1].config)
-    #@argcheck acs[1] == acs[2]
-    mms = ModelMetadata(model, metadata)
-    RadioLikelihood{typeof(mms), typeof(ls), typeof(acs[1]), typeof(positions)}(mms, ls, acs[1], positions)
+function RadioLikelihood(
+        skymodel,
+        instrumentmodel,
+        dataproducts::EHTObservation...;
+        skymeta = nothing,
+        instrumentmeta = nothing)
+
+    if !isnothing(skymeta)
+        skym = ModelMetadata(skymodel, skymeta)
+    else
+        skym = skymodel
+    end
+
+    if !isnothing(instrumentmeta)
+        intm = ModelMetadata(instrumentmodel, instrumentmeta)
+    else
+        intm = instrumentmodel
+    end
+    return _RadioLikelihood(skym, intm, dataproducts...)
 end
+
+"""
+    RadioLikelihood(skymodel, obs, dataproducts::EHTObservation...; skymeta=nothing)
+
+Forms a radio likelihood from a set of data products using only a sky model.
+This intrinsically assumes that the instrument model is not required since it is perfect.
+This is useful when fitting closure quantities which are independent of the instrument.
+
+If you want to form a likelihood from multiple arrays
+such as when fitting different wavelengths or days, you can combine them using
+[`MultiRadioLikelihood`](@ref MultiRadioLikelihood)
+
+# Example
+
+```julia-repl
+julia> RadioLikelihood(skymodel, obs, ClosurePhase(), LogClosureAmplitude())
+```
+"""
+function RadioLikelihood(
+    skymodel,
+    dataproducts::EHTObservation...;
+    skymeta=nothing)
+
+    if !isnothing(skymeta)
+        skym = ModelMetadata(skymodel, skymeta)
+    else
+        skym = skymodel
+    end
+
+    return _RadioLikelihood(skym, nothing, dataproducts...)
+end
+
 
 
 """
@@ -158,10 +251,9 @@ phase(vis::AbstractArray{<:Complex}) = angle.(vis)
 
 
 
-
 function DensityInterface.logdensityof(d::RadioLikelihood, θ::NamedTuple)
     ac = d.positions
-    m = d.model(θ)
+    m = vlbimodel(d, θ)
     # Convert because of conventions
     vis = visibilities(m, ac)
     return _logdensityofvis(d, vis)
