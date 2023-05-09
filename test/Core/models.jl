@@ -3,6 +3,7 @@ using ChainRulesCore
 using FiniteDifferences
 using Zygote
 using PythonCall
+using FFTW
 
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
@@ -606,28 +607,28 @@ end
 end
 
 
-@testset "DImage Bspline0" begin
+@testset "ContinuousImage Bspline0" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{0}())
     testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-2)
     testft_cimg(cimg)
 end
 
-@testset "DImage BSpline1" begin
+@testset "ContinuousImage BSpline1" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{1}())
     testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-3)
     testft_cimg(cimg)
 end
 
-@testset "DImage BSpline3" begin
+@testset "ContinuousImage BSpline3" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{3}())
     testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
     testft_cimg(cimg)
 end
 
-@testset "DImage Bicubic" begin
+@testset "ContinuousImage Bicubic" begin
     img = intensitymap(shifted(rotated(stretched(smoothed(Ring(), 0.5), 2.0, 1.0), π/8), 0.1, 0.1), 24.0, 24.0, 12, 12)
     cimg = ContinuousImage(img, BicubicPulse())
     testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)

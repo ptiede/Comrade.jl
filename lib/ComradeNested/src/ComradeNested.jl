@@ -1,5 +1,6 @@
 module ComradeNested
 
+using Pyehtim
 using Comrade
 using AbstractMCMC
 using TypedTables

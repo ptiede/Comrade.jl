@@ -1,4 +1,4 @@
-using Comrade, ComradeOptimization, OptimizationOptimJL, Distributions
+using Pyehtim, Comrade, ComradeOptimization, OptimizationOptimJL, Distributions
 using Test
 
 load_ehtim()

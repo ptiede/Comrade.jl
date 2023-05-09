@@ -30,7 +30,7 @@ Abstract type that encompasses all RIME style corruptions.
 """
 abstract type RIMEModel <: AbstractModel end
 
-basemodel(m::RIMEModel) = m.model
+basemodel(m::RIMEModel) = m.sky
 flux(m::RIMEModel) = flux(basemodel(m))
 radialextent(m::RIMEModel) = radialextent(basemodel(m))
 

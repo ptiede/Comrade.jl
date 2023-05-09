@@ -1,6 +1,6 @@
 using Pkg; Pkg.activate(joinpath(@__DIR__, "../examples/"))
 #Make sure you are using the main branch of Comrade and ComradePigeons
-
+using Pyehtim
 using Comrade
 using Distributions
 # Add the interface package
@@ -9,8 +9,9 @@ using Plots
 using StatsBase
 using VLBIImagePriors
 
+
     # To download the data visit https://doi.org/10.25739/g85n-f134
-    obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+    obs = ehtim.obsdata.load_uvfits((joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
     obs.add_scans()
     # kill 0-baselines since we don't care about
     # large scale flux and make scan-average data

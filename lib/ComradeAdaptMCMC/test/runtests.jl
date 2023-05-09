@@ -1,7 +1,6 @@
-using Comrade, ComradeAdaptMCMC, Distributions
+using Pyehtim, Comrade, ComradeAdaptMCMC, Distributions
 using Test
 
-load_ehtim()
 include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
 @testset "ComradeAdaptMCMC.jl" begin
