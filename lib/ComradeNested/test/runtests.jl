@@ -1,4 +1,4 @@
-using Comrade, ComradeNested, Distributions
+using Pyehtim, Comrade, ComradeNested, Distributions
 using Test
 
 include(joinpath(@__DIR__, "../../../test/test_util.jl"))
