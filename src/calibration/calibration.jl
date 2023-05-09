@@ -10,6 +10,15 @@ struct CorruptionModel{J, B}
     jones::J
     refbasis::B
 end
+
+"""
+    CorruptionModel(jones::JonesPairs, refbasis = CirBasis())
+    CorruptionModel(jones::JonesPairs, tcache::TransformCache)
+
+Constructs the intrument corruption model using pairs of jones matrices `jones` and a
+reference basis
+"""
+
 CorruptionModel(jones::J) where {J} = CorruptionModel{J, CirBasis}(jones, CirBasis())
 
 

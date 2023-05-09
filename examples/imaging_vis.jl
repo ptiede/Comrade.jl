@@ -256,7 +256,7 @@ plot(gt, layout=(3,3), size=(600,500))
 # inferences should be appropriately skeptical.
 #-
 using ComradeAHMC
-metric = DenseEuclideanMetric(ndim)
+metric = DiagEuclideanMetric(ndim)
 chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 400; nadapts=200, init_params=xopt)
 #-
 # !!! warning

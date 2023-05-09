@@ -730,7 +730,7 @@ Returns a `JonesPair` of matrices that transform from the model coherency matric
 to the on-sky coherency basis, this includes the feed rotation and choice of polarization feeds.
 """
 jonesT(tcache::TransformCache) = JonesPairs(tcache.T1, tcache.T2)
-
+CorruptionModel(jones::J, tcache::TransformCache) where {J} = CorruptionModel(jones, tcache.refbasis)
 
 
 """
