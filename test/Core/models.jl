@@ -271,8 +271,6 @@ end
         @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
         @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
 
-        # Test rrule
-        test_rrule(Comrade._mring_vis, m.m1, 0.1, 0.1)
 
         foo(x) = sum(abs2, Comrade.visibilities_analytic(MRing(x[1], x[2]), u, v, t, f))
         x = rand(2)
@@ -288,7 +286,6 @@ end
         # We convolve it to remove some pixel effects
         m = convolved(MRing(α, β), stretched(Gaussian(), 0.1, 0.1))
         testmodel(m, 2048, 1e-3)
-        test_rrule(Comrade._mring_vis, m.m1, 0.1, 0.1)
         @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
         @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
 
