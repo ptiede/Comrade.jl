@@ -285,61 +285,61 @@ end
     return vis
 end
 
-function _mring_adjoint(α, β, u, v)
-    T = eltype(α)
-    ρ = hypot(u,v)
-    k = 2π*ρ + eps(T)
-    θ = atan(u,v)
-    vis = complex(besselj0(k))
+# function _mring_adjoint(α, β, u, v)
+#     T = eltype(α)
+#     ρ = hypot(u,v)
+#     k = 2π*ρ + eps(T)
+#     θ = atan(u,v)
+#     vis = complex(besselj0(k))
 
-    j0 = besselj0(k)
-    j1 = besselj1(k)
-    #bj = Base.Fix2(besselj, k)
-    #jn = ntuple(bj, length(α))
+#     j0 = besselj0(k)
+#     j1 = besselj1(k)
+#     #bj = Base.Fix2(besselj, k)
+#     #jn = ntuple(bj, length(α))
 
-    ∂u = -complex(j1*2π*u/ρ)
-    ∂v = -complex(j1*2π*v/ρ)
-    ∂α = zeros(Complex{T}, length(α))
-    ∂β = zeros(Complex{T}, length(α))
+#     ∂u = -complex(j1*2π*u/ρ)
+#     ∂v = -complex(j1*2π*v/ρ)
+#     ∂α = zeros(Complex{T}, length(α))
+#     ∂β = zeros(Complex{T}, length(α))
 
-    ∂ku = 2π*u/ρ
-    ∂kv = 2π*v/ρ
-    ∂θu = v/ρ^2
-    ∂θv = -u/ρ^2
+#     ∂ku = 2π*u/ρ
+#     ∂kv = 2π*v/ρ
+#     ∂θu = v/ρ^2
+#     ∂θv = -u/ρ^2
 
-    for n in eachindex(α, β)
-        s,c = sincos(n*θ)
-        imn = (1im)^n
-        jn = besselj(n,k)
-        ∂α[n] =  2*c*jn*imn
-        ∂β[n] = -2*s*jn*imn
-        dJ = j0 - n/k*jn
-        j0 = jn
+#     for n in eachindex(α, β)
+#         s,c = sincos(n*θ)
+#         imn = (1im)^n
+#         jn = besselj(n,k)
+#         ∂α[n] =  2*c*jn*imn
+#         ∂β[n] = -2*s*jn*imn
+#         dJ = j0 - n/k*jn
+#         j0 = jn
 
-        visargc = 2*imn*(-α[n]*s - β[n]*c)
-        visarg  = 2*imn*(α[n]*c - β[n]*s)
-        vis += visarg*jn
+#         visargc = 2*imn*(-α[n]*s - β[n]*c)
+#         visarg  = 2*imn*(α[n]*c - β[n]*s)
+#         vis += visarg*jn
 
-        ∂u +=  n*visargc*jn*∂θu + visarg*dJ*∂ku
-        ∂v +=  n*visargc*jn*∂θv + visarg*dJ*∂kv
+#         ∂u +=  n*visargc*jn*∂θu + visarg*dJ*∂ku
+#         ∂v +=  n*visargc*jn*∂θv + visarg*dJ*∂kv
 
-    end
-    return vis, ∂α, ∂β, ∂u, ∂v
-end
+#     end
+#     return vis, ∂α, ∂β, ∂u, ∂v
+# end
 
-function ChainRulesCore.rrule(::typeof(_mring_vis), m::MRing, u, v)
-    (;α, β) = m
-    pda = ProjectTo(α)
-    pdb = ProjectTo(β)
-    vis, ∂α, ∂β, ∂u, ∂v = _mring_adjoint(α, β, u, v)
+# function ChainRulesCore.rrule(::typeof(_mring_vis), m::MRing, u, v)
+#     (;α, β) = m
+#     pda = ProjectTo(α)
+#     pdb = ProjectTo(β)
+#     vis, ∂α, ∂β, ∂u, ∂v = _mring_adjoint(α, β, u, v)
 
-    function _mring_pullback(Δv)
-        return (NoTangent(), Tangent{typeof(m)}(α=pda(real.(Δv'.*∂α)), β=pdb((real.(Δv'.*∂β)))), real.(Δv'.*∂u), real.(Δv'.*∂v))
-    end
+#     function _mring_pullback(Δv)
+#         return (NoTangent(), Tangent{typeof(m)}(α=pda(real.(Δv'.*∂α)), β=pdb((real.(Δv'.*∂β)))), real.(Δv'.*∂u), real.(Δv'.*∂v))
+#     end
 
-    return vis, _mring_pullback
+#     return vis, _mring_pullback
 
-end
+# end
 
 """
     $(TYPEDEF)

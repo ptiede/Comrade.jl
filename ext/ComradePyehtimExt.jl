@@ -1,25 +1,18 @@
-export extract_amp, extract_vis, extract_lcamp, extract_cphase,
-       extract_coherency,
-       load_ehtim_uvfits, scan_average
+module ComradePyehtimExt
 
-"""
-    load_ehtim_uvfits(uvfile, arrayfile=nothing; kwargs...)
-
-Load a uvfits file with eht-imaging and returns a eht-imaging `Obsdata`
-object. You can optionally pass an array file as well that will load
-additional information such at the telescopes field rotation information
-with the arrayfile. This is expected to be an eht-imaging produced array
-or antenna file.
-"""
-function load_ehtim_uvfits(uvfile, arrayfile=nothing; kwargs...)
-    PythonCall.pyisnull(ehtim) && load_ehtim()
-    obs = ehtim.obsdata.load_uvfits(uvfile; kwargs...)
-    if arrayfile !== nothing
-        tarr = ehtim.io.load.load_array_txt(arrayfile).tarr
-        obs.tarr = tarr
-    end
-    return obs
+using Comrade
+if isdefined(Base, :get_extension)
+    using Pyehtim
+    using StructArrays: StructVector, StructArray, append!!
+    using LinearAlgebra
+    using StaticArraysCore
+else
+    using ..Pyehtim
+    using ..StructArrays: StructVector, StructArray, append!!
+    using ..LinearAlgebra
+    using ..StaticArraysCore
 end
+
 
 function getvisfield(obs)
     obsamps = obs.data
@@ -57,7 +50,7 @@ function getampfield(obs)
     t2     = pyconvert(Vector{Symbol}, obsamps["t2"])
     baseline = tuple.(t1, t2)
     time = pyconvert(Vector, obsamps["time"])
-    freq = fill(getrf(obs), length(time))
+    freq = fill(get_rf(obs), length(time))
 
     return  StructArray{Comrade.EHTVisibilityAmplitudeDatum{Float64}}(
         measurement = amps,
@@ -86,7 +79,7 @@ function getcpfield(obs)
     t3 = pyconvert(Vector{Symbol}, obscp["t3"])
     baseline = tuple.(t1, t2, t3)
     time = pyconvert(Vector, obscp["time"])
-    freq = fill(getrf(obs), length(time))
+    freq = fill(get_rf(obs), length(time))
 
     return StructArray{Comrade.EHTClosurePhaseDatum{Float64}}(
         measurement = cp,
@@ -123,7 +116,7 @@ function getlcampfield(obs)
     t4 = pyconvert(Vector{Symbol}, obslcamp["t4"])
     baseline = tuple.(t1, t2, t3, t4)
     time = pyconvert(Vector, obslcamp["time"])
-    freq = fill(getrf(obs), length(time))
+    freq = fill(get_rf(obs), length(time))
 
     return StructArray{Comrade.EHTLogClosureAmplitudeDatum{Float64}}(
         measurement = camp,
@@ -172,7 +165,7 @@ function getcoherency(obs)
 
     # get timestamps and frequencies
     time = pyconvert(Vector, obs.data["time"])
-    freq = fill(getrf(obs), length(time))
+    freq = fill(get_rf(obs), length(time))
 
     # get baseline info
     t1 = pyconvert(Vector{Symbol}, obs.data["t1"])
@@ -184,7 +177,7 @@ function getcoherency(obs)
     polbasis = fill(single_polbasis,length(u))
 
     # prepare output
-    output = StructArray{EHTCoherencyDatum{eltype(u),
+    output = StructArray{Comrade.EHTCoherencyDatum{eltype(u),
                          typeof(single_polbasis[1]),
                          typeof(single_polbasis[2]),
                          eltype(cohmat),
@@ -204,26 +197,6 @@ function getcoherency(obs)
 end
 
 
-function getradec(obs)::Tuple{Float64, Float64}
-    return (pyconvert(Float64, obs.ra), pyconvert(Float64, obs.dec))
-end
-
-function getmjd(obs)::Int
-    return pyconvert(Int, obs.mjd)
-end
-
-function getsource(obs)::Symbol
-    return pyconvert(Symbol, obs.source)
-end
-
-getrf(obs) = pyconvert(Float64, obs.rf)
-getbw(obs) = pyconvert(Float64, obs.bw)
-
-function getscantable(obs)
-    obs.add_scans()
-    sc = pyconvert(Matrix, obs.scans)
-    return Table((start=sc[:,1], stop = sc[:,2]))
-end
 
 
 """
@@ -234,20 +207,20 @@ Any valid keyword arguments to `add_amp` in ehtim can be passed through extract_
 
 Returns an EHTObservation with visibility amplitude data
 """
-function extract_amp(obsc; kwargs...)
+function Comrade.extract_amp(obsc; kwargs...)
     obs = obsc.copy()
     obs.add_scans()
     obs.reorder_tarr_snr()
     obs.add_amp(;kwargs...)
     data = getampfield(obs)
-    ra, dec = getradec(obs)
-    mjd = getmjd(obs)
-    source = getsource(obs)
-    bw = getbw(obs)
+    ra, dec = get_radec(obs)
+    mjd = get_mjd(obs)
+    source = get_source(obs)
+    bw = get_bw(obs)
     angles = get_fr_angles(obs)
-    tarr = make_array_table(obsc)
-    scans = getscantable(obsc)
-    ac = _arrayconfig(data, angles, tarr, scans, bw)
+    tarr = Pyehtim.get_arraytable(obsc)
+    scans = get_scantable(obsc)
+    ac = Comrade._arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    config = ac,
@@ -256,17 +229,7 @@ function extract_amp(obsc; kwargs...)
     )
 end
 
-function get_fr_angles(ehtobs)
-    el1 = pyconvert(Vector, ehtobs.unpack(pylist(["el1"]),ang_unit="rad")["el1"])
-    el2 = pyconvert(Vector, ehtobs.unpack(pylist(["el2"]),ang_unit="rad")["el2"])
-
-    # read parallactic angles for each station
-    par1 = pyconvert(Vector, ehtobs.unpack(pylist(["par_ang1"]),ang_unit="rad")["par_ang1"])
-    par2 = pyconvert(Vector, ehtobs.unpack(pylist(["par_ang2"]),ang_unit="rad")["par_ang2"])
-    return (el1, el2), (par1, par2)
-end
-
-function make_array_table(obs)
+function get_arraytable(obs)
     return Table(
         sites = pyconvert(Vector{Symbol}, obs.tarr["site"]),
         X     = pyconvert(Vector, obs.tarr["x"]),
@@ -281,30 +244,32 @@ function make_array_table(obs)
 end
 
 
+
+
 """
-    extract_vis(obs)
+    extract_vis(obs; kwargs...)
 Extracts the complex visibilities from an ehtim observation object
 
 This grabs the raw `data` object from the obs object. Any keyword arguments are ignored.
 
 Returns an EHTObservation with complex visibility data
 """
-function extract_vis(obsc; kwargs...)
+function Comrade.extract_vis(obsc; kwargs...)
     obs = obsc.copy()
     obs.add_scans()
     obs.reorder_tarr_snr()
 
     data = getvisfield(obs)
-    ra, dec = getradec(obs)
-    mjd = getmjd(obs)
-    source = getsource(obs)
-    bw = getbw(obs)
-    rf = getrf(obs)
+    ra, dec = get_radec(obs)
+    mjd = get_mjd(obs)
+    source = get_source(obs)
+    bw = get_bw(obs)
+    rf = get_rf(obs)
     angles = get_fr_angles(obs)
-    tarr = make_array_table(obsc)
+    tarr = Pyehtim.get_arraytable(obsc)
     sc = pyconvert(Matrix, obs.scans)
-    scans = getscantable(obs)
-    ac = _arrayconfig(data, angles, tarr, scans, bw)
+    scans = get_scantable(obs)
+    ac = Comrade._arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(
                    data = data, mjd = mjd,
                    config=ac,
@@ -315,27 +280,27 @@ function extract_vis(obsc; kwargs...)
 end
 
 """
-    extract_coherency(obs)
+    extract_coherency(obs; kwargs...)
 Extracts the coherency matrix from an ehtim observation object
 
 This grabs the raw `data` object from the obs object. Any keyword arguments are ignored.
 
 Returns an EHTObservation with coherency matrix
 """
-function extract_coherency(obsc)
+function Comrade.extract_coherency(obsc; kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
     obs.add_scans()
     data = getcoherency(obs)
-    ra, dec = Comrade.getradec(obs)
-    mjd = Comrade.getmjd(obs)
-    source = Comrade.getsource(obs)
-    bw = getbw(obs)
-    rf = getrf(obs)
+    ra, dec = get_radec(obs)
+    mjd = get_mjd(obs)
+    source = get_source(obs)
+    bw = get_bw(obs)
+    rf = get_rf(obs)
     angles = get_fr_angles(obs)
-    tarr = make_array_table(obs)
-    scans = getscantable(obs)
-    ac = _arrayconfig(data, angles, tarr, scans, bw)
+    tarr = Pyehtim.get_arraytable(obs)
+    scans = get_scantable(obs)
+    ac = Comrade._arrayconfig(data, angles, tarr, scans, bw)
     return Comrade.EHTObservation(data = data, mjd = mjd,
                    ra = ra, dec= dec,
                    config = ac,
@@ -346,7 +311,7 @@ end
 
 
 
-function closure_designmat(scancp::Scan{A,B,C}, scanvis) where {A,B,C<:StructArray{<:EHTClosurePhaseDatum}}
+function closure_designmat(scancp::Comrade.Scan{A,B,C}, scanvis) where {A,B,C<:StructArray{<:Comrade.EHTClosurePhaseDatum}}
     ant1, ant2, ant3 = baselines(scancp)
     antvis1, antvis2 = baselines(scanvis)
     design_mat = zeros(length(scancp), length(scanvis))
@@ -371,7 +336,7 @@ function closure_designmat(scancp::Scan{A,B,C}, scanvis) where {A,B,C<:StructArr
     return design_mat
 end
 
-function closure_designmat(scanlca::Scan{A,B,C}, scanvis) where {A,B,C<:StructArray{<:EHTLogClosureAmplitudeDatum}}
+function closure_designmat(scanlca::Comrade.Scan{A,B,C}, scanvis) where {A,B,C<:StructArray{<:Comrade.EHTLogClosureAmplitudeDatum}}
     ant1, ant2, ant3, ant4 = baselines(scanlca)
     antvis1, antvis2 = baselines(scanvis)
     design_mat = zeros(length(scanlca), length(scanvis))
@@ -411,19 +376,19 @@ function minimal_lcamp(obsc; kwargs...)
     stlca = scantable(lcamp)
 
     #Now make the vis obs
-    dvis = extract_vis(obsc)
+    dvis = Comrade.extract_vis(obsc)
     st = scantable(dvis)
 
     minset, dmat = _minimal_closure(stlca, st)
 
     # now create EHTObservation
-    ra, dec = getradec(obs)
-    mjd = getmjd(obs)
-    source = getsource(obs)
-    bw = getbw(obs)
+    ra, dec = get_radec(obs)
+    mjd = get_mjd(obs)
+    source = get_source(obs)
+    bw = get_bw(obs)
     # ac = arrayconfig(dvis)
-    clac = ClosureConfig(dvis, dmat)
-    return EHTObservation(data = minset, mjd = mjd,
+    clac = Comrade.ClosureConfig(dvis, dmat)
+    return Comrade.EHTObservation(data = minset, mjd = mjd,
                           config=clac,
                           ra = ra, dec= dec,
                           bandwidth=bw,
@@ -445,13 +410,13 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
 
     obs.add_cphase(;count=count, kwargs...)
     data = getcpfield(obs)
-    ra, dec = getradec(obs)
-    mjd = getmjd(obs)
-    source = getsource(obs)
-    bw = getbw(obs)
+    ra, dec = get_radec(obs)
+    mjd = get_mjd(obs)
+    source = get_source(obs)
+    bw = get_bw(obs)
 
 
-    cphase = EHTObservation(data = data, mjd = mjd,
+    cphase = Comrade.EHTObservation(data = data, mjd = mjd,
                    config=nothing,
                    ra = ra, dec= dec,
                    bandwidth=bw,
@@ -461,7 +426,7 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
     stcp = scantable(cphase)
 
     #Now make the vis obs
-    dvis = extract_vis(obsc)
+    dvis = Comrade.extract_vis(obsc)
     st = scantable(dvis)
     S = eltype(dvis[:error])
 
@@ -491,8 +456,8 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
     end
 
     # ac = arrayconfig(dvis)
-    clac = ClosureConfig(dvis, dmat)
-    return  EHTObservation(data = data, mjd = mjd,
+    clac = Comrade.ClosureConfig(dvis, dmat)
+    return  Comrade.EHTObservation(data = data, mjd = mjd,
                            config=clac,
                            ra = ra, dec= dec,
                            bandwidth=bw,
@@ -507,12 +472,12 @@ function _make_lcamp(obsc, count="max"; kwargs...)
 
     obs.add_logcamp(;count=count, kwargs...)
     data = getlcampfield(obs)
-    ra, dec = getradec(obs)
-    mjd = getmjd(obs)
-    source = getsource(obs)
-    bw = getbw(obs)
+    ra, dec = get_radec(obs)
+    mjd = get_mjd(obs)
+    source = get_source(obs)
+    bw = get_bw(obs)
 
-    return EHTObservation(data = data, mjd = mjd,
+    return Comrade.EHTObservation(data = data, mjd = mjd,
                    config=nothing,
                    ra = ra, dec= dec,
                    bandwidth=bw,
@@ -528,7 +493,7 @@ function _ehtim_lcamp(obsc; count="max", kwargs...)
     stlca = scantable(lcamp)
 
     #Now make the vis obs
-    dvis = extract_vis(obsc)
+    dvis = Comrade.extract_vis(obsc)
     st = scantable(dvis)
     S = eltype(dvis[:U])
 
@@ -559,8 +524,8 @@ function _ehtim_lcamp(obsc; count="max", kwargs...)
 
 
     # ac = arrayconfig(dvis)
-    clac = ClosureConfig(dvis, dmat)
-    return  EHTObservation(data = lcamp.data, mjd = lcamp.mjd,
+    clac = Comrade.ClosureConfig(dvis, dmat)
+    return  Comrade.EHTObservation(data = lcamp.data, mjd = lcamp.mjd,
                            config=clac,
                            ra = lcamp.ra, dec= lcamp.dec,
                            bandwidth=lcamp.bandwidth,
@@ -580,18 +545,18 @@ function minimal_cphase(obsc; kwargs...)
     stcp = scantable(cphase)
 
     #Now make the vis obs
-    dvis = extract_vis(obsc)
+    dvis = Comrade.extract_vis(obsc)
     st = scantable(dvis)
 
     minset, dmat = _minimal_closure(stcp, st)
     # now create EHTObservation
-    ra, dec = getradec(obs)
-    mjd = getmjd(obs)
-    source = getsource(obs)
-    bw = getbw(obs)
+    ra, dec = get_radec(obs)
+    mjd = get_mjd(obs)
+    source = get_source(obs)
+    bw = get_bw(obs)
     # ac = arrayconfig(dvis)
-    clac = ClosureConfig(dvis, dmat)
-    return EHTObservation(data = minset, mjd = mjd,
+    clac = Comrade.ClosureConfig(dvis, dmat)
+    return Comrade.EHTObservation(data = minset, mjd = mjd,
                           config=clac,
                           ra = ra, dec= dec,
                           bandwidth=bw,
@@ -599,33 +564,7 @@ function minimal_cphase(obsc; kwargs...)
                         )
 end
 
-"""
-    scan_average(obs; homogenize=true)
 
-This homogenizes the scan times for an eht-imaging `Obsdata` object. This is needed
-because eht-imaging has a bug that will sometimes create very small scans and
-this can mess up both the closure construction and the gain scan times.
-Note that this is only a problem if we
-are fitting **scan averaged** data.
-"""
-function scan_average(obs)
-    obsc = obs.copy()
-    obsc.add_scans()
-    obsc = obsc.avg_coherent(0.0, scan_avg=true)
-    stimes = pyconvert(Matrix, obsc.scans)
-    times = pyconvert(Vector, obsc.data["time"])
-    @info "Before homogenizing we have $(length(unique(times))) unique times"
-
-    for r in eachrow(stimes)
-        sbegin, send = r
-        indices = findall(x-> (sbegin < x <= send), times)
-        times[indices] .= (send+sbegin)/2
-    end
-    obsc.data["time"] = pylist(times)
-    @info "After homogenizing we have $(length(unique(pyconvert(Vector, obsc.data["time"])))) unique times"
-
-    return obsc
-end
 
 
 function _minimal_closure(stcl, st)
@@ -774,7 +713,7 @@ options are also included. However, the current `ehtim` count="min" option is br
 and does construct proper minimal sets of closure quantities if the array isn't fully connected.
 
 """
-function extract_cphase(obs; count="min-correct", cut_trivial=false, uvmin=0.1e9,  kwargs...)
+function Comrade.extract_cphase(obs; count="min-correct", cut_trivial=false, uvmin=0.1e9,  kwargs...)
     if count == "min-correct"
         return minimal_cphase(obs; cut_trivial, uvmin, kwargs...)
     else
@@ -785,7 +724,7 @@ end
 
 
 """
-    extract_lcamp(obs)
+    extract_lcamp(obs; kwargs...)
 Extracts the log-closure amp. from an ehtim observation object
 
 Any valid keyword arguments to `add_logcamp` in ehtim can be passed through extract_lcamp.
@@ -805,10 +744,13 @@ options are also included. However, the current `ehtim` count="min" option is br
 and does construct proper minimal sets of closure quantities if the array isn't fully connected.
 
 """
-function extract_lcamp(obs; count="min-correct", kwargs...)
+function Comrade.extract_lcamp(obs; count="min-correct", kwargs...)
     if count == "min-correct"
         return minimal_lcamp(obs; kwargs...)
     else
         return _ehtim_lcamp(obs; count=count, kwargs...)
     end
+end
+
+
 end

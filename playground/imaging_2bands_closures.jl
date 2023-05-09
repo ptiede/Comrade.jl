@@ -12,7 +12,6 @@ using RadioImagePriors
 using DistributionsAD
 
 # load eht-imaging we use this to load eht data
-load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 obslo = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 obshi = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))

@@ -16,7 +16,6 @@ using PyCall
 using Printf
 using Serialization
 
-load_ehtim()
 
 @pyimport numpy as np
 

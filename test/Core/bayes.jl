@@ -5,8 +5,8 @@ using StatsBase
 using Plots
 using LogDensityProblems
 using LogDensityProblemsAD
+using Pyehtim
 
-load_ehtim()
 
 
 @testset "bayes" begin
@@ -100,7 +100,8 @@ end
     lklhd_cp = RadioLikelihood(test_model, cphase)
     lklhd_lc = RadioLikelihood(test_model, lcamp)
     lklhd_vis = RadioLikelihood(test_model, vis)
-    lklhd_coh = RadioLikelihood(test_model_polarized, (;tcache), coh)
+    lklhd_coh = RadioLikelihood(test_skymodel_polarized, test_instrumentmodel_polarized, coh;
+                                skymeta = (;lp = 0.1), instrumentmeta=(;tcache))
 
 
     prior = test_prior()
@@ -128,7 +129,7 @@ using FiniteDifferences
     mfd = central_fdm(5,1)
     @testset "DFT" begin
         mt = (fovx = μas2rad(150.0), fovy=μas2rad(150.0), nx=256, ny=256, alg=DFTAlg())
-        lklhd = RadioLikelihood(test_model2, mt, lcamp, cphase)
+        lklhd = RadioLikelihood(test_model2, lcamp, cphase; skymeta=mt)
 
         prior = test_prior2()
 
@@ -145,7 +146,7 @@ using FiniteDifferences
 
     @testset "NFFT" begin
         mt = (fovx = μas2rad(150.0), fovy=μas2rad(150.0), nx=256, ny=256, alg=NFFTAlg(lcamp))
-        lklhd = RadioLikelihood(test_model2, mt, lcamp, cphase)
+        lklhd = RadioLikelihood(test_model2, lcamp, cphase; skymeta=mt)
 
         prior = test_prior2()
 
@@ -162,7 +163,7 @@ using FiniteDifferences
 
     @testset "FFT" begin
         mt = (fovx = 10.0, fovy=10.0, nx=256, ny=256, alg=FFTAlg())
-        lklhd = RadioLikelihood(test_model2, mt, lcamp, cphase)
+        lklhd = RadioLikelihood(test_model2, lcamp, cphase; skymeta=mt)
 
         prior = test_prior2()
 

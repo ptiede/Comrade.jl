@@ -92,13 +92,15 @@ using Comrade
 using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
+using Pyehtim
+
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(123)
 
 
 # Now we will load some synthetic polarized data.
-obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian_nogains_withdterms_withfr.uvfits"),
+obs = Pyehtim.load_uvfits_and_array(joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian_nogains_withdterms_withfr.uvfits"),
                         joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/array.txt"))
 # Notice that, unlike other non-polarized tutorials, we need to include a second argument.
 # This is the **array file** of the observation and is required to determine the feed rotation
@@ -108,13 +110,13 @@ obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "Po
 obs = scan_average(obs)
 #-
 # Now we extract our observed/corrupted coherency matrices.
-dvis = extract_coherency(obs)
+dvis = extract_table(obs, Coherencies())
 
 # ##Building the Model/Posterior
 
 
 # To build the model, we first break it down into two parts:
-#    1. **The image model**. In Comrade, all polarized image models are written in terms of the Stokes parameters.
+#    1. **The image or sky model**. In Comrade, all polarized image models are written in terms of the Stokes parameters.
 #       The reason for using Stokes parameters is that it is usually what physical models consider and is
 #       the often easiest to reason about since they are additive. In this tutorial, we will use a polarized image model based on Pesce (2021)[^2].
 #       This model parameterizes the polarized image in terms of the [`Poincare sphere`](https://en.wikipedia.org/wiki/Unpolarized_light#Poincar%C3%A9_sphere),
@@ -129,9 +131,9 @@ dvis = extract_coherency(obs)
 #       the total number of parameters we need to model.
 
 
-function model(θ, metadata)
-    (;c, f, p, angparams, dRx, dRy, dLx, dLy, lgp, gpp, lgr, gpr) = θ
-    (; grid, cache, tcache, scancache, trackcache, phasecache) = metadata
+function sky(θ, metadata)
+    (;c, f, p, angparams) = θ
+    (; grid, cache) = metadata
     ## Construct the image model
     ## produce Stokes images from parameters
     imgI = f*c
@@ -139,6 +141,13 @@ function model(θ, metadata)
     pimg = PoincareSphere2Map(imgI, p, angparams, grid)
     m = ContinuousImage(pimg, cache)
 
+    return m
+end
+
+
+function instrument(θ, metadata)
+    (; lgp, gpp, lgr, gpr, dRx, dRy, dLx, dLy) = θ
+    (; tcache, scancache, phasecache, trackcache) = metadata
     ## Now construct the basis transformation cache
     jT = jonesT(tcache)
 
@@ -156,7 +165,7 @@ function model(θ, metadata)
     J = Gpa*Gpp*Gr*D*jT
     ## form the complete Jones or RIME model. We use tcache here
     ## to set the reference basis of the model.
-    return JonesModel(J, m, tcache)
+    return CorruptionModel(J, tcache)
 end
 
 # Now, we define the model metadata required to build the model.
@@ -170,6 +179,7 @@ grid = imagepixels(fovx, fovy, nx, ny) # image grid
 buffer = IntensityMap(zeros(nx, ny), grid) # buffer to store temporary image
 pulse = BSplinePulse{3}() # pulse we will be using
 cache = create_cache(NFFTAlg(dvis), buffer, pulse) # cache to define the NFFT transform
+skymeta = (;cache, grid)
 
 # To define the instrument models, $T$, $G$, $D$, we need to build some Jones caches (see [`JonesCache`](@ref)) that map from a flat
 # vector of gain/dterms to the specific sites for each baseline.
@@ -190,7 +200,7 @@ phasecache = jonescache(dvis, phase_segs)
 # Finally, we define our cache that maps quantities, e.g., gain ratios and d-terms, that are constant
 # across a observation night, and we collect everything together.
 trackcache = jonescache(dvis, TrackSeg())
-metadata = (;cache, grid, tcache, scancache, trackcache, phasecache)
+instrumentmeta = (;tcache, scancache, trackcache, phasecache)
 
 # Moving onto our prior, we first focus on the instrument model priors.
 # Each station gain requires its own prior on both the amplitudes and phases.
@@ -278,7 +288,7 @@ prior = (
 
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling.
-lklhd = RadioLikelihood(model, metadata, dvis)
+lklhd = RadioLikelihood(sky, instrument, dvis; skymeta, instrumentmeta)
 post = Posterior(lklhd, prior)
 
 # ## Reconstructing the Image and Instrument Effects
@@ -306,7 +316,7 @@ using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 ℓ = logdensityof(tpost)
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(), maxiters=15_000, callback=((x,p)->(@info ℓ(x);false)), g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=15_000, g_tol=1e-0);
 
 # !!! warning
 #     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that
@@ -318,7 +328,7 @@ xopt = transform(tpost, sol)
 
 # Now let's evaluate our fits by plotting the residuals
 using Plots
-residual(model(xopt, metadata), dvis)
+residual(vlbimodel(post, xopt), dvis)
 
 # These look reasonable, although there may be some minor overfitting.
 # Let's compare our results to the ground truth values we know in this example.
@@ -329,7 +339,7 @@ imgtrue = Comrade.load(joinpath(dirname(pathof(Comrade)), "..", "examples", "Pol
 imgtruesub = imgtrue(Interval(-fovx/2, fovx/2), Interval(-fovy/2, fovy/2))
 plot(imgtruesub, title="True Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
 #-
-img = intensitymap!(copy(imgtruesub), model(xopt, metadata))
+img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
 plot(img, title="Reconstructed Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
 
 # Let's compare some image statics, like the total linear polarization fraction

@@ -19,28 +19,27 @@ end
 padimage(alg::ObservedNUFT, img::IntensityMapTypes) = padimage(alg.alg, img)
 
 
-
 function create_cache(alg::ObservedNUFT, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
-    pimg = padimage(alg, img)
+    # pimg = padimage(alg, img)
 
     # make nuft plan
-    plan = plan_nuft(alg, pimg)
+    plan = plan_nuft(alg, img)
     # get phases and pulse functions
     phases = make_phases(alg, img, pulse)
 
-    return create_cache(alg, plan, phases, pimg, pulse)
+    return create_cache(alg, plan, phases, img, pulse)
 end
 
 function create_cache(alg::NUFT, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
-    pimg = padimage(alg, img)
-    return NUFTCache(alg, nothing, nothing, pulse, pimg)
+    # pimg = padimage(alg, img)
+    return NUFTCache(alg, nothing, nothing, pulse, img)
 end
 
 function update_cache(cache::NUFTCache, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
-    pimg = padimage(cache.alg, img)
-    cache2 = update_phases(cache, img, pulse)
-    dx, dy = pixelsizes(img)
-    create_cache(cache2.alg, cache2.plan, cache2.phases, pimg, pulse)
+    # # pimg = padimage(cache.alg, img)
+    # cache2 = update_phases(cache, img, pulse)
+    return create_cache(cache.alg, cache.plan, cache.phases, img, pulse)
+    # return cache
 end
 
 function update_phases(cache::NUFTCache, img::IntensityMapTypes, pulse::Pulse)
@@ -77,17 +76,17 @@ ChainRulesCore.@non_differentiable checkuv(alg, u::AbstractArray, v::AbstractArr
 function visibilities_numeric(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I<:IntensityMap,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
-    vis =  nuft(m.cache.plan, complex.(m.cache.img))
+    vis =  nuft(m.cache.plan, complex.(Comrade.baseimage(m.cache.img)))
     return conj.(vis).*m.cache.phases
 end
 
 function visibilities_numeric(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I<:StokesIntensityMap,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
-    visI =  conj.(nuft(m.cache.plan, complex.(stokes(m.cache.img, :I)))).*m.cache.phases
-    visQ =  conj.(nuft(m.cache.plan, complex.(stokes(m.cache.img, :Q)))).*m.cache.phases
-    visU =  conj.(nuft(m.cache.plan, complex.(stokes(m.cache.img, :U)))).*m.cache.phases
-    visV =  conj.(nuft(m.cache.plan, complex.(stokes(m.cache.img, :V)))).*m.cache.phases
+    visI =  conj.(nuft(m.cache.plan, complex.(Comrade.baseimage(stokes(m.cache.img, :I))))).*m.cache.phases
+    visQ =  conj.(nuft(m.cache.plan, complex.(Comrade.baseimage(stokes(m.cache.img, :Q))))).*m.cache.phases
+    visU =  conj.(nuft(m.cache.plan, complex.(Comrade.baseimage(stokes(m.cache.img, :U))))).*m.cache.phases
+    visV =  conj.(nuft(m.cache.plan, complex.(Comrade.baseimage(stokes(m.cache.img, :V))))).*m.cache.phases
     r = StructArray{StokesParams{eltype(visI)}}((I=visI, Q=visQ, U=visU, V=visV))
     return r
 end

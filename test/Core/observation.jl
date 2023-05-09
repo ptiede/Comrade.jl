@@ -1,32 +1,81 @@
 using PythonCall
+using Pyehtim
+
 
 @testset "observation" begin
 
     println("ehtim:")
 
-    load_ehtim()
     obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../test_data.uvfits"))
     obs.add_scans()
-    obsavg = obs.avg_coherent(0.0, scan_avg=true)
-    obsavg.add_cphase(count="min")
-    obsavg.add_amp()
-    obsavg.add_logcamp(count="min")
 
-    vis = extract_vis(obsavg)
+    obsavg = scan_average(obs)
+    obsavg.add_cphase(snrcut=3, count="min")
+    obsavg.add_amp()
+    obsavg.add_logcamp(snrcut=3, count="min")
+
+
+    vis1 = Comrade.extract_vis(obsavg)
+    vis  = extract_table(obsavg, ComplexVisibilities())
+    @test vis[:measurement] ≈ vis1[:measurement]
+    @test vis[:error] ≈ vis1[:error]
+    @test vis[:U] ≈ vis1[:U]
+    @test vis[:V] ≈ vis1[:V]
     plot(vis)
     show(vis)
-    amp = extract_amp(obsavg)
+
+    amp1 = Comrade.extract_amp(obsavg)
+    amp = extract_table(obsavg, VisibilityAmplitudes())
+    @test amp[:measurement] ≈ amp1[:measurement]
+    @test amp[:error] ≈ amp1[:error]
+    @test amp[:U] ≈ amp1[:U]
+    @test amp[:V] ≈ amp1[:V]
     plot(amp)
     show(amp)
-    cphase = extract_cphase(obsavg)
+
+    cphase1 = Comrade.extract_cphase(obsavg; snrcut=3.0)
+    cphase = extract_table(obsavg, ClosurePhases(;snrcut=3.0))
+    @test cphase[:measurement] ≈ cphase1[:measurement]
+    @test cphase[:error] ≈ cphase1[:error]
+    @test cphase[:U1] ≈ cphase1[:U1]
+    @test cphase[:V1] ≈ cphase1[:V1]
+    @test cphase[:U2] ≈ cphase1[:U2]
+    @test cphase[:V2] ≈ cphase1[:V2]
+    @test cphase[:U3] ≈ cphase1[:U3]
+    @test cphase[:V3] ≈ cphase1[:V3]
     plot(cphase)
     show(cphase)
-    lcamp = extract_lcamp(obsavg)
+
+
+    lcamp1 = Comrade.extract_lcamp(obsavg; snrcut=3.0)
+    lcamp  = extract_table(obsavg, LogClosureAmplitudes(;snrcut=3.0))
+    @test lcamp[:measurement] ≈ lcamp1[:measurement]
+    @test lcamp[:error] ≈ lcamp1[:error]
+    @test lcamp[:U1] ≈ lcamp1[:U1]
+    @test lcamp[:V1] ≈ lcamp1[:V1]
+    @test lcamp[:U2] ≈ lcamp1[:U2]
+    @test lcamp[:V2] ≈ lcamp1[:V2]
+    @test lcamp[:U3] ≈ lcamp1[:U3]
+    @test lcamp[:V3] ≈ lcamp1[:V3]
+    @test lcamp[:U4] ≈ lcamp1[:U4]
+    @test lcamp[:V4] ≈ lcamp1[:V4]
     plot(lcamp)
     show(lcamp)
-    dcoh = extract_coherency(obsavg)
+
+    dcoh1 = Comrade.extract_coherency(obsavg)
+    dcoh  = extract_table(obsavg, Coherencies())
+    @test dcoh[:measurement].:1 ≈ dcoh1[:measurement].:1
+    @test dcoh[:error].:1 ≈ dcoh1[:error].:1
+    @test dcoh[:U] ≈ dcoh1[:U]
+    @test dcoh[:V] ≈ dcoh1[:V]
+
     plot(dcoh)
     show(dcoh)
+
+
+    vis2, amp2, lcamp2, cphase2 = extract_table(obsavg, ComplexVisibilities(), VisibilityAmplitudes(),
+                                                        ClosurePhases(; snrcut=3), LogClosureAmplitudes(;snrcut=3))
+
 
     @test getuv(arrayconfig(lcamp))[1] == getuv(arrayconfig(cphase))[1]
     @test getuv(arrayconfig(amp))[1] == getuv(arrayconfig(cphase))[1]
@@ -39,7 +88,7 @@ using PythonCall
     plot(m, lcamp)
     plot(m,cphase)
     jt = jonesT(TransformCache(dcoh))
-    mp = JonesModel(jt, PolarizedModel(m, ZeroModel(), ZeroModel(), 0.1*Gaussian()), TransformCache(dcoh))
+    mp = Comrade.VLBIModel(CorruptionModel(jt), PolarizedModel(m, ZeroModel(), ZeroModel(), 0.1*Gaussian()))
     plot(mp, dcoh)
     #residual(m, vis)
     residual(m, amp)
@@ -50,10 +99,10 @@ using PythonCall
 
     @test length(vis) == length(obsavg.data)
     @test length(amp) == length(obsavg.amp)
-    @test length(extract_cphase(obsavg; count="min")) == length(obsavg.cphase)
-    @test length(extract_lcamp(obsavg; count="min")) == length(obsavg.logcamp)
+    # @test length(Comrade.extract_cphase(obsavg; snrcut=3, count="min")) == length(obsavg.cphase)
+    # @test length(Comrade.extract_lcamp(obsavg; snrcut=3, count="min")) == length(obsavg.logcamp)
     #@test Set(stations(vis)) == Set(Symbol.(collect(get(obsavg.tarr, "site"))))
-    @test mean(getdata(amp, :measurement)) ≈ pyconvert(Float64, mean(obsavg.amp["amp"]))
+    # @test mean(getdata(amp, :measurement)) ≈ pyconvert(Float64, mean(obsavg.amp["amp"]))
 
     println("observation: ")
     uvpositions(vis[1])

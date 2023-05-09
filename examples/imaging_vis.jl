@@ -14,6 +14,7 @@ using Comrade
 using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
+using Pyehtim
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
@@ -26,7 +27,7 @@ rng = StableRNG(124)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
@@ -35,7 +36,7 @@ obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR
 obs = scan_average(obs.add_fractional_noise(0.01))
 
 # Now we extract our complex visibilities.
-dvis = extract_vis(obs)
+dvis = extract_table(obs, ComplexVisibilities())
 
 # ##Building the Model/Posterior
 
@@ -49,19 +50,25 @@ dvis = extract_vis(obs)
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 # The model is given below:
 
-function model(θ, metadata)
-    (;fg, c, lgamp, gphase) = θ
+function sky(θ, metadata)
+    (;fg, c) = θ
     (; grid, cache, gcache, gcachep) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
     img = IntensityMap((1.1*(1-fg)).*c, grid)
-    m = ContinuousImage(img,cache)
+    m = ContinuousImage(img, cache)
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(1.1*fg))
+    return m+g
+end
+
+function instrument(θ, metadata)
+    (; lgamp, gphase) = θ
+    (; gcache, gcachep) = metadata
     ## Now form our instrument model
     gvis = exp.(lgamp)
     gphase = exp.(1im.*gphase)
     jgamp = jonesStokes(gvis, gcache)
     jgphase = jonesStokes(gphase, gcachep)
-    return JonesModel(jgamp*jgphase, m+g)
+    return CorruptionModel(jgamp*jgphase)
 end
 
 # The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
@@ -82,7 +89,7 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 32
+npix = 8
 fovx = μas2rad(65.0)
 fovy = μas2rad(65.0)
 
@@ -170,7 +177,7 @@ prior = (
 
 # Putting it all together we form our likelihood and posterior objects for optimization and
 # sampling.
-lklhd = RadioLikelihood(model, metadata, dvis)
+lklhd = RadioLikelihood(sky, instrument, dvis; skymeta=metadata, instrumentmeta=metadata)
 post = Posterior(lklhd, prior)
 
 # ## Reconstructing the Image and Instrument Effects
@@ -203,7 +210,7 @@ using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, 2*rand(rng, ndim) .- 1.0, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)));
+sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
@@ -214,13 +221,13 @@ xopt = transform(tpost, sol.u)
 #-
 # First we will evaluate our fit by plotting the residuals
 using Plots
-residual(model(xopt, metadata), dvis)
+residual(vlbimodel(post, xopt), dvis)
 
 # These look reasonable, although there may be some minor overfitting. This could be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
-img = intensitymap(model(xopt, metadata), fovx, fovy, 128, 128)
+img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
 plot(img, title="MAP Image")
 
 
@@ -249,7 +256,7 @@ plot(gt, layout=(3,3), size=(600,500))
 # inferences should be appropriately skeptical.
 #-
 using ComradeAHMC
-metric = DenseEuclideanMetric(ndim)
+metric = DiagEuclideanMetric(ndim)
 chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 400; nadapts=200, init_params=xopt)
 #-
 # !!! warning
@@ -284,7 +291,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = model.(chain[201:10:end], Ref(metadata))
+samples = skymodel.(Ref(post), chain[201:10:end])
 imgs = intensitymap.(samples, μas2rad(75.0), μas2rad(75.0), 128,  128);
 
 mimg = mean(imgs)

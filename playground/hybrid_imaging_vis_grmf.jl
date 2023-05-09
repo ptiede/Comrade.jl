@@ -53,21 +53,19 @@ dvis = extract_vis(obs)
 # and a large asymmetric Gaussian component to model the unresolved short-baseline flux.
 
 function model(θ, metadata)
-    (;cp, f, r, σ, ma, mp, fg, σg, τg, ξg, lgamp, gphase) = θ
+    (;cp, f, r, σ, ma, mp, fg, lgamp, gphase) = θ
     (; grid, cache, gcache) = metadata
     ## Form the image model
     ## We multiple the flux by 1.1 since that is the measured total flux of M87
-    c = cp.params
-    ## Construct the image model we fix the flux to 0.6 Jy in this case
-    rast = (1.1*f*(1-fg))*alr(c)
-    img = IntensityMap(rast, grid)
+    c = alr(cp.params)
+    img = IntensityMap((1.1*f*(1-fg))*c, grid)
     mimg = ContinuousImage(img, cache)
     ## Form the ring model
     s,c = sincos(mp)
     α = ma*c
     β = ma*s
     ring = (1.1*(1-f)*(1-fg))*smoothed(stretched(MRing(α, β), r, r),σ)
-    gauss = (1.1*fg)*rotated(stretched(Gaussian(), σg, σg*(1+τg)), ξg)
+    gauss = (1.1*fg)*stretched(Gaussian(), μas2rad(250.0), μas2rad(250.0))
     m = mimg + (ring + gauss)
     ## Construct the gain model
     gvis = exp.(lgamp)
@@ -90,8 +88,8 @@ end
 
 # Now let's define our metadata. First we will define the cache for the image. This is
 # required to compute the numerical Fourier transform.
-fovxy  = μas2rad(160.0)
-npix   = 32
+fovxy  = μas2rad(140.0)
+npix   = 24
 grid   = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
 # For our image, we will use the
@@ -142,18 +140,6 @@ distphase = (
            )
 
 
-imgpr = intensitymap(stretched(Gaussian(), μas2rad(80.0), μas2rad(80.0)), grid)
-imgpr ./= flux(imgpr)
-meanpr = alrinv(Comrade.baseimage(imgpr))
-crcache = GMRFCache(meanpr)
-fmap = let meanpr=meanpr
-        x->GaussMarkovRF(meanpr, exp(x.λ), x.κ, crcache)
-end
-
-cprior = HierarchicalPrior(fmap, Comrade.NamedDist((λ=truncated(Normal(1.0, 0.1); lower=-1.0), κ=truncated(Normal(0.0, 50.0); lower=0.1))))
-
-
-
 # The next step is defining our image priors.
 # For our raster `c`, we will use a *Dirichlet* prior, a multivariate prior
 # that exists on the simplex. That is, the sum of all the numbers from a `Dirichlet`
@@ -163,9 +149,23 @@ cprior = HierarchicalPrior(fmap, Comrade.NamedDist((λ=truncated(Normal(1.0, 0.1
 # on the simplex. For our work here, we use the uniform simplex distribution.
 
 
-# !!! warning
+# !!! Warning
 #    As α gets small sampling, it gets very difficult and quite multimodal due to the nature
 #    of the sparsity prior, be careful when checking convergence when using such a prior.
+
+imgpr = intensitymap(stretched(Gaussian(), μas2rad(40.0), μas2rad(40.0)), grid)
+imgpr ./= flux(imgpr)
+
+
+meanpr = alrinv(Comrade.baseimage(imgpr))
+
+crcache = GMRFCache(meanpr)
+fmap = let meanpr=meanpr
+        x->GaussMarkovRF(meanpr, exp(x.λ), x.κ, crcache)
+end
+
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((λ=truncated(Normal(0.5, 0.1), -1.0, 5.0), κ=truncated(Normal(0.1, 10^2); lower=0.1))))
+
 
 prior = (
           cp  = cprior,
@@ -175,9 +175,6 @@ prior = (
           ma = Uniform(0.0, 0.5),
           mp = Uniform(0.0, 2π),
           fg = Uniform(0.0, 1.0),
-          σg = Uniform(μas2rad(50.0), μas2rad(500.0)),
-          τg = Uniform(0.0, 1.0),
-          ξg = Uniform(0, π),
           lgamp = CalPrior(distamp, gcache),
           gphase = CalPrior(distphase, gcachep)
         )
@@ -188,10 +185,9 @@ post = Posterior(lklhd, prior)
 
 # To sample from our prior we can do
 xrand = prior_sample(rng, post)
-@info xrand.cp.hyperparams
 # and then plot the results
-using Plots;
-img = intensitymap(model(xrand, metadata).model.m1, μas2rad(160.0), μas2rad(160.0), 128, 128);
+using Plots
+img = intensitymap(model(xrand, metadata), μas2rad(120.0), μas2rad(120.0), 128, 128)
 plot(img, title="Random sample")
 
 # ## Reconstructing the Image
@@ -202,7 +198,7 @@ plot(img, title="Random sample")
 tpost = asflat(post)
 
 # We can now also find the dimension of our posterior or the number of parameters we will sample.
-# !!! warning
+# !!! Warning
 #    This can often be different from what you would expect. This is especially true when using
 #    angular variables, where we often artificially increase the dimension
 #    of the parameter space to make sampling easier.
@@ -215,7 +211,7 @@ using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1, callback=(x,p)->(@info f(x,p); false))
+sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=5e-1, callback=(x,p)->(@info f(x,p); false))
 
 # Before we analyze our solution we first need to transform back to parameter space.
 xopt = transform(tpost, sol)
@@ -228,13 +224,13 @@ residual(model(xopt, metadata), dvis)
 # Plotting the image, we see that we have a ring and an image that looks like a sharper version
 # of the original M87 image. This is because we used a more physically motivated model by assuming that
 # the image should have a ring component.
-img = intensitymap(model(xopt, metadata), fovxy, fovxy, 128, 128)
+img = intensitymap(model(xopt, metadata), 1.5*fovxy, 1.5*fovxy, 128, 128)
 plot(img, title="MAP Image")
 
 # now we sample using hmc
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 3000; nadapts=2000, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 5_000; nadapts=3_000, init_params=xopt)
 
 # !!! warning
 #     This should be run for likely 2-3x more steps to properly estimate expectations of the posterior
@@ -244,7 +240,7 @@ chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 3000; nad
 # To do this we first clip the first 400 MCMC steps since that is during tuning and
 # so the posterior is not sampling from the correct stationary distribution.
 using StatsBase
-msamples = model.(chain[2001:10:end], Ref(metadata))
+msamples = model.(chain[3001:10:end], Ref(metadata))
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, 1.5*fovxy, 1.5*fovxy, 256, 256)

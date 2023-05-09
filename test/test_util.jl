@@ -1,5 +1,5 @@
 function load_data()
-    obs = load_ehtim_uvfits(joinpath(@__DIR__, "test_data.uvfits"))
+    obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "test_data.uvfits"))
     obs.add_scans()
     obsavg = scan_average(obs)
 
@@ -8,11 +8,11 @@ function load_data()
     m = m.add_gauss(0.5, μas2rad(20.0), μas2rad(10.0), π/6, μas2rad(30.0), μas2rad(30.0))
     obsm = m.observe_same_nonoise(obsavg)
 
-    vis = extract_vis(obsm)
-    amp = extract_amp(obsm)
-    lcamp = extract_lcamp(obsm)
-    cphase = extract_cphase(obsm, cut_trivial=true)
-    dcoh = extract_coherency(obsm)
+    vis = extract_table(obsm, ComplexVisibilities())
+    amp = extract_table(obsm, VisibilityAmplitudes())
+    lcamp = extract_table(obsm, LogClosureAmplitudes())
+    cphase = extract_table(obsm, ClosurePhases(cut_trivial=true))
+    dcoh = extract_table(obsm, Coherencies())
 
     derr = dcoh[:error]
     derr.:2 .= derr.:1
@@ -29,12 +29,17 @@ function test_model(θ)
     return m1 + shifted(m2, θ.x, θ.y)
 end
 
-function test_model_polarized(θ, metadata)
+function test_skymodel_polarized(θ, metadata)
+    (;lp) = metadata
     m1 = θ.f1*rotated(stretched(Gaussian(), θ.σ1*θ.τ1, θ.σ1), θ.ξ1)
     m2 = θ.f2*rotated(stretched(Gaussian(), θ.σ2*θ.τ2, θ.σ2), θ.ξ2)
     mI =  m1 + shifted(m2, θ.x, θ.y)
+    return PolarizedModel(mI, lp*mI, lp/2*mI, 0.02*mI)
+end
+
+function test_instrumentmodel_polarized(θ, metadata)
     jt = jonesT(metadata.tcache)
-    return JonesModel(jt, PolarizedModel(mI, 0.1*mI, 0.05*mI, 0.02*mI))
+    return CorruptionModel(jt, metadata.tcache)
 end
 
 function test_model2(θ, metadata)

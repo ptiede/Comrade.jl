@@ -26,6 +26,8 @@ using Comrade
 using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
+using Pyehtim
+
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(42)
@@ -33,7 +35,7 @@ rng = StableRNG(42)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
-obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
@@ -43,8 +45,7 @@ obs = scan_average(obs).add_fractional_noise(0.02)
 # For this tutorial we will stick to fitting closure only data, although we can
 # get better results by also modeling gains, since closure only modeling is equivalent
 # to assuming infinite gain priors.
-dlcamp = extract_lcamp(obs; snrcut=4)
-dcphase = extract_cphase(obs; snrcut=3)
+dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePhases(;snrcut=3))
 
 # ## Building the Model/Posterior
 
@@ -99,7 +100,8 @@ metadata = (;grid, cache)
 # This is everything we need to form our likelihood. Note the first two arguments must be
 # the model and then the metadata for the likelihood. The rest of the arguments are required
 # to be [`Comrade.EHTObservation`](@ref)
-lklhd = RadioLikelihood(model, metadata, dlcamp, dcphase)
+lklhd = RadioLikelihood(model, dlcamp, dcphase;
+                        skymeta=metadata)
 
 # This forms our model. The next step is defining our image priors.
 # For our raster `c`, we will use a *Dirichlet* prior, a multivariate prior
@@ -136,8 +138,8 @@ post = Posterior(lklhd, prior)
 xrand = prior_sample(rng, post)
 # and then plot the results
 using Plots
-img = intensitymap(model(xrand, metadata), μas2rad(120.0), μas2rad(120.0), 128, 128)
-# plot(img, title="Random sample")
+img = intensitymap(skymodel(post, xrand), μas2rad(120.0), μas2rad(120.0), 128, 128)
+plot(img, title="Random sample")
 
 # ## Reconstructing the Image
 
@@ -173,8 +175,8 @@ sol = solve(prob, LBFGS(), maxiters=1_000, g_tol=1e-1)
 xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
-residual(model(xopt, metadata), dlcamp)
-residual(model(xopt, metadata), dcphase)
+residual(skymodel(post, xopt), dlcamp)
+residual(skymodel(post, xopt), dcphase)
 
 # These look reasonable, although they are a bit high. This could be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
@@ -197,7 +199,7 @@ chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 500; nada
 # To do this we first clip the first 250 MCMC steps since that is during tuning and
 # so the posterior is not sampling from the correct stationary distribution.
 using StatsBase
-msamples = model.(chain[251:2:end], Ref(metadata));
+msamples = skymodel.(Ref(post), chain[251:2:end]);
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, 1.5*fovxy, 1.5*fovxy, 128, 128)

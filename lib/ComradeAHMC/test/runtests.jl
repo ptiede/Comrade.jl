@@ -1,8 +1,7 @@
-using Comrade, ComradeAHMC, Distributions
+using Pyehtim, Comrade, ComradeAHMC, Distributions
 using Zygote
 using Test
 
-load_ehtim()
 include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
 @testset "ComradeAHMC.jl" begin

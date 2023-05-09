@@ -1,7 +1,6 @@
-using Comrade, ComradeNested, Distributions
+using Pyehtim, Comrade, ComradeNested, Distributions
 using Test
 
-load_ehtim()
 include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
 @testset "ComradeNested.jl" begin

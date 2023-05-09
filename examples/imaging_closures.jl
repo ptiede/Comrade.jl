@@ -27,6 +27,8 @@ using Comrade
 using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
+using Pyehtim
+
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(123)
@@ -35,17 +37,16 @@ rng = StableRNG(123)
 # ## Load the Data
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
-obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      are coherent.
 #   - Add 2% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs).add_fractional_noise(0.02)
+obs = scan_average(obs).add_fractional_noise(0.02).flag_uvdist(uv_min=0.1e9)
 
 # Now, we extract our closure quantities from the EHT data set.
-dlcamp = extract_lcamp(obs; snrcut=3.0)
-dcphase = extract_cphase(obs; snrcut=3.0)
+dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePhases(;snrcut=3))
 
 # ## Build the Model/Posterior
 # For our model, we will be using an image model that consists of a raster of point sources,
@@ -66,7 +67,7 @@ end
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
 npix = 7
-fovxy = μas2rad(77.5)
+fovxy = μas2rad(65.5)
 
 # Now, we can feed in the array information to form the cache. We will be using a DFT since
 # it is efficient for so few pixels
@@ -82,7 +83,8 @@ using VLBIImagePriors
 (;X, Y) = grid
 prior = (c = ImageDirichlet(1.0, npix, npix), )
 
-lklhd = RadioLikelihood(model, metadata, dlcamp, dcphase)
+lklhd = RadioLikelihood(model, dlcamp, dcphase;
+                        skymeta = metadata)
 post = Posterior(lklhd, prior)
 
 # ## Reconstructing the Image
@@ -115,13 +117,13 @@ xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
 using Plots
-residual(model(xopt, metadata), dlcamp)
-residual(model(xopt, metadata), dcphase)
+residual(skymodel(post, xopt), dlcamp)
+residual(skymodel(post, xopt), dcphase)
 
 # These look pretty reasonable, although maybe they are a bit high. This could probably be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we have recovered a ring-like image reproducing the first EHT results.
-img = intensitymap(model(xopt, metadata), μas2rad(120.0), μas2rad(120.0), 128, 128)
+img = intensitymap(skymodel(post, xopt), μas2rad(120.0), μas2rad(120.0), 128, 128)
 plot(img, title="MAP Image")
 
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
@@ -142,7 +144,7 @@ chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 500; nadapts=2
 # unable to assess uncertainty in their reconstructions.
 #
 # To explore our posterior let's first create images from a bunch of draws from the posterior
-msamples = model.(chain[251:2:end], Ref(metadata));
+msamples = skymodel.(Ref(post), chain[251:2:end]);
 
 # The mean image is then given by
 using StatsBase

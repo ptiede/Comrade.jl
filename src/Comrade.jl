@@ -40,29 +40,11 @@ using TypedTables
 export linearpol, mbreve, evpa
 using ComradeBase: AbstractDims
 
-using PythonCall
-const ehtim = PythonCall.pynew()
-
-"""
-    load_ehtim()
-
-Loads the [eht-imaging](https://github.com/achael/eht-imaging) library and stores it in the
-exported `ehtim` variable.
-
-# Notes
-We use PythonCall and CondaPkg to install load all dependencies manually.
-If you want to use your own Python environment please see [CondaPkg.jl](https://github.com/cjdoris/CondaPkg.jl).
-"""
-function load_ehtim()
-    #try
-    PythonCall.pycopy!(ehtim, pyimport("ehtim"))
-    #catch
-    #    @warn "No ehtim installation found in python path. Some data functionality will not work"
-    #end
-end
 
 
-export rad2μas, μas2rad, ehtim, load_ehtim, logdensity_def, logdensityof
+
+export rad2μas, μas2rad, logdensity_def, logdensityof
+export rad2μas, μas2rad, logdensity_def, logdensityof
 
 """
     rad2μas(x)
@@ -97,6 +79,20 @@ include("calibration/calibration.jl")
 include("rules.jl")
 include("utility.jl")
 include("clean.jl")
+
+
+
+# Load extensions using requires for verions < 1.9
+if !isdefined(Base, :get_extension)
+    using Requires
+end
+
+@static if !isdefined(Base, :get_extension)
+    function __init__()
+        @require Pyehtim="3d61700d-6e5b-419a-8e22-9c066cf00468" include(joinpath(@__DIR__, "../ext/ComradePyehtimExt.jl"))
+    end
+end
+
 
 
 end

@@ -67,7 +67,6 @@ function Base.:*(A::AffineDesignMatrix, v::AbstractVector)
     T = promote_type(eltype(A), eltype(v))
     y = similar(v, T, size(A, 1))
     return LinearAlgebra.mul!(y, A, v)
-    # return muladd(A.mat, v, A.b)
 end
 
 function LinearAlgebra.mul!(y::AbstractArray, M::AffineDesignMatrix, x::AbstractArray)
@@ -236,12 +235,17 @@ julia> station_tuple(stations, ScanSeg(); AA = FixedSeg(1.0), PV = TrackSeg())
 (AA = FixedSeg(1.0), AP = ScanSeg(), LM = ScanSeg(), PV = TrackSeg())
 ```
 """
-function station_tuple(stations::NTuple{N, Symbol}, default; kwargs...) where {N}
-    out = map(x->get(kwargs, x, default), stations)
+function station_tuple(stations::NTuple{N, Symbol}, default; reference=nothing, kwargs...) where {N}
+    if !isnothing(reference)
+        st = delete(stations, reference)
+    else
+        st = stations
+    end
+    out = map(x->get(kwargs, x, default), st)
     return NamedTuple{stations}(out)
 end
-station_tuple(dvis::EHTObservation, default; kwargs...) = station_tuple(Tuple(stations(dvis)), default; kwargs...)
-station_tuple(st::AbstractVector{Symbol}, default; kwargs...) = station_tuple(Tuple(st), default; kwargs...)
+station_tuple(dvis::EHTObservation, default; reference=nothing, kwargs...) = station_tuple(Tuple(stations(dvis)), default; kwargs...)
+station_tuple(st::AbstractVector{Symbol}, default; reference=nothing, kwargs...) = station_tuple(Tuple(st), default; kwargs...)
 
 
 function fill_designmat!(
@@ -335,14 +339,14 @@ function jonescache(obs::EHTObservation, segmentation::NamedTuple)
 
     if length(vecInd1) > 0
         v1 = sparsevec(vecInd1, vals1, length(times))
-        d1 = AffineDesignMatrix(m1, v1)
+        d1 = AffineDesignMatrix(m1, Array(v1))
     else
         d1 = m1
     end
 
     if length(vecInd2) > 0
         v2 = sparsevec(vecInd2, vals2, length(times))
-        d2 = AffineDesignMatrix(m2, v2)
+        d2 = AffineDesignMatrix(m2, Array(v2))
     else
         d2 = m2
     end
@@ -726,59 +730,7 @@ Returns a `JonesPair` of matrices that transform from the model coherency matric
 to the on-sky coherency basis, this includes the feed rotation and choice of polarization feeds.
 """
 jonesT(tcache::TransformCache) = JonesPairs(tcache.T1, tcache.T2)
-
-
-
-
-struct JonesModel{J, M, B<:PolBasis} <: RIMEModel
-    """
-    Cache containing the specific Jones matrices that are to be applied to the visibilities.
-    """
-    jones::J
-    """
-    Base model that will be used to compute the uncorrupted visibilities.
-    """
-    model::M
-    """
-    Reference basis that converts from StokesParams to CoherencyMatrix
-    """
-    refbasis::B
-end
-
-visanalytic(::Type{<:JonesModel{J,M}}) where {J,M} = visanalytic(M)
-imanalytic(::Type{<:JonesModel{J,M}}) where {J,M} = imanalytic(M)
-ispolarized(::Type{<:JonesModel{J,M}}) where {J,M} = ispolarized(M)
-
-
-
-"""
-    JonesModel(jones::JonesPairs, model, tcache::TransformCache)
-    JonesModel(jones::JonesPairs, model, refbasis::PolBasis=CirBasis())
-
-Constructs a `JonesModel` from a `jones` pairs that describe the intrument model
-and the `model` which describes the on-sky polarized visibilities. The third argument
-can either be the `tcache` that converts from the model coherency basis to the instrumental
-basis, or just the `refbasis` that will be used when constructing the model coherency matrices.
-"""
-function JonesModel(jones, model, tcache::TransformCache)
-    return JonesModel(jones, model, tcache.refbasis)
-end
-
-function JonesModel(jones, model)
-    return JonesModel(jones, model, CirBasis())
-end
-
-function visibilities_analytic(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
-    vis = visibilities_analytic(model.model, u, v, time, freq)
-    coh = _coherency(vis, B)
-    return corrupt(coh, model.jones.m1, model.jones.m2)
-end
-
-function visibilities_numeric(model::JonesModel{J,M,B}, u, v, time, freq) where {J,M,B}
-    vis = visibilities_numeric(model.model, u, v, time, freq)
-    coh = _coherency(vis, B)
-    return corrupt(coh, model.jones.m1, model.jones.m2)
-end
+CorruptionModel(jones::J, tcache::TransformCache) where {J} = CorruptionModel(jones, tcache.refbasis)
 
 
 """

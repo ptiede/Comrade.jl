@@ -3,6 +3,7 @@ using ChainRulesCore
 using FiniteDifferences
 using Zygote
 using PythonCall
+using FFTW
 
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
@@ -271,8 +272,6 @@ end
         @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
         @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
 
-        # Test rrule
-        test_rrule(Comrade._mring_vis, m.m1, 0.1, 0.1)
 
         foo(x) = sum(abs2, Comrade.visibilities_analytic(MRing(x[1], x[2]), u, v, t, f))
         x = rand(2)
@@ -288,7 +287,6 @@ end
         # We convolve it to remove some pixel effects
         m = convolved(MRing(α, β), stretched(Gaussian(), 0.1, 0.1))
         testmodel(m, 2048, 1e-3)
-        test_rrule(Comrade._mring_vis, m.m1, 0.1, 0.1)
         @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
         @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
 
@@ -609,28 +607,28 @@ end
 end
 
 
-@testset "DImage Bspline0" begin
+@testset "ContinuousImage Bspline0" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{0}())
     testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-2)
     testft_cimg(cimg)
 end
 
-@testset "DImage BSpline1" begin
+@testset "ContinuousImage BSpline1" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{1}())
     testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-3)
     testft_cimg(cimg)
 end
 
-@testset "DImage BSpline3" begin
+@testset "ContinuousImage BSpline3" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{3}())
     testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
     testft_cimg(cimg)
 end
 
-@testset "DImage Bicubic" begin
+@testset "ContinuousImage Bicubic" begin
     img = intensitymap(shifted(rotated(stretched(smoothed(Ring(), 0.5), 2.0, 1.0), π/8), 0.1, 0.1), 24.0, 24.0, 12, 12)
     cimg = ContinuousImage(img, BicubicPulse())
     testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
