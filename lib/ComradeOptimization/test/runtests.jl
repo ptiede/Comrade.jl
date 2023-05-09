@@ -1,7 +1,6 @@
 using Pyehtim, Comrade, ComradeOptimization, OptimizationOptimJL, Distributions
 using Test
 
-load_ehtim()
 include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
 @testset "ComradeOptimization.jl" begin
