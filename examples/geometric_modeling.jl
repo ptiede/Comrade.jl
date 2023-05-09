@@ -186,7 +186,6 @@ plot(model(xopt), dlcamp, label="MAP")
 p = plot(dlcamp);
 uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
 for i in 1:10
-    # The first data product are the log closure amplitudes
     m = simulate_observation(post, chain[rand(rng, 1000:2000)])[1]
     scatter!(uva, m, color=:grey, label=:none, alpha=0.1)
 end
