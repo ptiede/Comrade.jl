@@ -75,11 +75,11 @@ function extract_table(obs, dataproduct::Coherencies)
     return extract_coherency(obs; keywords(dataproduct)...)
 end
 
-extract_cphase(obs; keywords...)     = throw("Not implemented for type $(obs)")
-extract_lcamp(obs; keywords...)      = throw("Not implemented for type $(obs)")
-extract_amp(obs; keywords...)        = throw("Not implemented for type $(obs)")
-extract_vis(obs; keywords...)        = throw("Not implemented for type $(obs)")
-extract_coherency(obs; keywords...)  = throw("Not implemented for type $(obs)")
+function extract_cphase    end
+function extract_lcamp     end
+function extract_amp       end
+function extract_vis       end
+function extract_coherency end
 
 
 

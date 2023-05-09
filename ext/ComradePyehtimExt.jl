@@ -1,10 +1,17 @@
 module ComradePyehtimExt
 
 using Comrade
-isdefined(Base, :get_extension) ? (using Pyehtim) : (using ..Pyehtim)
-using StructArrays: StructVector, StructArray, append!!
-using ..LinearAlgebra
-using ..StaticArraysCore
+if isdefined(Base, :get_extension)
+    using Pyehtim
+    using StructArrays: StructVector, StructArray, append!!
+    using LinearAlgebra
+    using StaticArraysCore
+else
+    using ..Pyehtim
+    using ..StructArrays: StructVector, StructArray, append!!
+    using ..LinearAlgebra
+    using ..StaticArraysCore
+end
 
 
 function getvisfield(obs)
