@@ -15,7 +15,71 @@ abstract type Observation{T} end
 using AstroTime: modified_julian
 
 export uvpositions, stations, getdata, arrayconfig,
-       getuv, baselines, scantable
+       getuv, baselines, scantable, extract_table,
+       ClosurePhases, LogClosureAmplitudes, VisibilityAmplitudes,
+       ComplexVisibilities, Coherencies
+
+
+
+abstract type VLBIDataProducts{K} end
+
+keywords(d::VLBIDataProducts) = d.keywords
+
+struct ClosurePhases{K} <: VLBIDataProducts{K}
+    keywords::K
+end
+
+struct LogClosureAmplitudes{K} <: VLBIDataProducts{K}
+    keywords::K
+end
+
+struct VisibilityAmplitudes{K} <: VLBIDataProducts{K}
+    keywords::K
+end
+
+struct ComplexVisibilities{K} <: VLBIDataProducts{K}
+    keywords::K
+end
+
+struct Coherencies{K} <: VLBIDataProducts{K}
+    keywords::K
+end
+
+for c in [:ClosurePhases, :LogClosureAmplitudes, :VisibilityAmplitudes, :ComplexVisibilities, :Coherencies]
+    @eval begin
+        $(c)(;kwargs...) = $(c)(kwargs)
+    end
+end
+
+function extract_table(obs, dataproducts::VLBIDataProducts...)
+    return  map(x->extract_table(obs, x), dataproducts)
+end
+
+function extract_table(obs, dataproduct::ClosurePhases)
+    return extract_cphase(obs; keywords(dataproduct)...)
+end
+
+function extract_table(obs, dataproduct::LogClosureAmplitudes)
+    return extract_lcamp(obs; keywords(dataproduct)...)
+end
+
+function extract_table(obs, dataproduct::ComplexVisibilities)
+    return extract_vis(obs; keywords(dataproduct)...)
+end
+
+function extract_table(obs, dataproduct::VisibilityAmplitudes)
+    return extract_amp(obs; keywords(dataproduct)...)
+end
+
+function extract_table(obs, dataproduct::Coherencies)
+    return extract_coherency(obs; keywords(dataproduct)...)
+end
+
+extract_cphase(obs; keywords...)     = throw("Not implemented for type $(obs)")
+extract_lcamp(obs; keywords...)      = throw("Not implemented for type $(obs)")
+extract_amp(obs; keywords...)        = throw("Not implemented for type $(obs)")
+extract_vis(obs; keywords...)        = throw("Not implemented for type $(obs)")
+extract_coherency(obs; keywords...)  = throw("Not implemented for type $(obs)")
 
 
 
@@ -863,4 +927,3 @@ end
 
 
 include(joinpath(@__DIR__, "io.jl"))
-include(joinpath(@__DIR__, "ehtim.jl"))

@@ -138,7 +138,7 @@ end
 
 function ChainRulesCore.rrule(::typeof(nuft), A::NFFTPlan, b)
     pr = ChainRulesCore.ProjectTo(b)
-    vis = A*b
+    vis = nuft(A, b)
     function nuft_pullback(Δy)
         Δf = NoTangent()
         dy = similar(vis)
