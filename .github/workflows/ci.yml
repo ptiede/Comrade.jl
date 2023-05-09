@@ -11,7 +11,7 @@ jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.allow_failure }}
+    continue-on-error: ${{ matrix.group == 'Downstream'}}
     strategy:
       fail-fast: false
       matrix:
@@ -22,16 +22,16 @@ jobs:
           - ComradeDynesty
           - ComradeOptimization
           - ComradeNested
-        version: ['1.8', '1']
-        python-version: ['3.10']
-        os: [ubuntu-latest]
-        arch: [x64]
-        allow_failure: [false]
-        include:
-          - version: 'nightly'
-            os: ubuntu-latest
-            arch: x64
-            allow_failure: true        
+        version:
+          - '1'
+          - '1.8'
+        os:
+          - ubuntu-latest
+        arch:
+          - x64
+        python-version:
+          - '3.10'
+        
 
     steps:
       - name: Install Libs
@@ -50,11 +50,7 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: julia-actions/julia-buildpkg@v1
-        # env:
-        #   PYTHON: python
-        #   LD_PRELOAD: 
-      
+      - uses: julia-actions/julia-buildpkg@v1      
       - uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
