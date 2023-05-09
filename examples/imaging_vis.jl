@@ -57,7 +57,7 @@ function sky(θ, metadata)
     img = IntensityMap((1.1*(1-fg)).*c, grid)
     m = ContinuousImage(img, cache)
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(1.1*fg))
-    return added(m,g)
+    return m+g
 end
 
 function instrument(θ, metadata)
@@ -210,7 +210,7 @@ using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, 2*rand(rng, ndim) .- 1.0, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1, callback=((x,p)->(@info f(x,p); false)));
+sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)

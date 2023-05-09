@@ -38,8 +38,8 @@ end
 function update_cache(cache::NUFTCache, img::IntensityMapTypes, pulse::Pulse=DeltaPulse())
     # # pimg = padimage(cache.alg, img)
     # cache2 = update_phases(cache, img, pulse)
-    # create_cache(cache2.alg, cache2.plan, cache2.phases, pimg, pulse)
-    return cache
+    return create_cache(cache.alg, cache.plan, cache.phases, img, pulse)
+    # return cache
 end
 
 function update_phases(cache::NUFTCache, img::IntensityMapTypes, pulse::Pulse)
