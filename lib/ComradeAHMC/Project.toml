@@ -9,8 +9,10 @@ AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
 ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 LogDensityProblems = "6fdf6af0-433a-55f7-b3ed-c6c6e0b8df7c"
 LogDensityProblemsAD = "996a588d-648d-4e1f-a8f0-a84b347e47b1"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
@@ -29,8 +31,8 @@ julia = "1.7"
 
 [extras]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]

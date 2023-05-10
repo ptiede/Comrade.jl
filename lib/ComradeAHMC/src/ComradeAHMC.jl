@@ -9,8 +9,10 @@ using LogDensityProblems, LogDensityProblemsAD
 using TypedTables
 using ArgCheck: @argcheck
 using Random
-
-export sample, AHMC
+using JLD2
+using Printf
+using AbstractMCMC: steps
+export sample, AHMC, steps
 
 """
     AHMC
@@ -156,6 +158,12 @@ function make_sampler(∇ℓ, sampler::AHMC, θ0)
     return model, proposal, sampler.metric, adaptor
 end
 
+function AbstractMCMC.steps(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC; kwargs...)
+    ∇ℓ = ADgradient(sampler.autodiff, tpost)
+    model, proposal, metric, adaptor = make_sampler(∇ℓ, sampler, 0)
+    return AbstractMCMC.steps(rng, model, AdvancedHMC.HMCSampler(proposal, metric, adaptor); kwargs...)
+end
+
 
 function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
                              sampler::AHMC, parallel::AbstractMCMC.AbstractMCMCEnsemble,
@@ -240,6 +248,37 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
     return Table(chain), stats
 end
 
+struct DiskOutput{P, F, N}
+    filename::String
+    nfiles::Int
+    stride::Int
+end
 
+function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC, nsamples, args...;
+                        init_params=nothing, filename = "output.jld2", output_stride=min(100, nsamples), kwargs...)
 
+    θ0 = init_params
+    if isnothing(init_params)
+        @warn "No starting location chosen, picking start from prior"
+        θ0 = prior_sample(rng, post)
+    end
+    t = steps(rng, tpost, sampler; init_params, kwargs...)
+    pt = Iterators.partition(t, output_stride)
+    outbase = splitext(filename)[begin]
+    nscans = nsamples÷output_stride
+
+    (chain, state) = iterate(pt)
+    stats = Table(getproperty.(chain, :stat))
+    samples = transform.(getproperty.(getproperty.(chain, :z), :θ), tpost) |> Table
+    @info "On scan 1/$nscans"
+    jldsave(outbase*(@sprintf "%08d.jld2" 1); stats, samples)
+    for i in 2:nscans
+        t = @elapsed begin
+            stats = Table(getproperty.(chain, :stat))
+            samples = transform.(getproperty.(getproperty.(chain, :z), :θ), tpost) |> Table
+            jldsave(outbase*(@sprintf "%08d.jld2" i); stats, samples)
+        end
+        @info "On scan $i/$nscans it took $(t) seconds"
+    end
+    return DiskOutput(filename, nscans, stride)
 end

@@ -63,8 +63,7 @@ function _extract_fits_image(f::FITSIO.ImageHDU{T}) where {T}
 
     psizex = abs(float(header["CDELT1"]))*π/180
     psizey = abs(float(header["CDELT2"]))*π/180
-    T = typeof(psizex)
-    ra = T(180)
+    ra = (180)
     dec = zero(T)
     try
         ra = float(header["OBSRA"])

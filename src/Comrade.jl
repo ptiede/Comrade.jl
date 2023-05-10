@@ -50,13 +50,13 @@ export rad2μas, μas2rad, logdensity_def, logdensityof
     rad2μas(x)
 Converts a number from radians to micro-arcseconds (μas)
 """
-@inline rad2μas(x::T) where {T<:Number} = 180/T(π)*3600*1_000_000*x
+@inline rad2μas(x) = 180*3600*1_000_000*x/π
 
 """
     μas2rad(x)
 Converts a number from micro-arcseconds (μas) to rad
 """
-@inline μas2rad(x::T) where {T<:Number} = x/(180/T(π)*3600*1_000_000)
+@inline μas2rad(x) = x/(180*3600*1_000_000)*π
 
 
 #include("interface.jl")
