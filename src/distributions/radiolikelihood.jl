@@ -299,7 +299,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
     Σ = data[:error].^2
     vis = data[:measurement]
     ℓ = ConditionedLikelihood(vis) do μ
-        ComplexVisLikelihood(μ, Σ, 0.0)
+        ComplexVisLikelihood(μ, Σ, zero(eltype(Σ)))
     end
     return ℓ
 end
@@ -308,7 +308,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTCohere
     Σ = map(x->x.^2, data[:error])
     vis = data[:measurement]
     ℓ = ConditionedLikelihood(vis) do μ
-        CoherencyLikelihood(μ, Σ, 0.0)
+        CoherencyLikelihood(μ, Σ, zero(eltype(Σ)))
     end
     return ℓ
 end
@@ -318,7 +318,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
     Σ = data[:error].^2
     amp = data[:measurement]
     ℓ = ConditionedLikelihood(amp) do μ
-        AmplitudeLikelihood(abs.(μ), Σ, 0.0)
+        AmplitudeLikelihood(abs.(μ), Σ, zero(eltype(Σ)))
     end
     return ℓ
 end
@@ -335,7 +335,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
     f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:measurement]
     ℓ = ConditionedLikelihood(amp) do μ
-        AmplitudeLikelihood(f(μ), Σlca, 0.0)
+        AmplitudeLikelihood(f(μ), Σlca, zero(eltype(Σlca)))
     end
     return ℓ
 end
@@ -353,7 +353,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosur
     f = Base.Fix2(closure_phases, data.config)
     phase = data[:measurement]
     ℓ = ConditionedLikelihood(phase) do μ
-        ClosurePhaseLikelihood(f(μ), Σcp, 0.0)
+        ClosurePhaseLikelihood(f(μ), Σcp, zero(eltype(Σcp)))
     end
 
     return ℓ

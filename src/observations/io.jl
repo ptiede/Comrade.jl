@@ -63,9 +63,9 @@ function _extract_fits_image(f::FITSIO.ImageHDU{T}) where {T}
 
     psizex = abs(float(header["CDELT1"]))*π/180
     psizey = abs(float(header["CDELT2"]))*π/180
-
-    ra = 180.0
-    dec = 0.0
+    T = typeof(psizex)
+    ra = T(180)
+    dec = zero(T)
     try
         ra = float(header["OBSRA"])
         dec = float(header["OBSDEC"])
@@ -74,13 +74,13 @@ function _extract_fits_image(f::FITSIO.ImageHDU{T}) where {T}
     end
 
     #Get frequency
-    freq = 0.0
+    freq = zero(T)
     if haskey(header, "FREQ")
         freq = parse(Float64, string(header["FREQ"]))
     elseif "CRVAL3" in keys(header)
         freq = float(header["CRVAL3"])
     end
-    mjd = 0.0
+    mjd = zero(T)
     if haskey(header, "MJD")
         mjd = parse(Float64, string(header["MJD"]))
     end
@@ -92,14 +92,14 @@ function _extract_fits_image(f::FITSIO.ImageHDU{T}) where {T}
     if haskey(header, "STOKES")
         stokes = Symbol(header["STOKES"])
     end
-    bmaj = 1.0 #Nominal values
-    bmin = 1.0
+    bmaj = one(T) #Nominal values
+    bmin = one(T)
     if haskey(header, "BUNIT")
         if header["BUNIT"] == "JY/BEAM"
             @info "Converting Jy/Beam => Jy/pixel"
             bmaj = header["BMAJ"]*π/180
             bmin = header["BMIN"]*π/180
-            beamarea = (2.0*π*bmaj*bmin)/(8*log(2))
+            beamarea = (2*T(π)*bmaj*bmin)/(8*log(T(2)))
             image .= image.*(psizex*psizey/beamarea)
         end
     end

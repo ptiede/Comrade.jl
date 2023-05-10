@@ -64,7 +64,7 @@ visibility is unity and everywhere else is zero.
 """
 function dirty_beam(fov, npix, obs::EHTObservation{T,D}) where {T, D<:EHTVisibilityDatum}
     vis2 = reflect_vis(obs)
-    vis2.data.measurement .= complex(1.0, 0.0)
+    vis2.data.measurement .= complex(one(T), zero(T))
     return dirty_image(fov, npix, vis2)
 end
 

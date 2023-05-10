@@ -87,7 +87,7 @@ function make_phases(alg::ObservedNUFT{<:NFFTAlg}, img::IntensityMapTypes, pulse
     u = @view alg.uv[1,:]
     v = @view alg.uv[2,:]
     # Correct for the nFFT phase center and the img phase center
-    return cispi.((u.*(dx - 2*x0) .+ v.*(dy - 2*y0))).*visibility_point.(Ref(stretched(pulse, dx, dy)), u, v, 0.0, 0.0)
+    return cispi.((u.*(dx - 2*x0) .+ v.*(dy - 2*y0))).*visibility_point.(Ref(stretched(pulse, dx, dy)), u, v, zero(dx), zero(dy))
 end
 
 @inline function create_cache(alg::ObservedNUFT{<:NFFTAlg}, plan, phases, img::IntensityMapTypes, pulse=DeltaPulse())

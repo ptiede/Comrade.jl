@@ -34,7 +34,7 @@ end
 # function extract_components(len, comp, names)
 #     map(names) do n
 #         c = getproperty(comp, n)
-#         typeof(c) <: AbstractZero && return Fill(0.0, len)
+#         typeof(c) <: AbstractZero && return Fill(0, len)
 #         return c
 #     end
 # end

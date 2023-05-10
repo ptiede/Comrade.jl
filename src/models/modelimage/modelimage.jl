@@ -172,8 +172,8 @@ function modelimage(m::M;
                     fovy = 2*radialextent(m),
                     nx = 512,
                     ny = 512,
-                    x0 = 0.0,
-                    y0 = 0.0,
+                    x0 = zero(fovx),
+                    y0 = zero(fovx),
                     alg=FFTAlg(),
                     pulse = DeltaPulse(),
                     thread::Bool = false

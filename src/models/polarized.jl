@@ -207,7 +207,7 @@ electric vector position angle or EVPA of the polarized model `pimg` at `u` and 
 @inline function ComradeBase.evpa(pimg::AbstractPolarizedModel, p)
     sq = visibility(stokes(pimg, :Q), p)
     su = visibility(stokes(pimg, :U), p)
-    return 1/2*angle(su/sq)
+    return angle(su/sq)/2
 end
 
 

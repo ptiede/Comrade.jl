@@ -34,7 +34,7 @@ end
 
 # These are all overloads to allow us to forward propogate ForwardDiff dual numbers through
 # an abstract FFT.
-AbstractFFTs.complexfloat(x::AbstractArray{<:ForwardDiff.Dual}) = float.(ForwardDiff.value.(x) .+ 0.0im)
+AbstractFFTs.complexfloat(x::AbstractArray{<:ForwardDiff.Dual}) = float.(ForwardDiff.value.(x) .+ 0im)
 
 # Make a plan with Dual numbers
 AbstractFFTs.plan_fft(x::AbstractArray{<:ForwardDiff.Dual}, region=1:ndims(x)) = plan_fft(zeros(ComplexF64, size(x)), region)
@@ -54,7 +54,7 @@ function create_interpolator(U, V, vis::AbstractArray{<:Complex}, pulse)
     p1 = BicubicInterpolator(U, V, real(vis), NoBoundaries())
     p2 = BicubicInterpolator(U, V, imag(vis), NoBoundaries())
     function (u,v)
-        pl = visibility_point(pulse, u, v, 0.0, 0.0)
+        pl = visibility_point(pulse, u, v, zero(u), zero(u))
         return pl*(p1(u,v) + 1im*p2(u,v))
     end
 end
@@ -75,7 +75,7 @@ function create_interpolator(U, V, vis::StructArray{<:StokesParams}, pulse)
 
 
     function (u,v)
-        pl = visibility_point(pulse, u, v, 0.0, 0.0)
+        pl = visibility_point(pulse, u, v, zero(u), zero(u))
         return StokesParams(
             pI_real(u,v)*pl + 1im*pI_imag(u,v)*pl,
             pQ_real(u,v)*pl + 1im*pQ_imag(u,v)*pl,

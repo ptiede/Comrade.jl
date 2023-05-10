@@ -33,7 +33,7 @@ where `g` are the transform_image/uv functions and `f` are the scale_image/uv
 function.
 
 """
-abstract type ModelModifier end
+abstract type ModelModifier{T} end
 
 
 
@@ -131,7 +131,7 @@ basemodel(model::ModifiedModel{M, Tuple{}}) where {M} = model
 
 
 flux(m::ModifiedModel) = flux(m.model)*mapreduce(flux, Base.:*, m.transform)
-flux(t::ModelModifier) = 1
+flux(::ModelModifier{T}) where {T} = one(T)
 
 
 radialextent(m::ModifiedModel) = radialextent_modified(radialextent(m.model), m.transform)
@@ -401,7 +401,7 @@ julia> modify(Gaussian(), Shift(2.0, 1.0)) == shifted(Gaussian(), 2.0, 1.0)
 true
 ```
 """
-struct Shift{T} <: ModelModifier
+struct Shift{T} <: ModelModifier{T}
     Δx::T
     Δy::T
 end
@@ -426,7 +426,7 @@ shifted(model, Δx, Δy) = ModifiedModel(model, Shift(Δx, Δy))
 
 @inline scale_image(::M, transform::Shift, x, y) where {M} = unitscale(typeof(transform.Δx), M)
 # Curently we use exp here because enzyme has an issue with cispi that will be fixed soon.
-@inline scale_uv(::M, transform::Shift, u, v) where {M}    = exp(2im*π*(u*transform.Δx + v*transform.Δy))*unitscale(typeof(transform.Δx), M)
+@inline scale_uv(::M, transform::Shift{T}, u, v) where {T,M}    = exp(2im*T(π)*(u*transform.Δx + v*transform.Δy))*unitscale(typeof(transform.Δx), M)
 
 
 
@@ -444,7 +444,7 @@ julia> modify(Gaussian(), Renormalize(2.0)) == 2.0*Gaussian()
 true
 ```
 """
-struct Renormalize{T} <: ModelModifier
+struct Renormalize{T} <: ModelModifier{T}
     scale::T
 end
 
@@ -470,7 +470,7 @@ Base.:/(model::AbstractModel, f::Number) = renormed(model, inv(f))
 # This will make it easier on the compiler.
 # Base.:*(model::ModifiedModel, f::Number) = renormed(model.model, model.scale*f)
 # Overload the unary negation operator to be the same model with negative flux
-Base.:-(model::AbstractModel) = renormed(model, -1.0)
+Base.:-(model::AbstractModel) = renormed(model, -1)
 flux(t::Renormalize) = t.scale
 
 @inline transform_image(m, ::Renormalize, x, y) = (x, y)
@@ -503,7 +503,7 @@ julia> Stretch(2.0) == Stretch(2.0, 2.0)
 true
 ```
 """
-struct Stretch{T} <: ModelModifier
+struct Stretch{T} <: ModelModifier{T}
     α::T
     β::T
 end
@@ -542,7 +542,7 @@ julia> modify(Gaussian(), Rotate(2.0)) == rotated(Gaussian(), 2.0)
 true
 ```
 """
-struct Rotate{T} <: ModelModifier
+struct Rotate{T} <: ModelModifier{T}
     s::T
     c::T
     function Rotate(ξ::F) where {F}

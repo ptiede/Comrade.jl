@@ -11,7 +11,8 @@ consider using the [`visibilities`](@ref visibilities).
 """
 @inline function visibility(mimg::M, p) where {M}
     #first we split based on whether the model is primitive
-    _visibility(isprimitive(M), mimg, p.U, p.V, 0.0, 0.0)
+    T = typeof(p.U)
+    _visibility(isprimitive(M), mimg, p.U, p.V, zero(T), zero(T))
 end
 
 
@@ -151,7 +152,8 @@ function amplitudes(m, p::NamedTuple{(:U, :V, :T, :F)})
 end
 
 function amplitudes(m, p::NamedTuple{(:U, :V)})
-    _amplitudes(m, p.U, p.V, 0.0, 0.0)
+    T = eltype(p.U)
+    _amplitudes(m, p.U, p.V, zero(T), zero(T))
 end
 
 amplitudes(m, p::ArrayConfiguration) = _amplitudes(m, p.data.U, p.data.V, p.data.T, p.data.F)
