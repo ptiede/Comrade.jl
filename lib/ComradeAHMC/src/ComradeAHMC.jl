@@ -11,8 +11,8 @@ using ArgCheck: @argcheck
 using Random
 using JLD2
 using Printf
-using AbstractMCMC: steps
-export sample, AHMC, steps
+using AbstractMCMC: Sample
+export sample, AHMC, Sample, Memory, Disk, load_table
 
 """
     AHMC
@@ -158,10 +158,10 @@ function make_sampler(∇ℓ, sampler::AHMC, θ0)
     return model, proposal, sampler.metric, adaptor
 end
 
-function AbstractMCMC.steps(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC; kwargs...)
+function AbstractMCMC.Sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC; kwargs...)
     ∇ℓ = ADgradient(sampler.autodiff, tpost)
     model, proposal, metric, adaptor = make_sampler(∇ℓ, sampler, 0)
-    return AbstractMCMC.steps(rng, model, AdvancedHMC.HMCSampler(proposal, metric, adaptor); kwargs...)
+    return AbstractMCMC.Sample(rng, model, AdvancedHMC.HMCSampler(proposal, metric, adaptor); kwargs...)
 end
 
 
@@ -193,6 +193,13 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
 
 end
 
+struct Memory end
+
+Base.@kwdef struct Disk
+    name::String
+    stride::Int = 100
+end
+
 """
     AbstractMCMC.sample(post::Comrade.Posterior,
                         sampler::AHMC,
@@ -218,8 +225,13 @@ and the second argument is a set of ancilliary information about the sampler.
 This will automatically transform the posterior to the flattened unconstrained space.
 """
 function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC, nsamples, args...;
+                             saveto=Memory(),
                              init_params=nothing,
                              kwargs...)
+
+
+    saveto isa Disk && return sample_to_disk(rng, tpost, sampler, nsamples, args...; outdir=saveto.name, output_stride=min(saveto.stride, nsamples), init_params, kwargs...)
+
     ℓ = logdensityof(tpost)
 
     ∇ℓ = ADgradient(sampler.autodiff, tpost)
@@ -248,11 +260,13 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
     return Table(chain), stats
 end
 
-struct DiskOutput{P, F, N}
+struct DiskOutput
     filename::String
     nfiles::Int
     stride::Int
+    nsamples::Int
 end
+
 
 function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC, nsamples, args...;
                         init_params=nothing, outdir = "Results", output_stride=min(100, nsamples), kwargs...)
@@ -262,27 +276,59 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
     θ0 = init_params
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from prior"
-        θ0 = prior_sample(rng, post)
+        θ0 = prior_sample(rng, tpost)
     end
-    t = steps(rng, tpost, sampler; init_params, kwargs...)
+    t = Sample(rng, tpost, sampler; init_params, kwargs...)(1:nsamples)
     pt = Iterators.partition(t, output_stride)
-    outbase = "output_round"
-    nscans = nsamples÷output_stride
+    outbase = joinpath(outdir, "output_scan_")
+    nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
 
-    (chain, state) = iterate(pt)
-    stats = Table(getproperty.(chain, :stat))
-    samples = transform.(getproperty.(getproperty.(chain, :z), :θ), tpost) |> Table
-    @info "On scan 1/$nscans"
-    jldsave(outbase*(@sprintf "%08d.jld2" 1); stats, samples)
-    for i in 2:nscans
+    next = iterate(pt)
+    i = 1
+    while !isnothing(next)
+        (chain, state) = next
         t = @elapsed begin
             stats = Table(getproperty.(chain, :stat))
-            samples = transform.(getproperty.(getproperty.(chain, :z), :θ), tpost) |> Table
-            jldsave(outbase*(@sprintf "%08d.jld2" i); stats, samples)
+            samples = transform.(Ref(tpost), getproperty.(getproperty.(chain, :z), :θ)) |> Table
+            jldsave(outbase*(@sprintf "%05d.jld2" 1); stats, samples)
+            next = iterate(pt, state)
         end
         @info "On scan $i/$nscans it took $(t) seconds"
+        i += 1
     end
-    return DiskOutput(filename, nscans, stride)
+
+    return DiskOutput(outdir, nscans, output_stride, nsamples)
 end
+
+
+function load_table(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples")
+    @assert (table == "samples" || table == "stats") "Please select either `samples` or `stats`"
+    d = readdir(out.filename, join=true)
+
+    # load and return the entire table
+    indices == Base.Colon() && (return reduce(vcat, load.(d, table)))
+
+    # Now get the index of the first file
+    ind0 = first(indices)
+    # Now let's find the file
+    find0 = ind0÷out.stride + 1
+    offset0 = ind0%out.stride # now get the offset
+    if offset0 == 0
+        find0 = find0 - 1
+        offset0 = out.stride
+    end
+
+    ind1 = last(indices)
+    find1 = ind1÷out.stride + 1
+    offset1 = ind1%out.stride # now get the offset
+    if offset1 == 0
+        find1 = find1 - 1
+        offset1 = out.stride
+    end
+
+    t = reduce(vcat, load.(d[find0:find1], table))
+    return t[offset0:(out.stride*(find1-find0) + offset1)]
+end
+
 
 end
