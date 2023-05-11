@@ -255,8 +255,10 @@ struct DiskOutput{P, F, N}
 end
 
 function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC, nsamples, args...;
-                        init_params=nothing, filename = "output.jld2", output_stride=min(100, nsamples), kwargs...)
+                        init_params=nothing, outdir = "Results", output_stride=min(100, nsamples), kwargs...)
 
+
+    mkpath(outdir)
     θ0 = init_params
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from prior"
@@ -264,7 +266,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
     end
     t = steps(rng, tpost, sampler; init_params, kwargs...)
     pt = Iterators.partition(t, output_stride)
-    outbase = splitext(filename)[begin]
+    outbase = "output_round"
     nscans = nsamples÷output_stride
 
     (chain, state) = iterate(pt)
