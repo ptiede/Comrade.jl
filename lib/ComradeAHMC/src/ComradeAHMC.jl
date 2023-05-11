@@ -282,3 +282,5 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
     end
     return DiskOutput(filename, nscans, stride)
 end
+
+end
