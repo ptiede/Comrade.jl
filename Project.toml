@@ -81,6 +81,7 @@ Pyehtim = "0.1"
 RecipesBase = "1"
 RectiGrids = "0.1"
 Reexport = "1"
+Requires = "1"
 SpecialFunctions = "0.10, 1, 2"
 Static = "0.6, 0.7, 0.8"
 StaticArraysCore = "1"
@@ -105,4 +106,3 @@ test = ["Test", "Pyehtim"]
 
 [weakdeps]
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
-
