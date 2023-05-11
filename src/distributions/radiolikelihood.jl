@@ -304,11 +304,11 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
     return ℓ
 end
 
-function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTCoherencyDatum})
+function makelikelihood(data::Comrade.EHTObservation{T, <:Comrade.EHTCoherencyDatum}) where {T}
     Σ = map(x->x.^2, data[:error])
     vis = data[:measurement]
     ℓ = ConditionedLikelihood(vis) do μ
-        CoherencyLikelihood(μ, Σ, zero(eltype(Σ)))
+        CoherencyLikelihood(μ, Σ, zero(T))
     end
     return ℓ
 end
