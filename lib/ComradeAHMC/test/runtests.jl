@@ -28,7 +28,7 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
     hchain, hstats = sample(post, s1, 3_000; nadapts=2_000, progress=false)
     hchain, hstats = sample(post, s1, 3_000; nadapts=2_000, progress=false, init_params=x0)
     hchain, hstats = sample(post, s2, 3_000; nadapts=2_000, progress=false, init_params=x0)
-    out = sample(post, s2, 3_000; nadapts=2_000, saveto=ComradeAHMC.Disk(name="Test"), init_params=x0)
+    out = sample(post, s2, 3_000; nadapts=2_000, saveto=ComradeAHMC.Disk(name=joinpath(@__DIR__, "Test")), init_params=x0)
 
     c1 = load_table(out)
     @test c1[201:451] == load_table(out, 201:451)

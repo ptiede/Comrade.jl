@@ -197,14 +197,16 @@ struct Memory end
 
 Base.@kwdef struct Disk
     name::String
-    stride::Int = 100
+    stride::Int = 500
 end
+Disk(name::String) = Disk(name, 500)
 
 """
     AbstractMCMC.sample(post::Comrade.Posterior,
                         sampler::AHMC,
                         nsamples;
                         init_params=nothing,
+                        saveto::Union{Memory, Disk}=Memory(),
                         kwargs...)
 
 Samples the posterior `post` using the AdvancedHMC sampler specified by `AHMC`.
@@ -213,6 +215,10 @@ This will run the sampler for `nsamples`.
 To initialize the chain the user can set `init_params` to `Vector{NamedTuple}` whose
 elements are the starting locations for each of the `nchains`. If no starting location
 is specified `nchains` random samples from the prior will be chosen for the starting locations.
+
+The use can optionally specify whether to store the samples in RAM or memory `Memory` on save
+directly to disk with `Disk(filename, stride)`. The `stride` controls how often the samples are
+dumped to disk.
 
 For possible `kwargs` please see the [`AdvancedHMC.jl docs`](https://github.com/TuringLang/AdvancedHMC.jl)
 
@@ -290,7 +296,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
         t = @elapsed begin
             stats = Table(getproperty.(chain, :stat))
             samples = transform.(Ref(tpost), getproperty.(getproperty.(chain, :z), :θ)) |> Table
-            jldsave(outbase*(@sprintf "%05d.jld2" 1); stats, samples)
+            jldsave(outbase*(@sprintf "%05d.jld2" i); stats, samples)
             next = iterate(pt, state)
         end
         @info "On scan $i/$nscans it took $(t) seconds"
@@ -300,7 +306,9 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
     return DiskOutput(outdir, nscans, output_stride, nsamples)
 end
 
+"""
 
+"""
 function load_table(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples")
     @assert (table == "samples" || table == "stats") "Please select either `samples` or `stats`"
     d = readdir(out.filename, join=true)
@@ -310,6 +318,7 @@ function load_table(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepR
 
     # Now get the index of the first file
     ind0 = first(indices)
+    (ind0 < 1) && throw(BoundsError(1:out.nsamples, ind0))
     # Now let's find the file
     find0 = ind0÷out.stride + 1
     offset0 = ind0%out.stride # now get the offset
@@ -319,6 +328,7 @@ function load_table(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepR
     end
 
     ind1 = last(indices)
+    (ind1 > out.nsamples) && throw(BoundsError(1:out.nsamples, ind1))
     find1 = ind1÷out.stride + 1
     offset1 = ind1%out.stride # now get the offset
     if offset1 == 0
