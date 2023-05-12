@@ -157,6 +157,12 @@ Comrade.visibility
 
 
 ```@docs
+Comrade.extract_table
+Comrade.ComplexVisibilities
+Comrade.VisibilityAmplitudes
+Comrade.ClosurePhases
+Comrade.LogClosureAmplitudes
+Comrade.Coherencies
 Comrade.amplitude(::Comrade.EHTVisibilityDatum)
 Comrade.amplitude(::Comrade.EHTVisibilityAmplitudeDatum)
 Comrade.baselines
@@ -186,12 +192,11 @@ Comrade.ScanTable
 ## eht-imaging interface
 
 ```@docs
-ComradeEHTIMExt.extract_coherency
-ComradeEHTIMExt.extract_amp
-ComradeEHTIMExt.extract_cphase
-ComradeEHTIMExt.extract_lcamp
-ComradeEHTIMExt.extract_vis
-ComradeEHTIMExt.scan_average
+ComradePyehtimExt.extract_amp
+ComradePyehtimExt.extract_cphase
+ComradePyehtimExt.extract_lcamp
+ComradePyehtimExt.extract_vis
+ComradePyehtimExt.scan_average
 ```
 
 ## Bayesian Tools

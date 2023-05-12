@@ -193,10 +193,31 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
 
 end
 
+"""
+    Memory
+
+Stored the HMC samplers in memory or ram.
+"""
 struct Memory end
 
+
+"""
+    Disk
+
+Type that specifies to save the HMC results to disk.
+
+# Fields
+$(FIELDS)
+"""
 Base.@kwdef struct Disk
-    name::String
+    """
+    Path of the directory where the results will be saved. If the path does not exist
+    it will be automatically created.
+    """
+    name::String = "Results"
+    """
+    The output stride, i.e. every `stride` steps the MCMC output will be dumped to disk.
+    """
     stride::Int = 500
 end
 Disk(name::String) = Disk(name, 500)
@@ -216,9 +237,9 @@ To initialize the chain the user can set `init_params` to `Vector{NamedTuple}` w
 elements are the starting locations for each of the `nchains`. If no starting location
 is specified `nchains` random samples from the prior will be chosen for the starting locations.
 
-The use can optionally specify whether to store the samples in RAM or memory `Memory` on save
-directly to disk with `Disk(filename, stride)`. The `stride` controls how often the samples are
-dumped to disk.
+With `saveto` the user can optionally specify whether to store the samples in memory `Memory`
+or save directly to disk with `Disk(filename, stride)`. The `stride` controls how often t
+he samples are dumped to disk.
 
 For possible `kwargs` please see the [`AdvancedHMC.jl docs`](https://github.com/TuringLang/AdvancedHMC.jl)
 
@@ -230,7 +251,8 @@ and the second argument is a set of ancilliary information about the sampler.
 
 This will automatically transform the posterior to the flattened unconstrained space.
 """
-function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC, nsamples, args...;
+function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
+                             sampler::AHMC, nsamples, args...;
                              saveto=Memory(),
                              init_params=nothing,
                              kwargs...)
@@ -274,8 +296,11 @@ struct DiskOutput
 end
 
 
-function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC, nsamples, args...;
-                        init_params=nothing, outdir = "Results", output_stride=min(100, nsamples), kwargs...)
+function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
+                        sampler::AHMC, nsamples, args...;
+                        init_params=nothing, outdir = "Results",
+                        output_stride=min(100, nsamples),
+                        kwargs...)
 
 
     mkpath(outdir)
@@ -286,7 +311,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
     end
     t = Sample(rng, tpost, sampler; init_params, kwargs...)(1:nsamples)
     pt = Iterators.partition(t, output_stride)
-    outbase = joinpath(outdir, "output_scan_")
+    outbase = joinpath(outdir, "samples", "output_scan_")
     nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
 
     next = iterate(pt)
@@ -303,15 +328,34 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
         i += 1
     end
 
-    return DiskOutput(outdir, nscans, output_stride, nsamples)
+    # Now save the output as well
+    out = DiskOutput(outdir, nscans, output_stride, nsamples)
+    jldsave(joinpath(outdir, "parameters"), out)
+
+    return out
 end
 
 """
+    load_table(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples")
+    load_table(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples")
 
+The the results from a HMC run saved to disk. To read in the output the user can either
+pass the resulting `out` object, or the path to the directory that the results were saved,
+i.e. the path specified in [`Disk`](@ref).
+
+By default if just a `out` object is given the entire table of samples will be read in.
+Otherwise the use can specify the specific range
+of `indices` they are interested in. Finally, HMC save two tables, `samples` and `stats`. The
+`samples` table correspond to the actual MCMC samples from HMC stored as a `TypedTable`.
+The `stats` table hold the rest of the sampling statistics such as the evaluated log-density,
+the number of leapfrog steps, etc.
 """
-function load_table(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples")
+function load_table(
+        out::DiskOutput,
+        indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples"
+        )
     @assert (table == "samples" || table == "stats") "Please select either `samples` or `stats`"
-    d = readdir(out.filename, join=true)
+    d = readdir(joinpath(out.filename, "samples"), join=true)
 
     # load and return the entire table
     indices == Base.Colon() && (return reduce(vcat, load.(d, table)))
@@ -337,7 +381,7 @@ function load_table(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepR
     end
 
     t = reduce(vcat, load.(d[find0:find1], table))
-    return t[offset0:(out.stride*(find1-find0) + offset1)]
+    return t[offset0:step(indices):(out.stride*(find1-find0) + offset1)]
 end
 
 
