@@ -303,7 +303,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
                         kwargs...)
 
 
-    mkpath(outdir)
+    mkpath(joinpath(outdir, "samples"))
     θ0 = init_params
     if isnothing(init_params)
         @warn "No starting location chosen, picking start from prior"
@@ -330,7 +330,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
 
     # Now save the output as well
     out = DiskOutput(outdir, nscans, output_stride, nsamples)
-    jldsave(joinpath(outdir, "parameters"), out)
+    save(joinpath(outdir, "parameters.jld2"), out)
 
     return out
 end
