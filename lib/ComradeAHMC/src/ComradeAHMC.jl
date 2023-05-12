@@ -330,7 +330,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
 
     # Now save the output as well
     out = DiskOutput(outdir, nscans, output_stride, nsamples)
-    save(joinpath(outdir, "parameters.jld2"), out)
+    jldsave(joinpath(outdir, "parameters.jld2"); params=out)
 
     return out
 end
