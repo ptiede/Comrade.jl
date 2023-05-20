@@ -33,7 +33,7 @@ struct ModelImage{M,I,C} <: AbstractModelImage{M}
     image::I
     cache::C
 end
-@inline visanalytic(::Type{<:ModelImage{M}}) where {M} = visanalytic(M)
+@inline visanalytic(::Type{<:ModelImage{M}}) where {M} = NotAnalytic()
 @inline imanalytic(::Type{<:ModelImage{M}}) where {M} = imanalytic(M)
 @inline isprimitive(::Type{<:ModelImage{M}}) where {M} = isprimitive(M)
 @inline ispolarized(::Type{<:ModelImage{M}}) where {M} = ispolarized(M)
@@ -95,6 +95,14 @@ function _modelimage(model, image, alg, pulse, thread::StaticBool)
     cache = create_cache(alg, image, pulse)
     return ModelImage(model, image, cache)
 end
+
+@inline function modelimage(::NotAnalytic, model::AbstractModel, cache::FFTCache, thread::StaticBool)
+    img = cache.img
+    intensitymap!(img, model, thread)
+    newcache = update_cache(cache, img, cache.pulse)
+    return ModelImage(model, img, newcache)
+end
+
 
 
 
@@ -164,8 +172,8 @@ function modelimage(m::M;
                     fovy = 2*radialextent(m),
                     nx = 512,
                     ny = 512,
-                    x0 = 0.0,
-                    y0 = 0.0,
+                    x0 = zero(fovx),
+                    y0 = zero(fovx),
                     alg=FFTAlg(),
                     pulse = DeltaPulse(),
                     thread::Bool = false

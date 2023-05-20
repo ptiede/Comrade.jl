@@ -3,6 +3,7 @@
 #end
 using SafeTestsets, Pkg, Distributions
 using ChainRulesTestUtils
+using Pyehtim
 
 # Now we need to grab all the subpackages for testing
 const GROUP = get(ENV, "GROUP", "ALL")

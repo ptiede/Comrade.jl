@@ -21,11 +21,11 @@ post # of type Comrade.Posterior
 # Create sampler using 1000 live points
 smplr = NestedSampler(dimension(post), 1000)
 
-chain, stats = sample(post, smplr; dlogz=1.0)
+samples, dyres = sample(post, smplr; dlogz=1.0)
 
 # Optionally resample the chain to create an equal weighted output
 using StatsBase
-equal_weight_chain = sample(chain, Weights(stats.weights), 10_000)
+equal_weight_chain = ComradeDynesty.equalresample(samples, 10_000)
 ```
 
 ## API

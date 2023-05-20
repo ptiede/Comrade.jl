@@ -17,27 +17,31 @@ Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
 using Plots
 
+# We also load Pyehtim since it loads eht-imaging into Julia using PythonCall and exports
+# the variable ehtim
+using Pyehtim
+
 # To load the data we will use `eht-imaging`. We will use the 2017 public M87 data which can be downloaded from
 # [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019)
 
-obseht = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obseht = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 # Now we will average the data over telescope scans. Note that the EHT data has been pre-calibrated so this averaging
 # doesn't induce large coherence losses.
-obs = scan_average(obseht)
-# !!! Warning
-#    We use a custom scan-averaging function to ensure that the scan-times are homogenized.
-
+obs = Pyehtim.scan_average(obseht)
+# !!! warning
+#     We use a custom scan-averaging function to ensure that the scan-times are homogenized.
+#-
 # We can now extract data products that `Comrade` can use
-coh = extract_coherency(obs) # Coherency matrices
-vis = extract_vis(obs) #complex visibilites
-amp = extract_amp(obs) # visibility amplitudes
-cphase = extract_cphase(obs) # extract minimal set of closure phases
-lcamp = extract_lcamp(obs) # extract minimal set of log-closure amplitudes
+coh    = extract_table(obs, Coherencies()) # Coherency matrices
+vis    = extract_table(obs, ComplexVisibilities()) #complex visibilites
+amp    = extract_table(obs, VisibilityAmplitudes()) # visibility amplitudes
+cphase = extract_table(obs, ClosurePhases(; snrcut=3.0)) # extract minimal set of closure phases
+lcamp  = extract_table(obs, LogClosureAmplitudes(; snrcut=3.0)) # extract minimal set of log-closure amplitudes
 
-# !!! Warning
-#    Always use our `extract_cphase` and `extract_lcamp` functions to find the closures
-#    eht-imaging will sometimes incorrectly calculate a non-redundant set of closures.
-
+# !!! warning
+#     Always use our `extract_cphase` and `extract_lcamp` functions to find the closures
+#     eht-imaging will sometimes incorrectly calculate a non-redundant set of closures.
+#-
 # We can also recover the array used in the observation using
 ac = arrayconfig(vis)
 plot(ac) # Plot the baseline coverage

@@ -12,7 +12,6 @@ using RadioImagePriors
 using DistributionsAD
 
 # load eht-imaging we use this to load eht data
-load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 obs.add_scans()
@@ -167,7 +166,7 @@ using Measurements
 
 # now we sample using hmc
 metric = DenseEuclideanMetric(ndim)
-hchain, stats = sample(post, AHMC(;metric, autodiff=AD.ZygoteBackend()), 5000; nadapts=4000, init_params=xopt)
+hchain, stats = sample(post, AHMC(;metric), 5000; nadapts=4000, init_params=xopt)
 
 # Now plot the gain table with error bars
 gamps = exp.(hcat(hchain.lgamp...))

@@ -1,8 +1,7 @@
-using Comrade, ComradeAHMC, Distributions
+using Pyehtim, Comrade, ComradeAHMC, Distributions
 using Zygote
 using Test
 
-load_ehtim()
 include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
 @testset "ComradeAHMC.jl" begin
@@ -23,12 +22,21 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
           ξ2 = -0.5376269092893298,
           x = 1.451956089157719e-10,
           y = 1.455983181049137e-10)
-    s1 = AHMC(metric=DiagEuclideanMetric(ndim))
-    s2 = AHMC(metric=DenseEuclideanMetric(ndim))
-    s3 = AHMC(metric=DenseEuclideanMetric(ndim), autodiff=Comrade.AD.ZygoteBackend())
+    s1 = AHMC(metric=DiagEuclideanMetric(ndim), autodiff=Val(:ForwardDiff))
+    s2 = AHMC(metric=DenseEuclideanMetric(ndim), autodiff=Val(:ForwardDiff))
+    s3 = AHMC(metric=DenseEuclideanMetric(ndim))
     hchain, hstats = sample(post, s1, 3_000; nadapts=2_000, progress=false)
     hchain, hstats = sample(post, s1, 3_000; nadapts=2_000, progress=false, init_params=x0)
     hchain, hstats = sample(post, s2, 3_000; nadapts=2_000, progress=false, init_params=x0)
+    out = sample(post, s2, 3_000; nadapts=2_000, saveto=ComradeAHMC.Disk(name=joinpath(@__DIR__, "Test")), init_params=x0)
+
+    c1 = load_table(out)
+    @test c1[201:451] == load_table(out, 201:451)
+
+    c1 = load_table(out; table="stats")
+    @test c1[1:451] == load_table(out, 1:451; table="stats")
+
+    rm("Test", recursive=true)
 
     hchain, hstats = sample(post, s2, Comrade.AbstractMCMC.MCMCThreads(), 3_000, 2; nadapts=2_000, progress=false)
     hchain, hstats = sample(post, s2, Comrade.AbstractMCMC.MCMCThreads(), 3_000, 2; nadapts=2_000, progress=false,init_params=[x0,x0])

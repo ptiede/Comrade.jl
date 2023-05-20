@@ -1,4 +1,4 @@
-# # Making an Image of a Black Hole
+# # Geometric Modeling of EHT Data
 
 # `Comrade` has been designed to work with the EHT and ngEHT.
 # In this tutorial, we will show how to reproduce some of the results
@@ -9,11 +9,14 @@
 # In this tutorial, we will construct a similar model and fit it to the data in under
 # 50 lines of code (sans comments). To start, we load Comrade and some other packages we need.
 
+
 using Comrade
 
 using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
+# We load Pyehtim which is a Python interface package to the eht-imaging library.
+using Pyehtim
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(42)
@@ -24,15 +27,13 @@ rng = StableRNG(42)
 # from [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019).
 # For an introduction to data loading, see [Loading Data into Comrade](@ref).
 
-obs = load_ehtim_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = load_uvfits_and_array(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 # Now we will kill 0-baselines since we don't care about large-scale flux and
 # since we know that the gains in this dataset are coherent across a scan, we make scan-average data
-obs = scan_average(obs.flag_uvdist(uv_min=0.1e9))
-# Now we extract the data products we want to fit:
-#   1. log closure amplitudes
-#   2. closure phases
-dlcamp = extract_lcamp(obs)
-dcphase = extract_cphase(obs)
+obs = Pyehtim.scan_average(obs.flag_uvdist(uv_min=0.1e9))
+
+# Now we extract the data products we want to fit
+dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosurePhases(;snrcut=3.0))
 
 # For the image model, we will use a modified `MRing`, a
 # infinitely thin delta ring with an azimuthal structure given by a Fourier expansion.
@@ -134,7 +135,7 @@ prob = Optimization.OptimizationProblem(f, randn(rng, ndim), nothing, lb=fill(-5
 
 # Now we solve for our optimial image.
 
-sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000)
+sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000);
 
 # The sol vector is in the transformed space, so first we need to transform back to parameter space
 # to that we can interpret the solution.
@@ -160,18 +161,18 @@ plot(model(xopt), title="MAP image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
 # Most of Comrade's external libraries follow a similar interface. To use AdvancedHMC
 # do the following:
 
-using ComradeAHMC
-chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim)), 2000; nadapts=1000, init_params=xopt)
+using ComradeAHMC, ForwardDiff
+chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim), autodiff=Val(:ForwardDiff)), 2000; nadapts=1000, init_params=xopt)
 
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.
 
 # First to plot the image we call
 
-plot(model(chain[end]), title="Random image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
+plot(skymodel(post, chain[end]), title="Random image", xlims=(-60.0,60.0), ylims=(-60.0,60.0))
 
 # What about the mean image? Well let's grab 100 images from the chain, where we first remove the
 # adaptation steps since they don't sample from the correct posterior distribution
-meanimg = mean(intensitymap.(model.(sample(chain[1000:end], 100)), μas2rad(120.0), μas2rad(120.0), 128, 128))
+meanimg = mean(intensitymap.(skymodel.(Ref(post), sample(chain[1000:end], 100)), μas2rad(120.0), μas2rad(120.0), 128, 128))
 plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
@@ -179,11 +180,13 @@ plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale 
 
 plot(model(xopt), dlcamp, label="MAP")
 
-# We can also plot what many draws from the posterior look like
+# We can also plot random draws from the posterior predictive distribution.
+# The posterior predictive distribution create a number of synehtic observations that
+# are marginalized over the posterior.
 p = plot(dlcamp);
 uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
 for i in 1:10
-    m = logclosure_amplitudes(model(chain[rand(rng, 1000:2000)]), arrayconfig(dlcamp))
+    m = simulate_observation(post, chain[rand(rng, 1000:2000)])[1]
     scatter!(uva, m, color=:grey, label=:none, alpha=0.1)
 end
 p

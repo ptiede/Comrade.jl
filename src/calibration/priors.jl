@@ -1,4 +1,4 @@
-export CalPrior, HeirarchicalCalPrior
+export CalPrior, HierarchicalCalPrior
 
 struct CalPrior{S,J<:AbstractJonesCache} <: Distributions.ContinuousMultivariateDistribution
     dists::S
@@ -32,7 +32,7 @@ julia> logdensityof(gdist, x)
 ```
 """
 function CalPrior(dists::NamedTuple, jcache::AbstractJonesCache, reference=:none)
-    gstat = jcache.stations
+    gstat = jcache.schema.sites
     @argcheck Set(keys(dists)) == Set(gstat)
 
     if reference === :none
@@ -64,16 +64,16 @@ In other words `distt` is the uncorrelated transition probability when moving fr
 i to timestamp i+1. For the typical pre-calibrated dataset the gain prior on `distt` can be
 tighter than the prior on `dist0`.
 """
-function CalPrior(dist0::NamedTuple, distt::NamedTuple, jcache::SegmentedJonesCache)
-    sites = Tuple(unique(jcache.stations))
+function CalPrior(dist0::NamedTuple, distt::NamedTuple, jcache::JonesCache)
+    sites = Tuple(unique(jcache.schema.sites))
     @argcheck Set(keys(dist0)) == Set(sites)
     @argcheck Set(keys(distt)) == Set(sites)
 
-    times = jcache.times
-    stations = jcache.stations
+    times = jcache.schema.times
+    stations = jcache.schema.sites
     stimes = NamedTuple{sites}(map(x->times[findall(==(x), stations)], sites))
-    cdist = map(zip(jcache.stations, jcache.times)) do (g, t)
-        t > first(getproperty(stimes, g)) && return getproperty(distt, g)
+    cdist = map(zip(jcache.schema.sites, jcache.schema.times)) do (g, t)
+        ((t > first(getproperty(stimes, g))) && jcache.seg[g] isa ScanSeg{true} ) && return getproperty(distt, g)
         return getproperty(dist0, g)
     end
 
@@ -96,8 +96,8 @@ end
 function _makelist(dists, gstat, jcache, refprior)
     sites = collect(Set(gstat))
     idx = 1
-    times = jcache.times
-    scantimes = unique(jcache.times)
+    times = jcache.schema.times
+    scantimes = unique(jcache.schema.times)
     list = map(enumerate(scantimes)) do (i,t)
         # Select the reference station (we cycle through)
         inds = findall(==(t), times)
@@ -148,7 +148,7 @@ function Distributions._logpdf(d::CalPrior, x::AbstractArray)
     return Distributions._logpdf(d.dists, x)
 end
 
-struct HeirarchicalCalPrior{G,DM,DS,J}
+struct HierarchicalCalPrior{G,DM,DS,J}
     mean::DM
     std::DS
     jcache::J
@@ -190,24 +190,24 @@ HypercubeTransform.ascube(d::NamedDist{N}) where {N} = ascube(NamedTuple{N}(d.di
 DensityInterface.DensityKind(::NamedDist) = DensityInterface.IsDensity()
 DensityInterface.logdensityof(d::NamedDist, x) = Dists.logpdf(d, x)
 
-DensityInterface.DensityKind(::HeirarchicalCalPrior) = DensityInterface.IsDensity()
-DensityInterface.logdensityof(d::HeirarchicalCalPrior, x) = Dists.logpdf(d, x)
+DensityInterface.DensityKind(::HierarchicalCalPrior) = DensityInterface.IsDensity()
+DensityInterface.logdensityof(d::HierarchicalCalPrior, x) = Dists.logpdf(d, x)
 
 function _construct_gain_prior(means::NamedTuple{N}, stds::NamedTuple{N}, ::Type{G}, stations) where {N, G}
-    gpr = NamedTuple{N}(G.(values(means), values(stds)))
+    gpr = NamedTuple{N}(map(G, values(means), values(stds)))
     d = map(p->getproperty(gpr, p), stations)
     return Dists.product_distribution(d)
 end
 
 
-function HeirarchicalCalPrior{G}(means, std, jcache::JonesCache) where {G}
+function HierarchicalCalPrior{G}(means, std, jcache::JonesCache) where {G}
     mnt = NamedDist(means)
     snt = NamedDist(std)
 
-    return HeirarchicalCalPrior{G, typeof(mnt), typeof(snt), typeof(jcache)}(mnt, snt, jcache)
+    return HierarchicalCalPrior{G, typeof(mnt), typeof(snt), typeof(jcache)}(mnt, snt, jcache)
 end
 
-function Dists.logpdf(d::HeirarchicalCalPrior{G}, x::NamedTuple) where {G}
+function Dists.logpdf(d::HierarchicalCalPrior{G}, x::NamedTuple) where {G}
     lm = Dists.logpdf(d.mean, x.mean)
     ls = Dists.logpdf(d.std, x.std)
     dg = _construct_gain_prior(x.mean, x.std, G, stations(d.jcache))
@@ -215,25 +215,25 @@ function Dists.logpdf(d::HeirarchicalCalPrior{G}, x::NamedTuple) where {G}
     return lg+ls+lm
 end
 
-function _unwrapped_logpdf(d::HeirarchicalCalPrior, x::Tuple)
+function _unwrapped_logpdf(d::HierarchicalCalPrior, x::Tuple)
     return Dists.logpdf(d, NamedTuple{(:mean, :std, :gains)}(x))
 end
 
 
-function Dists.rand(rng::AbstractRNG, d::HeirarchicalCalPrior{G}) where {G}
+function Dists.rand(rng::AbstractRNG, d::HierarchicalCalPrior{G}) where {G}
     m = rand(rng, d.mean)
     s = rand(rng, d.std)
-    dg = _construct_gain_prior(m, s, G, d.jcache.stations)
+    dg = _construct_gain_prior(m, s, G, d.jcache.schema.sites)
     g = rand(rng, dg)
     return (mean=m, std=s, gains=g)
 end
 
-Base.length(d::HeirarchicalCalPrior) = length(d.mean) + length(d.std) + length(d.times)
+Base.length(d::HierarchicalCalPrior) = length(d.mean) + length(d.std) + length(d.times)
 
-function HypercubeTransform.asflat(d::HeirarchicalCalPrior{G}) where {G}
+function HypercubeTransform.asflat(d::HierarchicalCalPrior{G}) where {G}
     m = rand(d.mean)
     s = rand(d.std)
-    dg = _construct_gain_prior(m, s, G, d.jcache.stations)
+    dg = _construct_gain_prior(m, s, G, d.jcache.schema.sites)
     return TransformVariables.as((mean = asflat(d.mean), std = asflat(d.std), gains = asflat(dg)))
 end
 

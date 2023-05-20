@@ -20,10 +20,10 @@ using ForwardDiff
 using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
 using FFTW
 #using MappedArrays: mappedarray
+using NamedTupleTools
 using NFFT
 using PaddedViews
 using PDMats
-using PyCall: pyimport, PyNULL, PyObject
 using SpecialFunctions #: gamma, erf
 #using Bessels
 using Random
@@ -38,48 +38,36 @@ using TypedTables
 
 @reexport using ComradeBase
 export linearpol, mbreve, evpa
-export AD
 using ComradeBase: AbstractDims
 
 
-const ehtim = PyNULL()
-
-"""
-    load_ehtim()
-
-Loads the [eht-imaging](https://github.com/achael/eht-imaging) library and stores it in the
-exported `ehtim` variable.
-
-# Notes
-This will fail if ehtim isn't installed in the python installation that PyCall references.
-"""
-function load_ehtim()
-    #try
-    copy!(ehtim, pyimport("ehtim"))
-    #catch
-    #    @warn "No ehtim installation found in python path. Some data functionality will not work"
-    #end
-end
 
 
-export rad2μas, μas2rad, ehtim, load_ehtim, logdensity_def, logdensityof
+export rad2μas, μas2rad, logdensity_def, logdensityof
+export rad2μas, μas2rad, logdensity_def, logdensityof
 
 """
     rad2μas(x)
 Converts a number from radians to micro-arcseconds (μas)
 """
-@inline rad2μas(x) = 180/π*3600*1e6*x
+@inline rad2μas(x) = 180*3600*1_000_000*x/π
 
 """
     μas2rad(x)
 Converts a number from micro-arcseconds (μas) to rad
 """
-@inline μas2rad(x) = x/(180/π*3600*1e6)
+@inline μas2rad(x) = x/(180*3600*1_000_000)*π
 
 
 #include("interface.jl")
 #include("images/images.jl")
-import ComradeBase: flux, radialextent, intensitymap, intensitymap!
+import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
+                    intensitymap_analytic, intensitymap_analytic!,
+                    intensitymap_numeric, intensitymap_numeric!,
+                    visibilities, visibilities!,
+                    _visibilities, _visibilities!,
+                    visibilities_analytic, visibilities_analytic!,
+                    visibilities_numeric, visibilities_numeric!
 export create_cache
 include("observations/observations.jl")
 include("models/models.jl")
@@ -89,6 +77,22 @@ include("bayes/bayes.jl")
 include("inference/inference.jl")
 include("calibration/calibration.jl")
 include("rules.jl")
+include("utility.jl")
+include("clean.jl")
+
+
+
+# Load extensions using requires for verions < 1.9
+if !isdefined(Base, :get_extension)
+    using Requires
+end
+
+@static if !isdefined(Base, :get_extension)
+    function __init__()
+        @require Pyehtim="3d61700d-6e5b-419a-8e22-9c066cf00468" include(joinpath(@__DIR__, "../ext/ComradePyehtimExt.jl"))
+    end
+end
+
 
 
 end

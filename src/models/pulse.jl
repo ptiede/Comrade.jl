@@ -104,10 +104,10 @@ function κ(k::BicubicPulse, x::T) where {T}
     end
 end
 
-function ω(m::BicubicPulse, u)
+function ω(m::BicubicPulse{T}, u) where {T}
     b = m.b
-    k = 2π*u
-    abs(k) < 1e-2 && return 1 - (2*b + 1)*k^2/15 + (16*b + 1)*k^4/560
+    k = 2T(π)*u
+    abs(k) < T(1e-2) && return 1 - (2*b + 1)*k^2/15 + (16*b + 1)*k^4/560 + 0im
     s,c = sincos(k)
     k3 = k^3
     k4 = k3*k
@@ -145,6 +145,6 @@ end
 
 function ω(k::RaisedCosinePulse, u::T) where {T}
     β = k.rolloff
-    abs(u) ≈ inv(2*β) && return complex(π/4*sinc(inv(2*β)))
+    abs(u) ≈ inv(2*β) && return complex(T(π)/4*sinc(inv(2*β)))
     return complex(sinc(u)*cospi(β*u)*inv(1 - (2β*u)^2))
 end

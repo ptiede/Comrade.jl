@@ -15,7 +15,7 @@ post # of type Comrade.Posterior
 
 smplr = AdaptMCMC(ntemp=5) # use 5 tempering levels
 
-chain, stats = sample(post, smplr, 500_000, 300_000)
+samples, endstate = sample(post, smplr, 500_000, 300_000)
 ```
 
 ## API

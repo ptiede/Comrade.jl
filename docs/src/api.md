@@ -25,20 +25,18 @@ Comrade.caltable(::Comrade.JonesCache, ::AbstractVector)
 Comrade.caltable(::Comrade.EHTObservation, ::AbstractVector)
 Comrade.DesignMatrix
 Comrade.JonesCache
-Comrade.SegmentedJonesCache
 Comrade.TransformCache
 Comrade.JonesModel
 Comrade.CalPrior
 Comrade.CalPrior(::NamedTuple, ::JonesCache)
-Comrade.CalPrior(::NamedTuple, ::NamedTuple, ::Comrade.SegmentedJonesCache)
+Comrade.CalPrior(::NamedTuple, ::NamedTuple, ::JonesCache)
 Comrade.RIMEModel
 Comrade.ObsSegmentation
 Comrade.IntegSeg
 Comrade.ScanSeg
 Comrade.TrackSeg
-Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.TrackSeg)
-Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.ScanSeg)
-Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.ScanSeg, ::Any)
+Comrade.FixedSeg
+Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.ObsSegmentation)
 Comrade.jonesStokes
 Comrade.jonesG
 Comrade.jonesD
@@ -46,6 +44,7 @@ Comrade.jonesT
 Comrade.PoincareSphere2Map
 Comrade.caltable
 Comrade.JonesPairs
+Comrade.GainSchema
 ```
 
 ### Combinators
@@ -113,6 +112,7 @@ Comrade.ObservedNUFT
 ### Modifiers
 
 ```@docs
+Comrade.modify
 Comrade.basemodel
 Comrade.unmodified
 Comrade.renormed
@@ -120,11 +120,12 @@ Comrade.rotated
 Comrade.posangle
 Comrade.shifted
 Comrade.stretched
-Comrade.AbstractModifier
-Comrade.RenormalizedModel
-Comrade.RotatedModel
-Comrade.ShiftedModel
-Comrade.StretchedModel
+Comrade.ModifiedModel
+Comrade.ModelModifier
+Comrade.Stretch
+Comrade.Shift
+Comrade.Rotate
+Comrade.Renormalize
 ```
 
 ### Polarized Models
@@ -149,16 +150,19 @@ Comrade.closure_phase
 Comrade.closure_phases
 Comrade.logclosure_amplitude
 Comrade.logclosure_amplitudes
-Comrade.visibilities
 Comrade.visibility
-Comrade.intensitymap
-Comrade.intensitymap!
 ```
 
 ## Data Types
 
 
 ```@docs
+Comrade.extract_table
+Comrade.ComplexVisibilities
+Comrade.VisibilityAmplitudes
+Comrade.ClosurePhases
+Comrade.LogClosureAmplitudes
+Comrade.Coherencies
 Comrade.amplitude(::Comrade.EHTVisibilityDatum)
 Comrade.amplitude(::Comrade.EHTVisibilityAmplitudeDatum)
 Comrade.baselines
@@ -188,14 +192,11 @@ Comrade.ScanTable
 ## eht-imaging interface
 
 ```@docs
-Comrade.extract_coherency
-Comrade.extract_amp
-Comrade.extract_cphase
-Comrade.extract_lcamp
-Comrade.extract_vis
-Comrade.load_ehtim_uvfits
-Comrade.load_ehtim
-Comrade.scan_average
+ComradePyehtimExt.extract_amp
+ComradePyehtimExt.extract_cphase
+ComradePyehtimExt.extract_lcamp
+ComradePyehtimExt.extract_vis
+ComradePyehtimExt.scan_average
 ```
 
 ## Bayesian Tools
@@ -227,17 +228,18 @@ Comrade.rad2μas
 Comrade.load
 Comrade.save
 Comrade.NonAnalyticTest
+Comrade.station_tuple
+Comrade.center_image
+Comrade.convolve!
 ```
 
 ## Internal (Not Public API)
 ```@docs
-Comrade.make_pullback
 Comrade.scale_uv
 Comrade.scale_image
 Comrade.transform_uv
 Comrade.transform_image
 Comrade.ThreadedModel
-Comrade.fishermatrix
 Comrade.extract_FRs
 ```
 

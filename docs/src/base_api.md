@@ -29,7 +29,19 @@ ComradeBase.imanalytic
 ComradeBase.ispolarized
 ComradeBase.radialextent
 ComradeBase.visibility_point
+ComradeBase.visibilities
+ComradeBase.visibilities!
+ComradeBase.visibilities_analytic
+ComradeBase.visibilities_analytic!
+ComradeBase.visibilities_numeric
+ComradeBase.visibilities_numeric!
 ComradeBase.intensity_point
+ComradeBase.intensitymap
+ComradeBase.intensitymap!
+ComradeBase.intensitymap_analytic
+ComradeBase.intensitymap_analytic!
+ComradeBase.intensitymap_numeric
+ComradeBase.intensitymap_numeric!
 ComradeBase.PrimitiveTrait
 ComradeBase.IsPrimitive
 ComradeBase.NotPrimitive
@@ -55,6 +67,7 @@ ComradeBase.pixelsizes
 ComradeBase.phasecenter
 ComradeBase.centroid
 ComradeBase.second_moment
+ComradeBase.header
 ```
 
 

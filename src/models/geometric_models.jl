@@ -28,8 +28,8 @@ As a result a user only needs to implement the following methods
 Note that if the geometric model isn't **analytic** then the usual methods listed
 in [`Comrade.AbstractModel`](@ref) for non-analytic models need to be implemented.
 """
-abstract type GeometricModel <: AbstractModel end
-@inline flux(::GeometricModel) = 1.0
+abstract type GeometricModel{T} <: AbstractModel end
+@inline flux(::GeometricModel{T}) where {T} = one(T)
 
 @inline isprimitive(::Type{<:GeometricModel}) = IsPrimitive()
 
@@ -45,18 +45,18 @@ Gaussian with unit standard deviation and flux.
 
 By default if T isn't given, `Gaussian` defaults to `Float64`
 """
-struct Gaussian{T} <: GeometricModel end
+struct Gaussian{T} <: GeometricModel{T} end
 Gaussian() = Gaussian{Float64}()
 radialextent(::Gaussian{T}) where {T} = convert(T, 5)
 
 
-@inline function intensity_point(::Gaussian, p)
+@inline function intensity_point(::Gaussian{T}, p) where {T}
     x,y = _getxy(p)
-    return exp(-(x^2+y^2)/2)/2π
+    return exp(-(x^2+y^2)/2)/T(2*pi)
 end
 
 @inline function visibility_point(::Gaussian{T}, u, v, time, freq) where {T}
-    return exp(-2π^2*(u^2 + v^2)) + zero(T)im
+    return exp(-2*T(π)^2*(u^2 + v^2)) + zero(T)im
 end
 
 
@@ -73,7 +73,7 @@ i.e. a unit radius and unit flux disk.
 
 By default if T isn't given, `Disk` defaults to `Float64`
 """
-struct Disk{T} <: GeometricModel end
+struct Disk{T} <: GeometricModel{T} end
 Disk() = Disk{Float64}()
 
 @inline function intensity_point(::Disk{T}, p) where {T}
@@ -83,7 +83,7 @@ Disk() = Disk{Float64}()
 end
 
 @inline function visibility_point(::Disk{T}, u, v, time, freq) where {T}
-    ur = 2π*(hypot(u,v) + eps(T))
+    ur = 2*T(π)*(sqrt(u^2 + v^2) + eps(T))
     return 2*besselj1(ur)/(ur) + zero(T)im
 end
 
@@ -101,7 +101,7 @@ i.e. a unit radius and unit flux disk.
 
 By default if T isn't given, `Disk` defaults to `Float64`
 """
-struct SlashedDisk{T} <: GeometricModel
+struct SlashedDisk{T} <: GeometricModel{T}
     slash::T
 end
 
@@ -110,7 +110,7 @@ function intensity_point(m::SlashedDisk{T}, p) where {T}
     x,y = _getxy(p)
     r2 = x^2 + y ^2
     s = 1 - m.slash
-    norm = 2*inv(π)/(1+s)
+    norm = 2/(π*(1+s))
     if  r2 < 1
         return norm/2*((1+y) + s*(1-y))
     else
@@ -119,7 +119,7 @@ function intensity_point(m::SlashedDisk{T}, p) where {T}
 end
 
 function visibility_point(m::SlashedDisk{T}, u, v, time, freq) where {T}
-    k = 2π*sqrt(u^2 + v^2) + eps(T)
+    k = 2*T(π)*sqrt(u^2 + v^2) + eps(T)
     s = 1-m.slash
     norm = 2/(1+s)/k
 
@@ -128,7 +128,7 @@ function visibility_point(m::SlashedDisk{T}, u, v, time, freq) where {T}
     b2outer = besselj(2,k)
 
     v1 = (1+s)*b1outer
-    v3 = -2im*π*u*(1-s)*(b0outer-b2outer-2*b1outer/k)/(2*k)
+    v3 = -2im*T(π)*u*(1-s)*(b0outer-b2outer-2*b1outer/k)/(2*k)
     return norm*(v1+v3)
 end
 
@@ -144,7 +144,7 @@ i.e. a unit radius and flux delta ring.
 
 By default if `T` isn't given, `Gaussian` defaults to `Float64`
 """
-struct Ring{T} <: GeometricModel end
+struct Ring{T} <: GeometricModel{T} end
 Ring() = Ring{Float64}()
 radialextent(::Ring{T}) where {T} = convert(T, 3/2)
 
@@ -152,10 +152,10 @@ radialextent(::Ring{T}) where {T} = convert(T, 3/2)
     x,y = _getxy(p)
     r = hypot(x,y)
     θ = atan(x,y)
-    dr = 1e-2
+    dr = T(1e-2)
     if (abs(r-1) < dr/2)
         acc = one(T)
-        return acc/(2π*dr)
+        return acc/(2*T(π)*dr)
     else
         return zero(T)
     end
@@ -164,12 +164,12 @@ end
 
 
 @inline function visibility_point(::Ring{T}, u, v, time, freq) where {T}
-    k = 2π*sqrt(u^2 + v^2) + eps(T)
+    k = 2*T(π)*sqrt(u^2 + v^2) + eps(T)
     vis = besselj0(k) + zero(T)*im
     return vis
 end
 
-struct Butterworth{N, T} <: GeometricModel end
+struct Butterworth{N, T} <: GeometricModel{T} end
 
 """
     Butterworth{N}()
@@ -209,7 +209,7 @@ The `N` in the type defines the order of the Fourier expansion.
 # Fields
 $(FIELDS)
 """
-struct MRing{T, V<:Union{AbstractVector{T}, NTuple}} <: GeometricModel
+struct MRing{T, V<:Union{AbstractVector{T}, NTuple}} <: GeometricModel{T}
     """
     Real Fourier mode coefficients
     """
@@ -255,14 +255,14 @@ radialextent(::MRing{T}) where {T} = convert(T, 3/2)
     x,y = _getxy(p)
     r = hypot(x,y)
     θ = atan(x,y)
-    dr = 0.025
+    dr = T(0.025)
     if (abs(r-1) < dr/2)
         acc = one(T)
         for n in eachindex(m.α, m.β)
             s,c = sincos(n*θ)
             acc += m.α[n]*c - m.β[n]*s
         end
-        return acc/(2π*dr)
+        return acc/(2*T(π)*dr)
     else
         return zero(T)
     end
@@ -275,7 +275,7 @@ end
 
 @inline function _mring_vis(m::MRing{T}, u, v) where {T}
     (;α, β) = m
-    k = 2π*sqrt(u^2 + v^2) + eps(T)
+    k = T(2π)*sqrt(u^2 + v^2) + eps(T)
     vis = besselj0(k) + zero(T)*im
     θ = atan(u, v)
     @inbounds for n in eachindex(α, β)
@@ -285,61 +285,61 @@ end
     return vis
 end
 
-function _mring_adjoint(α, β, u, v)
-    T = eltype(α)
-    ρ = hypot(u,v)
-    k = 2π*ρ + eps(T)
-    θ = atan(u,v)
-    vis = complex(besselj0(k))
+# function _mring_adjoint(α, β, u, v)
+#     T = eltype(α)
+#     ρ = hypot(u,v)
+#     k = 2π*ρ + eps(T)
+#     θ = atan(u,v)
+#     vis = complex(besselj0(k))
 
-    j0 = besselj0(k)
-    j1 = besselj1(k)
-    #bj = Base.Fix2(besselj, k)
-    #jn = ntuple(bj, length(α))
+#     j0 = besselj0(k)
+#     j1 = besselj1(k)
+#     #bj = Base.Fix2(besselj, k)
+#     #jn = ntuple(bj, length(α))
 
-    ∂u = -complex(j1*2π*u/ρ)
-    ∂v = -complex(j1*2π*v/ρ)
-    ∂α = zeros(Complex{T}, length(α))
-    ∂β = zeros(Complex{T}, length(α))
+#     ∂u = -complex(j1*2π*u/ρ)
+#     ∂v = -complex(j1*2π*v/ρ)
+#     ∂α = zeros(Complex{T}, length(α))
+#     ∂β = zeros(Complex{T}, length(α))
 
-    ∂ku = 2π*u/ρ
-    ∂kv = 2π*v/ρ
-    ∂θu = v/ρ^2
-    ∂θv = -u/ρ^2
+#     ∂ku = 2π*u/ρ
+#     ∂kv = 2π*v/ρ
+#     ∂θu = v/ρ^2
+#     ∂θv = -u/ρ^2
 
-    for n in eachindex(α, β)
-        s,c = sincos(n*θ)
-        imn = (1im)^n
-        jn = besselj(n,k)
-        ∂α[n] =  2*c*jn*imn
-        ∂β[n] = -2*s*jn*imn
-        dJ = j0 - n/k*jn
-        j0 = jn
+#     for n in eachindex(α, β)
+#         s,c = sincos(n*θ)
+#         imn = (1im)^n
+#         jn = besselj(n,k)
+#         ∂α[n] =  2*c*jn*imn
+#         ∂β[n] = -2*s*jn*imn
+#         dJ = j0 - n/k*jn
+#         j0 = jn
 
-        visargc = 2*imn*(-α[n]*s - β[n]*c)
-        visarg  = 2*imn*(α[n]*c - β[n]*s)
-        vis += visarg*jn
+#         visargc = 2*imn*(-α[n]*s - β[n]*c)
+#         visarg  = 2*imn*(α[n]*c - β[n]*s)
+#         vis += visarg*jn
 
-        ∂u +=  n*visargc*jn*∂θu + visarg*dJ*∂ku
-        ∂v +=  n*visargc*jn*∂θv + visarg*dJ*∂kv
+#         ∂u +=  n*visargc*jn*∂θu + visarg*dJ*∂ku
+#         ∂v +=  n*visargc*jn*∂θv + visarg*dJ*∂kv
 
-    end
-    return vis, ∂α, ∂β, ∂u, ∂v
-end
+#     end
+#     return vis, ∂α, ∂β, ∂u, ∂v
+# end
 
-function ChainRulesCore.rrule(::typeof(_mring_vis), m::MRing, u, v)
-    (;α, β) = m
-    # pda = ProjectTo(α)
-    # pdb = ProjectTo(β)
-    vis, ∂α, ∂β, ∂u, ∂v = _mring_adjoint(α, β, u, v)
+# function ChainRulesCore.rrule(::typeof(_mring_vis), m::MRing, u, v)
+#     (;α, β) = m
+#     pda = ProjectTo(α)
+#     pdb = ProjectTo(β)
+#     vis, ∂α, ∂β, ∂u, ∂v = _mring_adjoint(α, β, u, v)
 
-    function _mring_pullback(Δv)
-        return (NoTangent(), Tangent{typeof(m)}(α=real(Δv'.*∂α), β=(real(Δv'.*∂β))), real(Δv'.*∂u), real(Δv'.*∂v))
-    end
+#     function _mring_pullback(Δv)
+#         return (NoTangent(), Tangent{typeof(m)}(α=pda(real.(Δv'.*∂α)), β=pdb((real.(Δv'.*∂β)))), real.(Δv'.*∂u), real.(Δv'.*∂v))
+#     end
 
-    return vis, _mring_pullback
+#     return vis, _mring_pullback
 
-end
+# end
 
 """
     $(TYPEDEF)
@@ -353,8 +353,8 @@ crescent model. This works by composing two disk models together.
 - `shift`: How much the inner disk radius is shifted (positive is to the right)
 - `floor`: The floor of the inner disk 0 means the inner intensity is zero and 1 means it is a large disk.
 """
-function Crescent(router, rinner, shift, floor)
-    m = stretched(Disk(), router, router)*(π*router^2) - shifted(stretched(Disk(), rinner, rinner)*((1-floor)*π*rinner^2), shift, zero(typeof(shift)))
+function Crescent(router::T, rinner::T, shift::T, floor::T) where {T}
+    m = stretched(Disk{T}(), router, router)*(T(π)*router^2) + T(-1)*shifted(stretched(Disk{T}(), rinner, rinner)*((1-floor)*T(π)*rinner^2), shift, zero(typeof(shift)))
     return m/flux(m)
 end
 
@@ -375,7 +375,7 @@ unit version. In fact, this model could have been created using
 the `Disk` and primitives by using Comrade.jl's model composition
 functionality.
 """
-struct ConcordanceCrescent{T} <: GeometricModel
+struct ConcordanceCrescent{T} <: GeometricModel{T}
     """
     Outer radius of the crescent
     """
@@ -402,7 +402,7 @@ radialextent(m::ConcordanceCrescent{T}) where {T} = m.router*3/2
 function _crescentnorm(m::ConcordanceCrescent)
     f = (1+m.slash)*(m.router^2 - m.rinner^2) -
         (1-m.slash)*m.shift*m.rinner*m.rinner/m.router
-    return 2/π/f
+    return 2/(π*f)
 end
 
 function intensity_point(m::ConcordanceCrescent{T}, p) where {T}
@@ -417,9 +417,9 @@ function intensity_point(m::ConcordanceCrescent{T}, p) where {T}
 end
 
 function visibility_point(m::ConcordanceCrescent{T}, u, v, time, freq) where {T}
-    k = 2π*sqrt(u^2 + v^2) + eps(T)
-    norm = π*_crescentnorm(m)/k
-    phaseshift = cispi(2*m.shift*u)
+    k = 2*T(π)*sqrt(u^2 + v^2) + eps(T)
+    norm = T(π)*_crescentnorm(m)/k
+    phaseshift = exp(2*m.shift*u*T(π)*1im)
     b0outer,b0inner = besselj0(k*m.router), besselj0(k*m.rinner)
     b1outer,b1inner = besselj1(k*m.router), besselj1(k*m.rinner)
     b2outer,b2inner = besselj(2,k*m.router), besselj(2, k*m.rinner)
@@ -427,11 +427,11 @@ function visibility_point(m::ConcordanceCrescent{T}, u, v, time, freq) where {T}
     v1 = (1+m.slash)*m.router*b1outer
     v2 = ((1+m.slash) + (1-m.slash)*m.shift/m.router)*
             phaseshift*m.rinner*b1inner
-    v3 = -2im*π*u*(1-m.slash)*(m.router*b0outer -
+    v3 = -2im*T(π)*u*(1-m.slash)*(m.router*b0outer -
                            m.router*b2outer -
                            2*b1outer/k
                           )/(2*k)
-    v4 = -2im*π*u*(1-m.slash)*(m.rinner*b0inner -
+    v4 = -2im*T(π)*u*(1-m.slash)*(m.rinner*b0inner -
                           m.rinner*b2inner -
                           2*b1inner/k
                          )/(2*k)*(m.rinner/m.router)*phaseshift
@@ -458,20 +458,20 @@ $(FIELDS)
 
 Note that if `T` isn't specified at construction then it defaults to `Float64`.
 """
-struct ExtendedRing{F<:Number} <: GeometricModel
+struct ExtendedRing{T} <: GeometricModel{T}
     """shape of the radial distribution"""
-    shape::F
+    shape::T
 end
 visanalytic(::Type{<:ExtendedRing}) = NotAnalytic()
 
 radialextent(::ExtendedRing{T}) where {T} = convert(T, 6)
 
-function intensity_point(m::ExtendedRing, p)
+function intensity_point(m::ExtendedRing{T}, p) where {T}
     x,y = _getxy(p)
-    r = hypot(x, y) + eps()
+    r = hypot(x, y) + eps(T)
     β = (m.shape + 1)
     α = m.shape
-    β^α*r^(-α-2)*exp(-β/r)/gamma(α)/(2*π)
+    β^α*r^(-α-2)*exp(-β/r)/gamma(α)/(2*T(π))
 end
 
 
@@ -483,9 +483,9 @@ The segment is centered at zero, with roots ±1 and a yintercept of 1.
 
 Note that if `T` isn't specified at construction then it defaults to `Float64`.
 """
-struct ParabolicSegment{T} <: GeometricModel end
+struct ParabolicSegment{T} <: GeometricModel{T} end
 ParabolicSegment() = ParabolicSegment{Float64}()
-radialextent(::ParabolicSegment{T}) where {T} = convert(T, sqrt(2))
+radialextent(::ParabolicSegment{T}) where {T} = convert(T, sqrt(2)+1)
 
 """
     ParabolicSegment(a::Number, h::Number)
@@ -503,8 +503,8 @@ end
 function intensity_point(::ParabolicSegment{T}, p) where {T}
     x,y = _getxy(p)
     yw = (1-x^2)
-    if abs(y - yw) < 0.01/2 && abs(x) < 1
-        return 1/(2*0.01)
+    if abs(y - yw) < T(0.01/2) && abs(x) < 1
+        return 1/T(2*0.01)
     else
         return zero(T)
     end
@@ -512,9 +512,9 @@ end
 
 function visibility_point(::ParabolicSegment{T}, u, v, time, freq) where {T}
     ϵ = sqrt(eps(T))
-    vϵ = v + ϵ + 0im
-    phase = cispi(3/4 + 2*vϵ + u^2/(2vϵ))
-    Δ1 = erf(√(π/(2vϵ))*cispi(1/4)*(u-2vϵ))
-    Δ2 = erf(√(π/(2vϵ))*cispi(1/4)*(u+2vϵ))
-    return phase/(√(2vϵ))*(Δ1-Δ2)/4
+    vϵ = complex(v + ϵ)
+    phase = cispi(T(3)/4 + 2*vϵ + u^2/(2*vϵ))
+    Δ1 = erf(√(T(π)/(2*vϵ))*cispi(T(1)/4)*(u-2*vϵ))
+    Δ2 = erf(√(T(π)/(2*vϵ))*cispi(T(1)/4)*(u+2*vϵ))
+    return phase/(√(2*vϵ))*(Δ1-Δ2)/4
 end

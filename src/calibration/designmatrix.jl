@@ -1,26 +1,3 @@
-
-"""
-    $(TYPEDEF)
-
-Abstract type that encompasses all RIME style corruptions.
-"""
-abstract type RIMEModel <: AbstractModel end
-
-basemodel(m::RIMEModel) = m.model
-flux(m::RIMEModel) = flux(basemodel(m))
-radialextent(m::RIMEModel) = radialextent(basemodel(m))
-
-function intensitymap(model::RIMEModel, dims::AbstractDims)
-    return intensitymap(basemodel(model), dims)
-end
-
-function intensity_point(model::RIMEModel, p)
-    return intensity_point(basemodel(model), p)
-end
-
-_amplitudes(m::RIMEModel, u, v, t, f) = abs.(_visibilities(m, u, v, t, f))
-
-
 """
     $(TYPEDEF)
 

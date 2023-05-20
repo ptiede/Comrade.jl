@@ -1,26 +1,17 @@
-using Pkg; Pkg.activate(@__DIR__)
+using Pkg; Pkg.activate(joinpath(@__DIR__, "../examples/"))
 #Make sure you are using the main branch of Comrade and ComradePigeons
-Pkg.add("Comrade#main")
-Pkg.add("https://github.com/ptiede/Comrade.jl/lib/ComradePigeons")
+using Pyehtim
+using Comrade
+using Distributions
+# Add the interface package
+using ComradePigeons
+using Plots
+using StatsBase
+using VLBIImagePriors
 
-using MPIClusterManagers
-using Distributed
-
-manager = MPIManager(np=4)
-addprocs(manager; exeflags="--project=$(@__DIR__)")
-
-@mpi_do manager begin
-    using MPI
-    using Comrade
-    using Distributions
-    # Add the interface package
-    using ComradePigeons
-    using Plots
-    using StatsBase
-    using VLBIImagePriors
 
     # To download the data visit https://doi.org/10.25739/g85n-f134
-    obs = load_ehtim_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+    obs = ehtim.obsdata.load_uvfits((joinpath(@__DIR__, "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits")))
     obs.add_scans()
     # kill 0-baselines since we don't care about
     # large scale flux and make scan-average data
@@ -70,4 +61,3 @@ addprocs(manager; exeflags="--project=$(@__DIR__)")
     input = Pigeons.Inputs(tpost; recorder_builders=[Pigeons.index_process], seed=40, n_rounds=6, n_chains=100, checkpoint=true)
     pt = PT(input)
     out = pigeons(pt)
-end

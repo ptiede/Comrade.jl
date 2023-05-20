@@ -7,7 +7,7 @@ import ComradeBase: visibility_point,
 
 export visibility, amplitude, closure_phase, logclosure_amplitude, bispectrum,
        visibilities, amplitudes, closure_phases, logclosure_amplitudes, bispectra,
-       flux, intensitymap, intensitymap!, PolarizedModel
+       flux, intensitymap, intensitymap!, PolarizedModel, convolve!
 
 
 abstract type AbstractModelImage{M} <: ComradeBase.AbstractModel end
@@ -20,11 +20,11 @@ abstract type AbstractModelImage{M} <: ComradeBase.AbstractModel end
 
 include(joinpath(@__DIR__, "methods.jl"))
 include(joinpath(@__DIR__, "pulse.jl"))
+include(joinpath(@__DIR__, "geometric_models.jl"))
 include(joinpath(@__DIR__, "modelimage/modelimage.jl"))
 include(joinpath(@__DIR__, "modifiers.jl"))
 include(joinpath(@__DIR__, "combinators.jl"))
 include(joinpath(@__DIR__, "polarized.jl"))
-include(joinpath(@__DIR__, "geometric_models.jl"))
 include(joinpath(@__DIR__, "continuous_image.jl"))
 include(joinpath(@__DIR__, "test.jl"))
 include(joinpath(@__DIR__, "misc.jl"))

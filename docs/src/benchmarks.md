@@ -11,7 +11,7 @@ Themis is a C++ package focused on providing Bayesian estimates of the image str
 
 ## Benchmarking Problem
 
-For our benchmarking problem, we analyze a situation very similar to the one explained in [Making an Image of a Black Hole](@ref). Namely, we will consider fitting 2017 M87 April 6 data using an m-ring and a single Gaussian component. Please see the end of this page to see the code we used for `Comrade` and `eht-imaging`.
+For our benchmarking problem, we analyze a situation very similar to the one explained in [Geometric Modeling of EHT Data](@ref). Namely, we will consider fitting 2017 M87 April 6 data using an m-ring and a single Gaussian component. Please see the end of this page to see the code we used for `Comrade` and `eht-imaging`.
 
 ## Results
 
@@ -49,14 +49,14 @@ Therefore, for this test we found that `Comrade` was the fastest method in all t
 ### Julia Code
 
 ```julia
+using Pyehtim
 using Comrade
 using Distributions
 using BenchmarkTools
 using ForwardDiff
 
-load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits((joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 obs = scan_average(obs)
 amp = extract_amp(obs)
 
@@ -93,17 +93,17 @@ x0 = inverse(tpost, θ)
 ℓ = logdensityof(tpost)
 @benchmark ℓ($x0)
 
+using LogDensityProblemsAD
 # Now we benchmark the gradient
-gℓ = Comrade.make_pullback(ℓ, AD.ForwardDiffBackend())
-@benchmark gℓ($x0)
+gℓ = ADgradient(Val(:ForwardDiff), tpost)
+@benchmark LogDensityProblemsAD.logdensity_and_gradient($gℓ, $x0)
 ```
 
 ### eht-imaging Code
 
 ```julia
-load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = load_ehtim_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits((joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 obs = scan_average(obs)
 
 

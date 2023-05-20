@@ -34,7 +34,7 @@ end
 # function extract_components(len, comp, names)
 #     map(names) do n
 #         c = getproperty(comp, n)
-#         typeof(c) <: AbstractZero && return Fill(0.0, len)
+#         typeof(c) <: AbstractZero && return Fill(0, len)
 #         return c
 #     end
 # end
@@ -72,6 +72,12 @@ function (project::ProjectTo{StructArray})(dx)
     @assert project.eltype === eltype(dx) "The eltype of the array is not the same there is an error in a ChainRule"
     return dx
 end
+
+function (project::ProjectTo{StructArray})(dx::ChainRulesCore.AbstractZero)
+    # @assert project.eltype === eltype(dx) "The eltype of the array is not the same there is an error in a ChainRule"
+    return ZeroTangent()
+end
+
 
 
 
@@ -118,4 +124,28 @@ function ChainRulesCore.rrule(::Type{ContinuousImage}, data::AbstractArray, puls
         return (NoTangent(), @thunk(pd(Δ.img)), NoTangent())
     end
     return img, _ContinuousImage_pullback
+end
+
+
+getm(m::AbstractModel) = m
+getm(m::Tuple) = m[2]
+
+function ChainRulesCore.rrule(::typeof(visibilities_analytic), m::Union{GeometricModel, PolarizedModel, CompositeModel, ModifiedModel}, u::AbstractArray, v::AbstractArray, t::AbstractArray, f::AbstractArray)
+    vis = visibilities_analytic(m, u, v, t, f)
+    function _composite_visibilities_analytic_pullback(Δ)
+        du = zero(u)
+        dv = zero(v)
+        df = zero(f)
+        dt = zero(t)
+
+        dvis = zero(vis)
+        dvis .= unthunk(Δ)
+        rvis = zero(vis)
+        d = autodiff(Reverse, visibilities_analytic!, Const, Duplicated(rvis, dvis), Active(m), Duplicated(u, du), Duplicated(v, dv), Duplicated(t, dt), Duplicated(f, df))
+        dm = getm(d[1])
+        tm = __extract_tangent(dm)
+        return NoTangent(), tm, du, dv, df, dt
+    end
+
+    return vis, _composite_visibilities_analytic_pullback
 end

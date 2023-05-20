@@ -1,5 +1,9 @@
 using ChainRulesTestUtils
 using ChainRulesCore
+using FiniteDifferences
+using Zygote
+using PythonCall
+using FFTW
 
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
@@ -15,7 +19,7 @@ function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     intensitymap!(img2, m)
     @test eltype(img) === Float64
     @test isapprox(flux(m), flux(img), atol=atol)
-    @test isapprox(mean(parent(img) .- parent(img2)), 0, atol=1e-8)
+    @test isapprox(maximum(parent(img) .- parent(img2)), 0, atol=1e-8)
     cache = Comrade.create_cache(Comrade.FFTAlg(padfac=3), img/flux(img)*flux(m))
     dx, dy = pixelsizes(img)
     u = fftshift(fftfreq(size(img,1), 1/dx))./30
@@ -28,24 +32,54 @@ function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
     GC.gc()
 end
 
+
 function testft(m, npix=256, atol=1e-4)
     mn = Comrade.NonAnalyticTest(m)
     uu = 0.25*randn(1000)
     vv = 0.25*randn(1000)
     img = intensitymap(m, 2*Comrade.radialextent(m), 2*Comrade.radialextent(m), npix, npix)
-    mimg_ff = modelimage(mn, img, FFTAlg(padfac=4))
-    mimg_nf = modelimage(mn, img, NFFTAlg())
-    mimg_df = modelimage(mn, img, DFTAlg())
+    mimg_ff = modelimage(mn, zero(img), FFTAlg(padfac=4))
+    mimg_nf = modelimage(mn, zero(img), NFFTAlg())
+    mimg_df = modelimage(mn, zero(img), DFTAlg())
+    cache = create_cache(FFTAlg(padfac=4), zero(img))
+    cache_nf = create_cache(NFFTAlg(), zero(img))
+    mimg_ff2 = modelimage(mn, cache)
 
     p = (U=uu, V=vv)
     va = visibilities(m, p)
     vff = visibilities(mimg_ff, p)
+    vff2 = visibilities(mimg_ff2, p)
     vnf = visibilities(mimg_nf, p)
     vdf = visibilities(mimg_df, p)
+    visibilities(modelimage(mn, cache_nf), p)
 
+    @test isapprox(maximum(abs, vff2-vff), 0, atol=atol)
     @test isapprox(maximum(abs, va-vff), 0, atol=atol*5)
     @test isapprox(maximum(abs, va-vnf), 0, atol=atol)
     @test isapprox(maximum(abs, va-vdf), 0, atol=atol)
+    img = nothing
+    mimg_ff = nothing
+    mimg_nf = nothing
+    mimg_df = nothing
+    GC.gc()
+end
+
+
+function testft_cimg(m, atol=1e-4)
+    dx, dy = pixelsizes(m.img)
+    u = fftshift(fftfreq(500, 1/dx))
+    v = fftshift(fftfreq(500, 1/dy))
+    mimg_ff = modelimage(m, FFTAlg(padfac=8))
+    mimg_nf = modelimage(m, NFFTAlg(u, v))
+    mimg_df = modelimage(m, DFTAlg(u, v))
+
+    p = (U=u, V=v)
+    vff = visibilities(mimg_ff, p)
+    vnf = visibilities(mimg_nf, p)
+    vdf = visibilities(mimg_df, p)
+
+    @test isapprox(maximum(abs, vdf .- vnf), 0, atol=atol)
+    @test isapprox(maximum(abs, vff .- vdf), 0, atol=atol)
     img = nothing
     mimg_ff = nothing
     mimg_nf = nothing
@@ -100,53 +134,113 @@ end
     end
 end
 
+# 1.7x Enzyme fails (GC?) so we skip this.
+if VERSION >= v"1.8"
+    function testgrad(f, x)
+        gz = Zygote.gradient(f, x)
+        fdm = central_fdm(5, 1)
+        gf = grad(fdm, f, x)
+        @test isapprox(first(gz), first(gf), atol=1e-5)
+    end
+else
+    function testgrad(f, x)
+        return nothing
+    end
+end
+
 @testset "Primitive models" begin
+
+    u = randn(100)*0.5
+    v = randn(100)*0.5
+    t = sort(rand(100)*0.5)
+    f = fill(230e9, 100)
 
     @testset "Gaussian" begin
         m = Gaussian()
         @test amplitude(m, (U=0.0, V=0.0)) == abs(visibility(m, (U=0.0, V=0.0)))
+        @inferred Comrade.visibility(m, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m, (X=0.0, Y=0.0))
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(x[1]*Gaussian(), u, v, t, f))
+        x = rand(1)
+        foo(x)
+        testgrad(foo, x)
+
         testmodel(m, 1024, 1e-5)
     end
 
     @testset "Disk" begin
         m = smoothed(Disk(), 0.25)
-        ComradeBase.intensity_point(Disk(), (X=0.0, Y=0.0))
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
         testmodel(m)
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(x[1]*Disk(), u, v, t, f))
+        x = rand(1)
+        foo(x)
+        testgrad(foo, x)
+
     end
 
     @testset "SlashedDisk" begin
         m = smoothed(SlashedDisk(0.5), 0.25)
-        ComradeBase.intensity_point(SlashedDisk(0.5), (X=0.0, Y=0.0))
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
         testmodel(m)
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(SlashedDisk(x[1]), u, v, t, f))
+        x = rand(1)
+        foo(x)
+        testgrad(foo, x)
     end
 
     @testset "Pulses" begin
         m0 = BSplinePulse{0}()
+        @inferred Comrade.visibility(m0, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m0, (X=0.0, Y=0.0))
         testmodel(m0)
         m1 = BSplinePulse{1}()
         testmodel(m1)
+        @inferred Comrade.visibility(m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m1, (X=0.0, Y=0.0))
         m3 = BSplinePulse{3}()
         testmodel(m3)
+        @inferred Comrade.visibility(m3, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m3, (X=0.0, Y=0.0))
         m4 = BicubicPulse()
         testmodel(m4)
+        @inferred Comrade.visibility(m4, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m4, (X=0.0, Y=0.0))
         m5 = RaisedCosinePulse()
         testmodel(m5)
+        @inferred Comrade.visibility(m5, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m5, (X=0.0, Y=0.0))
     end
 
     @testset "Butterworth" begin
         m1 = Butterworth{1}()
         testmodel(m1)
+        @inferred Comrade.visibility(m1, (U=0.0, V=0.0))
         m2 = Butterworth{2}()
         testmodel(m2)
+        @inferred Comrade.visibility(m2, (U=0.0, V=0.0))
         m3 = Butterworth{3}()
         testmodel(m3)
+        @inferred Comrade.visibility(m3, (U=0.0, V=0.0))
     end
 
 
     @testset "Ring" begin
         m = smoothed(Ring(), 0.25)
-        ComradeBase.intensity_point(Ring(), (X=0.0, Y=0.0))
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
         testmodel(m, 2048)
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(x[1]*Ring(), u, v, t, f))
+        x = rand(1)
+        foo(x)
+        testgrad(foo, x)
+
     end
 
     @testset "ParabolicSegment" begin
@@ -154,7 +248,15 @@ end
         m2 = ParabolicSegment(2.0, 2.0)
         @test stretched(m, 2.0, 2.0) == m2
         @test ComradeBase.intensity_point(m, (X=0.0, Y=1.0)) != 0.0
+        @inferred Comrade.visibility(m, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m, (X=0.0, Y=0.0))
         testmodel(m, 2400, 1e-2)
+
+        # TODO why is this broken?
+        # foo(x) = sum(abs2, Comrade.visibilities_analytic(ParabolicSegment(x[1], x[2]), u, v, t, f))
+        # x = rand(2)
+        # foo(x)
+        # testgrad(foo, x)
     end
 
 
@@ -167,9 +269,14 @@ end
         m2 = convolved(MRing(α[1], β[1]), stretched(Gaussian(), 0.1, 0.1))
         @test visibility(m, (U=0.1, V=0.1)) == visibility(m2, (U=0.1, V=0.1))
         testmodel(m, 2048, 1e-3)
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
 
-        # Test rrule
-        test_rrule(Comrade._mring_vis, m.m1, 0.1, 0.1)
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(MRing(x[1], x[2]), u, v, t, f))
+        x = rand(2)
+        foo(x)
+        testgrad(foo, x)
     end
 
     @testset "MRing2" begin
@@ -180,24 +287,40 @@ end
         # We convolve it to remove some pixel effects
         m = convolved(MRing(α, β), stretched(Gaussian(), 0.1, 0.1))
         testmodel(m, 2048, 1e-3)
-        test_rrule(Comrade._mring_vis, m.m1, 0.1, 0.1)
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(MRing((x[1],x[2]), (x[3], x[4])), u, v, t, f))
+        x = rand(4)
+        foo(x)
+        testgrad(foo, x)
     end
 
 
     @testset "ConcordanceCrescent" begin
         m = ConcordanceCrescent(20.0, 10.0, 5.0, 0.5)
         testmodel(m, 2048, 1e-3)
+        @inferred Comrade.visibility(m, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m, (X=0.0, Y=0.0))
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(ConcordanceCrescent(x[1], x[2], x[3], x[4]), u, v, t, f))
+        x = rand(4)
+        foo(x)
+        testgrad(foo, x)
     end
 
 
     @testset "Crescent" begin
         m = smoothed(Crescent(5.0, 2.0, 1.0, 0.5), 1.0)
         testmodel(m,1024,1e-3)
-    end
+        @inferred Comrade.visibility(m.m1, (U=0.0, V=0.0))
+        @inferred Comrade.intensity_point(m.m1, (X=0.0, Y=0.0))
 
-    @testset "SlashedDisk" begin
-        m = smoothed(SlashedDisk(0.1), 1.0)
-        testmodel(m,1024,1e-3)
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(Crescent(x[1], x[2], x[3], x[4]), u, v, t, f))
+        x = rand(4)
+        foo(x)
+        testgrad(foo, x)
+
     end
 
 
@@ -206,6 +329,7 @@ end
         rad = 2.5*Comrade.radialextent(mr)
         m = modelimage(mr, IntensityMap(zeros(1024,1024), rad, rad), Comrade.FFTAlg(padfac=4))
         testmodel(m)
+        @inferred Comrade.intensity_point(mr, (X=0.0, Y=0.0))
     end
 
     @testset "M87 model test" begin
@@ -230,6 +354,13 @@ end
         m = model(xopt)
         testmodel(m)
 
+
+        @inferred Comrade.visibility(m, (U=0.0, V=0.0))
+        # k = keys(xopt)
+        # foo(x) = sum(abs2, Comrade.visibilities_analytic(model(NamedTuple{k}(Tuple(x))), u, v, t, f))
+        # x = collect(values(xopt))
+        # foo(x)
+        # testgrad(foo, x)
     end
 end
 
@@ -250,6 +381,12 @@ end
 
 
 @testset "Modifiers" begin
+
+    u = randn(100)*0.5
+    v = randn(100)*0.5
+    t = sort(rand(100)*0.5)
+    f = fill(230e9, 100)
+
     ma = Gaussian()
     mb = ExtendedRing(8.0)
     @testset "Shifted" begin
@@ -259,6 +396,11 @@ end
         testmodel(modelimage(mbs, IntensityMap(zeros(1024, 1024),
                                                2*Comrade.radialextent(mbs),
                                                2*Comrade.radialextent(mbs))))
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(shifted(ma, x[1], x[2]), u, v, t, f))
+        x = rand(2)
+        foo(x)
+        testgrad(foo, x)
     end
 
     @testset "Renormed" begin
@@ -273,6 +415,12 @@ end
         testmodel(modelimage(mbs, IntensityMap(zeros(1024, 1024),
                                                2.5*Comrade.radialextent(mbs),
                                                2.5*Comrade.radialextent(mbs))))
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(x[1]*ma, u, v, t, f))
+        x = rand(1)
+        foo(x)
+        testgrad(foo, x)
+
     end
 
     @testset "Stretched" begin
@@ -282,6 +430,11 @@ end
         testmodel(modelimage(mbs, IntensityMap(zeros(2024, 2024),
                                                2*Comrade.radialextent(mbs),
                                                2*Comrade.radialextent(mbs))), 1024, 1e-3)
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(stretched(ma, x[1], x[2]), u, v, t, f))
+        x = rand(2)
+        foo(x)
+        testgrad(foo, x)
     end
 
     @testset "Rotated" begin
@@ -291,21 +444,40 @@ end
         testmodel(modelimage(mbs, IntensityMap(zeros(1024, 1024),
                                                2*Comrade.radialextent(mbs),
                                                2*Comrade.radialextent(mbs))))
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(rotated(ma, x[1]), u, v, t, f))
+        x = rand(1)
+        foo(x)
+        testgrad(foo, x)
     end
 
     @testset "AllMods" begin
         mas = rotated(stretched(shifted(ma, 0.5, 0.5), 5.0, 4.0), π/3)
+        mas2 = modify(ma, Shift(0.5, 0.5), Stretch(5.0, 4.0), Rotate(π/4))
+        @test typeof(mas2) === typeof(mas)
         mbs = rotated(stretched(shifted(mb, 0.5, 0.5), 5.0, 4.0), π/3)
         testmodel(mas)
         testmodel(modelimage(mbs, IntensityMap(zeros(2024, 2024),
                                                2*Comrade.radialextent(mbs),
                                                2*Comrade.radialextent(mbs))), 1024, 1e-3)
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(modify(ma, Shift(x[1], x[2]), Stretch(x[3], x[4]), Rotate(x[5]), Renormalize(x[6])), u, v, t, f))
+        x = rand(6)
+        foo(x)
+        testgrad(foo, x)
+
     end
 end
 
 @testset "CompositeModels" begin
     m1 = Gaussian()
     m2 = ExtendedRing(8.0)
+
+    u = randn(100)*0.5
+    v = randn(100)*0.5
+    t = sort(rand(100)*0.5)
+    f = fill(230e9, 100)
+
 
     @testset "Add models" begin
         img = IntensityMap(
@@ -319,6 +491,12 @@ end
         @test mc[1] === m1
         @test mc[2] === m2
         @test flux(mt1) ≈ flux(m1) + flux(m2)
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(x[1]*stretched(Disk(), x[2], x[3]) + stretched(Ring(), x[4], x[4]), u, v, t, f))
+        x = rand(4)
+        foo(x)
+        testgrad(foo, x)
+
 
         testmodel(modelimage(mt1, img))
         testmodel(modelimage(mt2, img))
@@ -340,6 +518,12 @@ end
         testmodel(modelimage(mt1, img))
         testmodel(modelimage(mt2, img))
         testmodel(modelimage(mt3, img))
+
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(convolved(x[1]*stretched(Disk(), x[2], x[3]),stretched(Ring(), x[4], x[4])), u, v, t, f))
+        x = rand(4)
+        foo(x)
+        testgrad(foo, x)
+
     end
 
     @testset "All composite" begin
@@ -356,15 +540,46 @@ end
 
         testmodel(modelimage(mt, img))
 
+        foo(x) = sum(abs2, Comrade.visibilities_analytic(smoothed(x[1]*stretched(Disk(), x[2], x[3]), x[4]) + stretched(Ring(), x[5], x[4]), u, v, t, f))
+        x = rand(5)
+        foo(x)
+        testgrad(foo, x)
     end
 end
 
 @testset "PolarizedModel" begin
+    u = randn(100)*0.5
+    v = randn(100)*0.5
+    t = sort(rand(100)*0.5)
+    f = fill(230e9, 100)
+
+
     mI = stretched(MRing((0.2,), (0.1,)), 20.0, 20.0)
     mQ = 0.2*stretched(MRing((0.0,), (0.6,)), 20.0, 20.0)
     mU = 0.2*stretched(MRing((0.1,), (-0.6,)), 20.0, 20.0)
     mV = 0.0*stretched(MRing((0.0,), (-0.6,)), 20.0, 20.0)
     m = PolarizedModel(mI, mQ, mU, mV)
+    @inferred visibility(m, (U=0.0, V=0.0))
+    @inferred Comrade.intensity_point(m, (X=0.0, Y=0.0))
+
+
+    function foo(x)
+        m = PolarizedModel(
+            stretched(Gaussian(), x[1], x[2]),
+            stretched(Gaussian(), x[3], x[4]),
+            shifted(Gaussian(), x[5], x[6]),
+            x[7]*Gaussian()
+        )
+        vis = Comrade._coherency(Comrade.visibilities_analytic(m, u, v, t, f), CirBasis)
+        Σ = map(x->real.(x .+ 1), zero.(vis))
+        l = Comrade.CoherencyLikelihood(vis, Σ, 0.0)
+        return logdensityof(l, zero.(vis))
+    end
+
+    x = rand(7)
+    foo(x)
+    testgrad(foo, x)
+
     mG = PolarizedModel(Gaussian(), Gaussian(), Gaussian(), Gaussian())
     cm = convolved(m, Gaussian())
     @test cm == convolved(m, mG)
@@ -392,28 +607,32 @@ end
 end
 
 
-@testset "DImage Bspline0" begin
+@testset "ContinuousImage Bspline0" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{0}())
     testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-2)
+    testft_cimg(cimg)
 end
 
-@testset "DImage BSpline1" begin
+@testset "ContinuousImage BSpline1" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{1}())
     testmodel(modelimage(cimg, FFTAlg(padfac=4)), 1024, 1e-3)
+    testft_cimg(cimg)
 end
 
-@testset "DImage BSpline3" begin
+@testset "ContinuousImage BSpline3" begin
     img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
     cimg = ContinuousImage(img, BSplinePulse{3}())
     testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
+    testft_cimg(cimg)
 end
 
-@testset "DImage Bicubic" begin
-    img = intensitymap(rotated(stretched(Gaussian(), 2.0, 1.0), π/8), 12.0, 12.0, 12, 12)
+@testset "ContinuousImage Bicubic" begin
+    img = intensitymap(shifted(rotated(stretched(smoothed(Ring(), 0.5), 2.0, 1.0), π/8), 0.1, 0.1), 24.0, 24.0, 12, 12)
     cimg = ContinuousImage(img, BicubicPulse())
     testmodel(modelimage(cimg, FFTAlg(padfac=3)), 1024, 1e-3)
+    testft_cimg(cimg)
 end
 
 @testset "methods " begin

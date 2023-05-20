@@ -1,0 +1,44 @@
+name: Nightly
+on:
+  pull_request:
+
+jobs:
+  test:
+    name: Julia nightly - ${{ matrix.group }} - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        group:
+          - Core 
+          - ComradeAdaptMCMC
+          - ComradeAHMC
+          - ComradeDynesty
+          - ComradeOptimization
+          - ComradeNested
+        arch:
+          - x64
+        python-version:
+          - '3.10'
+    steps:
+      - name: Install Libs
+        run: |
+          sudo apt-get update
+          sudo apt-get install libhdf5-dev
+          sudo apt-get install --reinstall libxcb-xinerama0
+      - uses: actions/checkout@v3
+      - name: Setup python
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: ${{ matrix.arch }}
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: nightly
+          arch: x64
+      - uses: julia-actions/julia-buildpkg@latest
+      - uses: julia-actions/julia-runtest@latest
+        env:
+          PYTHON: ""
+          COMRADE_TEST_GROUP: ${{ matrix.group }}

@@ -2,7 +2,6 @@ using Comrade
 using Distributions
 using BenchmarkTools
 
-load_ehtim()
 # To download the data visit https://doi.org/10.25739/g85n-f134
 obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 obs.add_scans()
@@ -42,8 +41,9 @@ x0 = inverse(tpost, θ)
 @benchmark ℓ($x0)
 
 using ForwardDiff
-gℓ = Comrade.make_pullback(ℓ, AD.ForwardDiffBackend())
-@benchmark gℓ($x0)
+using LogDensityProblemsAD
+gℓ = ADgradient(Val(:ForwardDiff), tpost)
+@benchmark LogDensityProblemsAD.logdensity_and_gradient($gℓ, $x0)
 
 # Now we do the eht-imaging benchmarks
 

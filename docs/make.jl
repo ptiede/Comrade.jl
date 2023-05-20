@@ -1,8 +1,28 @@
+# THis is because we are on a headless system
+# see https://github.com/jheinen/GR.jl/issues/510
+# ENV["GKS_WSTYPE"]="nul"
+
+
 using Documenter
+using Pyehtim
 using Comrade
 using ComradeBase
 
 using Literate
+using Pkg
+
+function dev_subpkg(subpkg)
+    subpkg_path = joinpath(dirname(@__DIR__), "lib", subpkg)
+    Pkg.develop(PackageSpec(path=subpkg_path))
+end
+
+# Make sure we are using main branch versions of the packages for the docs
+Pkg.develop(PackageSpec(url="https://github.com/ptiede/ComradeBase.jl"))
+dev_subpkg("ComradeAHMC")
+dev_subpkg("ComradeOptimization")
+dev_subpkg("ComradeNested")
+dev_subpkg("ComradeDynesty")
+dev_subpkg("ComradeAdaptMCMC")
 
 using ComradeAHMC
 using ComradeOptimization
@@ -21,7 +41,15 @@ OUTDIR = joinpath(@__DIR__, "src", "examples")
 SOURCE_FILES = Glob.glob("*.jl", GENERATED)
 foreach(fn -> Literate.markdown(fn, OUTDIR, documenter=true), SOURCE_FILES)
 
-MD_FILES = joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
+MD_FILES = [joinpath("examples", "data.md"),
+            joinpath("examples", "nonanalytic.md"),
+            joinpath("examples", "geometric_modeling.md"),
+            joinpath("examples", "imaging_closures.md"),
+            joinpath("examples", "imaging_vis.md"),
+            joinpath("examples", "imaging_pol.md"),
+            joinpath("examples", "hybrid_imaging.md")
+           ]
+# joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
 
 
 makedocs(;
@@ -53,6 +81,6 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/ptiede/Comrade.jl",
-    push_preview=true,
+    push_preview=false,
     devbranch = "main",
 )

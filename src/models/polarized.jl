@@ -64,11 +64,29 @@ Computes the visibility in the stokes basis of the polarized model
     return StokesParams(si, sq, su, sv)
 end
 
-function visibilities(pimg::PolarizedModel, p::NamedTuple)
-    si = visibilities(stokes(pimg, :I), p)
-    sq = visibilities(stokes(pimg, :Q), p)
-    su = visibilities(stokes(pimg, :U), p)
-    sv = visibilities(stokes(pimg, :V), p)
+function visibilities_analytic(pimg::PolarizedModel, u, v, t, f)
+    si = visibilities_analytic(stokes(pimg, :I), u, v, t, f)
+    sq = visibilities_analytic(stokes(pimg, :Q), u, v, t, f)
+    su = visibilities_analytic(stokes(pimg, :U), u, v, t, f)
+    sv = visibilities_analytic(stokes(pimg, :V), u, v, t, f)
+    return StructArray{StokesParams{eltype(si)}}((si, sq, su, sv))
+end
+
+function __extract_tangent(m::PolarizedModel)
+    tmI, tmQ, tmU, tmV = __extract_tangent.(split_stokes(m))
+    return Tangent{typeof(m)}(I=tmI, Q=tmQ, U=tmU, V=tmV)
+end
+
+split_stokes(pimg::PolarizedModel) = (stokes(pimg, :I), stokes(pimg, :Q), stokes(pimg, :U), stokes(pimg, :V))
+
+# If the model is numeric we don't know whether just a component is numeric or all of them are so
+# we need to re-dispatch
+function visibilities_numeric(pimg::PolarizedModel, u, v, t, f)
+    mI, mQ, mU, mV = split_stokes(pimg)
+    si = _visibilities(visanalytic(typeof(mI)), mI, u, v, t, f)
+    sq = _visibilities(visanalytic(typeof(mQ)), mQ, u, v, t, f)
+    su = _visibilities(visanalytic(typeof(mU)), mU, u, v, t, f)
+    sv = _visibilities(visanalytic(typeof(mV)), mV, u, v, t, f)
     return StructArray{StokesParams{eltype(si)}}((si, sq, su, sv))
 end
 
@@ -189,7 +207,7 @@ electric vector position angle or EVPA of the polarized model `pimg` at `u` and 
 @inline function ComradeBase.evpa(pimg::AbstractPolarizedModel, p)
     sq = visibility(stokes(pimg, :Q), p)
     su = visibility(stokes(pimg, :U), p)
-    return 1/2*angle(su/sq)
+    return angle(su/sq)/2
 end
 
 

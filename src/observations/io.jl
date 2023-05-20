@@ -55,7 +55,7 @@ end
 
 
 
-function _extract_fits_image(f::FITSIO.ImageHDU{T,2}) where {T}
+function _extract_fits_image(f::FITSIO.ImageHDU{T}) where {T}
     image = read(f)[end:-1:begin,:]
     header = read_header(f)
     nx = Int(header["NAXIS1"])
@@ -63,18 +63,23 @@ function _extract_fits_image(f::FITSIO.ImageHDU{T,2}) where {T}
 
     psizex = abs(float(header["CDELT1"]))*π/180
     psizey = abs(float(header["CDELT2"]))*π/180
-
-    ra = float(header["OBSRA"])
-    dec = float(header["OBSDEC"])
+    ra = (180)
+    dec = zero(T)
+    try
+        ra = float(header["OBSRA"])
+        dec = float(header["OBSDEC"])
+    catch
+        @warn "No OBSRA or OBSDEC in header setting to 180.0, 0.0"
+    end
 
     #Get frequency
-    freq = 0.0
+    freq = zero(T)
     if haskey(header, "FREQ")
         freq = parse(Float64, string(header["FREQ"]))
     elseif "CRVAL3" in keys(header)
         freq = float(header["CRVAL3"])
     end
-    mjd = 0.0
+    mjd = zero(T)
     if haskey(header, "MJD")
         mjd = parse(Float64, string(header["MJD"]))
     end
@@ -86,14 +91,14 @@ function _extract_fits_image(f::FITSIO.ImageHDU{T,2}) where {T}
     if haskey(header, "STOKES")
         stokes = Symbol(header["STOKES"])
     end
-    bmaj = 1.0 #Nominal values
-    bmin = 1.0
+    bmaj = one(T) #Nominal values
+    bmin = one(T)
     if haskey(header, "BUNIT")
         if header["BUNIT"] == "JY/BEAM"
             @info "Converting Jy/Beam => Jy/pixel"
             bmaj = header["BMAJ"]*π/180
             bmin = header["BMIN"]*π/180
-            beamarea = (2.0*π*bmaj*bmin)/(8*log(2))
+            beamarea = (2*T(π)*bmaj*bmin)/(8*log(T(2)))
             image .= image.*(psizex*psizey/beamarea)
         end
     end
@@ -114,8 +119,8 @@ end
 
 function make_header(img)
     head = header(img)
-    if isnothing(head)
-        return (source="NA", RA=0.0, DEC=0.0, mjd=0, F=0.0)
+    if head isa ComradeBase.NoHeader
+        return (source="Unknown", RA=180.0, DEC=0.0, mjd=0, F=230e9)
     else
         return (source=head.source, RA=head.RA, DEC=head.DEC, mjd=head.mjd, F=head.F, stokes=head.stokes)
     end

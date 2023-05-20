@@ -11,7 +11,8 @@ consider using the [`visibilities`](@ref visibilities).
 """
 @inline function visibility(mimg::M, p) where {M}
     #first we split based on whether the model is primitive
-    _visibility(isprimitive(M), mimg, p.U, p.V, 0.0, 0.0)
+    T = typeof(p.U)
+    _visibility(isprimitive(M), mimg, p.U, p.V, zero(T), zero(T))
 end
 
 
@@ -103,32 +104,14 @@ end
 #     _visibilities(m, u, v)
 # end
 
-"""
-    visibilities(m, p)
-
-Computes the visibilities of the model `m` using the coordinates `p`. The coordinates `p`
-are expected to have the properties `U`, `V`, and sometimes `Ti` and `Fr`.
-"""
-@inline function visibilities(m::AbstractModel, p::NamedTuple)
-    U, V, T, F = extract_pos(p)
-    return _visibilities(m, U, V, T, F)
-end
-
-function extract_pos(p::NamedTuple)
-    return p.U, p.V, p.T, p.F
-end
-
-function extract_pos(p::NamedTuple{(:U,:V)})
-    return p.U, p.V, zero(eltype(p.U)), zero(eltype(p.V))
-end
 
 # @inline function visibilities(m::AbstractModel, p::NamedTuple{(:U, :V)})
 #     return _visibilities(m, p.U, p.V, zero(eltype(p.U)), zero(eltype(p.U)))
 # end
 
 
-@inline function visibilities(m, p::ArrayConfiguration)
-    return _visibilities(m, p.data.U, p.data.V, p.data.T, p.data.F)
+@inline function visibilities(m::M, p::ArrayConfiguration) where {M <: AbstractModel}
+    return _visibilities(visanalytic(M), m, p.data.U, p.data.V, p.data.T, p.data.F)
 end
 
 # function ChainRulesCore.rrule(::typeof(getuv), p::ArrayConfiguration)
@@ -143,15 +126,15 @@ end
 
 
 
-# Internal function required for dispatch. This is a fallback method if
-# visibilities doesn't have a direct implementation.
-@inline function _visibilities(m, u, v, time, freq)
-    _visibilities_fallback(m, u, v, time, freq)
-end
+# # Internal function required for dispatch. This is a fallback method if
+# # visibilities doesn't have a direct implementation.
+# @inline function _visibilities(m, u, v, time, freq)
+#     _visibilities_fallback(m, u, v, time, freq)
+# end
 
-function _visibilities_fallback(m, u, v, time, freq)
-    return visibility_point.(Ref(m), u, v, time, freq)
-end
+# function _visibilities_fallback(m, u, v, time, freq)
+#     return visibility_point.(Ref(m), u, v, time, freq)
+# end
 
 
 
@@ -169,7 +152,8 @@ function amplitudes(m, p::NamedTuple{(:U, :V, :T, :F)})
 end
 
 function amplitudes(m, p::NamedTuple{(:U, :V)})
-    _amplitudes(m, p.U, p.V, 0.0, 0.0)
+    T = eltype(p.U)
+    _amplitudes(m, p.U, p.V, zero(T), zero(T))
 end
 
 amplitudes(m, p::ArrayConfiguration) = _amplitudes(m, p.data.U, p.data.V, p.data.T, p.data.F)
@@ -184,7 +168,7 @@ function _amplitudes(::IsAnalytic, m, u, v, time, freq)
 end
 
 function _amplitudes(::NotAnalytic, m, u, v, time, freq)
-    abs.(_visibilities(m, u, v, time, freq))
+    abs.(visibilities_numeric(m, u, v, time, freq))
 end
 
 
@@ -348,7 +332,7 @@ end
 
 # internal method for computing an image of a non-analytic image model. The
 # `executor` if for parallelization but is not used for this method.
-function intensitymap!(::NotAnalytic, img::IntensityMap, m)
+function intensitymap_numeric!(img::IntensityMap, m)
     # nx, ny = size(img)
     (;X, Y) = axisdims(img)
     vis = fouriermap(m, axisdims(img))
@@ -359,9 +343,9 @@ function intensitymap!(::NotAnalytic, img::IntensityMap, m)
     return img
 end
 
-function intensitymap(A::NotAnalytic, m, grid::AbstractDims)
+function intensitymap_numeric(m, grid::AbstractDims)
     img = IntensityMap(zeros(map(length, dims(grid))), grid)
-    intensitymap!(A, img, m)
+    intensitymap_numeric!(img, m)
     return img
 end
 

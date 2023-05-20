@@ -24,16 +24,17 @@ export FFTAlg
 The cache used when the `FFT` algorithm is used to compute
 visibilties. This is an internal type and is not part of the public API
 """
-struct FFTCache{A<:FFTAlg,P,I,S} <: AbstractCache
+struct FFTCache{A<:FFTAlg,P,I,Pu,S} <: AbstractCache
     alg::A # FFT algorithm
     plan::P # FFT plan or matrix
     img::I # image buffer used for FT
+    pulse::Pu
     sitp::S # interpolator function used to find vis at abritrary uv position.
 end
 
 # These are all overloads to allow us to forward propogate ForwardDiff dual numbers through
 # an abstract FFT.
-AbstractFFTs.complexfloat(x::AbstractArray{<:ForwardDiff.Dual}) = float.(ForwardDiff.value.(x) .+ 0.0im)
+AbstractFFTs.complexfloat(x::AbstractArray{<:ForwardDiff.Dual}) = float.(ForwardDiff.value.(x) .+ 0im)
 
 # Make a plan with Dual numbers
 AbstractFFTs.plan_fft(x::AbstractArray{<:ForwardDiff.Dual}, region=1:ndims(x)) = plan_fft(zeros(ComplexF64, size(x)), region)
@@ -53,7 +54,7 @@ function create_interpolator(U, V, vis::AbstractArray{<:Complex}, pulse)
     p1 = BicubicInterpolator(U, V, real(vis), NoBoundaries())
     p2 = BicubicInterpolator(U, V, imag(vis), NoBoundaries())
     function (u,v)
-        pl = visibility_point(pulse, u, v, 0.0, 0.0)
+        pl = visibility_point(pulse, u, v, zero(u), zero(u))
         return pl*(p1(u,v) + 1im*p2(u,v))
     end
 end
@@ -74,7 +75,7 @@ function create_interpolator(U, V, vis::StructArray{<:StokesParams}, pulse)
 
 
     function (u,v)
-        pl = visibility_point(pulse, u, v, 0.0, 0.0)
+        pl = visibility_point(pulse, u, v, zero(u), zero(u))
         return StokesParams(
             pI_real(u,v)*pl + 1im*pI_imag(u,v)*pl,
             pQ_real(u,v)*pl + 1im*pQ_imag(u,v)*pl,
@@ -143,7 +144,7 @@ using FastBroadcast
 @fastmath function ComradeBase.phasecenter(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
-    return conj.(vis).*cispi.(2 * (U.*x0 .+ V'.*y0))
+    return @.. thread=true conj.(vis).*cispi.(2 * (U.*x0 .+ V'.*y0))
 end
 
 
@@ -173,7 +174,7 @@ function create_cache(alg::FFTAlg, img::IntensityMapTypes, pulse::Pulse=DeltaPul
 
     vispc = phasecenter(vis, X, Y, U, V)
     sitp = create_interpolator(U, V, vispc, stretched(pulse, step(X), step(Y)))
-    return FFTCache(alg, plan, img, sitp)
+    return FFTCache(alg, plan, img, pulse, sitp)
 end
 
 function update_cache(cache::FFTCache, img::IntensityMapTypes, pulse)
@@ -187,8 +188,8 @@ function update_cache(cache::FFTCache, img::IntensityMapTypes, pulse)
     (;U, V) = uviterator(size(pimg, 1), step(X), size(pimg, 2), step(Y))
 
     vispc = phasecenter(vis, X, Y, U, V)
-    sitp = create_interpolator(uu, vv, vispc, pulse)
-    return FFTCache(cache.alg, plan, img, sitp)
+    sitp = create_interpolator(U, V, vispc, pulse)
+    return FFTCache(cache.alg, plan, img, pulse, sitp)
 end
 
 
@@ -268,6 +269,9 @@ end
 
 # end
 
+# HACK because FFT+interpolation can be evaled pointwise
+visanalytic(::Type{<:ModelImage{M, I, <:FFTCache}}) where {M, I} = IsAnalytic()
+
 @fastmath function phasedecenter!(vis, X, Y, U, V)
     x0 = first(X)
     y0 = first(Y)
@@ -275,9 +279,9 @@ end
     return vis
 end
 
-# function _visibilities(mimg::ModelImage{M, I, <:FFTCache}, u, v, args...) where {M,I}
-#     return visibility.(Ref(mimg), u, v, args...)
-# end
+function visibilities_numeric(mimg::ModelImage{M, I, <:FFTCache}, u, v, time, freq) where {M,I}
+    return visibility_point.(Ref(mimg), u, v, time, freq)
+end
 
 @inline function visibility_point(mimg::ModelImage{M,I,<:FFTCache}, u, v, time, freq) where {M,I}
     return mimg.cache.sitp(u, v)

@@ -1,12 +1,21 @@
-export Posterior, prior_sample, asflat, ascube, flatten, logdensityof, transform, inverse, dimension
+export Posterior, prior_sample, asflat, ascube, flatten, logdensityof, transform, inverse, dimension,
+       skymodel, instrumentmodel, simulate_observation, dataproducts
 
 import DensityInterface
 import ParameterHandling
 import ParameterHandling: flatten
 using HypercubeTransform
 using TransformVariables
+using LogDensityProblems
 
-struct Posterior{L,P}
+abstract type AbstractPosterior end
+
+# Satisfy the LogDensityProblems interface for easy AD!
+LogDensityProblems.logdensity(d::AbstractPosterior, θ) = logdensityof(d, θ)
+LogDensityProblems.dimension(d::AbstractPosterior) = dimension(d)
+LogDensityProblems.capabilities(::Type{<:AbstractPosterior}) = LogDensityProblems.LogDensityOrder{0}()
+
+struct Posterior{L,P} <: AbstractPosterior
     lklhd::L
     prior::P
 end
@@ -65,6 +74,60 @@ function prior_sample(rng, post::Posterior)
     return rand(rng, post.prior)
 end
 
+"""
+    skymodel(post::Posterior, θ)
+
+Returns the sky model or image of a posterior using the parameter values`θ`
+"""
+function skymodel(post::Posterior, θ)
+    skymodel(post.lklhd, θ)
+end
+
+"""
+    skymodel(post::Posterior, θ)
+
+Returns the instrument model of a posterior using the parameter values`θ`
+"""
+function instrumentmodel(post::Posterior, θ)
+    instrumentmodel(post.lklhd, θ)
+end
+
+"""
+    vlbimodel(post::Posterior, θ)
+
+Returns the instrument model and sky model as a [`VLBIModel`](@ref) of a posterior using the parameter values `θ`
+
+"""
+function vlbimodel(post::Posterior, θ)
+    vlbimodel(post.lklhd, θ)
+end
+
+"""
+    dataproducts(d::Posterior)
+
+Returns the data products you are fitting as a tuple. The order of the tuple corresponds
+to the order of the `dataproducts` argument in [`RadioLikelihood`](@ref).
+"""
+function dataproducts(d::Posterior)
+    return dataproducts(d.lklhd)
+end
+
+
+
+"""
+    simulate_observation([rng::Random.AbstractRNG], post::Posterior, θ)
+
+Create a simulated observation using the posterior and its data `post` using the parameter
+values `θ`. In Bayesian terminology this is a draw from the posterior predictive distribution.
+"""
+function simulate_observation(rng::Random.AbstractRNG, post::Posterior, θ)
+    ls = map(x->likelihood(x, vlbimodel(post, θ)), post.lklhd.lklhds)
+    return map(x->rand(rng, x), ls)
+end
+simulate_observation(post::Posterior, θ) = simulate_observation(Random.default_rng(), post, θ)
+
+
+
 
 
 """
@@ -74,7 +137,7 @@ This is an internal type that an end user shouldn't have to directly construct.
 To construct a transformed posterior see the [`asflat`](@ref asflat), [`ascube`](@ref ascube),
 and [`flatten`](@ref Comrade.flatten) docstrings.
 """
-struct TransformedPosterior{P<:Posterior,T}
+struct TransformedPosterior{P<:Posterior,T} <: AbstractPosterior
     lpost::P
     transform::T
 end
@@ -151,7 +214,8 @@ end
 
 @inline function DensityInterface.logdensityof(post::TransformedPosterior{P, T}, x::AbstractArray) where {P, T<:TransformVariables.AbstractTransform}
     p, logjac = transform_and_logjac(post.transform, x)
-    return logdensityof(post.lpost, p) + logjac
+    lp = post.lpost
+    return logdensityof(lp, p) + logjac
 end
 
 HypercubeTransform.dimension(post::TransformedPosterior) = dimension(post.transform)
