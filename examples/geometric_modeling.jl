@@ -30,7 +30,7 @@ rng = StableRNG(42)
 obs = load_uvfits_and_array(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 # Now we will kill 0-baselines since we don't care about large-scale flux and
 # since we know that the gains in this dataset are coherent across a scan, we make scan-average data
-obs = scan_average(obs.flag_uvdist(uv_min=0.1e9))
+obs = Pyehtim.scan_average(obs.flag_uvdist(uv_min=0.1e9))
 
 # Now we extract the data products we want to fit
 dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosurePhases(;snrcut=3.0))

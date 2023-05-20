@@ -119,8 +119,8 @@ end
 
 function make_header(img)
     head = header(img)
-    if isnothing(head)
-        return (source="NA", RA=0.0, DEC=0.0, mjd=0, F=0.0)
+    if head isa ComradeBase.NoHeader
+        return (source="Unknown", RA=180.0, DEC=0.0, mjd=0, F=230e9)
     else
         return (source=head.source, RA=head.RA, DEC=head.DEC, mjd=head.mjd, F=head.F, stokes=head.stokes)
     end

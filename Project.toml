@@ -24,6 +24,7 @@ FastBroadcast = "7034ab61-46d4-4ed7-9d0f-46aef9175898"
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 HypercubeTransform = "9ec9aee3-0fd3-44c2-8e61-a50acc66f3c8"
+ImageFiltering = "6a3955dd-da59-5b1f-98d4-e7296123deb5"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LogDensityProblems = "6fdf6af0-433a-55f7-b3ed-c6c6e0b8df7c"
 NFFT = "efe261a4-0d2b-5849-be55-fc731d526b0d"
@@ -50,6 +51,12 @@ TransformVariables = "84d833dd-6860-57f9-a1a7-6da5db126cff"
 TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
 VLBILikelihoods = "90db92cd-0007-4c0a-8e51-dbf0782ce592"
 
+[weakdeps]
+Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
+
+[extensions]
+ComradePyehtimExt = "Pyehtim"
+
 [compat]
 AbstractFFTs = "1"
 AbstractMCMC = "3, 4"
@@ -63,7 +70,7 @@ ComradeBase = "0.4"
 DensityInterface = "0.4"
 Distributions = "0.24,0.25"
 DocStringExtensions = "0.6,0.7,0.8, 0.9"
-Enzyme = "=0.11.0"
+Enzyme = "0.11"
 FFTW = "^1"
 FITSIO = "0.16, 0.17"
 FastBroadcast = "0.2"
@@ -88,13 +95,10 @@ StaticArraysCore = "1"
 StatsBase = "0.31,0.32,0.33, 0.34"
 StructArrays = "0.3,0.4,0.5,0.6"
 Tables = "1"
-TransformVariables = "0.5, 0.6, 0.7"
+TransformVariables = "0.8"
 TypedTables = "1"
 VLBILikelihoods = "0.1"
 julia = "^1.6"
-
-[extensions]
-ComradePyehtimExt = "Pyehtim"
 
 [extras]
 CPUSummary = "2a0fbf3d-bb9c-48f3-b0a9-814d99fd7ab9"
@@ -103,6 +107,3 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test", "Pyehtim"]
-
-[weakdeps]
-Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
