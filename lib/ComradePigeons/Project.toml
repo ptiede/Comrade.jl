@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [deps]
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+LogDensityProblemsAD = "996a588d-648d-4e1f-a8f0-a84b347e47b1"
 Pigeons = "0eb8d820-af6a-4919-95ae-11206f830c31"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"

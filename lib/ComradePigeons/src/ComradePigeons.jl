@@ -4,14 +4,37 @@ using Reexport
 @reexport using Pigeons
 using Comrade
 using Random
+using LogDensityProblemsAD
+
+export PigeonsLogPotential
 
 struct PigeonsLogPotential{M}
     post::M
 end
 
+"""
+    PigeonsLogPotential(post::M)
+    PigeonsLogPotential(post::M, ad_backend::Symbol)
+
+Creates a pigeons logdensity object from a Comrade posterior object that satisfies the Pigeons interface.
+
+# Arguments
+  - `post`: A Comrade [`Posterior`](@ref) or [`TransformedPosterior`](@ref) object.
+  - `ad_backend`: A symbol denoting the type of autodiff backend. This uses the [LogDensityProblemsAD](https://github.com/tpapp/LogDensityProblemsAD.jl) api.
+"""
+function PigeonsLogPotential(post::M, ad_backend::Symbol) where {M}
+    return PigeonsLogPotential(ADgradient(Val(ad_backend)), post)
+end
+
+
 # This one takes in the log jacobian of the transformation not the prior!
 function (m::PigeonsLogPotential)(x)
-    return logdensityof(m.post, x)
+    return LogDensityProblems.logdensity(m.post, x)
+end
+
+function Pigeons.gradient!!(log_potential::PigeonsLogPotential, x::T, buffer::T) where {T}
+    buffer .= LogDensityProblemsAD.logdensity_and_gradient(log_potential, x)[2]
+    return buffer
 end
 
 # Pigeons.@provides target PigeonsLogPotential(model::Comrade.TransformedPosterior) =
@@ -22,7 +45,7 @@ function Pigeons.initialization(target::PigeonsLogPotential, rng::Pigeons.Splitt
    return  Comrade.prior_sample(rng, target.post)
 end
 
-Pigeons.create_explorer(::PigeonsLogPotential, ::Inputs) = Pigeons.SliceSampler()
+Pigeons.default_explorer(::PigeonsLogPotential) = Pigeons.SliceSampler()
 
 Pigeons.create_reference_log_potential(target::PigeonsLogPotential, ::Inputs) = PriorPotential(target.post)
 
