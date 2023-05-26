@@ -29,7 +29,7 @@ end
 
 # This one takes in the log jacobian of the transformation not the prior!
 function (m::PigeonsLogPotential)(x)
-    return LogDensityProblems.logdensity(m.post, x)
+    return LogDensityProblemsAD.logdensity(m.post, x)
 end
 
 function Pigeons.gradient!!(log_potential::PigeonsLogPotential, x::T, buffer::T) where {T}
