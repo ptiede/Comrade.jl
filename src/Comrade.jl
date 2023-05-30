@@ -13,7 +13,6 @@ using DensityInterface
 import Distributions as Dists
 using DocStringExtensions
 using ChainRulesCore
-using ComradeBase
 using FITSIO
 using FillArrays: Fill
 using ForwardDiff
@@ -29,6 +28,7 @@ using SpecialFunctions #: gamma, erf
 using Random
 using RectiGrids
 using Reexport
+using SkyModels
 using StaticArraysCore
 using StructArrays: StructVector, StructArray, append!!
 import StructArrays
@@ -36,27 +36,17 @@ using Tables
 using TypedTables
 # Write your package code here.
 
+@reexport using SkyModels
 @reexport using ComradeBase
+
 export linearpol, mbreve, evpa
-using ComradeBase: AbstractDims
+using ComradeBase: AbstractDims, AbstractModel, AbstractPolarizedModel, AbstractHeader
 
 
 
 
 export rad2μas, μas2rad, logdensity_def, logdensityof
 export rad2μas, μas2rad, logdensity_def, logdensityof
-
-"""
-    rad2μas(x)
-Converts a number from radians to micro-arcseconds (μas)
-"""
-@inline rad2μas(x) = 180*3600*1_000_000*x/π
-
-"""
-    μas2rad(x)
-Converts a number from micro-arcseconds (μas) to rad
-"""
-@inline μas2rad(x) = x/(180*3600*1_000_000)*π
 
 
 #include("interface.jl")
@@ -76,10 +66,6 @@ include("visualizations/visualizations.jl")
 include("bayes/bayes.jl")
 include("inference/inference.jl")
 include("calibration/calibration.jl")
-include("rules.jl")
-include("utility.jl")
-include("clean.jl")
-
 
 
 # Load extensions using requires for verions < 1.9
