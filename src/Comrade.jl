@@ -41,7 +41,7 @@ using TypedTables
 
 export linearpol, mbreve, evpa
 using ComradeBase: AbstractDims, AbstractModel, AbstractPolarizedModel, AbstractHeader
-
+using ComradeBase: load
 
 
 
