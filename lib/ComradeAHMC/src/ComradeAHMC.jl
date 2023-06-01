@@ -12,7 +12,7 @@ using Random
 using JLD2
 using Printf
 using AbstractMCMC: Sample
-export sample, AHMC, Sample, Memory, Disk, load_table
+export sample, AHMC, Sample, MemoryStore, DiskStore, load_table
 
 """
     AHMC
@@ -198,7 +198,7 @@ end
 
 Stored the HMC samplers in memory or ram.
 """
-struct Memory end
+struct MemoryStore end
 
 
 """
@@ -209,7 +209,7 @@ Type that specifies to save the HMC results to disk.
 # Fields
 $(FIELDS)
 """
-Base.@kwdef struct Disk
+Base.@kwdef struct DiskStore
     """
     Path of the directory where the results will be saved. If the path does not exist
     it will be automatically created.
@@ -220,7 +220,7 @@ Base.@kwdef struct Disk
     """
     stride::Int = 500
 end
-Disk(name::String) = Disk(name, 500)
+DiskStore(name::String) = DiskStore(name, 500)
 
 """
     AbstractMCMC.sample(post::Comrade.Posterior,
@@ -237,8 +237,8 @@ To initialize the chain the user can set `init_params` to `Vector{NamedTuple}` w
 elements are the starting locations for each of the `nchains`. If no starting location
 is specified `nchains` random samples from the prior will be chosen for the starting locations.
 
-With `saveto` the user can optionally specify whether to store the samples in memory `Memory`
-or save directly to disk with `Disk(filename, stride)`. The `stride` controls how often t
+With `saveto` the user can optionally specify whether to store the samples in memory `MemoryStore`
+or save directly to disk with `DiskStore(filename, stride)`. The `stride` controls how often t
 he samples are dumped to disk.
 
 For possible `kwargs` please see the [`AdvancedHMC.jl docs`](https://github.com/TuringLang/AdvancedHMC.jl)
@@ -253,12 +253,12 @@ This will automatically transform the posterior to the flattened unconstrained s
 """
 function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
                              sampler::AHMC, nsamples, args...;
-                             saveto=Memory(),
+                             saveto=MemoryStore(),
                              init_params=nothing,
                              kwargs...)
 
 
-    saveto isa Disk && return sample_to_disk(rng, tpost, sampler, nsamples, args...; outdir=saveto.name, output_stride=min(saveto.stride, nsamples), init_params, kwargs...)
+    saveto isa DiskStore && return sample_to_disk(rng, tpost, sampler, nsamples, args...; outdir=saveto.name, output_stride=min(saveto.stride, nsamples), init_params, kwargs...)
 
     ℓ = logdensityof(tpost)
 
@@ -314,6 +314,11 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
     outbase = joinpath(outdir, "samples", "output_scan_")
     nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
 
+    # Now save the output
+    out = DiskOutput(outdir, nscans, output_stride, nsamples)
+    jldsave(joinpath(outdir, "parameters.jld2"); params=out)
+
+
     next = iterate(pt)
     i = 1
     while !isnothing(next)
@@ -322,15 +327,17 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
             stats = Table(getproperty.(chain, :stat))
             samples = transform.(Ref(tpost), getproperty.(getproperty.(chain, :z), :θ)) |> Table
             jldsave(outbase*(@sprintf "%05d.jld2" i); stats, samples)
+            chain = nothing
+            samples = nothing
+            stats = nothing
+            GC.gc()
             next = iterate(pt, state)
+            # Force the GC to kill these
         end
         @info "On scan $i/$nscans it took $(t) seconds"
         i += 1
     end
 
-    # Now save the output as well
-    out = DiskOutput(outdir, nscans, output_stride, nsamples)
-    jldsave(joinpath(outdir, "parameters.jld2"); params=out)
 
     return out
 end
@@ -341,7 +348,10 @@ end
 
 The the results from a HMC run saved to disk. To read in the output the user can either
 pass the resulting `out` object, or the path to the directory that the results were saved,
-i.e. the path specified in [`Disk`](@ref).
+i.e. the path specified in [`DiskStore`](@ref).
+
+# Arguments
+  - `out::Union{String, DiskOutput}`
 
 By default if just a `out` object is given the entire table of samples will be read in.
 Otherwise the use can specify the specific range
@@ -383,6 +393,11 @@ function load_table(
     t = reduce(vcat, load.(d[find0:find1], table))
     return t[offset0:step(indices):(out.stride*(find1-find0) + offset1)]
 end
+
+function load_table(out::String, args...; kwargs...)
+    @assert isdir(out) "$out is not a directory. This isn't where the HMC samples are stored"
+    @assert isfile(joinpath(out, "parameters.jld2")) "parameters.jld2 "
+    load_table(load(out, "params"), args...; kwargs...)
 
 
 end
