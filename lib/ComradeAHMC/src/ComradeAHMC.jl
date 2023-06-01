@@ -397,7 +397,7 @@ end
 function load_table(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples")
     @assert isdir(out) "$out is not a directory. This isn't where the HMC samples are stored"
     @assert isfile(joinpath(out, "parameters.jld2")) "parameters.jld2 "
-    return load_table(load(out, "params"), indices; table)
+    return load_table(load(joinpath(out, "parameters.jld2"), "params"), indices; table)
 end
 
 
