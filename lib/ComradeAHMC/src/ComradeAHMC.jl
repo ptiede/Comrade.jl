@@ -394,10 +394,11 @@ function load_table(
     return t[offset0:step(indices):(out.stride*(find1-find0) + offset1)]
 end
 
-function load_table(out::String, args...; kwargs...)
+function load_table(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples")
     @assert isdir(out) "$out is not a directory. This isn't where the HMC samples are stored"
     @assert isfile(joinpath(out, "parameters.jld2")) "parameters.jld2 "
-    load_table(load(out, "params"), args...; kwargs...)
+    return load_table(load(out, "params"), indices; table)
+end
 
 
 end
