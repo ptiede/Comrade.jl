@@ -1,6 +1,7 @@
 module ComradeDynesty
 
 using Comrade
+using Dynesty
 
 using AbstractMCMC
 using TypedTables
