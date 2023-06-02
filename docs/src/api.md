@@ -75,6 +75,7 @@ Comrade.Ring
 Comrade.ParabolicSegment
 Comrade.ContinuousImage
 Comrade.ZeroModel
+Comrade.MultiComponentModel
 ```
 
 ### Image Pulses
@@ -231,6 +232,8 @@ Comrade.NonAnalyticTest
 Comrade.station_tuple
 Comrade.center_image
 Comrade.convolve!
+Comrade.dirty_image
+Comrade.dirty_beam
 ```
 
 ## Internal (Not Public API)

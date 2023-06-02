@@ -68,7 +68,12 @@ function dirty_beam(fov, npix, obs::EHTObservation{T,D}) where {T, D<:EHTVisibil
     return dirty_image(fov, npix, vis2)
 end
 
+"""
+    MultiComponentModel(beam::AbstractModel, fluxes::AbstractVector, x::AbstractVector, y::AbstractVector)
 
+Build a model with a base model type `beam` where fluxes, x, y corresond to the flux, and positions
+of the components. This can be used to easily construct clean like models.
+"""
 struct MultiComponentModel{M, F, V<:AbstractVector} <: Comrade.AbstractModel
     base::M
     flux::F
