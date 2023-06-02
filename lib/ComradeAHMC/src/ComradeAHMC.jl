@@ -320,7 +320,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
 
 
     next = iterate(pt)
-    i = 1
+    i = 2
     while !isnothing(next)
         (chain, state) = next
         t = @elapsed begin
@@ -334,7 +334,9 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
             next = iterate(pt, state)
             # Force the GC to kill these
         end
-        @info "On scan $i/$nscans it took $(t) seconds"
+        if !isnothing(next)
+            @info "On scan $i/$nscans it took $(t) seconds"
+        end
         i += 1
     end
 
@@ -351,14 +353,15 @@ pass the resulting `out` object, or the path to the directory that the results w
 i.e. the path specified in [`DiskStore`](@ref).
 
 # Arguments
-  - `out::Union{String, DiskOutput}`
+  - `out::Union{String, DiskOutput}`: If `out` is a string is must point to the direct that the `DiskStore`
+     pointed to. Otherwise it is what is directly returned from sample.
+  - `indices`: The indices of the that you want to load into memory. The default is to load the entire table.
 
-By default if just a `out` object is given the entire table of samples will be read in.
-Otherwise the use can specify the specific range
-of `indices` they are interested in. Finally, HMC save two tables, `samples` and `stats`. The
-`samples` table correspond to the actual MCMC samples from HMC stored as a `TypedTable`.
-The `stats` table hold the rest of the sampling statistics such as the evaluated log-density,
-the number of leapfrog steps, etc.
+
+# Keyword Arguments
+  - `table`: A string specifying the table you wish to read in. There are two options: "samples" which
+     corresponds to the actual MCMC chain, and `stats` which corresponds to additional information
+     about the sampler, e.g., the log density of each sample and tree statistics.
 """
 function load_table(
         out::DiskOutput,
