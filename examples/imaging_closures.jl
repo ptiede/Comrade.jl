@@ -42,8 +42,8 @@ obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "exampl
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      are coherent.
-#   - Add 2% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs).add_fractional_noise(0.02).flag_uvdist(uv_min=0.1e9)
+#   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
+obs = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
 
 # Now, we extract our closure quantities from the EHT data set.
 dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePhases(;snrcut=3))
@@ -57,6 +57,7 @@ function model(θ, metadata)
     (;c) = θ
     (; grid, cache) = metadata
     ## Construct the image model
+    c = to_simplex(CenteredLR(), c.params)
     img = IntensityMap(c, grid)
     return  ContinuousImage(img, cache)
 end
@@ -66,22 +67,63 @@ end
 # the EHT is not very sensitive to a larger field of views; typically, 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 7
-fovxy = μas2rad(65.5)
+npix = 24
+fovxy = μas2rad(100.0)
 
-# Now, we can feed in the array information to form the cache. We will be using a DFT since
-# it is efficient for so few pixels
-# We will use a Dirichlet prior, enforcing that the flux sums to unity since closures are
-# degenerate to total flux.
+# Now, we can feed in the array information to form the cache
 grid = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
-cache = create_cache(DFTAlg(dlcamp), buffer, BSplinePulse{3}())
+cache = create_cache(NFFTAlg(dlcamp), buffer, BSplinePulse{3}())
 metadata = (;grid, cache)
 
-# Now we need to specify our image prior. For this work we use a very simple Dirichlet prior
+
+
+# Now we need to specify our image prior. For this work we will use a Gaussian Markov
+# Random field prior
 using VLBIImagePriors
-(;X, Y) = grid
-prior = (c = ImageDirichlet(1.0, npix, npix), )
+using Distributions, DistributionsAD
+# Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
+# image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
+fwhmfac = 2*sqrt(2*log(2))
+mpr = modify(Gaussian(), Stretch(μas2rad(40.0)./fwhmfac))
+imgpr = intensitymap(mpr, grid)
+
+# Now since we are actually modeling our image on the simplex we need to ensure that
+# our mean image has unit flux
+imgpr ./= flux(imgpr)
+
+meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
+
+# In addition we want a reasonable guess for what the resolution of our image should be.
+# For radio astronomy this is given by roughly the longest baseline in the image. To put this
+# into pixel space we then divide by the pixel size.
+hh(x) = hypot(x...)
+beam = inv(maximum(hh.(uvpositions.(extract_table(obs, ComplexVisibilities()).data))))
+rat = (beam/(step(grid.X)))
+
+# To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
+# that allow us to scale things linearly with the number of image pixels. This drastically improves
+# the usual N^3 scaling you get from usual Gaussian Processes.
+crcache = MarkovRandomFieldCache(meanpr)
+
+# One of the benefits of the Bayesian approach is that we can fit for the hyperparameters
+# of our prior/regularizers unlike traditional RML appraoches. To construct this heirarchical
+# prior we will first make a map that takes in our regularizer hyperparameters and returns
+# the image prior given those hyperparameters.
+fmap = let meanpr=meanpr, crcache=crcache, rat=rat
+    x->GaussMarkovRandomField(meanpr, x.λ/rat, x.σ*x.λ/rat, crcache)
+end
+
+# Now we can finally form our image prior. For this we use a heirarchical prior where the
+# inverse correlation length is given by a Half-Normal distribution whose peak is at zero and
+# standard deviation is 0.1/rat. For the variance of the GP we use another
+# half normal prior with standard deviation unity. The reason we use the half-normal priors is
+# to prefer "simple" structures. Namely, Gaussian Markov random fields are extremly flexible models.
+# To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
+# want to use priors that enforce similarity to our mean image, and prefer smoothness.
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 1/3); lower=0.0), σ=truncated(Normal(0.0, 2.0); lower=0.0))))
+
+prior = (c = cprior, )
 
 lklhd = RadioLikelihood(model, dlcamp, dcphase;
                         skymeta = metadata)
@@ -103,13 +145,13 @@ tpost = asflat(post)
 ndim = dimension(tpost)
 
 
-# Now we optimize. First we will use BlackBoxOptim which is a genetic algorithm to get us
-# in the region of the best fit model.
+# Now we optimize using LBFGS
 using ComradeOptimization
-using OptimizationBBO
-f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
-prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing, lb=fill(-5.0, ndim), ub=fill(5.0,ndim))
-sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=100_000);
+using OptimizationOptimJL
+using Zygote
+f = OptimizationFunction(tpost, Optimization.AutoZygote())
+prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
+sol = solve(prob, LBFGS(); maxiters=5_000);
 
 
 # Before we analyze our solution we first need to transform back to parameter space.
@@ -120,9 +162,9 @@ using Plots
 residual(skymodel(post, xopt), dlcamp)
 residual(skymodel(post, xopt), dcphase)
 
-# These look pretty reasonable, although maybe they are a bit high. This could probably be
-# improved in a few ways, but that is beyond the goal of this quick tutorial.
-# Plotting the image, we have recovered a ring-like image reproducing the first EHT results.
+# Now these residuals look a bit high. However, it turns out this is because the MAP is typically
+# not a great estimator and will not provide very predictive measurements of the data. We
+# will show this below after sampling from the posterior.
 img = intensitymap(skymodel(post, xopt), μas2rad(120.0), μas2rad(120.0), 128, 128)
 plot(img, title="MAP Image")
 
@@ -134,21 +176,21 @@ plot(img, title="MAP Image")
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 500; nadapts=250, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 1_000; nadapts=500, init_params=xopt)
 
 # !!! warning
-#     This should be run for likely an order of magnitude more steps to estimate expectations of the posterior properly
+#     This should be run for ;longer!
 #-
 # Now that we have our posterior, we can assess which parts of the image are strongly inferred by the
 # data. This is rather unique to `Comrade` where more traditional imaging algorithms like CLEAN and RML are inherently
 # unable to assess uncertainty in their reconstructions.
 #
 # To explore our posterior let's first create images from a bunch of draws from the posterior
-msamples = skymodel.(Ref(post), chain[251:2:end]);
+msamples = skymodel.(Ref(post), chain[500:5:end]);
 
 # The mean image is then given by
 using StatsBase
-imgs = intensitymap.(msamples, μas2rad(120.0), μas2rad(120.0), 128, 128)
+imgs = intensitymap.(msamples, μas2rad(100.0), μas2rad(100.0), 128, 128)
 mimg = mean(imgs)
 simg = std(imgs)
 p1 = plot(mimg, title="Mean Image")
@@ -156,6 +198,32 @@ p2 = plot(simg./mimg, title="1/SNR")
 p3 = plot(imgs[1], title="Draw 1")
 p4 = plot(imgs[end], title="Draw 2")
 plot(p1, p2, p3, p4, size=(800,800), colorbar=:none)
+
+# Now let's see whether our residuals look better.
+p = plot();
+c2 = 0.0
+for s in sample(chain[501:end], 10)
+    c2 += chi2(vlbimodel(post, s), dlcamp)/(2*length(dlcamp))
+    residual!(p, vlbimodel(post, s), dlcamp)
+end
+title!(p, "<χ²> = $(c2/10)");
+ylabel!("Log-Closure Amplitude Res.");
+p
+
+
+p = plot();
+c2 = 0.0
+for s in sample(chain[501:end], 10)
+    c2 += chi2(vlbimodel(post, s), dcphase)/(2*length(dcphase))
+    residual!(p, vlbimodel(post, s), dcphase)
+end
+title!(p, "<χ²> = $(c2/10)");
+ylabel!("Closure Phase Res.");
+p
+
+# And we see that the residuals are looking much better.
+
+
 
 # And viola, you have a quick and preliminary image of M87 fitting only closure products.
 # For a publication-level version we would recommend

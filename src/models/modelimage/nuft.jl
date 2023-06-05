@@ -76,7 +76,7 @@ ChainRulesCore.@non_differentiable checkuv(alg, u::AbstractArray, v::AbstractArr
 function visibilities_numeric(m::ModelImage{M,I,<:NUFTCache{A}},
                       u, v, time, freq) where {M,I<:IntensityMap,A<:ObservedNUFT}
     checkuv(m.cache.alg.uv, u, v)
-    vis =  nuft(m.cache.plan, complex.(Comrade.baseimage(m.cache.img)))
+    vis =  nuft(m.cache.plan, complex(Comrade.baseimage(m.cache.img)))
     return conj.(vis).*m.cache.phases
 end
 

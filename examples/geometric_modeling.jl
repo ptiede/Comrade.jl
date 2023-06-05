@@ -10,10 +10,10 @@
 # 50 lines of code (sans comments). To start, we load Comrade and some other packages we need.
 
 
-using Comrade
 
 using Pkg #hide
-Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+Pkg.activate(joinpath(@__DIR__)) #hide
+using Comrade
 
 # We load Pyehtim which is a Python interface package to the eht-imaging library.
 using Pyehtim

@@ -15,6 +15,7 @@ using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 
 using Pyehtim
+using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
@@ -50,11 +51,24 @@ dvis = extract_table(obs, ComplexVisibilities())
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 # The model is given below:
 
+function center_kernel(grid)
+    X = ones(length(grid.X)).*grid.X'./step(grid.X)
+    Y = grid.Y.*ones(length(grid.X))'./step(grid.Y)
+    XY = zeros(2, length(X))
+    XY[1,:] .= reshape(X, :)
+    XY[2,:] .= reshape(Y, :)
+    C = nullspace(XY)
+    return C*C'
+end
+
+
 function sky(θ, metadata)
     (;fg, c) = θ
-    (; grid, cache, gcache, gcachep) = metadata
+    (;K, ftot, grid, cache) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
-    img = IntensityMap((1.1*(1-fg)).*c, grid)
+    cp = c.params
+    rast = (ftot*(1-fg))*reshape(K*reshape(to_simplex(CenteredLR(), cp), :), size(grid)...)
+    img = IntensityMap(rast, grid)
     m = ContinuousImage(img, cache)
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(1.1*fg))
     return m+g
@@ -89,9 +103,9 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 8
-fovx = μas2rad(65.0)
-fovy = μas2rad(65.0)
+npix = 32
+fovx = μas2rad(100.0)
+fovy = μas2rad(100.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -119,7 +133,8 @@ segs = (AA = FixedSeg(1.0 + 0.0im),
 gcachep = jonescache(dvis, segs)
 
 # Now we can form our metadata we need to fully define our model.
-metadata = (;grid, cache, gcache, gcachep)
+K = center_kernel(grid)
+metadata = (;K, ftot=1.1, grid, cache, gcache, gcachep)
 
 # Moving onto our prior, we first focus on the instrument model priors.
 # Each station requires its own prior on both the amplitudes and phases.
@@ -162,14 +177,57 @@ distphase = (
              SM = DiagonalVonMises(0.0, inv(π^2)),
            )
 
+# Now we need to specify our image prior. For this work we will use a Gaussian Markov
+# Random field prior
+using Distributions, DistributionsAD
+# Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
+# image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
+fwhmfac = 2*sqrt(2*log(2))
+mpr = modify(Gaussian(), Stretch(μas2rad(40.0)./fwhmfac))
+imgpr = intensitymap(mpr, grid)
+
+# Now since we are actually modeling our image on the simplex we need to ensure that
+# our mean image has unit flux
+imgpr ./= flux(imgpr)
+
+meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
+
+# In addition we want a reasonable guess for what the resolution of our image should be.
+# For radio astronomy this is given by roughly the longest baseline in the image. To put this
+# into pixel space we then divide by the pixel size.
+hh(x) = hypot(x...)
+beam = inv(maximum(hh.(uvpositions.(extract_table(obs, ComplexVisibilities()).data))))
+rat = (beam/(step(grid.X)))
+
+# To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
+# that allow us to scale things linearly with the number of image pixels. This drastically improves
+# the usual N^3 scaling you get from usual Gaussian Processes.
+crcache = MarkovRandomFieldCache(meanpr)
+
+# One of the benefits of the Bayesian approach is that we can fit for the hyperparameters
+# of our prior/regularizers unlike traditional RML appraoches. To construct this heirarchical
+# prior we will first make a map that takes in our regularizer hyperparameters and returns
+# the image prior given those hyperparameters.
+fmap = let meanpr=meanpr, crcache=crcache, rat=rat
+    x->GaussMarkovRandomField(meanpr, x.λ/rat, x.Σ*x.λ/rat, crcache)
+end
+
+# Now we can finally form our image prior. For this we use a heirarchical prior where the
+# inverse correlation length is given by a Half-Normal distribution whose peak is at zero and
+# standard deviation is 0.1/rat. For the variance of the GP we use another
+# half normal prior with standard deviation unity. The reason we use the half-normal priors is
+# to prefer "simple" structures. Namely, Gaussian Markov random fields are extremly flexible models.
+# To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
+# want to use priors that enforce similarity to our mean image, and prefer smoothness.
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1); lower=0.0), Σ=truncated(Normal(0.0, 2.0); lower=0.0))))
+
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
 # Dirichlet prior for our image pixels. For the log gain amplitudes, we use the `CalPrior`
 # which automatically constructs the prior for the given jones cache `gcache`.
-(;X, Y) = grid
 prior = (
          fg = Uniform(0.0, 1.0),
-         c = ImageDirichlet(1.0, npix, npix),
+         c = cprior,
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
         )
@@ -257,7 +315,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 400; nadapts=200, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 1000; nadapts=500, init_params=xopt)
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
@@ -291,8 +349,8 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[201:10:end])
-imgs = intensitymap.(samples, μas2rad(75.0), μas2rad(75.0), 128,  128);
+samples = skymodel.(Ref(post), chain[501:10:end])
+imgs = intensitymap.(samples, μas2rad(100.0), μas2rad(100.0), 128,  128);
 
 mimg = mean(imgs)
 simg = std(imgs)
