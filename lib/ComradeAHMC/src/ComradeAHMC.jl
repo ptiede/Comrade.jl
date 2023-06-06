@@ -320,7 +320,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
 
 
     next = iterate(pt)
-    i = 2
+    i = 1
     while !isnothing(next)
         (chain, state) = next
         t = @elapsed begin
@@ -332,6 +332,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
             stats = nothing
             GC.gc()
             next = iterate(pt, state)
+            jldsave(outbase*"_checkpoint.jld2"; pt, state)
             # Force the GC to kill these
         end
         if !isnothing(next)
