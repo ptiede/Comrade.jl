@@ -332,7 +332,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
             stats = nothing
             GC.gc()
             next = iterate(pt, state)
-            jldsave(outbase*"_checkpoint.jld2"; pt, state)
+            jldsave(joinpath(outdir, "checkpoint.jld2"); pt, state)
             # Force the GC to kill these
         end
         if !isnothing(next)
