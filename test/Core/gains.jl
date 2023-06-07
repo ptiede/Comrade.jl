@@ -275,6 +275,7 @@ end
     scancache = jonescache(dcoh, ScanSeg())
     segs = station_tuple(dcoh, ScanSeg(); AA = FixedSeg(1.0 + 0.0im))
     phasecache = jonescache(dcoh, segs)
+    gp = cis.(rand(size(phasecache.m1,2)))
 
     dlgp = CalPrior(gprior0, scancache)
     dgpp = CalPrior(gprior1, scancache)
@@ -306,4 +307,8 @@ end
     dgpp = CalPrior(NamedTuple{keys(gprior1)[2:end]}(values(gprior1)[2:end]), phasecache)
     v = rand(dgpp)
     test_rrule(Base.:*, am1, v)
+
+    test_rrule(Comrade.apply_designmats, gpro, gpro, scancache.m1⊢NoTangent())
+    test_rrule(Comrade.apply_designmats, gp, gp, phasecache.m1⊢NoTangent())
+    test_rrule(Comrade.apply_designmats, gp, gp, phasecache.m2⊢NoTangent())
 end

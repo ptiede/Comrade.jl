@@ -514,6 +514,45 @@ function apply_designmats(::typeof(identity), g1, g2, m)
     return m*g1, m*g2
 end
 
+function ChainRulesCore.rrule(
+        ::typeof(apply_designmats),
+        ::typeof(identity),
+        g1, g2, m)
+    out = apply_designmats(identity, g1, g2, m)
+    pg1 = ProjectTo(g1)
+    pg2 = ProjectTo(g2)
+    function _pullback_designmat(Δ)
+        Δ1, Δ2 = Δ
+        Δf = NoTangent()
+        Δi = NoTangent()
+        Δg1 = pg1(m'*Δ1)
+        Δg2 = pg2(m'*Δ2)
+        Δm = NoTangent()
+        return Δf, Δi, Δg1, Δg2, Δm
+    end
+    return out, _pullback_designmat
+end
+
+function ChainRulesCore.rrule(
+        ::typeof(apply_designmats),
+        ::typeof(identity),
+        g1, g2, m::AffineDesignMatrix)
+    out = apply_designmats(identity, g1, g2, m)
+    pg1 = ProjectTo(g1)
+    pg2 = ProjectTo(g2)
+    function _pullback_designmat(Δ)
+        Δ1, Δ2 = Δ
+        Δf = NoTangent()
+        Δi = NoTangent()
+        Δg1 = pg1(m.mat'*Δ1)
+        Δg2 = pg2(m.mat'*Δ2)
+        Δm = NoTangent()
+        return Δf, Δi, Δg1, Δg2, Δm
+    end
+    return out, _pullback_designmat
+end
+
+
 # GMat(g1::T, g2::T) where {T} = SMatrix{2,2,T}(g1, zero(T), zero(T), g2)
 function gmat(f::F, g1, g2, m) where {F}
    S = eltype(g1)
