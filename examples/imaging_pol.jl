@@ -84,14 +84,13 @@
 #  In the rest of the tutorial, we are going to solve for all of these instrument model terms on
 #  in addition to our image structure to reconstruct a polarized image of a synthetic dataset.
 
-using Comrade
 
 
 
 # ## Load the Data
 using Pkg #hide
-Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
-
+Pkg.activate(@__DIR__) #hide
+using Comrade
 using Pyehtim
 
 # For reproducibility we use a stable random number genreator
