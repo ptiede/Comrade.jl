@@ -11,12 +11,14 @@
 
 
 
-using Pkg #hide
-Pkg.activate(joinpath(@__DIR__)) #hide
 using Comrade
 
-# We load Pyehtim which is a Python interface package to the eht-imaging library.
+# ## Load the Data
+using Pkg #hide
+Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+
 using Pyehtim
+
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(42)

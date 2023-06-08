@@ -88,9 +88,12 @@
 
 
 # ## Load the Data
-using Pkg #hide
-Pkg.activate(@__DIR__) #hide
+# To get started we will load Comrade
 using Comrade
+
+# ## Load the Data
+using Pkg #hide
+Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 using Pyehtim
 
 # For reproducibility we use a stable random number genreator

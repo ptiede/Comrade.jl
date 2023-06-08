@@ -683,7 +683,8 @@ function ChainRulesCore.rrule(::typeof(jonesStokes), f::F, g, gcache) where {F}
         out1 = zero(j.m1)
         out2 = zero(j.m2)
 
-        autodiff(Reverse, _jonesStokes!, Const, Duplicated(out1, dout1), Duplicated(out2, dout2), Const(f), Duplicated(g, dg), Duplicated(gcache.m1, copy(gcache.m1)), Duplicated(gcache.m2, copy(gcache.m2)))
+        # autodiff(Reverse, _jonesStokes!, Const, Duplicated(out1, dout1), Duplicated(out2, dout2), Const(f), Duplicated(g, dg), Duplicated(gcache.m1, copy(gcache.m1)), Duplicated(gcache.m2, copy(gcache.m2)))
+        autodiff(Reverse, _jonesStokes!, Const, Duplicated(out1, dout1), Duplicated(out2, dout2), Const(f), Duplicated(g, dg), Const(gcache.m1), Const(gcache.m2))
         return NoTangent(), NoTangent(), pg(dg), NoTangent()
     end
     return j, _jonesStokes_pullback
