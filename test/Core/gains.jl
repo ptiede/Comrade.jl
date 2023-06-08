@@ -308,7 +308,7 @@ end
     v = rand(dgpp)
     test_rrule(Base.:*, am1, v)
 
-    test_rrule(Comrade.apply_designmats, gpro, gpro, scancache.m1⊢NoTangent())
-    test_rrule(Comrade.apply_designmats, gp, gp, phasecache.m1⊢NoTangent())
-    test_rrule(Comrade.apply_designmats, gp, gp, phasecache.m2⊢NoTangent())
+    test_rrule(Comrade.apply_designmats, identity⊢NoTangent(), gpro, gpro, scancache.m1⊢NoTangent())
+    test_rrule(Comrade.apply_designmats, identity⊢NoTangent(), gp, gp, phasecache.m1⊢NoTangent())
+    test_rrule(Comrade.apply_designmats, identity⊢NoTangent(), gp, gp, phasecache.m2⊢NoTangent())
 end
