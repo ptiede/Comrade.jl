@@ -779,7 +779,10 @@ Corrupts the model coherency matrices with the Jones matrices `j1` for station 1
 `j2` for station 2.
 """
 function corrupt(vis, j1, j2)
+    # vnew = similar(vis, typeof(j1[1]*vis[1]*adjoint(j2[1])))
+    # corrupt!(vnew, vis, j1, j2)
     vnew = j1 .* vis .* adjoint.(j2)
+    # vnew = j1 .* vis .* adjoint.(j2)
     return vnew
 end
 
@@ -797,8 +800,6 @@ end
 #     pj2 = ProjectTo(j2)
 #     function _corrupt_pullback(Δ)
 #         Δout = similar(out)
-#         println(typeof(Δ))
-#         println(typeof(out))
 #         Δout .= unthunk(Δ)
 #         Δvis = zero(out)
 #         v2 = zero(out)
