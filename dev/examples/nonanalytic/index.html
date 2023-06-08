@@ -6,26 +6,26 @@ Pkg.activate(joinpath(dirname(pathof(Comrade)), &quot;..&quot;, &quot;examples&q
 
 using Plots</code></pre><p>While most of the models implemented in <code>Comrade</code> have an analytic Fourier transform this is not required. In this notebook we will describe how a user can do Bayesian model fitting with a non-analytic model.</p><p>The <code>ExtendedRing</code> model is an example of a non-analytic model. The image structure is given by</p><p class="math-container">\[I(r) = \frac{\beta^\alpha}{2\pi \Gamma(\alpha)} r^{-\alpha-2}e^{-\beta/r}\]</p><p>This can be created as follows</p><pre><code class="language- hljs">m = ExtendedRing(8.0)</code></pre><p>The argument is <code>\alpha</code> in the above equation. <code>beta</code> is given by <span>$(1+\alpha)$</span>.</p><p>This is an example of a ring model that has a substantially different flux profile.</p><pre><code class="language- hljs">plot(m, xlims=(-5.0, 5.0), ylims=(-5.0, 5.0), uvscale=identity)</code></pre><p>This function does not have a simple analytic Fourier transform, e.g.</p><pre><code class="language- hljs">Comrade.visanalytic(ExtendedRing)</code></pre><p>Therefore, to find the Fourier transform of the image we need to revert to numerical methods. For this notebook we will use the <em>fast Fourier transform</em> or FFT. Specifically we will use FFTW. To compute a numerical Fourier transform we first need to specify the image.</p><pre><code class="language- hljs">image = IntensityMap(zeros(256, 256), 10.0, 10.0)</code></pre><p>This will serve as our cache to store the image going forward. The next step is to create a model wrapper that holds the model and the image. <code>Comrade</code> provides the <code>modelimage</code> function to do exactly that</p><pre><code class="language- hljs">mimage = modelimage(m, image, FFTAlg())</code></pre><p>the <code>alg</code> keyword argument then specifies that we want to use an FFT to compute the Fourier transform. When <code>modelimage</code> is called, the FFT is performed and then we use a bicubic interpolator on the resulting visibilities to construct a continuous representation of the Fourier transform. Once we have this everything else is the same. Namely we can calculatge the VLBI data products in the usual manner i.e.</p><pre><code class="language-julia hljs">u = randn(1000)/2
 v = randn(1000)/2</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1000-element Vector{Float64}:
- -0.4514779153215926
- -0.5082531896413901
-  0.3155509812878007
-  0.21892085569760117
-  0.5236953066173846
-  0.20985291582160878
- -0.2702783936384991
-  0.32654480082057685
-  0.018984503118028528
- -0.044653168876581016
+ -0.09504722228730851
+  0.6849692624174328
+  0.017648513077981827
+  0.5467598682098185
+  1.0783934983294015
+  0.43799457147760607
+  0.5562339856391517
+  0.9046756008381914
+ -0.17481328539002972
+ -1.0870503818880215
   ⋮
- -0.519272179748459
- -0.07080279678039397
-  0.17345621334043276
-  0.4349681881274151
-  0.6680795276528925
-  1.0049995390909536
-  0.2355692434599033
-  0.08079299604282852
- -0.13286460482070134</code></pre><p>Now we can plot our sampled visibilities</p><pre><code class="language- hljs">vis = visibilities(mimage, (U=u, V=v))
+  0.47976213763452286
+  0.5725630574627193
+  0.2728876814208423
+ -0.695696039337841
+ -0.04061794398840057
+ -0.011164741312833844
+  0.45783117623993086
+  1.3013062137102958
+ -0.5854463305355447</code></pre><p>Now we can plot our sampled visibilities</p><pre><code class="language- hljs">vis = visibilities(mimage, (U=u, V=v))
 scatter(hypot.(u, v), real.(vis), label=&quot;Real&quot;)
 scatter!(hypot.(u, v), imag.(vis), label=&quot;Imag&quot;)</code></pre><p>We can also directly get the amplitudes using:</p><pre><code class="language- hljs">amp = amplitudes(mimage, (U=u, V=v))
-scatter(hypot.(u, v), amp, label=&quot;Amplitude&quot;)</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../data/">« Loading Data into Comrade</a><a class="docs-footer-nextpage" href="../geometric_modeling/">Geometric Modeling of EHT Data »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Thursday 8 June 2023 02:48">Thursday 8 June 2023</span>. Using Julia version 1.9.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+scatter(hypot.(u, v), amp, label=&quot;Amplitude&quot;)</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../data/">« Loading Data into Comrade</a><a class="docs-footer-nextpage" href="../geometric_modeling/">Geometric Modeling of EHT Data »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Thursday 8 June 2023 12:56">Thursday 8 June 2023</span>. Using Julia version 1.9.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
