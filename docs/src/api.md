@@ -26,7 +26,7 @@ Comrade.caltable(::Comrade.EHTObservation, ::AbstractVector)
 Comrade.DesignMatrix
 Comrade.JonesCache
 Comrade.TransformCache
-Comrade.JonesModel
+Comrade.CorruptionModel
 Comrade.CalPrior
 Comrade.CalPrior(::NamedTuple, ::JonesCache)
 Comrade.CalPrior(::NamedTuple, ::NamedTuple, ::JonesCache)
@@ -190,14 +190,13 @@ Comrade.Scan
 Comrade.ScanTable
 ```
 
-## eht-imaging interface
+## eht-imaging interface (Internal)
 
 ```@docs
-ComradePyehtimExt.extract_amp
-ComradePyehtimExt.extract_cphase
-ComradePyehtimExt.extract_lcamp
-ComradePyehtimExt.extract_vis
-ComradePyehtimExt.scan_average
+Comrade.extract_amp
+Comrade.extract_cphase
+Comrade.extract_lcamp
+Comrade.extract_vis
 ```
 
 ## Bayesian Tools
@@ -211,6 +210,11 @@ Comrade.flatten
 Comrade.inverse
 Comrade.prior_sample
 Comrade.likelihood
+Comrade.simulate_observation
+Comrade.dataproducts
+Comrade.skymodel
+Comrade.instrumentmodel
+Comrade.vlbimodel
 Comrade.sample(::Posterior)
 Comrade.transform
 Comrade.MultiRadioLikelihood
@@ -232,6 +236,7 @@ Comrade.NonAnalyticTest
 Comrade.station_tuple
 Comrade.center_image
 Comrade.convolve!
+Comrade.convolve
 Comrade.dirty_image
 Comrade.dirty_beam
 ```

@@ -68,6 +68,8 @@ ComradeBase.phasecenter
 ComradeBase.centroid
 ComradeBase.second_moment
 ComradeBase.header
+ComradeBase.NoHeader
+ComradeBase.MinimalHeader
 ```
 
 

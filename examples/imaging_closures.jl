@@ -179,7 +179,7 @@ metric = DiagEuclideanMetric(ndim)
 chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 1_000; nadapts=500, init_params=xopt)
 
 # !!! warning
-#     This should be run for ;longer!
+#     This should be run for longer!
 #-
 # Now that we have our posterior, we can assess which parts of the image are strongly inferred by the
 # data. This is rather unique to `Comrade` where more traditional imaging algorithms like CLEAN and RML are inherently
