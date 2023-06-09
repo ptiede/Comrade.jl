@@ -201,7 +201,7 @@ plot(p1, p2, p3, p4, size=(800,800), colorbar=:none)
 
 # Now let's see whether our residuals look better.
 p = plot();
-c2 = 0.0
+global c2 = 0.0
 for s in sample(chain[501:end], 10)
     c2 += chi2(vlbimodel(post, s), dlcamp)/(2*length(dlcamp))
     residual!(p, vlbimodel(post, s), dlcamp)
@@ -212,7 +212,7 @@ p
 
 
 p = plot();
-c2 = 0.0
+global c2 = 0.0
 for s in sample(chain[501:end], 10)
     c2 += chi2(vlbimodel(post, s), dcphase)/(2*length(dcphase))
     residual!(p, vlbimodel(post, s), dcphase)
