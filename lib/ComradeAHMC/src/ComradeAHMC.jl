@@ -218,9 +218,9 @@ Base.@kwdef struct DiskStore
     """
     The output stride, i.e. every `stride` steps the MCMC output will be dumped to disk.
     """
-    stride::Int = 500
+    stride::Int = 100
 end
-DiskStore(name::String) = DiskStore(name, 500)
+DiskStore(name::String) = DiskStore(name, 100)
 
 """
     AbstractMCMC.sample(post::Comrade.Posterior,
