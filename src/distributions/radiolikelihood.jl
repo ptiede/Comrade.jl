@@ -318,7 +318,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
     Σ = data[:error].^2
     amp = data[:measurement]
     ℓ = ConditionedLikelihood(amp) do μ
-        AmplitudeLikelihood(abs.(μ), Σ)
+        RiceAmplitudeLikelihood(abs.(μ), Σ)
     end
     return ℓ
 end
