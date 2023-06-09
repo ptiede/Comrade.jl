@@ -624,22 +624,6 @@ end
 jonesD(d1::AbstractVector, d2::AbstractVector, jcache::AbstractJonesCache) = jonesD(identity, d1, d2, jcache)
 
 export jonesStokes
-"""
-    jonesStokes(g1::AbstractArray, gcache::AbstractJonesCache)
-    jonesStokes(f, g1::AbstractArray, gcache::AbstractJonesCache)
-
-Construct the Jones Pairs for the stokes I image only. That is, we only need to
-pass a single vector corresponding to the gain for the stokes I visibility. This is
-for when you only want to image Stokes I.
-The first argument is optional and denotes a function that is applied to every element of
-jones cache. For instance if `g1` and `g2` are the log-gains then `f=exp` will convert them
-into the gains.
-
-
-# Warning
-In the future this functionality may be removed when stokes I fitting is replaced with the
-more correct `trace(coherency)`, i.e. RR+LL for a circular basis.
-"""
 # function jonesStokes(f::F, g::AbstractVector, gcache::AbstractJonesCache) where {F}
 #     out1 = similar(g, size(gcache.m1, 1))
 #     out2 = similar(g, size(gcache.m1, 1))
@@ -681,6 +665,22 @@ function ChainRulesCore.rrule(::typeof(jonesStokes), ::typeof(identity), g, gcac
     return j, _jonesStokes_pullback
 end
 
+"""
+    jonesStokes(g1::AbstractArray, gcache::AbstractJonesCache)
+    jonesStokes(f, g1::AbstractArray, gcache::AbstractJonesCache)
+
+Construct the Jones Pairs for the stokes I image only. That is, we only need to
+pass a single vector corresponding to the gain for the stokes I visibility. This is
+for when you only want to image Stokes I.
+The first argument is optional and denotes a function that is applied to every element of
+jones cache. For instance if `g1` and `g2` are the log-gains then `f=exp` will convert them
+into the gains.
+
+
+# Warning
+In the future this functionality may be removed when stokes I fitting is replaced with the
+more correct `trace(coherency)`, i.e. RR+LL for a circular basis.
+"""
 function jonesStokes(f::F, g::AbstractVector, gcache::AbstractJonesCache) where {F}
     out = jonesStokes(identity, g, gcache)
     return JonesPairs(f.(out.m1), f.(out.m2))

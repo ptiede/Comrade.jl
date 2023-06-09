@@ -5,6 +5,7 @@
 
 using Documenter
 using Pyehtim
+using Zygote
 using Comrade
 using ComradeBase
 
