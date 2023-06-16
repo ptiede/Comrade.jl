@@ -43,7 +43,7 @@ obs = scan_average(obs).add_fractional_noise(0.02)
 
 # For this tutorial we will analyze complex visibilities since they allow us to
 # more reliably fit low SNR points.
-dvis = extract_vis(obs)
+dvis = extract_table(obs, ComplexVisibilities())
 
 # ## Building the Model/Posterior
 
@@ -52,29 +52,32 @@ dvis = extract_vis(obs)
 # For our model, we will use a raster or `ContinuousImage` model, an `m-ring` model,
 # and a large asymmetric Gaussian component to model the unresolved short-baseline flux.
 
-function model(θ, metadata)
-    (;cp, f, r, σ, ma, mp, fg, σg, τg, ξg, lgamp, gphase) = θ
-    (; grid, cache, gcache) = metadata
+function sky(θ, metadata)
+    (;c, f, r, σ, ma, mp, fg) = θ
+    (; grid, cache) = metadata
     ## Form the image model
-    ## We multiple the flux by 1.1 since that is the measured total flux of M87
-    c = cp.params
-    ## Construct the image model we fix the flux to 0.6 Jy in this case
-    rast = (1.1*f*(1-fg))*alr(c)
-    img = IntensityMap(rast, grid)
+    ## First transform to simplex space
+    rast = to_simplex(CenteredLR(), c.params)
+    img = IntensityMap((f*(1-fg))*rast, grid)
     mimg = ContinuousImage(img, cache)
     ## Form the ring model
     s,c = sincos(mp)
     α = ma*c
     β = ma*s
-    ring = (1.1*(1-f)*(1-fg))*smoothed(stretched(MRing(α, β), r, r),σ)
-    gauss = (1.1*fg)*rotated(stretched(Gaussian(), σg, σg*(1+τg)), ξg)
-    m = mimg + (ring + gauss)
-    ## Construct the gain model
+    ring = ((1-f)*(1-fg))*smoothed(stretched(MRing(α, β), r, r),σ)
+    gauss = fg*stretched(Gaussian(), μas2rad(200.0), μas2rad(200.0))
+    return mimg + (ring + gauss)
+end
+
+function instrument(θ, metadata)
+    (; lgamp, gphase) = θ
+    (; gcache, gcachep) = metadata
+    ## Now form our instrument model
     gvis = exp.(lgamp)
     gphase = exp.(1im.*gphase)
     jgamp = jonesStokes(gvis, gcache)
     jgphase = jonesStokes(gphase, gcachep)
-    return JonesModel(jgamp*jgphase, m)
+    return CorruptionModel(jgamp*jgphase)
 end
 
 # Before we move on, let's go into the `model` function a bit. This function takes two arguments
@@ -113,7 +116,7 @@ metadata = (;grid, cache, gcache, gcachep)
 # This is everything we need to form our likelihood. Note the first two arguments must be
 # the model and then the metadata for the likelihood. The rest of the arguments are required
 # to be [`Comrade.EHTObservation`](@ref)
-lklhd = RadioLikelihood(model, metadata, dvis)
+lklhd = RadioLikelihood(sky, instrument, dvis; skymeta=metadata, instrumentmeta=metadata)
 
 # Moving onto our prior, we first focus on the instrument model priors.
 # Each station requires its own prior on both the amplitudes and phases.

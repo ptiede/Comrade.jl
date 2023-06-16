@@ -55,9 +55,9 @@ dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePh
 # object that allows `Comrade` to numerically compute the Fourier transform of the image.
 function model(θ, metadata)
     (;c) = θ
-    (; grid, cache) = metadata
+    (;K, grid, cache) = metadata
     ## Construct the image model
-    c = to_simplex(CenteredLR(), c.params)
+    c = K(to_simplex(CenteredLR(), c.params))
     img = IntensityMap(c, grid)
     return  ContinuousImage(img, cache)
 end
@@ -74,7 +74,11 @@ fovxy = μas2rad(100.0)
 grid = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
 cache = create_cache(NFFTAlg(dlcamp), buffer, BSplinePulse{3}())
-metadata = (;grid, cache)
+# In addition since closures are degenerate to a phase gradient, i.e. a image shift
+# we will force the image centroid to be at the origin using the `CenterImage` functor
+# from `VLBIImagePriors`
+K = CenterImage(grid)
+metadata = (;K, grid, cache)
 
 
 
@@ -111,17 +115,17 @@ crcache = MarkovRandomFieldCache(meanpr)
 # prior we will first make a map that takes in our regularizer hyperparameters and returns
 # the image prior given those hyperparameters.
 fmap = let meanpr=meanpr, crcache=crcache, rat=rat
-    x->GaussMarkovRandomField(meanpr, x.λ/rat, x.σ*x.λ/rat, crcache)
+    x->GaussMarkovRandomField(meanpr, x.λ /rat, x.σ^2, crcache)
 end
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
 # inverse correlation length is given by a Half-Normal distribution whose peak is at zero and
-# standard deviation is 0.1/rat. For the variance of the GP we use another
+# standard deviation is 1/3/rat. For the variance of the GP we use another
 # half normal prior with standard deviation unity. The reason we use the half-normal priors is
 # to prefer "simple" structures. Namely, Gaussian Markov random fields are extremly flexible models.
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 1/3); lower=0.0), σ=truncated(Normal(0.0, 2.0); lower=0.0))))
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1); lower=0.0), σ=truncated(Normal(0.0, 1.0); lower=0.0))))
 
 prior = (c = cprior, )
 
@@ -159,13 +163,15 @@ xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
 using Plots
-residual(skymodel(post, xopt), dlcamp)
-residual(skymodel(post, xopt), dcphase)
+residual(skymodel(post, xopt), dlcamp, ylabel="Log Closure Amplitude Res.")
+# and now closure phases
+#-
+residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
 
 # Now these residuals look a bit high. However, it turns out this is because the MAP is typically
 # not a great estimator and will not provide very predictive measurements of the data. We
 # will show this below after sampling from the posterior.
-img = intensitymap(skymodel(post, xopt), μas2rad(120.0), μas2rad(120.0), 128, 128)
+img = intensitymap(skymodel(post, xopt), μas2rad(100.0), μas2rad(100.0), 100, 100)
 plot(img, title="MAP Image")
 
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
@@ -176,7 +182,8 @@ plot(img, title="MAP Image")
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 1_000; nadapts=500, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 2_000; nadapts=1_000, init_params=xopt)
+
 
 # !!! warning
 #     This should be run for longer!
@@ -186,7 +193,7 @@ chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 1_000; nadapts
 # unable to assess uncertainty in their reconstructions.
 #
 # To explore our posterior let's first create images from a bunch of draws from the posterior
-msamples = skymodel.(Ref(post), chain[500:5:end]);
+msamples = skymodel.(Ref(post), chain[1001:10:end]);
 
 # The mean image is then given by
 using StatsBase
@@ -201,23 +208,17 @@ plot(p1, p2, p3, p4, size=(800,800), colorbar=:none)
 
 # Now let's see whether our residuals look better.
 p = plot();
-global c2 = 0.0
-for s in sample(chain[501:end], 10)
-    c2 += chi2(vlbimodel(post, s), dlcamp)/(2*length(dlcamp))
+for s in sample(chain[1001:end], 10)
     residual!(p, vlbimodel(post, s), dlcamp)
 end
-title!(p, "<χ²> = $(c2/10)");
 ylabel!("Log-Closure Amplitude Res.");
 p
 
 
 p = plot();
-global c2 = 0.0
-for s in sample(chain[501:end], 10)
-    c2 += chi2(vlbimodel(post, s), dcphase)/(2*length(dcphase))
+for s in sample(chain[1001:end], 10)
     residual!(p, vlbimodel(post, s), dcphase)
 end
-title!(p, "<χ²> = $(c2/10)");
 ylabel!("Closure Phase Res.");
 p
 

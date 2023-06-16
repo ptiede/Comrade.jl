@@ -1,5 +1,5 @@
 export JonesCache, TrackSeg, ScanSeg, FixedSeg, IntegSeg, jonesG, jonesD, jonesT,
-       TransformCache, JonesModel, jonescache, station_tuple
+       TransformCache, CorruptionModel, jonescache, station_tuple
 
 """
     $(TYPEDEF)
@@ -216,13 +216,16 @@ function append_time_site!(times, sites, site, t, ::FixedSeg)
 end
 
 """
-    station_tuple(stations, default; kwargs...)
-    station_tuple(obs::EHTObservation, default; kwargs...)
+    station_tuple(stations, default; reference=nothing kwargs...)
+    station_tuple(obs::EHTObservation, default; reference=nothing, kwargs...)
 
 Convienence function that will construct a `NamedTuple` of objects
 whose names are the `stations` in the observation `obs` or explicitly in the argument
 `stations`. The `NamedTuple` will be filled with `default` if no kwargs are defined
 otherwise each kwarg (key, value) pair denotes a station and value pair.
+
+Optionally the user can specify a `reference` station that will be dropped from the tuple.
+This is useful for selecting a reference station for gain phases
 
 ## Examples
 ```julia-repl
@@ -233,19 +236,21 @@ julia> station_tuple(stations, ScanSeg(); AA = FixedSeg(1.0))
 (AA = FixedSeg(1.0), AP = ScanSeg(), LM = ScanSeg(), PV = ScanSeg())
 julia> station_tuple(stations, ScanSeg(); AA = FixedSeg(1.0), PV = TrackSeg())
 (AA = FixedSeg(1.0), AP = ScanSeg(), LM = ScanSeg(), PV = TrackSeg())
+julia> station_tuple(stations, Normal(0.0, 0.1); reference=:AA, LM = Normal(0.0, 1.0))
+(AP = Normal(0.0, 0.1), LM = Normal(0.0, 1.0), PV = Normal(0.0, 0.1))
 ```
 """
 function station_tuple(stations::NTuple{N, Symbol}, default; reference=nothing, kwargs...) where {N}
     if !isnothing(reference)
-        st = delete(stations, reference)
+        st = filter(!=(reference), stations)
     else
         st = stations
     end
     out = map(x->get(kwargs, x, default), st)
-    return NamedTuple{stations}(out)
+    return NamedTuple{st}(out)
 end
-station_tuple(dvis::EHTObservation, default; reference=nothing, kwargs...) = station_tuple(Tuple(stations(dvis)), default; kwargs...)
-station_tuple(st::AbstractVector{Symbol}, default; reference=nothing, kwargs...) = station_tuple(Tuple(st), default; kwargs...)
+station_tuple(dvis::EHTObservation, default; reference=nothing, kwargs...) = station_tuple(Tuple(stations(dvis)), default; reference, kwargs...)
+station_tuple(st::AbstractVector{Symbol}, default; reference=nothing, kwargs...) = station_tuple(Tuple(st), default; reference, kwargs...)
 
 
 function fill_designmat!(

@@ -298,8 +298,9 @@ likelihood(d::ConditionedLikelihood, μ) = d.kernel(μ)
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
     Σ = data[:error].^2
     vis = data[:measurement]
+    lnorm = VLBILikelihoods.lognorm(ComplexVisLikelihood(vis, Σ))
     ℓ = ConditionedLikelihood(vis) do μ
-        ComplexVisLikelihood(μ, Σ, zero(eltype(Σ)))
+        ComplexVisLikelihood(μ, Σ, lnorm)
     end
     return ℓ
 end
@@ -307,8 +308,9 @@ end
 function makelikelihood(data::Comrade.EHTObservation{T, <:Comrade.EHTCoherencyDatum}) where {T}
     Σ = map(x->x.^2, data[:error])
     vis = data[:measurement]
+    lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, Σ))
     ℓ = ConditionedLikelihood(vis) do μ
-        CoherencyLikelihood(μ, Σ, zero(T))
+        CoherencyLikelihood(μ, Σ, lnorm)
     end
     return ℓ
 end
@@ -326,16 +328,17 @@ end
 # internal function that creates the likelihood for a set of log closure amplitudes
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
     dmat = data.config.designmat
-    #amp2 = abs.(data.config.ac.data.measurement)
-    #Σlamp = data.config.ac.data.error.^2 ./ amp2
+    amp2 = abs2.(data.config.ac.data.measurement)
+    Σlamp = data.config.ac.data.error.^2 ./ amp2
 
     # Form the closure covariance matrix
-    #Σlca = PDMat(Matrix(dmat*Diagonal(Σlamp)*transpose(dmat)))
-    Σlca = data[:error].^2
+    Σlca = PDMat(Matrix(dmat*Diagonal(Σlamp)*transpose(dmat)))
+    # Σlca = data[:error].^2
     f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:measurement]
+    lnorm = VLBILikelihoods.lognorm(AmplitudeLikelihood(amp, Σlca))
     ℓ = ConditionedLikelihood(amp) do μ
-        AmplitudeLikelihood(f(μ), Σlca, zero(eltype(Σlca)))
+        AmplitudeLikelihood(f(μ), Σlca, lnorm)
     end
     return ℓ
 end
@@ -344,16 +347,17 @@ end
 # internal function that creates the likelihood for a set of closure phase datum
 function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosurePhaseDatum})
     dmat = data.config.designmat
-    #amp2 = abs2.(data.config.ac.data.measurement)
-    #Σphase = data.config.ac.data.error.^2 ./ amp2
+    amp2 = abs2.(data.config.ac.data.measurement)
+    Σphase = data.config.ac.data.error.^2 ./ amp2
 
     # Form the closure covariance matrix
-    #Σcp = PDMat(Matrix(dmat*Diagonal(Σphase)*transpose(dmat)))
-    Σcp = data[:error].^2
+    Σcp = PDMat(Matrix(dmat*Diagonal(Σphase)*transpose(dmat)))
+    # Σcp = data[:error].^2
     f = Base.Fix2(closure_phases, data.config)
     phase = data[:measurement]
+    lnorm = VLBILikelihoods.lognorm(ClosurePhaseLikelihood(phase, Σcp))
     ℓ = ConditionedLikelihood(phase) do μ
-        ClosurePhaseLikelihood(f(μ), Σcp, zero(eltype(Σcp)))
+        ClosurePhaseLikelihood(f(μ), Σcp, lnorm)
     end
 
     return ℓ

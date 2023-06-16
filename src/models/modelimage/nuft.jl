@@ -132,7 +132,7 @@ Base.@kwdef struct NFFTAlg{T,N,F} <: NUFT
     """
     NFFT interpolation algorithm. TENSOR is the fastest but takes the longest to precompute
     """
-    precompute::N=NFFT.TENSOR
+    precompute::N=NFFT.POLYNOMIAL
     """
     Flag block partioning should be used to speed up computation
     """

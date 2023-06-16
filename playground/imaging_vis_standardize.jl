@@ -48,10 +48,10 @@ dvis = extract_table(obs, ComplexVisibilities())
 
 
 function sky(θ, metadata)
-    (;fg, c) = θ
-    (;K, ftot, grid, cache) = metadata
+    (;fg, c, λ, σ, ν) = θ
+    (;trf, meanpr, ftot, grid, cache) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
-    cp = c.params
+    cp = trf(c, meanpr, λ, σ, ν)
     rast = (ftot*(1-fg))*(to_simplex(CenteredLR(), cp))
     img = IntensityMap(rast, grid)
     m = ContinuousImage(img, cache)
@@ -96,9 +96,9 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 24
-fovx = μas2rad(100.0)
-fovy = μas2rad(100.0)
+npix = 48
+fovx = μas2rad(150.0)
+fovy = μas2rad(150.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -124,7 +124,6 @@ using VLBIImagePriors
 # Now we can form our metadata we need to fully define our model. First we
 # also construct a `K` matrix or kernel that automatically centers the image.
 K = CenterImage(grid)
-metadata = (;K, ftot=1.1, grid, cache, gcache, gcachep)
 # We will also fix the total flux to be the observed value 1.1. This is because
 # total flux is degenerate with a global shift in the gain amplitudes making the problem
 # degenerate. To fix this we use the observed total flux as our value.
@@ -182,22 +181,15 @@ rat = (beam/(step(grid.X)))
 # the usual N^3 scaling you get from usual Gaussian Processes.
 crcache = MarkovRandomFieldCache(meanpr)
 
-# One of the benefits of the Bayesian approach is that we can fit for the hyperparameters
-# of our prior/regularizers unlike traditional RML appraoches. To construct this heirarchical
-# prior we will first make a map that takes in our regularizer hyperparameters and returns
-# the image prior given those hyperparameters.
-fmap = let meanpr=meanpr, crcache=crcache, rat=rat
-    x->GaussMarkovRandomField(meanpr, x.λ/rat, x.σ^2, crcache)
-end
-
-# Now we can finally form our image prior. For this we use a heirarchical prior where the
-# inverse correlation length is given by a Half-Normal distribution whose peak is at zero and
-# standard deviation is 0.1/rat. For the variance of the GP we use another
-# half normal prior with standard deviation unity. The reason we use the half-normal priors is
-# to prefer "simple" structures. Namely, Gaussian Markov random fields are extremly flexible models.
-# To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
-# want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1); lower=1/npix), σ=truncated(Normal(0.0, 0.5); lower=0.0))))
+# Now in general the GMRF prior while fitting the hyperparameters can lead to difficulties when sampling.
+# This is because we are effectively using a *centered* parameterization. To fix this we will factor
+# the Gaussian process and standardize the gaussian distribution. To do this we call the function
+# `VLBIImagePriors.standardize` which returns
+#  - the transformation `trf` that moves from the diagonal representation of the GMRF to the fully covariant picture
+#  - the default prior unit multivariate or standard normal distribution.
+# We include this transformation in the metadata since it is needed when forming the actual image or log-ratio of the image.
+trf, cprior = standardize(crcache, Normal)
+metadata = (;K, trf, meanpr, ftot=1.1, grid, cache, gcache, gcachep)
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -206,6 +198,9 @@ cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 
 prior = (
          fg = Uniform(0.0, 1.0),
          c = cprior,
+         λ = truncated(Normal(0.0, 1/rat); lower=2/npix),
+         σ = truncated(Normal(0.0, 0.1); lower=0.0),
+         ν = Uniform(0.0, 20.0),
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
         )
@@ -244,12 +239,22 @@ LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
 using ComradeOptimization
 using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, 2*rand(ndim) .- 1.0, nothing)
-ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1);
+
+sols = map(1:10) do i
+    prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
+    ℓ = logdensityof(tpost)
+    sol = solve(prob, LBFGS(), maxiters=5_000, g_tol=1e-1)
+    @info sol.minimum
+    return sol
+end
+
+mins = getproperty.(sols, :minimum)
+sols = sols[sortperm(mins)]
+
+
 
 # Now transform back to parameter space
-xopt = transform(tpost, sol.u)
+xopts = transform.(Ref(tpost), sols)
 
 # !!! warning
 #     Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -257,29 +262,30 @@ xopt = transform(tpost, sol.u)
 #-
 # First we will evaluate our fit by plotting the residuals
 using Plots
-residual(vlbimodel(post, xopt), dvis)
+residual(vlbimodel(post, xopts[6]), dvis)
 
 # These look reasonable, although there may be some minor overfitting. This could be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
-img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
-plot(img, title="MAP Image")
+using CairoMakie
+img = intensitymap(skymodel(post, xopts[9]), fovx, fovy, 128, 128)
+image(img, title="MAP Image", axis=(xreversed=true, aspect=1), colormap=:afmhot)
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
 # To do this, `Comrade` provides a `caltable` function that converts the flattened gain parameters
 # to a tabular format based on the time and its segmentation.
-gt = Comrade.caltable(gcachep, xopt.gphase)
-plot(gt, layout=(3,3), size=(600,500))
+gt = Comrade.caltable(gcachep, xopts[1].gphase)
+Plots.plot(gt, layout=(3,3), size=(600,500))
 
 # The gain phases are pretty random, although much of this is due to us picking a random
 # reference station for each scan.
 
 # Moving onto the gain amplitudes, we see that most of the gain variation is within 10% as expected
 # except LMT, which has massive variations.
-gt = Comrade.caltable(gcache, exp.(xopt.lgamp))
-plot(gt, layout=(3,3), size=(600,500))
+gt = Comrade.caltable(gcache, exp.(xopts[2].lgamp))
+Plots.plot(gt, layout=(3,3), size=(600,500))
 
 
 # To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For information about NUTS,
@@ -293,13 +299,14 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 1000; nadapts=500, init_params=xopt)
+trace1 = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 2_000; saveto=DiskStore("ResolveMap0_RP"), nadapts = 1_000, init_params=xopts[1])
+trace1 = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 2_000; saveto=DiskStore("ResolveMap1"), nadapts = 1_000, init_params=xopts[3])
+trace1 = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 2_000; saveto=DiskStore("ResolveMap2"), nadapts = 1_000, init_params=xopts[4])
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
 #-
-
-
+chain = load_table("ResolveMap0_RP")
 # Now that we have our posterior, we can put error bars on all of our plots above.
 # Let's start by finding the mean and standard deviation of the gain phases
 gphase  = hcat(chain.gphase...)
@@ -327,8 +334,10 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[501:10:end])
+samples = skymodel.(Ref(post), chain[1001:10:end])
 imgs = intensitymap.(samples, fovx, fovy, 128,  128);
+
+image(imgs[70], axis=(xreversed=true, aspect=1), colormap=:afmhot)
 
 mimg = mean(imgs)
 simg = std(imgs)

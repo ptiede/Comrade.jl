@@ -27,6 +27,7 @@ Comrade.DesignMatrix
 Comrade.JonesCache
 Comrade.TransformCache
 Comrade.CorruptionModel
+Comrade.VLBIModel
 Comrade.CalPrior
 Comrade.CalPrior(::NamedTuple, ::JonesCache)
 Comrade.CalPrior(::NamedTuple, ::NamedTuple, ::JonesCache)

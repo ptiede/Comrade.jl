@@ -41,13 +41,16 @@ other visibility is zero.
 function dirty_image(fov::Real, npix::Int, obs::EHTObservation{T,D}) where {T, D<:EHTVisibilityDatum}
     # First we double the baselines, i.e. we reflect them and conjugate the measurements
     # This ensures a real NFFT
+    img = IntensityMap(zeros(npix, npix), imagepixels(fov, fov, npix, npix))
+    dx, dy = pixelsizes(img)
     vis2 = reflect_vis(obs)
 
     # Get the number of pixels
     alg = NFFTAlg(vis2)
-    img = IntensityMap(zeros(npix, npix), imagepixels(fov, fov, npix, npix))
     cache = create_cache(alg, img)
-    m = cache.plan'*conj.(vis2[:measurement])
+    u = vis2[:U]
+    v = vis2[:V]
+    m = cache.plan'*(conj.(vis2[:measurement].*cispi.(-(u.*(dx) .+ v.*(dy)))))
     return IntensityMap(real.(m)./npix^2, imagepixels(fov, fov, npix, npix))
 end
 
