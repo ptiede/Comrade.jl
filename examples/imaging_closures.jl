@@ -77,6 +77,7 @@ cache = create_cache(NFFTAlg(dlcamp), buffer, BSplinePulse{3}())
 # In addition since closures are degenerate to a phase gradient, i.e. a image shift
 # we will force the image centroid to be at the origin using the `CenterImage` functor
 # from `VLBIImagePriors`
+using VLBIImagePriors
 K = CenterImage(grid)
 metadata = (;K, grid, cache)
 
@@ -84,7 +85,6 @@ metadata = (;K, grid, cache)
 
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
 # Random field prior
-using VLBIImagePriors
 using Distributions, DistributionsAD
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas

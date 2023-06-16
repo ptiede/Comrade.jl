@@ -135,7 +135,7 @@ intmetadata = (;gcache, gcachep)
 # the model and then the metadata for the likelihood. The rest of the arguments are required
 # to be [`Comrade.EHTObservation`](@ref)
 lklhd = RadioLikelihood(sky, instrument, dvis;
-                        skymeta=metadata, instrumentmeta=intmetadata)
+                        skymeta=skymetadata, instrumentmeta=intmetadata)
 
 # This forms our model. The next step is defining our image priors.
 # For our raster `c`, we will use a Gaussian markov random field prior, with the softmax
