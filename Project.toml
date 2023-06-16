@@ -52,9 +52,11 @@ TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
 VLBILikelihoods = "90db92cd-0007-4c0a-8e51-dbf0782ce592"
 
 [weakdeps]
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 
 [extensions]
+ComradeMakieExt = "Makie"
 ComradePyehtimExt = "Pyehtim"
 
 [compat]
@@ -79,6 +81,7 @@ FillArrays = "0.12, 0.13, 1"
 ForwardDiff = "0.9, 0.10"
 HypercubeTransform = "0.3, 0.4"
 LogDensityProblems = "2"
+Makie = "0.19"
 NFFT = "0.10, 0.11, 0.12, 0.13"
 NamedTupleTools = "0.13,0.14"
 PDMats = "0.10, 0.11"
@@ -103,8 +106,9 @@ julia = "^1.6"
 
 [extras]
 CPUSummary = "2a0fbf3d-bb9c-48f3-b0a9-814d99fd7ab9"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "Pyehtim"]
+test = ["Test", "Makie", "Pyehtim"]
