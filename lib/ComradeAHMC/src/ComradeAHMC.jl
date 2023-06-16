@@ -12,6 +12,7 @@ using Random
 using JLD2
 using Printf
 using AbstractMCMC: Sample
+using Serialization
 export sample, AHMC, Sample, MemoryStore, DiskStore, load_table
 
 """
@@ -296,11 +297,20 @@ struct DiskOutput
 end
 
 
-function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
-                        sampler::AHMC, nsamples, args...;
-                        init_params=nothing, outdir = "Results",
-                        output_stride=min(100, nsamples),
-                        kwargs...)
+function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
+    sampler::AHMC, nsamples, outbase, args...;
+    init_params=nothing, outdir = "Results",
+    output_stride=min(100, nsamples),
+    restart = false,
+    kwargs...)
+
+    if restart
+        @assert isfile(joinpath(outdir, "checkpoint.jls")) "Checkpoint file does not exist in $(outdir)"
+        tmp = deserialize(joinpath(outdir, "checkpoint.jls"))
+        (;pt, state, out, iter) = tmp
+        @info "Resuming from checkpoint on iteration $iter"
+        return pt, state, out, iter
+    end
 
 
     mkpath(joinpath(outdir, "samples"))
@@ -311,35 +321,65 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
     end
     t = Sample(rng, tpost, sampler; init_params, kwargs...)(1:nsamples)
     pt = Iterators.partition(t, output_stride)
-    outbase = joinpath(outdir, "samples", "output_scan_")
     nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
 
     # Now save the output
     out = DiskOutput(outdir, nscans, output_stride, nsamples)
     jldsave(joinpath(outdir, "parameters.jld2"); params=out)
 
+    tmp = @timed iterate(pt)
+    @info "Done scan 1/$nscans it took $(tmp.time) seconds"
+    state, iter = _process_samples(pt, tpost, tmp.value, out, outbase, outdir, 1)
+    return pt, state, out, iter
+end
 
-    next = iterate(pt)
-    i = 1
+
+
+function _process_samples(pt, tpost, next, out, outbase, outdir, iter)
+    (chain, state) = next
+    stats = Table(getproperty.(chain, :stat))
+    samples = transform.(Ref(tpost), getproperty.(getproperty.(chain, :z), :θ)) |> Table
+    jldsave(outbase*(@sprintf "%05d.jld2" iter); stats, samples)
+    chain = nothing
+    samples = nothing
+    stats = nothing
+    GC.gc(true)
+    iter += 1
+    serialize(joinpath(outdir, "checkpoint.jls"), (;pt, state, out, iter))
+    return state, iter
+end
+
+
+function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
+                        sampler::AHMC, nsamples, args...;
+                        init_params=nothing, outdir = "Results",
+                        restart=false,
+                        output_stride=min(100, nsamples),
+                        kwargs...)
+
+
+
+    nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
+    outbase = joinpath(outdir, "samples", "output_scan_")
+
+    pt, state, out, i = initialize(
+                            rng, tpost, sampler, nsamples, outbase, args...;
+                            init_params, restart, outdir, output_stride, kwargs...
+                        )
+
+    tmp = @timed iterate(pt, state)
+    t = tmp.time
+    next = tmp.value
     while !isnothing(next)
-        (chain, state) = next
-        t = @elapsed begin
-            stats = Table(getproperty.(chain, :stat))
-            samples = transform.(Ref(tpost), getproperty.(getproperty.(chain, :z), :θ)) |> Table
-            jldsave(outbase*(@sprintf "%05d.jld2" i); stats, samples)
-            chain = nothing
-            samples = nothing
-            stats = nothing
-            GC.gc()
-            next = iterate(pt, state)
-            jldsave(joinpath(outdir, "checkpoint.jld2"); pt, state)
-            # Force the GC to kill these
-        end
         if !isnothing(next)
-            @info "On scan $i/$nscans it took $(t) seconds"
+            @info "Done scan $i/$nscans it took $(t) seconds"
         end
-        i += 1
+        t = @elapsed begin
+            state, i = _process_samples(pt, tpost, next, out, outbase, outdir, i)
+            next = iterate(pt, state)
+        end
     end
+    @info "Done scan $i/$nscans it took $(t) seconds"
 
 
     return out
