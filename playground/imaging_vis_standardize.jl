@@ -8,11 +8,11 @@
 # instrument effects, such as time variable gains.
 
 # To get started we load Comrade.
-using Comrade
 
 
 using Pkg #hide
-Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+Pkg.activate(joinpath(@__DIR__, "..", "examples")) #hide
+using Comrade
 
 using Pyehtim
 using LinearAlgebra
