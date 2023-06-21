@@ -13,6 +13,7 @@ using Comrade
 
 using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
+#-
 
 using Pyehtim
 using LinearAlgebra
@@ -145,7 +146,7 @@ distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 # This means that rather than the parameters
 # being directly the gains, we fit the first gain for each site, and then
 # the other parameters are the segmented gains compared to the previous time. To model this
-#, we break the gain phase prior into two parts. The first is the prior
+# we break the gain phase prior into two parts. The first is the prior
 # for the first observing timestamp of each site, `distphase0`, and the second is the
 # prior for segmented gain ϵₜ from time i to i+1, given by `distphase`. For the EHT, we are
 # dealing with pre-2*rand(rng, ndim) .- 1.5calibrated data, so often, the gain phase jumps from scan to scan are
@@ -294,6 +295,10 @@ plot(gt, layout=(3,3), size=(600,500))
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
 chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 1000; nadapts=500, init_params=xopt)
+
+# Now we prune the adaptation phase
+chain = chain[501:end]
+
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
