@@ -9,12 +9,12 @@ end
 
 function Makie.convert_arguments(::SurfaceLike, img::IntensityMap{T, 2}) where {T}
     (;X, Y) = img
-    return rad2μas(X), rad2μas(Y), Comrade.baseimage(img)./rad2μas(step(X))./rad2μas(step(Y))
+    return rad2μas(X), rad2μas(Y), Comrade.baseimage(img)
 end
 
 function Makie.convert_arguments(::SurfaceLike, x::AbstractVector, y::AbstractVector, m::Comrade.AbstractModel)
     img = intensitymap(m, GriddedKeys((X=x, Y=y)))
-    return x, y, Comrade.baseimage(img)./rad2μas(step(X))./rad2μas(step(Y))
+    return x, y, Comrade.baseimage(img)
 end
 
 
