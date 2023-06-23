@@ -55,9 +55,9 @@ dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePh
 # object that allows `Comrade` to numerically compute the Fourier transform of the image.
 function model(θ, metadata)
     (;c) = θ
-    (;K, grid, cache) = metadata
+    (;grid, cache) = metadata
     ## Construct the image model
-    c = K(to_simplex(CenteredLR(), c.params))
+    c = to_simplex(CenteredLR(), c.params)
     img = IntensityMap(c, grid)
     return  ContinuousImage(img, cache)
 end
@@ -74,18 +74,13 @@ fovxy = μas2rad(100.0)
 grid = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
 cache = create_cache(NFFTAlg(dlcamp), buffer, BSplinePulse{3}())
-# In addition since closures are degenerate to a phase gradient, i.e. a image shift
-# we will force the image centroid to be at the origin using the `CenterImage` functor
-# from `VLBIImagePriors`
-using VLBIImagePriors
-K = CenterImage(grid)
 metadata = (;K, grid, cache)
 
 
 
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
 # Random field prior
-using Distributions, DistributionsAD
+using VLBIImagePriors, Distributions, DistributionsAD
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
 fwhmfac = 2*sqrt(2*log(2))
@@ -213,6 +208,7 @@ for s in sample(chain[1001:end], 10)
 end
 ylabel!("Log-Closure Amplitude Res.");
 p
+#-
 
 
 p = plot();

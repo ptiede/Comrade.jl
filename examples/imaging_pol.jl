@@ -135,10 +135,10 @@ dvis = extract_table(obs, Coherencies())
 
 function sky(θ, metadata)
     (;c, f, p, angparams) = θ
-    (; grid, cache) = metadata
+    (;K, grid, cache) = metadata
     ## Construct the image model
     ## produce Stokes images from parameters
-    imgI = f*c
+    imgI = f*K(c)
     ## Converts from poincare sphere parameterization of polzarization to Stokes Parameters
     pimg = PoincareSphere2Map(imgI, p, angparams, grid)
     m = ContinuousImage(pimg, cache)
@@ -181,7 +181,10 @@ grid = imagepixels(fovx, fovy, nx, ny) # image grid
 buffer = IntensityMap(zeros(nx, ny), grid) # buffer to store temporary image
 pulse = BSplinePulse{3}() # pulse we will be using
 cache = create_cache(NFFTAlg(dvis), buffer, pulse) # cache to define the NFFT transform
-skymeta = (;cache, grid)
+
+# Finally we compute a center projector that forces the centroid to live at the image origin
+K = CenterImage(grid)
+skymeta = (;K, cache, grid)
 
 # To define the instrument models, $T$, $G$, $D$, we need to build some Jones caches (see [`JonesCache`](@ref)) that map from a flat
 # vector of gain/dterms to the specific sites for each baseline.

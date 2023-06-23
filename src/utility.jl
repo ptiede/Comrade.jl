@@ -37,6 +37,11 @@ function intensity_point(m::InterpolatedImage, p)
     (m.img.Y[begin] > p.Y || p.Y > m.img.Y[end]) && return zero(p.X)
     return m.itp(p.X, p.Y)/(step(m.img.X)*step(m.img.Y))
 end
+function ModifiedModel(img::IntensityMap, transforms)
+    ms = ModifiedModel(InterpolatedImage(img), transforms)
+    return intensitymap(ms, axiskeys(img))
+end
+
 
 """
     modify(img::IntensityMap, transforms...)
@@ -46,10 +51,6 @@ This modifies the `img` by applying the `transforms...` returning a transformed 
 !!! note
 Unlike when `modify` is applied to a `<:AbstractModel` this returns an already modified image.
 """
-function ModifiedModel(img::IntensityMap, transforms)
-    ms = ModifiedModel(InterpolatedImage(img), transforms)
-    return intensitymap(ms, axiskeys(img))
-end
 modify(img::IntensityMap, transforms...) = ModifiedModel(img, transforms)
 
 
