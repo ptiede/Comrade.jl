@@ -142,8 +142,8 @@ function sky(θ, metadata)
     ## Converts from poincare sphere parameterization of polzarization to Stokes Parameters
     pimg = PoincareSphere2Map(imgI, p, angparams, grid)
     m = ContinuousImage(pimg, cache)
-
-    return m
+    g = PolarizedModel(modify(Gaussian(), Stretch(μas2rad(200.0))), ZeroModel(), ZeroModel(), ZeroModel())
+    return m+g
 end
 
 
@@ -182,7 +182,9 @@ buffer = IntensityMap(zeros(nx, ny), grid) # buffer to store temporary image
 pulse = BSplinePulse{3}() # pulse we will be using
 cache = create_cache(NFFTAlg(dvis), buffer, pulse) # cache to define the NFFT transform
 
+
 # Finally we compute a center projector that forces the centroid to live at the image origin
+using VLBIImagePriors
 K = CenterImage(grid)
 skymeta = (;K, cache, grid)
 
@@ -228,7 +230,6 @@ distamp = (AA = Normal(0.0, 0.1),
 # For the phases, we assume that the atmosphere effectively scrambles the gains.
 # Since the gain phases are periodic, we also use broad von Mises priors for all stations.
 # Notice that we don't assign a prior for AA since we have already fixed it.
-using VLBIImagePriors
 distphase = (
              AP = DiagonalVonMises(0.0, inv(π^2)),
              LM = DiagonalVonMises(0.0, inv(π^2)),
@@ -312,6 +313,8 @@ tpost = asflat(post)
 
 ndim = dimension(tpost)
 
+
+m = vlbimodel(post, prior_sample(post))
 
 # Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
 # due to the higher dimension of the space.

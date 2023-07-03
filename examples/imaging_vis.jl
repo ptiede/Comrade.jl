@@ -35,7 +35,7 @@ obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "exampl
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs.add_fractional_noise(0.02))
+obs = scan_average(obs.add_fractional_noise(0.01))
 
 # Now we extract our complex visibilities.
 dvis = extract_table(obs, ComplexVisibilities())
@@ -97,9 +97,9 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 24
-fovx = μas2rad(100.0)
-fovy = μas2rad(100.0)
+npix = 96
+fovx = μas2rad(150.0)
+fovy = μas2rad(150.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -118,8 +118,7 @@ cache = create_cache(NFFTAlg(dvis), buffer, DeltaPulse())
 # the timescale we expect them to vary. For the phases we use a station specific scheme where
 # we set AA to be fixed to unit gain because it will function as a reference station.
 gcache = jonescache(dvis, ScanSeg())
-segs = station_tuple(dvis, ScanSeg(); AA = FixedSeg(complex(1.0)))
-gcachep = jonescache(dvis, segs)
+gcachep = jonescache(dvis, ScanSeg(); autoref=RandomReference(FixedSeg(complex(1.0))))
 
 using VLBIImagePriors
 # Now we can form our metadata we need to fully define our model. First we
@@ -154,7 +153,7 @@ distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 # !!! warning
 #     We use AA (ALMA) as a reference station so we do not have to specify a gain prior for it.
 #-
-distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)); reference=:AA)
+distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
@@ -162,7 +161,7 @@ distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)); reference=:AA)
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(40.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(80.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
@@ -198,7 +197,7 @@ end
 # to prefer "simple" structures. Namely, Gaussian Markov random fields are extremly flexible models.
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1); lower=1/npix), σ=truncated(Normal(0.0, 0.5); lower=0.0))))
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1); lower=1/npix), σ=truncated(Normal(0.0, 0.1); lower=0.0))))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -208,7 +207,7 @@ prior = (
          fg = Uniform(0.0, 1.0),
          c = cprior,
          lgamp = CalPrior(distamp, gcache),
-         gphase = CalPrior(distphase, gcachep),
+         gphase = CalPrior(distphase, gcachep)
         )
 
 
@@ -294,10 +293,10 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 1000; nadapts=500, init_params=xopt)
+trace = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 8000; nadapts=5000, init_params=xopt, saveto=DiskStore())
 
 # Now we prune the adaptation phase
-chain = chain[501:end]
+chain = chain[5001:end]
 
 #-
 # !!! warning
@@ -332,8 +331,8 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[501:10:end])
-imgs = intensitymap.(samples, fovx, fovy, 128,  128);
+samples = skymodel.(Ref(post), chain[begin:10:end])
+imgs = center_image.(intensitymap.(samples, fovx, fovy, 128,  128))
 
 mimg = mean(imgs)
 simg = std(imgs)
@@ -344,6 +343,7 @@ p4 = plot(imgs[end],  title="Draw 2", clims = (0.0, maximum(mimg)));
 plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
 
 # Now let's check the residuals
+
 p = plot();
 for s in sample(chain, 10)
     residual!(p, vlbimodel(post, s), dvis)

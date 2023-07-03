@@ -65,7 +65,7 @@ Base.@kwdef struct AHMC{S,I,P,T,A,D}
     Target acceptance rate for all trajectories on the tree
     Defaults to 0.85
     """
-    targetacc::Float64 = 0.8
+    targetacc::Float64 = 0.65
     """
     The number of steps for the initial tuning phase.
     Defaults to 75 which is the Stan default
@@ -75,7 +75,7 @@ Base.@kwdef struct AHMC{S,I,P,T,A,D}
     The number of steps for the final fast step size adaptation
     Default if 50 which is the Stan default
     """
-    term_buffer::Int = 50
+    term_buffer::Int = 100
     """
     The number of steps to tune the covariance before the first doubling
     Default is 23 which is the Stan default

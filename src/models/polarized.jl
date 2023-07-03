@@ -125,14 +125,14 @@ end
         )
 end
 
-@inline function added(m::PolarizedModel, p::AbstractModel)
-    return PolarizedModel(
-                added(stokes(m, :I), p),
-                added(stokes(m, :Q), p),
-                added(stokes(m, :U), p),
-                added(stokes(m, :V), p),
-                )
-end
+# @inline function added(m::PolarizedModel, p::AbstractModel)
+#     return PolarizedModel(
+#                 added(stokes(m, :I), p),
+#                 added(stokes(m, :Q), p),
+#                 added(stokes(m, :U), p),
+#                 added(stokes(m, :V), p),
+#                 )
+# end
 
 @inline added(p::AbstractModel, m::PolarizedModel) = added(m, p)
 @inline function added(p::PolarizedModel, m::PolarizedModel)

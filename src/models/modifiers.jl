@@ -383,6 +383,8 @@ function __extract_tangent(dm::GeometricModel)
     return tbm
 end
 
+__extract_tangent(::ZeroModel) = ZeroTangent()
+
 
 
 

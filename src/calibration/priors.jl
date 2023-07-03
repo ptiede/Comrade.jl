@@ -31,15 +31,11 @@ julia> x = rand(gdist)
 julia> logdensityof(gdist, x)
 ```
 """
-function CalPrior(dists::NamedTuple, jcache::AbstractJonesCache, reference=:none)
+function CalPrior(dists::NamedTuple, jcache::AbstractJonesCache)
     gstat = jcache.schema.sites
     @argcheck Set(keys(dists)) == Set(gstat)
 
-    if reference === :none
-        gprior = make_gdist(dists, gstat, jcache)
-    else
-        gprior = make_reference_gdist(dists, gstat, jcache, reference)
-    end
+    gprior = make_gdist(dists, gstat, jcache)
     return CalPrior{typeof(gprior), typeof(jcache)}(gprior, jcache)
 end
 
