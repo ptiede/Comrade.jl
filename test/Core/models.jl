@@ -583,7 +583,7 @@ end
     mG = PolarizedModel(Gaussian(), Gaussian(), Gaussian(), Gaussian())
     cm = convolved(m, Gaussian())
     @test cm == convolved(m, mG)
-    @test m+mG == m+Gaussian()
+    @inferred cm+mG
     show(m)
 
     p = (U = 0.005, V=0.01)

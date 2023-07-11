@@ -133,8 +133,14 @@ end
 
 
     dcache = jonescache(dcoh, ScanSeg())
+    dcache_si = jonescache(dcoh, ScanSeg(); autoref=SingleReference(:AA, 1.0+0.0im))
     pdReal = CalPrior(dReal, dcache)
-    pdImag = CalPrior(dImag, dcache, Normal(0.0, 0.001))
+    dcache_ra = jonescache(dcoh, ScanSeg(); autoref=RandomReference(1.0+0.0im))
+    pdRA = CalPrior(dReal, dcache_ra)
+    dcache_se0 = jonescache(dcoh, ScanSeg(); autoref=SEFDReference(1.0+0.0im, 0))
+    dcache_se1 = jonescache(dcoh, ScanSeg(); autoref=SEFDReference(1.0+0.0im, 1))
+    pdSE = CalPrior(dReal, dcache_se0)
+    pdSE = CalPrior(dReal, dcache_se1)
 
     @test mean(pdReal) ≈ zeros(length(pdReal))
     @test var(pdReal) ≈ fill(0.1^2, length(pdReal))
