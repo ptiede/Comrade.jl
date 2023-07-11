@@ -155,10 +155,10 @@ function getcoherency(obs)
     cohmat = StructArray{SMatrix{2,2,eltype(c11), 4}}((c11, c21, c12, c22))
 
     # get uncertainties
-    e11 = pyconvert(Vector, obs.data["rrsigma"])
-    e12 = pyconvert(Vector, obs.data["rlsigma"])
-    e21 = pyconvert(Vector, obs.data["lrsigma"])
-    e22 = pyconvert(Vector, obs.data["llsigma"])
+    e11 = copy(pyconvert(Vector, obs.data["rrsigma"]))
+    e12 = copy(pyconvert(Vector, obs.data["rlsigma"]))
+    e21 = copy(pyconvert(Vector, obs.data["lrsigma"]))
+    e22 = copy(pyconvert(Vector, obs.data["llsigma"]))
 
     errmat = StructArray{SMatrix{2,2,eltype(e11), 4}}((e11, e21, e12, e22))
 

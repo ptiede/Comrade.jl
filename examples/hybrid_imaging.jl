@@ -68,6 +68,8 @@ function sky(θ, metadata)
     β = ma*s
     ring = ((1-f)*(1-fg))*smoothed(stretched(MRing(α, β), r, r),σ)
     gauss = fg*stretched(Gaussian(), μas2rad(200.0), μas2rad(200.0))
+    ## We group the geometric models together for improved efficiency. This will be
+    ## automated in future versions.
     return mimg + (ring + gauss)
 end
 
@@ -186,7 +188,7 @@ distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 #, we break the gain phase prior into two parts. The first is the prior
 # for the first observing timestamp of each site, `distphase0`, and the second is the
 # prior for segmented gain ϵₜ from time i to i+1, given by `distphase`. For the EHT, we are
-# dealing with pre-2*rand(rng, ndim) .- 1.5calibrated data, so often, the gain phase jumps from scan to scan are
+# dealing with pre-calibrated data, so often, the gain phase jumps from scan to scan are
 # minor. As such, we can put a more informative prior on `distphase`.
 # !!! warning
 #     We use AA (ALMA) as a reference station so we do not have to specify a gain prior for it.
@@ -196,6 +198,7 @@ distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 # Finally we can put form the total model prior
 prior = (
+          ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
           c  = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.01*inv(rat)); lower=0.0), σ=truncated(Normal(0.0, 0.1); lower=0.0)))),
           f  = Uniform(0.75, 1.0),
           r  = Uniform(μas2rad(10.0), μas2rad(30.0)),

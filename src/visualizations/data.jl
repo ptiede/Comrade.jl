@@ -70,7 +70,7 @@ end
             yerr := err
             linecolor := nothing
             label := ["Data Real" "DataImag"]
-            uvdist./1e9, hcat(real.(v), imag.(v))
+            uvdist, hcat(real.(v), imag.(v))
         end
 
         label := ["Model Real" "Model Imag"]
@@ -78,7 +78,7 @@ end
         markercolor := [:red :orange]
         markerstrokecolor := [:red :orange]
         markeralpha := 0.2
-        uvdist./1e9, hcat(real.(vm), imag.(vm))
+        uvdist, hcat(real.(vm), imag.(vm))
     end
 
     @series begin
@@ -97,7 +97,7 @@ end
             yerr := err
             linecolor := nothing
             label := ["Data Real" "DataImag"]
-            uvdist./1e9, hcat(real.(v), imag.(v))
+            uvdist, hcat(real.(v), imag.(v))
         end
 
         label := ["Model Real" "Model Imag"]
@@ -105,7 +105,7 @@ end
         markercolor := [:red :orange]
         markerstrokecolor := [:red :orange]
         markeralpha := 0.2
-        uvdist./1e9, hcat(real.(vm), imag.(vm))
+        uvdist, hcat(real.(vm), imag.(vm))
     end
 
 
@@ -125,7 +125,7 @@ end
             yerr := err
             linecolor := nothing
             label := ["Data Real" "DataImag"]
-            uvdist./1e9, hcat(real.(v), imag.(v))
+            uvdist, hcat(real.(v), imag.(v))
         end
 
         xguide := "uv distance (Gλ)"
@@ -134,7 +134,7 @@ end
         markercolor := [:red :orange]
         markerstrokecolor := [:red :orange]
         markeralpha := 0.2
-        uvdist./1e9, hcat(real.(vm), imag.(vm))
+        uvdist, hcat(real.(vm), imag.(vm))
     end
 
     @series begin
@@ -153,7 +153,7 @@ end
             yerr := err
             linecolor := nothing
             label := ["Data Real" "DataImag"]
-            uvdist./1e9, hcat(real.(v), imag.(v))
+            uvdist, hcat(real.(v), imag.(v))
         end
 
         label := ["Model Real" "Model Imag"]
@@ -161,7 +161,7 @@ end
         markercolor := [:red :orange]
         markerstrokecolor := [:red :orange]
         markeralpha := 0.2
-        uvdist./1e9, hcat(real.(vm), imag.(vm))
+        uvdist, hcat(real.(vm), imag.(vm))
 
     end
 

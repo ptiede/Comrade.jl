@@ -306,11 +306,11 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
 end
 
 function makelikelihood(data::Comrade.EHTObservation{T, <:Comrade.EHTCoherencyDatum}) where {T}
-    Σ = map(x->x.^2, data[:error])
+    Σ = deepcopy(map(x->x.^2, data[:error]))
     vis = data[:measurement]
-    lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, Σ))
+    # lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, Σ))
     ℓ = ConditionedLikelihood(vis) do μ
-        CoherencyLikelihood(μ, Σ, lnorm)
+        CoherencyLikelihood(μ, Σ, 0.0)
     end
     return ℓ
 end
@@ -332,8 +332,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
     Σlamp = data.config.ac.data.error.^2 ./ amp2
 
     # Form the closure covariance matrix
-    Σlca = PDMat(Matrix(dmat*Diagonal(Σlamp)*transpose(dmat)))
-    # Σlca = data[:error].^2
+    Σlca = PDSparseMat((dmat*Diagonal(Σlamp)*transpose(dmat)))
     f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:measurement]
     lnorm = VLBILikelihoods.lognorm(AmplitudeLikelihood(amp, Σlca))
@@ -351,8 +350,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosur
     Σphase = data.config.ac.data.error.^2 ./ amp2
 
     # Form the closure covariance matrix
-    Σcp = PDMat(Matrix(dmat*Diagonal(Σphase)*transpose(dmat)))
-    # Σcp = data[:error].^2
+    Σcp = PDSparseMat((dmat*Diagonal(Σphase)*transpose(dmat)))
     f = Base.Fix2(closure_phases, data.config)
     phase = data[:measurement]
     lnorm = VLBILikelihoods.lognorm(ClosurePhaseLikelihood(phase, Σcp))

@@ -11,6 +11,7 @@ using ArgCheck: @argcheck
 using Random
 using JLD2
 using Printf
+using StatsBase
 using AbstractMCMC: Sample
 using Serialization
 export sample, AHMC, Sample, MemoryStore, DiskStore, load_table
@@ -65,7 +66,7 @@ Base.@kwdef struct AHMC{S,I,P,T,A,D}
     Target acceptance rate for all trajectories on the tree
     Defaults to 0.85
     """
-    targetacc::Float64 = 0.65
+    targetacc::Float64 = 0.75
     """
     The number of steps for the initial tuning phase.
     Defaults to 75 which is the Stan default
@@ -328,17 +329,23 @@ function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior
     jldsave(joinpath(outdir, "parameters.jld2"); params=out)
 
     tmp = @timed iterate(pt)
-    @info "Done scan 1/$nscans it took $(tmp.time) seconds"
-    state, iter = _process_samples(pt, tpost, tmp.value, out, outbase, outdir, 1)
+    state, iter = _process_samples(pt, tpost, tmp.value, tmp.time, nscans, out, outbase, outdir, 1)
     return pt, state, out, iter
 end
 
 
 
-function _process_samples(pt, tpost, next, out, outbase, outdir, iter)
+function _process_samples(pt, tpost, next, time, nscans, out, outbase, outdir, iter)
     (chain, state) = next
     stats = Table(getproperty.(chain, :stat))
     samples = transform.(Ref(tpost), getproperty.(getproperty.(chain, :z), :θ)) |> Table
+    @info("Scan $(iter)/$nscans statistics:\n"*
+          "  Total time:     $(time) seconds\n"*
+          "  Mean tree depth: $(round(mean(stats.tree_depth); digits=1))\n"*
+          "  Mode tree depth: $(round(StatsBase.mode(stats.tree_depth); digits=1))\n"*
+          "  n-divergences:   $(sum(stats.numerical_error))/$(length(stats))\n"*
+          "  Avg log-post:    $(mean(stats.log_density))\n")
+
     jldsave(outbase*(@sprintf "%05d.jld2" iter); stats, samples)
     chain = nothing
     samples = nothing
@@ -371,15 +378,11 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
     t = tmp.time
     next = tmp.value
     while !isnothing(next)
-        if !isnothing(next)
-            @info "Done scan $i/$nscans it took $(t) seconds"
-        end
         t = @elapsed begin
-            state, i = _process_samples(pt, tpost, next, out, outbase, outdir, i)
+            state, i = _process_samples(pt, tpost, next, t, nscans, out, outbase, outdir, i)
             next = iterate(pt, state)
         end
     end
-    @info "Done scan $i/$nscans it took $(t) seconds"
 
 
     return out

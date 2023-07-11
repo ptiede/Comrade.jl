@@ -582,10 +582,6 @@ find_js(a::JonesPairs, rest) = a
 find_js(::Any, rest) = find_js(rest)
 
 
-function apply_design(gmat::T, jcache::AbstractJonesCache) where {T}
-    return JonesPairs(jcache.m1*gmat, jcache.m2*gmat)
-end
-
 function apply_designmats(f::F, g1, g2, m) where {F}
     return f.(m*g1), f.(m*g2)
 end
@@ -855,7 +851,6 @@ function corrupt(vis, j1, j2)
     # vnew = similar(vis, typeof(j1[1]*vis[1]*adjoint(j2[1])))
     # corrupt!(vnew, vis, j1, j2)
     vnew = j1 .* vis .* adjoint.(j2)
-    # vnew = j1 .* vis .* adjoint.(j2)
     return vnew
 end
 

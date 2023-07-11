@@ -50,7 +50,7 @@ dvis = extract_table(obs, ComplexVisibilities())
 
 function sky(θ, metadata)
     (;fg, c) = θ
-    (;K, ftot, grid, cache) = metadata
+    (;ftot, grid, cache) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
     cp = c.params
     rast = (ftot*(1-fg))*(to_simplex(CenteredLR(), cp))
@@ -97,7 +97,7 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 96
+npix = 48
 fovx = μas2rad(150.0)
 fovy = μas2rad(150.0)
 
@@ -123,8 +123,7 @@ gcachep = jonescache(dvis, ScanSeg(); autoref=RandomReference(FixedSeg(complex(1
 using VLBIImagePriors
 # Now we can form our metadata we need to fully define our model. First we
 # also construct a `K` matrix or kernel that automatically centers the image.
-K = CenterImage(grid)
-metadata = (;K, ftot=1.1, grid, cache, gcache, gcachep)
+metadata = (;ftot=1.1, grid, cache, gcache, gcachep)
 # We will also fix the total flux to be the observed value 1.1. This is because
 # total flux is degenerate with a global shift in the gain amplitudes making the problem
 # degenerate. To fix this we use the observed total flux as our value.
@@ -159,15 +158,17 @@ distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
 # Random field prior
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
-# image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
+# image. This behaves somewhat similary to a entropy regularizer in that it will
+# start with an initial guess for the image structure. For this tutorial we will use a
+# a symmetric Gaussian with a FWHM of 60 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(80.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(60.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
 # our mean image has unit flux
 imgpr ./= flux(imgpr)
-
+# and since our prior is not on the simplex we need to convert it to `unconstrained or real space`.
 meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
 
 # In addition we want a reasonable guess for what the resolution of our image should be.
@@ -186,18 +187,20 @@ crcache = MarkovRandomFieldCache(meanpr)
 # of our prior/regularizers unlike traditional RML appraoches. To construct this heirarchical
 # prior we will first make a map that takes in our regularizer hyperparameters and returns
 # the image prior given those hyperparameters.
-fmap = let meanpr=meanpr, crcache=crcache, rat=rat
-    x->GaussMarkovRandomField(meanpr, x.λ/rat, x.σ^2, crcache)
+fmap = let meanpr=meanpr, crcache=crcache
+    x->GaussMarkovRandomField(meanpr, x.λ, x.σ^2, crcache)
 end
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
 # inverse correlation length is given by a Half-Normal distribution whose peak is at zero and
-# standard deviation is 0.1/rat. For the variance of the GP we use another
-# half normal prior with standard deviation unity. The reason we use the half-normal priors is
-# to prefer "simple" structures. Namely, Gaussian Markov random fields are extremly flexible models.
-# To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
-# want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1); lower=1/npix), σ=truncated(Normal(0.0, 0.1); lower=0.0))))
+# standard deviation is `0.1/rat` where recall `rat` is the beam size per pixel.
+# For the variance of the random field we use another
+# half normal prior with standard deviation 0.1. The reason we use the half-normal priors is
+# to prefer "simple" structures. Gaussian Markov random fields are extremly flexible models,
+# and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
+# want to use priors that enforce similarity to our mean image. If the data wants more complexity
+# then it will drive us away from the prior.
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1/rat); lower=2/npix), σ=truncated(Normal(0.0, 0.1); lower=0.0))))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -224,7 +227,7 @@ post = Posterior(lklhd, prior)
 tpost = asflat(post)
 ndim = dimension(tpost)
 
-# Our Posterior and TransformedPosterior objects satisfy the `LogDensityProblems` interface.
+# Our `Posterior` and `TransformedPosterior` objects satisfy the `LogDensityProblems` interface.
 # This allows us to easily switch between different AD backends and many of Julia's statistical
 # inference packages use this interface as well.
 using LogDensityProblemsAD
@@ -282,21 +285,32 @@ gt = Comrade.caltable(gcache, exp.(xopt.lgamp))
 plot(gt, layout=(3,3), size=(600,500))
 
 
-# To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For information about NUTS,
+# To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For
+# information about NUTS,
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
 # !!! note
 #     For our `metric,` we use a diagonal matrix due to easier tuning
 #-
 # However, due to the need to sample a large number of gain parameters, constructing the posterior
-# is rather time-consuming. Therefore, for this tutorial, we will only do a quick preliminary run, and any posterior
+# is rather time-consuming. Therefore, for this tutorial, we will only do a quick preliminary
+# run, and any posterior
 # inferences should be appropriately skeptical.
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-trace = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 8000; nadapts=5000, init_params=xopt, saveto=DiskStore())
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 1000; nadapts=500, init_params=xopt)
+
+#-
+# !!! note
+#     The above sampler will store the samples in memory, i.e. RAM. For large models this
+#     can lead to out-of-memory issues. To fix that you can include the keyword argument
+#     `saveto = DiskStore()` which periodically saves the samples to disk limiting memory
+#     useage. You can load the chain using `load_table(diskout)` where `diskout` is
+#     the object returned from sample. For more information please see [ComradeAHMC](@ref).
+#-
 
 # Now we prune the adaptation phase
-chain = chain[5001:end]
+chain = chain[501:end]
 
 #-
 # !!! warning
