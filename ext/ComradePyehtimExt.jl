@@ -139,7 +139,14 @@ end
 
 function getcoherency(obs)
 
-    # ensure that the visibilities are represented in a circular basis
+    # check if the obs is in circular basis otherwise error out
+    @assert((pyconvert(String, obs.polrep) == "circ"),
+            "obs is not in circular polarization.\n"*
+            "To fix read in the data using\n"*
+            "  Pyehtim.load_uvfits_and_array(obsname, arrayname, polrep=\"circ\")\n"*
+            "Do not use\n  obs.switch_polrep(\"circ\")\nsince missing hands will not be handled correctly."
+        )
+
     obs = obs.switch_polrep("circ")
 
     # get (u,v) coordinates

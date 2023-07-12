@@ -33,7 +33,7 @@ julia> logdensityof(gdist, x)
 """
 function CalPrior(dists::NamedTuple, jcache::AbstractJonesCache)
     gstat = jcache.schema.sites
-    @argcheck Set(keys(dists)) == Set(gstat)
+    @argcheck issubset(Set(gstat), Set(keys(dists)))
 
     gprior = make_gdist(dists, gstat, jcache)
     return CalPrior{typeof(gprior), typeof(jcache)}(gprior, jcache)
