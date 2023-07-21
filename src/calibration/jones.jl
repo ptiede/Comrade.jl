@@ -543,13 +543,13 @@ struct JonesPairs{T, M1<:AbstractVector{T}, M2<:AbstractVector{T}}
 end
 
 """
-    map(f, args::JonesPairs...)
+    map(f, args::JonesPairs...) -> JonesPairs
 
 Maps over a set of [`JonesPairs`](@ref) applying the function f to each element.
 This returns a collected JonesPair. This us useful for more advanced operations on
 Jones matrices.
 
-## Exampls
+## Examples
 ```julia
 map(G, D, F) do g, d, f
     return f'*exp.(g)*d*f
