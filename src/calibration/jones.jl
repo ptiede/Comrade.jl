@@ -544,6 +544,17 @@ end
 
 """
     map(f, args::JonesPairs...)
+
+Maps over a set of [`JonesPairs`](@ref) applying the function f to each element.
+This returns a collected JonesPair. This us useful for more advanced operations on
+Jones matrices.
+
+## Exampls
+```julia
+map(G, D, F) do g, d, f
+    return f'*exp.(g)*d*f
+end
+```
 """
 function Base.map(f, args::Vararg{<:JonesPairs})
     m1 = map(x->getproperty(x, :m1), args)
