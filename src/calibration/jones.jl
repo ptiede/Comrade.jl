@@ -564,9 +564,7 @@ function Base.map(f, args::Vararg{<:JonesPairs})
 end
 
 function _jonesmap(f, m1, m2)
-    T1 = promote_type(map(eltype, m1)...)
-    T2 = promote_type(map(eltype, m2)...)
-    T = promote_type(T1, T2)
+    T = promote_type(map(eltype, m1)...)
     out1 = similar(first(m1), T)
     out2 = similar(first(m2), T)
     _jonesmap!(f, out1, out2,  m1, m2)
@@ -574,6 +572,8 @@ function _jonesmap(f, m1, m2)
 end
 
 function _jonesmap!(f, out1, out2, m1, m2)
+    # out1 .= f.(m1...)
+    # out2 .= f.(m2...)
     map!(f, out1, m1...)
     map!(f, out2, m2...)
     return nothing

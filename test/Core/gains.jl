@@ -279,14 +279,14 @@ end
     foo = load_data()
     dcoh = last(foo)
 
-    scancache = jonescache(dvis, ScanSeg())
-    phasecache= jonescache(dvis, ScanSeg(); autoref=SingleReference(:AA, 1.0+0.0im))
-    trackcache= jonescache(dvis, TrackSeg())
-    tcache    = TransformCache(dvis; add_fr=true)
+    scancache = jonescache(dcoh, ScanSeg())
+    phasecache= jonescache(dcoh, ScanSeg(); autoref=SingleReference(:AA, 1.0+0.0im))
+    trackcache= jonescache(dcoh, TrackSeg())
+    tcache    = TransformCache(dcoh; add_fr=true)
 
-    dga = CalPrior(station_tuple(dvis, LogNormal(0.0, 0.1)), scancache)
-    dgp = CalPrior(station_tuple(dvis, Uniform(0.0, 2π)), phasecache)
-    dd  = CalPrior(station_tuple(dvis, Normal(0.0, 0.1)), trackcache)
+    dga = CalPrior(station_tuple(dcoh, LogNormal(0.0, 0.1)), scancache)
+    dgp = CalPrior(station_tuple(dcoh, Uniform(0.0, 2π)), phasecache)
+    dd  = CalPrior(station_tuple(dcoh, Normal(0.0, 0.1)), trackcache)
 
     lga1 = rand(dga)
     lga2 = rand(dga)
