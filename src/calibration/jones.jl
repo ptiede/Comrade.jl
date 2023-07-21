@@ -1,5 +1,5 @@
 export JonesCache, TrackSeg, ScanSeg, FixedSeg, IntegSeg, jonesG, jonesD, jonesT,
-       TransformCache, CorruptionModel, jonescache, station_tuple
+       TransformCache, CorruptionModel, jonescache, station_tuple, jonesmap
 
 """
     $(TYPEDEF)
@@ -542,6 +542,53 @@ struct JonesPairs{T, M1<:AbstractVector{T}, M2<:AbstractVector{T}}
     m2::M2
 end
 
+"""
+    map(f, args::JonesPairs...)
+"""
+function Base.map(f, args::Vararg{<:JonesPairs})
+    m1 = map(x->getproperty(x, :m1), args)
+    m2 = map(x->getproperty(x, :m2), args)
+    f1, f2 = _jonesmap(f, m1, m2)
+    return JonesPairs(f1, f2)
+end
+
+function _jonesmap(f, m1, m2)
+    T1 = promote_type(map(eltype, m1)...)
+    T2 = promote_type(map(eltype, m2)...)
+    T = promote_type(T1, T2)
+    out1 = similar(first(m1), T)
+    out2 = similar(first(m2), T)
+    _jonesmap!(f, out1, out2,  m1, m2)
+    return out1, out2
+end
+
+function _jonesmap!(f, out1, out2, m1, m2)
+    map!(f, out1, m1...)
+    map!(f, out2, m2...)
+    return nothing
+end
+
+function ChainRulesCore.rrule(::typeof(_jonesmap), f, m1, m2)
+    out = _jonesmap(f, m1, m2)
+    pm1 = ProjectTo(m1)
+    pm2 = ProjectTo(m2)
+    function _jonesmap_pullback(Δ)
+        Δm1 = zero(out[1])
+        Δm1 .= unthunk(Δ[1])
+        Δm2 = zero(out[2])
+        Δm2 .= unthunk(Δ[2])
+        dm1 = zero.(m1)
+        dm2 = zero.(m2)
+
+        out1 = similar(out[1])
+        out2 = similar(out[2])
+        autodiff(Reverse, _jonesmap!, Const(f), Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
+        return NoTangent(), NoTangent(), pm1(dm1), pm2(dm2)
+    end
+    return out, _jonesmap_pullback
+end
+
+
 function Base.:*(x::JonesPairs, y::JonesPairs...)
     m1 = map(x->getproperty(x, :m1), (x,y...))
     m2 = map(x->getproperty(x, :m2), (x,y...))
@@ -549,16 +596,12 @@ function Base.:*(x::JonesPairs, y::JonesPairs...)
     JonesPairs(o1, o2)
 end
 
-out_type(::AbstractArray{T}) where {T<:Real} = Complex{T}
-out_type(::AbstractArray{T}) where {T<:Complex} = T
-out_type(::AbstractArray{T}) where {T} = T
 
 function _allmul(m1, m2)
-    out1 = similar(first(m1), out_type(first(m1)))
-    out2 = similar(first(m2), out_type(first(m2)))
+    T = promote_type(map(eltype, m1)...)
+    out1 = similar(first(m1), T)
+    out2 = similar(first(m2), T)
     _allmul!(out1, out2, m1, m2)
-    # out1 = reduce(.*, m1)
-    # out2 = reduce(.*, m2)
     return out1, out2
 end
 
@@ -583,8 +626,8 @@ function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
         dm1 = zero.(m1)
         dm2 = zero.(m2)
 
-        out1 = similar(first(m1), out_type(first(m1)))
-        out2 = similar(first(m2), out_type(first(m2)))
+        out1 = similar(out)
+        out2 = similar(out)
         autodiff(Reverse, _allmul!, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
         return NoTangent(), pm1(dm1), pm2(dm2)
     end
@@ -598,9 +641,9 @@ end
 #     return JonesPairs{T, typeof(m1), typeof(m2)}(m1, m2)
 # end
 
-
-Base.length(j::JonesPairs) = length(j.m1)
-Base.size(j::JonesPairs) = (length(j),)
+@inline Base.eltype(::JonesPairs{T}) where {T} = T
+@inline Base.length(j::JonesPairs) = length(j.m1)
+@inline Base.size(j::JonesPairs) = (length(j),)
 Base.getindex(j::JonesPairs, i::Int) = (j.m1[i], j.m2[i])
 function Base.setindex!(j::JonesPairs, X, i::Int)
     j.m1[i] = X[1]
@@ -612,23 +655,15 @@ Base.similar(j::JonesPairs, ::Type{S}, dims::Dims{1}) where {S} = JonesPairs(sim
 Base.firstindex(j::JonesPairs) = firstindex(j.m1)
 Base.lastindex(j::JonesPairs) = lastindex(j.m1)
 
-struct JonesStyle{M1,M2} <: Broadcast.AbstractArrayStyle{1} end
-JonesStyle{M1,M2}(::Val{1}) where {M1,M2} = JonesStyle{M1,M2}()
-Base.BroadcastStyle(::Type{<:JonesPairs{T,M1,M2}}) where {T,M1,M2} = JonesStyle{M1,M2}()
+# struct JonesStyle{M1,M2} <: Broadcast.AbstractArrayStyle{1} end
+# JonesStyle{M1,M2}(::Val{1}) where {M1,M2} = JonesStyle{M1,M2}()
+# Base.BroadcastStyle(::Type{<:JonesPairs{T,M1,M2}}) where {T,M1,M2} = JonesStyle{M1,M2}()
 
-function Base.similar(bc::Broadcast.Broadcasted{JonesStyle{M1,M2}}, ::Type{ElType}) where {M1,M2,ElType}
-    A = find_js(bc)
-    n = length(A.m1)
-    return JonesPairs(similar(M1, Eltype, n), similar(M2, Eltype, n))
-end
-
-"`A = find_aac(As)` returns the first ArrayAndChar among the arguments."
-find_js(bc::Base.Broadcast.Broadcasted) = find_js(bc.args)
-find_js(args::Tuple) = find_js(find_js(args[1]), Base.tail(args))
-find_js(x) = x
-find_js(::Tuple{}) = nothing
-find_js(a::JonesPairs, rest) = a
-find_js(::Any, rest) = find_js(rest)
+# function Base.similar(bc::Broadcast.Broadcasted{JonesStyle{M1,M2}}, ::Type{ElType}) where {M1,M2,ElType}
+#     A = find_js(bc)
+#     n = length(A.m1)
+#     return JonesPairs(similar(M1, Eltype, n), similar(M2, Eltype, n))
+# end
 
 
 function apply_designmats(f::F, g1, g2, m) where {F}
@@ -680,8 +715,8 @@ end
 
 # GMat(g1::T, g2::T) where {T} = SMatrix{2,2,T}(g1, zero(T), zero(T), g2)
 function gmat(f::F, g1, g2, m) where {F}
-   S = eltype(g1)
    gs1, gs2 = apply_designmats(f, g1, g2, m)
+   S = eltype(gs1)
    n = length(gs1)
    offdiag = fill(zero(S), n)
    StructArray{SMatrix{2,2,S,4}}((gs1, offdiag, offdiag, gs2))
@@ -718,8 +753,8 @@ end
 
 # DMat(d1::T, d2::T) where {T} = SMatrix{2,2,T}(one(T), d2, d1, one(T))
 function dmat(f::F, d1, d2, m) where {F}
-    S = promote_type(eltype(d1), eltype(d2))
     ds1, ds2 = apply_designmats(f, d1, d2, m)
+    S = eltype(ds1)
     n = length(ds1)
     unit = fill(one(S), n)
     return StructArray{SMatrix{2,2,S,4}}((unit, ds2, ds1, unit))

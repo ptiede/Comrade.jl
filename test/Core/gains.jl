@@ -196,7 +196,7 @@ end
 
 @testset "JonesPairs" begin
     _,vis, amp, lcamp, cphase, dcoh = load_data()
-    tel = stations(vis)
+    tel = stations(dcoh)
 
     gprior0 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.5), length(tel)))
     gprior1 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
@@ -216,12 +216,16 @@ end
     scancache = jonescache(dcoh, ScanSeg())
     scancache2 = jonescache(dcoh, segs)
 
+    tcache = TransformCache(dcoh; add_fr=true)
+
+
 
 
     dlgp = CalPrior(gprior0, scancache)
     dgpp = CalPrior(gprior1, scancache)
     dlgr = CalPrior(gprior0, scancache)
     dgpr = CalPrior(gprior1, scancache)
+    dd   = CalPrior(gprior1, trackcache)
 
     dlgp2 = CalPrior(gprior02, scancache2)
     dgpp2 = CalPrior(gprior12, scancache2)
@@ -245,6 +249,7 @@ end
     @test Gz.m1 ≈ Gzz.m1
     @test Gz.m2 ≈ Gzz.m2
 
+
     lgp2 = rand(dlgp2)
     gpp2 = rand(dgpp2)
     lgr2 = rand(dlgr2)
@@ -267,6 +272,44 @@ end
     @test size(Gp2)[1] == size(scancache2.m1,1)
     @test Gr2[1] == (Gr2.m1[1], Gr2.m2[1])
     # Gr2 = similar(Gp)
+end
+
+
+@testset "jonesmap" begin
+    foo = load_data()
+    dcoh = last(foo)
+
+    scancache = jonescache(dvis, ScanSeg())
+    phasecache= jonescache(dvis, ScanSeg(); autoref=SingleReference(:AA, 1.0+0.0im))
+    trackcache= jonescache(dvis, TrackSeg())
+    tcache    = TransformCache(dvis; add_fr=true)
+
+    dga = CalPrior(station_tuple(dvis, LogNormal(0.0, 0.1)), scancache)
+    dgp = CalPrior(station_tuple(dvis, Uniform(0.0, 2π)), phasecache)
+    dd  = CalPrior(station_tuple(dvis, Normal(0.0, 0.1)), trackcache)
+
+    lga1 = rand(dga)
+    lga2 = rand(dga)
+    gp1  = rand(dgp)
+    gp2  = rand(dgp)
+    d1   = map(x->complex(x...), (eachrow(rand(dd,2))))
+    d2   = map(x->complex(x...), (eachrow(rand(dd,2))))
+
+    Ga = jonesG(exp, lga1, lga2, scancache)
+    Gp = jonesG(cis, gp1, gp2, phasecache)
+    D  = jonesD(d1, d2, trackcache)
+    T  = jonesT(tcache)
+
+    @inferred map((ga, gp, d, t)->t'*ga*gp*d*t, Ga, Gp, D, T)
+    @inferred map((ga, gp, d, t)->t'*(ga+d)*gp*d*t, Ga, Gp, D, T)
+    out =  map((ga, gp, d, t)->ga*gp*d*t, Ga, Gp, D, T)
+    out2= Ga*Gp*D*T
+    @test out.m1 ≈ out2.m1
+    @test out.m2 ≈ out2.m2
+    f(a, b, c, d) = a'*exp.(b)*c*(a+d)
+    m1 = map(x->getproperty(x, :m1), (Ga, Gp, D, T))
+    m2 = map(x->getproperty(x, :m2), (Ga, Gp, D, T))
+    test_rrule(Comrade._jonesmap, f⊢NoTangent(), m1, m2)
 end
 
 
