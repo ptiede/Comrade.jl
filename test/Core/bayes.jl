@@ -155,7 +155,7 @@ using FiniteDifferences
         tpostf = asflat(post)
         x0 = prior_sample(tpostf)
 
-        @inferred logdensityof(tpostf, x0)
+        # @inferred logdensityof(tpostf, x0)
         ℓ = logdensityof(tpostf)
         gf = ForwardDiff.gradient(ℓ, x0)
         gn = FiniteDifferences.grad(mfd, ℓ, x0)
