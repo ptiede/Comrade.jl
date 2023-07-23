@@ -133,17 +133,23 @@ end
 
 
     dcache = jonescache(dcoh, ScanSeg())
+    dcache_si = jonescache(dcoh, ScanSeg(); autoref=SingleReference(:AA, 1.0+0.0im))
     pdReal = CalPrior(dReal, dcache)
-    pdImag = CalPrior(dImag, dcache, Normal(0.0, 0.001))
+    dcache_ra = jonescache(dcoh, ScanSeg(); autoref=RandomReference(1.0+0.0im))
+    pdRA = CalPrior(dReal, dcache_ra)
+    dcache_se0 = jonescache(dcoh, ScanSeg(); autoref=SEFDReference(1.0+0.0im, 0))
+    dcache_se1 = jonescache(dcoh, ScanSeg(); autoref=SEFDReference(1.0+0.0im, 1))
+    pdSE_0 = CalPrior(dReal, dcache_se0)
+    pdSE_1 = CalPrior(dReal, dcache_se1)
 
     @test mean(pdReal) ≈ zeros(length(pdReal))
     @test var(pdReal) ≈ fill(0.1^2, length(pdReal))
 
 
     asflat(pdReal)
-    asflat(pdImag)
-    ascube(pdReal)
-    ascube(pdImag)
+    asflat(pdRA)
+    ascube(pdSE_0)
+    ascube(pdSE_1)
 end
 
 @testset "Hierarchical calibration priors" begin
@@ -190,7 +196,7 @@ end
 
 @testset "JonesPairs" begin
     _,vis, amp, lcamp, cphase, dcoh = load_data()
-    tel = stations(vis)
+    tel = stations(dcoh)
 
     gprior0 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.5), length(tel)))
     gprior1 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
@@ -210,12 +216,16 @@ end
     scancache = jonescache(dcoh, ScanSeg())
     scancache2 = jonescache(dcoh, segs)
 
+    tcache = TransformCache(dcoh; add_fr=true)
+
+
 
 
     dlgp = CalPrior(gprior0, scancache)
     dgpp = CalPrior(gprior1, scancache)
     dlgr = CalPrior(gprior0, scancache)
     dgpr = CalPrior(gprior1, scancache)
+    dd   = CalPrior(gprior1, trackcache)
 
     dlgp2 = CalPrior(gprior02, scancache2)
     dgpp2 = CalPrior(gprior12, scancache2)
@@ -239,6 +249,7 @@ end
     @test Gz.m1 ≈ Gzz.m1
     @test Gz.m2 ≈ Gzz.m2
 
+
     lgp2 = rand(dlgp2)
     gpp2 = rand(dgpp2)
     lgr2 = rand(dlgr2)
@@ -261,6 +272,44 @@ end
     @test size(Gp2)[1] == size(scancache2.m1,1)
     @test Gr2[1] == (Gr2.m1[1], Gr2.m2[1])
     # Gr2 = similar(Gp)
+end
+
+
+@testset "jonesmap" begin
+    foo = load_data()
+    dcoh = last(foo)
+
+    scancache = jonescache(dcoh, ScanSeg())
+    phasecache= jonescache(dcoh, ScanSeg(); autoref=SingleReference(:AA, 1.0+0.0im))
+    trackcache= jonescache(dcoh, TrackSeg())
+    tcache    = TransformCache(dcoh; add_fr=true)
+
+    dga = CalPrior(station_tuple(dcoh, LogNormal(0.0, 0.1)), scancache)
+    dgp = CalPrior(station_tuple(dcoh, Uniform(0.0, 2π)), phasecache)
+    dd  = CalPrior(station_tuple(dcoh, Normal(0.0, 0.1)), trackcache)
+
+    lga1 = rand(dga)
+    lga2 = rand(dga)
+    gp1  = rand(dgp)
+    gp2  = rand(dgp)
+    d1   = map(x->complex(x...), (eachrow(rand(dd,2))))
+    d2   = map(x->complex(x...), (eachrow(rand(dd,2))))
+
+    Ga = jonesG(exp, lga1, lga2, scancache)
+    Gp = jonesG(cis, gp1, gp2, phasecache)
+    D  = jonesD(d1, d2, trackcache)
+    T  = jonesT(tcache)
+
+    @inferred map((ga, gp, d, t)->t'*ga*gp*d*t, Ga, Gp, D, T)
+    @inferred map((ga, gp, d, t)->t'*(ga+d)*gp*d*t, Ga, Gp, D, T)
+    out =  map(*, Ga, Gp, D, T)
+    out2= Ga*Gp*D*T
+    @test out.m1 ≈ out2.m1
+    @test out.m2 ≈ out2.m2
+    f(a, b, c, d) = a'*exp.(b)*c*(a+d)
+    m1 = map(x->getproperty(x, :m1), (Ga, Gp, D, T))
+    m2 = map(x->getproperty(x, :m2), (Ga, Gp, D, T))
+    test_rrule(Comrade._jonesmap, f⊢NoTangent(), m1, m2)
 end
 
 

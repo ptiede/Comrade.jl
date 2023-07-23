@@ -1,5 +1,5 @@
 export JonesCache, TrackSeg, ScanSeg, FixedSeg, IntegSeg, jonesG, jonesD, jonesT,
-       TransformCache, CorruptionModel, jonescache, station_tuple
+       TransformCache, CorruptionModel, jonescache, station_tuple, jonesmap
 
 """
     $(TYPEDEF)
@@ -101,7 +101,7 @@ that are measured from the telescope.
 # Fields
 $(FIELDS)
 """
-struct JonesCache{D1, D2, S, Sc} <: AbstractJonesCache
+struct JonesCache{D1, D2, S, Sc, R} <: AbstractJonesCache
     """
     Design matrix for the first station
     """
@@ -118,6 +118,10 @@ struct JonesCache{D1, D2, S, Sc} <: AbstractJonesCache
     Gain Schema
     """
     schema::Sc
+    """
+    List of Reference stations
+    """
+    references::R
 end
 
 """
@@ -158,62 +162,6 @@ end
 stations(j::AbstractJonesCache) = j.schema.sites
 ChainRulesCore.@non_differentiable stations(j::AbstractJonesCache)
 
-"""
-    GainSchema(sites, times)
-
-Constructs a schema for the gains of an observation. The `sites` and `times` correspond to the
-specific site and time for each gain that will be modeled.
-"""
-struct GainSchema{S,T,G}
-    sites::S
-    times::T
-    gts::G
-    function GainSchema(sites, times)
-        gts = collect(zip(times, sites))
-        return new{typeof(sites), typeof(times), typeof(gts)}(sites, times, gts)
-    end
-end
-
-function gain_schema(segmentation::NamedTuple, obs::EHTObservation)
-    st = scantable(obs)
-    times = eltype(obs[:T])[]
-    sites = Symbol[]
-    for i in 1:length(st)
-        s = stations(st[i])
-        t = st[i].time
-        for j in eachindex(s)
-            append_time_site!(times, sites, s[j], t, getproperty(segmentation, s[j]))
-        end
-    end
-    return GainSchema(sites, times)
-end
-
-function gain_schema(segmentation::ObsSegmentation, obs::EHTObservation)
-    sites = Tuple(stations(obs))
-    return gain_schema(NamedTuple{sites}(Tuple(segmentation for _ in sites)), obs)
-end
-
-function append_time_site!(times, sites, site, t, ::ScanSeg)
-    push!(sites, site)
-    push!(times, t)
-    return nothing
-end
-
-function append_time_site!(times, sites, site, t, ::IntegSeg)
-    push!(sites, site)
-    push!(times, t)
-    return nothing
-end
-
-function append_time_site!(times, sites, site, t, ::TrackSeg)
-    # Check is the site is already in the list, if it isn't add it to the schema
-    !(site ∈ sites) && (push!(sites, site); push!(times, zero(t)))
-    return nothing
-end
-
-function append_time_site!(times, sites, site, t, ::FixedSeg)
-    nothing
-end
 
 """
     station_tuple(stations, default; reference=nothing kwargs...)
@@ -253,11 +201,158 @@ station_tuple(dvis::EHTObservation, default; reference=nothing, kwargs...) = sta
 station_tuple(st::AbstractVector{Symbol}, default; reference=nothing, kwargs...) = station_tuple(Tuple(st), default; reference, kwargs...)
 
 
+
+# Helper function that extracts the expected types for the FixedSeg segmentation
+function fixed_type(segmenatation::NamedTuple)
+    vs = values(segmenatation)
+    inds = findall(x->(x isa FixedSeg), vs)
+    return promote_type(map(x->typeof(getproperty(x, :value)), vs[inds])...)
+end
+
+
+abstract type ReferencingScheme end
+
+export NoReference, SingleReference, RandomReference, SEFDReference
+
+struct NoReference <: ReferencingScheme end
+
+struct SingleReference{F<:FixedSeg} <: ReferencingScheme
+    site::Symbol
+    scheme::F
+end
+
+"""
+    SingleReference(site::Symbol, val::Number)
+
+Use a single site as a reference. The station gain will be set equal to `val`.
+"""
+SingleReference(sites::Symbol, scheme::Number) = SingleReference(sites, FixedSeg(scheme))
+
+struct RandomReference{F<:FixedSeg} <: ReferencingScheme
+    scheme::F
+end
+
+"""
+    RandomReference(val::Number)
+
+For each timestamp select a random reference station whose station gain will be set to `val`.
+
+## Notes
+This is useful when there isn't a single site available for all scans and you want to split
+up the choice of reference site. We recommend only using this option for Stokes I fitting.
+"""
+RandomReference(val::Number) = RandomReference(FixedSeg(val))
+
+struct SEFDReference{F<:FixedSeg} <: ReferencingScheme
+    scheme::F
+    offset::Int
+end
+
+"""
+    SiteOrderReference(val::Number, sefd_index = 1)
+
+Selects the reference site based on the SEFD of each telescope, where the smallest SEFD
+is preferentially selected. The reference gain is set to `val` and the user can select to
+use the `n` lowest SEFD site by passing `sefd_index = n`.
+
+## Notes
+This is done on a per-scan basis so if a site is missing from a scan the next highest SEFD
+site will be used.
+"""
+SEFDReference(val::Number, offset::Int=0) = SEFDReference{typeof(FixedSeg(val))}(FixedSeg(val), offset)
+
+reference_stations(st::ScanTable, ::NoReference) = Fill(NoReference(), length(st))
+reference_stations(st::ScanTable, p::SingleReference) = Fill(p, length(st))
+
+function reference_stations(st::ScanTable, p::RandomReference)
+    return map(1:length(st)) do i
+        s = st[i]
+        ref = rand(stations(s))
+        return SingleReference(ref, p.scheme)
+    end
+end
+
+function reference_stations(st::ScanTable, p::SEFDReference)
+    tarr = st.obs.config.tarr
+    sefd = NamedTuple{Tuple(tarr.sites)}(Tuple(tarr.SEFD1 .+ tarr.SEFD2))
+    map(1:length(st)) do i
+        s = st[i]
+        sites = stations(s)
+        sp = select(sefd, sites)
+        ind = findmin(values(sp))[2]
+        indo = (ind+p.offset > length(sites)) ? (ind+p.offset)%length(sites) : ind+p.offset
+        return SingleReference(sites[indo], p.scheme)
+    end
+end
+
+"""
+    GainSchema(sites, times)
+
+Constructs a schema for the gains of an observation. The `sites` and `times` correspond to the
+specific site and time for each gain that will be modeled.
+"""
+struct GainSchema{S,T,G}
+    sites::S
+    times::T
+    gts::G
+    function GainSchema(sites, times)
+        gts = collect(zip(times, sites))
+        return new{typeof(sites), typeof(times), typeof(gts)}(sites, times, gts)
+    end
+end
+
+isreference(s::Symbol, ref::NoReference) = false
+isreference(s::Symbol, ref::SingleReference) = (s == ref.site)
+
+function gain_schema(segmentation::NamedTuple, obs::EHTObservation, references::AbstractVector{<:ReferencingScheme})
+    st = scantable(obs)
+    times = eltype(obs[:T])[]
+    sites = Symbol[]
+    for i in 1:length(st)
+        s = stations(st[i])
+        t = st[i].time
+        ref = references[i]
+        for j in eachindex(s)
+            if !isreference(s[j], ref)
+                append_time_site!(times, sites, s[j], t, getproperty(segmentation, s[j]))
+            end
+        end
+    end
+    return GainSchema(sites, times)
+end
+
+function gain_schema(segmentation::ObsSegmentation, obs::EHTObservation, references::AbstractVector{<:ReferencingScheme})
+    sites = Tuple(stations(obs))
+    return gain_schema(NamedTuple{sites}(Tuple(segmentation for _ in sites)), obs, references)
+end
+
+function append_time_site!(times, sites, site, t, ::ScanSeg)
+    push!(sites, site)
+    push!(times, t)
+    return nothing
+end
+
+function append_time_site!(times, sites, site, t, ::IntegSeg)
+    push!(sites, site)
+    push!(times, t)
+    return nothing
+end
+
+function append_time_site!(times, sites, site, t, ::TrackSeg)
+    # Check is the site is already in the list, if it isn't add it to the schema
+    !(site ∈ sites) && (push!(sites, site); push!(times, zero(t)))
+    return nothing
+end
+
+function append_time_site!(times, sites, site, t, ::FixedSeg)
+    nothing
+end
+
 function fill_designmat!(
-        colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
-        vecInd::AbstractVector{Int}, valInd::AbstractVector,
-        ::TrackSeg, vis_ind, site, time, schema::GainSchema
-        )
+    colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
+    vecInd::AbstractVector{Int}, valInd::AbstractVector,
+    ::TrackSeg, vis_ind, site, time, schema::GainSchema
+    )
     stats = schema.sites
     ind = findfirst(==(site), stats)
     append!(colInd, [ind])
@@ -265,10 +360,10 @@ function fill_designmat!(
 end
 
 function fill_designmat!(
-    colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
-    vecInd::AbstractVector{Int}, vals::AbstractVector,
-    ::ScanSeg{false}, vis_ind, site, time, schema::GainSchema
-    )
+        colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
+        vecInd::AbstractVector{Int}, vals::AbstractVector,
+        ::ScanSeg{false}, vis_ind, site, time, schema::GainSchema
+        )
 
     ind = findall(x->((x[1]==time) && (x[2]==site)), schema.gts)
     append!(colInd, ind)
@@ -276,10 +371,10 @@ function fill_designmat!(
 end
 
 function fill_designmat!(
-    colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
-    vecInd::AbstractVector{Int}, vals::AbstractVector,
-    ::ScanSeg{true}, vis_ind, site, time, schema::GainSchema
-    )
+        colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
+        vecInd::AbstractVector{Int}, vals::AbstractVector,
+        ::ScanSeg{true}, vis_ind, site, time, schema::GainSchema
+        )
 
     ifirst = findfirst(==(site), schema.sites)
     t0 = schema.times[ifirst]
@@ -294,28 +389,41 @@ function fill_designmat!(
 end
 
 function fill_designmat!(
-    colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
-    vecInd::AbstractVector{Int}, vals::AbstractVector,
-    f::FixedSeg, vis_ind, site, time, schema::GainSchema
-    )
+            colInd::AbstractVector{Int}, rowInd::AbstractVector{Int},
+            vecInd::AbstractVector{Int}, vals::AbstractVector,
+            f::FixedSeg, vis_ind, site, time, schema::GainSchema
+            )
     push!(vecInd, vis_ind)
     push!(vals, f.value)
 end
 
-# Helper function that extracts the expected types for the FixedSeg segmentation
-function fixed_type(segmenatation::NamedTuple)
-    vs = values(segmenatation)
-    inds = findall(x->(x isa FixedSeg), vs)
-    return promote_type(map(x->typeof(getproperty(x, :value)), vs[inds])...)
+
+
+function jonescache(obs::EHTObservation{T}, segmentation::NamedTuple; autoref::ReferencingScheme=NoReference()) where {T}
+    @argcheck sort(collect(stations(obs))) == sort(collect(keys(segmentation)))
+
+    # The procedure is
+    # 1. SPlit the observation into scans using scantable
+    # 2. For each scan set a reference station if necessary
+    # 3. Construct the gain schema that defines the ordering of the gain vector
+    # 4. Construct the design matrix that moves from the gain schema to the observations
+
+    # Part 1.
+    st = scantable(obs)
+
+    # Part 2. References
+    references = reference_stations(st, autoref)
+
+    # Gain Schema
+    schema = gain_schema(segmentation, obs, references)
+
+    # Build the design matrix
+    return design_mat(st, references, segmentation, schema)
 end
 
 
-function jonescache(obs::EHTObservation, segmentation::NamedTuple)
-    @argcheck sort(collect(stations(obs))) == sort(collect(keys(segmentation)))
-
-    times = obs[:T]
-    bls = obs[:baseline]
-    schema = gain_schema(segmentation, obs)
+function design_mat(st::ScanTable{<:EHTObservation{T}}, references, segmentation, schema) where {T}
+    # Construct the design matrix
     rowInd1 = Int[]
     colInd1 = Int[]
     rowInd2 = Int[]
@@ -323,34 +431,49 @@ function jonescache(obs::EHTObservation, segmentation::NamedTuple)
 
     vecInd1 = Int[]
     vecInd2 = Int[]
-    T = fixed_type(segmentation)
-    vals1 = T[]
-    vals2 = T[]
+    vals1 = Complex{T}[]
+    vals2 = Complex{T}[]
+
+    obs = st.obs
 
 
-    for i in eachindex(times)
-        t = times[i]
-        s1, s2 = bls[i]
-        seg1 = getproperty(segmentation, s1)
-        seg2 = getproperty(segmentation, s2)
-        fill_designmat!(colInd1, rowInd1, vecInd1, vals1, seg1, i, s1, t, schema)
-        fill_designmat!(colInd2, rowInd2, vecInd2, vals2, seg2, i, s2, t, schema)
+    for i in 1:length(st)
+        si = st[i]
+        times = si[:T]
+        bls = si[:baseline]
+
+        reference = references[i]
+
+        for j in eachindex(times)
+            t = times[j]
+            s1, s2 = bls[j]
+
+            visind = si.index[2] + j - 1
+
+            # Check if it is a reference and if not grab the usual property
+            seg1 = isreference(s1, reference) ? reference.scheme : getproperty(segmentation, s1)
+            seg2 = isreference(s2, reference) ? reference.scheme : getproperty(segmentation, s2)
+
+            # Fill the design matrix
+            fill_designmat!(colInd1, rowInd1, vecInd1, vals1, seg1, visind, s1, t, schema)
+            fill_designmat!(colInd2, rowInd2, vecInd2, vals2, seg2, visind, s2, t, schema)
+        end
     end
 
     z1 = fill(1.0, length(rowInd1))
-    m1 = sparse(rowInd1, colInd1, z1, length(times), length(schema.times))
+    m1 = sparse(rowInd1, colInd1, z1, length(obs), length(schema.times))
     z2 = fill(1.0, length(rowInd2))
-    m2 = sparse(rowInd2, colInd2, z2, length(times), length(schema.times))
+    m2 = sparse(rowInd2, colInd2, z2, length(obs), length(schema.times))
 
     if length(vecInd1) > 0
-        v1 = sparsevec(vecInd1, vals1, length(times))
+        v1 = sparsevec(vecInd1, vals1, length(obs))
         d1 = AffineDesignMatrix(m1, Array(v1))
     else
         d1 = m1
     end
 
     if length(vecInd2) > 0
-        v2 = sparsevec(vecInd2, vals2, length(times))
+        v2 = sparsevec(vecInd2, vals2, length(obs))
         d2 = AffineDesignMatrix(m2, Array(v2))
     else
         d2 = m2
@@ -358,8 +481,9 @@ function jonescache(obs::EHTObservation, segmentation::NamedTuple)
 
     return JonesCache{
                 typeof(d1), typeof(d2), typeof(segmentation),
-                typeof(schema)
-                }(d1, d2, segmentation, schema)
+                typeof(schema),
+                typeof(references)
+                }(d1, d2, segmentation, schema, references)
 end
 
 
@@ -380,10 +504,10 @@ julia> segs = (AA = ScanSeg(), AP = TrachSeg(), AZ=FixedSegSeg())
 julia> jonescache(coh, segs)
 ```
 """
-function jonescache(obs::EHTObservation, s::ObsSegmentation)
+function jonescache(obs::EHTObservation, s::ObsSegmentation; autoref::ReferencingScheme = NoReference())
     sites = Tuple(stations(obs))
     segs = NamedTuple{sites}(Tuple(s for _ in 1:length(sites)))
-    return jonescache(obs, segs)
+    return jonescache(obs, segs; autoref)
 end
 
 # This is an internal function that computes the set of stations from a ScanTable
@@ -418,6 +542,64 @@ struct JonesPairs{T, M1<:AbstractVector{T}, M2<:AbstractVector{T}}
     m2::M2
 end
 
+"""
+    map(f, args::JonesPairs...) -> JonesPairs
+
+Maps over a set of [`JonesPairs`](@ref) applying the function f to each element.
+This returns a collected JonesPair. This us useful for more advanced operations on
+Jones matrices.
+
+## Examples
+```julia
+map(G, D, F) do g, d, f
+    return f'*exp.(g)*d*f
+end
+```
+"""
+function Base.map(f, args::Vararg{<:JonesPairs})
+    m1 = map(x->getproperty(x, :m1), args)
+    m2 = map(x->getproperty(x, :m2), args)
+    f1, f2 = _jonesmap(f, m1, m2)
+    return JonesPairs(f1, f2)
+end
+
+function _jonesmap(f, m1, m2)
+    T = promote_type(map(eltype, m1)...)
+    out1 = similar(first(m1), T)
+    out2 = similar(first(m2), T)
+    _jonesmap!(f, out1, out2,  m1, m2)
+    return out1, out2
+end
+
+function _jonesmap!(f, out1, out2, m1, m2)
+    # out1 .= f.(m1...)
+    # out2 .= f.(m2...)
+    map!(f, out1, m1...)
+    map!(f, out2, m2...)
+    return nothing
+end
+
+function ChainRulesCore.rrule(::typeof(_jonesmap), f, m1, m2)
+    out = _jonesmap(f, m1, m2)
+    pm1 = ProjectTo(m1)
+    pm2 = ProjectTo(m2)
+    function _jonesmap_pullback(Δ)
+        Δm1 = zero(out[1])
+        Δm1 .= unthunk(Δ[1])
+        Δm2 = zero(out[2])
+        Δm2 .= unthunk(Δ[2])
+        dm1 = zero.(m1)
+        dm2 = zero.(m2)
+
+        out1 = similar(out[1])
+        out2 = similar(out[2])
+        autodiff(Reverse, _jonesmap!, Const(f), Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
+        return NoTangent(), NoTangent(), pm1(dm1), pm2(dm2)
+    end
+    return out, _jonesmap_pullback
+end
+
+
 function Base.:*(x::JonesPairs, y::JonesPairs...)
     m1 = map(x->getproperty(x, :m1), (x,y...))
     m2 = map(x->getproperty(x, :m2), (x,y...))
@@ -425,16 +607,12 @@ function Base.:*(x::JonesPairs, y::JonesPairs...)
     JonesPairs(o1, o2)
 end
 
-out_type(::AbstractArray{T}) where {T<:Real} = Complex{T}
-out_type(::AbstractArray{T}) where {T<:Complex} = T
-out_type(::AbstractArray{T}) where {T} = T
 
 function _allmul(m1, m2)
-    out1 = similar(first(m1), out_type(first(m1)))
-    out2 = similar(first(m2), out_type(first(m2)))
+    T = promote_type(map(eltype, m1)...)
+    out1 = similar(first(m1), T)
+    out2 = similar(first(m2), T)
     _allmul!(out1, out2, m1, m2)
-    # out1 = reduce(.*, m1)
-    # out2 = reduce(.*, m2)
     return out1, out2
 end
 
@@ -459,8 +637,8 @@ function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
         dm1 = zero.(m1)
         dm2 = zero.(m2)
 
-        out1 = similar(first(m1), out_type(first(m1)))
-        out2 = similar(first(m2), out_type(first(m2)))
+        out1 = similar(out)
+        out2 = similar(out)
         autodiff(Reverse, _allmul!, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
         return NoTangent(), pm1(dm1), pm2(dm2)
     end
@@ -474,9 +652,9 @@ end
 #     return JonesPairs{T, typeof(m1), typeof(m2)}(m1, m2)
 # end
 
-
-Base.length(j::JonesPairs) = length(j.m1)
-Base.size(j::JonesPairs) = (length(j),)
+@inline Base.eltype(::JonesPairs{T}) where {T} = T
+@inline Base.length(j::JonesPairs) = length(j.m1)
+@inline Base.size(j::JonesPairs) = (length(j),)
 Base.getindex(j::JonesPairs, i::Int) = (j.m1[i], j.m2[i])
 function Base.setindex!(j::JonesPairs, X, i::Int)
     j.m1[i] = X[1]
@@ -488,28 +666,16 @@ Base.similar(j::JonesPairs, ::Type{S}, dims::Dims{1}) where {S} = JonesPairs(sim
 Base.firstindex(j::JonesPairs) = firstindex(j.m1)
 Base.lastindex(j::JonesPairs) = lastindex(j.m1)
 
-struct JonesStyle{M1,M2} <: Broadcast.AbstractArrayStyle{1} end
-JonesStyle{M1,M2}(::Val{1}) where {M1,M2} = JonesStyle{M1,M2}()
-Base.BroadcastStyle(::Type{<:JonesPairs{T,M1,M2}}) where {T,M1,M2} = JonesStyle{M1,M2}()
+# struct JonesStyle{M1,M2} <: Broadcast.AbstractArrayStyle{1} end
+# JonesStyle{M1,M2}(::Val{1}) where {M1,M2} = JonesStyle{M1,M2}()
+# Base.BroadcastStyle(::Type{<:JonesPairs{T,M1,M2}}) where {T,M1,M2} = JonesStyle{M1,M2}()
 
-function Base.similar(bc::Broadcast.Broadcasted{JonesStyle{M1,M2}}, ::Type{ElType}) where {M1,M2,ElType}
-    A = find_js(bc)
-    n = length(A.m1)
-    return JonesPairs(similar(M1, Eltype, n), similar(M2, Eltype, n))
-end
+# function Base.similar(bc::Broadcast.Broadcasted{JonesStyle{M1,M2}}, ::Type{ElType}) where {M1,M2,ElType}
+#     A = find_js(bc)
+#     n = length(A.m1)
+#     return JonesPairs(similar(M1, Eltype, n), similar(M2, Eltype, n))
+# end
 
-"`A = find_aac(As)` returns the first ArrayAndChar among the arguments."
-find_js(bc::Base.Broadcast.Broadcasted) = find_js(bc.args)
-find_js(args::Tuple) = find_js(find_js(args[1]), Base.tail(args))
-find_js(x) = x
-find_js(::Tuple{}) = nothing
-find_js(a::JonesPairs, rest) = a
-find_js(::Any, rest) = find_js(rest)
-
-
-function apply_design(gmat::T, jcache::AbstractJonesCache) where {T}
-    return JonesPairs(jcache.m1*gmat, jcache.m2*gmat)
-end
 
 function apply_designmats(f::F, g1, g2, m) where {F}
     return f.(m*g1), f.(m*g2)
@@ -560,8 +726,8 @@ end
 
 # GMat(g1::T, g2::T) where {T} = SMatrix{2,2,T}(g1, zero(T), zero(T), g2)
 function gmat(f::F, g1, g2, m) where {F}
-   S = eltype(g1)
    gs1, gs2 = apply_designmats(f, g1, g2, m)
+   S = eltype(gs1)
    n = length(gs1)
    offdiag = fill(zero(S), n)
    StructArray{SMatrix{2,2,S,4}}((gs1, offdiag, offdiag, gs2))
@@ -598,8 +764,8 @@ end
 
 # DMat(d1::T, d2::T) where {T} = SMatrix{2,2,T}(one(T), d2, d1, one(T))
 function dmat(f::F, d1, d2, m) where {F}
-    S = promote_type(eltype(d1), eltype(d2))
     ds1, ds2 = apply_designmats(f, d1, d2, m)
+    S = eltype(ds1)
     n = length(ds1)
     unit = fill(one(S), n)
     return StructArray{SMatrix{2,2,S,4}}((unit, ds2, ds1, unit))
@@ -780,7 +946,6 @@ function corrupt(vis, j1, j2)
     # vnew = similar(vis, typeof(j1[1]*vis[1]*adjoint(j2[1])))
     # corrupt!(vnew, vis, j1, j2)
     vnew = j1 .* vis .* adjoint.(j2)
-    # vnew = j1 .* vis .* adjoint.(j2)
     return vnew
 end
 

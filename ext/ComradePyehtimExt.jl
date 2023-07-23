@@ -139,7 +139,14 @@ end
 
 function getcoherency(obs)
 
-    # ensure that the visibilities are represented in a circular basis
+    # check if the obs is in circular basis otherwise error out
+    @assert((pyconvert(String, obs.polrep) == "circ"),
+            "obs is not in circular polarization.\n"*
+            "To fix read in the data using\n"*
+            "  Pyehtim.load_uvfits_and_array(obsname, arrayname, polrep=\"circ\")\n"*
+            "Do not use\n  obs.switch_polrep(\"circ\")\nsince missing hands will not be handled correctly."
+        )
+
     obs = obs.switch_polrep("circ")
 
     # get (u,v) coordinates
@@ -155,10 +162,10 @@ function getcoherency(obs)
     cohmat = StructArray{SMatrix{2,2,eltype(c11), 4}}((c11, c21, c12, c22))
 
     # get uncertainties
-    e11 = pyconvert(Vector, obs.data["rrsigma"])
-    e12 = pyconvert(Vector, obs.data["rlsigma"])
-    e21 = pyconvert(Vector, obs.data["lrsigma"])
-    e22 = pyconvert(Vector, obs.data["llsigma"])
+    e11 = copy(pyconvert(Vector, obs.data["rrsigma"]))
+    e12 = copy(pyconvert(Vector, obs.data["rlsigma"]))
+    e21 = copy(pyconvert(Vector, obs.data["lrsigma"]))
+    e22 = copy(pyconvert(Vector, obs.data["llsigma"]))
 
     errmat = StructArray{SMatrix{2,2,eltype(e11), 4}}((e11, e21, e12, e22))
 

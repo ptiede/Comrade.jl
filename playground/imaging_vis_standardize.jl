@@ -51,7 +51,7 @@ function sky(θ, metadata)
     (;fg, c, λ, σ, ν) = θ
     (;trf, meanpr, ftot, grid, cache) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
-    cp = trf(c, meanpr, λ, σ, ν)
+    cp = trf(c, meanpr, σ, λ, ν)
     rast = (ftot*(1-fg))*(to_simplex(CenteredLR(), cp))
     img = IntensityMap(rast, grid)
     m = ContinuousImage(img, cache)
@@ -117,8 +117,7 @@ cache = create_cache(NFFTAlg(dvis), buffer, DeltaPulse())
 # the timescale we expect them to vary. For the phases we use a station specific scheme where
 # we set AA to be fixed to unit gain because it will function as a reference station.
 gcache = jonescache(dvis, ScanSeg())
-segs = station_tuple(dvis, ScanSeg(); AA = FixedSeg(complex(1.0)))
-gcachep = jonescache(dvis, segs)
+gcachep = jonescache(dvis, ScanSeg(); autoref=RandomReference(FixedSeg(complex(1.0))))
 
 using VLBIImagePriors
 # Now we can form our metadata we need to fully define our model. First we
@@ -152,7 +151,7 @@ distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 # !!! warning
 #     We use AA (ALMA) as a reference station so we do not have to specify a gain prior for it.
 #-
-distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)); reference=:AA)
+distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
@@ -160,7 +159,7 @@ distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)); reference=:AA)
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(40.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(80.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
@@ -198,9 +197,9 @@ metadata = (;K, trf, meanpr, ftot=1.1, grid, cache, gcache, gcachep)
 prior = (
          fg = Uniform(0.0, 1.0),
          c = cprior,
-         λ = truncated(Normal(0.0, 1/rat); lower=2/npix),
+         λ = truncated(Normal(0.0, 0.1/rat); lower=2/npix),
          σ = truncated(Normal(0.0, 0.1); lower=0.0),
-         ν = Uniform(0.0, 20.0),
+         ν = InverseGamma(10.0, 50.0),
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
         )
@@ -262,14 +261,14 @@ xopts = transform.(Ref(tpost), sols)
 #-
 # First we will evaluate our fit by plotting the residuals
 using Plots
-residual(vlbimodel(post, xopts[6]), dvis)
+residual(vlbimodel(post, xopts[1]), dvis)
 
 # These look reasonable, although there may be some minor overfitting. This could be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
 using CairoMakie
-img = intensitymap(skymodel(post, xopts[9]), fovx, fovy, 128, 128)
+img = intensitymap(skymodel(post, xopts[1]), fovx, fovy, 128, 128)
 image(img, title="MAP Image", axis=(xreversed=true, aspect=1), colormap=:afmhot)
 
 
@@ -299,14 +298,13 @@ Plots.plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-trace1 = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 2_000; saveto=DiskStore("ResolveMap0_RP"), nadapts = 1_000, init_params=xopts[1])
-trace1 = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 2_000; saveto=DiskStore("ResolveMap1"), nadapts = 1_000, init_params=xopts[3])
-trace1 = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 2_000; saveto=DiskStore("ResolveMap2"), nadapts = 1_000, init_params=xopts[4])
+trace1 = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 2_000; saveto=DiskStore("ResolveMapT1"), nadapts = 1_000, init_params=xopts[1])
+
 #-
 # !!! warning
 #     This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior
 #-
-chain = load_table("ResolveMap0_RP")
+chain = load_table(trace1)
 # Now that we have our posterior, we can put error bars on all of our plots above.
 # Let's start by finding the mean and standard deviation of the gain phases
 gphase  = hcat(chain.gphase...)
@@ -337,7 +335,7 @@ plot(ctable_am, layout=(3,3), size=(600,500))
 samples = skymodel.(Ref(post), chain[1001:10:end])
 imgs = intensitymap.(samples, fovx, fovy, 128,  128);
 
-image(imgs[70], axis=(xreversed=true, aspect=1), colormap=:afmhot)
+image(imgs[27], axis=(xreversed=true, aspect=1), colormap=:afmhot)
 
 mimg = mean(imgs)
 simg = std(imgs)

@@ -74,7 +74,7 @@ fovxy = μas2rad(100.0)
 grid = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
 cache = create_cache(NFFTAlg(dlcamp), buffer, BSplinePulse{3}())
-metadata = (;K, grid, cache)
+metadata = (;grid, cache)
 
 
 
@@ -109,8 +109,8 @@ crcache = MarkovRandomFieldCache(meanpr)
 # of our prior/regularizers unlike traditional RML appraoches. To construct this heirarchical
 # prior we will first make a map that takes in our regularizer hyperparameters and returns
 # the image prior given those hyperparameters.
-fmap = let meanpr=meanpr, crcache=crcache, rat=rat
-    x->GaussMarkovRandomField(meanpr, x.λ /rat, x.σ^2, crcache)
+fmap = let meanpr=meanpr, crcache=crcache
+    x->GaussMarkovRandomField(meanpr, x.λ, x.σ^2, crcache)
 end
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
@@ -120,7 +120,7 @@ end
 # to prefer "simple" structures. Namely, Gaussian Markov random fields are extremly flexible models.
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1); lower=0.0), σ=truncated(Normal(0.0, 1.0); lower=0.0))))
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1/rat); lower=0.0), σ=truncated(Normal(0.0, 1.0); lower=0.0))))
 
 prior = (c = cprior, )
 

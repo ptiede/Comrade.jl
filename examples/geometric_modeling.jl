@@ -37,6 +37,12 @@ obs = Pyehtim.scan_average(obs.flag_uvdist(uv_min=0.1e9))
 # Now we extract the data products we want to fit
 dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosurePhases(;snrcut=3.0))
 
+# !!!warn
+#    We remove the low-snr closures since they are very non-gaussian. This can create rather
+#    large biases in the model fitting since the likelihood has much heavier tails that the
+#    usual Gaussian approximation.
+#-
+
 # For the image model, we will use a modified `MRing`, a
 # infinitely thin delta ring with an azimuthal structure given by a Fourier expansion.
 # To give the MRing some width, we will convolve the ring with a Gaussian and add an
@@ -45,7 +51,11 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosureP
 #-
 function model(θ)
     (;radius, width, α, β, f, σG, τG, ξG, xG, yG) = θ
-    ring = f*smoothed(stretched(MRing((α,), (β,)), radius, radius), width)
+    ## We convert α and β to a Tuple to prevent some issues with Enzyme.
+    ## This should be fixed in future versions of the code.
+    αT = Tuple(α)
+    βT = Tuple(β)
+    ring = f*smoothed(stretched(MRing(αT, βT), radius, radius), width)
     g = (1-f)*shifted(rotated(stretched(Gaussian(), σG, σG*(1+τG)), ξG), xG, yG)
     return ring + g
 end
@@ -62,8 +72,8 @@ using Distributions
 prior = (
           radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
           width = Uniform(μas2rad(1.0), μas2rad(10.0)),
-          α = Uniform(-0.5, 0.5),
-          β = Uniform(-0.5, 0.5),
+          α = product_distribution(fill(Uniform(-0.5, 0.5), 2)),
+          β = product_distribution(fill(Uniform(-0.5, 0.5), 2)),
           f = Uniform(0.0, 1.0),
           σG = Uniform(μas2rad(1.0), μas2rad(40.0)),
           τG = Uniform(0.0, 0.75),
@@ -71,6 +81,11 @@ prior = (
           xG = Uniform(-μas2rad(80.0), μas2rad(80.0)),
           yG = Uniform(-μas2rad(80.0), μas2rad(80.0))
         )
+
+# Note that for `α` and `β` we use a product distribution to signify that we want to use a
+# multivariate uniform for the mring components `α` and `β`. In general the structure of the
+# variables is specified by the prior. Note that this structure must be compatible with the
+# model definition `model(θ)`.
 
 # To form the posterior we now call
 
@@ -81,8 +96,8 @@ post = Posterior(lklhd, prior)
 
 logdensityof(post, (radius = μas2rad(20.0),
                   width = μas2rad(10.0),
-                  α = 0.3,
-                  β = 0.3,
+                  α = [0.3, 0.1],
+                  β = [0.3, -0.1],
                   f = 0.6,
                   σG = μas2rad(20.0),
                   τG = 0.1,
@@ -163,8 +178,8 @@ plot(model(xopt), title="MAP image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
 # Most of Comrade's external libraries follow a similar interface. To use AdvancedHMC
 # do the following:
 
-using ComradeAHMC, ForwardDiff
-chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim), autodiff=Val(:ForwardDiff)), 2000; nadapts=1000, init_params=xopt)
+using ComradeAHMC, Zygote
+chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim), autodiff=Val(:Zygote)), 2000; nadapts=1000, init_params=xopt)
 
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.
 

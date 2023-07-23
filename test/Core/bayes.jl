@@ -11,7 +11,8 @@ using Pyehtim
 
 @testset "bayes" begin
     _,vis, amp, lcamp, cphase = load_data()
-    lklhd = RadioLikelihood(test_model, lcamp, cphase)
+    lklhd_cl = RadioLikelihood(test_model, lcamp, cphase)
+    lklhd = RadioLikelihood(test_model, vis)
 
     prior = test_prior()
 
@@ -129,7 +130,7 @@ using FiniteDifferences
     mfd = central_fdm(5,1)
     @testset "DFT" begin
         mt = (fovx = μas2rad(150.0), fovy=μas2rad(150.0), nx=256, ny=256, alg=DFTAlg())
-        lklhd = RadioLikelihood(test_model2, lcamp, cphase; skymeta=mt)
+        lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
 
         prior = test_prior2()
 
@@ -146,7 +147,7 @@ using FiniteDifferences
 
     @testset "NFFT" begin
         mt = (fovx = μas2rad(150.0), fovy=μas2rad(150.0), nx=256, ny=256, alg=NFFTAlg(lcamp))
-        lklhd = RadioLikelihood(test_model2, lcamp, cphase; skymeta=mt)
+        lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
 
         prior = test_prior2()
 
@@ -163,7 +164,7 @@ using FiniteDifferences
 
     @testset "FFT" begin
         mt = (fovx = 10.0, fovy=10.0, nx=256, ny=256, alg=FFTAlg())
-        lklhd = RadioLikelihood(test_model2, lcamp, cphase; skymeta=mt)
+        lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
 
         prior = test_prior2()
 

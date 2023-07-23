@@ -102,8 +102,10 @@ rng = StableRNG(123)
 
 
 # Now we will load some synthetic polarized data.
-obs = Pyehtim.load_uvfits_and_array(joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian_nogains_withdterms_withfr.uvfits"),
-                        joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/array.txt"))
+obs = Pyehtim.load_uvfits_and_array(joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian_all_corruptions.uvfits"),
+                        joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/array.txt"), polrep="circ")
+
+
 # Notice that, unlike other non-polarized tutorials, we need to include a second argument.
 # This is the **array file** of the observation and is required to determine the feed rotation
 # of the array.
@@ -142,10 +144,14 @@ function sky(θ, metadata)
     ## Converts from poincare sphere parameterization of polzarization to Stokes Parameters
     pimg = PoincareSphere2Map(imgI, p, angparams, grid)
     m = ContinuousImage(pimg, cache)
-
     return m
 end
 
+# !!! note
+#     If you want to add a `geometric polarized model` please see the `PolarizedModel` docstring.
+#     For instance to create a stokes I only Gaussian component to the above model we can do
+#     `pg = PolarizedModel(modify(Gaussian(), Stretch(1e-10)), ZeroModel(), ZeroModel(), ZeroModel())`.
+#-
 
 function instrument(θ, metadata)
     (; lgp, gpp, lgr, gpr, dRx, dRy, dLx, dLy) = θ
@@ -153,18 +159,18 @@ function instrument(θ, metadata)
     ## Now construct the basis transformation cache
     jT = jonesT(tcache)
 
-    ## Gain product parameters
-    gPa = exp.(lgp/2 .+ 0im)
-    gPp = exp.(1im.*gpp/2)
-    Gpa = jonesG(gPa, gPa, scancache)
-    Gpp = jonesG(gPp, gPp, phasecache)
+    # Gain product parameters
+    gPa = exp.(lgp .+ 0im)
+    gRa = exp.(lgp .+ lgr .+ 0im)
+    Gp = jonesG(gPa, gRa, scancache)
     ## Gain ratio
-    gR = exp.(lgr/2 .+ 1im.*gpr/2)
-    Gr = jonesG(gR, inv.(gR), trackcache)
+    gPp = exp.(1im.*(gpp))
+    gRp = exp.(1im.*(gpp.+gpr))
+    Gr = jonesG(gPp, gRp, phasecache)
     ##D-terms
     D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), trackcache)
     ## sandwich all the jones matrices together
-    J = Gpa*Gpp*Gr*D*jT
+    J = Gp*Gr*D*jT
     ## form the complete Jones or RIME model. We use tcache here
     ## to set the reference basis of the model.
     return CorruptionModel(J, tcache)
@@ -175,14 +181,16 @@ end
 # image model.
 fovx = μas2rad(50.0)
 fovy = μas2rad(50.0)
-nx = 5
+nx = 12
 ny = floor(Int, fovy/fovx*nx)
 grid = imagepixels(fovx, fovy, nx, ny) # image grid
 buffer = IntensityMap(zeros(nx, ny), grid) # buffer to store temporary image
 pulse = BSplinePulse{3}() # pulse we will be using
 cache = create_cache(NFFTAlg(dvis), buffer, pulse) # cache to define the NFFT transform
 
+
 # Finally we compute a center projector that forces the centroid to live at the image origin
+using VLBIImagePriors
 K = CenterImage(grid)
 skymeta = (;K, cache, grid)
 
@@ -228,7 +236,6 @@ distamp = (AA = Normal(0.0, 0.1),
 # For the phases, we assume that the atmosphere effectively scrambles the gains.
 # Since the gain phases are periodic, we also use broad von Mises priors for all stations.
 # Notice that we don't assign a prior for AA since we have already fixed it.
-using VLBIImagePriors
 distphase = (
              AP = DiagonalVonMises(0.0, inv(π^2)),
              LM = DiagonalVonMises(0.0, inv(π^2)),
@@ -286,8 +293,8 @@ prior = (
           dLy = CalPrior(distD, trackcache),
           lgp = CalPrior(distamp, scancache),
           gpp = CalPrior(distphase, phasecache),
-          lgr = CalPrior(distamp, trackcache),
-          gpr = CalPrior(distphase_ratio,trackcache),
+          lgr = CalPrior(distamp, scancache),
+          gpr = CalPrior(distphase,phasecache),
           )
 
 
@@ -313,6 +320,8 @@ tpost = asflat(post)
 ndim = dimension(tpost)
 
 
+m = vlbimodel(post, prior_sample(post))
+
 # Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
 # due to the higher dimension of the space.
 using ComradeOptimization
@@ -320,8 +329,8 @@ using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 ℓ = logdensityof(tpost)
-prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(), maxiters=15_000, g_tol=1e-0);
+prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing)
+sol = solve(prob, LBFGS(), maxiters=15_000, g_tol=1e-2);
 
 # !!! warning
 #     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that
@@ -381,22 +390,24 @@ dL = caltable(trackcache, complex.(xopt.dLx, xopt.dLy))
 
 
 # Looking at the gain phase ratio
-gphase_ratio = caltable(trackcache, xopt.gpr)
+gphase_ratio = caltable(phasecache, xopt.gpr)
 #-
 # we see that they are all very small. Which should be the case since this data doesn't have gain corruptions!
 # Similarly our gain ratio amplitudes are also very close to unity as expected.
-gamp_ratio   = caltable(trackcache, exp.(xopt.lgr))
+gamp_ratio   = caltable(scancache, exp.(xopt.lgr))
 #-
 # Plotting the gain phases, we see some offsets from zero. This is because the prior on the gain product
 # phases is very broad, so we can't phase center the image. For realistic data
 # this is always the case since the atmosphere effectively scrambles the phases.
 gphase_prod = caltable(phasecache, xopt.gpp)
 plot(gphase_prod, layout=(3,3), size=(650,500))
+plot!(gphase_ratio, layout=(3,3), size=(650,500))
 #-
 # Finally, the product gain amplitudes are all very close to unity as well, as expected since gain corruptions
 # have not been added to the data.
 gamp_prod = caltable(scancache, exp.(xopt.lgp))
 plot(gamp_prod, layout=(3,3), size=(650,500))
+plot!(gamp_ratio, layout=(3,3), size=(650,500))
 #-
 # At this point, you should run the sampler to recover an uncertainty estimate,
 # which is identical to every other imaging example

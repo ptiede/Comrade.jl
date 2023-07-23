@@ -3,6 +3,12 @@ function load_data()
     obs.add_scans()
     obsavg = scan_average(obs)
 
+    obspol = Pyehtim.load_uvfits_and_array(
+            joinpath(@__DIR__, "../examples/PolarizedExamples/polarized_gaussian_nogains_withdterms_withfr.uvfits"),
+            joinpath(@__DIR__, "../examples/PolarizedExamples/array.txt"),
+            polrep="circ"
+            )
+
     m = ehtim.model.Model()
     m = m.add_gauss(1.0, μas2rad(40.0), μas2rad(20.0), π/3, 0.0, 0.0)
     m = m.add_gauss(0.5, μas2rad(20.0), μas2rad(10.0), π/6, μas2rad(30.0), μas2rad(30.0))
@@ -12,7 +18,7 @@ function load_data()
     amp = extract_table(obsm, VisibilityAmplitudes())
     lcamp = extract_table(obsm, LogClosureAmplitudes())
     cphase = extract_table(obsm, ClosurePhases(cut_trivial=true))
-    dcoh = extract_table(obsm, Coherencies())
+    dcoh = extract_table(obspol, Coherencies())
 
     derr = dcoh[:error]
     derr.:2 .= derr.:1

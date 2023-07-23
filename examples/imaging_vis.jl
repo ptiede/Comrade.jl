@@ -35,7 +35,7 @@ obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "exampl
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs.add_fractional_noise(0.02))
+obs = scan_average(obs.add_fractional_noise(0.01))
 
 # Now we extract our complex visibilities.
 dvis = extract_table(obs, ComplexVisibilities())
@@ -50,7 +50,7 @@ dvis = extract_table(obs, ComplexVisibilities())
 
 function sky(θ, metadata)
     (;fg, c) = θ
-    (;K, ftot, grid, cache) = metadata
+    (;ftot, grid, cache) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
     cp = c.params
     rast = (ftot*(1-fg))*(to_simplex(CenteredLR(), cp))
@@ -97,9 +97,9 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 24
-fovx = μas2rad(100.0)
-fovy = μas2rad(100.0)
+npix = 48
+fovx = μas2rad(150.0)
+fovy = μas2rad(150.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -118,14 +118,12 @@ cache = create_cache(NFFTAlg(dvis), buffer, DeltaPulse())
 # the timescale we expect them to vary. For the phases we use a station specific scheme where
 # we set AA to be fixed to unit gain because it will function as a reference station.
 gcache = jonescache(dvis, ScanSeg())
-segs = station_tuple(dvis, ScanSeg(); AA = FixedSeg(complex(1.0)))
-gcachep = jonescache(dvis, segs)
+gcachep = jonescache(dvis, ScanSeg(); autoref=RandomReference(FixedSeg(complex(1.0))))
 
 using VLBIImagePriors
 # Now we can form our metadata we need to fully define our model. First we
 # also construct a `K` matrix or kernel that automatically centers the image.
-K = CenterImage(grid)
-metadata = (;K, ftot=1.1, grid, cache, gcache, gcachep)
+metadata = (;ftot=1.1, grid, cache, gcache, gcachep)
 # We will also fix the total flux to be the observed value 1.1. This is because
 # total flux is degenerate with a global shift in the gain amplitudes making the problem
 # degenerate. To fix this we use the observed total flux as our value.
@@ -154,21 +152,23 @@ distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 # !!! warning
 #     We use AA (ALMA) as a reference station so we do not have to specify a gain prior for it.
 #-
-distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)); reference=:AA)
+distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
 # Random field prior
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
-# image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
+# image. This behaves somewhat similary to a entropy regularizer in that it will
+# start with an initial guess for the image structure. For this tutorial we will use a
+# a symmetric Gaussian with a FWHM of 60 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(40.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(60.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
 # our mean image has unit flux
 imgpr ./= flux(imgpr)
-
+# and since our prior is not on the simplex we need to convert it to `unconstrained or real space`.
 meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
 
 # In addition we want a reasonable guess for what the resolution of our image should be.
@@ -187,18 +187,20 @@ crcache = MarkovRandomFieldCache(meanpr)
 # of our prior/regularizers unlike traditional RML appraoches. To construct this heirarchical
 # prior we will first make a map that takes in our regularizer hyperparameters and returns
 # the image prior given those hyperparameters.
-fmap = let meanpr=meanpr, crcache=crcache, rat=rat
-    x->GaussMarkovRandomField(meanpr, x.λ/rat, x.σ^2, crcache)
+fmap = let meanpr=meanpr, crcache=crcache
+    x->GaussMarkovRandomField(meanpr, x.λ, x.σ^2, crcache)
 end
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
 # inverse correlation length is given by a Half-Normal distribution whose peak is at zero and
-# standard deviation is 0.1/rat. For the variance of the GP we use another
-# half normal prior with standard deviation unity. The reason we use the half-normal priors is
-# to prefer "simple" structures. Namely, Gaussian Markov random fields are extremly flexible models.
-# To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
-# want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1); lower=1/npix), σ=truncated(Normal(0.0, 0.5); lower=0.0))))
+# standard deviation is `0.1/rat` where recall `rat` is the beam size per pixel.
+# For the variance of the random field we use another
+# half normal prior with standard deviation 0.1. The reason we use the half-normal priors is
+# to prefer "simple" structures. Gaussian Markov random fields are extremly flexible models,
+# and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
+# want to use priors that enforce similarity to our mean image. If the data wants more complexity
+# then it will drive us away from the prior.
+cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1/rat); lower=2/npix), σ=truncated(Normal(0.0, 0.1); lower=0.0))))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -208,7 +210,7 @@ prior = (
          fg = Uniform(0.0, 1.0),
          c = cprior,
          lgamp = CalPrior(distamp, gcache),
-         gphase = CalPrior(distphase, gcachep),
+         gphase = CalPrior(distphase, gcachep)
         )
 
 
@@ -225,7 +227,7 @@ post = Posterior(lklhd, prior)
 tpost = asflat(post)
 ndim = dimension(tpost)
 
-# Our Posterior and TransformedPosterior objects satisfy the `LogDensityProblems` interface.
+# Our `Posterior` and `TransformedPosterior` objects satisfy the `LogDensityProblems` interface.
 # This allows us to easily switch between different AD backends and many of Julia's statistical
 # inference packages use this interface as well.
 using LogDensityProblemsAD
@@ -283,18 +285,29 @@ gt = Comrade.caltable(gcache, exp.(xopt.lgamp))
 plot(gt, layout=(3,3), size=(600,500))
 
 
-# To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For information about NUTS,
+# To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For
+# information about NUTS,
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
 # !!! note
 #     For our `metric,` we use a diagonal matrix due to easier tuning
 #-
 # However, due to the need to sample a large number of gain parameters, constructing the posterior
-# is rather time-consuming. Therefore, for this tutorial, we will only do a quick preliminary run, and any posterior
+# is rather time-consuming. Therefore, for this tutorial, we will only do a quick preliminary
+# run, and any posterior
 # inferences should be appropriately skeptical.
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
 chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 1000; nadapts=500, init_params=xopt)
+
+#-
+# !!! note
+#     The above sampler will store the samples in memory, i.e. RAM. For large models this
+#     can lead to out-of-memory issues. To fix that you can include the keyword argument
+#     `saveto = DiskStore()` which periodically saves the samples to disk limiting memory
+#     useage. You can load the chain using `load_table(diskout)` where `diskout` is
+#     the object returned from sample. For more information please see [ComradeAHMC](@ref).
+#-
 
 # Now we prune the adaptation phase
 chain = chain[501:end]
@@ -332,8 +345,8 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[501:10:end])
-imgs = intensitymap.(samples, fovx, fovy, 128,  128);
+samples = skymodel.(Ref(post), chain[begin:10:end])
+imgs = center_image.(intensitymap.(samples, fovx, fovy, 128,  128))
 
 mimg = mean(imgs)
 simg = std(imgs)
@@ -344,6 +357,7 @@ p4 = plot(imgs[end],  title="Draw 2", clims = (0.0, maximum(mimg)));
 plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
 
 # Now let's check the residuals
+
 p = plot();
 for s in sample(chain, 10)
     residual!(p, vlbimodel(post, s), dvis)
