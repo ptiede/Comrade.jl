@@ -28,7 +28,7 @@ using SpecialFunctions #: gamma, erf
 using Random
 using RectiGrids
 using Reexport
-using SkyModels
+using VLBISkyModels
 using StaticArraysCore
 using StructArrays: StructVector, StructArray, append!!
 import StructArrays
@@ -36,7 +36,7 @@ using Tables
 using TypedTables
 # Write your package code here.
 
-@reexport using SkyModels
+@reexport using VLBISkyModels
 @reexport using ComradeBase
 
 export linearpol, mbreve, evpa
