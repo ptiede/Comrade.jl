@@ -87,6 +87,12 @@ function testft_cimg(m, atol=1e-4)
     GC.gc()
 end
 
+@testset "CLEAN" begin
+    _,vis, amp, lcamp, cphase = load_data()
+
+    dirty_image(μas2rad(100.0), 128, vis)
+    dirty_beam(μas2rad(100.0), 128, vis)
+end
 
 @testset "PolarizedModel Tests" begin
     u = randn(100)*0.5
