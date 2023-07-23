@@ -32,11 +32,20 @@ obs = Pyehtim.scan_average(obseht)
 #     We use a custom scan-averaging function to ensure that the scan-times are homogenized.
 #-
 # We can now extract data products that `Comrade` can use
-coh    = extract_table(obs, Coherencies()) # Coherency matrices
 vis    = extract_table(obs, ComplexVisibilities()) #complex visibilites
 amp    = extract_table(obs, VisibilityAmplitudes()) # visibility amplitudes
 cphase = extract_table(obs, ClosurePhases(; snrcut=3.0)) # extract minimal set of closure phases
 lcamp  = extract_table(obs, LogClosureAmplitudes(; snrcut=3.0)) # extract minimal set of log-closure amplitudes
+
+# For polarization we first load the data in the cirular polarization basis
+# Additionally, we load the array table at the same time to load the telescope mounts.
+obseht = Pyehtim.load_uvfits_and_array(
+    joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"),
+    joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian_all_corruptions.uvfits"),
+    polrep="circ")
+obs = Pyehtim.scan_average(obseht)
+dcoh = extract_table(obs, Coherencies())
+
 
 # !!! warning
 #     Always use our `extract_cphase` and `extract_lcamp` functions to find the closures

@@ -147,7 +147,7 @@ using FiniteDifferences
 
     @testset "NFFT" begin
         mt = (fovx = μas2rad(150.0), fovy=μas2rad(150.0), nx=256, ny=256, alg=NFFTAlg(lcamp))
-        lklhd = RadioLikelihood(test_model2, vis0; skymeta=mt)
+        lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
 
         prior = test_prior2()
 

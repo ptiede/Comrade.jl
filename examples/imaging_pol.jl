@@ -103,7 +103,7 @@ rng = StableRNG(123)
 
 # Now we will load some synthetic polarized data.
 obs = Pyehtim.load_uvfits_and_array(joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian_all_corruptions.uvfits"),
-                        joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/array.txt"))
+                        joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/array.txt"), polrep="circ")
 
 
 # Notice that, unlike other non-polarized tutorials, we need to include a second argument.

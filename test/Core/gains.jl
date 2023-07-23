@@ -139,17 +139,17 @@ end
     pdRA = CalPrior(dReal, dcache_ra)
     dcache_se0 = jonescache(dcoh, ScanSeg(); autoref=SEFDReference(1.0+0.0im, 0))
     dcache_se1 = jonescache(dcoh, ScanSeg(); autoref=SEFDReference(1.0+0.0im, 1))
-    pdSE = CalPrior(dReal, dcache_se0)
-    pdSE = CalPrior(dReal, dcache_se1)
+    pdSE_0 = CalPrior(dReal, dcache_se0)
+    pdSE_1 = CalPrior(dReal, dcache_se1)
 
     @test mean(pdReal) ≈ zeros(length(pdReal))
     @test var(pdReal) ≈ fill(0.1^2, length(pdReal))
 
 
     asflat(pdReal)
-    asflat(pdImag)
-    ascube(pdReal)
-    ascube(pdImag)
+    asflat(pdRA)
+    ascube(pdSE_0)
+    ascube(pdSE_1)
 end
 
 @testset "Hierarchical calibration priors" begin
@@ -302,7 +302,7 @@ end
 
     @inferred map((ga, gp, d, t)->t'*ga*gp*d*t, Ga, Gp, D, T)
     @inferred map((ga, gp, d, t)->t'*(ga+d)*gp*d*t, Ga, Gp, D, T)
-    out =  map((ga, gp, d, t)->ga*gp*d*t, Ga, Gp, D, T)
+    out =  map(*, Ga, Gp, D, T)
     out2= Ga*Gp*D*T
     @test out.m1 ≈ out2.m1
     @test out.m2 ≈ out2.m2
