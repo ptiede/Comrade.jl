@@ -15,17 +15,11 @@ LogDensityProblems.logdensity(d::AbstractPosterior, θ) = logdensityof(d, θ)
 LogDensityProblems.dimension(d::AbstractPosterior) = dimension(d)
 LogDensityProblems.capabilities(::Type{<:AbstractPosterior}) = LogDensityProblems.LogDensityOrder{0}()
 
-struct Posterior{L,P} <: AbstractPosterior
-    lklhd::L
-    prior::P
-end
-
 """
     Posterior(lklhd, prior)
 Creates a Posterior density that follows obeys [DensityInterface](https://github.com/JuliaMath/DensityInterface.jl).
 The `lklhd` object is expected to be a `VLB` object. For instance, these can be
-created using [`RadioLikelihood`](@ref). `prior` is expected to be a `NamedTuple`
-of distributions that reflect the priors on the parameters you are considering.
+created using [`RadioLikelihood`](@ref). `prior`
 
 # Notes
 Since this function obeys `DensityInterface` you can evaluate it with
@@ -41,8 +35,9 @@ where `post::Posterior`.
 
 To generate random draws from the prior see the [`prior_sample`](@ref prior_sample) function.
 """
-function Posterior(lklhd, prior::NamedTuple)
-    return Posterior(lklhd, NamedDist(prior))
+struct Posterior{L,P<:Dists.ContinuousDistribution} <: AbstractPosterior
+    lklhd::L
+    prior::P
 end
 
 
