@@ -4,40 +4,31 @@ Composable Modeling of Radio Emission
 """
 module Comrade
 
-using AbstractFFTs
 using AbstractMCMC
-using Accessors: @set
 using ArgCheck: @argcheck
-using BasicInterpolators
 using DensityInterface
 import Distributions as Dists
 using DocStringExtensions
 using ChainRulesCore
-using FITSIO
 using FillArrays: Fill
 using ForwardDiff
-using FFTW: fft, fftfreq, fftshift, ifft, ifft!, ifftshift, plan_fft
-using FFTW
 #using MappedArrays: mappedarray
 using NamedTupleTools
-using NFFT
-using PaddedViews
 using PDMats
-using SpecialFunctions #: gamma, erf
-#using Bessels
+using Printf
 using Random
-using RectiGrids
+using RecipesBase
 using Reexport
-using VLBISkyModels
 using StaticArraysCore
 using StructArrays: StructVector, StructArray, append!!
 import StructArrays
 using Tables
 using TypedTables
-# Write your package code here.
 
+# Reexport the core libraries for Comrade
 @reexport using VLBISkyModels
 @reexport using ComradeBase
+@reexport using PolarizedTypes
 
 export linearpol, mbreve, evpa
 using ComradeBase: AbstractDims, AbstractModel, AbstractPolarizedModel, AbstractHeader
@@ -46,11 +37,8 @@ using ComradeBase: load
 
 
 export rad2μas, μas2rad, logdensity_def, logdensityof
-export rad2μas, μas2rad, logdensity_def, logdensityof
 
 
-#include("interface.jl")
-#include("images/images.jl")
 import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
                     intensitymap_analytic, intensitymap_analytic!,
                     intensitymap_numeric, intensitymap_numeric!,

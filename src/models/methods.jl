@@ -15,7 +15,7 @@ from Blackburn et al.[^1]
 
 [^1]: Blackburn L., et al "Closure Statistics in Interferometric Data" ApJ 2020
 """
-function VLBISkyModels.closure_phases(m::AbstractModel, ac::ClosureConfig)
+function ComradeBase.closure_phases(m::AbstractModel, ac::ClosureConfig)
     vis = visibilities(m, arrayconfig(ac.ac))
     return ac.designmat*angle.(vis)
 end
@@ -32,7 +32,7 @@ from Blackburn et al.[^1]
 
 [^1]: Blackburn L., et al "Closure Statistics in Interferometric Data" ApJ 2020
 """
-function VLBISkyModels.logclosure_amplitudes(m::AbstractModel, ac::ClosureConfig)
+function ComradeBase.logclosure_amplitudes(m::AbstractModel, ac::ClosureConfig)
     vis = visibilities(m, arrayconfig(ac.ac))
     return ac.designmat*log.(abs.(vis))
 end

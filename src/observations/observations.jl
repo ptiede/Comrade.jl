@@ -1009,6 +1009,3 @@ function scantable(obs::EHTObservation)
     end
     return ScanTable(obs, scantimes, scanind)
 end
-
-
-include(joinpath(@__DIR__, "io.jl"))
