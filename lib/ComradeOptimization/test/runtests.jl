@@ -1,4 +1,4 @@
-using Pyehtim, Comrade, ComradeOptimization, OptimizationOptimJL, Distributions
+using Pyehtim, Comrade, ComradeOptimization, OptimizationOptimJL, Distributions, VLBIImagePriors
 using Test
 
 include(joinpath(@__DIR__, "../../../test/test_util.jl"))

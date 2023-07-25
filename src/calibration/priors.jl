@@ -150,41 +150,6 @@ struct HierarchicalCalPrior{G,DM,DS,J}
     jcache::J
 end
 
-struct NamedDist{Names, D}
-    dists::D
-end
-
-function NamedDist(d::NamedTuple{N}) where {N}
-    d = values(d)
-    return NamedDist{N,typeof(d)}(d)
-end
-
-function Dists.logpdf(d::NamedDist{N}, x::NamedTuple{N}) where {N}
-    vt = values(x)
-    dists = d.dists
-    sum(map((dist, acc) -> Dists.logpdf(dist, acc), dists, vt))
-end
-
-function Dists.logpdf(d::NamedDist{N}, x::NamedTuple{M}) where {N,M}
-    xsub = select(x, N)
-    return Dists.logpdf(d, xsub)
-end
-
-function Dists.rand(rng::AbstractRNG, d::NamedDist{N}) where {N}
-    return NamedTuple{N}(map(x->rand(rng, x), d.dists))
-end
-
-function Dists.rand(rng::AbstractRNG, d::NamedDist{Na}, n::Dims) where {Na}
-    map(CartesianIndices(n)) do I
-        rand(rng, d)
-    end
-end
-
-HypercubeTransform.asflat(d::NamedDist{N}) where {N} = asflat(NamedTuple{N}(d.dists))
-HypercubeTransform.ascube(d::NamedDist{N}) where {N} = ascube(NamedTuple{N}(d.dists))
-
-DensityInterface.DensityKind(::NamedDist) = DensityInterface.IsDensity()
-DensityInterface.logdensityof(d::NamedDist, x) = Dists.logpdf(d, x)
 
 DensityInterface.DensityKind(::HierarchicalCalPrior) = DensityInterface.IsDensity()
 DensityInterface.logdensityof(d::HierarchicalCalPrior, x) = Dists.logpdf(d, x)
@@ -197,10 +162,7 @@ end
 
 
 function HierarchicalCalPrior{G}(means, std, jcache::JonesCache) where {G}
-    mnt = NamedDist(means)
-    snt = NamedDist(std)
-
-    return HierarchicalCalPrior{G, typeof(mnt), typeof(snt), typeof(jcache)}(mnt, snt, jcache)
+    return HierarchicalCalPrior{G, typeof(means), typeof(std), typeof(jcache)}(means, std, jcache)
 end
 
 function Dists.logpdf(d::HierarchicalCalPrior{G}, x::NamedTuple) where {G}

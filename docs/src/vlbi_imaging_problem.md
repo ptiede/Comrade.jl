@@ -53,8 +53,9 @@ about what image structures are consistent with the data. Another downside of us
   1. Parametric or *geometric models*
   2. Non-parametric or *image models*
 
-`Comrade`'s geometric model interface is different from other EHT modeling packages because we don't directly provide fully formed models. Instead, we offer simple geometric models, which we call **primitives**. These primitive models can then be **modified** and combined to form complicated 
-image structures. For more information, we refer the reader to [Model Interface](@ref).
+`Comrade`'s geometric model interface is built using [VLBISkyModels](https://github.com/EHTJulia/VLBISkyModels.jl) and is different from other EHT modeling packages because we don't directly provide fully formed models. Instead, we offer simple geometric models, which we call **primitives**. These primitive models can then be **modified** and combined to form complicated 
+image structures. For more information, we refer the reader to the 
+[VLBISkyModels docs](https://ehtjulia.github.io/VLBISkyModels.jl/stable/).
 
 Additionally, we include an interface to Bayesian imaging methods, where we directly fit a rasterized image to the data. These models are highly flexible and assume very little about the image structure. In that sense, these methods are an excellent way to explore the data first and see what kinds of image structures are consistent with observations. For an example of how to fit an image model to closure products, we refer the reader to the other tutorial included in the docs.
 

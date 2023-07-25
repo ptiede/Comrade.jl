@@ -55,11 +55,11 @@ dvis  = extract_table(obs, ComplexVisibilities())
 # and a large asymmetric Gaussian component to model the unresolved short-baseline flux.
 
 function sky(θ, metadata)
-    (;c, f, r, σ, ma, mp, fg) = θ
-    (; grid, cache) = metadata
+    (;c, σimg, f, r, σ, ma, mp, fg) = θ
+    (;meanpr, grid, cache) = metadata
     ## Form the image model
-    ## First transform to simplex space
-    rast = to_simplex(CenteredLR(), c.params)
+    ## First transform to simplex space first applying the non-centered transform
+    rast = to_simplex(CenteredLR(), meanpr .+ σimg.*c)
     img = IntensityMap((f*(1-fg))*rast, grid)
     mimg = ContinuousImage(img, cache)
     ## Form the ring model
@@ -114,31 +114,8 @@ buffer = IntensityMap(zeros(npix,npix), grid)
 # *kernel* or *pulse* defines the continuous function we convolve our image with
 # to produce a continuous on-sky image.
 cache  = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
-# Now we form the metadata
-skymetadata = (;grid, cache)
-# Second, we now construct our instrument model cache. This tells us how to map from the gains
-# to the model visibilities. However, to construct this map, we also need to specify the observation
-# segmentation over which we expect the gains to change. This is specified in the second argument
-# to `jonescache`, and currently, there are two options
-#   - `FixedSeg(val)`: Fixes the corruption to the value `val` for all time. This is usefule for reference stations
-#   - `ScanSeg()`: which forces the corruptions to only change from scan-to-scan
-#   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
-# For this work, we use the scan segmentation for the gain amplitudes since that is roughly
-# the timescale we expect them to vary. For the phases we use a station specific scheme where
-# we set AA to be fixed to unit gain because it will function as a reference station.
-gcache = jonescache(dvis, ScanSeg())
-gcachep = jonescache(dvis, ScanSeg(), autoref=RandomReference(FixedSeg(1.0 + 0.0im)))
 
-intmetadata = (;gcache, gcachep)
-
-
-# This is everything we need to form our likelihood. Note the first two arguments must be
-# the model and then the metadata for the likelihood. The rest of the arguments are required
-# to be [`Comrade.EHTObservation`](@ref)
-lklhd = RadioLikelihood(sky, instrument, dvis;
-                        skymeta=skymetadata, instrumentmeta=intmetadata)
-
-# This forms our model. The next step is defining our image priors.
+# The next step is defining our image priors.
 # For our raster `c`, we will use a Gaussian markov random field prior, with the softmax
 # or centered log-ratio transform so that it lives on the simplex. That is, the sum of all the numbers from a `Dirichlet`
 # distribution always equals unity. First we load `VLBIImagePriors` which containts a large number
@@ -155,20 +132,47 @@ imgpr = intensitymap(mpr, grid)
 imgpr ./= flux(imgpr)
 meanpr = to_real(CenteredLR(), baseimage(imgpr))
 
+# Now we form the metadata
+skymetadata = (;meanpr, grid, cache)
+
+
+# Second, we now construct our instrument model cache. This tells us how to map from the gains
+# to the model visibilities. However, to construct this map, we also need to specify the observation
+# segmentation over which we expect the gains to change. This is specified in the second argument
+# to `jonescache`, and currently, there are two options
+#   - `FixedSeg(val)`: Fixes the corruption to the value `val` for all time. This is usefule for reference stations
+#   - `ScanSeg()`: which forces the corruptions to only change from scan-to-scan
+#   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
+# For this work, we use the scan segmentation for the gain amplitudes since that is roughly
+# the timescale we expect them to vary. For the phases we need to set a reference station for
+# each scan to prevent a global phase offset degeneracy. To do this we select a reference
+# station for each scan based on the SEFD of each telescope. The telescope with the lowest
+# SEFD that is in each scan is selected. For M87 2017 this is almost always ALMA.
+gcache = jonescache(dvis, ScanSeg())
+gcachep = jonescache(dvis, ScanSeg(), autoref=SEFDReference(1.0 + 0.0im))
+
+intmetadata = (;gcache, gcachep)
+
+
+# This is everything we need to form our likelihood. Note the first two arguments must be
+# the model and then the metadata for the likelihood. The rest of the arguments are required
+# to be [`Comrade.EHTObservation`](@ref)
+lklhd = RadioLikelihood(sky, instrument, dvis;
+                        skymeta=skymetadata, instrumentmeta=intmetadata)
+
+
 # Part of hybrid imaging is to force a scale separation between
-# the different model components to make them identifiable. To enforce this we will set the
+# the different model components to make them identifiable.
+# To enforce this we will set the
 # length scale of the raster component equal to the beam size of the telescope in units of
 # pixel length, which is given by
 hh(x) = hypot(x...)
 beam = inv(maximum(hh.(uvpositions.(extract_table(obs, ComplexVisibilities()).data))))
-rat = (beam/(4*step(grid.X)))
-# Then we can define our hyperprior map fixing the inverse correlation length of the random field
-# to be equal to the beam size of the telescope. Note that the variance of the field is
-# left as a free parameter.
-crcache = MarkovRandomFieldCache(meanpr) # The cache precomputes a number of items
-fmap = let meanpr=meanpr, crcache=crcache, rat=rat
-    x->GaussMarkovRandomField(meanpr, x.λ, x.σ^2, crcache)
-end
+rat = (beam/(step(grid.X)))
+cprior = GaussMarkovRandomField(zero(meanpr), 0.1*rat, 1.0)
+# additionlly we will fix the standard deviation of the field to unity and instead
+# use a pseudo non-centered parameterization for the field.
+# GaussMarkovRandomField(meanpr, 0.1*rat, 1.0, crcache)
 
 # Now we can construct the instrument model prior
 # Each station requires its own prior on both the amplitudes and phases.
@@ -195,12 +199,13 @@ distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 #-
 distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
-
+using VLBIImagePriors
 # Finally we can put form the total model prior
-prior = (
+prior = NamedDist(
           ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
-          c  = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.01*inv(rat)); lower=0.0), σ=truncated(Normal(0.0, 0.1); lower=0.0)))),
-          f  = Uniform(0.75, 1.0),
+          c  = cprior,
+          σimg = truncated(Normal(0.0, 0.2); lower=1e-3),
+          f  = Uniform(0.0, 1.0),
           r  = Uniform(μas2rad(10.0), μas2rad(30.0)),
           σ  = Uniform(μas2rad(0.1), μas2rad(20.0)),
           ma = Uniform(0.0, 0.5),
@@ -236,15 +241,39 @@ tpost = asflat(post)
 #-
 ndim = dimension(tpost)
 
+# Now we optimize using LBFGS
+using ComradeOptimization
+using OptimizationOptimJL
+using Zygote
+f = OptimizationFunction(tpost, Optimization.AutoZygote())
+prob = Optimization.OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
+sol = solve(prob, LBFGS(); maxiters=5_000);
+
+
+# Before we analyze our solution we first need to transform back to parameter space.
+xopt = transform(tpost, sol)
+
+# First we will evaluate our fit by plotting the residuals
+using Plots
+residual(vlbimodel(post, xopt), dvis, ylabel="Correlated Flux")
+# and now closure phases
+#-
+
+# Now these residuals look a bit high. However, it turns out this is because the MAP is typically
+# not a great estimator and will not provide very predictive measurements of the data. We
+# will show this below after sampling from the posterior.
+img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
+plot(img, title="MAP Image")
+
 
 # We will now move directly to sampling at this point.
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 3000; nadapts=2000)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, init_params=xopt)
 # We then remove the adaptation/warmup phase from our chain
-chain = chain[2001:end]
-stats = stats[2001:end]
+chain = chain[501:end]
+stats = stats[501:end]
 # !!! warning
 #     This should be run for 2-3x more steps to properly estimate expectations of the posterior
 #-
@@ -254,7 +283,7 @@ stats = stats[2001:end]
 # so the posterior is not sampling from the correct stationary distribution.
 
 using StatsBase
-msamples = skymodel.(Ref(post), chain[begin:10:end]);
+msamples = skymodel.(Ref(post), chain[begin:2:end]);
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, fovxy, fovxy, 128, 128)
@@ -273,8 +302,8 @@ rast_mean, rast_std = mean_and_std(rast_imgs)
 
 p1 = plot(ring_mean, title="Ring Mean", clims=(0.0, maximum(ring_mean)), colorbar=:none)
 p2 = plot(ring_std, title="Ring Std. Dev.", clims=(0.0, maximum(ring_mean)), colorbar=:none)
-p3 = plot(rast_mean, title="Raster Mean", clims=(0.0, maximum(ring_mean)), colorbar=:none)
-p4 = plot(rast_std,  title="Raster Std. Dev.", clims=(0.0, maximum(ring_mean)), colorbar=:none)
+p3 = plot(rast_mean, title="Raster Mean", clims=(0.0, maximum(ring_mean)/8), colorbar=:none)
+p4 = plot(rast_std,  title="Raster Std. Dev.", clims=(0.0, maximum(ring_mean)/8), colorbar=:none)
 
 plot(p1,p2,p3,p4, layout=(2,2), size=(650, 650))
 

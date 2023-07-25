@@ -21,34 +21,47 @@ CurrentModule = ComradeBase
 ## Model API
 
 ```@docs
-ComradeBase.AbstractModel
 ComradeBase.flux
+ComradeBase.visibility
+ComradeBase.visibilities
+ComradeBase.visibilities!
+ComradeBase.intensitymap
+ComradeBase.intensitymap!
+ComradeBase.IntensityMap
+ComradeBase.amplitude(::Any, ::Any)
+ComradeBase.amplitudes
+ComradeBase.bispectrum
+ComradeBase.bispectra
+ComradeBase.closure_phase
+ComradeBase.closure_phases
+ComradeBase.logclosure_amplitude
+ComradeBase.logclosure_amplitudes
+```
+
+### Model Interface
+```@docs
+ComradeBase.AbstractModel
 ComradeBase.isprimitive
 ComradeBase.visanalytic
 ComradeBase.imanalytic
 ComradeBase.ispolarized
 ComradeBase.radialextent
-ComradeBase.visibility_point
-ComradeBase.visibilities
-ComradeBase.visibilities!
-ComradeBase.visibilities_analytic
-ComradeBase.visibilities_analytic!
-ComradeBase.visibilities_numeric
-ComradeBase.visibilities_numeric!
-ComradeBase.intensity_point
-ComradeBase.intensitymap
-ComradeBase.intensitymap!
-ComradeBase.intensitymap_analytic
-ComradeBase.intensitymap_analytic!
-ComradeBase.intensitymap_numeric
-ComradeBase.intensitymap_numeric!
 ComradeBase.PrimitiveTrait
 ComradeBase.IsPrimitive
 ComradeBase.NotPrimitive
 ComradeBase.DensityAnalytic
 ComradeBase.IsAnalytic
 ComradeBase.NotAnalytic
-ComradeBase.IntensityMap
+ComradeBase.visibility_point
+ComradeBase.visibilities_analytic
+ComradeBase.visibilities_analytic!
+ComradeBase.visibilities_numeric
+ComradeBase.visibilities_numeric!
+ComradeBase.intensity_point
+ComradeBase.intensitymap_analytic
+ComradeBase.intensitymap_analytic!
+ComradeBase.intensitymap_numeric
+ComradeBase.intensitymap_numeric!
 ```
 
 ### Image Types
@@ -70,6 +83,8 @@ ComradeBase.second_moment
 ComradeBase.header
 ComradeBase.NoHeader
 ComradeBase.MinimalHeader
+ComradeBase.load
+ComradeBase.save
 ```
 
 
@@ -77,21 +92,20 @@ ComradeBase.MinimalHeader
 
 ```@docs
 ComradeBase.AbstractPolarizedModel
-ComradeBase.StokesParams
-ComradeBase.ElectricFieldBasis
-ComradeBase.RPol
-ComradeBase.LPol
-ComradeBase.XPol
-ComradeBase.YPol
-ComradeBase.PolBasis
-ComradeBase.CirBasis
-ComradeBase.LinBasis
-ComradeBase.CoherencyMatrix
-ComradeBase.evpa
-ComradeBase.m̆
-ComradeBase.linearpol
-ComradeBase.SingleStokes
-ComradeBase.innerprod
-ComradeBase.basis_components
-ComradeBase.basis_transform
+PolarizedTypes.StokesParams
+PolarizedTypes.ElectricFieldBasis
+PolarizedTypes.RPol
+PolarizedTypes.LPol
+PolarizedTypes.XPol
+PolarizedTypes.YPol
+PolarizedTypes.PolBasis
+PolarizedTypes.CirBasis
+PolarizedTypes.LinBasis
+PolarizedTypes.CoherencyMatrix
+PolarizedTypes.evpa
+PolarizedTypes.m̆
+PolarizedTypes.linearpol
+PolarizedTypes.innerprod
+PolarizedTypes.basis_components
+PolarizedTypes.basis_transform
 ```

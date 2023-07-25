@@ -8,6 +8,8 @@ using Pyehtim
 using Zygote
 using Comrade
 using ComradeBase
+using VLBISkyModels
+using InteractiveUtils
 
 using Literate
 using Pkg
@@ -30,6 +32,7 @@ using ComradeOptimization
 using ComradeNested
 using ComradeDynesty
 using ComradeAdaptMCMC
+using PolarizedTypes
 using OptimizationBBO
 using Glob
 using Plots
@@ -43,7 +46,6 @@ SOURCE_FILES = Glob.glob("*.jl", GENERATED)
 foreach(fn -> Literate.markdown(fn, OUTDIR, documenter=true), SOURCE_FILES)
 
 MD_FILES = [joinpath("examples", "data.md"),
-            joinpath("examples", "nonanalytic.md"),
             joinpath("examples", "geometric_modeling.md"),
             joinpath("examples", "imaging_closures.md"),
             joinpath("examples", "imaging_vis.md"),
@@ -57,7 +59,7 @@ makedocs(;
     modules=[ComradeBase, Comrade,
              ComradeOptimization, ComradeAHMC,
              ComradeNested, ComradeDynesty,
-             ComradeAdaptMCMC],
+             ComradeAdaptMCMC, PolarizedTypes, VLBISkyModels],
     repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
     pages=Any[
@@ -73,7 +75,6 @@ makedocs(;
                         "libs/dynesty.md",
                         "libs/adaptmcmc.md"
                        ],
-        "interface.md",
         "base_api.md",
         "api.md"
     ],

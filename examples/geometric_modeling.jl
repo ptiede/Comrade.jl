@@ -47,15 +47,14 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosureP
 # infinitely thin delta ring with an azimuthal structure given by a Fourier expansion.
 # To give the MRing some width, we will convolve the ring with a Gaussian and add an
 # additional gaussian to the image to model any non-ring flux.
-# Comrade expects that any model function must accept a named tuple and returns  must always return an object that implements the Comrade [Model Interface](@ref)
+# Comrade expects that any model function must accept a named tuple and returns  must always
+# return an object that implements the [VLBISkyModels Interface](https://ehtjulia.github.io/VLBISkyModels.jl/stable/interface/)
 #-
 function model(θ)
-    (;radius, width, α, β, f, σG, τG, ξG, xG, yG) = θ
-    ## We convert α and β to a Tuple to prevent some issues with Enzyme.
-    ## This should be fixed in future versions of the code.
-    αT = Tuple(α)
-    βT = Tuple(β)
-    ring = f*smoothed(stretched(MRing(αT, βT), radius, radius), width)
+    (;radius, width, α1, β1, α2, β2, f, σG, τG, ξG, xG, yG) = θ
+    α = (α1, α2)
+    β = (β1, β2)
+    ring = f*smoothed(stretched(MRing(α, β), radius, radius), width)
     g = (1-f)*shifted(rotated(stretched(Gaussian(), σG, σG*(1+τG)), ξG), xG, yG)
     return ring + g
 end
@@ -68,12 +67,14 @@ lklhd = RadioLikelihood(model, dlcamp, dcphase)
 # We now need to specify the priors for our model. The easiest way to do this is to
 # specify a NamedTuple of distributions:
 
-using Distributions
-prior = (
+using Distributions, VLBIImagePriors
+prior = NamedDist(
           radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
           width = Uniform(μas2rad(1.0), μas2rad(10.0)),
-          α = product_distribution(fill(Uniform(-0.5, 0.5), 2)),
-          β = product_distribution(fill(Uniform(-0.5, 0.5), 2)),
+          α1 = Uniform(-0.5, 0.5),
+          β1 = Uniform(-0.5, 0.5),
+          α2 = Uniform(-0.5, 0.5),
+          β2 = Uniform(-0.5, 0.5),
           f = Uniform(0.0, 1.0),
           σG = Uniform(μas2rad(1.0), μas2rad(40.0)),
           τG = Uniform(0.0, 0.75),
@@ -81,6 +82,7 @@ prior = (
           xG = Uniform(-μas2rad(80.0), μas2rad(80.0)),
           yG = Uniform(-μas2rad(80.0), μas2rad(80.0))
         )
+
 
 # Note that for `α` and `β` we use a product distribution to signify that we want to use a
 # multivariate uniform for the mring components `α` and `β`. In general the structure of the
@@ -91,13 +93,20 @@ prior = (
 
 post = Posterior(lklhd, prior)
 
+# !!! notes
+# As of Comrade 0.9 we have switched to the proper covariant closure likelihood.
+# This is slower than the naieve diagonal liklelihood, but takes into account the
+# correlations between closures that share the same baselines.
+
 # This constructs a posterior density that can be evaluated by calling `logdensityof`.
 # For example,
 
 logdensityof(post, (radius = μas2rad(20.0),
                   width = μas2rad(10.0),
-                  α = [0.3, 0.1],
-                  β = [0.3, -0.1],
+                  α1 = 0.3,
+                  β1 = 0.3,
+                  α2 = 0.3,
+                  β2 = 0.3,
                   f = 0.6,
                   σG = μas2rad(20.0),
                   τG = 0.1,
@@ -226,7 +235,7 @@ using MCMCDiagnosticTools, Tables
 # First, lets look at the effective sample size (ESS) and R̂. This is important since
 # the Monte Carlo standard error for MCMC estimates is proportional to 1/√ESS (for some problems)
 # and R̂ is a measure of chain convergence. To find both, we can use:
-essrhat = map(ess_rhat∘(x->reshape(x, :, 1, 1)), Tables.columns(chain))
+essrhat = map(x->ess_rhat(x), Tables.columns(chain))
 # Here, the first value is the ESS, and the second is the R̂. Note that we typically want R̂ < 1.01
 # for all parameters, but you should also be running the problem at least four times from four different
 # starting locations.
@@ -234,16 +243,3 @@ essrhat = map(ess_rhat∘(x->reshape(x, :, 1, 1)), Tables.columns(chain))
 # In our example here, we see that we have an ESS > 100 for all parameters and the R̂ < 1.01
 # meaning that our MCMC chain is a reasonable approximation of the posterior. For more diagnostics, see
 # [`MCMCDiagnosticTools.jl`](https://turinglang.github.io/MCMCDiagnosticTools.jl/stable/).
-
-
-# Computing information
-# ```
-# Julia Version 1.7.3
-# Commit 742b9abb4d (2022-05-06 12:58 UTC)
-# Platform Info:
-#   OS: Linux (x86_64-pc-linux-gnu)
-#   CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
-#   WORD_SIZE: 64
-#   LIBM: libopenlibm
-#   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
-# ```

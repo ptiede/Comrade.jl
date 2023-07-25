@@ -160,10 +160,45 @@ function extract_table(obs, dataproduct::Coherencies)
 end
 
 # internal methods to extract information from `obs`
+"""
+    extract_cphase(obs; kwargs...)
+
+Extracts the closure phases from an `obs`.
+This is an internal method for dispatch. Only use this if
+interfacing Comrade with a new data type.
+"""
 function extract_cphase    end
+"""
+    extract_lcamp(obs; kwargs...)
+
+Extracts the log-closure amplitudes from an `obs`.
+This is an internal method for dispatch. Only use this if
+interfacing Comrade with a new data type.
+"""
 function extract_lcamp     end
+"""
+    extract_amp(obs; kwargs...)
+
+Extracts the visibility amplitudes from an `obs`.
+This is an internal method for dispatch. Only use this if
+interfacing Comrade with a new data type.
+"""
 function extract_amp       end
+"""
+    extract_vis(obs; kwargs...)
+
+Extracts the stokes I complex visibilities from an obs.
+This is an internal method for dispatch. Only use this if
+interfacing Comrade with a new data type.
+"""
 function extract_vis       end
+"""
+    extract_coherency(obs; kwargs...)
+
+Extracts the full coherency matrix from an observation.
+This is an internal method for dispatch. Only use this if
+interfacing Comrade with a new data type.
+"""
 function extract_coherency end
 
 
@@ -1009,6 +1044,3 @@ function scantable(obs::EHTObservation)
     end
     return ScanTable(obs, scantimes, scanind)
 end
-
-
-include(joinpath(@__DIR__, "io.jl"))
