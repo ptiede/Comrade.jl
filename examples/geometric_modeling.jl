@@ -243,7 +243,3 @@ essrhat = map(x->ess_rhat(x), Tables.columns(chain))
 # In our example here, we see that we have an ESS > 100 for all parameters and the R̂ < 1.01
 # meaning that our MCMC chain is a reasonable approximation of the posterior. For more diagnostics, see
 # [`MCMCDiagnosticTools.jl`](https://turinglang.github.io/MCMCDiagnosticTools.jl/stable/).
-
-
-# Computing information
-versioninfo()

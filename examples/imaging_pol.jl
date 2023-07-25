@@ -181,7 +181,7 @@ end
 # image model.
 fovx = μas2rad(50.0)
 fovy = μas2rad(50.0)
-nx = 12
+nx = 7
 ny = floor(Int, fovy/fovx*nx)
 grid = imagepixels(fovx, fovy, nx, ny) # image grid
 buffer = IntensityMap(zeros(nx, ny), grid) # buffer to store temporary image
@@ -224,52 +224,24 @@ instrumentmeta = (;tcache, scancache, trackcache, phasecache)
 
 using Distributions
 using DistributionsAD
-distamp = (AA = Normal(0.0, 0.1),
-           AP = Normal(0.0, 0.1),
-           LM = Normal(0.0, 0.1),
-           AZ = Normal(0.0, 0.1),
-           JC = Normal(0.0, 0.1),
-           PV = Normal(0.0, 0.1),
-           SM = Normal(0.0, 0.1),
-           )
+distamp = station_tuple(dvis, Normal(0.0, 0.1))
+
 #-
 # For the phases, we assume that the atmosphere effectively scrambles the gains.
 # Since the gain phases are periodic, we also use broad von Mises priors for all stations.
 # Notice that we don't assign a prior for AA since we have already fixed it.
-distphase = (
-             AP = DiagonalVonMises(0.0, inv(π^2)),
-             LM = DiagonalVonMises(0.0, inv(π^2)),
-             AZ = DiagonalVonMises(0.0, inv(π^2)),
-             JC = DiagonalVonMises(0.0, inv(π^2)),
-             PV = DiagonalVonMises(0.0, inv(π^2)),
-             SM = DiagonalVonMises(0.0, inv(π^2)),
-           )
+distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)); reference=:AA)
+
 #-
 # However, we can now also use a little additional information about the phase offsets
 # where in most cases, they are much better behaved than the products
-distphase_ratio = (
-             AA = DiagonalVonMises(0.0, inv(0.01)),
-             AP = DiagonalVonMises(0.0, inv(0.1^2)),
-             LM = DiagonalVonMises(0.0, inv(0.1^2)),
-             AZ = DiagonalVonMises(0.0, inv(0.1^2)),
-             JC = DiagonalVonMises(0.0, inv(0.1^2)),
-             PV = DiagonalVonMises(0.0, inv(0.1^2)),
-             SM = DiagonalVonMises(0.0, inv(0.1^2)),
-           )
+distphase_ratio = station_tuple(dvis, DiagonalVonMises(0.0, inv(0.1)); reference=:AA)
 
 
 # Moving onto the d-terms, here we directly parameterize the real and complex components
 # of the d-terms since they are expected to be complex numbers near the origin. To help enforce
 # this smallness, a weakly informative Normal prior is used.
-distD = ( AA = Normal(0.0, 0.1),
-          AP = Normal(0.0, 0.1),
-          LM = Normal(0.0, 0.1),
-          AZ = Normal(0.0, 0.1),
-          JC = Normal(0.0, 0.1),
-          PV = Normal(0.0, 0.1),
-          SM = Normal(0.0, 0.1),
-        )
-
+distD = station_tuple(dvis, Normal(0.0, 0.1))
 
 
 # Our image priors are:
@@ -282,7 +254,7 @@ distD = ( AA = Normal(0.0, 0.1),
 # prior given the named tuple of station priors and a `JonesCache`
 # that specifies the segmentation scheme. For the gain products, we use the `scancache`, while
 # for every other quantity, we use the `trackcache`.
-prior = (
+prior = NamedDist(
           c = ImageDirichlet(1.0, nx, ny),
           f = Uniform(0.7, 1.2),
           p = ImageUniform(nx, ny),
@@ -330,7 +302,7 @@ using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 ℓ = logdensityof(tpost)
 prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing)
-sol = solve(prob, LBFGS(), maxiters=15_000, g_tol=1e-2);
+sol = solve(prob, LBFGS(), maxiters=10_000, g_tol=1e-2, callback=(x,p)->(@info f(x,p); false));
 
 # !!! warning
 #     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that
