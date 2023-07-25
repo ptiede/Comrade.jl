@@ -18,7 +18,6 @@ end
 Constructs the intrument corruption model using pairs of jones matrices `jones` and a
 reference basis
 """
-
 CorruptionModel(jones::J) where {J} = CorruptionModel{J, CirBasis}(jones, CirBasis())
 
 

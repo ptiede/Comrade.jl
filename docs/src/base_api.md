@@ -21,34 +21,47 @@ CurrentModule = ComradeBase
 ## Model API
 
 ```@docs
-ComradeBase.AbstractModel
 ComradeBase.flux
+ComradeBase.visibility
+ComradeBase.visibilities
+ComradeBase.visibilities!
+ComradeBase.intensitymap
+ComradeBase.intensitymap!
+ComradeBase.IntensityMap
+ComradeBase.amplitude(::Any, ::Any)
+ComradeBase.amplitudes
+ComradeBase.bispectrum
+ComradeBase.bispectra
+ComradeBase.closure_phase
+ComradeBase.closure_phases
+ComradeBase.logclosure_amplitude
+ComradeBase.logclosure_amplitudes
+```
+
+### Model Interface
+```@docs
+ComradeBase.AbstractModel
 ComradeBase.isprimitive
 ComradeBase.visanalytic
 ComradeBase.imanalytic
 ComradeBase.ispolarized
 ComradeBase.radialextent
-ComradeBase.visibility_point
-ComradeBase.visibilities
-ComradeBase.visibilities!
-ComradeBase.visibilities_analytic
-ComradeBase.visibilities_analytic!
-ComradeBase.visibilities_numeric
-ComradeBase.visibilities_numeric!
-ComradeBase.intensity_point
-ComradeBase.intensitymap
-ComradeBase.intensitymap!
-ComradeBase.intensitymap_analytic
-ComradeBase.intensitymap_analytic!
-ComradeBase.intensitymap_numeric
-ComradeBase.intensitymap_numeric!
 ComradeBase.PrimitiveTrait
 ComradeBase.IsPrimitive
 ComradeBase.NotPrimitive
 ComradeBase.DensityAnalytic
 ComradeBase.IsAnalytic
 ComradeBase.NotAnalytic
-ComradeBase.IntensityMap
+ComradeBase.visibility_point
+ComradeBase.visibilities_analytic
+ComradeBase.visibilities_analytic!
+ComradeBase.visibilities_numeric
+ComradeBase.visibilities_numeric!
+ComradeBase.intensity_point
+ComradeBase.intensitymap_analytic
+ComradeBase.intensitymap_analytic!
+ComradeBase.intensitymap_numeric
+ComradeBase.intensitymap_numeric!
 ```
 
 ### Image Types
@@ -70,6 +83,8 @@ ComradeBase.second_moment
 ComradeBase.header
 ComradeBase.NoHeader
 ComradeBase.MinimalHeader
+ComradeBase.load
+ComradeBase.save
 ```
 
 

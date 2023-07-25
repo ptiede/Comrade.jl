@@ -38,14 +38,27 @@ Comrade.ScanSeg
 Comrade.TrackSeg
 Comrade.FixedSeg
 Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.ObsSegmentation)
+Comrade.SingleReference
+Comrade.RandomReference
+Comrade.SEFDReference
 Comrade.jonesStokes
 Comrade.jonesG
 Comrade.jonesD
 Comrade.jonesT
+Base.map(::Any, ::Vararg{Comrade.JonesPairs})
 Comrade.PoincareSphere2Map
 Comrade.caltable
 Comrade.JonesPairs
 Comrade.GainSchema
+```
+
+### Models
+
+```@docs
+VLBISkyModels.DFTAlg(::Comrade.ArrayConfiguration)
+VLBISkyModels.DFTAlg(::Comrade.EHTObservation)
+VLBISkyModels.NFFTAlg(::Comrade.ArrayConfiguration)
+VLBISkyModels.NFFTAlg(::Comrade.EHTObservation)
 ```
 
 
@@ -134,8 +147,6 @@ Comrade.IsCube
 ```@docs
 Comrade.μas2rad
 Comrade.rad2μas
-Comrade.load
-Comrade.save
 Comrade.NonAnalyticTest
 Comrade.station_tuple
 Comrade.center_image
@@ -147,10 +158,6 @@ Comrade.dirty_beam
 
 ## Internal (Not Public API)
 ```@docs
-VLBISkyModels.scale_uv
-VLBISkyModels.scale_image
-VLBISkyModels.transform_uv
-VLBISkyModels.transform_image
 VLBISkyModels.ThreadedModel
 Comrade.extract_FRs
 ```

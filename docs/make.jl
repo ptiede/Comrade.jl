@@ -30,6 +30,7 @@ using ComradeOptimization
 using ComradeNested
 using ComradeDynesty
 using ComradeAdaptMCMC
+using PolarizedTypes
 using OptimizationBBO
 using Glob
 using Plots
@@ -56,7 +57,7 @@ makedocs(;
     modules=[ComradeBase, Comrade,
              ComradeOptimization, ComradeAHMC,
              ComradeNested, ComradeDynesty,
-             ComradeAdaptMCMC],
+             ComradeAdaptMCMC, PolarizedTypes],
     repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
     pages=Any[
@@ -75,7 +76,7 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    format = Documenter.HTML(), draft=true
+    format = Documenter.HTML(), draft=false
 )
 
 deploydocs(;

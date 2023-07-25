@@ -47,7 +47,8 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosureP
 # infinitely thin delta ring with an azimuthal structure given by a Fourier expansion.
 # To give the MRing some width, we will convolve the ring with a Gaussian and add an
 # additional gaussian to the image to model any non-ring flux.
-# Comrade expects that any model function must accept a named tuple and returns  must always return an object that implements the Comrade [Model Interface](@ref)
+# Comrade expects that any model function must accept a named tuple and returns  must always
+# return an object that implements the [VLBISkyModels Interface](https://ehtjulia.github.io/VLBISkyModels.jl/stable/interface/)
 #-
 function model(θ)
     (;radius, width, α1, β1, α2, β2, f, σG, τG, ξG, xG, yG) = θ
