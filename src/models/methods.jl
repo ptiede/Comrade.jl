@@ -3,7 +3,7 @@
 end
 
 @inline function ComradeBase.amplitudes(m::AbstractModel, p::ArrayConfiguration)
-    return amplitudes(m, (U = p.data.U, V = p.data.V, F=p.data.F, T=p.data.T))
+    return amplitudes(m, (U = p.data.U, V = p.data.V, T=p.data.T, F=p.data.F))
 end
 
 

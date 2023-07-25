@@ -77,6 +77,14 @@ function visibilities_analytic(model::VLBIModel, u, v, time, freq)
     return corrupt(coh, jp.m1, jp.m2)
 end
 
+function ComradeBase.amplitudes(model::VLBIModel, ac::ArrayConfiguration)
+    amp = amplitudes(model.sky, ac)
+    instrument = model.instrument
+    jp = instrument.jones
+    coh = _coherency(amp, typeof(instrument.refbasis))
+    return corrupt(coh, jp.m1, jp.m2)
+end
+
 function visibilities_numeric(model::VLBIModel, u, v, time, freq)
     vis = visibilities_numeric(model.sky, u, v, time, freq)
     instrument = model.instrument

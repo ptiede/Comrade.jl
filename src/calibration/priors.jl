@@ -162,10 +162,7 @@ end
 
 
 function HierarchicalCalPrior{G}(means, std, jcache::JonesCache) where {G}
-    mnt = NamedDist(means)
-    snt = NamedDist(std)
-
-    return HierarchicalCalPrior{G, typeof(mnt), typeof(snt), typeof(jcache)}(mnt, snt, jcache)
+    return HierarchicalCalPrior{G, typeof(means), typeof(std), typeof(jcache)}(means, std, jcache)
 end
 
 function Dists.logpdf(d::HierarchicalCalPrior{G}, x::NamedTuple) where {G}

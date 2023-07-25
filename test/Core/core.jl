@@ -5,6 +5,7 @@ using FFTW
 using Statistics
 using Test
 using Plots
+using VLBIImagePriors
 
 include(joinpath(@__DIR__, "../test_util.jl"))
 

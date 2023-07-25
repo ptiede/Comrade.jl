@@ -156,8 +156,8 @@ end
     _,vis, amp, lcamp, cphase, dcoh = load_data()
     tel = stations(vis)
 
-    meand = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
-    stdd = NamedTuple{Tuple(tel)}(ntuple(_->LogNormal(0.0, 0.1), length(tel)))
+    meand = NamedDist(NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel))))
+    stdd = NamedDist(NamedTuple{Tuple(tel)}(ntuple(_->LogNormal(0.0, 0.1), length(tel))))
 
 
     dcache = jonescache(dcoh, ScanSeg())

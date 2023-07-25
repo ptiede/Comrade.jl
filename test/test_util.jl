@@ -55,7 +55,7 @@ function test_model2(θ, metadata)
 end
 
 function test_prior2()
-    return (f = Uniform(0.8, 1.2),
+    return NamedDist(f = Uniform(0.8, 1.2),
             r = Uniform(μas2rad(5.0), μas2rad(30.0)),
             τ = Uniform(0.0, 0.5),
             α = Uniform(2.0, 8.0)
@@ -63,7 +63,7 @@ function test_prior2()
 end
 
 function test_prior()
-    return (f1=Uniform(0.8, 1.2),
+    return NamedDist(f1=Uniform(0.8, 1.2),
              σ1 = Uniform(μas2rad(1.0), μas2rad(40.0)),
              τ1 = Uniform(0.35, 0.65),
              ξ1 = Uniform(-π/2, π/2),
