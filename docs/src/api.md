@@ -65,8 +65,10 @@ VLBISkyModels.NFFTAlg(::Comrade.EHTObservation)
 ### Polarized Models
 
 ```@docs
-ComradeBase.mbreve
-ComradeBase.evpa(pimg::ComradeBase.AbstractPolarizedModel, p)
+PolarizedTypes.mbreve
+PolarizedTypes.m̆
+PolarizedTypes.evpa
+PolarizedTypes.linearpol
 ```
 
 
@@ -145,20 +147,13 @@ Comrade.IsCube
 ## Misc
 
 ```@docs
-Comrade.μas2rad
-Comrade.rad2μas
-Comrade.NonAnalyticTest
 Comrade.station_tuple
-Comrade.center_image
-Comrade.convolve!
-Comrade.convolve
 Comrade.dirty_image
 Comrade.dirty_beam
 ```
 
 ## Internal (Not Public API)
 ```@docs
-VLBISkyModels.ThreadedModel
 Comrade.extract_FRs
 ```
 

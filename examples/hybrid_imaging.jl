@@ -270,7 +270,7 @@ plot(img, title="MAP Image")
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 1000; nadapts=500, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, init_params=xopt)
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]
 stats = stats[501:end]
@@ -283,7 +283,7 @@ stats = stats[501:end]
 # so the posterior is not sampling from the correct stationary distribution.
 
 using StatsBase
-msamples = skymodel.(Ref(post), chain[begin:10:end]);
+msamples = skymodel.(Ref(post), chain[begin:2:end]);
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, fovxy, fovxy, 128, 128)

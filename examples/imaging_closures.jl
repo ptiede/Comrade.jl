@@ -177,7 +177,7 @@ plot(img, title="MAP Image")
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 2_000; nadapts=1_000, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, init_params=xopt)
 
 
 # !!! warning

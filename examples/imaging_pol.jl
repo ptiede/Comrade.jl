@@ -159,7 +159,7 @@ function instrument(θ, metadata)
     ## Now construct the basis transformation cache
     jT = jonesT(tcache)
 
-    # Gain product parameters
+    ## Gain product parameters
     gPa = exp.(lgp .+ 0im)
     gRa = exp.(lgp .+ lgr .+ 0im)
     Gp = jonesG(gPa, gRa, scancache)

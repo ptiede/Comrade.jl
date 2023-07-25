@@ -105,7 +105,6 @@ PolarizedTypes.CoherencyMatrix
 PolarizedTypes.evpa
 PolarizedTypes.m̆
 PolarizedTypes.linearpol
-PolarizedTypes.SingleStokes
 PolarizedTypes.innerprod
 PolarizedTypes.basis_components
 PolarizedTypes.basis_transform

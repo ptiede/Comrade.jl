@@ -8,6 +8,8 @@ using Pyehtim
 using Zygote
 using Comrade
 using ComradeBase
+using VLBISkyModels
+using InteractiveUtils
 
 using Literate
 using Pkg
@@ -57,7 +59,7 @@ makedocs(;
     modules=[ComradeBase, Comrade,
              ComradeOptimization, ComradeAHMC,
              ComradeNested, ComradeDynesty,
-             ComradeAdaptMCMC, PolarizedTypes],
+             ComradeAdaptMCMC, PolarizedTypes, VLBISkyModels],
     repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
     pages=Any[
