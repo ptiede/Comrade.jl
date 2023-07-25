@@ -54,10 +54,10 @@ dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePh
 # generic image model. Note that `ContinuousImage(img, cache)` actually creates a [`Comrade.ModelImage`](@ref)
 # object that allows `Comrade` to numerically compute the Fourier transform of the image.
 function model(θ, metadata)
-    (;c) = θ
-    (;grid, cache) = metadata
+    (;c, σimg) = θ
+    (;meanpr, grid, cache) = metadata
     ## Construct the image model
-    c = to_simplex(CenteredLR(), c.params)
+    c = to_simplex(CenteredLR(), meanpr .+ σimg*c.params)
     img = IntensityMap(c, grid)
     return  ContinuousImage(img, cache)
 end
@@ -67,14 +67,13 @@ end
 # the EHT is not very sensitive to a larger field of views; typically, 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 24
+npix = 32
 fovxy = μas2rad(100.0)
 
 # Now, we can feed in the array information to form the cache
 grid = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
 cache = create_cache(NFFTAlg(dlcamp), buffer, BSplinePulse{3}())
-metadata = (;grid, cache)
 
 
 
@@ -84,7 +83,7 @@ using VLBIImagePriors, Distributions, DistributionsAD
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(40.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(70.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
@@ -92,6 +91,7 @@ imgpr = intensitymap(mpr, grid)
 imgpr ./= flux(imgpr)
 
 meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
+metadata = (;meanpr, grid, cache)
 
 # In addition we want a reasonable guess for what the resolution of our image should be.
 # For radio astronomy this is given by roughly the longest baseline in the image. To put this
@@ -109,8 +109,8 @@ crcache = MarkovRandomFieldCache(meanpr)
 # of our prior/regularizers unlike traditional RML appraoches. To construct this heirarchical
 # prior we will first make a map that takes in our regularizer hyperparameters and returns
 # the image prior given those hyperparameters.
-fmap = let meanpr=meanpr, crcache=crcache
-    x->GaussMarkovRandomField(meanpr, x.λ, x.σ^2, crcache)
+fmap = let m=zero(meanpr), crcache=crcache
+    x->GaussMarkovRandomField(m, x.λ, 1.0, crcache)
 end
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
@@ -120,9 +120,9 @@ end
 # to prefer "simple" structures. Namely, Gaussian Markov random fields are extremly flexible models.
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(fmap, Comrade.NamedDist((;λ = truncated(Normal(0.0, 0.1/rat); lower=0.0), σ=truncated(Normal(0.0, 1.0); lower=0.0))))
+cprior = HierarchicalPrior(fmap, NamedDist(λ = truncated(Normal(0.0, 0.25*inv(rat)); lower=2/npix)))
 
-prior = (c = cprior, )
+prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 1.0); lower=0.01))
 
 lklhd = RadioLikelihood(model, dlcamp, dcphase;
                         skymeta = metadata)
@@ -150,7 +150,7 @@ using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(); maxiters=5_000);
+sol = solve(prob, LBFGS(); maxiters=5_00);
 
 
 # Before we analyze our solution we first need to transform back to parameter space.
@@ -192,11 +192,11 @@ msamples = skymodel.(Ref(post), chain[1001:10:end]);
 
 # The mean image is then given by
 using StatsBase
-imgs = intensitymap.(msamples, μas2rad(100.0), μas2rad(100.0), 128, 128)
+imgs = center_image.(intensitymap.(msamples, μas2rad(100.0), μas2rad(100.0), 128, 128))
 mimg = mean(imgs)
 simg = std(imgs)
 p1 = plot(mimg, title="Mean Image")
-p2 = plot(simg./mimg, title="1/SNR")
+p2 = plot(simg./(mimg), title="1/SNR", clims=(0.0, 1.0))
 p3 = plot(imgs[1], title="Draw 1")
 p4 = plot(imgs[end], title="Draw 2")
 plot(p1, p2, p3, p4, size=(800,800), colorbar=:none)

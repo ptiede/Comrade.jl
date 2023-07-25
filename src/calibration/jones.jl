@@ -637,8 +637,8 @@ function ChainRulesCore.rrule(::typeof(_allmul), m1, m2)
         dm1 = zero.(m1)
         dm2 = zero.(m2)
 
-        out1 = similar(out)
-        out2 = similar(out)
+        out1 = similar(out[1])
+        out2 = similar(out[2])
         autodiff(Reverse, _allmul!, Duplicated(out1, Δm1), Duplicated(out2, Δm2), Duplicated(m1, dm1), Duplicated(m2, dm2))
         return NoTangent(), pm1(dm1), pm2(dm2)
     end

@@ -2,6 +2,10 @@
     return _visibilities(visanalytic(M), m, p.data.U, p.data.V, p.data.T, p.data.F)
 end
 
+@inline function ComradeBase.amplitudes(m::AbstractModel, p::ArrayConfiguration)
+    return amplitudes(m, (U = p.data.U, V = p.data.V, F=p.data.F, T=p.data.T))
+end
+
 
 """
     closure_phases(m::AbstractModel, ac::ClosureConfig)

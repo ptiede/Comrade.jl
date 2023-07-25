@@ -45,7 +45,14 @@ import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
                     visibilities, visibilities!,
                     _visibilities, _visibilities!,
                     visibilities_analytic, visibilities_analytic!,
-                    visibilities_numeric, visibilities_numeric!
+                    visibilities_numeric, visibilities_numeric!,
+                    visanalytic, imanalytic, ispolarized,
+                    NotAnalytic, IsAnalytic, NotPolarized, IsPolarized,
+                    visibility_point, intensity_point,
+                    closure_phase, closure_phases,
+                    logclosure_amplitude, logclosure_amplitudes,
+                    visibility, amplitude,
+                    amplitudes, bispectra, bispectrum
 export create_cache
 include("observations/observations.jl")
 include("models/models.jl")
@@ -54,6 +61,7 @@ include("visualizations/visualizations.jl")
 include("bayes/bayes.jl")
 include("inference/inference.jl")
 include("calibration/calibration.jl")
+include("clean.jl")
 
 
 # Load extensions using requires for verions < 1.9

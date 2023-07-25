@@ -64,6 +64,22 @@ function testft(m, npix=256, atol=1e-4)
     GC.gc()
 end
 
+# 1.7x Enzyme fails (GC?) so we skip this.
+if VERSION >= v"1.8"
+    function testgrad(f, args...)
+        gz = Zygote.gradient(f, args...)
+        fdm = central_fdm(5, 1)
+        gf = grad(fdm, f, args...)
+        map(gz, gf) do dgz, dgf
+            @test isapprox(dgz, dgf, atol=1e-5)
+        end
+    end
+else
+    function testgrad(f, x)
+        return nothing
+    end
+end
+
 
 function testft_cimg(m, atol=1e-4)
     dx, dy = pixelsizes(m.img)
