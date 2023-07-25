@@ -20,7 +20,8 @@ julia = "1.7"
 [extras]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
+VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "Distributions", "Pyehtim"]
+test = ["Test", "Distributions", "Pyehtim", "VLBIImagePriors"]

@@ -1,4 +1,4 @@
-using Pyehtim, Comrade, ComradeAHMC, Distributions
+using Pyehtim, Comrade, ComradeAHMC, Distributions, VLBIImagePriors
 using Zygote
 using Test
 

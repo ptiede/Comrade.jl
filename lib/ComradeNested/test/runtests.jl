@@ -1,4 +1,4 @@
-using Pyehtim, Comrade, ComradeNested, Distributions
+using Pyehtim, Comrade, ComradeNested, Distributions, VLBIImagePriors
 using Test
 
 include(joinpath(@__DIR__, "../../../test/test_util.jl"))

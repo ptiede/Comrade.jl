@@ -37,7 +37,8 @@ julia = "1.7"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["Test", "Distributions", "Pyehtim", "Zygote"]
+test = ["Test", "Distributions", "Pyehtim", "VLBIImagePriors", "Zygote"]
