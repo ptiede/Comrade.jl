@@ -54,21 +54,23 @@ using Comrade
 using Distributions
 using BenchmarkTools
 using ForwardDiff
+using VLBIImagePriors
+using Zygote
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits((joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 obs = scan_average(obs)
-amp = extract_amp(obs)
+amp = extract_table(obs, VisibilityAmplitudes())
 
 function model(θ)
     (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
-    ring = f*smoothed(stretched(MRing((a,), (b,)), μas2rad(rad), μas2rad(rad)), μas2rad(wid))
-    g = (1-f)*shifted(rotated(stretched(Gaussian(), μas2rad(sig)*asy, μas2rad(sig)), pa), μas2rad(x), μas2rad(y))
+    ring = f*smoothed(modify(MRing((a,), (b,)), Stretch(μas2rad(rad))), μas2rad(wid))
+    g = modify(Gaussian(), Stretch(μas2rad(sig)*asy, μas2rad(sig)), Rotate(pa), Shift(μas2rad(x), μas2rad(y)), Renormalize(1-f))
     return ring + g
 end
 
 lklhd = RadioLikelihood(model, amp)
-prior = (
+prior = NamedDist(
           rad = Uniform(10.0, 30.0),
           wid = Uniform(1.0, 10.0),
           a = Uniform(-0.5, 0.5), b = Uniform(-0.5, 0.5),
@@ -95,7 +97,7 @@ x0 = inverse(tpost, θ)
 
 using LogDensityProblemsAD
 # Now we benchmark the gradient
-gℓ = ADgradient(Val(:ForwardDiff), tpost)
+gℓ = ADgradient(Val(:Zygote), tpost)
 @benchmark LogDensityProblemsAD.logdensity_and_gradient($gℓ, $x0)
 ```
 
@@ -103,7 +105,7 @@ gℓ = ADgradient(Val(:ForwardDiff), tpost)
 
 ```julia
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits((joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 obs = scan_average(obs)
 
 
