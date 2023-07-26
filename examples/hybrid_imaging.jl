@@ -55,7 +55,7 @@ dvis  = extract_table(obs, ComplexVisibilities())
 # and a large asymmetric Gaussian component to model the unresolved short-baseline flux.
 
 function sky(θ, metadata)
-    (;c, σimg, f, r, σ, ma, mp, fg) = θ
+    (;c, σimg, f, r, σ, ma1, mp1, ma2, mp2, fg) = θ
     (;meanpr, grid, cache) = metadata
     ## Form the image model
     ## First transform to simplex space first applying the non-centered transform
@@ -63,10 +63,11 @@ function sky(θ, metadata)
     img = IntensityMap((f*(1-fg))*rast, grid)
     mimg = ContinuousImage(img, cache)
     ## Form the ring model
-    s,c = sincos(mp)
-    α = ma*c
-    β = ma*s
-    ring = ((1-f)*(1-fg))*smoothed(stretched(MRing(α, β), r, r),σ)
+    s1,c1 = sincos(mp1)
+    s2,c2 = sincos(mp2)
+    α = (ma1*c1, ma2*c2)
+    β = (ma1*s1, ma2*s2)
+    ring = ((1-f)*(1-fg))*smoothed(stretched(MRing(α, β), r, r), σ)
     gauss = fg*stretched(Gaussian(), μas2rad(200.0), μas2rad(200.0))
     ## We group the geometric models together for improved efficiency. This will be
     ## automated in future versions.
@@ -183,7 +184,7 @@ cprior = GaussMarkovRandomField(zero(meanpr), 0.1*rat, 1.0)
 # we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
 using Distributions
 using DistributionsAD
-distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
+distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(0.0, 1.0))
 
 # For the phases, as mentioned above, we will use a segmented gain prior.
 # This means that rather than the parameters
@@ -204,12 +205,14 @@ using VLBIImagePriors
 prior = NamedDist(
           ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
           c  = cprior,
-          σimg = truncated(Normal(0.0, 0.2); lower=1e-3),
+          σimg = truncated(Normal(0.0, 0.25); lower=1e-3),
           f  = Uniform(0.0, 1.0),
           r  = Uniform(μas2rad(10.0), μas2rad(30.0)),
-          σ  = Uniform(μas2rad(0.1), μas2rad(20.0)),
-          ma = Uniform(0.0, 0.5),
-          mp = Uniform(0.0, 2π),
+          σ  = Uniform(μas2rad(0.1), μas2rad(5.0)),
+          ma1 = Uniform(0.0, 0.5),
+          mp1 = Uniform(0.0, 2π),
+          ma2 = Uniform(0.0, 0.5),
+          mp2 = Uniform(0.0, 2π),
           fg = Uniform(0.0, 1.0),
           lgamp = CalPrior(distamp, gcache),
           gphase = CalPrior(distphase, gcachep),
@@ -246,7 +249,7 @@ using ComradeOptimization
 using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
+prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 sol = solve(prob, LBFGS(); maxiters=5_000);
 
 
@@ -311,8 +314,8 @@ plot(p1,p2,p3,p4, layout=(2,2), size=(650, 650))
 using StatsPlots
 p1 = density(rad2μas(chain.r)*2, xlabel="Ring Diameter (μas)")
 p2 = density(rad2μas(chain.σ)*2*sqrt(2*log(2)), xlabel="Ring FWHM (μas)")
-p3 = density(-rad2deg.(chain.mp) .+ 360.0, xlabel = "Ring PA (deg) E of N")
-p4 = density(2*chain.ma, xlabel="Brightness asymmetry")
+p3 = density(-rad2deg.(chain.mp1) .+ 360.0, xlabel = "Ring PA (deg) E of N")
+p4 = density(2*chain.ma1, xlabel="Brightness asymmetry")
 p5 = density(1 .- chain.f, xlabel="Ring flux fraction")
 plot(p1, p2, p3, p4, p5, size=(900, 600), legend=nothing)
 

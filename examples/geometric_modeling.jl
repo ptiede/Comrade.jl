@@ -93,10 +93,10 @@ prior = NamedDist(
 
 post = Posterior(lklhd, prior)
 
-# !!! notes
-# As of Comrade 0.9 we have switched to the proper covariant closure likelihood.
-# This is slower than the naieve diagonal liklelihood, but takes into account the
-# correlations between closures that share the same baselines.
+# !!!warn
+#    As of Comrade 0.9 we have switched to the proper covariant closure likelihood.
+#    This is slower than the naieve diagonal liklelihood, but takes into account the
+#    correlations between closures that share the same baselines.
 
 # This constructs a posterior density that can be evaluated by calling `logdensityof`.
 # For example,

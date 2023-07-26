@@ -302,7 +302,7 @@ using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 ℓ = logdensityof(tpost)
 prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing)
-sol = solve(prob, LBFGS(), maxiters=10_000, g_tol=1e-2, callback=(x,p)->(@info f(x,p); false));
+sol = solve(prob, LBFGS(), maxiters=15_000, g_tol=1e-2);
 
 # !!! warning
 #     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that

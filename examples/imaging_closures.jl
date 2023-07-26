@@ -188,7 +188,7 @@ chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=5
 # unable to assess uncertainty in their reconstructions.
 #
 # To explore our posterior let's first create images from a bunch of draws from the posterior
-msamples = skymodel.(Ref(post), chain[1001:10:end]);
+msamples = skymodel.(Ref(post), chain[501:2:end]);
 
 # The mean image is then given by
 using StatsBase
