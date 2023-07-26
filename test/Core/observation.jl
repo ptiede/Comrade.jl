@@ -90,7 +90,7 @@ using Pyehtim
     plot(m, lcamp)
     plot(m,cphase)
     jt = jonesT(TransformCache(dcoh))
-    mp = Comrade.VLBIModel(CorruptionModel(jt), PolarizedModel(m, ZeroModel(), ZeroModel(), 0.1*Gaussian()))
+    mp = Comrade.VLBIModel(JonesModel(jt), PolarizedModel(m, ZeroModel(), ZeroModel(), 0.1*Gaussian()))
     plot(mp, dcoh)
     #residual(m, vis)
     residual(m, amp)

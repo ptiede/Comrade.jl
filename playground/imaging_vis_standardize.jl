@@ -74,20 +74,20 @@ function instrument(θ, metadata)
     gphase = exp.(1im.*gphase)
     jgamp = jonesStokes(gvis, gcache)
     jgphase = jonesStokes(gphase, gcachep)
-    return CorruptionModel(jgamp*jgphase)
+    return JonesModel(jgamp*jgphase)
 end
 
 # The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
 # except we include a large scale gaussian since we want to model the zero baselines.
 # For more information about the image model
-# please read the closure-only example. Let's discuss the instrument model [`Comrade.CorruptionModel`](@ref).
+# please read the closure-only example. Let's discuss the instrument model [`Comrade.JonesModel`](@ref).
 # Thanks to the EHT pre-calibration, the gains are stable over scans. Therefore, we can
 # model the gains on a scan-by-scan basis. To form the instrument model, we need our
 #   1. Our (log) gain amplitudes and phases are given below by `lgamp` and `gphase`
 #   2. Our function or cache that maps the gains from a list to the stations they impact `gcache.`
 #   3. The set of [`Comrade.JonesPairs`](@ref) produced by [`jonesStokes`](@ref)
 # These three ingredients then specify our instrument model. The instrument model can then be
-# combined with our image model `cimg` to form the total `CorruptionModel`.
+# combined with our image model `cimg` to form the total `JonesModel`.
 
 
 

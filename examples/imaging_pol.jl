@@ -173,7 +173,7 @@ function instrument(θ, metadata)
     J = Gp*Gr*D*jT
     ## form the complete Jones or RIME model. We use tcache here
     ## to set the reference basis of the model.
-    return CorruptionModel(J, tcache)
+    return JonesModel(J, tcache)
 end
 
 # Now, we define the model metadata required to build the model.

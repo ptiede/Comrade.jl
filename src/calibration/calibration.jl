@@ -4,21 +4,21 @@ import Distributions
 using Statistics
 using PrettyTables
 
-export CorruptionModel
+export JonesModel
 
-struct CorruptionModel{J, B}
+struct JonesModel{J, B}
     jones::J
     refbasis::B
 end
 
 """
-    CorruptionModel(jones::JonesPairs, refbasis = CirBasis())
-    CorruptionModel(jones::JonesPairs, tcache::TransformCache)
+    JonesModel(jones::JonesPairs, refbasis = CirBasis())
+    JonesModel(jones::JonesPairs, tcache::TransformCache)
 
 Constructs the intrument corruption model using pairs of jones matrices `jones` and a
 reference basis
 """
-CorruptionModel(jones::J) where {J} = CorruptionModel{J, CirBasis}(jones, CirBasis())
+JonesModel(jones::J) where {J} = JonesModel{J, CirBasis}(jones, CirBasis())
 
 
 
@@ -51,7 +51,7 @@ and the `model` which describes the on-sky polarized visibilities. The third arg
 can either be the `tcache` that converts from the model coherency basis to the instrumental
 basis, or just the `refbasis` that will be used when constructing the model coherency matrices.
 """
-struct VLBIModel{J<:CorruptionModel, M<:AbstractModel} <: RIMEModel
+struct VLBIModel{J<:JonesModel, M<:AbstractModel} <: RIMEModel
     """
     The instrument model for the telescope. This is usually a sparse matrix that multiplies
     the visibilties.

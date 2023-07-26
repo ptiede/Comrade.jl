@@ -52,7 +52,7 @@ using Tables
     gphar = CalPrior(gph_prior_0, gph_prior, jcache)
 
     ga = fill(1.0, size(rand(gamp))...)
-    gm = Comrade.VLBIModel(CorruptionModel(jonesStokes(ga, jcache)), m)
+    gm = Comrade.VLBIModel(JonesModel(jonesStokes(ga, jcache)), m)
 
     @inferred Comrade.intensity_point(gm, (X=0.0, Y=0.0))
     @test gm.sky === m

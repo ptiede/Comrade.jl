@@ -45,7 +45,7 @@ end
 
 function test_instrumentmodel_polarized(θ, metadata)
     jt = jonesT(metadata.tcache)
-    return CorruptionModel(jt, metadata.tcache)
+    return JonesModel(jt, metadata.tcache)
 end
 
 function test_model2(θ, metadata)

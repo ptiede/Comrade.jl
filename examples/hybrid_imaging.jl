@@ -87,7 +87,7 @@ function instrument(θ, metadata)
     gphase = exp.(1im.*gphase)
     jgamp = jonesStokes(gvis, gcache)
     jgphase = jonesStokes(gphase, gcachep)
-    return CorruptionModel(jgamp*jgphase)
+    return JonesModel(jgamp*jgphase)
 end
 
 
