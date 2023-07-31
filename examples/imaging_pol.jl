@@ -160,8 +160,8 @@ function instrument(θ, metadata)
     jT = jonesT(tcache)
 
     ## Gain product parameters
-    gPa = exp.(lgp .+ 0im)
-    gRa = exp.(lgp .+ lgr .+ 0im)
+    gPa = exp.(lgp)
+    gRa = exp.(lgp .+ lgr)
     Gp = jonesG(gPa, gRa, scancache)
     ## Gain ratio
     gPp = exp.(1im.*(gpp))
@@ -302,7 +302,7 @@ using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 ℓ = logdensityof(tpost)
 prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing)
-sol = solve(prob, LBFGS(), maxiters=15_000, g_tol=1e-2);
+sol = solve(prob, LBFGS(), maxiters=15_000, g_tol=1e-1);
 
 # !!! warning
 #     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that

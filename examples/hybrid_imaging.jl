@@ -125,7 +125,7 @@ using VLBIImagePriors
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(100.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(60.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
@@ -170,7 +170,7 @@ lklhd = RadioLikelihood(sky, instrument, dvis;
 hh(x) = hypot(x...)
 beam = inv(maximum(hh.(uvpositions.(extract_table(obs, ComplexVisibilities()).data))))
 rat = (beam/(step(grid.X)))
-cprior = GaussMarkovRandomField(zero(meanpr), 0.1*rat, 1.0)
+cprior = GaussMarkovRandomField(zero(meanpr), 0.05*rat, 1.0)
 # additionlly we will fix the standard deviation of the field to unity and instead
 # use a pseudo non-centered parameterization for the field.
 # GaussMarkovRandomField(meanpr, 0.1*rat, 1.0, crcache)
@@ -205,7 +205,7 @@ using VLBIImagePriors
 prior = NamedDist(
           ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
           c  = cprior,
-          σimg = truncated(Normal(0.0, 0.25); lower=1e-3),
+          σimg = truncated(Normal(0.0, 0.5); lower=1e-3),
           f  = Uniform(0.0, 1.0),
           r  = Uniform(μas2rad(10.0), μas2rad(30.0)),
           σ  = Uniform(μas2rad(0.1), μas2rad(5.0)),

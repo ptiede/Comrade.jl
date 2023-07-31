@@ -67,7 +67,7 @@ end
 # the EHT is not very sensitive to a larger field of views; typically, 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 32
+npix = 24
 fovxy = μas2rad(100.0)
 
 # Now, we can feed in the array information to form the cache
@@ -83,7 +83,7 @@ using VLBIImagePriors, Distributions, DistributionsAD
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(70.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
@@ -122,7 +122,7 @@ end
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
 cprior = HierarchicalPrior(fmap, NamedDist(λ = truncated(Normal(0.0, 0.25*inv(rat)); lower=2/npix)))
 
-prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 1.0); lower=0.01))
+prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 0.5); lower=0.01))
 
 lklhd = RadioLikelihood(model, dlcamp, dcphase;
                         skymeta = metadata)
@@ -196,14 +196,14 @@ imgs = center_image.(intensitymap.(msamples, μas2rad(100.0), μas2rad(100.0), 1
 mimg = mean(imgs)
 simg = std(imgs)
 p1 = plot(mimg, title="Mean Image")
-p2 = plot(simg./(mimg), title="1/SNR", clims=(0.0, 1.0))
+p2 = plot(simg./(mimg), title="1/SNR", clims=(0.0, 2.0))
 p3 = plot(imgs[1], title="Draw 1")
 p4 = plot(imgs[end], title="Draw 2")
 plot(p1, p2, p3, p4, size=(800,800), colorbar=:none)
 
 # Now let's see whether our residuals look better.
 p = plot();
-for s in sample(chain[1001:end], 10)
+for s in sample(chain[501:end], 10)
     residual!(p, vlbimodel(post, s), dlcamp)
 end
 ylabel!("Log-Closure Amplitude Res.");
@@ -212,10 +212,10 @@ p
 
 
 p = plot();
-for s in sample(chain[1001:end], 10)
+for s in sample(chain[501:end], 10)
     residual!(p, vlbimodel(post, s), dcphase)
 end
-ylabel!("Closure Phase Res.");
+ylabel!("|Closure Phase Res.|");
 p
 
 # And we see that the residuals are looking much better.
@@ -230,20 +230,3 @@ p
 #       you want to use a sampler that can deal with multi-modal posteriors. Check out the package [`Pigeons.jl`](https://github.com/Julia-Tempering/Pigeons.jl)
 #       for an **in-development** package that should easily enable this type of sampling.
 #-
-
-
-# ## Computing information
-# ```
-# Julia Version 1.8.5
-# Commit 17cfb8e65ea (2023-01-08 06:45 UTC)
-# Platform Info:
-#   OS: Linux (x86_64-linux-gnu)
-#   CPU: 32 × AMD Ryzen 9 7950X 16-Core Processor
-#   WORD_SIZE: 64
-#   LIBM: libopenlibm
-#   LLVM: libLLVM-13.0.1 (ORCJIT, znver3)
-#   Threads: 1 on 32 virtual cores
-# Environment:
-#   JULIA_EDITOR = code
-#   JULIA_NUM_THREADS = 1
-# ```

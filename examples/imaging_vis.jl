@@ -201,7 +201,7 @@ end
 # and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image. If the data wants more complexity
 # then it will drive us away from the prior.
-cprior = HierarchicalPrior(fmap, NamedDist((;λ = truncated(Normal(0.0, 0.1/rat); lower=2/npix))))
+cprior = HierarchicalPrior(fmap, NamedDist((;λ = truncated(Normal(0.0, 0.25*inv(rat)); lower=2/npix))))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -209,7 +209,7 @@ cprior = HierarchicalPrior(fmap, NamedDist((;λ = truncated(Normal(0.0, 0.1/rat)
 # which automatically constructs the prior for the given jones cache `gcache`.
 prior = NamedDist(
          fg = Uniform(0.0, 1.0),
-         σimg = truncated(Normal(0.0, 0.1); lower=0.01),
+         σimg = truncated(Normal(0.0, 0.5); lower=0.01),
          c = cprior,
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep)
@@ -251,7 +251,7 @@ using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=1_000, g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=1000, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
@@ -347,7 +347,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[begin:10:end])
+samples = skymodel.(Ref(post), chain[begin:2:end])
 imgs = center_image.(intensitymap.(samples, fovx, fovy, 128,  128))
 
 mimg = mean(imgs)
