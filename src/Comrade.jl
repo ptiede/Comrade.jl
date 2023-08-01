@@ -24,6 +24,7 @@ using StructArrays: StructVector, StructArray, append!!
 import StructArrays
 using Tables
 using TypedTables
+import ComradeBase: save
 
 # Reexport the core libraries for Comrade
 @reexport using VLBISkyModels
