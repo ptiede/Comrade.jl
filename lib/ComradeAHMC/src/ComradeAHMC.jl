@@ -313,7 +313,6 @@ function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior
         return pt, state, out, iter
     end
 
-
     mkpath(joinpath(outdir, "samples"))
     θ0 = init_params
     if isnothing(init_params)
@@ -325,7 +324,7 @@ function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior
     nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
 
     # Now save the output
-    out = DiskOutput(outdir, nscans, output_stride, nsamples)
+    out = DiskOutput(abspath(outdir), nscans, output_stride, nsamples)
     jldsave(joinpath(outdir, "parameters.jld2"); params=out)
 
     tmp = @timed iterate(pt)
@@ -412,7 +411,7 @@ function load_table(
         indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples"
         )
     @assert (table == "samples" || table == "stats") "Please select either `samples` or `stats`"
-    d = readdir(joinpath(out.filename, "samples"), join=true)
+    d = readdir(joinpath(abspath(out.filename), "samples"), join=true)
 
     # load and return the entire table
     indices == Base.Colon() && (return reduce(vcat, load.(d, table)))
@@ -442,9 +441,9 @@ function load_table(
 end
 
 function load_table(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples")
-    @assert isdir(out) "$out is not a directory. This isn't where the HMC samples are stored"
-    @assert isfile(joinpath(out, "parameters.jld2")) "parameters.jld2 "
-    return load_table(load(joinpath(out, "parameters.jld2"), "params"), indices; table)
+    @assert isdir(abspath(out)) "$out is not a directory. This isn't where the HMC samples are stored"
+    @assert isfile(joinpath(abspath(out), "parameters.jld2")) "parameters.jld2 "
+    return load_table(load(joinpath(abspath(out), "parameters.jld2"), "params"), indices; table)
 end
 
 
