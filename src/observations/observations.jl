@@ -17,7 +17,7 @@ using AstroTime: modified_julian
 export uvpositions, stations, getdata, arrayconfig,
        getuv, baselines, scantable, extract_table,
        ClosurePhases, LogClosureAmplitudes, VisibilityAmplitudes,
-       ComplexVisibilities, Coherencies
+       ComplexVisibilities, Coherencies, beamsize
 
 
 
@@ -239,6 +239,13 @@ struct EHTArrayConfiguration{F,T,S,D<:AbstractArray} <: ArrayConfiguration
     data::D
 end
 
+"""
+    beamsize(ac::ArrayConfiguration)
+
+Calculate the approximate beam size of the array `ac` as the inverse of the longest baseline
+distance.
+"""
+beamsize(ac::ArrayConfiguration) = inv(mapreduce(hypot, max, values(getuv(ac))...))
 
 
 
@@ -255,13 +262,15 @@ struct ClosureConfig{A,D} <: ArrayConfiguration
     ac::A
     """Closure design matrix"""
     designmat::D
-function ClosureConfig(ac, dmat)
-    A = typeof(ac)
-    sdmat = blockdiag(sparse.(dmat)...)
-    D = typeof(sdmat)
-    return new{A,D}(ac, sdmat)
+
+    function ClosureConfig(ac, dmat)
+        A = typeof(ac)
+        sdmat = blockdiag(sparse.(dmat)...)
+        D = typeof(sdmat)
+        return new{A,D}(ac, sdmat)
+    end
 end
-end
+
 
 
 """
@@ -419,6 +428,13 @@ function getuv(ac::EHTObservation{T,A}) where {T,A<:ClosureProducts}
     return (U=ac.config.ac.data.U, V=ac.config.ac.data.V)
 end
 
+"""
+    beamsize(obs::EHTObservation)
+
+Calculate the approximate beam size of the observation `obs` as the inverse of the longest baseline
+distance.
+"""
+beamsize(obs::EHTObservation) = beamsize(arrayconfig(obs))
 
 # Implement the tables interface
 Tables.istable(::Type{<:EHTObservation}) = true
