@@ -20,7 +20,7 @@ using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(124)
+rng = StableRNG(42)
 
 
 
@@ -72,9 +72,9 @@ function instrument(θ, metadata)
     (; gcache, gcachep) = metadata
     ## Now form our instrument model
     gvis = exp.(lgamp)
-    gphase = exp.(1im.*gphase)
+    gphase = 1im.*gphase
     jgamp = jonesStokes(gvis, gcache)
-    jgphase = jonesStokes(gphase, gcachep)
+    jgphase = jonesStokes(exp, gphase, gcachep)
     return JonesModel(jgamp*jgphase)
 end
 
@@ -118,7 +118,7 @@ cache = create_cache(NFFTAlg(dvis), buffer, DeltaPulse())
 # the timescale we expect them to vary. For the phases we use a station specific scheme where
 # we set AA to be fixed to unit gain because it will function as a reference station.
 gcache = jonescache(dvis, ScanSeg())
-gcachep = jonescache(dvis, ScanSeg(); autoref=SEFDReference((complex(1.0))))
+gcachep = jonescache(dvis, ScanSeg{true}(); autoref=SEFDReference((complex(0.0))))
 
 using VLBIImagePriors
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
@@ -128,7 +128,7 @@ using VLBIImagePriors
 # start with an initial guess for the image structure. For this tutorial we will use a
 # a symmetric Gaussian with a FWHM of 60 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(60.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
@@ -175,8 +175,7 @@ distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 # In addition we want a reasonable guess for what the resolution of our image should be.
 # For radio astronomy this is given by roughly the longest baseline in the image. To put this
 # into pixel space we then divide by the pixel size.
-hh(x) = hypot(x...)
-beam = inv(maximum(hh.(uvpositions.(extract_table(obs, ComplexVisibilities()).data))))
+beam = beamsize(dvis)
 rat = (beam/(step(grid.X)))
 
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
@@ -201,7 +200,7 @@ end
 # and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image. If the data wants more complexity
 # then it will drive us away from the prior.
-cprior = HierarchicalPrior(fmap, NamedDist((;λ = truncated(Normal(0.0, 0.25*inv(rat)); lower=2/npix))))
+cprior = HierarchicalPrior(fmap, NamedDist((;λ = truncated(Normal(0.0, 0.1*inv(rat)); lower=2/npix))))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -212,7 +211,7 @@ prior = NamedDist(
          σimg = truncated(Normal(0.0, 0.5); lower=0.01),
          c = cprior,
          lgamp = CalPrior(distamp, gcache),
-         gphase = CalPrior(distphase, gcachep)
+         gphase = CalPrior(distphase, station_tuple(dvis, DiagonalVonMises(0.0, inv(0.1^2))), gcachep)
         )
 
 
@@ -235,7 +234,7 @@ ndim = dimension(tpost)
 using LogDensityProblemsAD
 using Zygote
 gtpost = ADgradient(Val(:Zygote), tpost)
-x0 = randn(ndim)
+x0 = randn(rng, ndim)
 LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
 
 # We can now also find the dimension of our posterior or the number of parameters we are going to sample.
@@ -249,9 +248,9 @@ LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
 using ComradeOptimization
 using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
+prob = Optimization.OptimizationProblem(f, rand(rng, ndim) .- 0.5, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=1000, g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=4_000, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
@@ -300,7 +299,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 1500; nadapts=1000, init_params=xopt)
 
 #-
 # !!! note
