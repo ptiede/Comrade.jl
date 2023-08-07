@@ -62,8 +62,9 @@ tighter than the prior on `dist0`.
 """
 function CalPrior(dist0::NamedTuple, distt::NamedTuple, jcache::JonesCache)
     sites = Tuple(unique(jcache.schema.sites))
-    @argcheck Set(keys(dist0)) == Set(sites)
-    @argcheck Set(keys(distt)) == Set(sites)
+    gstat = jcache.schema.sites
+    @argcheck issubset(Set(gstat), Set(keys(dist0)))
+    @argcheck issubset(Set(gstat), Set(keys(distt)))
 
     times = jcache.schema.times
     stations = jcache.schema.sites
