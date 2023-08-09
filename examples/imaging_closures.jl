@@ -43,7 +43,7 @@ obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "exampl
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      are coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
+obs = scan_average(obs).add_fractional_noise(0.015)
 
 # Now, we extract our closure quantities from the EHT data set.
 dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePhases(;snrcut=3))
@@ -53,13 +53,17 @@ dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePh
 # convolved with some pulse or kernel to make a `ContinuousImage` object with it `Comrade's.`
 # generic image model. Note that `ContinuousImage(img, cache)` actually creates a [Comrade.modelimage](@ref)
 # object that allows `Comrade` to numerically compute the Fourier transform of the image.
-function model(θ, metadata)
-    (;c, σimg) = θ
-    (;meanpr, grid, cache) = metadata
-    ## Construct the image model
-    c = to_simplex(CenteredLR(), meanpr .+ σimg*c.params)
-    img = IntensityMap(c, grid)
-    return  ContinuousImage(img, cache)
+function sky(θ, metadata)
+    (;fg, c, σimg) = θ
+    (;K, meanpr, grid, cache) = metadata
+    ## Construct the image model we fix the flux to 0.6 Jy in this case
+    cp = meanpr .+ σimg.*c.params
+    rast = ((1-fg))*K(to_simplex(CenteredLR(), cp))
+    img = IntensityMap(rast, grid)
+    m = ContinuousImage(img, cache)
+    ## Add a large-scale gaussian to deal with the over-resolved mas flux
+    g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
+    return m + g
 end
 
 
@@ -67,8 +71,8 @@ end
 # the EHT is not very sensitive to a larger field of views; typically, 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 24
-fovxy = μas2rad(100.0)
+npix = 32
+fovxy = μas2rad(150.0)
 
 # Now, we can feed in the array information to form the cache
 grid = imagepixels(fovxy, fovxy, npix, npix)
@@ -91,13 +95,12 @@ imgpr = intensitymap(mpr, grid)
 imgpr ./= flux(imgpr)
 
 meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
-metadata = (;meanpr, grid, cache)
+metadata = (;meanpr,K=CenterImage(imgpr), grid, cache)
 
 # In addition we want a reasonable guess for what the resolution of our image should be.
 # For radio astronomy this is given by roughly the longest baseline in the image. To put this
 # into pixel space we then divide by the pixel size.
-hh(x) = hypot(x...)
-beam = inv(maximum(hh.(uvpositions.(extract_table(obs, ComplexVisibilities()).data))))
+beam = beamsize(dlcamp)
 rat = (beam/(step(grid.X)))
 
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
@@ -120,11 +123,11 @@ end
 # to prefer "simple" structures. Namely, Gaussian Markov random fields are extremly flexible models.
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(fmap, NamedDist(λ = truncated(Normal(0.0, 0.25*inv(rat)); lower=2/npix)))
+cprior = HierarchicalPrior(fmap, NamedDist(λ = truncated(Normal(0.0, 0.1*inv(rat)); lower=2/npix)))
 
-prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 0.5); lower=0.01))
+prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 1.0); lower=0.01), fg=Uniform(0.0, 1.0))
 
-lklhd = RadioLikelihood(model, dlcamp, dcphase;
+lklhd = RadioLikelihood(sky, dlcamp, dcphase;
                         skymeta = metadata)
 post = Posterior(lklhd, prior)
 
@@ -166,7 +169,7 @@ residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
 # Now these residuals look a bit high. However, it turns out this is because the MAP is typically
 # not a great estimator and will not provide very predictive measurements of the data. We
 # will show this below after sampling from the posterior.
-img = intensitymap(skymodel(post, xopt), μas2rad(100.0), μas2rad(100.0), 100, 100)
+img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
 plot(img, title="MAP Image")
 
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
@@ -192,11 +195,11 @@ msamples = skymodel.(Ref(post), chain[501:2:end]);
 
 # The mean image is then given by
 using StatsBase
-imgs = center_image.(intensitymap.(msamples, μas2rad(100.0), μas2rad(100.0), 128, 128))
+imgs = intensitymap.(msamples, μas2rad(150.0), μas2rad(150.0), 128, 128)
 mimg = mean(imgs)
 simg = std(imgs)
 p1 = plot(mimg, title="Mean Image")
-p2 = plot(simg./(mimg), title="1/SNR", clims=(0.0, 2.0))
+p2 = plot(simg./(max.(mimg, 1e-5)), title="1/SNR", clims=(0.0, 2.0))
 p3 = plot(imgs[1], title="Draw 1")
 p4 = plot(imgs[end], title="Draw 2")
 plot(p1, p2, p3, p4, size=(800,800), colorbar=:none)

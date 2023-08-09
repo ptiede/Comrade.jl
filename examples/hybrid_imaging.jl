@@ -55,20 +55,20 @@ dvis  = extract_table(obs, ComplexVisibilities())
 # and a large asymmetric Gaussian component to model the unresolved short-baseline flux.
 
 function sky(θ, metadata)
-    (;c, σimg, f, r, σ, ma1, mp1, ma2, mp2, fg) = θ
-    (;meanpr, grid, cache) = metadata
+    (;c, σimg, f, r, σ, τ, ξτ, ma1, mp1, ma2, mp2, fg) = θ
+    (;ftot, meanpr, grid, cache) = metadata
     ## Form the image model
     ## First transform to simplex space first applying the non-centered transform
     rast = to_simplex(CenteredLR(), meanpr .+ σimg.*c)
-    img = IntensityMap((f*(1-fg))*rast, grid)
+    img = IntensityMap((ftot*f*(1-fg))*rast, grid)
     mimg = ContinuousImage(img, cache)
     ## Form the ring model
     s1,c1 = sincos(mp1)
     s2,c2 = sincos(mp2)
     α = (ma1*c1, ma2*c2)
     β = (ma1*s1, ma2*s2)
-    ring = ((1-f)*(1-fg))*smoothed(stretched(MRing(α, β), r, r), σ)
-    gauss = fg*stretched(Gaussian(), μas2rad(200.0), μas2rad(200.0))
+    ring = smoothed(modify(MRing(α, β), Stretch(r, r*(1+τ)), Rotate(ξτ), Renormalize((ftot*(1-f)*(1-fg)))), σ)
+    gauss = modify(Gaussian(), Stretch(μas2rad(250.0)), Renormalize(ftot*f))
     ## We group the geometric models together for improved efficiency. This will be
     ## automated in future versions.
     return mimg + (ring + gauss)
@@ -123,9 +123,10 @@ cache  = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
 # of priors and transformations that are useful for imaging.
 using VLBIImagePriors
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
-# image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
+# image. For this work we will use a symmetric Gaussian with a FWHM of 80 μas. This is larger
+# than the other examples since the ring will attempt to soak up the majority of the ring flux.
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(60.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(80.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
@@ -134,7 +135,7 @@ imgpr ./= flux(imgpr)
 meanpr = to_real(CenteredLR(), baseimage(imgpr))
 
 # Now we form the metadata
-skymetadata = (;meanpr, grid, cache)
+skymetadata = (;ftot=1.1, meanpr, grid, cache)
 
 
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
@@ -167,8 +168,7 @@ lklhd = RadioLikelihood(sky, instrument, dvis;
 # To enforce this we will set the
 # length scale of the raster component equal to the beam size of the telescope in units of
 # pixel length, which is given by
-hh(x) = hypot(x...)
-beam = inv(maximum(hh.(uvpositions.(extract_table(obs, ComplexVisibilities()).data))))
+beam = beamsize(dvis)
 rat = (beam/(step(grid.X)))
 cprior = GaussMarkovRandomField(zero(meanpr), 0.05*rat, 1.0)
 # additionlly we will fix the standard deviation of the field to unity and instead
@@ -203,12 +203,14 @@ distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 using VLBIImagePriors
 # Finally we can put form the total model prior
 prior = NamedDist(
-          ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
           c  = cprior,
-          σimg = truncated(Normal(0.0, 0.5); lower=1e-3),
+          ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
+          σimg = truncated(Normal(0.0, 1.0); lower=0.01),
           f  = Uniform(0.0, 1.0),
           r  = Uniform(μas2rad(10.0), μas2rad(30.0)),
-          σ  = Uniform(μas2rad(0.1), μas2rad(5.0)),
+          σ  = Uniform(μas2rad(0.1), μas2rad(10.0)),
+          τ  = truncated(Normal(0.0, 0.1); lower=0.0, upper=1.0),
+          ξτ = Uniform(-π/2, π/2),
           ma1 = Uniform(0.0, 0.5),
           mp1 = Uniform(0.0, 2π),
           ma2 = Uniform(0.0, 0.5),
@@ -291,8 +293,10 @@ msamples = skymodel.(Ref(post), chain[begin:2:end]);
 # The mean image is then given by
 imgs = intensitymap.(msamples, fovxy, fovxy, 128, 128)
 plot(mean(imgs), title="Mean Image")
+#-
 plot(std(imgs), title="Std Dev.")
-
+#-
+#
 # We can also split up the model into its components and analyze each separately
 comp = Comrade.components.(msamples)
 ring_samples = getindex.(comp, 2)

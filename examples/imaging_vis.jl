@@ -51,11 +51,13 @@ dvis = extract_table(obs, ComplexVisibilities())
 function sky(θ, metadata)
     (;fg, c, σimg) = θ
     (;ftot, K, meanpr, grid, cache) = metadata
-    ## Construct the image model we fix the flux to 0.6 Jy in this case
+    ## Transform to the log-ratio pixel fluxes
     cp = meanpr .+ σimg.*c.params
+    ## Transform to image space
     rast = (ftot*(1-fg))*K(to_simplex(CenteredLR(), cp))
     img = IntensityMap(rast, grid)
     m = ContinuousImage(img, cache)
+    ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(ftot*fg))
     return m + g
 end
