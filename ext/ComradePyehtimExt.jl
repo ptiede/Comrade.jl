@@ -147,7 +147,6 @@ function getcoherency(obs)
             "Do not use\n  obs.switch_polrep(\"circ\")\nsince missing hands will not be handled correctly."
         )
 
-    obs = obs.switch_polrep("circ")
 
     # get (u,v) coordinates
     u = pyconvert(Vector, obs.data["u"])

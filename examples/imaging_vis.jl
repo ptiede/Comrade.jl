@@ -71,13 +71,12 @@ end
 
 function instrument(θ, metadata)
     (; lgamp, gphase) = θ
-    (; gcache, gcachep,) = metadata
+    (; gcache, gcachep) = metadata
     ## Now form our instrument model
     gvis = exp.(lgamp)
     gphase = exp.(1im.*gphase)
     jgamp = jonesStokes(gvis, gcache)
     jgphase = jonesStokes(gphase, gcachep)
-    # jgphase0= jonesStokes(gphase0, gcachep0)
     return JonesModel(jgamp*jgphase)
 end
 
