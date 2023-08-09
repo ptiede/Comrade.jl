@@ -70,12 +70,11 @@ end
 
 
 function instrument(θ, metadata)
-    (; lgamp, gphase, gphase0) = θ
+    (; lgamp, gphase) = θ
     (; gcache, gcachep,) = metadata
     ## Now form our instrument model
     gvis = exp.(lgamp)
     gphase = exp.(1im.*gphase)
-    gphase0= exp.(1im.*gphase0)
     jgamp = jonesStokes(gvis, gcache)
     jgphase = jonesStokes(gphase, gcachep)
     # jgphase0= jonesStokes(gphase0, gcachep0)
@@ -217,7 +216,6 @@ prior = NamedDist(
          c = cprior,
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
-         gphase0 = CalPrior(distphase, gcachep0)
         )
 
 
