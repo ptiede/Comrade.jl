@@ -50,10 +50,10 @@ dvis = extract_table(obs, ComplexVisibilities())
 
 function sky(θ, metadata)
     (;fg, c, σimg) = θ
-    (;ftot, meanpr, grid, cache) = metadata
+    (;ftot, K, meanpr, grid, cache) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
     cp = meanpr .+ σimg.*c.params
-    rast = (ftot*(1-fg))*(to_simplex(CenteredLR(), cp))
+    rast = (ftot*(1-fg))*K(to_simplex(CenteredLR(), cp))
     img = IntensityMap(rast, grid)
     m = ContinuousImage(img, cache)
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(ftot*fg))
@@ -68,13 +68,15 @@ end
 
 
 function instrument(θ, metadata)
-    (; lgamp, gphase) = θ
-    (; gcache, gcachep) = metadata
+    (; lgamp, gphase, gphase0) = θ
+    (; gcache, gcachep,) = metadata
     ## Now form our instrument model
     gvis = exp.(lgamp)
-    gphase = 1im.*gphase
+    gphase = exp.(1im.*gphase)
+    gphase0= exp.(1im.*gphase0)
     jgamp = jonesStokes(gvis, gcache)
-    jgphase = jonesStokes(exp, gphase, gcachep)
+    jgphase = jonesStokes(gphase, gcachep)
+    # jgphase0= jonesStokes(gphase0, gcachep0)
     return JonesModel(jgamp*jgphase)
 end
 
@@ -118,7 +120,8 @@ cache = create_cache(NFFTAlg(dvis), buffer, DeltaPulse())
 # the timescale we expect them to vary. For the phases we use a station specific scheme where
 # we set AA to be fixed to unit gain because it will function as a reference station.
 gcache = jonescache(dvis, ScanSeg())
-gcachep = jonescache(dvis, ScanSeg{true}(); autoref=SEFDReference((complex(0.0))))
+gcachep = jonescache(dvis, ScanSeg(); autoref=SEFDReference((complex(1.0))))
+gcachep0 = jonescache(dvis, TrackSeg(); autoref=SEFDReference((complex(1.0))))
 
 using VLBIImagePriors
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
@@ -138,7 +141,7 @@ imgpr ./= flux(imgpr)
 meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
 
 # Now we can form our metadata we need to fully define our model.
-metadata = (;ftot=1.1, meanpr, grid, cache, gcache, gcachep)
+metadata = (;ftot=1.1, K=CenterImage(imgpr), meanpr, grid, cache, gcache, gcachep, gcachep0)
 
 # We will also fix the total flux to be the observed value 1.1. This is because
 # total flux is degenerate with a global shift in the gain amplitudes making the problem
@@ -208,10 +211,11 @@ cprior = HierarchicalPrior(fmap, NamedDist((;λ = truncated(Normal(0.0, 0.1*inv(
 # which automatically constructs the prior for the given jones cache `gcache`.
 prior = NamedDist(
          fg = Uniform(0.0, 1.0),
-         σimg = truncated(Normal(0.0, 0.5); lower=0.01),
+         σimg = truncated(Normal(0.0, 1.0); lower=0.01),
          c = cprior,
          lgamp = CalPrior(distamp, gcache),
-         gphase = CalPrior(distphase, station_tuple(dvis, DiagonalVonMises(0.0, inv(0.1^2))), gcachep)
+         gphase = CalPrior(distphase, gcachep),
+         gphase0 = CalPrior(distphase, gcachep0)
         )
 
 
@@ -250,7 +254,7 @@ using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, rand(rng, ndim) .- 0.5, nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=4_000, g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=1_000, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
@@ -299,8 +303,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 1500; nadapts=1000, init_params=xopt)
-
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, init_params=xopt, saveto=DiskStore())
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -346,8 +349,8 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[begin:2:end])
-imgs = center_image.(intensitymap.(samples, fovx, fovy, 128,  128))
+samples = skymodel.(Ref(post), chain[begin:50:end])
+imgs = intensitymap.(samples, fovx, fovy, 128,  128)
 
 mimg = mean(imgs)
 simg = std(imgs)
@@ -370,15 +373,3 @@ p
 # And viola, you have just finished making a preliminary image and instrument model reconstruction.
 # In reality, you should run the `sample` step for many more MCMC steps to get a reliable estimate
 # for the reconstructed image and instrument model parameters.
-
-# Computing information
-# ```
-# Julia Version 1.7.3
-# Commit 742b9abb4d (2022-05-06 12:58 UTC)
-# Platform Info:
-#   OS: Linux (x86_64-pc-linux-gnu)
-#   CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
-#   WORD_SIZE: 64
-#   LIBM: libopenlibm
-#   LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
-# ```
