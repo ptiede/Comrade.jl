@@ -147,9 +147,9 @@ using Pyehtim
         θ = NamedTuple{()}(())
         @test logdensityof(lclose1,θ) ≈ logdensityof(lclose2, θ)
         @test logdensityof(lclose1, θ ) ≈ logdensityof(lcphase, θ) + logdensityof(llcamp, θ)
-        # @inferred logdensityof(lclose1, θ)
-        # @inferred logdensityof(lclose2, θ)
-        # @inferred logdensityof(lamp, θ)
+        @inferred logdensityof(lclose1, θ)
+        @inferred logdensityof(lclose2, θ)
+        @inferred logdensityof(lamp, θ)
 
     end
 

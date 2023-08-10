@@ -82,7 +82,7 @@ function _RadioLikelihood(skymodel, instrumentmodel, data::EHTObservation...)
 end
 
 """
-    RadioLikelihood(skymodel, instumentmodel, obs, dataproducts::DataProducts...;
+    RadioLikelihood(skymodel, instumentmodel, dataproducts::EHTObservation...;
                     skymeta=nothing,
                     instrumentmeta=nothing)
 
@@ -102,8 +102,8 @@ needs some precomputed cache to define the model.
 
 # Example
 ```julia
-
-cache = create_cache(FFTAlg(), IntensityMap(zeros(128,128), μas2rad(100.0), μas2rad(100.0)))
+dlcamp, dcphase = extract_table(obs, LogClosureAmplitude(), ClosurePhases())
+cache = create_cache(NFFTAlg(dlcamp), IntensityMap(zeros(128,128), μas2rad(100.0), μas2rad(100.0)))
 
 function skymodel(θ, metadata)
     (; r, a) = θ
@@ -123,7 +123,7 @@ prior = (
          a = Uniform(0.1, 5.0)
          )
 
-RadioLikelihood(skymodel, instrumentmodel, obs, dataproducts::EHTObservation...;
+RadioLikelihood(skymodel, instrumentmodel, dataproducts::EHTObservation...;
                  skymeta=(;cache,),
                  instrumentmeta=(;gcache))
 ```
@@ -150,7 +150,7 @@ function RadioLikelihood(
 end
 
 """
-    RadioLikelihood(skymodel, obs, dataproducts::EHTObservation...; skymeta=nothing)
+    RadioLikelihood(skymodel, dataproducts::EHTObservation...; skymeta=nothing)
 
 Forms a radio likelihood from a set of data products using only a sky model.
 This intrinsically assumes that the instrument model is not required since it is perfect.
@@ -163,7 +163,7 @@ such as when fitting different wavelengths or days, you can combine them using
 # Example
 
 ```julia-repl
-julia> RadioLikelihood(skymodel, obs, ClosurePhase(), LogClosureAmplitude())
+julia> RadioLikelihood(skymodel, dcphase, dlcamp)
 ```
 """
 function RadioLikelihood(
@@ -332,7 +332,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClo
     Σlamp = data.config.ac.data.error.^2 ./ amp2
 
     # Form the closure covariance matrix
-    Σlca = PDSparseMat((dmat*Diagonal(Σlamp)*transpose(dmat)))
+    Σlca = VLBILikelihoods.CholeskyFactor(sparse(dmat*Diagonal(Σlamp)*transpose(dmat)))
     f = Base.Fix2(logclosure_amplitudes, data.config)
     amp = data[:measurement]
     lnorm = VLBILikelihoods.lognorm(AmplitudeLikelihood(amp, Σlca))
@@ -350,7 +350,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosur
     Σphase = data.config.ac.data.error.^2 ./ amp2
 
     # Form the closure covariance matrix
-    Σcp = PDSparseMat((dmat*Diagonal(Σphase)*transpose(dmat)))
+    Σcp =  VLBILikelihoods.CholeskyFactor(sparse(dmat*Diagonal(Σphase)*transpose(dmat)))
     f = Base.Fix2(closure_phases, data.config)
     phase = data[:measurement]
     lnorm = VLBILikelihoods.lognorm(ClosurePhaseLikelihood(phase, Σcp))

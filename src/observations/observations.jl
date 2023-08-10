@@ -136,6 +136,7 @@ julia> dvis = extract_table(obs, VisibilityAmplitudes())
 ```
 """
 function extract_table(obs, dataproducts::VLBIDataProducts...)
+    @assert length(dataproducts) >= 1 "No dataproducts passed to `extract_table`"
     return  map(x->extract_table(obs, x), dataproducts)
 end
 
