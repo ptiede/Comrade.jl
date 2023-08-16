@@ -542,6 +542,44 @@ struct JonesPairs{T, M1<:AbstractVector{T}, M2<:AbstractVector{T}}
     m2::M2
 end
 
+@inline Base.eltype(::JonesPairs{T}) where {T} = T
+@inline Base.length(j::JonesPairs) = length(j.m1)
+@inline Base.size(j::JonesPairs) = (length(j),)
+Base.getindex(j::JonesPairs, i::Int) = (j.m1[i], j.m2[i])
+function Base.setindex!(j::JonesPairs, X, i::Int)
+    j.m1[i] = X[1]
+    j.m2[i] = X[2]
+    return j
+end
+Base.IndexStyle(::Type{JonesPairs}) = IndexLinear()
+Base.similar(j::JonesPairs, ::Type{S}, dims::Dims{1}) where {S} = JonesPairs(similar(j.m1, S, dims), similar(j.m2, S, dims))
+Base.firstindex(j::JonesPairs) = firstindex(j.m1)
+Base.lastindex(j::JonesPairs) = lastindex(j.m1)
+Base.ndims(j::Type{<:JonesPairs}) = 1
+
+
+struct JonesPairStyle <: Broadcast.AbstractArrayStyle{1} end
+Base.BroadcastStyle(::Type{<:JonesPairs}) = JonesPairStyle()
+Base.broadcastable(x::JonesPairs) = x
+
+function Base.similar(bc::Broadcast.Broadcasted{JonesPairStyle}, ::Type{ElType}) where {ElType}
+    m1 = similar(Vector{ElType}, length(bc))
+    m2 = similar(Vector{ElType}, length(bc))
+    JonesPairs(m1, m2)
+end
+
+
+function Base.copyto!(dest::JonesPairs, bc::Broadcast.Broadcasted{JonesPairStyle})
+    fbc = Broadcast.flatten(bc)
+    m1 = map(x->getproperty(x, :m1), fbc.args)
+    m2 = map(x->getproperty(x, :m2), fbc.args)
+    _jonesmap!(fbc.f, dest.m1, dest.m2, m1, m2)
+    return dest
+end
+
+
+
+
 """
     map(f, args::JonesPairs...) -> JonesPairs
 
@@ -652,19 +690,6 @@ end
 #     return JonesPairs{T, typeof(m1), typeof(m2)}(m1, m2)
 # end
 
-@inline Base.eltype(::JonesPairs{T}) where {T} = T
-@inline Base.length(j::JonesPairs) = length(j.m1)
-@inline Base.size(j::JonesPairs) = (length(j),)
-Base.getindex(j::JonesPairs, i::Int) = (j.m1[i], j.m2[i])
-function Base.setindex!(j::JonesPairs, X, i::Int)
-    j.m1[i] = X[1]
-    j.m2[i] = X[2]
-    return j
-end
-Base.IndexStyle(::Type{JonesPairs}) = IndexLinear()
-Base.similar(j::JonesPairs, ::Type{S}, dims::Dims{1}) where {S} = JonesPairs(similar(j.m1, S, dims), similar(j.m2, S, dims))
-Base.firstindex(j::JonesPairs) = firstindex(j.m1)
-Base.lastindex(j::JonesPairs) = lastindex(j.m1)
 
 # struct JonesStyle{M1,M2} <: Broadcast.AbstractArrayStyle{1} end
 # JonesStyle{M1,M2}(::Val{1}) where {M1,M2} = JonesStyle{M1,M2}()
