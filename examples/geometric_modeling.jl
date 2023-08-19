@@ -51,9 +51,7 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosureP
 # return an object that implements the [VLBISkyModels Interface](https://ehtjulia.github.io/VLBISkyModels.jl/stable/interface/)
 #-
 function model(θ)
-    (;radius, width, α1, β1, α2, β2, f, σG, τG, ξG, xG, yG) = θ
-    α = (α1, α2)
-    β = (β1, β2)
+    (;radius, width, α, β, f, σG, τG, ξG, xG, yG) = θ
     ring = f*smoothed(stretched(MRing(α, β), radius, radius), width)
     g = (1-f)*shifted(rotated(stretched(Gaussian(), σG, σG*(1+τG)), ξG), xG, yG)
     return ring + g
@@ -71,10 +69,8 @@ using Distributions, VLBIImagePriors
 prior = NamedDist(
           radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
           width = Uniform(μas2rad(1.0), μas2rad(10.0)),
-          α1 = Uniform(-0.5, 0.5),
-          β1 = Uniform(-0.5, 0.5),
-          α2 = Uniform(-0.5, 0.5),
-          β2 = Uniform(-0.5, 0.5),
+          α = (Uniform(-0.5, 0.5), Uniform(-0.5, 0.5)),
+          β = (Uniform(-0.5, 0.5), Uniform(-0.5, 0.5)),
           f = Uniform(0.0, 1.0),
           σG = Uniform(μas2rad(1.0), μas2rad(40.0)),
           τG = Uniform(0.0, 0.75),
@@ -103,10 +99,8 @@ post = Posterior(lklhd, prior)
 
 logdensityof(post, (radius = μas2rad(20.0),
                   width = μas2rad(10.0),
-                  α1 = 0.3,
-                  β1 = 0.3,
-                  α2 = 0.3,
-                  β2 = 0.3,
+                  α = (0.3, 0.3),
+                  β = (0.3, 0.3),
                   f = 0.6,
                   σG = μas2rad(20.0),
                   τG = 0.1,
@@ -171,7 +165,7 @@ xopt = transform(fpost, sol)
 # Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 
 using Plots
-plot(model(xopt), title="MAP image", xlims=(-60.0,50.0), ylims=(-60.0,50.0))
+plot(model(xopt), title="MAP image", xlims=(-60.0,60.0), ylims=(-60.0,60.0))
 
 # ### Quantifying the Uncertainty of the Reconstruction
 
@@ -207,7 +201,7 @@ plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale 
 plot(model(xopt), dlcamp, label="MAP")
 
 # We can also plot random draws from the posterior predictive distribution.
-# The posterior predictive distribution create a number of synehtic observations that
+# The posterior predictive distribution create a number of synthetic observations that
 # are marginalized over the posterior.
 p = plot(dlcamp);
 uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
@@ -235,7 +229,7 @@ using MCMCDiagnosticTools, Tables
 # First, lets look at the effective sample size (ESS) and R̂. This is important since
 # the Monte Carlo standard error for MCMC estimates is proportional to 1/√ESS (for some problems)
 # and R̂ is a measure of chain convergence. To find both, we can use:
-essrhat = map(x->ess_rhat(x), Tables.columns(chain))
+essrhat = map(ess_rhat, Tables.columns(chain))
 # Here, the first value is the ESS, and the second is the R̂. Note that we typically want R̂ < 1.01
 # for all parameters, but you should also be running the problem at least four times from four different
 # starting locations.
