@@ -169,7 +169,6 @@ function instrument(θ, metadata)
     Gr = jonesG(gPp, gRp, phasecache)
     ##D-terms
     D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), trackcache)
-    return Gp, Gr, D, jT
     ## sandwich all the jones matrices together
     J = @. Gp*Gr*D*jT
     ## form the complete Jones or RIME model. We use tcache here

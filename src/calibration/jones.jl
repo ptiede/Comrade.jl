@@ -558,23 +558,29 @@ Base.lastindex(j::JonesPairs) = lastindex(j.m1)
 Base.ndims(j::Type{<:JonesPairs}) = 1
 
 
-struct JonesPairStyle <: Broadcast.AbstractArrayStyle{1} end
-Base.BroadcastStyle(::Type{<:JonesPairs}) = JonesPairStyle()
+struct JonesPairsStyle <: Broadcast.BroadcastStyle end
+Base.BroadcastStyle(::Type{<:JonesPairs}) = JonesPairsStyle()
 Base.broadcastable(x::JonesPairs) = x
 
-function Base.similar(bc::Broadcast.Broadcasted{JonesPairStyle}, ::Type{ElType}) where {ElType}
+function Base.similar(bc::Broadcast.Broadcasted{JonesPairsStyle}, ::Type{ElType}) where {ElType}
     m1 = similar(Vector{ElType}, length(bc))
     m2 = similar(Vector{ElType}, length(bc))
     JonesPairs(m1, m2)
 end
 
 
-function Base.copyto!(dest::JonesPairs, bc::Broadcast.Broadcasted{JonesPairStyle})
+function Base.copyto!(dest::JonesPairs, bc::Broadcast.Broadcasted{JonesPairsStyle})
+    # TODO check if this is reasonable
     fbc = Broadcast.flatten(bc)
     m1 = map(x->getproperty(x, :m1), fbc.args)
     m2 = map(x->getproperty(x, :m2), fbc.args)
     _jonesmap!(fbc.f, dest.m1, dest.m2, m1, m2)
     return dest
+end
+
+function ChainRulesCore.rrule(::typeof(Base.Broadcast.broadcasted), ::JonesPairsStyle, f, args::Vararg{<:JonesPairs})
+    println(args)
+    return nothing, x->nothing
 end
 
 
