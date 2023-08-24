@@ -79,7 +79,7 @@ Base.@kwdef struct AHMC{S,I,P,T,A,D}
     term_buffer::Int = 100
     """
     The number of steps to tune the covariance before the first doubling
-    Default is 23 which is the Stan default
+    Default is 25 which is the Stan default
     """
     window_size::Int = 25
     """
