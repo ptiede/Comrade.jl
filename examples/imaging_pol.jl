@@ -181,7 +181,7 @@ end
 # image model.
 fovx = μas2rad(50.0)
 fovy = μas2rad(50.0)
-nx = 7
+nx = 6
 ny = floor(Int, fovy/fovx*nx)
 grid = imagepixels(fovx, fovy, nx, ny) # image grid
 buffer = IntensityMap(zeros(nx, ny), grid) # buffer to store temporary image
@@ -255,7 +255,7 @@ distD = station_tuple(dvis, Normal(0.0, 0.1))
 # that specifies the segmentation scheme. For the gain products, we use the `scancache`, while
 # for every other quantity, we use the `trackcache`.
 prior = NamedDist(
-          c = ImageDirichlet(1.0, nx, ny),
+          c = ImageDirichlet(2.0, nx, ny),
           f = Uniform(0.7, 1.2),
           p = ImageUniform(nx, ny),
           angparams = ImageSphericalUniform(nx, ny),
@@ -292,8 +292,6 @@ tpost = asflat(post)
 ndim = dimension(tpost)
 
 
-m = vlbimodel(post, prior_sample(post))
-
 # Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
 # due to the higher dimension of the space.
 using ComradeOptimization
@@ -323,13 +321,23 @@ using AxisKeys
 imgtrue = Comrade.load(joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian.fits"), StokesIntensityMap)
 # Select a reasonable zoom in of the image.
 imgtruesub = imgtrue(Interval(-fovx/2, fovx/2), Interval(-fovy/2, fovy/2))
-plot(imgtruesub, title="True Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
-#-
 img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
-plot(img, title="Reconstructed Image", xlims=(-25.0,25.0), ylims=(-25.0,25.0))
+import CairoMakie as CM
+fig = CM.Figure(;resolution=(900, 400))
+polimage(fig[1,1], imgtruesub,
+                   axis=(xreversed=true, aspect=1, title="Truth", limits=((-20.0,20.0), (-20.0, 20.0))),
+                   length_norm=10, plot_total=true,
+                   pcolorrange=(-0.25, 0.25), pcolormap=CM.Reverse(:jet))
+polimage(fig[1,2], img,
+                   axis=(xreversed=true, aspect=1, title="Recon.",  limits=((-20.0,20.0), (-20.0, 20.0))),
+                   length_norm=10, plot_total=true,
+                   pcolorrange=(-0.25, 0.25), pcolormap=CM.Reverse(:jet))
+CM.Colorbar(fig[1,3], colormap=CM.Reverse(:jet), colorrange=(-0.25, 0.25), label="Signed Polarization Fraction sign(V)*|p|")
+CM.colgap!(fig.layout, 1)
+fig
+#-
 
 # Let's compare some image statics, like the total linear polarization fraction
-using Comrade.ComradeBase: linearpol
 ftrue = flux(imgtruesub);
 @info "Linear polarization true image: $(abs(linearpol(ftrue))/ftrue.I)"
 frecon = flux(img);

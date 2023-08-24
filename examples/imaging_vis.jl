@@ -107,7 +107,7 @@ fovy = μas2rad(150.0)
 # compute the visibilities.
 grid = imagepixels(fovx, fovy, npix, npix)
 buffer = IntensityMap(zeros(npix, npix), grid)
-cache = create_cache(NFFTAlg(dvis), buffer, DeltaPulse())
+cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
 
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
 # to the model visibilities. However, to construct this map, we also need to specify the observation
@@ -121,7 +121,6 @@ cache = create_cache(NFFTAlg(dvis), buffer, DeltaPulse())
 # we set AA to be fixed to unit gain because it will function as a reference station.
 gcache = jonescache(dvis, ScanSeg())
 gcachep = jonescache(dvis, ScanSeg(); autoref=SEFDReference((complex(1.0))))
-gcachep0 = jonescache(dvis, TrackSeg(); autoref=SEFDReference((complex(1.0))))
 
 using VLBIImagePriors
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
@@ -211,7 +210,7 @@ cprior = HierarchicalPrior(fmap, NamedDist((;λ = truncated(Normal(0.0, 0.1*inv(
 # which automatically constructs the prior for the given jones cache `gcache`.
 prior = NamedDist(
          fg = Uniform(0.0, 1.0),
-         σimg = truncated(Normal(0.0, 1.0); lower=0.01),
+         σimg = truncated(Normal(0.0, 0.5); lower=0.01),
          c = cprior,
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
@@ -270,8 +269,9 @@ residual(vlbimodel(post, xopt), dvis)
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
+import CairoMakie as CM
 img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
-plot(img, title="MAP Image")
+CM.image(img, axis=(xreversed=true, aspect=1, title="MAP Image"), colormap=:afmhot)
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
@@ -302,7 +302,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, init_params=xopt, saveto=DiskStore())
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, init_params=xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -348,16 +348,25 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[begin:50:end])
+samples = skymodel.(Ref(post), chain[begin:2:end])
 imgs = intensitymap.(samples, fovx, fovy, 128,  128)
 
 mimg = mean(imgs)
 simg = std(imgs)
-p1 = plot(mimg, title="Mean", clims=(0.0, maximum(mimg)));
-p2 = plot(simg,  title="Std. Dev.", clims=(0.0, maximum(mimg)));
-p3 = plot(imgs[begin],  title="Draw 1", clims = (0.0, maximum(mimg)));
-p4 = plot(imgs[end],  title="Draw 2", clims = (0.0, maximum(mimg)));
-plot(p1,p2,p3,p4, layout=(2,2), size=(800,800))
+fig = CM.Figure(;resolution=(800, 800))
+CM.image(fig[1,1], mimg,
+                   axis=(xreversed=true, aspect=1, title="Mean Image"),
+                   colormap=:afmhot)
+CM.image(fig[1,2], simg./(max.(mimg, 1e-5)),
+                   axis=(xreversed=true, aspect=1, title="1/SNR",),
+                   colormap=:afmhot)
+CM.image(fig[2,1], imgs[1],
+                   axis=(xreversed=true, aspect=1,title="Draw 1"),
+                   colormap=:afmhot)
+CM.image(fig[2,2], imgs[end],
+                   axis=(xreversed=true, aspect=1,title="Draw 2"),
+                   colormap=:afmhot)
+fig
 
 # Now let's check the residuals
 

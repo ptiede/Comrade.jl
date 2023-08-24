@@ -166,11 +166,10 @@ residual(skymodel(post, xopt), dlcamp, ylabel="Log Closure Amplitude Res.")
 #-
 residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
 
-# Now these residuals look a bit high. However, it turns out this is because the MAP is typically
-# not a great estimator and will not provide very predictive measurements of the data. We
-# will show this below after sampling from the posterior.
+# Now let's plot the MAP estimate.
+import CairoMakie as CM
 img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
-plot(img, title="MAP Image")
+CM.image(img, axis=(xreversed=true, aspect=1, title="MAP Image"), colormap=:afmhot)
 
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
@@ -198,11 +197,20 @@ using StatsBase
 imgs = intensitymap.(msamples, μas2rad(150.0), μas2rad(150.0), 128, 128)
 mimg = mean(imgs)
 simg = std(imgs)
-p1 = plot(mimg, title="Mean Image")
-p2 = plot(simg./(max.(mimg, 1e-5)), title="1/SNR", clims=(0.0, 2.0))
-p3 = plot(imgs[1], title="Draw 1")
-p4 = plot(imgs[end], title="Draw 2")
-plot(p1, p2, p3, p4, size=(800,800), colorbar=:none)
+fig = CM.Figure(;resolution=(800, 800))
+CM.image(fig[1,1], mimg,
+                   axis=(xreversed=true, aspect=1, title="Mean Image"),
+                   colormap=:afmhot)
+CM.image(fig[1,2], simg./(max.(mimg, 1e-5)),
+                   axis=(xreversed=true, aspect=1, title="1/SNR",), colorrange=(0.0, 2.0),
+                   colormap=:afmhot)
+CM.image(fig[2,1], imgs[1],
+                   axis=(xreversed=true, aspect=1,title="Draw 1"),
+                   colormap=:afmhot)
+CM.image(fig[2,2], imgs[end],
+                   axis=(xreversed=true, aspect=1,title="Draw 2"),
+                   colormap=:afmhot)
+fig
 
 # Now let's see whether our residuals look better.
 p = plot();
@@ -220,8 +228,6 @@ for s in sample(chain[501:end], 10)
 end
 ylabel!("|Closure Phase Res.|");
 p
-
-# And we see that the residuals are looking much better.
 
 
 

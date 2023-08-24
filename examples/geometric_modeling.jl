@@ -23,7 +23,6 @@ using Pyehtim
 using StableRNGs
 rng = StableRNG(42)
 #-
-
 # The next step is to load the data. We will use the publically
 # available M 87 data which can be downloaded
 # from [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019).
@@ -51,8 +50,10 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosureP
 # return an object that implements the [VLBISkyModels Interface](https://ehtjulia.github.io/VLBISkyModels.jl/stable/interface/)
 #-
 function model(θ)
-    (;radius, width, α, β, f, σG, τG, ξG, xG, yG) = θ
-    ring = f*smoothed(stretched(MRing(α, β), radius, radius), width)
+    (;radius, width, ma, mp, τ, ξτ, f, σG, τG, ξG, xG, yG) = θ
+    α = ma.*cos.(mp .- ξτ)
+    β = ma.*sin.(mp .- ξτ)
+    ring = f*smoothed(modify(MRing(α, β), Stretch(radius, radius*(1+τ)), Rotate(ξτ)), width)
     g = (1-f)*shifted(rotated(stretched(Gaussian(), σG, σG*(1+τG)), ξG), xG, yG)
     return ring + g
 end
@@ -69,11 +70,13 @@ using Distributions, VLBIImagePriors
 prior = NamedDist(
           radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
           width = Uniform(μas2rad(1.0), μas2rad(10.0)),
-          α = (Uniform(-0.5, 0.5), Uniform(-0.5, 0.5)),
-          β = (Uniform(-0.5, 0.5), Uniform(-0.5, 0.5)),
+          ma = (Uniform(0.0, 0.5), Uniform(0.0, 0.5)),
+          mp = (Uniform(0, 2π), Uniform(0, 2π)),
+          τ = Uniform(0.0, 1.0),
+          ξτ= Uniform(0.0, π),
           f = Uniform(0.0, 1.0),
-          σG = Uniform(μas2rad(1.0), μas2rad(40.0)),
-          τG = Uniform(0.0, 0.75),
+          σG = Uniform(μas2rad(1.0), μas2rad(100.0)),
+          τG = Uniform(0.0, 1.0),
           ξG = Uniform(0.0, 1π),
           xG = Uniform(-μas2rad(80.0), μas2rad(80.0)),
           yG = Uniform(-μas2rad(80.0), μas2rad(80.0))
@@ -99,10 +102,12 @@ post = Posterior(lklhd, prior)
 
 logdensityof(post, (radius = μas2rad(20.0),
                   width = μas2rad(10.0),
-                  α = (0.3, 0.3),
-                  β = (0.3, 0.3),
+                  ma = (0.3, 0.3),
+                  mp = (π/2, π),
+                  τ = 0.1,
+                  ξτ= π/2,
                   f = 0.6,
-                  σG = μas2rad(20.0),
+                  σG = μas2rad(50.0),
                   τG = 0.1,
                   ξG = 0.5,
                   xG = 0.0,
@@ -164,8 +169,9 @@ xopt = transform(fpost, sol)
 
 # Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 
-using Plots
-plot(model(xopt), title="MAP image", xlims=(-60.0,60.0), ylims=(-60.0,60.0))
+import CairoMakie as CM
+g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
+fig, ax, plt = CM.image(g, model(xopt); axis=(xreversed=true, aspect=1, xlabel="RA (μas)", ylabel="Dec (μas)"), figure=(;resolution=(650,500),) ,colormap=:afmhot)
 
 # ### Quantifying the Uncertainty of the Reconstruction
 
@@ -188,16 +194,22 @@ chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim), autodiff
 
 # First to plot the image we call
 
-plot(skymodel(post, chain[end]), title="Random image", xlims=(-60.0,60.0), ylims=(-60.0,60.0))
+CM.image(g, skymodel(post, chain[end]),
+            axis=(xreversed=true, aspect=1, xlabel="RA (μas)", ylabel="Dec (μas)"),
+            figure=(;resolution=(650,500),),
+            colormap=:afmhot)
 
 # What about the mean image? Well let's grab 100 images from the chain, where we first remove the
 # adaptation steps since they don't sample from the correct posterior distribution
-meanimg = mean(intensitymap.(skymodel.(Ref(post), sample(chain[1000:end], 100)), μas2rad(120.0), μas2rad(120.0), 128, 128))
-plot(sqrt.(max.(meanimg, 0.0)), title="Mean Image") #plot on a sqrt color scale to see the Gaussian
+meanimg = mean(intensitymap.(skymodel.(Ref(post), sample(chain[1000:end], 100)), μas2rad(200.0), μas2rad(200.0), 128, 128))
+CM.image(meanimg,
+            axis=(xreversed=true, aspect=1, xlabel="RA (μas)", ylabel="Dec (μas)", title="Mean Image"),
+            figure=(;resolution=(650,500),),
+            colormap=:afmhot)
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
-
+using Plots
 plot(model(xopt), dlcamp, label="MAP")
 
 # We can also plot random draws from the posterior predictive distribution.
@@ -229,10 +241,14 @@ using MCMCDiagnosticTools, Tables
 # First, lets look at the effective sample size (ESS) and R̂. This is important since
 # the Monte Carlo standard error for MCMC estimates is proportional to 1/√ESS (for some problems)
 # and R̂ is a measure of chain convergence. To find both, we can use:
-essrhat = map(ess_rhat, Tables.columns(chain))
+compute_ess(x::NamedTuple) = map(compute_ess, x)
+compute_ess(x::AbstractVector{<:Number}) = ess_rhat(x)
+compute_ess(x::AbstractVector{<:Tuple}) = map(ess_rhat, Tables.columns(x))
+compute_ess(x::Tuple) = map(compute_ess, x)
+essrhat = compute_ess(Tables.columns(chain))
 # Here, the first value is the ESS, and the second is the R̂. Note that we typically want R̂ < 1.01
 # for all parameters, but you should also be running the problem at least four times from four different
-# starting locations.
+# starting locations. In the future we will write an extension that works with Arviz.jl.
 
 # In our example here, we see that we have an ESS > 100 for all parameters and the R̂ < 1.01
 # meaning that our MCMC chain is a reasonable approximation of the posterior. For more diagnostics, see

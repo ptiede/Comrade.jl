@@ -26,8 +26,8 @@ using OptimizationOptimJL
 # Some stuff to create a posterior object
 post # of type Comrade.Posterior
 
-# Create a optimization problem using ForwardDiff as the backend
-fflat = OptimizationProblem(asflat(post), Optimization.AutoForwardDiff())
+# Create a optimization problem using Zygote as the backend
+fflat = OptimizationProblem(asflat(post), Optimization.AutoZygote())
 
 # create the problem from a random point in the prior, nothing is b/c there are no additional arugments to our function.
 prob = OptimizationProblem(fflat, prior_sample(asflat(post)), nothing)

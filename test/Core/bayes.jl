@@ -33,7 +33,7 @@ using Pyehtim
     @test dimension(post) == dimension(tpostf)
     @test dimension(post) == dimension(tpostc)
 
-    f = OptimizationFunction(tpostc, Optimization.AutoForwardDiff())
+    f = OptimizationFunction(tpostc, Optimization.Zygote())
     x0 = [ 0.1,
            0.4,
            0.5,

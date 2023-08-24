@@ -895,7 +895,7 @@ struct TransformCache{M, B<:PolBasis} <: AbstractJonesCache
 end
 
 """
-    TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=true, ref::PolBasis=CirBasis())
+    TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=false, ref::PolBasis=CirBasis())
 
 Constructs the cache that holds the transformation from the **chosen** on-sky reference basis
 to the basis that the telescope measures the electric fields given an observation `obs`.
@@ -915,7 +915,7 @@ We use the following definition for our feed rotations
 eht-imaging can sometimes pre-rotate the coherency matrices. As a result the field rotation can sometimes
 be applied twice. To compensate for this we have added a `ehtim_fr_convention` which will fix this.
 """
-function TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=true, ref::PolBasis=CirBasis())
+function TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=false, ref::PolBasis=CirBasis())
     T1 = StructArray(map(x -> basis_transform(ref, x[1]), obs.data.polbasis))
     T2 = StructArray(map(x -> basis_transform(ref, x[2]), obs.data.polbasis))
     if add_fr
@@ -1017,7 +1017,7 @@ eht-imaging can sometimes pre-rotate the coherency matrices. As a result the fie
 be applied twice. To compensate for this we have added a `ehtim_fr_convention` which will fix this.
 
 """
-function extract_FRs(obs::EHTObservation; ehtim_fr_convention=true)
+function extract_FRs(obs::EHTObservation; ehtim_fr_convention=false)
 
     # read elevation angles for each station
     config = arrayconfig(obs)
