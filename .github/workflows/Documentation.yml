@@ -24,9 +24,9 @@ jobs:
           sudo apt-get install libhdf5-dev
           sudo apt-get install --reinstall libxcb-xinerama0
           sudo apt-get install qtbase5-dev
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Setup python
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.arch }}

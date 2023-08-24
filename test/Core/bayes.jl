@@ -6,6 +6,7 @@ using Plots
 using LogDensityProblems
 using LogDensityProblemsAD
 using Pyehtim
+using Zygote
 
 
 
@@ -33,7 +34,7 @@ using Pyehtim
     @test dimension(post) == dimension(tpostf)
     @test dimension(post) == dimension(tpostc)
 
-    f = OptimizationFunction(tpostc, Optimization.Zygote())
+    f = OptimizationFunction(tpostc, Optimization.AutoZygote())
     x0 = [ 0.1,
            0.4,
            0.5,
