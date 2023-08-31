@@ -216,7 +216,7 @@ end
     scancache = jonescache(dcoh, ScanSeg())
     scancache2 = jonescache(dcoh, segs)
 
-    tcache = TransformCache(dcoh; add_fr=true)
+    tcache = ResponseCache(dcoh; add_fr=true)
 
 
 
@@ -282,7 +282,7 @@ end
     scancache = jonescache(dcoh, ScanSeg())
     phasecache= jonescache(dcoh, ScanSeg(); autoref=SingleReference(:AA, 1.0+0.0im))
     trackcache= jonescache(dcoh, TrackSeg())
-    tcache    = TransformCache(dcoh; add_fr=true)
+    tcache    = ResponseCache(dcoh; add_fr=true)
 
     dga = CalPrior(station_tuple(dcoh, LogNormal(0.0, 0.1)), scancache)
     dgp = CalPrior(station_tuple(dcoh, Uniform(0.0, 2π)), phasecache)

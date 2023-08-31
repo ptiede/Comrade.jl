@@ -1,5 +1,5 @@
 export JonesCache, TrackSeg, ScanSeg, FixedSeg, IntegSeg, jonesG, jonesD, jonesT,
-       TransformCache, JonesModel, jonescache, station_tuple, jonesmap
+       ResponseCache, JonesModel, jonescache, station_tuple, jonesmap
 
 """
     $(TYPEDEF)
@@ -879,7 +879,7 @@ on sky reference basis.
 # Fields
 $(FIELDS)
 """
-struct TransformCache{M, B<:PolBasis} <: AbstractJonesCache
+struct ResponseCache{M, B<:PolBasis} <: AbstractJonesCache
     """
     Transform matrices for the first stations
     """
@@ -895,7 +895,7 @@ struct TransformCache{M, B<:PolBasis} <: AbstractJonesCache
 end
 
 """
-    TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=false, ref::PolBasis=CirBasis())
+    ResponseCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=false, ref::PolBasis=CirBasis())
 
 Constructs the cache that holds the transformation from the **chosen** on-sky reference basis
 to the basis that the telescope measures the electric fields given an observation `obs`.
@@ -904,36 +904,47 @@ are included in the transformation cache with the `add_fr` toggle. The user can 
 using the keyword argument `ref` which is the (R,L) circular basis by default.
 
 # Notes
-We use the following definition for our feed rotations
+We use the following definition for our feed rotations in circular basis
 
 ```
     exp(-iθ)  0
     0         exp(iθ)
 ```
 
+and in the linear feed basis
+
+```
+    cos(θ) sin(θ)
+   -sin(θ) cos(θ)
+```
+
 # Warning
 eht-imaging can sometimes pre-rotate the coherency matrices. As a result the field rotation can sometimes
 be applied twice. To compensate for this we have added a `ehtim_fr_convention` which will fix this.
 """
-function TransformCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=false, ref::PolBasis=CirBasis())
+function ResponseCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=false, ref::PolBasis=CirBasis())
     T1 = StructArray(map(x -> basis_transform(ref, x[1]), obs.data.polbasis))
     T2 = StructArray(map(x -> basis_transform(ref, x[2]), obs.data.polbasis))
+    # Our feed rotation matrix from extract_FRs always returns the rotation according to
+    # a circular basis. We then transform to a linear basis before constructing the basis
+    Tcirc1 = StructArray(map(x -> basis_transform(CirBasis(), x[1]), obs.data.polbasis))
+    Tcirc2 = StructArray(map(x -> basis_transform(CirBasis(), x[2]), obs.data.polbasis))
     if add_fr
         field_rotations = extract_FRs(obs; ehtim_fr_convention)
-        T1 .= field_rotations.m1.*T1
-        T2 .= field_rotations.m2.*T2
+        @. T1 .= Tcirc1*field_rotations.m1*adjoint(Tcirc1)*T1
+        @. T2 .= Tcirc2*field_rotations.m2*adjoint(Tcirc2)*T2
     end
-    return TransformCache{typeof(T1), typeof(ref)}(T1, T2, ref)
+    return ResponseCache{typeof(T1), typeof(ref)}(T1, T2, ref)
 end
 
 """
-    jonesT(tcache::TransformCache)
+    jonesT(tcache::ResponseCache)
 
 Returns a `JonesPair` of matrices that transform from the model coherency matrices basis
 to the on-sky coherency basis, this includes the feed rotation and choice of polarization feeds.
 """
-jonesT(tcache::TransformCache) = JonesPairs(tcache.T1, tcache.T2)
-JonesModel(jones::J, tcache::TransformCache) where {J} = JonesModel(jones, tcache.refbasis)
+jonesT(tcache::ResponseCache) = JonesPairs(tcache.T1, tcache.T2)
+JonesModel(jones::J, tcache::ResponseCache) where {J} = JonesModel(jones, tcache.refbasis)
 
 
 """
@@ -1035,6 +1046,7 @@ function extract_FRs(obs::EHTObservation; ehtim_fr_convention=false)
     elevs = tarr.fr_elevation
     pars  = tarr.fr_parallactic
     offs  = tarr.fr_offset
+
 
     # get station names
     bls = config.data.baseline

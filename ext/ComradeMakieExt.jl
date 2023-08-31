@@ -7,7 +7,4 @@ else
     using ..Makie
 end
 
-
-
-
 end

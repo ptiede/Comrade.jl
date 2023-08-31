@@ -199,7 +199,7 @@ skymeta = (;K, cache, grid)
 #
 # First, we will define our deterministic transform cache. Note that this dataset has need
 # been pre-corrected for feed rotation, so we need to add those into the `tcache`.
-tcache = TransformCache(dvis; add_fr=true, ehtim_fr_convention=false)
+tcache = ResponseCache(dvis; add_fr=true, ehtim_fr_convention=false)
 #-
 # Next we define our cache that maps quantities e.g., gain products, that change from scan-to-scan.
 scancache = jonescache(dvis, ScanSeg())

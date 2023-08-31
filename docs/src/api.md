@@ -25,7 +25,7 @@ Comrade.caltable(::Comrade.JonesCache, ::AbstractVector)
 Comrade.caltable(::Comrade.EHTObservation, ::AbstractVector)
 Comrade.DesignMatrix
 Comrade.JonesCache
-Comrade.TransformCache
+Comrade.ResponseCache
 Comrade.JonesModel
 Comrade.VLBIModel
 Comrade.CalPrior

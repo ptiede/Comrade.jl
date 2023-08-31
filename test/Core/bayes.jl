@@ -97,7 +97,7 @@ end
 
 @testset "RadioLikelihood" begin
     _,vis, amp, lcamp, cphase, coh = load_data()
-    tcache = TransformCache(coh)
+    tcache = ResponseCache(coh)
     lklhd_amp = RadioLikelihood(test_model, amp)
     lklhd_cp = RadioLikelihood(test_model, cphase)
     lklhd_lc = RadioLikelihood(test_model, lcamp)

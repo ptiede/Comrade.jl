@@ -13,7 +13,7 @@ end
 
 """
     JonesModel(jones::JonesPairs, refbasis = CirBasis())
-    JonesModel(jones::JonesPairs, tcache::TransformCache)
+    JonesModel(jones::JonesPairs, tcache::ResponseCache)
 
 Constructs the intrument corruption model using pairs of jones matrices `jones` and a
 reference basis

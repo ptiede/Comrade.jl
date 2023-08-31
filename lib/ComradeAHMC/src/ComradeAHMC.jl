@@ -443,7 +443,13 @@ end
 function load_table(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples")
     @assert isdir(abspath(out)) "$out is not a directory. This isn't where the HMC samples are stored"
     @assert isfile(joinpath(abspath(out), "parameters.jld2")) "parameters.jld2 "
-    return load_table(load(joinpath(abspath(out), "parameters.jld2"), "params"), indices; table)
+    p = load(joinpath(abspath(out), "parameters.jld2"), "params")
+    if p.filename != abspath(out)
+        @warn "filename stored in params does not equal what was passed\n"*
+                 "we will load the path passed\n  $(out)."
+        p = DiskOutput(out, p.nfiles, p.stride, p.nsamples)
+    end
+    return load_table(p, indices; table)
 end
 
 
