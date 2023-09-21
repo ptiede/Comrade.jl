@@ -251,7 +251,7 @@ phase(vis::AbstractArray{<:Complex}) = angle.(vis)
 
 
 
-function DensityInterface.logdensityof(d::RadioLikelihood, θ::NamedTuple)
+function DensityInterface.logdensityof(d::RadioLikelihood, θ)
     ac = d.positions
     m = vlbimodel(d, θ)
     # Convert because of conventions

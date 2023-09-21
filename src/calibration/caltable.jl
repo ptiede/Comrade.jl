@@ -244,7 +244,15 @@ end
 function fill_gmat!(gmat, v::FixedSeg, lookup, i, allstations, alltimes, gains)
     t = findfirst(t->(t==alltimes[i]), unique(alltimes))
     c = lookup[allstations[i]]
-    gmat[t,c] = v.value
+    gmat[t,c] .= v.value
+end
+
+function stations(g::JonesCache)
+    s1 = g.schema.sites
+    if !(g.references isa AbstractVector{<:NoReference})
+        return sort(unique(vcat(s1, getproperty.(g.references, :site))))
+    end
+    return sort(unique(s1))
 end
 
 
@@ -270,7 +278,8 @@ ct[1, :]
 function caltable(g::JonesCache, gains::AbstractVector, f=identity)
     @argcheck length(g.schema.times) == length(gains)
 
-    stations = sort(unique(g.schema.sites))
+    stations = Comrade.stations(g)
+    println(stations)
     times = unique(g.schema.times)
     gmat = Matrix{Union{eltype(gains), Missing}}(missing, length(times), length(stations))
     gmat .= 0.0
@@ -282,6 +291,14 @@ function caltable(g::JonesCache, gains::AbstractVector, f=identity)
     for i in eachindex(gains)
         seg = getproperty(segs, allstations[i])
         fill_gmat!(gmat, seg, lookup, i, allstations, alltimes, gains)
+    end
+
+    for i in eachindex(g.references)
+        s = g.references[i]
+        if !(s isa NoReference)
+            c = lookup[s.site]
+            gmat[i, c] = s.scheme.value
+        end
     end
 
     replace!(x->(x==0 ? missing : x), gmat)
