@@ -58,7 +58,7 @@ cache = create_cache(NFFTAlg(dvis), buffer, DeltaPulse())
 using VLBIImagePriors
 prior = ImageUniform(npix, npix)
 
-skymetadata = (;c=rand(npix, npix), grid, cache)
+skymetadata = (;grid, cache)
 # instrumentmetadata = (;gcache, gcachep)
 lklhd = RadioLikelihood(sky, dvis; skymeta=skymetadata)
 post = Posterior(lklhd, prior)
@@ -69,8 +69,11 @@ ndim = dimension(tpost)
 using Enzyme
 Enzyme.API.runtimeActivity!(true)
 # Enzyme.API.printall!(false)
-x0 = randn(rng, ndim)
+x0 = prior_sample(tpost)
 dx0 = zero(x0)
 lt=logdensityof(tpost)
 ℓ = logdensityof(tpost, x0)
-@time autodiff(Reverse, logdensityof, Const(tpost), Duplicated(x0, fill!(dx0, 0.0)))
+dtpost = deepcopy(tpost)
+using BenchmarkTools
+@time autodiff(Reverse, logdensityof, (Duplicated(tpost, dtpost)), Duplicated(x0, fill!(dx0, 0.0)))
+@btime autodiff(Reverse, logdensityof, $(Duplicated(tpost, dtpost)), Duplicated($x0, fill!($dx0, 0.0)))
