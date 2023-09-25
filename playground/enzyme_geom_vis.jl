@@ -106,7 +106,7 @@ prior = NamedDist(
 
 # Putting it all together we form our likelihood and posterior objects for optimization and
 # sampling.
-lklhd = RadioLikelihood(sky, instrument, dvis; instrumentmeta=metadata)
+lklhd = RadioLikelihood(sky, instrument, dvis; instrumentmeta = metadata)
 post = Posterior(lklhd, prior)
 
 # ## Reconstructing the Image and Instrument Effects
@@ -122,10 +122,10 @@ ndim = dimension(tpost)
 # inference packages use this interface as well.
 using Zygote
 using Enzyme
-Enzyme.API.runtimeActivity!(false)
+Enzyme.API.runtimeActivity!(true)
 
 x0 = randn(rng, ndim)
 ℓ = logdensityof(tpost)
 gz, = Zygote.gradient(ℓ, x0)
 dx0 = zero(x0)
-autodiff(Reverse, logdensityof, (Const(tpost)), Duplicated(x0, dx0))
+autodiff(Reverse, logdensityof, Duplicated(tpost, deepcopy(tpost)), Duplicated(x0, dx0))
