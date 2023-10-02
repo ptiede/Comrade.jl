@@ -1,6 +1,11 @@
 # THis is because we are on a headless system
 # see https://github.com/jheinen/GR.jl/issues/510
 # ENV["GKS_WSTYPE"]="nul"
+using Pkg
+script_dir = @__DIR__
+Pkg.activate(script_dir)
+parent_dir = dirname(script_dir)
+Pkg.develop(PackageSpec(path=parent_dir))
 
 
 using Documenter
@@ -59,7 +64,7 @@ makedocs(;
     modules=[ComradeBase, Comrade,
              ComradeOptimization, ComradeAHMC,
              ComradeNested, ComradeDynesty,
-             ComradeAdaptMCMC, PolarizedTypes, VLBISkyModels],
+             ComradeAdaptMCMC],
     repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
     pages=Any[
@@ -78,7 +83,7 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    format = Documenter.HTML(), draft=false
+    format = Documenter.HTML(), draft=true
 )
 
 deploydocs(;

@@ -14,6 +14,10 @@ Pages = ["api.md"]
 Pages = ["api.md"]
 ```
 
+```@docs
+Comrade.Comrade
+```
+
 ## Model Definitions
 
 ### Calibration Models
@@ -46,30 +50,16 @@ Comrade.jonesG
 Comrade.jonesD
 Comrade.jonesT
 Base.map(::Any, ::Vararg{Comrade.JonesPairs})
-Comrade.PoincareSphere2Map
 Comrade.caltable
 Comrade.JonesPairs
 Comrade.GainSchema
+Comrade.SegmentedJonesCache
 ```
 
 ### Models
 
-```@docs
-VLBISkyModels.DFTAlg(::Comrade.ArrayConfiguration)
-VLBISkyModels.DFTAlg(::Comrade.EHTObservation)
-VLBISkyModels.NFFTAlg(::Comrade.ArrayConfiguration)
-VLBISkyModels.NFFTAlg(::Comrade.EHTObservation)
-```
+For the description of the model API see [VLBISkyModels](https://ehtjulia.github.io/VLBISkyModels.jl/stable/).
 
-
-### Polarized Models
-
-```@docs
-PolarizedTypes.mbreve
-PolarizedTypes.m̆
-PolarizedTypes.evpa
-PolarizedTypes.linearpol
-```
 
 
 
@@ -83,8 +73,6 @@ Comrade.VisibilityAmplitudes
 Comrade.ClosurePhases
 Comrade.LogClosureAmplitudes
 Comrade.Coherencies
-Comrade.amplitude(::Comrade.EHTVisibilityDatum)
-Comrade.amplitude(::Comrade.EHTVisibilityAmplitudeDatum)
 Comrade.baselines
 Comrade.arrayconfig
 Comrade.closure_phase(::Comrade.EHTVisibilityDatum, ::Comrade.EHTVisibilityDatum, ::Comrade.EHTVisibilityDatum)
@@ -101,22 +89,22 @@ Comrade.ArrayBaselineDatum
 Comrade.EHTObservation
 Comrade.EHTArrayConfiguration
 Comrade.EHTCoherencyDatum
-Comrade.EHTClosurePhaseDatum
-Comrade.EHTLogClosureAmplitudeDatum
 Comrade.EHTVisibilityDatum
 Comrade.EHTVisibilityAmplitudeDatum
+Comrade.EHTLogClosureAmplitudeDatum
+Comrade.EHTClosurePhaseDatum
 Comrade.Scan
 Comrade.ScanTable
 ```
 
-## eht-imaging interface (Internal)
-
+## Model Cache
 ```@docs
-Comrade.extract_amp
-Comrade.extract_cphase
-Comrade.extract_lcamp
-Comrade.extract_vis
+VLBISkyModels.NFFTAlg(::Comrade.EHTObservation)
+VLBISkyModels.NFFTAlg(::Comrade.ArrayConfiguration)
+VLBISkyModels.DFTAlg(::Comrade.EHTObservation)
+VLBISkyModels.DFTAlg(::Comrade.ArrayConfiguration)
 ```
+
 
 ## Bayesian Tools
 
@@ -144,16 +132,35 @@ Comrade.IsFlat
 Comrade.IsCube
 ```
 
+### Sampler Tools
+```@docs
+Comrade.samplertype
+```
+
 ## Misc
 
 ```@docs
 Comrade.station_tuple
 Comrade.dirty_image
 Comrade.dirty_beam
+Comrade.beamsize
 ```
 
 ## Internal (Not Public API)
 ```@docs
 Comrade.extract_FRs
+ComradeBase._visibilities!
+ComradeBase._visibilities
 ```
+
+### eht-imaging interface (Internal)
+
+```@docs
+Comrade.extract_amp
+Comrade.extract_cphase
+Comrade.extract_lcamp
+Comrade.extract_vis
+Comrade.extract_coherency
+```
+
 

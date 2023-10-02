@@ -27,4 +27,4 @@ VLBISkyModels = "d6343c73-7174-4e0f-bb64-562643efbeca"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
-Documenter = "0.27"
+Documenter = "1"

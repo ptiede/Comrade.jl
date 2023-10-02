@@ -1,6 +1,6 @@
 using Distributions
 using ComradeOptimization
-using OptimizationOptimJL
+using OptimizationGCMAES
 using StatsBase
 using Plots
 using LogDensityProblems
@@ -34,7 +34,7 @@ using Zygote
     @test dimension(post) == dimension(tpostf)
     @test dimension(post) == dimension(tpostc)
 
-    f = OptimizationFunction(tpostc, Optimization.AutoZygote())
+    f = OptimizationFunction(tpostf, Optimization.AutoZygote())
     x0 = [ 0.1,
            0.4,
            0.5,
@@ -45,8 +45,8 @@ using Zygote
            0.7,
            0.8,
            0.8]
-    prob = OptimizationProblem(f, x0, nothing, lb=fill(0.001, 10), ub=fill(0.999,10))
-    sol = solve(prob, LBFGS(); maxiters=100_000)
+    prob = OptimizationProblem(f, x0, nothing)
+    sol = solve(prob, GCMAESOpt(); maxiters=10_000, lb=fill(-5.0, ndim), ub = fill(5.0, ndim))
 
     xopt = transform(tpostc, sol)
     @test isapprox(xopt.f1/xopt.f2, 2.0, atol=1e-3)
@@ -164,7 +164,7 @@ using FiniteDifferences
     end
 
     @testset "FFT" begin
-        mt = (fovx = 10.0, fovy=10.0, nx=256, ny=256, alg=FFTAlg())
+        mt = (fovx = μas2rad(150.0), fovy= μas2rad(150.0), nx=256, ny=256, alg=FFTAlg())
         lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
 
         prior = test_prior2()
@@ -177,7 +177,7 @@ using FiniteDifferences
         ℓ = logdensityof(tpostf)
         gf = ForwardDiff.gradient(ℓ, x0)
         gn = FiniteDifferences.grad(mfd, ℓ, x0)
-        @test_broken isapprox(gf, gn[1], atol=1e-1, rtol=1e-5)
+        @test isapprox(gf, gn[1], atol=1e-1, rtol=1e-5)
     end
 
 end

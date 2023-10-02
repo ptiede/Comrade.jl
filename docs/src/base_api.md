@@ -92,20 +92,4 @@ ComradeBase.save
 
 ```@docs
 ComradeBase.AbstractPolarizedModel
-PolarizedTypes.StokesParams
-PolarizedTypes.ElectricFieldBasis
-PolarizedTypes.RPol
-PolarizedTypes.LPol
-PolarizedTypes.XPol
-PolarizedTypes.YPol
-PolarizedTypes.PolBasis
-PolarizedTypes.CirBasis
-PolarizedTypes.LinBasis
-PolarizedTypes.CoherencyMatrix
-PolarizedTypes.evpa
-PolarizedTypes.m̆
-PolarizedTypes.linearpol
-PolarizedTypes.innerprod
-PolarizedTypes.basis_components
-PolarizedTypes.basis_transform
 ```

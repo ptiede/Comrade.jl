@@ -1,6 +1,6 @@
 """
     $(TYPEDEF)
-An abstract type for all VLBI interfermetry data types. See [Comrade.EHTVisibilityDatum](@ref) for an example.
+An abstract type for all VLBI interfermetry data types. See [`Comrade.EHTVisibilityDatum`](@ref) for an example.
 """
 abstract type AbstractInterferometryDatum{T} end
 
@@ -485,18 +485,19 @@ end
 """
     $(TYPEDEF)
 
-A struct holding the information for a single measured visibility.
+A struct holding the information for a single measured complex visibility.
 
-# $(FIELDS)
+# FIELDS
+$(FIELDS)
 
 """
 Base.@kwdef struct EHTVisibilityDatum{S<:Number} <: AbstractVisibilityDatum{S}
     """
-    real component of the visibility (Jy)
+    Complex Vis. measurement (Jy)
     """
-    measurement::Complex{S}
+    measurement::S
     """
-    error of the visibility (Jy)
+    error of the complex vis (Jy)
     """
     error::S
     """
@@ -597,15 +598,6 @@ function checktriangle(D1::EHTVisibilityDatum,
     @assert l == 3 "For a valid closure phase you need 3 unique stations not $l"
     @assert (D1.time == D2.time == D3.time) "For a valid closure phase the times need to match"
 
-end
-
-"""
-    amplitude(d::EHTVisibilityAmplitudeDatum)
-
-Get the amplitude of a amplitude datum
-"""
-@inline function amplitude(D::EHTVisibilityAmplitudeDatum{T}) where {T}
-    return D.measurement
 end
 
 

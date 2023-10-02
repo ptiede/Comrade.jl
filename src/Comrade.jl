@@ -14,7 +14,6 @@ using FillArrays: Fill
 using ForwardDiff
 #using MappedArrays: mappedarray
 using NamedTupleTools
-using PDMats
 using Printf
 using Random
 using RecipesBase
