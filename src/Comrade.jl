@@ -62,7 +62,7 @@ include("bayes/bayes.jl")
 include("inference/inference.jl")
 include("calibration/calibration.jl")
 include("clean.jl")
-
+include("rules.jl")
 
 # Load extensions using requires for verions < 1.9
 if !isdefined(Base, :get_extension)
