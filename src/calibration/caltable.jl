@@ -248,7 +248,7 @@ function fill_gmat!(gmat, v::FixedSeg, lookup, i, allstations, alltimes, gains)
 end
 
 function stations(g::JonesCache)
-    s1 = g.schema.sites
+    s1 = keys(g.seg)
     if !(g.references isa AbstractVector{<:NoReference})
         return sort(unique(vcat(s1, getproperty.(g.references, :site))))
     end
@@ -279,7 +279,6 @@ function caltable(g::JonesCache, gains::AbstractVector, f=identity)
     @argcheck length(g.schema.times) == length(gains)
 
     stations = Comrade.stations(g)
-    println(stations)
     times = unique(g.schema.times)
     gmat = Matrix{Union{eltype(gains), Missing}}(missing, length(times), length(stations))
     gmat .= 0.0
