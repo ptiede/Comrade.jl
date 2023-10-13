@@ -248,7 +248,7 @@ function fill_gmat!(gmat, v::FixedSeg, lookup, i, allstations, alltimes, gains)
 end
 
 function stations(g::JonesCache)
-    s1 = g.schema.sites
+    s1 = keys(g.seg)
     if !(g.references isa AbstractVector{<:NoReference})
         return sort(unique(vcat(s1, getproperty.(g.references, :site))))
     end
