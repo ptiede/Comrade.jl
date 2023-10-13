@@ -279,7 +279,6 @@ function caltable(g::JonesCache, gains::AbstractVector, f=identity)
     @argcheck length(g.schema.times) == length(gains)
 
     stations = Comrade.stations(g)
-    println(stations)
     times = unique(g.schema.times)
     gmat = Matrix{Union{eltype(gains), Missing}}(missing, length(times), length(stations))
     gmat .= 0.0

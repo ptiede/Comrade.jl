@@ -175,7 +175,7 @@ end
     u = getdata(dvis, :U)
     v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
-    vis = visibility.(dvis.data)
+    vis = dvis[:measurement]
     error = getdata(dvis, :error)
     vre = real.(vis)
     vim = imag.(vis)
