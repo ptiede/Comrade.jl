@@ -250,7 +250,8 @@ end
 function stations(g::JonesCache)
     s1 = keys(g.seg)
     if !(g.references isa AbstractVector{<:NoReference})
-        return sort(unique(vcat(s1, getproperty.(g.references, :site))))
+        s = (s1..., getproperty.(g.references, :site)...)
+        return sort(unique(s))
     end
     return sort(unique(s1))
 end

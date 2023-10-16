@@ -49,6 +49,8 @@ function DensityInterface.logdensityof(post::Posterior, x)
     return logdensityof(post.lklhd, x) + pr
 end
 
+(post::Posterior)(θ) = logdensityof(post, θ)
+
 """
     prior_sample([rng::AbstractRandom], post::Posterior, args...)
 
@@ -136,6 +138,9 @@ struct TransformedPosterior{P<:Posterior,T} <: AbstractPosterior
     lpost::P
     transform::T
 end
+
+(tpost::TransformedPosterior)(θ) = logdensityof(tpost, θ)
+
 
 function prior_sample(rng, tpost::TransformedPosterior, args...)
     inv = Base.Fix1(HypercubeTransform.inverse, tpost)
