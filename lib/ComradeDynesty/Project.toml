@@ -12,7 +12,7 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
 
 [compat]
-AbstractMCMC = "3, 4"
+AbstractMCMC = "3, 4, 5"
 Comrade = "^0.7.5, 0.8, 0.9"
 Dynesty = "0.3"
 Reexport = "1"
