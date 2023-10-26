@@ -52,7 +52,7 @@ ComradeMakieExt = "Makie"
 ComradePyehtimExt = "Pyehtim"
 
 [compat]
-AbstractMCMC = "3, 4"
+AbstractMCMC = "3, 4, 5"
 ArgCheck = "2"
 AstroTime = "0.6,0.7"
 AxisKeys = "0.2"
