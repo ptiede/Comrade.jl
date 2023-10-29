@@ -23,8 +23,8 @@ jobs:
           - ComradeOptimization
           - ComradeNested
         version:
+          - '1.9'
           - '1'
-          - '1.8'
         os:
           - ubuntu-latest
         arch:

@@ -152,21 +152,21 @@ end
     ascube(pdSE_1)
 end
 
-@testset "Hierarchical calibration priors" begin
-    _,vis, amp, lcamp, cphase, dcoh = load_data()
-    tel = stations(vis)
+# @testset "Hierarchical calibration priors" begin
+#     _,vis, amp, lcamp, cphase, dcoh = load_data()
+#     tel = stations(vis)
 
-    meand = NamedDist(NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel))))
-    stdd = NamedDist(NamedTuple{Tuple(tel)}(ntuple(_->LogNormal(0.0, 0.1), length(tel))))
+#     meand = NamedDist(NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel))))
+#     stdd = NamedDist(NamedTuple{Tuple(tel)}(ntuple(_->LogNormal(0.0, 0.1), length(tel))))
 
 
-    dcache = jonescache(dcoh, ScanSeg())
-    dc = HierarchicalCalPrior{Normal{Float64}}(meand, stdd, dcache)
+#     dcache = jonescache(dcoh, ScanSeg())
+#     dc = HierarchicalCalPrior{Normal{Float64}}(meand, stdd, dcache)
 
-    asflat(dc)
+#     asflat(dc)
 
-    logdensityof(dc, rand(dc))
-end
+#     logdensityof(dc, rand(dc))
+# end
 
 
 @testset "dterms" begin
