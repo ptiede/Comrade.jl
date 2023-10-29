@@ -495,7 +495,7 @@ Base.@kwdef struct EHTVisibilityDatum{S<:Number} <: AbstractVisibilityDatum{S}
     """
     Complex Vis. measurement (Jy)
     """
-    measurement::S
+    measurement::Complex{S}
     """
     error of the complex vis (Jy)
     """

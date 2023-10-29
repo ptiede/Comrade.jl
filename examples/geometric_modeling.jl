@@ -182,18 +182,18 @@ fig, ax, plt = CM.image(g, model(xopt); axis=(xreversed=true, aspect=1, xlabel="
 #
 # Comrade provides several sampling and other posterior approximation tools. To see the
 # list, please see the Libraries section of the docs. For this example, we will be using
-# [AdvancedHMC.jl](https://github.com/TuringLang/AdvancedHMC.jl), which uses
-# an adaptive Hamiltonian Monte Carlo sampler called NUTS to approximate the posterior.
-# Most of Comrade's external libraries follow a similar interface. To use AdvancedHMC
-# do the following:
+# [Pigeons.jl](https://github.com/Julia-Tempering/Pigeons.jl) which is a state-of-the-art
+# parallel tempering sampler that enables global exploration of the posterior. For smaller dimension
+# problems (< 100) we recommend using this sampler especially if you have access to > 1 thread/core.
+using Pigeons
+pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=18, n_rounds=9)
+chain = sample_array(cpost, pt)
 
-using ComradeAHMC, Zygote
-chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim), autodiff=Val(:Zygote)), 2000; nadapts=1000, init_params=xopt)
 
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.
 
 # First to plot the image we call
-imgs = intensitymap.(skymodel.(Ref(post), sample(chain[1000:end], 100)), μas2rad(200.0), μas2rad(200.0), 128, 128)
+imgs = intensitymap.(skymodel.(Ref(post), sample(chain, 100)), μas2rad(200.0), μas2rad(200.0), 128, 128)
 imageviz(imgs[end], colormap=:afmhot)
 
 # What about the mean image? Well let's grab 100 images from the chain, where we first remove the
@@ -212,7 +212,7 @@ plot(model(xopt), dlcamp, label="MAP")
 p = plot(dlcamp);
 uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
 for i in 1:10
-    m = simulate_observation(post, chain[rand(rng, 1000:2000)])[1]
+    m = simulate_observation(post, sample(chain, 1)[1])[1]
     scatter!(uva, m, color=:grey, label=:none, alpha=0.1)
 end
 p
