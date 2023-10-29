@@ -83,7 +83,7 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    format = Documenter.HTML(), draft=true
+    format = Documenter.HTML(), draft=false
 )
 
 deploydocs(;
