@@ -295,7 +295,6 @@ Returns an EHTObservation with coherency matrix
 """
 function Comrade.extract_coherency(obsc; kwargs...)
     obs = obsc.copy()
-    obs.reorder_tarr_snr()
     obs.add_scans()
     data = getcoherency(obs)
     ra, dec = get_radec(obs)

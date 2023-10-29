@@ -116,7 +116,7 @@ using Pyehtim
     baselines(lcamp[1])
 
     #Test amplitude which is already debiased for very very dumb reasons
-    @test sqrt(abs(visibility(vis[1]))^2 - vis[1].error^2) ≈ amplitude(amp[1])
+    @test sqrt(abs(visibility(vis[1]))^2 - vis[1].error^2) ≈ amp[1].measurement
     ac = arrayconfig(vis)
     plot(ac)
 
