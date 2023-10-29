@@ -45,10 +45,10 @@ using Zygote
            0.7,
            0.8,
            0.8]
-    prob = OptimizationProblem(f, x0, nothing)
-    sol = solve(prob, GCMAESOpt(); maxiters=10_000, lb=fill(-5.0, ndim), ub = fill(5.0, ndim))
+    prob = OptimizationProblem(f, x0, nothing; lb=fill(-5.0, ndim), ub = fill(5.0, ndim))
+    sol = solve(prob, GCMAESOpt(); maxiters=10_000)
 
-    xopt = transform(tpostc, sol)
+    xopt = transform(tpostf, sol)
     @test isapprox(xopt.f1/xopt.f2, 2.0, atol=1e-3)
     @test isapprox(xopt.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-3)
     @test isapprox(xopt.σ1*xopt.τ1*2*sqrt(2*log(2)), μas2rad(20.0), rtol=1e-3)

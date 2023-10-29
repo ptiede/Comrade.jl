@@ -75,5 +75,5 @@ lt=logdensityof(tpost)
 ℓ = logdensityof(tpost, x0)
 dtpost = deepcopy(tpost)
 using BenchmarkTools
-@time autodiff(Reverse, logdensityof, (Duplicated(tpost, dtpost)), Duplicated(x0, fill!(dx0, 0.0)))
+@time autodiff(Reverse, logdensityof, Const(tpost), Duplicated(x0, fill!(dx0, 0.0)))
 @btime autodiff(Reverse, logdensityof, $(Duplicated(tpost, dtpost)), Duplicated($x0, fill!($dx0, 0.0)))

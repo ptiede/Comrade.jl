@@ -12,7 +12,7 @@ function load_data()
     m = ehtim.model.Model()
     m = m.add_gauss(1.0, μas2rad(40.0), μas2rad(20.0), π/3, 0.0, 0.0)
     m = m.add_gauss(0.5, μas2rad(20.0), μas2rad(10.0), π/6, μas2rad(30.0), μas2rad(30.0))
-    obsm = m.observe_same_nonoise(obsavg)
+    obsm = m.observe_same_nonoise(obsavg.switch_polrep("stokes"))
 
     vis = extract_table(obsm, ComplexVisibilities())
     amp = extract_table(obsm, VisibilityAmplitudes())

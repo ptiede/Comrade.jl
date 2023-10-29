@@ -140,7 +140,7 @@ imgpr ./= flux(imgpr)
 meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
 
 # Now we can form our metadata we need to fully define our model.
-metadata = (;ftot=1.1, K=CenterImage(imgpr), meanpr, grid, cache, gcache, gcachep, gcachep0)
+metadata = (;ftot=1.1, K=CenterImage(imgpr), meanpr, grid, cache, gcache, gcachep)
 
 # We will also fix the total flux to be the observed value 1.1. This is because
 # total flux is degenerate with a global shift in the gain amplitudes making the problem
@@ -189,8 +189,8 @@ crcache = MarkovRandomFieldCache(meanpr)
 # of our prior/regularizers unlike traditional RML appraoches. To construct this heirarchical
 # prior we will first make a map that takes in our regularizer hyperparameters and returns
 # the image prior given those hyperparameters.
-fmap = let meanpr=zero(meanpr), crcache=crcache
-    x->GaussMarkovRandomField(meanpr, x.λ, 1.0, crcache)
+fmap = let crcache=crcache
+    x->GaussMarkovRandomField(x, 1.0, crcache)
 end
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
@@ -202,7 +202,7 @@ end
 # and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image. If the data wants more complexity
 # then it will drive us away from the prior.
-cprior = HierarchicalPrior(fmap, NamedDist((;λ = truncated(Normal(0.0, 0.1*inv(rat)); lower=2/npix))))
+cprior = HierarchicalPrior(fmap, InverseGamma(1.0, -log(0.01*rat)))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -210,7 +210,7 @@ cprior = HierarchicalPrior(fmap, NamedDist((;λ = truncated(Normal(0.0, 0.1*inv(
 # which automatically constructs the prior for the given jones cache `gcache`.
 prior = NamedDist(
          fg = Uniform(0.0, 1.0),
-         σimg = truncated(Normal(0.0, 0.5); lower=0.01),
+         σimg = truncated(Normal(0.0, 1.0); lower=0.01),
          c = cprior,
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
@@ -250,7 +250,7 @@ LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
 using ComradeOptimization
 using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, rand(rng, ndim) .- 0.5, nothing)
+prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
 sol = solve(prob, LBFGS(), maxiters=1_000, g_tol=1e-1);
 

@@ -84,7 +84,7 @@ cache = create_cache(NFFTAlg(dlcamp), buffer, BSplinePulse{3}())
 # Random field prior
 using VLBIImagePriors, Distributions, DistributionsAD
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
-# image. For this work we will use a symmetric Gaussian with a FWHM of 40 μas
+# image. For this work we will use a symmetric Gaussian with a FWHM of 50 μas
 fwhmfac = 2*sqrt(2*log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
@@ -111,18 +111,16 @@ crcache = MarkovRandomFieldCache(meanpr)
 # of our prior/regularizers unlike traditional RML appraoches. To construct this heirarchical
 # prior we will first make a map that takes in our regularizer hyperparameters and returns
 # the image prior given those hyperparameters.
-fmap = let m=zero(meanpr), crcache=crcache
-    x->GaussMarkovRandomField(m, x.λ, 1.0, crcache)
+fmap = let crcache=crcache
+    x->GaussMarkovRandomField(x, 1.0, crcache)
 end
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
-# inverse correlation length is given by a Half-Normal distribution whose peak is at zero and
-# standard deviation is 1/3/rat. For the variance of the GP we use another
-# half normal prior with standard deviation unity. The reason we use the half-normal priors is
-# to prefer "simple" structures. Namely, Gaussian Markov random fields are extremly flexible models.
+# correlation length is given by a inverse gamma prior to prevent overfitting.
+# Gaussian Markov random fields are extremly flexible models.
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(fmap, NamedDist(λ = truncated(Normal(0.0, 0.1*inv(rat)); lower=2/npix)))
+cprior = HierarchicalPrior(fmap, InverseGamma(1.0, -log(0.01*rat)))
 
 prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 1.0); lower=0.01), fg=Uniform(0.0, 1.0))
 

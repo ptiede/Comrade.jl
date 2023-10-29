@@ -8,7 +8,7 @@ export residuals, chi2
     u = getdata(dvis, :U)
     v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
-    vis = visibility.(dvis.data)
+    vis = dvis[:measurement]
     error = getdata(dvis, :error)
     vre = real.(vis)
     vim = imag.(vis)
@@ -333,7 +333,7 @@ end
     u = getdata(dvis, :U)/1e9
     v = getdata(dvis, :V)/1e9
     uvdist = hypot.(u,v)
-    amp = amplitude.(dvis.data)
+    amp = dvis[:measurement]
     error = getdata(dvis, :error)
     #add data errorbars
     seriestype --> :scatter
@@ -367,7 +367,7 @@ end
     u = getdata(dvis, :U)
     v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
-    amp = amplitude.(dvis.data)
+    amp = dvis[:measurement]
     error = getdata(dvis, :error)
     #add data errorbars
     @series begin

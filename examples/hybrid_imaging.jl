@@ -56,10 +56,10 @@ dvis  = extract_table(obs, ComplexVisibilities())
 
 function sky(θ, metadata)
     (;c, σimg, f, r, σ, τ, ξτ, ma1, mp1, ma2, mp2, fg) = θ
-    (;ftot, meanpr, grid, cache) = metadata
+    (;ftot, grid, cache) = metadata
     ## Form the image model
     ## First transform to simplex space first applying the non-centered transform
-    rast = to_simplex(CenteredLR(), meanpr .+ σimg.*c)
+    rast = to_simplex(CenteredLR(), σimg.*c)
     img = IntensityMap((ftot*f*(1-fg))*rast, grid)
     mimg = ContinuousImage(img, cache)
     ## Form the ring model
@@ -68,7 +68,7 @@ function sky(θ, metadata)
     α = (ma1*c1, ma2*c2)
     β = (ma1*s1, ma2*s2)
     ring = smoothed(modify(MRing(α, β), Stretch(r, r*(1+τ)), Rotate(ξτ), Renormalize((ftot*(1-f)*(1-fg)))), σ)
-    gauss = modify(Gaussian(), Stretch(μas2rad(250.0)), Renormalize(ftot*f))
+    gauss = modify(Gaussian(), Stretch(μas2rad(250.0)), Renormalize(ftot*f*fg))
     ## We group the geometric models together for improved efficiency. This will be
     ## automated in future versions.
     return mimg + (ring + gauss)
@@ -122,20 +122,9 @@ cache  = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
 # distribution always equals unity. First we load `VLBIImagePriors` which containts a large number
 # of priors and transformations that are useful for imaging.
 using VLBIImagePriors
-# Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
-# image. For this work we will use a symmetric Gaussian with a FWHM of 80 μas. This is larger
-# than the other examples since the ring will attempt to soak up the majority of the ring flux.
-fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(80.0)./fwhmfac))
-imgpr = intensitymap(mpr, grid)
-
-# Now since we are actually modeling our image on the simplex we need to ensure that
-# our mean image has unit flux
-imgpr ./= flux(imgpr)
-meanpr = to_real(CenteredLR(), baseimage(imgpr))
 
 # Now we form the metadata
-skymetadata = (;ftot=1.1, meanpr, grid, cache)
+skymetadata = (;ftot=1.1, grid, cache)
 
 
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
@@ -170,7 +159,7 @@ lklhd = RadioLikelihood(sky, instrument, dvis;
 # pixel length, which is given by
 beam = beamsize(dvis)
 rat = (beam/(step(grid.X)))
-cprior = GaussMarkovRandomField(zero(meanpr), 0.05*rat, 1.0)
+cprior = GaussMarkovRandomField(10*rat, 1.0, size(grid))
 # additionlly we will fix the standard deviation of the field to unity and instead
 # use a pseudo non-centered parameterization for the field.
 # GaussMarkovRandomField(meanpr, 0.1*rat, 1.0, crcache)
@@ -205,7 +194,7 @@ using VLBIImagePriors
 prior = NamedDist(
           c  = cprior,
           ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
-          σimg = truncated(Normal(0.0, 0.5); lower=0.01),
+          σimg = truncated(Normal(0.0, 0.1); lower=0.01),
           f  = Uniform(0.0, 1.0),
           r  = Uniform(μas2rad(10.0), μas2rad(30.0)),
           σ  = Uniform(μas2rad(0.1), μas2rad(10.0)),
@@ -229,7 +218,7 @@ xrand = prior_sample(rng, post)
 # and then plot the results
 import CairoMakie as CM
 g = imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128)
-CM.image(g, skymodel(post, xrand), axis=(aspect=1, xreversed=true, title="Random Sample"), colormap=:afmhot)
+imageviz(intensitymap(skymodel(post, xrand), g))
 
 # ## Reconstructing the Image
 
@@ -291,9 +280,9 @@ msamples = skymodel.(Ref(post), chain[begin:2:end]);
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, fovxy, fovxy, 128, 128)
-CM.image(mean(imgs), axis=(xreversed=true, aspect=1, title="Mean Image"), colormap=:afmhot)
+imageviz(mean(imgs), colormap=:afmhot)
 #-
-CM.image(std(imgs), axis=(xreversed=true, aspect=1, title="Std. Dev. Image"), colormap=:batlow)
+imageviz(std(imgs), colormap=:batlow)
 #-
 #
 # We can also split up the model into its components and analyze each separately
@@ -307,7 +296,7 @@ ring_mean, ring_std = mean_and_std(ring_imgs)
 rast_mean, rast_std = mean_and_std(rast_imgs)
 
 fig = CM.Figure(; resolution=(800, 800))
-axes = [CM.Axis(fig[i, j], xreversed=true, aspect=1) for i in 1:2, j in 1:2]
+axes = [CM.Axis(fig[i, j], xreversed=true, aspect=CM.DataAspect()) for i in 1:2, j in 1:2]
 CM.image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
 CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
 CM.image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"

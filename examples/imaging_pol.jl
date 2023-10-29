@@ -326,11 +326,11 @@ import CairoMakie as CM
 fig = CM.Figure(;resolution=(900, 400))
 polimage(fig[1,1], imgtruesub,
                    axis=(xreversed=true, aspect=1, title="Truth", limits=((-20.0,20.0), (-20.0, 20.0))),
-                   length_norm=10, plot_total=true,
+                   length_norm=1, plot_total=true,
                    pcolorrange=(-0.25, 0.25), pcolormap=CM.Reverse(:jet))
 polimage(fig[1,2], img,
                    axis=(xreversed=true, aspect=1, title="Recon.",  limits=((-20.0,20.0), (-20.0, 20.0))),
-                   length_norm=10, plot_total=true,
+                   length_norm=1, plot_total=true,
                    pcolorrange=(-0.25, 0.25), pcolormap=CM.Reverse(:jet))
 CM.Colorbar(fig[1,3], colormap=CM.Reverse(:jet), colorrange=(-0.25, 0.25), label="Signed Polarization Fraction sign(V)*|p|")
 CM.colgap!(fig.layout, 1)

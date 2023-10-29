@@ -193,19 +193,13 @@ chain, stats = sample(rng, post, AHMC(metric=DiagEuclideanMetric(ndim), autodiff
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.
 
 # First to plot the image we call
-
-CM.image(g, skymodel(post, chain[end]),
-            axis=(xreversed=true, aspect=1, xlabel="RA (μas)", ylabel="Dec (μas)"),
-            figure=(;resolution=(650,500),),
-            colormap=:afmhot)
+imgs = intensitymap.(skymodel.(Ref(post), sample(chain[1000:end], 100)), μas2rad(200.0), μas2rad(200.0), 128, 128)
+imageviz(imgs[end], colormap=:afmhot)
 
 # What about the mean image? Well let's grab 100 images from the chain, where we first remove the
 # adaptation steps since they don't sample from the correct posterior distribution
-meanimg = mean(intensitymap.(skymodel.(Ref(post), sample(chain[1000:end], 100)), μas2rad(200.0), μas2rad(200.0), 128, 128))
-CM.image(meanimg,
-            axis=(xreversed=true, aspect=1, xlabel="RA (μas)", ylabel="Dec (μas)", title="Mean Image"),
-            figure=(;resolution=(650,500),),
-            colormap=:afmhot)
+meanimg = mean(imgs)
+imageviz(meanimg, colormap=:afmhot)
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
