@@ -186,7 +186,7 @@ fig, ax, plt = CM.image(g, model(xopt); axis=(xreversed=true, aspect=1, xlabel="
 # parallel tempering sampler that enables global exploration of the posterior. For smaller dimension
 # problems (< 100) we recommend using this sampler especially if you have access to > 1 thread/core.
 using Pigeons
-pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=18, n_rounds=9)
+pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=10, n_rounds=7)
 chain = sample_array(cpost, pt)
 
 
@@ -227,23 +227,3 @@ residual(model(xopt), dlcamp)
 # In fact, this model is too simple to explain the data.
 # Check out [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141)
 # for some ideas about what features need to be added to the model to get a better fit!
-
-
-# For a real run we should also check that the MCMC chain has converged. For
-# this we can use MCMCDiagnosticTools
-using MCMCDiagnosticTools, Tables
-# First, lets look at the effective sample size (ESS) and R̂. This is important since
-# the Monte Carlo standard error for MCMC estimates is proportional to 1/√ESS (for some problems)
-# and R̂ is a measure of chain convergence. To find both, we can use:
-compute_ess(x::NamedTuple) = map(compute_ess, x)
-compute_ess(x::AbstractVector{<:Number}) = ess_rhat(x)
-compute_ess(x::AbstractVector{<:Tuple}) = map(ess_rhat, Tables.columns(x))
-compute_ess(x::Tuple) = map(compute_ess, x)
-essrhat = compute_ess(Tables.columns(chain))
-# Here, the first value is the ESS, and the second is the R̂. Note that we typically want R̂ < 1.01
-# for all parameters, but you should also be running the problem at least four times from four different
-# starting locations. In the future we will write an extension that works with Arviz.jl.
-
-# In our example here, we see that we have an ESS > 100 for all parameters and the R̂ < 1.01
-# meaning that our MCMC chain is a reasonable approximation of the posterior. For more diagnostics, see
-# [`MCMCDiagnosticTools.jl`](https://turinglang.github.io/MCMCDiagnosticTools.jl/stable/).
