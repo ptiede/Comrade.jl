@@ -23,6 +23,9 @@
 # To get started, we will load Comrade
 using Comrade
 
+using JSServe: Page # hide
+Page(exportable=true, offline=true) # hide
+
 
 using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide

@@ -96,6 +96,10 @@ using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 using Pyehtim
 
+using JSServe: Page # hide
+Page(exportable=true, offline=true) # hide
+
+
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(123)

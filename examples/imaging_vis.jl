@@ -15,6 +15,10 @@ using Pkg #hide
 Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 #-
 
+using JSServe: Page # hide
+Page(exportable=true, offline=true) # hide
+
+
 using Pyehtim
 using LinearAlgebra
 
