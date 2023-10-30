@@ -341,7 +341,7 @@ end
     yerr := error
     linecolor --> nothing
     label --> "Data"
-    uvdist./1e9, amp
+    uvdist, amp
 end
 
 @recipe function f(acc::ArrayConfiguration)
