@@ -84,7 +84,7 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    format = Documenter.HTML(), draft=false
+    format = Documenter.HTML(;size_threshold_ignore=MD_FILES), draft=false
 )
 
 deploydocs(;
