@@ -322,7 +322,9 @@ imgtrue = Comrade.load(joinpath(dirname(pathof(Comrade)), "..", "examples", "Pol
 # Select a reasonable zoom in of the image.
 imgtruesub = imgtrue(Interval(-fovx/2, fovx/2), Interval(-fovy/2, fovy/2))
 img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
-import CairoMakie as CM
+
+#Plotting the results gives
+import WGLMakie as CM
 fig = CM.Figure(;resolution=(450, 200));
 polimage(fig[1,1], imgtruesub,
                    axis=(xreversed=true, aspect=1, title="Truth", limits=((-20.0,20.0), (-20.0, 20.0))),
