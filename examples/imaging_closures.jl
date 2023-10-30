@@ -164,9 +164,9 @@ residual(skymodel(post, xopt), dlcamp, ylabel="Log Closure Amplitude Res.")
 residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
 
 # Now let's plot the MAP estimate.
-import CairoMakie as CM
+import WGLMakie as CM
 img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
-CM.image(img, axis=(xreversed=true, aspect=1, title="MAP Image"), colormap=:afmhot)
+CM.image(img, axis=(xreversed=true, aspect=1, title="MAP Image"), colormap=:afmhot, figure=(;resolution=(400, 400),))
 
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
@@ -194,7 +194,7 @@ using StatsBase
 imgs = intensitymap.(msamples, μas2rad(150.0), μas2rad(150.0), 128, 128)
 mimg = mean(imgs)
 simg = std(imgs)
-fig = CM.Figure(;resolution=(800, 800))
+fig = CM.Figure(;resolution=(400, 400));
 CM.image(fig[1,1], mimg,
                    axis=(xreversed=true, aspect=1, title="Mean Image"),
                    colormap=:afmhot)

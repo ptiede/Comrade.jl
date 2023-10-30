@@ -269,7 +269,7 @@ residual(vlbimodel(post, xopt), dvis)
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
-import CairoMakie as CM
+import WGLMakie as CM
 img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
 CM.image(img, axis=(xreversed=true, aspect=1, title="MAP Image"), colormap=:afmhot)
 

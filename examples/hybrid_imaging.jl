@@ -216,7 +216,7 @@ post = Posterior(lklhd, prior)
 # To sample from our prior we can do
 xrand = prior_sample(rng, post)
 # and then plot the results
-import CairoMakie as CM
+import WGLMakie as CM
 g = imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128)
 imageviz(intensitymap(skymodel(post, xrand), g))
 
@@ -256,7 +256,7 @@ residual(vlbimodel(post, xopt), dvis, ylabel="Correlated Flux Residual")
 # Now these residuals look a bit high. However, it turns out this is because the MAP is typically
 # not a great estimator and will not provide very predictive measurements of the data. We
 # will show this below after sampling from the posterior.
-CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), colormap=:afmhot)
+CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), colormap=:afmhot, figure=(;resolution=(400, 400),))
 
 
 # We will now move directly to sampling at this point.
@@ -295,7 +295,7 @@ rast_imgs = intensitymap.(rast_samples, fovxy, fovxy, 128, 128)
 ring_mean, ring_std = mean_and_std(ring_imgs)
 rast_mean, rast_std = mean_and_std(rast_imgs)
 
-fig = CM.Figure(; resolution=(800, 800))
+fig = CM.Figure(; resolution=(400, 400))
 axes = [CM.Axis(fig[i, j], xreversed=true, aspect=CM.DataAspect()) for i in 1:2, j in 1:2]
 CM.image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
 CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
@@ -304,7 +304,7 @@ CM.image!(axes[2,2], rast_std, colormap=:afmhot); axes[2,2].title = "Rast Std. D
 fig
 
 # Finally, let's take a look at some of the ring parameters
-figd = CM.Figure(;resolution=(900, 600))
+figd = CM.Figure(;resolution=(600, 400))
 p1 = CM.density(figd[1,1], rad2μas(chain.r)*2, axis=(xlabel="Ring Diameter (μas)",))
 p2 = CM.density(figd[1,2], rad2μas(chain.σ)*2*sqrt(2*log(2)), axis=(xlabel="Ring FWHM (μas)",))
 p3 = CM.density(figd[1,3], -rad2deg.(chain.mp1) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))

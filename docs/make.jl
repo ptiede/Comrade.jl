@@ -7,18 +7,6 @@ Pkg.activate(script_dir)
 parent_dir = dirname(script_dir)
 Pkg.develop(PackageSpec(path=parent_dir))
 
-
-using Documenter
-using Pyehtim
-using Zygote
-using Comrade
-using ComradeBase
-using VLBISkyModels
-using InteractiveUtils
-
-using Literate
-using Pkg
-
 function dev_subpkg(subpkg)
     subpkg_path = joinpath(dirname(@__DIR__), "lib", subpkg)
     Pkg.develop(PackageSpec(path=subpkg_path))
@@ -31,6 +19,19 @@ dev_subpkg("ComradeOptimization")
 dev_subpkg("ComradeNested")
 dev_subpkg("ComradeDynesty")
 dev_subpkg("ComradeAdaptMCMC")
+
+
+using Documenter
+using Pyehtim
+using Zygote
+using Comrade
+using ComradeBase
+using VLBISkyModels
+using InteractiveUtils
+
+using Literate
+using Pkg
+
 
 using ComradeAHMC
 using ComradeOptimization
