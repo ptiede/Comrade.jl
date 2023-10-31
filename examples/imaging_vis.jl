@@ -214,7 +214,7 @@ cprior = HierarchicalPrior(fmap, InverseGamma(1.0, -log(0.01*rat)))
 # which automatically constructs the prior for the given jones cache `gcache`.
 prior = NamedDist(
          fg = Uniform(0.0, 1.0),
-         σimg = truncated(Normal(0.0, 1.0); lower=0.01),
+         σimg = truncated(Normal(0.0, 0.1); lower=0.01),
          c = cprior,
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
@@ -256,7 +256,7 @@ using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=1_000, g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=4_000, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
