@@ -123,9 +123,9 @@ end
 # Gaussian Markov random fields are extremly flexible models.
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(fmap, InverseGamma(1.0, -log(0.01*rat)))
+cprior = HierarchicalPrior(fmap, Uniform(0.0, 1_000.0))
 
-prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 1.0); lower=0.01), fg=Uniform(0.0, 1.0))
+prior = NamedDist(c = cprior, σimg = Uniform(0.0, 5.0), fg=Uniform(0.0, 1.0))
 
 lklhd = RadioLikelihood(sky, dlcamp, dcphase;
                         skymeta = metadata)

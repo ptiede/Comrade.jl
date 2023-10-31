@@ -206,16 +206,16 @@ end
 # and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image. If the data wants more complexity
 # then it will drive us away from the prior.
-cprior = HierarchicalPrior(fmap, InverseGamma(1.0, -log(0.01*rat)))
+cprior = HierarchicalPrior(fmap, Uniform(0.0, 1000.0))#InverseGamma(1.0, -log(0.01*rat)))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
 # Dirichlet prior for our image pixels. For the log gain amplitudes, we use the `CalPrior`
 # which automatically constructs the prior for the given jones cache `gcache`.
 prior = NamedDist(
-         fg = Uniform(0.0, 1.0),
-         σimg = truncated(Normal(0.0, 0.1); lower=0.01),
          c = cprior,
+         fg = Uniform(0.0, 1.0),
+         σimg = truncated(Normal(0.0, 0.1); lower = 0.0),
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
         )
