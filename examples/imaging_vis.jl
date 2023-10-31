@@ -24,7 +24,7 @@ using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(42)
+rng = StableRNG(123)
 
 
 
@@ -39,7 +39,7 @@ obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "exampl
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs.add_fractional_noise(0.01))
+obs = scan_average(obs.add_fractional_noise(0.02))
 
 # Now we extract our complex visibilities.
 dvis = extract_table(obs, ComplexVisibilities())
@@ -206,7 +206,7 @@ end
 # and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image. If the data wants more complexity
 # then it will drive us away from the prior.
-cprior = HierarchicalPrior(fmap, Uniform(0.0, 1000.0))#InverseGamma(1.0, -log(0.01*rat)))
+cprior = HierarchicalPrior(fmap, InverseGamma(1.0, -log(0.01*rat)))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -357,7 +357,7 @@ imgs = intensitymap.(samples, fovx, fovy, 128,  128)
 
 mimg = mean(imgs)
 simg = std(imgs)
-fig = CM.Figure(;resolution=(800, 800))
+fig = CM.Figure(;resolution=(400, 400))
 CM.image(fig[1,1], mimg,
                    axis=(xreversed=true, aspect=1, title="Mean Image"),
                    colormap=:afmhot)

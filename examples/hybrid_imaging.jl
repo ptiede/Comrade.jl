@@ -44,7 +44,7 @@ obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "exampl
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
-obs = scan_average(obs).add_fractional_noise(0.01)
+obs = scan_average(obs).add_fractional_noise(0.02)
 
 # For this tutorial we will once again fit complex visibilities since they
 # provide the most information once the telescope/instrument model are taken
@@ -109,7 +109,7 @@ end
 
 # Now let's define our metadata. First we will define the cache for the image. This is
 # required to compute the numerical Fourier transform.
-fovxy  = μas2rad(150.0)
+fovxy  = μas2rad(250.0)
 npix   = 32
 grid   = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
@@ -221,7 +221,7 @@ post = Posterior(lklhd, prior)
 xrand = prior_sample(rng, post)
 # and then plot the results
 import WGLMakie as CM
-g = imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128)
+g = imagepixels(μas2rad(250.0), μas2rad(250.0), 128, 128)
 imageviz(intensitymap(skymodel(post, xrand), g))
 
 # ## Reconstructing the Image

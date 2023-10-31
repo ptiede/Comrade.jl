@@ -102,7 +102,7 @@ Page(exportable=true, offline=true) # hide
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(123)
+rng = StableRNG(125)
 
 
 # Now we will load some synthetic polarized data.
@@ -303,7 +303,7 @@ using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 ℓ = logdensityof(tpost)
-prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing)
+prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 sol = solve(prob, LBFGS(), maxiters=15_000, g_tol=1e-1);
 
 # !!! warning
@@ -329,17 +329,18 @@ img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
 
 #Plotting the results gives
 import WGLMakie as CM
-fig = CM.Figure(;resolution=(450, 200));
+fig = CM.Figure(;resolution=(450, 350));
 polimage(fig[1,1], imgtruesub,
                    axis=(xreversed=true, aspect=1, title="Truth", limits=((-20.0,20.0), (-20.0, 20.0))),
-                   length_norm=1, plot_total=true,
-                   pcolorrange=(-0.25, 0.25), pcolormap=CM.Reverse(:jet))
+                   length_norm=1, plot_total=true, pcolormap=:RdBu,
+                   pcolorrange=(-0.25, 0.25),)
 polimage(fig[1,2], img,
                    axis=(xreversed=true, aspect=1, title="Recon.",  limits=((-20.0,20.0), (-20.0, 20.0))),
-                   length_norm=1, plot_total=true,
-                   pcolorrange=(-0.25, 0.25), pcolormap=CM.Reverse(:jet))
-CM.Colorbar(fig[1,3], colormap=CM.Reverse(:jet), colorrange=(-0.25, 0.25), label="Signed Polarization Fraction sign(V)*|p|")
-CM.colgap!(fig.layout, 1)
+                   length_norm=1, plot_total=true, pcolormap=:RdBu,
+                   pcolorrange=(-0.25, 0.25),)
+CM.Colorbar(fig[2,:], colormap=:RdBu, vertical=false, colorrange=(-0.25, 0.25), label="Signed Polarization Fraction sign(V)*|p|", flipaxis=false)
+CM.colgap!(fig.layout, 3)
+CM.rowgap!(fig.layout, 3)
 fig
 #-
 
