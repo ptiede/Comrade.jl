@@ -38,14 +38,14 @@ dvis = extract_table(obs, ComplexVisibilities())
 
 
 function sky(θ, metadata)
-    c = θ
+    c = θ.c
     (;grid, cache) = metadata
     img = IntensityMap(c, grid)
     m = ContinuousImage(img, cache)
     return m
 end
 
-npix = 12
+npix = 48
 fovx = μas2rad(80.0)
 fovy = μas2rad(80.0)
 
@@ -56,24 +56,58 @@ cache = create_cache(NFFTAlg(dvis), buffer, DeltaPulse())
 
 
 using VLBIImagePriors
-prior = ImageUniform(npix, npix)
 
 skymetadata = (;grid, cache)
-# instrumentmetadata = (;gcache, gcachep)
-lklhd = RadioLikelihood(sky, dvis; skymeta=skymetadata)
+
+function instrument(θ, metadata)
+    (; lgamp, gphase) = θ
+    (; gcache, gcachep) = metadata
+    ## Now form our instrument model
+    gvis = exp.(lgamp)
+    gphase = exp.(1im.*gphase)
+    jgamp = jonesStokes(gvis, gcache)
+    jgphase = jonesStokes(gphase, gcachep)
+    return JonesModel(jgamp*jgphase)
+end
+
+gcache = jonescache(dvis, ScanSeg())
+gcachep = jonescache(dvis, ScanSeg(); autoref=SEFDReference((complex(1.0))))
+
+using VLBIImagePriors
+# Now we can form our metadata we need to fully define our model.
+metadata = (;gcache, gcachep)
+
+using Distributions
+using DistributionsAD
+distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
+
+distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
+
+
+prior = NamedDist(
+            c = ImageUniform(npix, npix),
+            lgamp = CalPrior(distamp, gcache),
+            gphase = CalPrior(distphase, gcachep),
+            )
+
+
+
+lklhd = RadioLikelihood(sky, instrument, dvis; skymeta=skymetadata, instrumentmeta=metadata)
 post = Posterior(lklhd, prior)
 
 tpost = asflat(post)
 ndim = dimension(tpost)
 
 using Enzyme
+using Zygote
 Enzyme.API.runtimeActivity!(true)
 # Enzyme.API.printall!(false)
 x0 = prior_sample(tpost)
 dx0 = zero(x0)
 lt=logdensityof(tpost)
 ℓ = logdensityof(tpost, x0)
-dtpost = deepcopy(tpost)
+gz,  = Zygote.gradient(lt, x0)
 using BenchmarkTools
-@time autodiff(Reverse, logdensityof, Const(tpost), Duplicated(x0, fill!(dx0, 0.0)))
-@btime autodiff(Reverse, logdensityof, $(Duplicated(tpost, dtpost)), Duplicated($x0, fill!($dx0, 0.0)))
+autodiff(Reverse, Const(lt), Active, Duplicated(x0, fill!(dx0, 0.0)))
+@benchmark autodiff(Reverse, logdensityof, $(Const(tpost)), Duplicated($x0, fill!($dx0, 0.0)))
+@benchmark Zygote.gradient($lt, $x0)

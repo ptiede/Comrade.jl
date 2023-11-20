@@ -1,5 +1,5 @@
 export JonesCache, TrackSeg, ScanSeg, FixedSeg, IntegSeg, jonesG, jonesD, jonesT,
-       ResponseCache, JonesModel, jonescache, station_tuple, jonesmap
+       ResponseCache, JonesModel, jonescache, station_tuple
 
 """
     $(TYPEDEF)
