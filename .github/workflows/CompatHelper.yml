@@ -38,7 +38,7 @@ jobs:
         run: |
           import CompatHelper
           CompatHelper.main(subdirs = ["", "lib/ComradeAdaptMCMC", "lib/ComradeAHMC", "lib/ComradeDynesty", "lib/ComradeOptimization", "lib/ComradeNested"])        
-          shell: julia --color=yes {0}
+        shell: julia --color=yes {0}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMPATHELPER_PRIV: ${{ secrets.DOCUMENTER_KEY }}
