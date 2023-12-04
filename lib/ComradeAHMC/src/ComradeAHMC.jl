@@ -56,7 +56,7 @@ Base.@kwdef struct AHMC{S,I,P,T,A,D}
     HMC termination condition
     Defaults to `AdvancedHMC.StrictGeneralisedNoUTurn`
     """
-    termination::T = StrictGeneralisedNoUTurn(10, 1000.0)
+    termination::T = GeneralisedNoUTurn(10, 1000.0)
     """
     Adaptation strategy for mass matrix and stepsize
     Defaults to `AdvancedHMC.StanHMCAdaptor`
@@ -157,13 +157,13 @@ function make_sampler(∇ℓ, sampler::AHMC, θ0)
                         term_buffer = sampler.term_buffer,
                         window_size = sampler.window_size)
 
-    return model, proposal, sampler.metric, adaptor
+    return model, HMCSampler(proposal, sampler.metric, adaptor)
 end
 
 function AbstractMCMC.Sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC; kwargs...)
     ∇ℓ = ADgradient(sampler.autodiff, tpost)
-    model, proposal, metric, adaptor = make_sampler(∇ℓ, sampler, 0)
-    return AbstractMCMC.Sample(rng, model, AdvancedHMC.HMCSampler(proposal, metric, adaptor); kwargs...)
+    model, smplr = make_sampler(∇ℓ, sampler, 0)
+    return AbstractMCMC.Sample(rng, model, smplr; kwargs...)
 end
 
 
@@ -176,15 +176,14 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
 
     ∇ℓ = ADgradient(sampler.autodiff, tpost)
     θ0 = _initialize_hmc(tpost, init_params, nchains)
-    model, proposal, metric, adaptor = make_sampler(∇ℓ, sampler, first(θ0))
+    model, smplr = make_sampler(∇ℓ, sampler, first(θ0))
 
 
     res = AbstractMCMC.sample(
                 rng,
-                model, proposal,
-                metric, adaptor,
+                model, smplr,
                 parallel, nsamples, nchains;
-                init_params=θ0,
+                initial_params=θ0,
                 chain_type = Array, kwargs...
                 )
 
@@ -272,15 +271,14 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
         θ0 = prior_sample(rng, post)
     end
 
-    model, proposal, metric, adaptor = make_sampler(∇ℓ, sampler, first(θ0))
+    model, smplr = make_sampler(∇ℓ, sampler, first(θ0))
 
 
     res = AbstractMCMC.sample(
                 rng,
-                model, proposal,
-                metric, adaptor,
+                model, smplr,
                 nsamples;
-                init_params=θ0,
+                initial_params=θ0,
                 chain_type = Array, kwargs...
                 )
 
@@ -319,7 +317,7 @@ function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior
         @warn "No starting location chosen, picking start from prior"
         θ0 = prior_sample(rng, tpost)
     end
-    t = Sample(rng, tpost, sampler; init_params, kwargs...)(1:nsamples)
+    t = Sample(rng, tpost, sampler; initial_params=init_params, kwargs...)(1:nsamples)
     pt = Iterators.partition(t, output_stride)
     nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
 

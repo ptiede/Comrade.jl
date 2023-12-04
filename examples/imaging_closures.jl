@@ -169,7 +169,7 @@ residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
 # Now let's plot the MAP estimate.
 import WGLMakie as CM
 img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
-CM.image(img, axis=(xreversed=true, aspect=1, title="MAP Image"), colormap=:afmhot, figure=(;resolution=(400, 400),))
+imageviz(img)
 
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).

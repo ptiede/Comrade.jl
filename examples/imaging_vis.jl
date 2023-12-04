@@ -132,7 +132,7 @@ using VLBIImagePriors
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. This behaves somewhat similary to a entropy regularizer in that it will
 # start with an initial guess for the image structure. For this tutorial we will use a
-# a symmetric Gaussian with a FWHM of 60 μas
+# a symmetric Gaussian with a FWHM of 50 μas
 fwhmfac = 2*sqrt(2*log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
@@ -194,7 +194,7 @@ crcache = MarkovRandomFieldCache(meanpr)
 # prior we will first make a map that takes in our regularizer hyperparameters and returns
 # the image prior given those hyperparameters.
 fmap = let crcache=crcache
-    x->GaussMarkovRandomField(x, 1.0, crcache)
+    x->GaussMarkovRandomField(x+1, 1.0, crcache)
 end
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
@@ -206,7 +206,7 @@ end
 # and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image. If the data wants more complexity
 # then it will drive us away from the prior.
-cprior = HierarchicalPrior(fmap, InverseGamma(1.0, -log(0.01*rat)))
+cprior = HierarchicalPrior(fmap, InverseGamma(1.0, -log(0.1*rat)))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -215,7 +215,7 @@ cprior = HierarchicalPrior(fmap, InverseGamma(1.0, -log(0.01*rat)))
 prior = NamedDist(
          c = cprior,
          fg = Uniform(0.0, 1.0),
-         σimg = truncated(Normal(0.0, 0.1); lower = 0.0),
+         σimg = truncated(Normal(0.0, 0.5); lower = 0.0),
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
         )
@@ -275,7 +275,7 @@ residual(vlbimodel(post, xopt), dvis)
 # [Imaging a Black Hole using only Closure Quantities](@ref).
 import WGLMakie as CM
 img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
-CM.image(img, axis=(xreversed=true, aspect=1, title="MAP Image"), colormap=:afmhot)
+imageviz(img)
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
