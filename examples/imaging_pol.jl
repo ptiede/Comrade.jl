@@ -174,7 +174,7 @@ function instrument(θ, metadata)
     ##D-terms
     D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), trackcache)
     ## sandwich all the jones matrices together
-    J = Gp*Gr*D*jT
+    J = @. Gp*Gr*D*jT
     ## form the complete Jones or RIME model. We use tcache here
     ## to set the reference basis of the model.
     return JonesModel(J, tcache)
