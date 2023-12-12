@@ -70,27 +70,27 @@ ispolarized(::Type{<:VLBIModel{J,M}}) where {J,M} = ispolarized(M)
 
 function visibilities_analytic(model::VLBIModel, u, v, time, freq)
     vis = visibilities_analytic(model.sky, u, v, time, freq)
-    instrument = model.instrument
-    jp = instrument.jones
-    coh = _coherency(vis, typeof(instrument.refbasis))
-    return corrupt(coh, jp.m1, jp.m2)
+    return apply_instrument(vis, model.instrument)
+end
+
+function visibilities_numeric(model::VLBIModel, u, v, time, freq)
+    skym = model.sky
+    vis = visibilities_numeric(skym, u, v, time, freq)
+    return apply_instrument(vis, model.instrument)
 end
 
 function ComradeBase.amplitudes(model::VLBIModel, ac::ArrayConfiguration)
     amp = amplitudes(model.sky, ac)
-    instrument = model.instrument
-    jp = instrument.jones
-    coh = _coherency(amp, typeof(instrument.refbasis))
-    return corrupt(coh, jp.m1, jp.m2)
+    apply_instrument(amp, model.instrument)
 end
 
-function visibilities_numeric(model::VLBIModel, u, v, time, freq)
-    vis = visibilities_numeric(model.sky, u, v, time, freq)
-    instrument = model.instrument
+function apply_instrument(vis, instrument)
     jp = instrument.jones
     coh = _coherency(vis, typeof(instrument.refbasis))
     return corrupt(coh, jp.m1, jp.m2)
 end
+
+
 
 
 
