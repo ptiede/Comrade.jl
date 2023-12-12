@@ -176,6 +176,8 @@ end
     dReal = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
     dImag = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
 
+    dReal = station_tuple(dcoh, Uniform(0.0, 1.0), AA = Uniform(-1.0, 0.0))
+    dImag = station_tuple(dcoh, Uniform(0.0, 1.0), AA = Uniform(-1.0, 0.0))
 
     dcache = jonescache(dcoh, TrackSeg())
     pdReal = CalPrior(dReal, dcache)
@@ -191,6 +193,82 @@ end
     @inferred jonesD(exp, rand(pdReal), rand(pdImag), dcache)
 
     caltable(dcache, complex.(dRx, dRy))
+    n = length(dcoh)
+
+    visS = StructArray{StokesParams{Float64}}((
+        fill(complex(0.0), n),
+        fill(complex(2.0), n),
+        fill(complex(0.0), n),
+        fill(complex(0.0), n),
+            ))
+
+    vis = CoherencyMatrix.(visS, Ref(CirBasis()))
+
+    function f(Q, d1, d2)
+        dR1 = d1[1,2]
+        dR2 = d2[1,2]
+        dL1 = d1[2,1]
+        dL2 = d2[2,1]
+        return Q*SMatrix{2,2}(dR2' + dR1, dL1*dR2' + 1, 1+dR1*dL2', dL1 + dL2')
+    end
+
+
+    dR_1 = [if d > 0; 1.0; else -1.0 end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    dL_1 = [if d > 0; 1.0; else -1.0 end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    jd = jonesD(dR_1, dL_1, dcache)
+    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    @test c == f.(2.0, jd.m1, jd.m2)
+
+    dR_1 = [if d > 0; 1.0im; else -1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    dL_1 = [if d > 0; 1.0im; else 1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    jd = jonesD(dR_1, dL_1, dcache)
+    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    @test c == f.(2.0, jd.m1, jd.m2)
+
+
+    dR_1 = [if d > 0; 1.0im; else -1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    dL_1 = [if d > 0; 1.0+0.0im; else 1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    jd = jonesD(dR_1, dL_1, dcache)
+    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    @test c == f.(2.0, jd.m1, jd.m2)
+
+
+    visS = StructArray{StokesParams{Float64}}((
+        fill(complex(0.0), n),
+        fill(complex(0.0), n),
+        fill(complex(0.0), n),
+        fill(complex(2.0), n),
+            ))
+
+    vis = CoherencyMatrix.(visS, Ref(CirBasis()))
+
+    function f(V, d1, d2)
+        dR1 = d1[1,2]
+        dR2 = d2[1,2]
+        dL1 = d1[2,1]
+        dL2 = d2[2,1]
+        return V*SMatrix{2,2}(1 - dR1*dR2', dL1-dR2', dL2' - dR1, dL1*dL2' - 1)
+    end
+
+
+    dR_1 = [if d > 0; 1.0; else -1.0 end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    dL_1 = [if d > 0; 1.0; else -1.0 end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    jd = jonesD(dR_1, dL_1, dcache)
+    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    @test c == f.(2.0, jd.m1, jd.m2)
+
+    dR_1 = [if d > 0; 1.0im; else -1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    dL_1 = [if d > 0; 1.0im; else 1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    jd = jonesD(dR_1, dL_1, dcache)
+    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    @test c == f.(2.0, jd.m1, jd.m2)
+
+
+    dR_1 = [if d > 0; 1.0im; else -1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    dL_1 = [if d > 0; 1.0+0.0im; else 1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
+    jd = jonesD(dR_1, dL_1, dcache)
+    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    @test c == f.(2.0, jd.m1, jd.m2)
 
 end
 
