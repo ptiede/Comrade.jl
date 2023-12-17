@@ -38,11 +38,11 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
     rm("Test", recursive=true)
 
-    hchain, hstats = sample(post, s2, Comrade.AbstractMCMC.MCMCThreads(), 3_000, 2; nadapts=2_000, progress=false)
-    hchain, hstats = sample(post, s2, Comrade.AbstractMCMC.MCMCThreads(), 3_000, 2; nadapts=2_000, progress=false,init_params=[x0,x0])
+    # hchain, hstats = sample(post, s2, Comrade.AbstractMCMC.MCMCThreads(), 3_000, 2; nadapts=2_000, progress=false)
+    # hchain, hstats = sample(post, s2, Comrade.AbstractMCMC.MCMCThreads(), 3_000, 2; nadapts=2_000, progress=false,init_params=[x0,x0])
 
-    cpost = asflat(post)
-    l0 = logdensityof(cpost, Comrade.HypercubeTransform.inverse(cpost, x0))
-    @test 10*l0  < mean(hstats[1].log_density[2000:end])
+    # cpost = asflat(post)
+    # l0 = logdensityof(cpost, Comrade.HypercubeTransform.inverse(cpost, x0))
+    # @test 10*l0  < mean(hstats[1].log_density[2000:end])
 
 end

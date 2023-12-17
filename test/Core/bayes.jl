@@ -123,6 +123,32 @@ end
 
 end
 
+@testset "simulate_obs" begin
+    _,vis, amp, lcamp, cphase, coh = load_data()
+    tcache = ResponseCache(coh)
+    lklhd_amp = RadioLikelihood(test_model, amp)
+    lklhd_cp = RadioLikelihood(test_model, cphase)
+    lklhd_lc = RadioLikelihood(test_model, lcamp)
+    lklhd_vis = RadioLikelihood(test_model, vis)
+    lklhd_coh = RadioLikelihood(test_skymodel_polarized, test_instrumentmodel_polarized, coh;
+                                skymeta = (;lp = 0.1), instrumentmeta=(;tcache))
+
+
+    prior = test_prior()
+
+    simulate_observation(Posterior(lklhd_amp, prior), rand(prior))
+    simulate_observation(Posterior(lklhd_cp,  prior), rand(prior))
+    simulate_observation(Posterior(lklhd_lc,  prior), rand(prior))
+    simulate_observation(Posterior(lklhd_vis, prior), rand(prior))
+    simulate_observation(Posterior(lklhd_coh, prior), rand(prior))
+
+    lklhd_all = RadioLikelihood(test_model, amp, cphase, lcamp, vis)
+
+    simulate_observation(Posterior(lklhd_all, prior), rand(prior))
+
+end
+
+
 using ForwardDiff
 using FiniteDifferences
 @testset "Bayes Non-analytic ForwardDiff" begin

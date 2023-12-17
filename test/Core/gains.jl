@@ -1,6 +1,8 @@
 using Distributions
 using Plots
 using Tables
+using StructArrays
+using StaticArrays
 
 @testset "gains" begin
     _,vis, amp, lcamp, cphase, = load_data()

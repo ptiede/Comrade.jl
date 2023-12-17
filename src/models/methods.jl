@@ -2,6 +2,11 @@
     return _visibilities(visanalytic(M), m, p.data.U, p.data.V, p.data.T, p.data.F)
 end
 
+@inline function ComradeBase.visibilities(m::M, p::ClosureConfig) where {M <: AbstractModel}
+    return visibilities(m, arrayconfig(p.ac))
+end
+
+
 @inline function ComradeBase.amplitudes(m::AbstractModel, p::ArrayConfiguration)
     return amplitudes(m, (U = p.data.U, V = p.data.V, T=p.data.T, F=p.data.F))
 end
