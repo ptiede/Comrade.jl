@@ -19,17 +19,20 @@
 #
 # In this tutorial, we will do closure-only modeling of M87 to produce preliminary images of M87.
 
+import Pkg #hide
+__DIR = @__DIR__ #hide
+pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
+Pkg.activate(__DIR; io=pkg_io) #hide
+Pkg.instantiate(; io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
+Pkg.precompile(; io=pkg_io) #hide
+close(pkg_io) #hide
 
 # To get started, we will load Comrade
 using Comrade
 
-using JSServe: Page # hide
-Page(exportable=true, offline=true) # hide
-
-
-using Pkg #hide
-Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
-
+# Pyehtim loads eht-imaging using PythonCall this is necessary to load uvfits files
+# currently.
 using Pyehtim
 
 # For reproducibility we use a stable random number genreator
@@ -40,13 +43,13 @@ rng = StableRNG(123)
 # ## Load the Data
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
-obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../Data/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      are coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs).add_fractional_noise(0.015)
+obs = scan_average(obs).add_fractional_noise(0.02)
 
 # Now, we extract our closure quantities from the EHT data set.
 dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePhases(;snrcut=3))
@@ -120,7 +123,7 @@ crcache = ConditionalMarkov(Normal, grid)
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
 cprior = HierarchicalPrior(crcache, InverseGamma(1.0, -log(0.01*rat)))
 
-prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 0.1); lower = 0.0, upper = 5.0), fg=Uniform(0.0, 1.0))
+prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 0.1); lower = 0.0), fg=Uniform(0.0, 1.0))
 
 lklhd = RadioLikelihood(sky, dlcamp, dcphase;
                         skymeta = skymeta)
@@ -148,7 +151,7 @@ using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(); maxiters=2000);
+sol = solve(prob, LBFGS(); maxiters=500);
 
 
 # Before we analyze our solution we first need to transform back to parameter space.
@@ -162,7 +165,7 @@ residual(skymodel(post, xopt), dlcamp, ylabel="Log Closure Amplitude Res.")
 residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
 
 # Now let's plot the MAP estimate.
-import WGLMakie as CM
+import CairoMakie as CM
 img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
 imageviz(img)
 

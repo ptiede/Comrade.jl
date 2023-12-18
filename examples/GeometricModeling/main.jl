@@ -9,16 +9,17 @@
 # In this tutorial, we will construct a similar model and fit it to the data in under
 # 50 lines of code (sans comments). To start, we load Comrade and some other packages we need.
 
+import Pkg #hide
+__DIR = @__DIR__ #hide
+pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
+Pkg.activate(__DIR; io=pkg_io) #hide
+Pkg.instantiate(; io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
+Pkg.precompile(; io=pkg_io) #hide
+close(pkg_io) #hide
 
 
 using Comrade
-
-# ## Load the Data
-using Pkg #hide
-Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
-
-using JSServe: Page # hide
-Page(exportable=true, offline=true) # hide
 
 
 using Pyehtim
@@ -31,11 +32,11 @@ rng = StableRNG(42)
 # available M 87 data which can be downloaded
 # from [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019).
 # For an introduction to data loading, see [Loading Data into Comrade](@ref).
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../Data/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
-obs = load_uvfits_and_array(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 # Now we will kill 0-baselines since we don't care about large-scale flux and
 # since we know that the gains in this dataset are coherent across a scan, we make scan-average data
-obs = Pyehtim.scan_average(obs.flag_uvdist(uv_min=0.1e9))
+obs = Pyehtim.scan_average(obs.flag_uvdist(uv_min=0.1e9)).add_fractional_noise(0.02)
 
 # Now we extract the data products we want to fit
 dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosurePhases(;snrcut=3.0))
@@ -173,7 +174,7 @@ xopt = transform(fpost, sol)
 
 # Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 
-import WGLMakie as CM
+import CairoMakie as CM
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
 fig, ax, plt = CM.image(g, model(xopt); axis=(xreversed=true, aspect=1, xlabel="RA (μas)", ylabel="Dec (μas)"), figure=(;resolution=(650,500),) ,colormap=:afmhot)
 
@@ -213,21 +214,22 @@ Plots.plot(model(xopt), dlcamp, label="MAP")
 # We can also plot random draws from the posterior predictive distribution.
 # The posterior predictive distribution create a number of synthetic observations that
 # are marginalized over the posterior.
-p = Plots.plot(dlcamp);
+p1 = Plots.plot(dlcamp);
+p2 = Plots.plot(dcphase);
 uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
+uvp = [sqrt.(uvarea(dcphase[i])) for i in 1:length(dcphase)]
 for i in 1:10
-    m = simulate_observation(post, sample(chain, 1)[1])[1]
-    Plots.scatter!(uva, m[:measurement], color=:grey, label=:none, alpha=0.1)
+    mobs = simulate_observation(post, sample(chain, 1)[1])
+    mlca = mobs[1]
+    mcp  = mobs[2]
+    Plots.scatter!(p1, uva, mlca[:measurement], color=:grey, label=:none, alpha=0.1)
+    Plots.scatter!(p2, uvp, atan.(sin.(mcp[:measurement]), cos.(mcp[:measurement])), color=:grey, label=:none, alpha=0.1)
 end
-p
+plot(p1, p2, layout=(2,1))
 
 # Finally, we can also put everything onto a common scale and plot the normalized residuals.
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
-
-residual(model(xopt), dlcamp)
-
-# All diagnostic plots suggest that the model is missing some emission sources.
-# In fact, this model is too simple to explain the data.
-# Check out [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141)
-# for some ideas about what features need to be added to the model to get a better fit!
+p1 = residual(model(chain[end]), dlcamp)
+p2 = residual(model(chain[end]), dcphase)
+plot(p1, p2, layout=(2,1))
