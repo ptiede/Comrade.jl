@@ -1,0 +1,9 @@
+[deps]
+Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
+
+[compat]
+Comrade = "0.9"
+Plots = "1"
+Pyehtim = "0.1"

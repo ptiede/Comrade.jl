@@ -84,7 +84,14 @@
 #  In the rest of the tutorial, we are going to solve for all of these instrument model terms on
 #  in addition to our image structure to reconstruct a polarized image of a synthetic dataset.
 
-
+import Pkg #hide
+__DIR = @__DIR__ #hide
+pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
+Pkg.activate(__DIR; io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
+Pkg.instantiate(; io=pkg_io) #hide
+Pkg.precompile(; io=pkg_io) #hide
+close(pkg_io) #hide
 
 
 # ## Load the Data
@@ -92,13 +99,7 @@
 using Comrade
 
 # ## Load the Data
-using Pkg #hide
-Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
 using Pyehtim
-
-using JSServe: Page # hide
-Page(exportable=true, offline=true) # hide
-
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
@@ -106,8 +107,9 @@ rng = StableRNG(47)
 
 
 # Now we will load some synthetic polarized data.
-obs = Pyehtim.load_uvfits_and_array(joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian_all_corruptions.uvfits"),
-                        joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/array.txt"), polrep="circ")
+obs = Pyehtim.load_uvfits_and_array(
+        joinpath(__DIR, "../Data", "polarized_gaussian_all_corruptions.uvfits"),
+        joinpath(__DIR, "../Data", "array.txt"), polrep="circ")
 
 
 # Notice that, unlike other non-polarized tutorials, we need to include a second argument.
@@ -201,9 +203,10 @@ skymeta = (;K, cache, grid)
 # To define the instrument models, $T$, $G$, $D$, we need to build some Jones caches (see [`JonesCache`](@ref)) that map from a flat
 # vector of gain/dterms to the specific sites for each baseline.
 #
-# First, we will define our deterministic transform cache. Note that this dataset has need
-# been pre-corrected for feed rotation, so we need to add those into the `tcache`.
-tcache = ResponseCache(dvis; add_fr=true, ehtim_fr_convention=false)
+# First, we will define our deterministic response cache. This define how the telescope reponds
+# to a signal, including the impact of telescope field rotation due to parallactic and elevation
+# changes.
+tcache = ResponseCache(dvis)
 #-
 # Next we define our cache that maps quantities e.g., gain products, that change from scan-to-scan.
 scancache = jonescache(dvis, ScanSeg())
@@ -322,13 +325,13 @@ residual(vlbimodel(post, xopt), dvis)
 # Let's compare our results to the ground truth values we know in this example.
 # First, we will load the polarized truth
 using AxisKeys
-imgtrue = Comrade.load(joinpath(dirname(pathof(Comrade)), "..", "examples", "PolarizedExamples/polarized_gaussian.fits"), StokesIntensityMap)
+imgtrue = Comrade.load(joinpath(__DIR, "..", "Data", "polarized_gaussian.fits"), StokesIntensityMap)
 # Select a reasonable zoom in of the image.
 imgtruesub = imgtrue(Interval(-fovx/2, fovx/2), Interval(-fovy/2, fovy/2))
 img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
 
 #Plotting the results gives
-import WGLMakie as CM
+import CairoMakie as CM
 fig = CM.Figure(;resolution=(450, 350));
 polimage(fig[1,1], imgtruesub,
                    axis=(xreversed=true, aspect=1, title="Truth", limits=((-20.0,20.0), (-20.0, 20.0))),

@@ -2,6 +2,7 @@
 *.jl.cov
 *.jl.mem
 examples/*/Manifest.toml
+examples/*/pkg.log
 docs/build/
 docs/src/examples
 /.vscode/

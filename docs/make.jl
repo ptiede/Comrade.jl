@@ -1,79 +1,44 @@
 # THis is because we are on a headless system
 # see https://github.com/jheinen/GR.jl/issues/510
 # ENV["GKS_WSTYPE"]="nul"
-using Pkg
-script_dir = @__DIR__
-Pkg.activate(script_dir)
-parent_dir = dirname(script_dir)
-Pkg.develop(PackageSpec(path=parent_dir))
 
-function dev_subpkg(subpkg)
-    subpkg_path = joinpath(dirname(@__DIR__), "lib", subpkg)
-    Pkg.develop(PackageSpec(path=subpkg_path))
-end
+using Documenter, Pkg
+using Comrade, ComradeBase,
+     ComradeAHMC,
+     ComradeOptimization,
+     ComradeNested,
+     ComradeDynesty,
+     ComradeAdaptMCMC
 
-# Make sure we are using main branch versions of the packages for the docs
-Pkg.develop(PackageSpec(url="https://github.com/ptiede/ComradeBase.jl"))
-dev_subpkg("ComradeAHMC")
-dev_subpkg("ComradeOptimization")
-dev_subpkg("ComradeNested")
-dev_subpkg("ComradeDynesty")
-dev_subpkg("ComradeAdaptMCMC")
+using Pyehtim, VLBISkyModels, InteractiveUtils
 
+deployconfig = Documenter.auto_detect_deploy_system()
+Documenter.post_status(deployconfig; type="pending", repo="github.com/ptiede/Comrade.jl.git")
 
-using Documenter
-using Pyehtim
-using Zygote
-using Comrade
-using ComradeBase
-using VLBISkyModels
-using InteractiveUtils
-
-using Literate
-using Pkg
-
-
-using ComradeAHMC
-using ComradeOptimization
-using ComradeNested
-using ComradeDynesty
-using ComradeAdaptMCMC
-using PolarizedTypes
-using OptimizationBBO
-using Glob
-using Plots
-
-
-# Make the examples using Literate
-GENERATED = joinpath(@__DIR__, "../", "examples")
-OUTDIR = joinpath(@__DIR__, "src", "examples")
-
-SOURCE_FILES = Glob.glob("*.jl", GENERATED)
-foreach(fn -> Literate.markdown(fn, OUTDIR, documenter=true), SOURCE_FILES)
-
-MD_FILES = [joinpath("examples", "data.md"),
-            joinpath("examples", "geometric_modeling.md"),
-            joinpath("examples", "imaging_closures.md"),
-            joinpath("examples", "imaging_vis.md"),
-            joinpath("examples", "imaging_pol.md"),
-            joinpath("examples", "hybrid_imaging.md")
-           ]
-# joinpath.("examples", replace.(basename.(SOURCE_FILES), ".jl"=>".md"))
-
+TUTORIALS = [
+        "tutorials/ClosureImaging.md",
+        "tutorials/GeometricModeling.md",
+        "tutorials/HybridImaging.md",
+        "tutorials/LoadingData.md",
+        "tutorials/PolarizedImaging.md",
+        "tutorials/StokesIImaging.md",
+    ]
 
 makedocs(;
     modules=[ComradeBase, Comrade,
              ComradeOptimization, ComradeAHMC,
              ComradeNested, ComradeDynesty,
              ComradeAdaptMCMC],
-    repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
+    # repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
+    format = Documenter.HTML(;size_threshold_ignore=TUTORIALS
+    ),
     pages=Any[
         "Home" => "index.md",
         "benchmarks.md",
         "vlbi_imaging_problem.md",
         "conventions.md",
-        "Tutorials" => MD_FILES,
+        "Tutorials" => TUTORIALS,
         "Libraries" => [
                         "libs/optimization.md",
                         "libs/ahmc.md",
@@ -84,7 +49,6 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    format = Documenter.HTML(;size_threshold_ignore=MD_FILES), draft=false
 )
 
 deploydocs(;

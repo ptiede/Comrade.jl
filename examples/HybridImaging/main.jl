@@ -16,6 +16,15 @@
 # This is the approach we will take in this tutorial to analyze the April 6 2017 EHT data
 # of M87.
 
+import Pkg #hide
+__DIR = @__DIR__ #hide
+pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
+Pkg.activate(__DIR; io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
+Pkg.instantiate(; io=pkg_io) #hide
+Pkg.precompile(; io=pkg_io) #hide
+close(pkg_io) #hide
+
 
 # ## Loading the Data
 
@@ -23,11 +32,6 @@
 using Comrade
 
 # ## Load the Data
-using Pkg #hide
-Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
-
-using JSServe: Page # hide
-Page(exportable=true, offline=true) # hide
 
 
 using Pyehtim
@@ -39,7 +43,7 @@ rng = StableRNG(42)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
-obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "../Data/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
@@ -109,23 +113,17 @@ end
 fovxy  = μas2rad(150.0)
 npix   = 32
 grid   = imagepixels(fovxy, fovxy, npix, npix)
-buffer = IntensityMap(zeros(npix,npix), grid)
+
 # For our image, we will use the
 # non-uniform Fourier transform (`NFFTAlg`) to compute the numerical FT.
 # The last argument to the `create_cache` call is the image
 # *kernel* or *pulse* defines the continuous function we convolve our image with
 # to produce a continuous on-sky image.
-cache  = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
+cache  = create_cache(NFFTAlg(dvis), grid, BSplinePulse{3}())
 
-# The next step is defining our image priors.
-# For our raster `c`, we will use a Gaussian markov random field prior, with the softmax
-# or centered log-ratio transform so that it lives on the simplex. That is, the sum of all the numbers from a `Dirichlet`
-# distribution always equals unity. First we load `VLBIImagePriors` which containts a large number
-# of priors and transformations that are useful for imaging.
-using VLBIImagePriors
 
 # Now we form the metadata
-skymetadata = (;ftot=1.1, grid, cache)
+skymetadata = (;ftot=1.1, cache)
 
 
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
@@ -151,6 +149,14 @@ intmetadata = (;gcache, gcachep)
 lklhd = RadioLikelihood(sky, instrument, dvis;
                         skymeta=skymetadata, instrumentmeta=intmetadata)
 
+
+
+# The next step is defining our image priors.
+# For our raster `c`, we will use a Gaussian markov random field prior, with the softmax
+# or centered log-ratio transform so that it lives on the simplex. That is, the sum of all the numbers from a `Dirichlet`
+# distribution always equals unity. First we load `VLBIImagePriors` which containts a large number
+# of priors and transformations that are useful for imaging.
+using VLBIImagePriors
 
 # Part of hybrid imaging is to force a scale separation between
 # the different model components to make them identifiable.
@@ -189,7 +195,6 @@ distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(0.0, 1.0))
 #-
 distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
-using VLBIImagePriors
 # Finally we can put form the total model prior
 prior = NamedDist(
           c  = cprior,
@@ -213,8 +218,9 @@ post = Posterior(lklhd, prior)
 
 # To sample from our prior we can do
 xrand = prior_sample(rng, post)
+
 # and then plot the results
-import WGLMakie as CM
+import CairoMakie as CM
 g = imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128)
 imageviz(intensitymap(skymodel(post, xrand), g))
 
@@ -259,9 +265,9 @@ CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), 
 
 # We will now move directly to sampling at this point.
 using ComradeAHMC
-using Zygote
 metric = DiagEuclideanMetric(ndim)
 chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt)
+
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]
 stats = stats[501:end]
@@ -318,19 +324,3 @@ end
 p
 
 # And everything looks pretty good! Now comes the hard part: interpreting the results...
-
-# ## Computing information
-# ```
-# Julia Version 1.8.5
-# Commit 17cfb8e65ea (2023-01-08 06:45 UTC)
-# Platform Info:
-#   OS: Linux (x86_64-linux-gnu)
-#   CPU: 32 × AMD Ryzen 9 7950X 16-Core Processor
-#   WORD_SIZE: 64
-#   LIBM: libopenlibm
-#   LLVM: libLLVM-13.0.1 (ORCJIT, znver3)
-#   Threads: 1 on 32 virtual cores
-# Environment:
-#   JULIA_EDITOR = code
-#   JULIA_NUM_THREADS = 1
-# ```

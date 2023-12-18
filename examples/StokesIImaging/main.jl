@@ -8,15 +8,17 @@
 # instrument effects, such as time variable gains.
 
 # To get started we load Comrade.
+import Pkg #hide
+__DIR = @__DIR__ #hide
+pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
+Pkg.activate(__DIR; io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
+Pkg.instantiate(; io=pkg_io) #hide
+Pkg.precompile(; io=pkg_io) #hide
+close(pkg_io) #hide
+
 using Comrade
 
-
-using Pkg #hide
-Pkg.activate(joinpath(dirname(pathof(Comrade)), "..", "examples")) #hide
-#-
-
-using JSServe: Page # hide
-Page(exportable=true, offline=true) # hide
 
 
 using Pyehtim
@@ -24,7 +26,7 @@ using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(11)
+rng = StableRNG(12)
 
 
 
@@ -33,13 +35,13 @@ rng = StableRNG(11)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "../Data/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs.add_fractional_noise(0.02))
+obs = scan_average(obs).add_fractional_noise(0.02)
 
 # Now we extract our complex visibilities.
 dvis = extract_table(obs, ComplexVisibilities())
@@ -227,15 +229,6 @@ post = Posterior(lklhd, prior)
 tpost = asflat(post)
 ndim = dimension(tpost)
 
-# Our `Posterior` and `TransformedPosterior` objects satisfy the `LogDensityProblems` interface.
-# This allows us to easily switch between different AD backends and many of Julia's statistical
-# inference packages use this interface as well.
-using LogDensityProblemsAD
-using Zygote
-gtpost = ADgradient(Val(:Zygote), tpost)
-x0 = randn(rng, ndim)
-LogDensityProblemsAD.logdensity_and_gradient(gtpost, x0)
-
 # We can now also find the dimension of our posterior or the number of parameters we are going to sample.
 # !!! warning
 #     This can often be different from what you would expect. This is especially true when using
@@ -249,7 +242,7 @@ using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=1500, g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=300, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
@@ -266,7 +259,7 @@ residual(vlbimodel(post, xopt), dvis)
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
-import WGLMakie as CM
+import CairoMakie as CM
 img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
 imageviz(img)
 
