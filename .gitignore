@@ -1,6 +1,7 @@
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
+examples/*/Manifest.toml
 docs/build/
 docs/src/examples
 /.vscode/
