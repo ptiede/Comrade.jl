@@ -93,7 +93,7 @@ end
 Comrade.samplertype(::Type{<:AHMC}) = Comrade.IsFlat()
 
 function _initialize_hmc(tpost::Comrade.TransformedPosterior, init_params, nchains)
-    isnothing(init_params) && return Comrade.HypercubeTransform.inverse.(Ref(tpost.transform), rand(tpost.lpost.prior, nchains))
+    isnothing(init_params) && return prior_sample(tpost, nchains)
     @argcheck length(init_params) == nchains
     return init_params
 end
@@ -172,7 +172,6 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
                              nsamples, nchains;
                              init_params=nothing, kwargs...
                              )
-
 
     ∇ℓ = ADgradient(sampler.autodiff, tpost)
     θ0 = _initialize_hmc(tpost, init_params, nchains)
@@ -298,6 +297,7 @@ end
 
 function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
     sampler::AHMC, nsamples, outbase, args...;
+    n_adapts = min(nsamples÷2, 1000),
     init_params=nothing, outdir = "Results",
     output_stride=min(100, nsamples),
     restart = false,
@@ -317,7 +317,7 @@ function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior
         @warn "No starting location chosen, picking start from prior"
         θ0 = prior_sample(rng, tpost)
     end
-    t = Sample(rng, tpost, sampler; initial_params=init_params, kwargs...)(1:nsamples)
+    t = Sample(rng, tpost, sampler; initial_params=init_params, n_adapts, kwargs...)(1:nsamples)
     pt = Iterators.partition(t, output_stride)
     nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
 
@@ -356,6 +356,7 @@ end
 
 function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
                         sampler::AHMC, nsamples, args...;
+                        n_adapts = min(nsamples÷2, 1000),
                         init_params=nothing, outdir = "Results",
                         restart=false,
                         output_stride=min(100, nsamples),
@@ -368,6 +369,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
 
     pt, state, out, i = initialize(
                             rng, tpost, sampler, nsamples, outbase, args...;
+                            n_adapts,
                             init_params, restart, outdir, output_stride, kwargs...
                         )
 

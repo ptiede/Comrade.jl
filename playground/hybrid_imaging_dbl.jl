@@ -254,7 +254,7 @@ plot(img, title="MAP Image")
 # now we sample using hmc
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 600; nadapts=400, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 600; n_adapts=400, init_params=xopt)
 
 # !!! warning
 #     This should be run for likely 2-3x more steps to properly estimate expectations of the posterior

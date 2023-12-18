@@ -21,7 +21,7 @@ using LinearAlgebra
 using StableRNGs
 rng = StableRNG(42)
 
-Enzyme.Compiler.bitcode_replacement!(false)
+# Enzyme.Compiler.bitcode_replacement!(false)
 
 # ## Load the Data
 

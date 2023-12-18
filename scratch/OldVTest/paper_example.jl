@@ -67,7 +67,7 @@ plot(model(xopt), xlims=(-80.0,80.0),ylims=(-80.0,80.0), colorbar=nothing, title
 # Comrade is all about uncertainty quantification so now let's find the posterior!
 # To do this we will use the `AdvancedHMC` package or rather its interface to Comrade.
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric), 4000; nadapts=2000, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric), 4000; n_adapts=2000, init_params=xopt)
 # chain has the MCMC chain and stats includes ancilliary information
 # Now we should check that the chain acutally mixed well. To do that we can compute the ESS
 using MCMCDiagnostics

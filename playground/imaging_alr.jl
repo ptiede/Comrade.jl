@@ -166,7 +166,7 @@ using Measurements
 
 # now we sample using hmc
 metric = DenseEuclideanMetric(ndim)
-hchain, stats = sample(post, AHMC(;metric), 5000; nadapts=4000, init_params=xopt)
+hchain, stats = sample(post, AHMC(;metric), 5000; n_adapts=4000, init_params=xopt)
 
 # Now plot the gain table with error bars
 gamps = exp.(hcat(hchain.lgamp...))

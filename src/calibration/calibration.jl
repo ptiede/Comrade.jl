@@ -86,9 +86,63 @@ end
 
 function apply_instrument(vis, instrument)
     jp = instrument.jones
-    coh = _coherency(vis, typeof(instrument.refbasis))
-    return corrupt(coh, jp.m1, jp.m2)
+    vout = _apply_instrument(vis, jp.m1, jp.m2, instrument.refbasis)
+    return vout
 end
+
+intout(vis::AbstractArray{<:StokesParams{T}}, j1, j2) where {T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
+intout(vis::AbstractArray{T}, j1, j2) where {T<:Real} = similar(vis, Complex{T})
+intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}, j1, j2) where {A,B,T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
+
+intout(vis::AbstractArray{<:StokesParams{T}}, j1, j2) where {T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
+intout(vis::AbstractArray{T}, j1, j2) where {T<:Complex} = similar(vis, T)
+intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}, j1, j2) where {A,B,T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
+
+
+function _apply_instrument(vis, j1, j2, refbasis)
+    vout = intout(vis, j1, j2)
+    _apply_instrument!(vout, vis, j1, j2, refbasis)
+    return vout
+end
+
+function _apply_instrument!(vout, vis, jp1, jp2, refbasis)
+    map!(vout, vis, jp1, jp2) do vi, j1, j2
+        _apply_jones(vi, j1, j2, refbasis)
+    end
+    return nothing
+end
+
+_apply_jones(v::Number, j1, j2, ::B) where {B} = j1*v*j2'
+_apply_jones(v::CoherencyMatrix, j1, j2, ::B) where {B} = j1*CoherencyMatrix{B,B}(v)*j2'
+_apply_jones(v::StokesParams, j1, j2, ::B) where {B} = j1*CoherencyMatrix{B,B}(v)*j2'
+
+
+function ChainRulesCore.rrule(::typeof(_apply_instrument), vis, j1, j2, refbasis)
+    out = _apply_instrument(vis, j1, j2, refbasis)
+    pvis = ProjectTo(vis)
+    pj1 = ProjectTo(j1)
+    pj2 = ProjectTo(j2)
+    function _apply_instrument_pullback(Δ)
+        Δvout = zero(out)
+        Δvout .= unthunk(Δ)
+        djp1 = zero(j1)
+        djp2 = zero(j2)
+        dvis = zero(vis)
+
+        vout = similar(out)
+        autodiff(Reverse, _apply_instrument!, Const,
+                        Duplicated(vout, Δvout),
+                        Duplicated(vis, dvis),
+                        Duplicated(j1, djp1),
+                        Duplicated(j2, djp2),
+                        Const(refbasis)
+                )
+
+        return NoTangent(), pvis(dvis), pj1(djp1), pj2(djp2), NoTangent()
+    end
+    return out, _apply_instrument_pullback
+end
+
 
 
 

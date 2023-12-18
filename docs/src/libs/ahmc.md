@@ -30,7 +30,7 @@ post # of type Comrade.Posterior
 metric = DiagEuclideanMetric(dimension(post))
 smplr = AHMC(metric=metric, autodiff=Val(:Zygote))
 
-samples, stats = sample(post, smplr, 2_000; nadapts=1_000)
+samples, stats = sample(post, smplr, 2_000; n_adapts=1_000)
 ```
 
 ## API

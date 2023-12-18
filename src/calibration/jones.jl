@@ -947,18 +947,22 @@ jonesT(tcache::ResponseCache) = JonesPairs(tcache.T1, tcache.T2)
 JonesModel(jones::J, tcache::ResponseCache) where {J} = JonesModel(jones, tcache.refbasis)
 
 
-"""
-    corrupt(vis, j1, j2)
+# This has all been replaced by a call to Enzyme
+# """
+#     corrupt(vis, j1, j2)
 
-Corrupts the model coherency matrices with the Jones matrices `j1` for station 1 and
-`j2` for station 2.
-"""
-function corrupt(vis, j1, j2)
-    # vnew = similar(vis, typeof(j1[1]*vis[1]*adjoint(j2[1])))
-    # corrupt!(vnew, vis, j1, j2)
-    vnew = j1 .* vis .* adjoint.(j2)
-    return vnew
-end
+# Corrupts the model coherency matrices with the Jones matrices `j1` for station 1 and
+# `j2` for station 2.
+# """
+# function corrupt(vis, j1, j2)
+#     # vnew = similar(vis, typeof(j1[1]*vis[1]*adjoint(j2[1])))
+#     # corrupt!(vnew, vis, j1, j2)
+#     # println(typeof(vis))
+#     # println(typeof(j1))
+#     # println(typeof(j2))
+#     vnew = j1 .* vis .* adjoint.(j2)
+#     return vnew
+# end
 
 
 # function corrupt!(vnew, vis::AbstractArray, j1, j2)
@@ -987,34 +991,34 @@ end
 #     return out, _corrupt_pullback
 # end
 
-function _coherency(vis::AbstractArray{T}, ::Type{B}) where {T<:AbstractArray,B}
-    return CoherencyMatrix{B,B}.(vis)
-end
+# function _coherency(vis::AbstractArray{T}, ::Type{B}) where {T<:AbstractArray,B}
+#     return CoherencyMatrix{B,B}.(vis)
+# end
 
-function _coherency(vis::AbstractArray{<:Number}, ::Type{B}) where {B}
-    return vis
-end
+# function _coherency(vis::AbstractArray{<:Number}, ::Type{B}) where {B}
+#     return vis
+# end
 
-function ChainRulesCore.rrule(::typeof(_coherency), vis::AbstractArray{<:AbstractArray}, ::Type{CirBasis})
-    coh  = _coherency(vis, CirBasis)
-    pd = ProjectTo(vis)
-    function _coherency_pullback(Δd)
-        Δvis = zero(vis)
-        Δ = unthunk(Δd)
-        for i in eachindex(vis)
-            ΔRR = Δ[i][1,1]
-            ΔLR = Δ[i][2,1]
-            ΔRL = Δ[i][1,2]
-            ΔLL = Δ[i][2,2]
-            Δvis.I[i] = complex(ΔRR + ΔLL)
-            Δvis.Q[i] = complex(ΔLR + ΔRL)
-            Δvis.U[i] = 1im*(ΔLR - ΔRL)
-            Δvis.V[i] = complex(ΔRR - ΔLL)
-        end
-        return NoTangent(), pd(Δvis), NoTangent()
-    end
-    return coh, _coherency_pullback
-end
+# function ChainRulesCore.rrule(::typeof(_coherency), vis::AbstractArray{<:AbstractArray}, ::Type{CirBasis})
+#     coh  = _coherency(vis, CirBasis)
+#     pd = ProjectTo(vis)
+#     function _coherency_pullback(Δd)
+#         Δvis = zero(vis)
+#         Δ = unthunk(Δd)
+#         for i in eachindex(vis)
+#             ΔRR = Δ[i][1,1]
+#             ΔLR = Δ[i][2,1]
+#             ΔRL = Δ[i][1,2]
+#             ΔLL = Δ[i][2,2]
+#             Δvis.I[i] = complex(ΔRR + ΔLL)
+#             Δvis.Q[i] = complex(ΔLR + ΔRL)
+#             Δvis.U[i] = 1im*(ΔLR - ΔRL)
+#             Δvis.V[i] = complex(ΔRR - ΔLL)
+#         end
+#         return NoTangent(), pd(Δvis), NoTangent()
+#     end
+#     return coh, _coherency_pullback
+# end
 
 
 """

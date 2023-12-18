@@ -67,8 +67,10 @@ end
 
 function Pigeons.sample_array(tpost::Comrade.TransformedPosterior, pt::Pigeons.PT)
     samples = sample_array(pt)
-    arr =  reshape(samples, size(samples, 1), size(samples, 2))
-    return Table(map(x->Comrade.transform(tpost, x), eachrow(arr)))
+    return mapreduce(hcat, eachslice(samples, dims=(3,), drop=true)) do arr
+        s = map(x->Comrade.transform(tpost, x), eachrow(arr))
+        Table(s)
+        end
 end
 
 

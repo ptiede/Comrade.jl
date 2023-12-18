@@ -39,9 +39,8 @@ dvis = extract_table(obs, ComplexVisibilities())
 
 function sky(θ, metadata)
     c = θ.c
-    (;grid, cache) = metadata
-    img = IntensityMap(c, grid)
-    m = ContinuousImage(img, cache)
+    (;cache) = metadata
+    m = ContinuousImage(c, cache)
     return m
 end
 
@@ -50,8 +49,7 @@ fovx = μas2rad(80.0)
 fovy = μas2rad(80.0)
 
 grid = imagepixels(fovx, fovy, npix, npix)
-buffer = IntensityMap(zeros(npix, npix), grid)
-cache = create_cache(NFFTAlg(dvis), buffer, DeltaPulse())
+cache = create_cache(NFFTAlg(dvis), grid, DeltaPulse())
 
 
 
@@ -85,7 +83,7 @@ distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 
 prior = NamedDist(
-            c = ImageUniform(npix, npix),
+            c = ImageDirichlet(1.0, npix, npix),
             lgamp = CalPrior(distamp, gcache),
             gphase = CalPrior(distphase, gcachep),
             )
@@ -101,6 +99,8 @@ ndim = dimension(tpost)
 using Enzyme
 using Zygote
 Enzyme.API.runtimeActivity!(true)
+Enzyme.Compiler.bitcode_replacement!(false)
+
 # Enzyme.API.printall!(false)
 x0 = prior_sample(tpost)
 dx0 = zero(x0)
@@ -109,5 +109,5 @@ lt=logdensityof(tpost)
 gz,  = Zygote.gradient(lt, x0)
 using BenchmarkTools
 autodiff(Reverse, Const(lt), Active, Duplicated(x0, fill!(dx0, 0.0)))
-@benchmark autodiff(Reverse, logdensityof, $(Const(tpost)), Duplicated($x0, fill!($dx0, 0.0)))
-@benchmark Zygote.gradient($lt, $x0)
+# autodiff(Reverse, logdensityof, (Const(tpost)), Duplicated(x0, fill!(dx0, 0.0)))
+# @benchmark Zygote.gradient($lt, $x0)

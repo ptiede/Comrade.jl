@@ -116,7 +116,7 @@ plot(mms2(xopt), fovx=fovx, fovy=fovy, title="MAP")
 
 # now we sample using hmc
 metric = DiagEuclideanMetric(ndim)
-hchain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 2000; nadapts=1000, init_params=xopt)
+hchain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 2000; n_adapts=1000, init_params=xopt)
 
 # Now plot the gain table with error bars
 gamps1 = exp.(hcat(hchain.lgamp1...))
