@@ -1,7 +1,7 @@
 name = "ComradeAHMC"
 uuid = "a4336a5c-78bc-4363-8a90-ce3fa9d3abe4"
 authors = ["Paul Tiede <ptiede91@gmail.com> and contributors"]
-version = "0.3.3"
+version = "0.4.0"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -20,7 +20,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
 
 [compat]
-AbstractMCMC = "3,4,5"
+AbstractMCMC = "4,5"
 AdvancedHMC = "0.5, 0.6"
 ArgCheck = "2"
 Comrade = "0.7, 0.8, 0.9"
