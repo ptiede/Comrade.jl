@@ -102,7 +102,7 @@ Page(exportable=true, offline=true) # hide
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(125)
+rng = StableRNG(47)
 
 
 # Now we will load some synthetic polarized data.

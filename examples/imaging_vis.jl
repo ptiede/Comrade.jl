@@ -24,7 +24,7 @@ using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(123)
+rng = StableRNG(130)
 
 
 
@@ -54,13 +54,12 @@ dvis = extract_table(obs, ComplexVisibilities())
 
 function sky(θ, metadata)
     (;fg, c, σimg) = θ
-    (;ftot, K, meanpr, grid, cache) = metadata
+    (;ftot, K, meanpr, cache) = metadata
     ## Transform to the log-ratio pixel fluxes
     cp = meanpr .+ σimg.*c.params
     ## Transform to image space
-    rast = (ftot*(1-fg))*K(to_simplex(CenteredLR(), cp))
-    img = IntensityMap(rast, grid)
-    m = ContinuousImage(img, cache)
+    rast = (ftot*(1-fg))*K(to_simplex(AdditiveLR(), cp))
+    m = ContinuousImage(rast, cache)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(ftot*fg))
     return m + g
@@ -104,27 +103,13 @@ end
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
 npix = 32
-fovx = μas2rad(150.0)
-fovy = μas2rad(150.0)
+fovx = μas2rad(120.0)
+fovy = μas2rad(120.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
 grid = imagepixels(fovx, fovy, npix, npix)
-buffer = IntensityMap(zeros(npix, npix), grid)
-cache = create_cache(NFFTAlg(dvis), buffer, BSplinePulse{3}())
-
-# Second, we now construct our instrument model cache. This tells us how to map from the gains
-# to the model visibilities. However, to construct this map, we also need to specify the observation
-# segmentation over which we expect the gains to change. This is specified in the second argument
-# to `jonescache`, and currently, there are two options
-#   - `FixedSeg(val)`: Fixes the corruption to the value `val` for all time. This is usefule for reference stations
-#   - `ScanSeg()`: which forces the corruptions to only change from scan-to-scan
-#   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
-# For this work, we use the scan segmentation for the gain amplitudes since that is roughly
-# the timescale we expect them to vary. For the phases we use a station specific scheme where
-# we set AA to be fixed to unit gain because it will function as a reference station.
-gcache = jonescache(dvis, ScanSeg())
-gcachep = jonescache(dvis, ScanSeg(); autoref=SEFDReference((complex(1.0))))
+cache = create_cache(NFFTAlg(dvis), grid, BSplinePulse{3}())
 
 using VLBIImagePriors
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
@@ -144,11 +129,29 @@ imgpr ./= flux(imgpr)
 meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
 
 # Now we can form our metadata we need to fully define our model.
-metadata = (;ftot=1.1, K=CenterImage(imgpr), meanpr, grid, cache, gcache, gcachep)
-
 # We will also fix the total flux to be the observed value 1.1. This is because
 # total flux is degenerate with a global shift in the gain amplitudes making the problem
 # degenerate. To fix this we use the observed total flux as our value.
+skymeta = (;ftot = 1.1, cache, K=CenterImage(grid), meanpr)
+
+# Second, we now construct our instrument model cache. This tells us how to map from the gains
+# to the model visibilities. However, to construct this map, we also need to specify the observation
+# segmentation over which we expect the gains to change. This is specified in the second argument
+# to `jonescache`, and currently, there are two options
+#   - `FixedSeg(val)`: Fixes the corruption to the value `val` for all time. This is usefule for reference stations
+#   - `ScanSeg()`: which forces the corruptions to only change from scan-to-scan
+#   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
+# For this work, we use the scan segmentation for the gain amplitudes since that is roughly
+# the timescale we expect them to vary. For the phases we use a station specific scheme where
+# we set AA to be fixed to unit gain because it will function as a reference station.
+gcache = jonescache(dvis, ScanSeg())
+gcachep = jonescache(dvis, ScanSeg(); autoref=SEFDReference((complex(1.0))))
+
+
+# This information can then be passed through our instrument model as metadata.
+# Future versions of Comrade will do this for you automatically.
+instrumentmeta = (;gcache, gcachep)
+
 
 # Moving onto our prior, we first focus on the instrument model priors.
 # Each station requires its own prior on both the amplitudes and phases.
@@ -159,21 +162,13 @@ metadata = (;ftot=1.1, K=CenterImage(imgpr), meanpr, grid, cache, gcache, gcache
 # we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
 using Distributions
 using DistributionsAD
-distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
+distamp = station_tuple(dvis, Normal(0.0, 0.2); LM = Normal(1.0))
 
 
-# For the phases, as mentioned above, we will use a segmented gain prior.
-# This means that rather than the parameters
-# being directly the gains, we fit the first gain for each site, and then
-# the other parameters are the segmented gains compared to the previous time. To model this
-# we break the gain phase prior into two parts. The first is the prior
-# for the first observing timestamp of each site, `distphase0`, and the second is the
-# prior for segmented gain ϵₜ from time i to i+1, given by `distphase`. For the EHT, we are
-# dealing with pre-2*rand(rng, ndim) .- 1.5calibrated data, so often, the gain phase jumps from scan to scan are
-# minor. As such, we can put a more informative prior on `distphase`.
-# !!! warning
-#     We use AA (ALMA) as a reference station so we do not have to specify a gain prior for it.
-#-
+# For the phases, we will use a unconstrained white noise prior, where the
+# gain phase is fit independtly fit for each scan. Since the phases are periodic
+# we use a von-Mises prior with concentration parameter (similar to inverse variance)
+# 1/π^2.
 distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 
@@ -185,17 +180,15 @@ beam = beamsize(dvis)
 rat = (beam/(step(grid.X)))
 
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
-# that allow us to scale things linearly with the number of image pixels. This drastically improves
-# the usual N^3 scaling you get from usual Gaussian Processes.
-crcache = MarkovRandomFieldCache(meanpr)
+# that allow us to scale things linearly with the number of image pixels. The returns a
+# functional that accepts a single argument related to the correlation length of the field.
+# The second argument defines the underlying random field of the Markov process. Here
+# we are using a zero mean and unit variance Gaussian Markov random field.
+crcache = ConditionalMarkov(Normal, grid)
 
-# One of the benefits of the Bayesian approach is that we can fit for the hyperparameters
-# of our prior/regularizers unlike traditional RML appraoches. To construct this heirarchical
-# prior we will first make a map that takes in our regularizer hyperparameters and returns
-# the image prior given those hyperparameters.
-fmap = let crcache=crcache
-    x->GaussMarkovRandomField(x+1, 1.0, crcache)
-end
+# To demonstrate the prior let create a few random realizations
+
+
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
 # inverse correlation length is given by a Half-Normal distribution whose peak is at zero and
@@ -206,7 +199,7 @@ end
 # and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image. If the data wants more complexity
 # then it will drive us away from the prior.
-cprior = HierarchicalPrior(fmap, InverseGamma(1.0, -log(0.1*rat)))
+cprior = HierarchicalPrior(crcache, InverseGamma(1.0, -log(0.1*rat)))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -223,7 +216,7 @@ prior = NamedDist(
 
 # Putting it all together we form our likelihood and posterior objects for optimization and
 # sampling.
-lklhd = RadioLikelihood(sky, instrument, dvis; skymeta=metadata, instrumentmeta=metadata)
+lklhd = RadioLikelihood(sky, instrument, dvis; skymeta, instrumentmeta)
 post = Posterior(lklhd, prior)
 
 # ## Reconstructing the Image and Instrument Effects
@@ -256,7 +249,7 @@ using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=4_000, g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=2000, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
@@ -306,7 +299,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, init_params=xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
