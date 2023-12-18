@@ -63,7 +63,7 @@ function sky(θ, metadata)
     (;ftot, cache) = metadata
     ## Form the image model
     ## First transform to simplex space first applying the non-centered transform
-    rast = ftot*f*(1-fg)*to_simplex(CenteredLR(), σimg.*c)
+    rast = ftot*f*(1-fg)*to_simplex(AdditiveLR(), σimg.*c)
     mimg = ContinuousImage(rast, cache)
     ## Form the ring model
     α = ma.*cos.(mp)
@@ -106,7 +106,7 @@ end
 
 # Now let's define our metadata. First we will define the cache for the image. This is
 # required to compute the numerical Fourier transform.
-fovxy  = μas2rad(200.0)
+fovxy  = μas2rad(150.0)
 npix   = 32
 grid   = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
@@ -215,7 +215,7 @@ post = Posterior(lklhd, prior)
 xrand = prior_sample(rng, post)
 # and then plot the results
 import WGLMakie as CM
-g = imagepixels(μas2rad(250.0), μas2rad(250.0), 128, 128)
+g = imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128)
 imageviz(intensitymap(skymodel(post, xrand), g))
 
 # ## Reconstructing the Image

@@ -24,7 +24,7 @@ using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(130)
+rng = StableRNG(11)
 
 
 
@@ -103,8 +103,8 @@ end
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
 npix = 32
-fovx = μas2rad(120.0)
-fovy = μas2rad(120.0)
+fovx = μas2rad(150.0)
+fovy = μas2rad(150.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -126,7 +126,7 @@ imgpr = intensitymap(mpr, grid)
 # our mean image has unit flux
 imgpr ./= flux(imgpr)
 # and since our prior is not on the simplex we need to convert it to `unconstrained or real space`.
-meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
+meanpr = to_real(AdditiveLR(), Comrade.baseimage(imgpr))
 
 # Now we can form our metadata we need to fully define our model.
 # We will also fix the total flux to be the observed value 1.1. This is because
@@ -162,7 +162,7 @@ instrumentmeta = (;gcache, gcachep)
 # we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
 using Distributions
 using DistributionsAD
-distamp = station_tuple(dvis, Normal(0.0, 0.2); LM = Normal(1.0))
+distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 
 
 # For the phases, we will use a unconstrained white noise prior, where the
@@ -208,7 +208,7 @@ cprior = HierarchicalPrior(crcache, InverseGamma(1.0, -log(0.1*rat)))
 prior = NamedDist(
          c = cprior,
          fg = Uniform(0.0, 1.0),
-         σimg = truncated(Normal(0.0, 0.5); lower = 0.0),
+         σimg = truncated(Normal(0.0, 0.1); lower = 0.0),
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
         )
@@ -249,7 +249,7 @@ using OptimizationOptimJL
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=2000, g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=1500, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
