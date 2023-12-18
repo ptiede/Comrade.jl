@@ -54,15 +54,17 @@ dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePh
 # ## Build the Model/Posterior
 # For our model, we will be using an image model that consists of a raster of point sources,
 # convolved with some pulse or kernel to make a `ContinuousImage` object with it `Comrade's.`
-# generic image model.
+# generic image model. For this we will define a two argument function. The first argument
+# is typically a named tuple with the model parameters. The second argument defines the metadata
+# for the model that is typically constant. This allows us to explicitly pass arguments that
+# are constant to the model, such as the image `cache` object that we will define below.
 function sky(θ, metadata)
     (;fg, c, σimg) = θ
-    (;K, meanpr, grid, cache) = metadata
+    (;K, meanpr, cache) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
     cp = meanpr .+ σimg.*c.params
-    rast = ((1-fg))*K(to_simplex(CenteredLR(), cp))
-    img = IntensityMap(rast, grid)
-    m = ContinuousImage(img, cache)
+    rast = ((1-fg))*K(to_simplex(AdditiveLR(), cp))
+    m = ContinuousImage(rast, cache)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
     return m + g
@@ -76,10 +78,10 @@ end
 npix = 32
 fovxy = μas2rad(150.0)
 
-# Now, we can feed in the array information to form the cache
+# To define the image model we need to specify both the grid we will be using and the
+# FT algorithm we will use, in this case the NFFT which is the most efficient.
 grid = imagepixels(fovxy, fovxy, npix, npix)
-buffer = IntensityMap(zeros(npix,npix), grid)
-cache = create_cache(NFFTAlg(dlcamp), buffer, BSplinePulse{3}())
+cache = create_cache(NFFTAlg(dlcamp), grid, BSplinePulse{3}())
 
 
 
@@ -93,11 +95,12 @@ mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
-# our mean image has unit flux
+# our mean image has unit flux before we transform
 imgpr ./= flux(imgpr)
+meanpr = to_real(AdditiveLR(), Comrade.baseimage(imgpr))
 
-meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
-metadata = (;meanpr,K=CenterImage(imgpr), grid, cache)
+#
+skymeta = (;meanpr,K=CenterImage(imgpr), cache)
 
 # In addition we want a reasonable guess for what the resolution of our image should be.
 # For radio astronomy this is given by roughly the longest baseline in the image. To put this
@@ -108,27 +111,19 @@ rat = (beam/(step(grid.X)))
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
 # that allow us to scale things linearly with the number of image pixels. This drastically improves
 # the usual N^3 scaling you get from usual Gaussian Processes.
-crcache = MarkovRandomFieldCache(meanpr)
-
-# One of the benefits of the Bayesian approach is that we can fit for the hyperparameters
-# of our prior/regularizers unlike traditional RML appraoches. To construct this heirarchical
-# prior we will first make a map that takes in our regularizer hyperparameters and returns
-# the image prior given those hyperparameters.
-fmap = let crcache=crcache
-    x->GaussMarkovRandomField(x, 1.0, crcache)
-end
+crcache = ConditionalMarkov(Normal, grid)
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
 # correlation length is given by a inverse gamma prior to prevent overfitting.
 # Gaussian Markov random fields are extremly flexible models.
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(fmap, InverseGamma(1.0, -log(0.01*rat)))
+cprior = HierarchicalPrior(crcache, InverseGamma(1.0, -log(0.01*rat)))
 
-prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 0.1); lower = 0.0), fg=Uniform(0.0, 1.0))
+prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 0.1); lower = 0.0, upper = 5.0), fg=Uniform(0.0, 1.0))
 
 lklhd = RadioLikelihood(sky, dlcamp, dcphase;
-                        skymeta = metadata)
+                        skymeta = skymeta)
 post = Posterior(lklhd, prior)
 
 # ## Reconstructing the Image
@@ -153,7 +148,7 @@ using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(); maxiters=5_00);
+sol = solve(prob, LBFGS(); maxiters=2000);
 
 
 # Before we analyze our solution we first need to transform back to parameter space.
@@ -179,7 +174,7 @@ imageviz(img)
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 2000; nadapts=1000, init_params=xopt)
 
 
 # !!! warning
@@ -190,7 +185,7 @@ chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=5
 # unable to assess uncertainty in their reconstructions.
 #
 # To explore our posterior let's first create images from a bunch of draws from the posterior
-msamples = skymodel.(Ref(post), chain[501:2:end]);
+msamples = skymodel.(Ref(post), chain[1001:10:end]);
 
 # The mean image is then given by
 using StatsBase
@@ -213,20 +208,20 @@ CM.image(fig[2,2], imgs[end],
 fig
 
 # Now let's see whether our residuals look better.
-p = plot();
+p = Plots.plot();
 for s in sample(chain[501:end], 10)
     residual!(p, vlbimodel(post, s), dlcamp)
 end
-ylabel!("Log-Closure Amplitude Res.");
+Plots.ylabel!("Log-Closure Amplitude Res.");
 p
 #-
 
 
-p = plot();
+p = Plots.plot();
 for s in sample(chain[501:end], 10)
     residual!(p, vlbimodel(post, s), dcphase)
 end
-ylabel!("|Closure Phase Res.|");
+Plots.ylabel!("|Closure Phase Res.|");
 p
 
 
@@ -235,7 +230,3 @@ p
 # For a publication-level version we would recommend
 #    1. Running the chain longer and multiple times to properly assess things like ESS and R̂ (see [Geometric Modeling of EHT Data](@ref))
 #    2. Fitting gains. Typically gain amplitudes are good to 10-20% for the EHT not the infinite uncertainty closures implicitly assume
-#    3. Making sure the posterior is unimodal (hint for this example it isn't!). The EHT image posteriors can be pretty complicated, so typically
-#       you want to use a sampler that can deal with multi-modal posteriors. Check out the package [`Pigeons.jl`](https://github.com/Julia-Tempering/Pigeons.jl)
-#       for an **in-development** package that should easily enable this type of sampling.
-#-

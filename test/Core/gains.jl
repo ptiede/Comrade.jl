@@ -218,20 +218,20 @@ end
     dR_1 = [if d > 0; 1.0; else -1.0 end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     dL_1 = [if d > 0; 1.0; else -1.0 end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     jd = jonesD(dR_1, dL_1, dcache)
-    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    c = Comrade.apply_instrument(visS, JonesModel(jd))
     @test c == f.(2.0, jd.m1, jd.m2)
 
     dR_1 = [if d > 0; 1.0im; else -1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     dL_1 = [if d > 0; 1.0im; else 1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     jd = jonesD(dR_1, dL_1, dcache)
-    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    c = Comrade.apply_instrument(visS, JonesModel(jd))
     @test c == f.(2.0, jd.m1, jd.m2)
 
 
     dR_1 = [if d > 0; 1.0im; else -1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     dL_1 = [if d > 0; 1.0+0.0im; else 1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     jd = jonesD(dR_1, dL_1, dcache)
-    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    c = Comrade.apply_instrument(visS, JonesModel(jd))
     @test c == f.(2.0, jd.m1, jd.m2)
 
 
@@ -256,21 +256,23 @@ end
     dR_1 = [if d > 0; 1.0; else -1.0 end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     dL_1 = [if d > 0; 1.0; else -1.0 end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     jd = jonesD(dR_1, dL_1, dcache)
-    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    c = Comrade.apply_instrument(visS, JonesModel(jd))
     @test c == f.(2.0, jd.m1, jd.m2)
 
     dR_1 = [if d > 0; 1.0im; else -1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     dL_1 = [if d > 0; 1.0im; else 1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     jd = jonesD(dR_1, dL_1, dcache)
-    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    c = Comrade.apply_instrument(visS, JonesModel(jd))
     @test c == f.(2.0, jd.m1, jd.m2)
 
 
     dR_1 = [if d > 0; 1.0im; else -1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     dL_1 = [if d > 0; 1.0+0.0im; else 1.0im end for d in dRx]# dRx.*0.0 .+ 1.0 .+ 0.0im
     jd = jonesD(dR_1, dL_1, dcache)
-    c = Comrade.corrupt(vis, jd.m1, jd.m2)
+    c = Comrade.apply_instrument(visS, JonesModel(jd))
     @test c == f.(2.0, jd.m1, jd.m2)
+
+    test_rrule(Comrade._apply_instrument, vis, jd.m1, jd.m2, CirBasis()⊢NoTangent())
 
 end
 
@@ -440,4 +442,5 @@ end
     test_rrule(Comrade.apply_designmats, identity⊢NoTangent(), gpro, gpro, scancache.m1⊢NoTangent())
     test_rrule(Comrade.apply_designmats, identity⊢NoTangent(), gp, gp, phasecache.m1⊢NoTangent())
     test_rrule(Comrade.apply_designmats, identity⊢NoTangent(), gp, gp, phasecache.m2⊢NoTangent())
+
 end

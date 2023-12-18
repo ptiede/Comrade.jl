@@ -59,18 +59,15 @@ dvis  = extract_table(obs, ComplexVisibilities())
 # and a large asymmetric Gaussian component to model the unresolved short-baseline flux.
 
 function sky(θ, metadata)
-    (;c, σimg, f, r, σ, τ, ξτ, ma1, mp1, ma2, mp2, fg) = θ
-    (;ftot, grid, cache) = metadata
+    (;c, σimg, f, r, σ, τ, ξτ, ma, mp, fg) = θ
+    (;ftot, cache) = metadata
     ## Form the image model
     ## First transform to simplex space first applying the non-centered transform
-    rast = to_simplex(CenteredLR(), σimg.*c)
-    img = IntensityMap((ftot*f*(1-fg))*rast, grid)
-    mimg = ContinuousImage(img, cache)
+    rast = ftot*f*(1-fg)*to_simplex(CenteredLR(), σimg.*c)
+    mimg = ContinuousImage(rast, cache)
     ## Form the ring model
-    s1,c1 = sincos(mp1)
-    s2,c2 = sincos(mp2)
-    α = (ma1*c1, ma2*c2)
-    β = (ma1*s1, ma2*s2)
+    α = ma.*cos.(mp)
+    β = ma.*sin.(mp)
     ring = smoothed(modify(MRing(α, β), Stretch(r, r*(1+τ)), Rotate(ξτ), Renormalize((ftot*(1-f)*(1-fg)))), σ)
     gauss = modify(Gaussian(), Stretch(μas2rad(250.0)), Renormalize(ftot*f*fg))
     ## We group the geometric models together for improved efficiency. This will be
@@ -109,7 +106,7 @@ end
 
 # Now let's define our metadata. First we will define the cache for the image. This is
 # required to compute the numerical Fourier transform.
-fovxy  = μas2rad(250.0)
+fovxy  = μas2rad(200.0)
 npix   = 32
 grid   = imagepixels(fovxy, fovxy, npix, npix)
 buffer = IntensityMap(zeros(npix,npix), grid)
@@ -145,7 +142,6 @@ skymetadata = (;ftot=1.1, grid, cache)
 # SEFD that is in each scan is selected. For M87 2017 this is almost always ALMA.
 gcache = jonescache(dvis, ScanSeg())
 gcachep = jonescache(dvis, ScanSeg(), autoref=SEFDReference(1.0 + 0.0im))
-
 intmetadata = (;gcache, gcachep)
 
 
@@ -163,7 +159,7 @@ lklhd = RadioLikelihood(sky, instrument, dvis;
 # pixel length, which is given by
 beam = beamsize(dvis)
 rat = (beam/(step(grid.X)))
-cprior = GaussMarkovRandomField(10*rat, 1.0, size(grid))
+cprior = GaussMarkovRandomField(10*rat, size(grid))
 # additionlly we will fix the standard deviation of the field to unity and instead
 # use a pseudo non-centered parameterization for the field.
 # GaussMarkovRandomField(meanpr, 0.1*rat, 1.0, crcache)
@@ -204,10 +200,8 @@ prior = NamedDist(
           σ  = Uniform(μas2rad(0.1), μas2rad(10.0)),
           τ  = truncated(Normal(0.0, 0.1); lower=0.0, upper=1.0),
           ξτ = Uniform(-π/2, π/2),
-          ma1 = Uniform(0.0, 0.5),
-          mp1 = Uniform(0.0, 2π),
-          ma2 = Uniform(0.0, 0.5),
-          mp2 = Uniform(0.0, 2π),
+          ma = ntuple(_->Uniform(0.0, 0.5), 2),
+          mp = ntuple(_->Uniform(0.0, 2π), 2),
           fg = Uniform(0.0, 1.0),
           lgamp = CalPrior(distamp, gcache),
           gphase = CalPrior(distphase, gcachep),
@@ -267,7 +261,7 @@ CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), 
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, init_params=xopt)
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]
 stats = stats[501:end]
@@ -311,13 +305,13 @@ fig
 figd = CM.Figure(;resolution=(600, 400))
 p1 = CM.density(figd[1,1], rad2μas(chain.r)*2, axis=(xlabel="Ring Diameter (μas)",))
 p2 = CM.density(figd[1,2], rad2μas(chain.σ)*2*sqrt(2*log(2)), axis=(xlabel="Ring FWHM (μas)",))
-p3 = CM.density(figd[1,3], -rad2deg.(chain.mp1) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))
-p4 = CM.density(figd[2,1], 2*chain.ma1, axis=(xlabel="Brightness asymmetry",))
+p3 = CM.density(figd[1,3], -rad2deg.(getindex.(chain.mp, 1)) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))
+p4 = CM.density(figd[2,1], 2*getindex.(chain.ma, 2), axis=(xlabel="Brightness asymmetry",))
 p5 = CM.density(figd[2,2], 1 .- chain.f, axis=(xlabel="Ring flux fraction",))
 figd
 
 # Now let's check the residuals using draws from the posterior
-p = plot();
+p = Plots.plot();
 for s in sample(chain, 10)
     residual!(p, vlbimodel(post, s), dvis)
 end

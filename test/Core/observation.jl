@@ -75,6 +75,7 @@ using Pyehtim
     show(dcoh)
 
 
+
     vis2, amp2, lcamp2, cphase2 = extract_table(obsavg, ComplexVisibilities(), VisibilityAmplitudes(),
                                                         ClosurePhases(; snrcut=3), LogClosureAmplitudes(;snrcut=3))
 

@@ -188,7 +188,7 @@ fig, ax, plt = CM.image(g, model(xopt); axis=(xreversed=true, aspect=1, xlabel="
 # list, please see the Libraries section of the docs. For this example, we will be using
 # [Pigeons.jl](https://github.com/Julia-Tempering/Pigeons.jl) which is a state-of-the-art
 # parallel tempering sampler that enables global exploration of the posterior. For smaller dimension
-# problems (< 100) we recommend using this sampler especially if you have access to > 1 thread/core.
+# problems (< 100) we recommend using this sampler especially if you have access to > 1 core.
 using Pigeons
 pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=10, n_rounds=7)
 chain = sample_array(cpost, pt)
@@ -208,16 +208,16 @@ imageviz(meanimg, colormap=:afmhot)
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
 using Plots
-plot(model(xopt), dlcamp, label="MAP")
+Plots.plot(model(xopt), dlcamp, label="MAP")
 
 # We can also plot random draws from the posterior predictive distribution.
 # The posterior predictive distribution create a number of synthetic observations that
 # are marginalized over the posterior.
-p = plot(dlcamp);
+p = Plots.plot(dlcamp);
 uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
 for i in 1:10
     m = simulate_observation(post, sample(chain, 1)[1])[1]
-    scatter!(uva, m, color=:grey, label=:none, alpha=0.1)
+    Plots.scatter!(uva, m[:measurement], color=:grey, label=:none, alpha=0.1)
 end
 p
 

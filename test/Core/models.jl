@@ -4,6 +4,8 @@ using FiniteDifferences
 using Zygote
 using PythonCall
 using FFTW
+using StructArrays
+using StaticArrays
 
 
 function testmodel(m::Comrade.AbstractModel, npix=1024, atol=1e-4)
@@ -125,6 +127,10 @@ end
     @inferred visibility(m, (U=0.0, V=0.0))
     @inferred Comrade.intensity_point(m, (X=0.0, Y=0.0))
 
+    m1 = StructVector{SMatrix{2,2,ComplexF64,4}}((complex(ones(100)), complex(zeros(100)), complex(zeros(100)), complex(ones(100))))
+    m2 = StructVector{SMatrix{2,2,ComplexF64,4}}((complex(ones(100)), complex(zeros(100)), complex(zeros(100)), complex(ones(100))))
+    jp = Comrade.JonesPairs(m1, m2)
+    jm = JonesModel(jp, CirBasis())
 
     function foo(x)
         m = PolarizedModel(
@@ -133,7 +139,7 @@ end
             shifted(Gaussian(), x[5], x[6]),
             x[7]*Gaussian()
         )
-        vis = Comrade._coherency(Comrade.visibilities_analytic(m, u, v, t, f), CirBasis)
+        vis = Comrade.apply_instrument(Comrade.visibilities_analytic(m, u, v, t, f), jm)
         Σ = map(x->real.(x .+ 1), zero.(vis))
         l = Comrade.CoherencyLikelihood(vis, Σ, 0.0)
         return logdensityof(l, zero.(vis))
