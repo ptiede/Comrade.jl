@@ -92,10 +92,10 @@ end
 
 Comrade.samplertype(::Type{<:AHMC}) = Comrade.IsFlat()
 
-function _initialize_hmc(tpost::Comrade.TransformedPosterior, init_params, nchains)
-    isnothing(init_params) && return prior_sample(tpost, nchains)
-    @argcheck length(init_params) == nchains
-    return init_params
+function _initialize_hmc(tpost::Comrade.TransformedPosterior, initial_params, nchains)
+    isnothing(initial_params) && return prior_sample(tpost, nchains)
+    @argcheck length(initial_params) == nchains
+    return initial_params
 end
 
 """
@@ -104,14 +104,14 @@ end
                         parallel::AbstractMCMC.AbstractMCMCEnsemble,
                         nsamples,
                         nchainsl;
-                        init_params=nothing,
+                        initial_params=nothing,
                         kwargs...)
 
 Samples the posterior `post` using the AdvancedHMC sampler specified by `AHMC`.
 This will sample `nchains` copies of the posterior using the `parallel` scheme.
 Each chain will be sampled for `nsamples`.
 
-To initialize the chain the user can set `init_params` to `Vector{NamedTuple}` whose
+To initialize the chain the user can set `initial_params` to `Vector{NamedTuple}` whose
 elements are the starting locations for each of the `nchains`. If no starting location
 is specified `nchains` random samples from the prior will be chosen for the starting locations.
 
@@ -129,13 +129,13 @@ function AbstractMCMC.sample(
     rng::Random.AbstractRNG, post::Comrade.Posterior,
     sampler::A, parallel::AbstractMCMC.AbstractMCMCEnsemble,
     nsamples, nchains;
-    init_params=nothing, kwargs...
+    initial_params=nothing, kwargs...
     ) where {A<:AHMC}
     tpost = asflat(post)
-    if isnothing(init_params)
+    if isnothing(initial_params)
         θ0 = prior_sample(rng, tpost, nchains)
     else
-        θ0 = Comrade.HypercubeTransform.inverse.(Ref(tpost), init_params)
+        θ0 = Comrade.HypercubeTransform.inverse.(Ref(tpost), initial_params)
     end
     return Comrade.sample(rng,
                             tpost,
@@ -143,7 +143,7 @@ function AbstractMCMC.sample(
                             parallel,
                             nsamples,
                             nchains;
-                            init_params=θ0,
+                            initial_params=θ0,
                             kwargs...)
 end
 
@@ -170,11 +170,11 @@ end
 function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
                              sampler::AHMC, parallel::AbstractMCMC.AbstractMCMCEnsemble,
                              nsamples, nchains;
-                             init_params=nothing, kwargs...
+                             initial_params=nothing, kwargs...
                              )
 
     ∇ℓ = ADgradient(sampler.autodiff, tpost)
-    θ0 = _initialize_hmc(tpost, init_params, nchains)
+    θ0 = _initialize_hmc(tpost, initial_params, nchains)
     model, smplr = make_sampler(∇ℓ, sampler, first(θ0))
 
 
@@ -226,14 +226,14 @@ DiskStore(name::String) = DiskStore(name, 100)
     AbstractMCMC.sample(post::Comrade.Posterior,
                         sampler::AHMC,
                         nsamples;
-                        init_params=nothing,
+                        initial_params=nothing,
                         saveto::Union{Memory, Disk}=Memory(),
                         kwargs...)
 
 Samples the posterior `post` using the AdvancedHMC sampler specified by `AHMC`.
 This will run the sampler for `nsamples`.
 
-To initialize the chain the user can set `init_params` to `Vector{NamedTuple}` whose
+To initialize the chain the user can set `initial_params` to `Vector{NamedTuple}` whose
 elements are the starting locations for each of the `nchains`. If no starting location
 is specified `nchains` random samples from the prior will be chosen for the starting locations.
 
@@ -254,23 +254,23 @@ This will automatically transform the posterior to the flattened unconstrained s
 function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
                              sampler::AHMC, nsamples, args...;
                              saveto=MemoryStore(),
-                             init_params=nothing,
+                             initial_params=nothing,
                              kwargs...)
 
 
-    saveto isa DiskStore && return sample_to_disk(rng, tpost, sampler, nsamples, args...; outdir=saveto.name, output_stride=min(saveto.stride, nsamples), init_params, kwargs...)
+    saveto isa DiskStore && return sample_to_disk(rng, tpost, sampler, nsamples, args...; outdir=saveto.name, output_stride=min(saveto.stride, nsamples), initial_params, kwargs...)
 
     ℓ = logdensityof(tpost)
 
     ∇ℓ = ADgradient(sampler.autodiff, tpost)
-    θ0 = init_params
+    θ0 = initial_params
 
-    if isnothing(init_params)
+    if isnothing(initial_params)
         @warn "No starting location chosen, picking start from prior"
-        θ0 = prior_sample(rng, post)
+        θ0 = prior_sample(rng, tpost)
     end
 
-    model, smplr = make_sampler(∇ℓ, sampler, first(θ0))
+    model, smplr = make_sampler(∇ℓ, sampler, θ0)
 
 
     res = AbstractMCMC.sample(
@@ -298,7 +298,7 @@ end
 function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
     sampler::AHMC, nsamples, outbase, args...;
     n_adapts = min(nsamples÷2, 1000),
-    init_params=nothing, outdir = "Results",
+    initial_params=nothing, outdir = "Results",
     output_stride=min(100, nsamples),
     restart = false,
     kwargs...)
@@ -312,12 +312,12 @@ function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior
     end
 
     mkpath(joinpath(outdir, "samples"))
-    θ0 = init_params
-    if isnothing(init_params)
+    θ0 = initial_params
+    if isnothing(initial_params)
         @warn "No starting location chosen, picking start from prior"
         θ0 = prior_sample(rng, tpost)
     end
-    t = Sample(rng, tpost, sampler; initial_params=init_params, n_adapts, kwargs...)(1:nsamples)
+    t = Sample(rng, tpost, sampler; initial_params=initial_params, n_adapts, kwargs...)(1:nsamples)
     pt = Iterators.partition(t, output_stride)
     nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
 
@@ -357,7 +357,7 @@ end
 function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
                         sampler::AHMC, nsamples, args...;
                         n_adapts = min(nsamples÷2, 1000),
-                        init_params=nothing, outdir = "Results",
+                        initial_params=nothing, outdir = "Results",
                         restart=false,
                         output_stride=min(100, nsamples),
                         kwargs...)
@@ -370,7 +370,7 @@ function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPoste
     pt, state, out, i = initialize(
                             rng, tpost, sampler, nsamples, outbase, args...;
                             n_adapts,
-                            init_params, restart, outdir, output_stride, kwargs...
+                            initial_params, restart, outdir, output_stride, kwargs...
                         )
 
     tmp = @timed iterate(pt, state)

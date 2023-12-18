@@ -49,10 +49,10 @@ end
 Comrade.samplertype(::Type{<:AdaptMCMC}) = Comrade.IsCube()
 
 """
-    sample(post::Posterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; init_params=nothing, kwargs...)
+    sample(post::Posterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; initial_params=nothing, kwargs...)
 
 Sample the posterior `post` using the `AdaptMCMC` sampler. This will produce `nsamples`
-with the first `burnin` steps removed. The `init_params` indicate where to start the sampler from
+with the first `burnin` steps removed. The `initial_params` indicate where to start the sampler from
 and it is expected to be a `NamedTuple` of parameters.
 
 Possible additional kwargs are:
@@ -67,7 +67,7 @@ This return a tuple where:
    `accexp` for each tempering level, and average temperate swap acceptance rates `accswp`
     for each tempering level.
 """
-function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; init_params=nothing, kwargs...)
+function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; initial_params=nothing, kwargs...)
     ℓ = logdensityof(post)
     function lpr(xx)
         for x in xx
@@ -76,8 +76,8 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedP
         return 0.0
     end
 
-    θ0 = init_params
-    if isnothing(init_params)
+    θ0 = initial_params
+    if isnothing(initial_params)
         @warn "No starting location chosen, picking start from random"
         θ0 = prior_sample(rng, post)
     end

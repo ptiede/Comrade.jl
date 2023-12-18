@@ -174,7 +174,7 @@ imageviz(img)
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 2000; nadapts=1000, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, initial_params=xopt)
 
 
 # !!! warning
@@ -185,7 +185,7 @@ chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 2000; nadapts=
 # unable to assess uncertainty in their reconstructions.
 #
 # To explore our posterior let's first create images from a bunch of draws from the posterior
-msamples = skymodel.(Ref(post), chain[1001:10:end]);
+msamples = skymodel.(Ref(post), chain[501:2:end]);
 
 # The mean image is then given by
 using StatsBase

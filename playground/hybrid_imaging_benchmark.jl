@@ -166,7 +166,7 @@ plot(abs.(img) , xlims=(-60.0,60.0), ylims=(-60.0,60.0))
 
 # now we sample using hmc
 metric = DenseEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Val(:ForwardDiff)), 4000; n_adapts=3000, init_params=xopt)
+chain, stats = sample(post, AHMC(;metric, autodiff=Val(:ForwardDiff)), 4000; n_adapts=3000, initial_params=xopt)
 
 # this took 25 minutes on my laptop which has a 11 gen core i7
 

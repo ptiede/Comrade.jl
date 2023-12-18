@@ -292,7 +292,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote), init_buffer=200, ), 3000; n_adapts=2000, init_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote), init_buffer=200, ), 3000; n_adapts=2000, initial_params=xopt)
 
 #-
 # !!! note

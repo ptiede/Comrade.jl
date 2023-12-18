@@ -23,7 +23,6 @@ Comrade.Comrade
 ### Calibration Models
 
 ```@docs
-Comrade.corrupt
 Comrade.CalTable
 Comrade.caltable(::Comrade.JonesCache, ::AbstractVector)
 Comrade.caltable(::Comrade.EHTObservation, ::AbstractVector)

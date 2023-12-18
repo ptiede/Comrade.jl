@@ -16,7 +16,7 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
     chain, stats = sample(post, a1, 100_000; thin=5)
     chain, stats = sample(post, a2, 100_000; thin=5)
-    chain, stats = sample(post, a1, 100_000; thin=5, init_params=x0)
+    chain, stats = sample(post, a1, 100_000; thin=5, initial_params=x0)
 
     cpost = ascube(post)
     l0 = logdensityof(cpost, Comrade.HypercubeTransform.inverse(cpost, x0))
