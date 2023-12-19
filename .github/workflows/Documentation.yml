@@ -36,7 +36,7 @@ jobs:
       - name: Install docs dependencies
         run: julia --project=docs -e 'using Pkg; Pkg.develop([PackageSpec(path=pwd()), PackageSpec(url="https://github.com/ptiede/ComradeBase.jl"), PackageSpec(path=joinpath(pwd(), "lib/ComradeAHMC")), PackageSpec(path=joinpath(pwd(), "lib/ComradeOptimization")), PackageSpec(path=joinpath(pwd(), "lib/ComradeDynesty")), PackageSpec(path=joinpath(pwd(), "lib/ComradeNested")), PackageSpec(path=joinpath(pwd(), "lib/ComradeAdaptMCMC"))]); Pkg.instantiate()'
       - name: Build Tutorials
-        run: julia --project=docs -e 'include(joinpath(pwd(), "docs", "tutorials.jl")'
+        run: julia --project=docs -e 'include(joinpath(pwd(), "docs", "tutorials.jl"))'
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
