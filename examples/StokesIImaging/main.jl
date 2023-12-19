@@ -239,6 +239,7 @@ ndim = dimension(tpost)
 # To initialize our sampler we will use optimize using LBFGS
 using ComradeOptimization
 using OptimizationOptimJL
+using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
 ℓ = logdensityof(tpost)
