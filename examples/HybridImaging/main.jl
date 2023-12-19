@@ -245,7 +245,7 @@ using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(); maxiters=5_000);
+sol = solve(prob, LBFGS(); maxiters=500, g_tol=1e-0);
 
 
 # Before we analyze our solution we first need to transform back to parameter space.
@@ -299,7 +299,7 @@ rast_imgs = intensitymap.(rast_samples, fovxy, fovxy, 128, 128)
 ring_mean, ring_std = mean_and_std(ring_imgs)
 rast_mean, rast_std = mean_and_std(rast_imgs)
 
-fig = CM.Figure(; resolution=(400, 400))
+fig = CM.Figure(; resolution=(400, 400));
 axes = [CM.Axis(fig[i, j], xreversed=true, aspect=CM.DataAspect()) for i in 1:2, j in 1:2]
 CM.image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
 CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
@@ -308,7 +308,7 @@ CM.image!(axes[2,2], rast_std, colormap=:afmhot); axes[2,2].title = "Rast Std. D
 fig
 
 # Finally, let's take a look at some of the ring parameters
-figd = CM.Figure(;resolution=(600, 400))
+figd = CM.Figure(;resolution=(600, 400));
 p1 = CM.density(figd[1,1], rad2μas(chain.r)*2, axis=(xlabel="Ring Diameter (μas)",))
 p2 = CM.density(figd[1,2], rad2μas(chain.σ)*2*sqrt(2*log(2)), axis=(xlabel="Ring FWHM (μas)",))
 p3 = CM.density(figd[1,3], -rad2deg.(getindex.(chain.mp, 1)) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))
