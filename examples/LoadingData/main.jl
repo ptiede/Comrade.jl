@@ -45,8 +45,8 @@ lcamp  = extract_table(obs, LogClosureAmplitudes(; snrcut=3.0)) # extract minima
 # For polarization we first load the data in the cirular polarization basis
 # Additionally, we load the array table at the same time to load the telescope mounts.
 obseht = Pyehtim.load_uvfits_and_array(
-                joinpath(@__DIR__, "../Data", "polarized_gaussian_all_corruptions.uvfits"),
-                joinpath(@__DIR__, "..", "Data", "array.txt"),
+                joinpath(__DIR, "../Data", "polarized_gaussian_all_corruptions.uvfits"),
+                joinpath(__DIR, "..", "Data", "array.txt"),
                 polrep="circ"
                         )
 obs = Pyehtim.scan_average(obseht)
