@@ -4,8 +4,8 @@ function load_data()
     obsavg = scan_average(obs)
 
     obspol = Pyehtim.load_uvfits_and_array(
-            joinpath(@__DIR__, "../examples/PolarizedExamples/polarized_gaussian_nogains_withdterms_withfr.uvfits"),
-            joinpath(@__DIR__, "../examples/PolarizedExamples/array.txt"),
+            joinpath(@__DIR__, "../examples/Data/polarized_gaussian_nogains_withdterms_withfr.uvfits"),
+            joinpath(@__DIR__, "../examples/Data/array.txt"),
             polrep="circ"
             )
 
