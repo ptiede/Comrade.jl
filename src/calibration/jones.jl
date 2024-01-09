@@ -304,17 +304,17 @@ end
 isreference(s::Symbol, ref::NoReference) = false
 isreference(s::Symbol, ref::SingleReference) = (s == ref.site)
 
-function gain_schema(segmentation::NamedTuple, obs::EHTObservation, references::AbstractVector{<:ReferencingScheme})
+
+function gain_schema(segmentation::NamedTuple, obs::EHTObservation)
     st = scantable(obs)
+    sites_list = stations(st)
     times = eltype(obs[:T])[]
     sites = Symbol[]
-    for i in 1:length(st)
-        s = stations(st[i])
-        t = st[i].time
-        ref = references[i]
-        for j in eachindex(s)
-            if !isreference(s[j], ref)
-                append_time_site!(times, sites, s[j], t, getproperty(segmentation, s[j]))
+    for s in sites_list
+        for i in 1:length(st)
+            if s in stations(st[i])
+                t = st[i].time
+                append_time_site!(times, sites, s, t, getproperty(segmentation, s))
             end
         end
     end
