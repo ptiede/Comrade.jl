@@ -112,7 +112,7 @@ function _apply_instrument!(vout, vis, jp1, jp2, refbasis)
     return nothing
 end
 
-_apply_jones(v::Number, j1, j2, ::B) where {B} = j1*v*j2'
+_apply_jones(v::Number, j1, j2, ::B) where {B} = j1*v*conj(j2)
 _apply_jones(v::CoherencyMatrix, j1, j2, ::B) where {B} = j1*CoherencyMatrix{B,B}(v)*j2'
 _apply_jones(v::StokesParams, j1, j2, ::B) where {B} = j1*CoherencyMatrix{B,B}(v)*j2'
 
