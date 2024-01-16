@@ -33,7 +33,7 @@ basemodel(m::RIMEModel) = m.sky
 flux(m::RIMEModel) = flux(basemodel(m))
 radialextent(m::RIMEModel) = radialextent(basemodel(m))
 
-function intensitymap(model::RIMEModel, dims::AbstractDims)
+function intensitymap(model::RIMEModel, dims::AbstractGrid)
     return intensitymap(basemodel(model), dims)
 end
 

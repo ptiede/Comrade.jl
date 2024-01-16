@@ -67,11 +67,11 @@ function sky(θ, metadata)
     (;ftot, cache) = metadata
     ## Form the image model
     ## First transform to simplex space first applying the non-centered transform
-    rast = ftot*f*(1-fg)*to_simplex(AdditiveLR(), σimg.*c)
+    rast = ftot*f*(1-fg)*to_simplex(CenteredLR(), σimg.*c)
     mimg = ContinuousImage(rast, cache)
     ## Form the ring model
-    α = ma.*cos.(mp)
-    β = ma.*sin.(mp)
+    α = ma.*cos.(mp .- ξτ)
+    β = ma.*sin.(mp .- ξτ)
     ring = smoothed(modify(MRing(α, β), Stretch(r, r*(1+τ)), Rotate(ξτ), Renormalize((ftot*(1-f)*(1-fg)))), σ)
     gauss = modify(Gaussian(), Stretch(μas2rad(250.0)), Renormalize(ftot*f*fg))
     ## We group the geometric models together for improved efficiency. This will be
@@ -110,7 +110,7 @@ end
 
 # Now let's define our metadata. First we will define the cache for the image. This is
 # required to compute the numerical Fourier transform.
-fovxy  = μas2rad(150.0)
+fovxy  = μas2rad(200.0)
 npix   = 32
 grid   = imagepixels(fovxy, fovxy, npix, npix)
 
@@ -165,7 +165,7 @@ using VLBIImagePriors
 # pixel length, which is given by
 beam = beamsize(dvis)
 rat = (beam/(step(grid.X)))
-cprior = GaussMarkovRandomField(10*rat, size(grid))
+cprior = GaussMarkovRandomField(rat, size(grid); order=2)
 # additionlly we will fix the standard deviation of the field to unity and instead
 # use a pseudo non-centered parameterization for the field.
 # GaussMarkovRandomField(meanpr, 0.1*rat, 1.0, crcache)
@@ -245,7 +245,7 @@ using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(); maxiters=500, g_tol=1e-0);
+sol = solve(prob, LBFGS(); maxiters=2000, g_tol=1e-0);
 
 
 # Before we analyze our solution we first need to transform back to parameter space.
@@ -266,7 +266,7 @@ CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), 
 # We will now move directly to sampling at this point.
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt)
 
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]
@@ -305,6 +305,7 @@ CM.image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
 CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
 CM.image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"
 CM.image!(axes[2,2], rast_std, colormap=:afmhot); axes[2,2].title = "Rast Std. Dev."
+CM.hidedecorations!.(axes)
 fig
 
 # Finally, let's take a look at some of the ring parameters

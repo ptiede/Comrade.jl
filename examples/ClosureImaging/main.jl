@@ -121,7 +121,7 @@ crcache = ConditionalMarkov(Normal, grid)
 # Gaussian Markov random fields are extremly flexible models.
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(crcache, InverseGamma(1.0, -log(0.01*rat)))
+cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1*rat)); upper=npix))
 
 prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 0.1); lower = 0.0), fg=Uniform(0.0, 1.0))
 

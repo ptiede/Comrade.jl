@@ -324,10 +324,9 @@ residual(vlbimodel(post, xopt), dvis)
 # These look reasonable, although there may be some minor overfitting.
 # Let's compare our results to the ground truth values we know in this example.
 # First, we will load the polarized truth
-using AxisKeys
 imgtrue = Comrade.load(joinpath(__DIR, "..", "Data", "polarized_gaussian.fits"), StokesIntensityMap)
 # Select a reasonable zoom in of the image.
-imgtruesub = imgtrue(Interval(-fovx/2, fovx/2), Interval(-fovy/2, fovy/2))
+imgtruesub = regrid(imgtrue, )
 img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
 
 #Plotting the results gives

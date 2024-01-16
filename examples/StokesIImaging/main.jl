@@ -104,7 +104,7 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 32
+npix = 42
 fovx = μas2rad(150.0)
 fovy = μas2rad(150.0)
 
@@ -121,7 +121,7 @@ using VLBIImagePriors
 # start with an initial guess for the image structure. For this tutorial we will use a
 # a symmetric Gaussian with a FWHM of 50 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(40.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
@@ -185,8 +185,13 @@ rat = (beam/(step(grid.X)))
 # that allow us to scale things linearly with the number of image pixels. The returns a
 # functional that accepts a single argument related to the correlation length of the field.
 # The second argument defines the underlying random field of the Markov process. Here
-# we are using a zero mean and unit variance Gaussian Markov random field.
-crcache = ConditionalMarkov(Normal, grid)
+# we are using a zero mean and unit variance Gaussian Markov random field. The keyword
+# argument specifies the order of the Gaussian field. Currently, we recommend using order
+#  - 1 which is identical to TSV variation and L₂ regularization
+#  - 2 which is identical to a Matern 1 process in 2D and is really the convolution of two
+#    order 1 processes
+# For this tutorial we will use the first order random field
+crcache = ConditionalMarkov(GMRF, grid; order=1)
 
 # To demonstrate the prior let create a few random realizations
 
@@ -201,7 +206,7 @@ crcache = ConditionalMarkov(Normal, grid)
 # and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image. If the data wants more complexity
 # then it will drive us away from the prior.
-cprior = HierarchicalPrior(crcache, InverseGamma(1.0, -log(0.1*rat)))
+cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1)*rat); upper=npix))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -241,9 +246,9 @@ using ComradeOptimization
 using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
+prob = Optimization.OptimizationProblem(f, randn(rng, ndim), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=300, g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=1000, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)

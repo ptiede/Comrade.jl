@@ -31,7 +31,7 @@ import ComradeBase: save
 @reexport using PolarizedTypes
 
 export linearpol, mbreve, evpa
-using ComradeBase: AbstractDims, AbstractModel, AbstractPolarizedModel, AbstractHeader
+using ComradeBase: AbstractGrid, AbstractModel, AbstractPolarizedModel, AbstractHeader
 using ComradeBase: load
 
 
