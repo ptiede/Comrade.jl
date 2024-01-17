@@ -114,7 +114,7 @@ rat = (beam/(step(grid.X)))
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
 # that allow us to scale things linearly with the number of image pixels. This drastically improves
 # the usual N^3 scaling you get from usual Gaussian Processes.
-crcache = ConditionalMarkov(Normal, grid)
+crcache = ConditionalMarkov(GMRF, grid)
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
 # correlation length is given by a inverse gamma prior to prevent overfitting.
@@ -177,7 +177,7 @@ imageviz(img)
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; nadapts=500, initial_params=xopt)
+chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500)
 
 
 # !!! warning
@@ -208,6 +208,7 @@ CM.image(fig[2,1], imgs[1],
 CM.image(fig[2,2], imgs[end],
                    axis=(xreversed=true, aspect=1,title="Draw 2"),
                    colormap=:afmhot)
+CM.hidedecorations!.(fig.content)
 fig
 
 # Now let's see whether our residuals look better.

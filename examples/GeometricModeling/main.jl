@@ -176,7 +176,7 @@ xopt = transform(fpost, sol)
 
 import CairoMakie as CM
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
-fig, ax, plt = CM.image(g, model(xopt); axis=(xreversed=true, aspect=1, xlabel="RA (μas)", ylabel="Dec (μas)"), figure=(;resolution=(650,500),) ,colormap=:afmhot)
+imageviz(intensitymap(model(xopt), g), colormap=:afmhot)
 
 # ### Quantifying the Uncertainty of the Reconstruction
 
