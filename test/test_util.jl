@@ -49,9 +49,9 @@ function test_instrumentmodel_polarized(θ, metadata)
 end
 
 function test_model2(θ, metadata)
-    (; alg, fovx, fovy, nx, ny) = metadata
+    (; alg, g) = metadata
     m2 = θ.f*stretched(ExtendedRing(θ.α), θ.r*(1+θ.τ), θ.r)
-    return modelimage(m2; fovx, fovy, nx, ny, alg, thread=true)
+    return modelimage(m2, g; alg, thread=true)
 end
 
 function test_prior2()

@@ -156,7 +156,8 @@ using FiniteDifferences
 
     mfd = central_fdm(5,1)
     @testset "DFT" begin
-        mt = (fovx = μas2rad(150.0), fovy=μas2rad(150.0), nx=256, ny=256, alg=DFTAlg())
+        g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+        mt = (g=g, alg=DFTAlg())
         lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
 
         prior = test_prior2()
@@ -173,7 +174,8 @@ using FiniteDifferences
     end
 
     @testset "NFFT" begin
-        mt = (fovx = μas2rad(150.0), fovy=μas2rad(150.0), nx=256, ny=256, alg=NFFTAlg(lcamp))
+        g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+        mt = (g=g, alg=DFTAlg())
         lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
 
         prior = test_prior2()
@@ -190,7 +192,8 @@ using FiniteDifferences
     end
 
     @testset "FFT" begin
-        mt = (fovx = μas2rad(150.0), fovy= μas2rad(150.0), nx=256, ny=256, alg=FFTAlg())
+        g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+        mt = (g=g, alg=DFTAlg())
         lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
 
         prior = test_prior2()

@@ -1,6 +1,8 @@
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 ChainRulesTestUtils = "cdddcdb0-9152-4a09-a978-84456f9df70a"
+ComradeBase = "6d8c423b-a35f-4ef1-850c-862fe21f82c4"
+DimensionalData = "0703355e-b756-11e9-17c0-8b28908087d0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Dynesty = "eb527566-0f3e-4aab-bb5f-9d2e403dba70"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
