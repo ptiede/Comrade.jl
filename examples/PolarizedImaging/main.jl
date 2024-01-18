@@ -335,7 +335,7 @@ polimage(fig[1,1], imgtruesub,
                    nvec = 8,
                    length_norm=1/2, plot_total=true, pcolormap=:RdBu,
                    pcolorrange=(-0.25, 0.25),)
-polimage(fig[1,2], mean(imgs),
+polimage(fig[1,2], img,
                    axis=(xreversed=true, aspect=1, title="Recon.",),
                    nvec = 8,
                    length_norm=1/2, plot_total=true, pcolormap=:RdBu,
