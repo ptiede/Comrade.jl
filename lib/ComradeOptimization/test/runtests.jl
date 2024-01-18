@@ -13,16 +13,18 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
     tpost = asflat(post)
     f = OptimizationFunction(tpost, Optimization.AutoZygote())
-    x0 = [  0.21073019358414513,
-            0.13780160840617572,
-            0.39730883437243103,
-           -0.0376931744475234,
-            0.3662436692551876,
-           -0.03851423918413366,
-           -0.28915094775302785,
-           -0.24972299832315636,
-           -0.34200263379293494,
-            0.19287666836584216,]
+    x0 = [
+            0.0,
+            -0.4,
+            0.0,
+            2.0,
+            0.0,
+            -1.0,
+            0.0,
+            0.5,
+            2.0,
+            2.0,
+        ]
     prob = OptimizationProblem(f, x0, nothing)
     sol = solve(prob, LBFGS(); maxiters=10_000)
 
