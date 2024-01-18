@@ -48,7 +48,7 @@ obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "../Data/SR1_M87_2017_096_lo_hop
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      are coherent.
-#   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
+#   - Add 2% systematic noise to deal with calibration issues such as leakage.
 obs = scan_average(obs).add_fractional_noise(0.02)
 
 # Now, we extract our closure quantities from the EHT data set.
@@ -100,7 +100,7 @@ imgpr = intensitymap(mpr, grid)
 # Now since we are actually modeling our image on the simplex we need to ensure that
 # our mean image has unit flux before we transform
 imgpr ./= flux(imgpr)
-meanpr = to_real(AdditiveLR(), Comrade.baseimage(imgpr))
+meanpr = to_real(AdditiveLR(), baseimage(imgpr))
 
 #
 skymeta = (;meanpr,K=CenterImage(imgpr), cache)
@@ -168,6 +168,11 @@ residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
 import CairoMakie as CM
 img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
 imageviz(img)
+
+# That doesn't look great. The reason for this is that the MAP, from a Bayesian standpoint,
+# is not representative of the posterior. In fact, the MAP often overfits the data and depends
+# on the choice of parameterization of the posterior. Given this we will turn to sampling
+# from the posterior instead.
 
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).

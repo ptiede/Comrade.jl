@@ -103,7 +103,7 @@ using Pyehtim
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(47)
+rng = StableRNG(14)
 
 
 # Now we will load some synthetic polarized data.
@@ -142,14 +142,13 @@ dvis = extract_table(obs, Coherencies())
 
 
 function sky(θ, metadata)
-    (;c, f, p, angparams) = θ
+    (;c, p, angparams) = θ
     (;K, grid, cache) = metadata
     ## Construct the image model
     ## produce Stokes images from parameters
-    imgI = f*K(c)
+    imgI = K(c)
     ## Converts from poincare sphere parameterization of polzarization to Stokes Parameters
-    pimg = PoincareSphere2Map(imgI, p, angparams, grid)
-    m = ContinuousImage(pimg, cache)
+    m = PoincareSphere2Map(imgI, p, angparams, cache)
     return m
 end
 
@@ -187,12 +186,11 @@ end
 # image model.
 fovx = μas2rad(50.0)
 fovy = μas2rad(50.0)
-nx = 6
+nx = 8
 ny = floor(Int, fovy/fovx*nx)
 grid = imagepixels(fovx, fovy, nx, ny) # image grid
-buffer = IntensityMap(zeros(nx, ny), grid) # buffer to store temporary image
 pulse = BSplinePulse{3}() # pulse we will be using
-cache = create_cache(NFFTAlg(dvis), buffer, pulse) # cache to define the NFFT transform
+cache = create_cache(NFFTAlg(dvis), grid, pulse) # cache to define the NFFT transform
 
 
 # Finally we compute a center projector that forces the centroid to live at the image origin
@@ -232,6 +230,7 @@ instrumentmeta = (;tcache, scancache, trackcache, phasecache)
 using Distributions
 using DistributionsAD
 distamp = station_tuple(dvis, Normal(0.0, 0.1))
+distamp_ratio = station_tuple(dvis, Normal(0.0, 0.01))
 
 #-
 # For the phases, we assume that the atmosphere effectively scrambles the gains.
@@ -262,8 +261,7 @@ distD = station_tuple(dvis, Normal(0.0, 0.1))
 # that specifies the segmentation scheme. For the gain products, we use the `scancache`, while
 # for every other quantity, we use the `trackcache`.
 prior = NamedDist(
-          c = ImageDirichlet(2.0, nx, ny),
-          f = Uniform(0.7, 1.2),
+          c = ImageDirichlet(3.0, nx, ny),
           p = ImageUniform(nx, ny),
           angparams = ImageSphericalUniform(nx, ny),
           dRx = CalPrior(distD, trackcache),
@@ -272,8 +270,8 @@ prior = NamedDist(
           dLy = CalPrior(distD, trackcache),
           lgp = CalPrior(distamp, scancache),
           gpp = CalPrior(distphase, phasecache),
-          lgr = CalPrior(distamp, scancache),
-          gpr = CalPrior(distphase,phasecache),
+          lgr = CalPrior(distamp_ratio, scancache),
+          gpr = CalPrior(distphase_ratio,phasecache),
           )
 
 
@@ -307,7 +305,7 @@ using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 ℓ = logdensityof(tpost)
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(), maxiters=15_000, g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=12_000, g_tol=1e-1);
 
 # !!! warning
 #     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that
@@ -315,7 +313,7 @@ sol = solve(prob, LBFGS(), maxiters=15_000, g_tol=1e-1);
 #     is often required.
 #-
 # Before we analyze our solution, we need to transform it back to parameter space.
-xopt = transform(tpost, sol)
+xopt = transform(tpost, sol.u)
 
 # Now let's evaluate our fits by plotting the residuals
 using Plots
@@ -326,23 +324,26 @@ residual(vlbimodel(post, xopt), dvis)
 # First, we will load the polarized truth
 imgtrue = Comrade.load(joinpath(__DIR, "..", "Data", "polarized_gaussian.fits"), StokesIntensityMap)
 # Select a reasonable zoom in of the image.
-imgtruesub = regrid(imgtrue, )
+imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx*4, ny*4))
 img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
 
 #Plotting the results gives
 import CairoMakie as CM
 fig = CM.Figure(;resolution=(450, 350));
 polimage(fig[1,1], imgtruesub,
-                   axis=(xreversed=true, aspect=1, title="Truth", limits=((-20.0,20.0), (-20.0, 20.0))),
-                   length_norm=1, plot_total=true, pcolormap=:RdBu,
+                   axis=(xreversed=true, aspect=1, title="Truth"),
+                   nvec = 8,
+                   length_norm=1/2, plot_total=true, pcolormap=:RdBu,
                    pcolorrange=(-0.25, 0.25),)
-polimage(fig[1,2], img,
-                   axis=(xreversed=true, aspect=1, title="Recon.",  limits=((-20.0,20.0), (-20.0, 20.0))),
-                   length_norm=1, plot_total=true, pcolormap=:RdBu,
+polimage(fig[1,2], mean(imgs),
+                   axis=(xreversed=true, aspect=1, title="Recon.",),
+                   nvec = 8,
+                   length_norm=1/2, plot_total=true, pcolormap=:RdBu,
                    pcolorrange=(-0.25, 0.25),)
 CM.Colorbar(fig[2,:], colormap=:RdBu, vertical=false, colorrange=(-0.25, 0.25), label="Signed Polarization Fraction sign(V)*|p|", flipaxis=false)
 CM.colgap!(fig.layout, 3)
 CM.rowgap!(fig.layout, 3)
+CM.hidedecorations!.(fig.content[1:2])
 fig
 #-
 
@@ -401,26 +402,9 @@ plot!(gamp_ratio, layout=(3,3), size=(650,500))
 # At this point, you should run the sampler to recover an uncertainty estimate,
 # which is identical to every other imaging example
 # (see, e.g., [Stokes I Simultaneous Image and Instrument Modeling](@ref). However,
-# due to the time it takes to sample, we will skip that for this tutorial. Note that on the computer environment listed
-# below, 20_000 MCMC steps take 4 hours.
+# due to the time it takes to sample, we will skip that for this tutorial.
 
 
 # [^1]: Hamaker J.P, Bregman J.D., Sault R.J. (1996) [https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H]
 # [^2]: Pesce D. (2021) [https://ui.adsabs.harvard.edu/abs/2021AJ....161..178P/abstract]
 #-
-
-# ## Computing information
-# ```
-# Julia Version 1.8.5
-# Commit 17cfb8e65ea (2023-01-08 06:45 UTC)
-# Platform Info:
-#   OS: Linux (x86_64-linux-gnu)
-#   CPU: 32 × AMD Ryzen 9 7950X 16-Core Processor
-#   WORD_SIZE: 64
-#   LIBM: libopenlibm
-#   LLVM: libLLVM-13.0.1 (ORCJIT, znver3)
-#   Threads: 1 on 32 virtual cores
-# Environment:
-#   JULIA_EDITOR = code
-#   JULIA_NUM_THREADS = 1
-# ```
