@@ -69,7 +69,7 @@ ComradeBase.intensitymap_numeric!
 ComradeBase.IntensityMap(::AbstractArray, ::AbstractGrid)
 ComradeBase.StokesIntensityMap
 ComradeBase.imagepixels
-ComradeBase.GriddedKeys
+ComradeBase.RectiGrid
 ComradeBase.dims
 ComradeBase.named_dims
 ComradeBase.axisdims
