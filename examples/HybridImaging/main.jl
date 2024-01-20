@@ -221,6 +221,7 @@ xrand = prior_sample(rng, post)
 
 # and then plot the results
 import CairoMakie as CM
+CM.activate!(type = "png", px_per_unit=3) #hide
 g = imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128)
 imageviz(intensitymap(skymodel(post, xrand), g))
 

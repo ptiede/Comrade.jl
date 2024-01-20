@@ -266,6 +266,7 @@ residual(vlbimodel(post, xopt), dvis)
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
 import CairoMakie as CM
+CM.activate!(type = "png", px_per_unit=3) #hide
 img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
 imageviz(img)
 

@@ -329,6 +329,8 @@ img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
 
 #Plotting the results gives
 import CairoMakie as CM
+CM.activate!(type = "png", px_per_unit=3) #hide
+
 fig = CM.Figure(;resolution=(450, 350));
 polimage(fig[1,1], imgtruesub,
                    axis=(xreversed=true, aspect=1, title="Truth"),

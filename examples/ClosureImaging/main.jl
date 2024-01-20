@@ -166,6 +166,7 @@ residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
 
 # Now let's plot the MAP estimate.
 import CairoMakie as CM
+CM.activate!(type = "png", px_per_unit=3) #hide
 img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
 imageviz(img)
 

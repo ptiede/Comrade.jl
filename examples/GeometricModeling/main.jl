@@ -175,6 +175,7 @@ xopt = transform(fpost, sol)
 # Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 
 import CairoMakie as CM
+CM.activate!(type = "png", px_per_unit=3) #hide
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
 imageviz(intensitymap(model(xopt), g), colormap=:afmhot)
 
