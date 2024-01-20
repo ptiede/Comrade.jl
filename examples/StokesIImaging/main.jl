@@ -268,7 +268,7 @@ residual(vlbimodel(post, xopt), dvis)
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=3) #hide
 img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
-imageviz(img)
+imageviz(img, size=(400, 400))
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
@@ -364,14 +364,6 @@ CM.image(fig[2,2], imgs[end],
                    axis=(xreversed=true, aspect=1,title="Draw 2"),
                    colormap=:afmhot)
 fig
-
-# Now let's check the residuals
-
-p = plot();
-for s in sample(chain, 10)
-    residual!(p, vlbimodel(post, s), dvis)
-end
-p
 
 
 

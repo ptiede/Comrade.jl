@@ -223,7 +223,7 @@ xrand = prior_sample(rng, post)
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=3) #hide
 g = imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128)
-imageviz(intensitymap(skymodel(post, xrand), g))
+imageviz(intensitymap(skymodel(post, xrand), g), size=(400, 400))
 
 # ## Reconstructing the Image
 
@@ -285,9 +285,9 @@ msamples = skymodel.(Ref(post), chain[begin:2:end]);
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, fovxy, fovxy, 128, 128)
-imageviz(mean(imgs), colormap=:afmhot)
+imageviz(mean(imgs), colormap=:afmhot, size=(400, 400))
 #-
-imageviz(std(imgs), colormap=:batlow)
+imageviz(std(imgs), colormap=:batlow, size=(400, 400))
 #-
 #
 # We can also split up the model into its components and analyze each separately

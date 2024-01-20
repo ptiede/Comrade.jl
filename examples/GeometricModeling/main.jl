@@ -177,7 +177,7 @@ xopt = transform(fpost, sol)
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=3) #hide
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
-imageviz(intensitymap(model(xopt), g), colormap=:afmhot)
+imageviz(intensitymap(model(xopt), g), colormap=:afmhot, size=(400, 400))
 
 # ### Quantifying the Uncertainty of the Reconstruction
 
