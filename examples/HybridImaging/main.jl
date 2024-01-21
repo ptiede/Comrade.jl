@@ -25,6 +25,8 @@ Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
 
+ENV["GKSwstype"] = "nul" #hide
+
 
 # ## Loading the Data
 

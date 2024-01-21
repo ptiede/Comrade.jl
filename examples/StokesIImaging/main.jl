@@ -16,6 +16,9 @@ Pkg.develop(; path=joinpath(__DIR, "..", "..")) #hide
 Pkg.instantiate(;) #hide
 Pkg.precompile(;) #hide
 
+ENV["GKSwstype"] = "nul" #hide
+
+
 using Comrade
 
 
