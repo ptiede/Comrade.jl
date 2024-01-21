@@ -174,10 +174,10 @@ xopt = transform(fpost, sol)
 
 # Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 
-import CairoMakie as CM
-CM.activate!(type = "png", px_per_unit=3) #hide
+# import CairoMakie as CM
+# CM.activate!(type = "png", px_per_unit=3) #hide
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
-imageviz(intensitymap(model(xopt), g), colormap=:afmhot, size=(400, 400))
+#imageviz(intensitymap(model(xopt), g), colormap=:afmhot, size=(400, 400))
 
 # ### Quantifying the Uncertainty of the Reconstruction
 
@@ -200,12 +200,12 @@ chain = sample_array(cpost, pt)
 
 # First to plot the image we call
 imgs = intensitymap.(skymodel.(Ref(post), sample(chain, 100)), μas2rad(200.0), μas2rad(200.0), 128, 128)
-imageviz(imgs[end], colormap=:afmhot)
+#imageviz(imgs[end], colormap=:afmhot)
 
 # What about the mean image? Well let's grab 100 images from the chain, where we first remove the
 # adaptation steps since they don't sample from the correct posterior distribution
 meanimg = mean(imgs)
-imageviz(meanimg, colormap=:afmhot)
+#imageviz(meanimg, colormap=:afmhot)
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products

@@ -51,7 +51,7 @@ dvis = extract_table(obs, Coherencies())
 
 
 
-@sky function polimage(ftot, grid, config, pulse)
+@sky function #polimage(ftot, grid, config, pulse)
     K     := CenterImage(grid)
     cache := create_cache(NFFTAlg(config), grid, pulse)
     σ ~ truncated(Normal(0.0, 0.1); lower = 0.0)
@@ -260,11 +260,11 @@ img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
 #Plotting the results gives
 import WGLMakie as CM
 fig = CM.Figure(;resolution=(450, 350));
-polimage(fig[1,1], imgtruesub,
+#polimage(fig[1,1], imgtruesub,
                    axis=(xreversed=true, aspect=1, title="Truth", limits=((-20.0,20.0), (-20.0, 20.0))),
                    length_norm=1, plot_total=true, pcolormap=:RdBu,
                    pcolorrange=(-0.25, 0.25),)
-polimage(fig[1,2], img,
+#polimage(fig[1,2], img,
                    axis=(xreversed=true, aspect=1, title="Recon.",  limits=((-20.0,20.0), (-20.0, 20.0))),
                    length_norm=1, plot_total=true, pcolormap=:RdBu,
                    pcolorrange=(-0.25, 0.25),)

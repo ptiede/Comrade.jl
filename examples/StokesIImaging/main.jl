@@ -264,10 +264,10 @@ residual(vlbimodel(post, xopt), dvis)
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
-import CairoMakie as CM
-CM.activate!(type = "png", px_per_unit=3) #hide
+# import CairoMakie as CM
+# CM.activate!(type = "png", px_per_unit=3) #hide
 img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
-imageviz(img, size=(400, 400))
+#imageviz(img, size=(400, 400))
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
@@ -349,20 +349,20 @@ imgs = intensitymap.(samples, fovx, fovy, 128,  128)
 
 mimg = mean(imgs)
 simg = std(imgs)
-fig = CM.Figure(;resolution=(400, 400))
-CM.image(fig[1,1], mimg,
-                   axis=(xreversed=true, aspect=1, title="Mean Image"),
-                   colormap=:afmhot)
-CM.image(fig[1,2], simg./(max.(mimg, 1e-5)),
-                   axis=(xreversed=true, aspect=1, title="1/SNR",),
-                   colormap=:afmhot)
-CM.image(fig[2,1], imgs[1],
-                   axis=(xreversed=true, aspect=1,title="Draw 1"),
-                   colormap=:afmhot)
-CM.image(fig[2,2], imgs[end],
-                   axis=(xreversed=true, aspect=1,title="Draw 2"),
-                   colormap=:afmhot)
-fig
+# fig = CM.Figure(;resolution=(400, 400))
+# CM.image(fig[1,1], mimg,
+#                    axis=(xreversed=true, aspect=1, title="Mean Image"),
+#                    colormap=:afmhot)
+# CM.image(fig[1,2], simg./(max.(mimg, 1e-5)),
+#                    axis=(xreversed=true, aspect=1, title="1/SNR",),
+#                    colormap=:afmhot)
+# CM.image(fig[2,1], imgs[1],
+#                    axis=(xreversed=true, aspect=1,title="Draw 1"),
+#                    colormap=:afmhot)
+# CM.image(fig[2,2], imgs[end],
+#                    axis=(xreversed=true, aspect=1,title="Draw 2"),
+#                    colormap=:afmhot)
+# fig
 
 
 

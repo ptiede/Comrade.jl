@@ -165,10 +165,10 @@ residual(skymodel(post, xopt), dlcamp, ylabel="Log Closure Amplitude Res.")
 residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
 
 # Now let's plot the MAP estimate.
-import CairoMakie as CM
-CM.activate!(type = "png", px_per_unit=3) #hide
+# import CairoMakie as CM
+# CM.activate!(type = "png", px_per_unit=3) #hide
 img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
-imageviz(img)
+#imageviz(img)
 
 # That doesn't look great. The reason for this is that the MAP, from a Bayesian standpoint,
 # is not representative of the posterior. In fact, the MAP often overfits the data and depends
@@ -201,21 +201,21 @@ using StatsBase
 imgs = intensitymap.(msamples, μas2rad(150.0), μas2rad(150.0), 128, 128)
 mimg = mean(imgs)
 simg = std(imgs)
-fig = CM.Figure(;resolution=(400, 400));
-CM.image(fig[1,1], mimg,
-                   axis=(xreversed=true, aspect=1, title="Mean Image"),
-                   colormap=:afmhot)
-CM.image(fig[1,2], simg./(max.(mimg, 1e-5)),
-                   axis=(xreversed=true, aspect=1, title="1/SNR",), colorrange=(0.0, 2.0),
-                   colormap=:afmhot)
-CM.image(fig[2,1], imgs[1],
-                   axis=(xreversed=true, aspect=1,title="Draw 1"),
-                   colormap=:afmhot)
-CM.image(fig[2,2], imgs[end],
-                   axis=(xreversed=true, aspect=1,title="Draw 2"),
-                   colormap=:afmhot)
-CM.hidedecorations!.(fig.content)
-fig
+# fig = CM.Figure(;resolution=(400, 400));
+# CM.image(fig[1,1], mimg,
+#                    axis=(xreversed=true, aspect=1, title="Mean Image"),
+#                    colormap=:afmhot)
+# CM.image(fig[1,2], simg./(max.(mimg, 1e-5)),
+#                    axis=(xreversed=true, aspect=1, title="1/SNR",), colorrange=(0.0, 2.0),
+#                    colormap=:afmhot)
+# CM.image(fig[2,1], imgs[1],
+#                    axis=(xreversed=true, aspect=1,title="Draw 1"),
+#                    colormap=:afmhot)
+# CM.image(fig[2,2], imgs[end],
+#                    axis=(xreversed=true, aspect=1,title="Draw 2"),
+#                    colormap=:afmhot)
+# CM.hidedecorations!.(fig.content)
+# fig
 
 # Now let's see whether our residuals look better.
 p = Plots.plot();

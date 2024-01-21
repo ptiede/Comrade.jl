@@ -223,7 +223,7 @@ xrand = prior_sample(rng, post)
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=3) #hide
 g = imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128)
-imageviz(intensitymap(skymodel(post, xrand), g), size=(400, 400))
+#imageviz(intensitymap(skymodel(post, xrand), g), size=(400, 400))
 
 # ## Reconstructing the Image
 
@@ -261,7 +261,7 @@ residual(vlbimodel(post, xopt), dvis, ylabel="Correlated Flux Residual")
 # Now these residuals look a bit high. However, it turns out this is because the MAP is typically
 # not a great estimator and will not provide very predictive measurements of the data. We
 # will show this below after sampling from the posterior.
-CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), colormap=:afmhot, figure=(;resolution=(400, 400),))
+# CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), colormap=:afmhot, figure=(;resolution=(400, 400),))
 
 
 # We will now move directly to sampling at this point.
@@ -285,9 +285,9 @@ msamples = skymodel.(Ref(post), chain[begin:2:end]);
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, fovxy, fovxy, 128, 128)
-imageviz(mean(imgs), colormap=:afmhot, size=(400, 400))
+#imageviz(mean(imgs), colormap=:afmhot, size=(400, 400))
 #-
-imageviz(std(imgs), colormap=:batlow, size=(400, 400))
+#imageviz(std(imgs), colormap=:batlow, size=(400, 400))
 #-
 #
 # We can also split up the model into its components and analyze each separately
@@ -300,23 +300,23 @@ rast_imgs = intensitymap.(rast_samples, fovxy, fovxy, 128, 128)
 ring_mean, ring_std = mean_and_std(ring_imgs)
 rast_mean, rast_std = mean_and_std(rast_imgs)
 
-fig = CM.Figure(; resolution=(400, 400));
-axes = [CM.Axis(fig[i, j], xreversed=true, aspect=CM.DataAspect()) for i in 1:2, j in 1:2]
-CM.image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
-CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
-CM.image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"
-CM.image!(axes[2,2], rast_std, colormap=:afmhot); axes[2,2].title = "Rast Std. Dev."
-CM.hidedecorations!.(axes)
-fig
+# fig = CM.Figure(; resolution=(400, 400));
+# axes = [CM.Axis(fig[i, j], xreversed=true, aspect=CM.DataAspect()) for i in 1:2, j in 1:2]
+# CM.image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
+# CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
+# CM.image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"
+# CM.image!(axes[2,2], rast_std, colormap=:afmhot); axes[2,2].title = "Rast Std. Dev."
+# CM.hidedecorations!.(axes)
+# fig
 
 # Finally, let's take a look at some of the ring parameters
-figd = CM.Figure(;resolution=(600, 400));
-p1 = CM.density(figd[1,1], rad2μas(chain.r)*2, axis=(xlabel="Ring Diameter (μas)",))
-p2 = CM.density(figd[1,2], rad2μas(chain.σ)*2*sqrt(2*log(2)), axis=(xlabel="Ring FWHM (μas)",))
-p3 = CM.density(figd[1,3], -rad2deg.(getindex.(chain.mp, 1)) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))
-p4 = CM.density(figd[2,1], 2*getindex.(chain.ma, 2), axis=(xlabel="Brightness asymmetry",))
-p5 = CM.density(figd[2,2], 1 .- chain.f, axis=(xlabel="Ring flux fraction",))
-figd
+# figd = CM.Figure(;resolution=(600, 400));
+# p1 = CM.density(figd[1,1], rad2μas(chain.r)*2, axis=(xlabel="Ring Diameter (μas)",))
+# p2 = CM.density(figd[1,2], rad2μas(chain.σ)*2*sqrt(2*log(2)), axis=(xlabel="Ring FWHM (μas)",))
+# p3 = CM.density(figd[1,3], -rad2deg.(getindex.(chain.mp, 1)) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))
+# p4 = CM.density(figd[2,1], 2*getindex.(chain.ma, 2), axis=(xlabel="Brightness asymmetry",))
+# p5 = CM.density(figd[2,2], 1 .- chain.f, axis=(xlabel="Ring flux fraction",))
+# figd
 
 # Now let's check the residuals using draws from the posterior
 p = Plots.plot();
