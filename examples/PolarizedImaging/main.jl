@@ -333,15 +333,15 @@ img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
 
 # fig = CM.Figure(;resolution=(450, 350));
 #polimage(fig[1,1], imgtruesub,
-                   axis=(xreversed=true, aspect=1, title="Truth"),
-                   nvec = 8,
-                   length_norm=1/2, plot_total=true, pcolormap=:RdBu,
-                   pcolorrange=(-0.25, 0.25),)
+                #    axis=(xreversed=true, aspect=1, title="Truth"),
+                #    nvec = 8,
+                #    length_norm=1/2, plot_total=true, pcolormap=:RdBu,
+                #    pcolorrange=(-0.25, 0.25),)
 #polimage(fig[1,2], img,
-                   axis=(xreversed=true, aspect=1, title="Recon.",),
-                   nvec = 8,
-                   length_norm=1/2, plot_total=true, pcolormap=:RdBu,
-                   pcolorrange=(-0.25, 0.25),)
+                #    axis=(xreversed=true, aspect=1, title="Recon.",),
+                #    nvec = 8,
+                #    length_norm=1/2, plot_total=true, pcolormap=:RdBu,
+                #    pcolorrange=(-0.25, 0.25),)
 # CM.Colorbar(fig[2,:], colormap=:RdBu, vertical=false, colorrange=(-0.25, 0.25), label="Signed Polarization Fraction sign(V)*|p|", flipaxis=false)
 # CM.colgap!(fig.layout, 3)
 # CM.rowgap!(fig.layout, 3)
