@@ -13,10 +13,10 @@ TUTORIALS = [
         "HybridImaging/main.jl",
         "LoadingData/main.jl",
         "PolarizedImaging/main.jl",
-        "StokesIImaging/main.jl"
+        # "StokesIImaging/main.jl"
         ]
 
-withenv("JULIA_DEBUG"=>"Literate") do
+withenv("JULIA_PROJECT"=>"Literate") do
     for (d, paths) in (("", TUTORIALS),),
         (i,p) in enumerate(paths)
         println(p)
