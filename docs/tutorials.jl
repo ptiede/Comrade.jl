@@ -13,7 +13,7 @@ TUTORIALS = [
         "HybridImaging/main.jl",
         "LoadingData/main.jl",
         "PolarizedImaging/main.jl",
-        # "StokesIImaging/main.jl"
+        "StokesIImaging/main.jl"
         ]
 
 withenv("JULIA_PROJECT"=>"Literate") do
