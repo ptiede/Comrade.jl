@@ -269,7 +269,7 @@ residual(vlbimodel(post, xopt), dvis, ylabel="Correlated Flux Residual")
 # We will now move directly to sampling at this point.
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt)
+chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt, progress=false)
 
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]

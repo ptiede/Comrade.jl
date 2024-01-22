@@ -21,7 +21,7 @@ TUTORIALS = [
         "tutorials/HybridImaging.md",
         "tutorials/LoadingData.md",
         "tutorials/PolarizedImaging.md",
-        # "tutorials/StokesIImaging.md",
+        "tutorials/StokesIImaging.md",
     ]
 
 makedocs(;

@@ -186,7 +186,7 @@ img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500)
+chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=false)
 
 
 # !!! warning
