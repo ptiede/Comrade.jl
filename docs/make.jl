@@ -38,7 +38,7 @@ makedocs(;
         "benchmarks.md",
         "vlbi_imaging_problem.md",
         "conventions.md",
-        "Tutorials" => TUTORIALS,
+        #"Tutorials" => TUTORIALS,
         "Libraries" => [
                         "libs/optimization.md",
                         "libs/ahmc.md",
