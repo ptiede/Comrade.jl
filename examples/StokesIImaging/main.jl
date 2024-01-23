@@ -1,4 +1,4 @@
-# # # Stokes I Simultaneous Image and Instrument Modeling
+# # Stokes I Simultaneous Image and Instrument Modeling
 
 # # In this tutorial, we will create a preliminary reconstruction of the 2017 M87 data on April 6
 # # by simultaneously creating an image and model for the instrument. By instrument model, we
