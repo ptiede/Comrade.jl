@@ -14,6 +14,8 @@ using Zygote
     _,vis, amp, lcamp, cphase = load_data()
     lklhd_cl = RadioLikelihood(test_model, lcamp, cphase)
     lklhd = RadioLikelihood(test_model, vis)
+    show(lklhd)
+    show(lklhd_cl)
 
     prior = test_prior()
 
@@ -22,6 +24,9 @@ using Zygote
     prior_sample(post, 2)
     tpostf = asflat(post)
     tpostc = ascube(post)
+    show(post)
+    show(tpostf)
+    show(tpostc)
     tpost = Comrade.flatten(post)
 
     ndim = dimension(post)
