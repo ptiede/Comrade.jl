@@ -565,8 +565,8 @@ end
 ```
 """
 function Base.map(f, args::Vararg{<:JonesPairs})
-    m1 = map(x->getproperty(x, :m1), args)
-    m2 = map(x->getproperty(x, :m2), args)
+    m1 = map(Base.Fix2(getproperty, :m1), args)
+    m2 = map(Base.Fix2(getproperty, :m2), args)
     f1, f2 = _jonesmap(f, m1, m2)
     return JonesPairs(f1, f2)
 end
@@ -606,6 +606,43 @@ function ChainRulesCore.rrule(::typeof(_jonesmap), f, m1, m2)
     end
     return out, _jonesmap_pullback
 end
+
+struct JonesPairsStyle <: Broadcast.BroadcastStyle end
+Base.BroadcastStyle(::Type{<:JonesPairs}) = JonesPairsStyle()
+Base.broadcastable(x::JonesPairs) = x
+
+function Base.similar(bc::Broadcast.Broadcasted{JonesPairsStyle}, ::Type{ElType}) where {ElType}
+    m1 = similar(Vector{ElType}, length(bc))
+    m2 = similar(Vector{ElType}, length(bc))
+    JonesPairs(m1, m2)
+end
+
+
+function Base.copyto!(dest::JonesPairs, bc::Broadcast.Broadcasted{JonesPairsStyle})
+    # TODO check if this is reasonable
+    fbc = Broadcast.flatten(bc)
+    m1 = map(Base.Fix2(getproperty, :m1), fbc.args)
+    m2 = map(Base.Fix2(getproperty, :m2), fbc.args)
+    _jonesmap!(fbc.f, dest.m1, dest.m2, m1, m2)
+    return dest
+end
+
+# function Base.Broadcast.broadcasted(::JonesPairsStyle, f, args::Vararg{<:JonesPairs})
+#     return map(f, args...)
+# end
+
+function ChainRulesCore.rrule(::ChainRulesCore.RuleConfig{>:HasReverseMode}, ::typeof(Base.Broadcast.broadcasted), ::JonesPairsStyle, f, args::Vararg{<:JonesPairs, N}) where {N}
+    m1 = map(Base.Fix2(getproperty, :m1), args)
+    m2 = map(Base.Fix2(getproperty, :m2), args)
+    out, pb = ChainRulesCore.rrule(_jonesmap, f, m1, m2)
+    pbbrd = function (Δ)
+       _, ftan, m1tan, m2tan = pb((Δ.m1, Δ.m2))
+       argtan = ntuple(i->Tangent{typeof(args[i])}(;m1 = m1tan[i], m2 = m2tan[i]), N)
+       return (NoTangent(), NoTangent(), ftan, argtan...)
+    end
+    return JonesPairs(out[1], out[2]), pbbrd
+end
+
 
 
 function Base.:*(x::JonesPairs, y::JonesPairs...)
