@@ -27,8 +27,8 @@ Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
 Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
+ENV["GKSwstype"] = "nul"; #hide
 
-ENV["GKSwstype"] = "nul" #hide
 
 
 # To get started, we will load Comrade
@@ -103,10 +103,10 @@ imgpr = intensitymap(mpr, grid)
 # Now since we are actually modeling our image on the simplex we need to ensure that
 # our mean image has unit flux before we transform
 imgpr ./= flux(imgpr)
-meanpr = to_real(AdditiveLR(), baseimage(imgpr))
+meanpr = to_real(AdditiveLR(), baseimage(imgpr));
 
 #
-skymeta = (;meanpr,K=CenterImage(imgpr), cache)
+skymeta = (;meanpr,K=CenterImage(imgpr), cache);
 
 # In addition we want a reasonable guess for what the resolution of our image should be.
 # For radio astronomy this is given by roughly the longest baseline in the image. To put this
@@ -161,17 +161,22 @@ sol = solve(prob, LBFGS(); maxiters=500);
 xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
+using DisplayAs #hide
 using Plots
-residual(skymodel(post, xopt), dlcamp, ylabel="Log Closure Amplitude Res.")
+p = residual(skymodel(post, xopt), dlcamp, ylabel="Log Closure Amplitude Res.")
+DisplayAs.Text(DisplayAs.PNG(p)) #hide
 # and now closure phases
 #-
-residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
+p = residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
+DisplayAs.Text(DisplayAs.PNG(p))
 
 # Now let's plot the MAP estimate.
-# import CairoMakie as CM
-# CM.activate!(type = "png", px_per_unit=3) #hide
+import CairoMakie as CM
+CM.activate!(type = "png", px_per_unit=3) #hide
 img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
-#imageviz(img)
+fig = imageviz(img)
+DisplayAs.Text(DisplayAs.PNG(fig)) #hide
+
 
 # That doesn't look great. The reason for this is that the MAP, from a Bayesian standpoint,
 # is not representative of the posterior. In fact, the MAP often overfits the data and depends
@@ -186,7 +191,7 @@ img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=false)
+chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=false);
 
 
 # !!! warning
@@ -204,21 +209,21 @@ using StatsBase
 imgs = intensitymap.(msamples, μas2rad(150.0), μas2rad(150.0), 128, 128)
 mimg = mean(imgs)
 simg = std(imgs)
-# fig = CM.Figure(;resolution=(400, 400));
-# CM.image(fig[1,1], mimg,
-#                    axis=(xreversed=true, aspect=1, title="Mean Image"),
-#                    colormap=:afmhot)
-# CM.image(fig[1,2], simg./(max.(mimg, 1e-5)),
-#                    axis=(xreversed=true, aspect=1, title="1/SNR",), colorrange=(0.0, 2.0),
-#                    colormap=:afmhot)
-# CM.image(fig[2,1], imgs[1],
-#                    axis=(xreversed=true, aspect=1,title="Draw 1"),
-#                    colormap=:afmhot)
-# CM.image(fig[2,2], imgs[end],
-#                    axis=(xreversed=true, aspect=1,title="Draw 2"),
-#                    colormap=:afmhot)
-# CM.hidedecorations!.(fig.content)
-# fig
+fig = CM.Figure(;resolution=(700, 700));
+CM.image(fig[1,1], mimg,
+                   axis=(xreversed=true, aspect=1, title="Mean Image"),
+                   colormap=:afmhot)
+CM.image(fig[1,2], simg./(max.(mimg, 1e-5)),
+                   axis=(xreversed=true, aspect=1, title="1/SNR",), colorrange=(0.0, 2.0),
+                   colormap=:afmhot)
+CM.image(fig[2,1], imgs[1],
+                   axis=(xreversed=true, aspect=1,title="Draw 1"),
+                   colormap=:afmhot)
+CM.image(fig[2,2], imgs[end],
+                   axis=(xreversed=true, aspect=1,title="Draw 2"),
+                   colormap=:afmhot)
+CM.hidedecorations!.(fig.content)
+DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 # Now let's see whether our residuals look better.
 p = Plots.plot();
@@ -226,7 +231,7 @@ for s in sample(chain[501:end], 10)
     residual!(p, vlbimodel(post, s), dlcamp)
 end
 Plots.ylabel!("Log-Closure Amplitude Res.");
-p
+DisplayAs.Text(DisplayAs.PNG(p))
 #-
 
 
@@ -235,8 +240,7 @@ for s in sample(chain[501:end], 10)
     residual!(p, vlbimodel(post, s), dcphase)
 end
 Plots.ylabel!("|Closure Phase Res.|");
-p
-
+DisplayAs.Text(DisplayAs.PNG(p))
 
 
 # And viola, you have a quick and preliminary image of M87 fitting only closure products.

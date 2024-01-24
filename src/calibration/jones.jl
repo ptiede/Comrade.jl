@@ -1,4 +1,4 @@
-export JonesCache, TrackSeg, ScanSeg, FixedSeg, IntegSeg, jonesG, jonesD, jonesT,
+export JonesCache, TrackSeg, ScanSeg, FixedSeg, IntegSeg, jonesG, jonesD, jonesT, jonesR,
        ResponseCache, JonesModel, jonescache, station_tuple
 
 """
@@ -122,6 +122,14 @@ struct JonesCache{D1, D2, S, Sc, R} <: AbstractJonesCache
     List of Reference stations
     """
     references::R
+end
+
+function Base.show(io::IO, d::T) where {T<:AbstractJonesCache}
+    st = split("$T", "{")[1]
+    println(io, st)
+    println(io, "  seg: $(d.seg)")
+    return nothing
+
 end
 
 """
@@ -937,18 +945,23 @@ function ResponseCache(obs::EHTObservation; add_fr=true, ehtim_fr_convention=fal
     return ResponseCache{typeof(T1), typeof(ref)}(T1, T2, ref)
 end
 
+function Base.show(io::IO, r::ResponseCache)
+    println(io, "ResponseCache")
+    print(io, "    response basis: $(r.refbasis)")
+end
+
+
+
 """
-    jonesT(tcache::ResponseCache)
+    jonesR(tcache::ResponseCache)
 
 Returns a `JonesPair` of matrices that transform from the model coherency matrices basis
 to the on-sky coherency basis, this includes the feed rotation and choice of polarization feeds.
 """
-jonesT(tcache::ResponseCache) = JonesPairs(tcache.T1, tcache.T2)
+jonesR(tcache::ResponseCache) = JonesPairs(tcache.T1, tcache.T2)
 JonesModel(jones::J, tcache::ResponseCache) where {J} = JonesModel(jones, tcache.refbasis)
+@deprecate jonesT(tcache::ResponseCache) jonesR(tcache)
 
-
-# This has all been replaced by a call to Enzyme
-# """
 #     corrupt(vis, j1, j2)
 
 # Corrupts the model coherency matrices with the Jones matrices `j1` for station 1 and

@@ -40,6 +40,14 @@ struct Posterior{L,P<:Dists.ContinuousDistribution} <: AbstractPosterior
     prior::P
 end
 
+function Base.show(io::IO, post::Posterior)
+    println(io, "Posterior(")
+    println(io, post.lklhd)
+    println(io, "Prior:")
+    println(io, post.prior)
+    print(io, ")")
+end
+
 
 @inline DensityInterface.DensityKind(::Posterior) = DensityInterface.IsDensity()
 
@@ -145,6 +153,7 @@ struct TransformedPosterior{P<:Posterior,T} <: AbstractPosterior
     transform::T
 end
 
+
 (tpost::TransformedPosterior)(θ) = logdensityof(tpost, θ)
 
 
@@ -218,6 +227,14 @@ function HypercubeTransform.asflat(post::Posterior)
     return TransformedPosterior(post, tr)
 end
 
+function Base.show(io::IO, post::TransformedPosterior{P, T}) where {P, T<:TransformVariables.AbstractTransform}
+    println(io, "TransformedPosterior(")
+    println(io, post.lpost)
+    println(io, "Transform: Params to ℝ^$(dimension(post))")
+    print(io, ")")
+end
+
+
 @inline function DensityInterface.logdensityof(post::TransformedPosterior{P, T}, x::AbstractArray) where {P, T<:TransformVariables.AbstractTransform}
     p, logjac = transform_and_logjac(post.transform, x)
     lp = post.lpost
@@ -253,6 +270,14 @@ function HypercubeTransform.ascube(post::Posterior)
     tr = ascube(pr)
     return TransformedPosterior(post, tr)
 end
+
+function Base.show(io::IO, post::TransformedPosterior{P, T}) where {P, T<:HypercubeTransform.AbstractHypercubeTransform}
+    println(io, "TransformedPosterior(")
+    println(io, post.lpost)
+    println(io, "Transform: Params to [0,1]^$(dimension(post))")
+    print(io, ")")
+end
+
 
 function DensityInterface.logdensityof(tpost::TransformedPosterior{P, T}, x::AbstractArray) where {P, T<:HypercubeTransform.AbstractHypercubeTransform}
     # Check that x really is in the unit hypercube. If not return -Inf

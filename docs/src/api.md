@@ -47,7 +47,7 @@ Comrade.SEFDReference
 Comrade.jonesStokes
 Comrade.jonesG
 Comrade.jonesD
-Comrade.jonesT
+Comrade.jonesR
 Base.map(::Any, ::Vararg{Comrade.JonesPairs})
 Comrade.caltable
 Comrade.JonesPairs

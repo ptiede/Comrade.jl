@@ -67,7 +67,7 @@
 #           d_b     &1\\
 #       \end{pmatrix}
 # ```
-#   - [`jonesT`](@ref) is the basis transform matrix $T$. This transformation is special and
+#   - [`jonesR`](@ref) is the basis transform matrix $T$. This transformation is special and
 #      combines two things using the decomposition $T=FB$. The first, $B$, is the transformation from
 #      some reference basis to the observed coherency basis (this allows for mixed basis measurements).
 #      The second is the feed rotation, $F$, that transforms from some reference axis to the axis of the
@@ -92,8 +92,6 @@ Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
 Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
-
-
 ENV["GKSwstype"] = "nul" #hide
 
 
@@ -165,7 +163,7 @@ function instrument(θ, metadata)
     (; lgp, gpp, lgr, gpr, dRx, dRy, dLx, dLy) = θ
     (; tcache, scancache, phasecache, trackcache) = metadata
     ## Now construct the basis transformation cache
-    jT = jonesT(tcache)
+    jT = jonesR(tcache)
 
     ## Gain product parameters
     gPa = exp.(lgp)
@@ -331,25 +329,24 @@ imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx*4, ny*4))
 img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
 
 #Plotting the results gives
-# import CairoMakie as CM
-# CM.activate!(type = "png", px_per_unit=3) #hide
-
-# fig = CM.Figure(;resolution=(450, 350));
-#polimage(fig[1,1], imgtruesub,
-                #    axis=(xreversed=true, aspect=1, title="Truth"),
-                #    nvec = 8,
-                #    length_norm=1/2, plot_total=true, pcolormap=:RdBu,
-                #    pcolorrange=(-0.25, 0.25),)
-#polimage(fig[1,2], img,
-                #    axis=(xreversed=true, aspect=1, title="Recon.",),
-                #    nvec = 8,
-                #    length_norm=1/2, plot_total=true, pcolormap=:RdBu,
-                #    pcolorrange=(-0.25, 0.25),)
-# CM.Colorbar(fig[2,:], colormap=:RdBu, vertical=false, colorrange=(-0.25, 0.25), label="Signed Polarization Fraction sign(V)*|p|", flipaxis=false)
-# CM.colgap!(fig.layout, 3)
-# CM.rowgap!(fig.layout, 3)
-# CM.hidedecorations!.(fig.content[1:2])
-# fig
+import CairoMakie as CM
+CM.activate!(type = "png", px_per_unit=3) #hide
+fig = CM.Figure(;resolution=(450, 350));
+polimage(fig[1,1], imgtruesub,
+                   axis=(xreversed=true, aspect=1, title="Truth"),
+                   nvec = 8,
+                   length_norm=1/2, plot_total=true, pcolormap=:RdBu,
+                   pcolorrange=(-0.25, 0.25),)
+polimage(fig[1,2], img,
+                   axis=(xreversed=true, aspect=1, title="Recon.",),
+                   nvec = 8,
+                   length_norm=1/2, plot_total=true, pcolormap=:RdBu,
+                   pcolorrange=(-0.25, 0.25),)
+CM.Colorbar(fig[2,:], colormap=:RdBu, vertical=false, colorrange=(-0.25, 0.25), label="Signed Polarization Fraction sign(V)*|p|", flipaxis=false)
+CM.colgap!(fig.layout, 3)
+CM.rowgap!(fig.layout, 3)
+CM.hidedecorations!.(fig.content[1:2])
+fig
 #-
 
 # Let's compare some image statics, like the total linear polarization fraction
@@ -406,7 +403,7 @@ plot!(gamp_ratio, layout=(3,3), size=(650,500))
 #-
 # At this point, you should run the sampler to recover an uncertainty estimate,
 # which is identical to every other imaging example
-# (see, e.g., [Stokes I Simultaneous Image and Instrument Modeling](@ref). However,
+# (see, e.g., [Stokes I Simultaneous Image and Instrument Modeling](@ref)). However,
 # due to the time it takes to sample, we will skip that for this tutorial.
 
 

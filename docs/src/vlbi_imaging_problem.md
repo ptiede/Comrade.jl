@@ -12,7 +12,7 @@ p(I|V) = \frac{p(V|I)p(I)}{p(V)}.
 
 Here ``p(V|I)`` is known as the likelihood and describes the probability distribution of the data given some image `I`. The prior ``p(I)`` encodes prior knowledge of the image structure. This prior includes distributions of model parameters and even the model itself. Finally, the denominator ``p(V)`` is a normalization term and is known as the marginal likelihood or evidence and can be used to assess how well particular models fit the data.
 
-Therefore, we must specify the likelihood and prior to construct our posterior. Below we provide a brief description of the likelihoods and models/priors that `Comrade` uses. However, if the user wants to see how everything works first, they should check out the [Geometric Modeling of EHT Data](@ref) tutorial.
+Therefore, we must specify the likelihood and prior to construct our posterior. Below we provide a brief description of the likelihoods and models/priors that `Comrade` uses. However, if the user wants to see how everything works first, they should check out the 
 
 ## Likelihood
 
@@ -22,7 +22,7 @@ Following TMS[^TMS], we note that the likelihood for a single complex visibility
 p(V_{ij} | I) = (2\pi \sigma^2_{ij})^{-1/2}\exp\left(-\frac{| V_{ij} - g_ig_j^*\tilde{I}_{ij}(I)|^2}{2\sigma^2_{ij}}\right).
 ```
 
-In this equation, ``\tilde{I}`` is the Fourier transform of the image ``I``, and ``g_{i,j}`` are complex numbers known as gains. The gains arise due to atmospheric and telescope effects and corrupt the incoming signal. Therefore, if a user attempts to model the complex visibilities, they must also model the complex gains. An example showing how to model gains in `Comrade` can be found in [Stokes I Simultaneous Image and Instrument Modeling](@ref).
+In this equation, ``\tilde{I}`` is the Fourier transform of the image ``I``, and ``g_{i,j}`` are complex numbers known as gains. The gains arise due to atmospheric and telescope effects and corrupt the incoming signal. Therefore, if a user attempts to model the complex visibilities, they must also model the complex gains. An example showing how to model gains in `Comrade` can be found in 
 
 Modeling the gains can be computationally expensive, especially if our image model is simple. For instance, in `Comrade`, we have a wide variety of geometric models. These models tend to have a small number of parameters and are simple to evaluate. Solving for gains then drastically increases the amount of time it takes to sample the posterior. As a result, part of the typical EHT analysis[^M87P6][^SgrAP4] instead uses closure products as its data. The two forms of closure products are:
 

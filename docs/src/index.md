@@ -17,13 +17,9 @@ Julia's PPL ecosystem matures.
     The primitives the Comrade defines, however, would allow for it to be easily included in PPLs like [`Turing`](https://github.com/TuringLang/Turing.jl).
 
 
-
-Our tutorial section currently has a large number of examples. The simplest example is fitting simple geometric models to the 2017 M87 data and is detailed in the [Geometric Modeling of EHT Data](@ref) tutorial. We also include "non-parametric" modeling or imaging examples in [Imaging a Black Hole using only Closure Quantities](@ref), and
-[Stokes I Simultaneous Image and Instrument Modeling](@ref). There is also an introduction to hybrid geometric and image modeling in [Hybrid Imaging of a Black Hole](@ref), which combines physically motivated geometric modeling with the flexibility of image-based models.
+## Tutorials
 
 
-As of 0.7, Comrade also can simultaneously reconstruct polarized image models and instrument corruptions through the RIME[^1] formalism. A short example explaining
-these features can be found in [Polarized Image and Instrumental Modeling](@ref).
 ## Contributing
 
 This repository has recently moved to [ColPrac](https://github.com/SciML/ColPrac). If you would like to contribute please feel free to open a issue or pull-request.
@@ -34,7 +30,7 @@ often is similarly performant (reverse 3-6x slower compared to the forward pass)
 
 ## Requirements
 
-The minimum Julia version we require is 1.7. In the future we may increase this as Julia advances.
+The minimum Julia version we require is 1.9. In the future we may increase this as Julia advances.
 
 
 ```@contents
@@ -51,5 +47,3 @@ Pages = [
 ```
 
 ## References
-[^1]: Hamaker J.P and Bregman J.D. and Sault R.J. Understanding radio polarimetry. I. Mathematical foundations [ADS](https://ui.adsabs.harvard.edu/abs/1996A&AS..117..137H). 
-

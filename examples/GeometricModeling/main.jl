@@ -17,7 +17,6 @@ Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
 Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
-
 ENV["GKSwstype"] = "nul" #hide
 
 
@@ -96,7 +95,6 @@ prior = NamedDist(
 # model definition `model(θ)`.
 
 # To form the posterior we now call
-
 post = Posterior(lklhd, prior)
 
 # !!!warn
@@ -154,9 +152,9 @@ logdensityof(fpost, randn(rng, dimension(fpost)))
 # very similar to the usual `Optimization.jl` workflow. The only thing to keep in
 # mind is that `Optimization.jl` expects that the function we are evaluating expects the
 # parameters to be represented as a flat `Vector` of float. Therefore, we must use
-# one of our transformed posteriors, `cpost` or `fpost`. For this example
-#, we will use `cpost` since it restricts the domain to live within the compact unit hypercube
-#, which is easier to explore for non-gradient-based optimizers like `BBO`.
+# one of our transformed posteriors, `cpost` or `fpost`. For this example,
+# we will use `cpost` since it restricts the domain to live within the compact unit hypercube
+# which is easier to explore for non-gradient-based optimizers like `BBO`.
 
 using ComradeOptimization
 using OptimizationBBO
@@ -176,10 +174,13 @@ xopt = transform(fpost, sol)
 
 # Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 
-# import CairoMakie as CM
-# CM.activate!(type = "png", px_per_unit=3) #hide
+using DisplayAs
+import CairoMakie as CM
+CM.activate!(type = "png", px_per_unit=3) #hide
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
-#imageviz(intensitymap(model(xopt), g), colormap=:afmhot, size=(400, 400))
+fig = imageviz(intensitymap(model(xopt), g), colormap=:afmhot, size=(400, 400))
+DisplayAs.Text(DisplayAs.PNG(fig))
+
 
 # ### Quantifying the Uncertainty of the Reconstruction
 
@@ -195,24 +196,31 @@ g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
 # problems (< 100) we recommend using this sampler especially if you have access to > 1 core.
 using Pigeons
 pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=10, n_rounds=7)
-chain = sample_array(cpost, pt)
 
 
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.
+# First we extract the MCMC chain for our posterior.
+chain = sample_array(cpost, pt);
 
 # First to plot the image we call
+using DisplayAs #hide
 imgs = intensitymap.(skymodel.(Ref(post), sample(chain, 100)), μas2rad(200.0), μas2rad(200.0), 128, 128)
-#imageviz(imgs[end], colormap=:afmhot)
+fig = imageviz(imgs[end], colormap=:afmhot)
+DisplayAs.Text(DisplayAs.PNG(fig))
+
 
 # What about the mean image? Well let's grab 100 images from the chain, where we first remove the
 # adaptation steps since they don't sample from the correct posterior distribution
 meanimg = mean(imgs)
-#imageviz(meanimg, colormap=:afmhot)
+fig = imageviz(meanimg, colormap=:afmhot)
+DisplayAs.Text(DisplayAs.PNG(fig))
+
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
 using Plots
-Plots.plot(model(xopt), dlcamp, label="MAP")
+p = Plots.plot(model(xopt), dlcamp, label="MAP")
+DisplayAs.Text(DisplayAs.PNG(p))
 
 # We can also plot random draws from the posterior predictive distribution.
 # The posterior predictive distribution create a number of synthetic observations that
@@ -228,11 +236,14 @@ for i in 1:10
     Plots.scatter!(p1, uva, mlca[:measurement], color=:grey, label=:none, alpha=0.1)
     Plots.scatter!(p2, uvp, atan.(sin.(mcp[:measurement]), cos.(mcp[:measurement])), color=:grey, label=:none, alpha=0.1)
 end
-plot(p1, p2, layout=(2,1))
+p = plot(p1, p2, layout=(2,1))
+DisplayAs.Text(DisplayAs.PNG(p))
+
 
 # Finally, we can also put everything onto a common scale and plot the normalized residuals.
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
 p1 = residual(model(chain[end]), dlcamp)
 p2 = residual(model(chain[end]), dcphase)
-plot(p1, p2, layout=(2,1))
+p = plot(p1, p2, layout=(2,1))
+DisplayAs.Text(DisplayAs.PNG(p))

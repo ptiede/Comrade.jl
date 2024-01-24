@@ -22,23 +22,22 @@ TUTORIALS = [
         "tutorials/LoadingData.md",
         "tutorials/PolarizedImaging.md",
         "tutorials/StokesIImaging.md",
-    ]
+     ]
 
 makedocs(;
     modules=[ComradeBase, Comrade,
              ComradeOptimization, ComradeAHMC,
              ComradeNested, ComradeDynesty,
              ComradeAdaptMCMC],
-    # repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
+    repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
-    format = Documenter.HTML(;size_threshold_ignore=TUTORIALS
-    ),
+    format = Documenter.HTML(;prettyurls=true),
     pages=Any[
         "Home" => "index.md",
         "benchmarks.md",
         "vlbi_imaging_problem.md",
         "conventions.md",
-        #"Tutorials" => TUTORIALS,
+        "Tutorials" => TUTORIALS,
         "Libraries" => [
                         "libs/optimization.md",
                         "libs/ahmc.md",
