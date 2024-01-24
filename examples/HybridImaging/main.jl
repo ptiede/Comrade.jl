@@ -1,4 +1,4 @@
-# Hybrid Imaging of a Black Hole
+# # Hybrid Imaging of a Black Hole
 
 # In this tutorial, we will use **hybrid imaging** to analyze the 2017 EHT data.
 # By hybrid imaging, we mean decomposing the model into simple geometric models, e.g., rings
