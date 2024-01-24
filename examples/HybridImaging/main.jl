@@ -268,7 +268,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 # Now these residuals look a bit high. However, it turns out this is because the MAP is typically
 # not a great estimator and will not provide very predictive measurements of the data. We
 # will show this below after sampling from the posterior.
-# CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), colormap=:afmhot, figure=(;resolution=(400, 400),))
+CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), colormap=:afmhot, figure=(;resolution=(400, 400),))
 
 
 # We will now move directly to sampling at this point.
@@ -292,10 +292,10 @@ msamples = skymodel.(Ref(post), chain[begin:2:end]);
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, fovxy, fovxy, 128, 128)
-fig = imageviz(mean(imgs), colormap=:afmhot, size=(400, 400))
+fig = imageviz(mean(imgs), colormap=:afmhot, size=(400, 300))
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 #-
-fig = imageviz(std(imgs), colormap=:batlow, size=(400, 400))
+fig = imageviz(std(imgs), colormap=:batlow, size=(400, 300))
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 #-

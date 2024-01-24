@@ -92,11 +92,11 @@ Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
 Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
-ENV["GKSwstype"] = "nul" #hide
 
 
 # ## Load the Data
 # To get started we will load Comrade
+ENV["GKSwstype"] = "nul" #hide
 using Comrade
 
 # ## Load the Data
