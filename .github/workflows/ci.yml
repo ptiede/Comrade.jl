@@ -41,7 +41,7 @@ jobs:
           sudo apt-get install --reinstall libxcb-xinerama0
       - uses: actions/checkout@v3
       - name: Setup python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.arch }}
