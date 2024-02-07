@@ -69,7 +69,8 @@ function Pigeons.sample_array(tpost::Comrade.TransformedPosterior, pt::Pigeons.P
     samples = sample_array(pt)
     return mapreduce(hcat, eachslice(samples, dims=(3,), drop=true)) do arr
         s = map(x->Comrade.transform(tpost, @view(x[begin:end-1])), eachrow(arr))
-        Table(s)
+        t = Table(s)
+        return Table(merge(columns(t), (logdensity = arr[:, end],)))
         end
 end
 

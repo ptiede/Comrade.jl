@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.9.2"
+version = "0.9.3"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -73,7 +73,7 @@ Makie = "0.20"
 NamedTupleTools = "0.13,0.14"
 PaddedViews = "0.5"
 ParameterHandling = "0.4"
-Pigeons = "0.2,0.3"
+Pigeons = "0.3"
 PolarizedTypes = "0.1"
 PrettyTables = "1, 2"
 Pyehtim = "0.1"
