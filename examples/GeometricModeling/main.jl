@@ -176,9 +176,9 @@ xopt = transform(fpost, sol)
 
 using DisplayAs
 import CairoMakie as CM
-CM.activate!(type = "png", px_per_unit=3) #hide
+CM.activate!(type = "png", px_per_unit=1) #hide
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
-fig = imageviz(intensitymap(model(xopt), g), colormap=:afmhot, size=(400, 400))
+fig = imageviz(intensitymap(model(xopt), g), colormap=:afmhot, size=(500, 400));
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
@@ -200,7 +200,7 @@ pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, 
 
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.
 # First we extract the MCMC chain for our posterior.
-chain = sample_array(cpost, pt);
+chain = sample_array(cpost, pt)
 
 # First to plot the image we call
 using DisplayAs #hide
@@ -212,14 +212,14 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # What about the mean image? Well let's grab 100 images from the chain, where we first remove the
 # adaptation steps since they don't sample from the correct posterior distribution
 meanimg = mean(imgs)
-fig = imageviz(meanimg, colormap=:afmhot)
+fig = imageviz(meanimg, colormap=:afmhot);
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
 using Plots
-p = Plots.plot(model(xopt), dlcamp, label="MAP")
+p = Plots.plot(model(xopt), dlcamp, label="MAP");
 DisplayAs.Text(DisplayAs.PNG(p))
 
 # We can also plot random draws from the posterior predictive distribution.
@@ -236,14 +236,14 @@ for i in 1:10
     Plots.scatter!(p1, uva, mlca[:measurement], color=:grey, label=:none, alpha=0.1)
     Plots.scatter!(p2, uvp, atan.(sin.(mcp[:measurement]), cos.(mcp[:measurement])), color=:grey, label=:none, alpha=0.1)
 end
-p = plot(p1, p2, layout=(2,1))
+p = plot(p1, p2, layout=(2,1));
 DisplayAs.Text(DisplayAs.PNG(p))
 
 
 # Finally, we can also put everything onto a common scale and plot the normalized residuals.
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
-p1 = residual(model(chain[end]), dlcamp)
-p2 = residual(model(chain[end]), dcphase)
-p = plot(p1, p2, layout=(2,1))
+p1 = residual(model(chain[end]), dlcamp);
+p2 = residual(model(chain[end]), dcphase);
+p = plot(p1, p2, layout=(2,1));
 DisplayAs.Text(DisplayAs.PNG(p))

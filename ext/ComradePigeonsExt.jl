@@ -7,7 +7,6 @@ if isdefined(Base, :get_extension)
     using AbstractMCMC
     using LogDensityProblems
     using HypercubeTransform
-    using TypedTables
     using TransformVariables
     using Random
 
@@ -16,7 +15,6 @@ else
     using ..AbstractMCMC
     using ..LogDensityProblems
     using ..HypercubeTransform
-    using ..TypedTables
     using ..TransformVariables
     using ..Random
 end
@@ -67,11 +65,14 @@ end
 
 function Pigeons.sample_array(tpost::Comrade.TransformedPosterior, pt::Pigeons.PT)
     samples = sample_array(pt)
-    return mapreduce(hcat, eachslice(samples, dims=(3,), drop=true)) do arr
+    tbl = mapreduce(hcat, eachslice(samples, dims=(3,), drop=true)) do arr
         s = map(x->Comrade.transform(tpost, @view(x[begin:end-1])), eachrow(arr))
-        t = Table(s)
-        return Table(merge(columns(t), (logdensity = arr[:, end],)))
-        end
+        return s
+    end
+
+    sts = (logdensity= samples[:, end, :] |> vec,)
+
+    return Comrade.PosteriorSamples(tbl, sts, Dict(:sampler=>:Pigeons, :post=>tpost))
 end
 
 
