@@ -66,10 +66,10 @@ dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePh
 # are constant to the model, such as the image `cache` object that we will define below.
 function sky(θ, metadata)
     (;fg, c, σimg) = θ
-    (;K, meanpr, cache) = metadata
+    (;meanpr, cache) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
     cp = meanpr .+ σimg.*c.params
-    rast = ((1-fg))*K(to_simplex(AdditiveLR(), cp))
+    rast = ((1-fg))*to_simplex(AdditiveLR(), cp)
     m = ContinuousImage(rast, cache)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
@@ -106,7 +106,7 @@ imgpr ./= flux(imgpr)
 meanpr = to_real(AdditiveLR(), baseimage(imgpr));
 
 #
-skymeta = (;meanpr,K=CenterImage(imgpr), cache);
+skymeta = (;meanpr, cache);
 
 # In addition we want a reasonable guess for what the resolution of our image should be.
 # For radio astronomy this is given by roughly the longest baseline in the image. To put this
@@ -172,9 +172,9 @@ DisplayAs.Text(DisplayAs.PNG(p))
 
 # Now let's plot the MAP estimate.
 import CairoMakie as CM
-CM.activate!(type = "png", px_per_unit=3) #hide
+CM.activate!(type = "png", px_per_unit=1) #hide
 img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
-fig = imageviz(img)
+fig = imageviz(img);
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
@@ -191,7 +191,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=false);
+chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500);
 
 
 # !!! warning
