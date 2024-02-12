@@ -224,7 +224,7 @@ xrand = prior_sample(rng, post)
 # and then plot the results
 using DisplayAs #hide
 import CairoMakie as CM
-CM.activate!(type = "png", px_per_unit=3) #hide
+CM.activate!(type = "png", px_per_unit=1) #hide
 g = imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128)
 fig = imageviz(intensitymap(skymodel(post, xrand), g), size=(400, 400))
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
@@ -274,13 +274,13 @@ CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), 
 # We will now move directly to sampling at this point.
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt, progress=false);
+chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt, progress=true);
 
 # We then remove the adaptation/warmup phase from our chain
-stats = stats[501:end]
 chain = chain[501:end]
+
 # !!! warning
-#     This should be run for 2-3x more steps to properly estimate expectations of the posterior
+#     This should be run for 4-5x more steps to properly estimate expectations of the posterior
 #-
 
 # Now lets plot the mean image and standard deviation images.
