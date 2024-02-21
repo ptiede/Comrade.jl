@@ -53,6 +53,11 @@ using StaticArrays
     gpha = CalPrior(gph_prior,  jcache)
     gphar = CalPrior(gph_prior_0, gph_prior, jcache)
 
+
+    # gamp_h = HierarchicalCalPrior{Normal}(gamp_prior, station_tuple(vis, truncated(Normal(0.0, 0.1); lower=0.0)), jcache)
+    # x = rand(gamp_h)
+    # @inferred logdensityof(gamp_h, x)
+
     ga = fill(1.0, size(rand(gamp))...)
     gm = Comrade.VLBIModel(JonesModel(jonesStokes(ga, jcache)), m)
 

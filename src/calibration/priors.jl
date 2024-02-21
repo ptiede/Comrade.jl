@@ -84,50 +84,50 @@ function make_gdist(dists, gstat, jcache)
     return Dists.product_distribution(gg)
 end
 
-function make_reference_gdist(dists, gstat, jcache, refprior)
-    list = _makelist(dists, gstat, jcache, refprior)
-    return Dists.product_distribution(list)
-end
+# function make_reference_gdist(dists, gstat, jcache, refprior)
+#     list = _makelist(dists, gstat, jcache, refprior)
+#     return Dists.product_distribution(list)
+# end
 
 
-function _makelist(dists, gstat, jcache, refprior)
-    sites = collect(Set(gstat))
-    idx = 1
-    times = jcache.schema.times
-    scantimes = unique(jcache.schema.times)
-    list = map(enumerate(scantimes)) do (i,t)
-        # Select the reference station (we cycle through)
-        inds = findall(==(t), times)
-        ref, idxnew = _selectref(gstat[inds], sites, idx)
-        idx = idxnew
-        return gainlist_scan(gstat[inds], ref, dists, refprior)
-    end
-    return reduce(vcat, list)
-end
+# function _makelist(dists, gstat, jcache, refprior)
+#     sites = collect(Set(gstat))
+#     idx = 1
+#     times = jcache.schema.times
+#     scantimes = unique(jcache.schema.times)
+#     list = map(enumerate(scantimes)) do (i,t)
+#         # Select the reference station (we cycle through)
+#         inds = findall(==(t), times)
+#         ref, idxnew = _selectref(gstat[inds], sites, idx)
+#         idx = idxnew
+#         return gainlist_scan(gstat[inds], ref, dists, refprior)
+#     end
+#     return reduce(vcat, list)
+# end
 
-function gainlist_scan(stations, ref, dists, refprior)
-    return map(stations) do s
-        if s == ref
-            return refprior
-        else
-            return getproperty(dists, s)
-        end
-    end
-end
+# function gainlist_scan(stations, ref, dists, refprior)
+#     return map(stations) do s
+#         if s == ref
+#             return refprior
+#         else
+#             return getproperty(dists, s)
+#         end
+#     end
+# end
 
-function _selectref(stations, sites, idx)
-    if sites[idx] ∈ stations
-        return sites[idx], max((idx + 1)%(length(sites)+1), 1)
-    else
-        for i in (idx+1):(length(sites)+idx)
-            idxnew = max(i%(length(sites)+1), 1)
-            if sites[idxnew] ∈ stations
-                return sites[idxnew], max((idxnew+1)%(length(sites)+1), 1)
-            end
-        end
-        throw(AssertionError("No sites found"))
-    end
-end
+# function _selectref(stations, sites, idx)
+#     if sites[idx] ∈ stations
+#         return sites[idx], max((idx + 1)%(length(sites)+1), 1)
+#     else
+#         for i in (idx+1):(length(sites)+idx)
+#             idxnew = max(i%(length(sites)+1), 1)
+#             if sites[idxnew] ∈ stations
+#                 return sites[idxnew], max((idxnew+1)%(length(sites)+1), 1)
+#             end
+#         end
+#         throw(AssertionError("No sites found"))
+#     end
+# end
 
 #HypercubeTransform.bijector(d::CalPrior) = HypercubeTransform.asflat(d.dist)
 HypercubeTransform.asflat(d::CalPrior) = asflat(d.dists)
@@ -145,56 +145,56 @@ function Distributions._logpdf(d::CalPrior, x::AbstractArray)
     return Distributions._logpdf(d.dists, x)
 end
 
-struct HierarchicalCalPrior{G,DM,DS,J}
-    mean::DM
-    std::DS
-    jcache::J
-end
+# struct HierarchicalCalPrior{G,DM,DS,J}
+#     mean::DM
+#     std::DS
+#     jcache::J
+# end
 
 
-DensityInterface.DensityKind(::HierarchicalCalPrior) = DensityInterface.IsDensity()
-DensityInterface.logdensityof(d::HierarchicalCalPrior, x) = Dists.logpdf(d, x)
+# DensityInterface.DensityKind(::HierarchicalCalPrior) = DensityInterface.IsDensity()
+# DensityInterface.logdensityof(d::HierarchicalCalPrior, x) = Dists.logpdf(d, x)
 
-function _construct_gain_prior(means::NamedTuple{N}, stds::NamedTuple{N}, ::Type{G}, stations) where {N, G}
-    gpr = NamedTuple{N}(map(G, values(means), values(stds)))
-    d = map(p->getproperty(gpr, p), stations)
-    return Dists.product_distribution(d)
-end
-
-
-function HierarchicalCalPrior{G}(means, std, jcache::JonesCache) where {G}
-    return HierarchicalCalPrior{G, typeof(means), typeof(std), typeof(jcache)}(means, std, jcache)
-end
-
-function Dists.logpdf(d::HierarchicalCalPrior{G}, x::NamedTuple) where {G}
-    lm = Dists.logpdf(d.mean, x.mean)
-    ls = Dists.logpdf(d.std, x.std)
-    dg = _construct_gain_prior(x.mean, x.std, G, stations(d.jcache))
-    lg = Dists.logpdf(dg, x.gains)
-    return lg+ls+lm
-end
-
-function _unwrapped_logpdf(d::HierarchicalCalPrior, x::Tuple)
-    return Dists.logpdf(d, NamedTuple{(:mean, :std, :gains)}(x))
-end
+# function _construct_gain_prior(means::NamedTuple{N}, stds::NamedTuple{N}, ::Type{G}, stations) where {N, G}
+#     gpr = NamedTuple{N}(map(G, values(means), values(stds)))
+#     d = map(p->getproperty(gpr, p), stations)
+#     return Dists.product_distribution(d)
+# end
 
 
-function Dists.rand(rng::AbstractRNG, d::HierarchicalCalPrior{G}) where {G}
-    m = rand(rng, d.mean)
-    s = rand(rng, d.std)
-    dg = _construct_gain_prior(m, s, G, d.jcache.schema.sites)
-    g = rand(rng, dg)
-    return (mean=m, std=s, gains=g)
-end
+# function HierarchicalCalPrior{G}(means, std, jcache::JonesCache) where {G}
+#     return HierarchicalCalPrior{G, typeof(means), typeof(std), typeof(jcache)}(means, std, jcache)
+# end
 
-Base.length(d::HierarchicalCalPrior) = length(d.mean) + length(d.std) + length(d.times)
+# function Dists.logpdf(d::HierarchicalCalPrior{G}, x::NamedTuple) where {G}
+#     lm = Dists.logpdf(d.mean, x.mean)
+#     ls = Dists.logpdf(d.std, x.std)
+#     dg = _construct_gain_prior(x.mean, x.std, G, stations(d.jcache))
+#     lg = Dists.logpdf(dg, x.gains)
+#     return lg+ls+lm
+# end
 
-function HypercubeTransform.asflat(d::HierarchicalCalPrior{G}) where {G}
-    m = rand(d.mean)
-    s = rand(d.std)
-    dg = _construct_gain_prior(m, s, G, d.jcache.schema.sites)
-    return TransformVariables.as((mean = asflat(d.mean), std = asflat(d.std), gains = asflat(dg)))
-end
+# function _unwrapped_logpdf(d::HierarchicalCalPrior, x::Tuple)
+#     return Dists.logpdf(d, NamedTuple{(:mean, :std, :gains)}(x))
+# end
+
+
+# function Dists.rand(rng::AbstractRNG, d::HierarchicalCalPrior{G}) where {G}
+#     m = map(x->rand(rng, x), d.mean)
+#     s = map(x->rand(rng, x), d.std)
+#     dg = _construct_gain_prior(m, s, G, d.jcache.schema.sites)
+#     g = rand(rng, dg)
+#     return (mean=m, std=s, gains=g)
+# end
+
+# Base.length(d::HierarchicalCalPrior) = length(d.mean) + length(d.std) + length(d.times)
+
+# function HypercubeTransform.asflat(d::HierarchicalCalPrior{G}) where {G}
+#     m = rand(d.mean)
+#     s = rand(d.std)
+#     dg = _construct_gain_prior(m, s, G, d.jcache.schema.sites)
+#     return TransformVariables.as((mean = asflat(d.mean), std = asflat(d.std), gains = asflat(dg)))
+# end
 
 Statistics.mean(d::CalPrior) = mean(d.dists)
 Statistics.var(d::CalPrior) = var(d.dists)
