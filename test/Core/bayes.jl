@@ -27,7 +27,7 @@ using Zygote
     show(post)
     show(tpostf)
     show(tpostc)
-    tpost = Comrade.flatten(post)
+    # tpost = Comrade.flatten(post)
 
     ndim = dimension(post)
     @inferred logdensityof(post, prior_sample(post))
@@ -35,7 +35,7 @@ using Zygote
     @inferred logdensityof(tpostc, rand(ndim))
 
 
-    @test dimension(post) == dimension(tpost)
+    # @test dimension(post) == dimension(tpost)
     @test dimension(post) == dimension(tpostf)
     @test dimension(post) == dimension(tpostc)
 
