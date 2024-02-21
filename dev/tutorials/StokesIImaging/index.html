@@ -5,7 +5,7 @@
 
 using Pyehtim
 using LinearAlgebra</code></pre><p>For reproducibility we use a stable random number genreator</p><pre><code class="language-julia hljs">using StableRNGs
-rng = StableRNG(12)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">StableRNGs.LehmerRNG(state=0x00000000000000000000000000000019)</code></pre><h2 id="Load-the-Data"><a class="docs-heading-anchor" href="#Load-the-Data">Load the Data</a><a id="Load-the-Data-1"></a><a class="docs-heading-anchor-permalink" href="#Load-the-Data" title="Permalink"></a></h2><p>To download the data visit https://doi.org/10.25739/g85n-f134 First we will load our data:</p><pre><code class="language-julia hljs">obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, &quot;../Data/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits&quot;))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Python: &lt;ehtim.obsdata.Obsdata object at 0x7fdebf5bde10&gt;</code></pre><p>Now we do some minor preprocessing:</p><ul><li>Scan average the data since the data have been preprocessed so that the gain phases  coherent.</li><li>Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.</li></ul><pre><code class="language-julia hljs">obs = scan_average(obs).add_fractional_noise(0.02)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Python: &lt;ehtim.obsdata.Obsdata object at 0x7fdee22283d0&gt;</code></pre><p>Now we extract our complex visibilities.</p><pre><code class="language-julia hljs">dvis = extract_table(obs, ComplexVisibilities())</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">EHTObservation{Float64,Comrade.EHTVisibilityDatum{Float64}, ...}
+rng = StableRNG(12)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">StableRNGs.LehmerRNG(state=0x00000000000000000000000000000019)</code></pre><h2 id="Load-the-Data"><a class="docs-heading-anchor" href="#Load-the-Data">Load the Data</a><a id="Load-the-Data-1"></a><a class="docs-heading-anchor-permalink" href="#Load-the-Data" title="Permalink"></a></h2><p>To download the data visit https://doi.org/10.25739/g85n-f134 First we will load our data:</p><pre><code class="language-julia hljs">obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, &quot;../Data/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits&quot;))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Python: &lt;ehtim.obsdata.Obsdata object at 0x7fd409ba9780&gt;</code></pre><p>Now we do some minor preprocessing:</p><ul><li>Scan average the data since the data have been preprocessed so that the gain phases  coherent.</li><li>Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.</li></ul><pre><code class="language-julia hljs">obs = scan_average(obs).add_fractional_noise(0.02)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Python: &lt;ehtim.obsdata.Obsdata object at 0x7fd429c37fd0&gt;</code></pre><p>Now we extract our complex visibilities.</p><pre><code class="language-julia hljs">dvis = extract_table(obs, ComplexVisibilities())</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">EHTObservation{Float64,Comrade.EHTVisibilityDatum{Float64}, ...}
   source: M87
   mjd: 57849
   frequency: 2.27070703125e11
@@ -174,12 +174,12 @@ using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, randn(rng, ndim), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=1000, g_tol=1e-1);</code></pre><p>Now transform back to parameter space</p><pre><code class="language-julia hljs">xopt = transform(tpost, sol.u)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(c = (params = [2.402757372918661e-7 2.276920843693518e-7 … 8.125350702718431e-8 1.387603027058385e-7; 2.0592157507403224e-7 5.91777165146474e-7 … 3.7991828700017635e-7 5.525284434672154e-7; … ; 1.0191181285835525e-7 -2.2845233041728382e-8 … -6.672586986081674e-7 -2.390869342069285e-7; 3.0173857297348944e-8 8.10513505121238e-8 … -2.339559449392065e-7 -5.760718128199728e-7], hyperparams = 0.05056034832060583), fg = 0.035405034858187724, σimg = 3.7577800196543105, lgamp = [0.1019565544646775, 0.10194895299374644, 0.03802809414590924, 0.012320200301766901, -0.36283895540909444, 0.25087064999943276, 0.0328491209241509, 0.016732093777376743, -0.16385540108654764, 0.20456980557800014  …  -0.2619757657768466, 0.016027568207148426, -1.2259416043835814, 0.016716126803257795, -0.0016211693165882803, 0.03420099675455218, -0.2878518832998773, 0.022422830512593698, -1.2933583395728439, 0.007899820277377704], gphase = [-1.0143111390223265, -2.1927332968023237, 0.23375064262148648, -1.2182298995771343, -2.2418047133223604, 0.3408518202532712, -1.4493211204627685, -2.275198116153205, 0.4172187532327051, -1.6475874343498202  …  -1.891156875890341, -2.819183865915549, -0.8944048793745003, 2.6637256510282707, 2.2660709322521604, -1.8309374806255783, -2.9262775151513325, -0.8408797134336394, 2.508975900341876, 2.3158012785636894])</code></pre><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>Fitting gains tends to be very difficult, meaning that optimization can take a lot longer. The upside is that we usually get nicer images.</p></div></div><p>First we will evaluate our fit by plotting the residuals</p><pre><code class="language-julia hljs">using Plots
-residual(vlbimodel(post, xopt), dvis)</code></pre><img src="5e3894f5.svg" alt="Example block output"/><p>These look reasonable, although there may be some minor overfitting. This could be improved in a few ways, but that is beyond the goal of this quick tutorial. Plotting the image, we see that we have a much cleaner version of the closure-only image from <a href="../ClosureImaging/#Imaging-a-Black-Hole-using-only-Closure-Quantities">Imaging a Black Hole using only Closure Quantities</a>.</p><pre><code class="language-julia hljs">import CairoMakie as CM
+sol = solve(prob, LBFGS(), maxiters=1000, g_tol=1e-1);</code></pre><p>Now transform back to parameter space</p><pre><code class="language-julia hljs">xopt = transform(tpost, sol.u)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(c = (params = [3.5264603887209786e-8 5.5500232080996594e-8 … 1.6114783105951817e-8 6.267855239630941e-8; 1.2117862414030917e-7 5.740513910904087e-9 … 1.5526865865330112e-7 3.286863863227228e-8; … ; -3.9776447483711484e-8 1.640090685164487e-8 … -9.368548324662003e-8 -9.241162749105212e-8; 3.656575245757046e-9 -1.4525838930314582e-8 … -1.1333764505622024e-7 6.126800479742155e-9], hyperparams = 0.049802003481001784), fg = 0.08816392745012898, σimg = 3.786790334355212, lgamp = [0.09658451328797286, 0.0965845803353626, 0.03234967333402882, 0.016840134786865853, -0.32202575602050937, 0.24521076786613125, 0.027901210544642247, 0.01953364668289315, -0.12632648838667968, 0.1985148605715616  …  -0.27648411536395534, 0.01624525442475183, -1.1415859887862643, 0.01582964478621066, 0.008324851282584627, 0.02837361976024131, -0.3111611203325911, 0.020072677600607186, -1.2098487853594007, 0.007423766640534218], gphase = [-0.5000785291787595, -2.191568568307023, 0.4862044623221332, -0.6976523417415209, -2.2415234135001607, 0.5933548908458829, -0.9180623892603877, -2.276932174907616, 0.6663485957924047, -1.103816975770031  …  -1.8909799259003126, -2.619153830116572, -0.8812803242158138, 2.8198171414205255, 2.2816331988999012, -1.829824471293293, -2.7239162943095936, -0.8196456094220741, 2.6600116278863792, 2.3358631913072414])</code></pre><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>Fitting gains tends to be very difficult, meaning that optimization can take a lot longer. The upside is that we usually get nicer images.</p></div></div><p>First we will evaluate our fit by plotting the residuals</p><pre><code class="language-julia hljs">using Plots
+residual(vlbimodel(post, xopt), dvis)</code></pre><img src="073bcddf.svg" alt="Example block output"/><p>These look reasonable, although there may be some minor overfitting. This could be improved in a few ways, but that is beyond the goal of this quick tutorial. Plotting the image, we see that we have a much cleaner version of the closure-only image from <a href="../ClosureImaging/#Imaging-a-Black-Hole-using-only-Closure-Quantities">Imaging a Black Hole using only Closure Quantities</a>.</p><pre><code class="language-julia hljs">import CairoMakie as CM
 img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
-imageviz(img, size=(400, 400))</code></pre><img src="712731c6.png" alt="Example block output"/><p>Because we also fit the instrument model, we can inspect their parameters. To do this, <code>Comrade</code> provides a <code>caltable</code> function that converts the flattened gain parameters to a tabular format based on the time and its segmentation.</p><pre><code class="language-julia hljs">gt = Comrade.caltable(gcachep, xopt.gphase)
-plot(gt, layout=(3,3), size=(600,500))</code></pre><img src="2b8262ea.svg" alt="Example block output"/><p>The gain phases are pretty random, although much of this is due to us picking a random reference station for each scan.</p><p>Moving onto the gain amplitudes, we see that most of the gain variation is within 10% as expected except LMT, which has massive variations.</p><pre><code class="language-julia hljs">gt = Comrade.caltable(gcache, exp.(xopt.lgamp))
-plot(gt, layout=(3,3), size=(600,500))</code></pre><img src="00bd1631.svg" alt="Example block output"/><p>To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For information about NUTS, see Michael Betancourt&#39;s <a href="https://arxiv.org/abs/1701.02434">notes</a>.</p><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>For our <code>metric,</code> we use a diagonal matrix due to easier tuning</p></div></div><p>However, due to the need to sample a large number of gain parameters, constructing the posterior is rather time-consuming. Therefore, for this tutorial, we will only do a quick preliminary run, and any posterior inferences should be appropriately skeptical.</p><pre><code class="language-julia hljs">using ComradeAHMC
+imageviz(img, size=(400, 400))</code></pre><img src="1ebd57f9.png" alt="Example block output"/><p>Because we also fit the instrument model, we can inspect their parameters. To do this, <code>Comrade</code> provides a <code>caltable</code> function that converts the flattened gain parameters to a tabular format based on the time and its segmentation.</p><pre><code class="language-julia hljs">gt = Comrade.caltable(gcachep, xopt.gphase)
+plot(gt, layout=(3,3), size=(600,500))</code></pre><img src="ce80427a.svg" alt="Example block output"/><p>The gain phases are pretty random, although much of this is due to us picking a random reference station for each scan.</p><p>Moving onto the gain amplitudes, we see that most of the gain variation is within 10% as expected except LMT, which has massive variations.</p><pre><code class="language-julia hljs">gt = Comrade.caltable(gcache, exp.(xopt.lgamp))
+plot(gt, layout=(3,3), size=(600,500))</code></pre><img src="bd5947e0.svg" alt="Example block output"/><p>To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For information about NUTS, see Michael Betancourt&#39;s <a href="https://arxiv.org/abs/1701.02434">notes</a>.</p><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>For our <code>metric,</code> we use a diagonal matrix due to easier tuning</p></div></div><p>However, due to the need to sample a large number of gain parameters, constructing the posterior is rather time-consuming. Therefore, for this tutorial, we will only do a quick preliminary run, and any posterior inferences should be appropriately skeptical.</p><pre><code class="language-julia hljs">using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
 chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt, progress=false)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">PosteriorSamples
   Samples size: (700,)
@@ -189,7 +189,7 @@ chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=50
 │                                                                              ⋯
 │<span class="sgr90">                                                                              ⋯
 ├───────────────────────────────────────────────────────────────────────────────
-│ (params = [0.0247188 0.0106026 … -0.0528665 -0.0265266; 0.0484599 0.0772703  ⋯
+│ (params = [-0.0396359 -0.0457317 … 0.0438799 0.0305113; 0.00669513 -0.036796 ⋯
 └───────────────────────────────────────────────────────────────────────────────
 </span><span class="sgr36">                                                               5 columns omitted
 std
@@ -197,7 +197,7 @@ std
 │                                                                              ⋯
 │</span><span class="sgr90">                                                                              ⋯
 ├───────────────────────────────────────────────────────────────────────────────
-│ (params = [0.553451 0.569168 … 0.559274 0.551914; 0.561313 0.632613 … 0.5954 ⋯
+│ (params = [0.517008 0.594535 … 0.589406 0.538028; 0.554483 0.626044 … 0.6353 ⋯
 └───────────────────────────────────────────────────────────────────────────────
 </span><span class="sgr36">                                                               5 columns omitted
 </span></span></code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>The above sampler will store the samples in memory, i.e. RAM. For large models this can lead to out-of-memory issues. To fix that you can include the keyword argument <code>saveto = DiskStore()</code> which periodically saves the samples to disk limiting memory useage. You can load the chain using <code>load_table(diskout)</code> where <code>diskout</code> is the object returned from sample. For more information please see <a href="../../libs/ahmc/#ComradeAHMC">ComradeAHMC</a>.</p></div></div><p>Now we prune the adaptation phase</p><pre><code class="language-julia hljs">chain = chain[501:end]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">PosteriorSamples
@@ -208,7 +208,7 @@ std
 │                                                                              ⋯
 │<span class="sgr90">                                                                              ⋯
 ├───────────────────────────────────────────────────────────────────────────────
-│ (params = [0.0298272 0.0568791 … -0.0738405 -0.0792622; 0.047655 0.0918009 … ⋯
+│ (params = [-0.0456297 -0.05262 … 0.0387047 0.0936663; -0.00100751 0.0050918  ⋯
 └───────────────────────────────────────────────────────────────────────────────
 </span><span class="sgr36">                                                               5 columns omitted
 std
@@ -216,80 +216,80 @@ std
 │                                                                              ⋯
 │</span><span class="sgr90">                                                                              ⋯
 ├───────────────────────────────────────────────────────────────────────────────
-│ (params = [0.586401 0.597537 … 0.523585 0.56493; 0.557935 0.656827 … 0.56834 ⋯
+│ (params = [0.510136 0.613512 … 0.586019 0.564432; 0.585455 0.66282 … 0.64458 ⋯
 └───────────────────────────────────────────────────────────────────────────────
 </span><span class="sgr36">                                                               5 columns omitted
 </span></span></code></pre><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>This should be run for likely an order of magnitude more steps to properly estimate expectations of the posterior</p></div></div><p>Now that we have our posterior, we can put error bars on all of our plots above. Let&#39;s start by finding the mean and standard deviation of the gain phases</p><pre><code class="language-julia hljs">gphase  = hcat(chain.gphase...)
 mgphase = mean(gphase, dims=2)
 sgphase = std(gphase, dims=2)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">101×1 Matrix{Float64}:
- 0.6223979483711322
- 0.01620943878848413
- 0.11794384379804813
- 2.6629127984992764
- 0.018446870080164973
- 0.11518379542396658
- 2.6873535110400915
- 0.01799757212062584
- 0.11411689020560073
- 1.7126651478344557
+ 0.23577285540264892
+ 0.0181551875710009
+ 0.14404370530644814
+ 0.24250496484833395
+ 0.0187151695360102
+ 0.14306373473105033
+ 1.8059369095535236
+ 0.016944753712044177
+ 0.14469635995285005
+ 2.7146396553653656
  ⋮
- 0.11812029873257282
- 0.1670558354565761
- 2.426570844364953
- 0.1656317447259159
- 0.01893469981106932
- 0.11847554766176686
- 0.16221255049947775
- 0.0953855066152469
- 0.16028855661498423</code></pre><p>and now the gain amplitudes</p><pre><code class="language-julia hljs">gamp  = exp.(hcat(chain.lgamp...))
+ 0.16368388423883903
+ 0.25531565062369294
+ 1.2688124371374052
+ 0.7309783693485629
+ 0.016251745105074496
+ 0.15845103504301813
+ 0.2562955420449606
+ 0.12761427773940573
+ 0.6119436807675864</code></pre><p>and now the gain amplitudes</p><pre><code class="language-julia hljs">gamp  = exp.(hcat(chain.lgamp...))
 mgamp = mean(gamp, dims=2)
 sgamp = std(gamp, dims=2)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">126×1 Matrix{Float64}:
- 0.07370583970840072
- 0.0764929633727707
- 0.018102844114259574
- 0.020547744816623047
- 0.042009608752906547
- 0.04678744498323479
- 0.02062002686195347
- 0.020054386355229204
- 0.04629465240905664
- 0.04532138024343629
+ 0.07363167935956486
+ 0.07092074051972719
+ 0.019685976444049128
+ 0.019826581609189008
+ 0.04043511317107667
+ 0.03769400322161249
+ 0.019294847890012047
+ 0.02178720863019112
+ 0.04287609118284708
+ 0.037264515152970815
  ⋮
- 0.018861521783410388
- 0.01738546376361237
- 0.01813581415448197
- 0.016845488633759804
- 0.02098173758160792
- 0.03126562996048982
- 0.020810756619750296
- 0.017064107648898322
- 0.01716631022536345</code></pre><p>Now we can use the measurements package to automatically plot everything with error bars. First we create a <code>caltable</code> the same way but making sure all of our variables have errors attached to them.</p><pre><code class="language-julia hljs">using Measurements
+ 0.018352717799517655
+ 0.020211130435373863
+ 0.018090449664136067
+ 0.015985236045943856
+ 0.020790820182318856
+ 0.027712753534495645
+ 0.018400427712555994
+ 0.01950869207220542
+ 0.017781278594035648</code></pre><p>Now we can use the measurements package to automatically plot everything with error bars. First we create a <code>caltable</code> the same way but making sure all of our variables have errors attached to them.</p><pre><code class="language-julia hljs">using Measurements
 gmeas_am = measurement.(mgamp, sgamp)
 ctable_am = caltable(gcache, vec(gmeas_am)) # caltable expects gmeas_am to be a Vector
 gmeas_ph = measurement.(mgphase, sgphase)
 ctable_ph = caltable(gcachep, vec(gmeas_ph))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">───────────┬────────────────────────────────────────────────────────────────────
-<span class="sgr1">      time │      AA            AP          AZ          JC            LM       ⋯
+<span class="sgr1">      time │      AA            AP          AZ          JC          LM         ⋯
 ───────────┼────────────────────────────────────────────────────────────────────
- 0.917±0.0 │ 1.0±0.0       missing     missing     missing       missing  -2.7 ⋯
- 1.217±0.0 │ 1.0±0.0  -2.193±0.016     missing     missing     0.71±0.12    -1 ⋯
- 1.517±0.0 │ 1.0±0.0  -2.242±0.018     missing     missing      0.8±0.12     1 ⋯
- 1.817±0.0 │ 1.0±0.0  -2.276±0.018     missing     missing     0.85±0.11     2 ⋯
- 2.117±0.0 │ 1.0±0.0   -2.33±0.018     missing     missing     0.94±0.11   2.4 ⋯
-  2.45±0.0 │ missing       1.0±0.0     missing     missing     1.48±0.13  -1.4 ⋯
-  2.75±0.0 │ 1.0±0.0   -2.403±0.02     missing     missing     0.99±0.11   2.3 ⋯
-  3.05±0.0 │ 1.0±0.0  -2.435±0.019     missing     missing     1.02±0.11   2.1 ⋯
-  3.35±0.0 │ 1.0±0.0  -2.466±0.018     missing     missing     1.01±0.11   1.9 ⋯
- 3.683±0.0 │ 1.0±0.0  -2.469±0.016   0.66±0.13     missing      1.0±0.11   1.7 ⋯
- 3.983±0.0 │ 1.0±0.0   -2.438±0.02   0.55±0.13     missing     0.93±0.11    1. ⋯
- 4.283±0.0 │ 1.0±0.0  -2.456±0.023    0.4±0.13     missing     0.82±0.11    1. ⋯
- 4.583±0.0 │ 1.0±0.0   -2.373±0.02   0.24±0.13   -0.6±0.15     0.74±0.11   1.2 ⋯
- 4.917±0.0 │ 1.0±0.0  -2.424±0.019  0.044±0.12  -0.34±0.15     0.59±0.11   1.0 ⋯
- 5.183±0.0 │ 1.0±0.0  -2.384±0.018  -0.13±0.13  -0.15±0.15      0.4±0.11   0.9 ⋯
-  5.45±0.0 │ 1.0±0.0  -2.303±0.021  -0.28±0.13  0.061±0.16     0.19±0.11   0.7 ⋯
-     ⋮     │    ⋮          ⋮            ⋮           ⋮            ⋮             ⋱
+ 0.917±0.0 │ 1.0±0.0       missing     missing     missing     missing  -2.39± ⋯
+ 1.217±0.0 │ 1.0±0.0  -2.191±0.018     missing     missing   0.69±0.14  -2.57± ⋯
+ 1.517±0.0 │ 1.0±0.0  -2.241±0.019     missing     missing   0.76±0.14    -2.1 ⋯
+ 1.817±0.0 │ 1.0±0.0  -2.278±0.017     missing     missing    0.8±0.14    -1.0 ⋯
+ 2.117±0.0 │ 1.0±0.0  -2.328±0.017     missing     missing   0.88±0.15    0.23 ⋯
+  2.45±0.0 │ missing       1.0±0.0     missing     missing    1.4±0.16  -1.01± ⋯
+  2.75±0.0 │ 1.0±0.0  -2.404±0.017     missing     missing   0.91±0.15     2.5 ⋯
+  3.05±0.0 │ 1.0±0.0  -2.436±0.018     missing     missing   0.93±0.15   2.55± ⋯
+  3.35±0.0 │ 1.0±0.0  -2.465±0.017     missing     missing   0.93±0.15   2.36± ⋯
+ 3.683±0.0 │ 1.0±0.0   -2.469±0.02   0.57±0.17     missing    0.9±0.15   2.17± ⋯
+ 3.983±0.0 │ 1.0±0.0  -2.437±0.016   0.45±0.18     missing   0.84±0.15   1.98± ⋯
+ 4.283±0.0 │ 1.0±0.0  -2.456±0.019   0.29±0.18     missing   0.72±0.15    1.8± ⋯
+ 4.583±0.0 │ 1.0±0.0  -2.371±0.019   0.13±0.18    -0.9±0.2   0.64±0.16    1.6± ⋯
+ 4.917±0.0 │ 1.0±0.0  -2.421±0.025  -0.07±0.18  -0.67±0.21   0.49±0.15   1.38± ⋯
+ 5.183±0.0 │ 1.0±0.0  -2.385±0.019  -0.25±0.18   -0.5±0.23    0.3±0.15   1.23± ⋯
+  5.45±0.0 │ 1.0±0.0  -2.304±0.023   -0.4±0.18   -0.3±0.23  0.083±0.15   1.08± ⋯
+     ⋮     │    ⋮          ⋮            ⋮           ⋮           ⋮           ⋮  ⋱
 ───────────┴────────────────────────────────────────────────────────────────────
 <span class="sgr36">                                                    2 columns and 9 rows omitted
-</span></span></code></pre><p>Now let&#39;s plot the phase curves</p><pre><code class="language-julia hljs">plot(ctable_ph, layout=(3,3), size=(600,500))</code></pre><img src="67b44ef4.svg" alt="Example block output"/><p>and now the amplitude curves</p><pre><code class="language-julia hljs">plot(ctable_am, layout=(3,3), size=(600,500))</code></pre><img src="7e4596cd.svg" alt="Example block output"/><p>Finally let&#39;s construct some representative image reconstructions.</p><pre><code class="language-julia hljs">samples = skymodel.(Ref(post), chain[begin:2:end])
+</span></span></code></pre><p>Now let&#39;s plot the phase curves</p><pre><code class="language-julia hljs">plot(ctable_ph, layout=(3,3), size=(600,500))</code></pre><img src="de4cc310.svg" alt="Example block output"/><p>and now the amplitude curves</p><pre><code class="language-julia hljs">plot(ctable_am, layout=(3,3), size=(600,500))</code></pre><img src="59e93331.svg" alt="Example block output"/><p>Finally let&#39;s construct some representative image reconstructions.</p><pre><code class="language-julia hljs">samples = skymodel.(Ref(post), chain[begin:2:end])
 imgs = intensitymap.(samples, fovx, fovy, 128,  128)
 
 mimg = mean(imgs)
@@ -308,4 +308,4 @@ CM.image(fig[2,2], imgs[end],
                    axis=(xreversed=true, aspect=1,title=&quot;Draw 2&quot;),
                    colormap=:afmhot)
 CM.hidedecorations!.(fig.content)
-fig</code></pre><img src="5a5fad64.png" alt="Example block output"/><p>And viola, you have just finished making a preliminary image and instrument model reconstruction. In reality, you should run the <code>sample</code> step for many more MCMC steps to get a reliable estimate for the reconstructed image and instrument model parameters.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../PolarizedImaging/">« Polarized Image and Instrumental Modeling</a><a class="docs-footer-nextpage" href="../../libs/optimization/">ComradeOptimization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Wednesday 21 February 2024 15:50">Wednesday 21 February 2024</span>. Using Julia version 1.10.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+fig</code></pre><img src="d48f747e.png" alt="Example block output"/><p>And viola, you have just finished making a preliminary image and instrument model reconstruction. In reality, you should run the <code>sample</code> step for many more MCMC steps to get a reliable estimate for the reconstructed image and instrument model parameters.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../PolarizedImaging/">« Polarized Image and Instrumental Modeling</a><a class="docs-footer-nextpage" href="../../libs/optimization/">ComradeOptimization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Wednesday 21 February 2024 16:41">Wednesday 21 February 2024</span>. Using Julia version 1.10.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
