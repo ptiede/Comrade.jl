@@ -191,7 +191,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500);
+chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=false);
 
 
 # !!! warning
@@ -212,16 +212,16 @@ simg = std(imgs)
 fig = CM.Figure(;resolution=(700, 700));
 CM.image(fig[1,1], mimg,
                    axis=(xreversed=true, aspect=1, title="Mean Image"),
-                   colormap=:afmhot)
+                   colormap=:afmhot);
 CM.image(fig[1,2], simg./(max.(mimg, 1e-5)),
                    axis=(xreversed=true, aspect=1, title="1/SNR",), colorrange=(0.0, 2.0),
-                   colormap=:afmhot)
+                   colormap=:afmhot);
 CM.image(fig[2,1], imgs[1],
                    axis=(xreversed=true, aspect=1,title="Draw 1"),
-                   colormap=:afmhot)
+                   colormap=:afmhot);
 CM.image(fig[2,2], imgs[end],
                    axis=(xreversed=true, aspect=1,title="Draw 2"),
-                   colormap=:afmhot)
+                   colormap=:afmhot);
 CM.hidedecorations!.(fig.content)
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 

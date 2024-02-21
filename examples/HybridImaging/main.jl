@@ -274,7 +274,7 @@ CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), 
 # We will now move directly to sampling at this point.
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt, progress=true);
+chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt, progress=false);
 
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]
