@@ -6,7 +6,9 @@ using PrettyTables
 
 export JonesModel
 
-struct JonesModel{J, B}
+abstract type AbstractJonesModel end
+
+struct JonesModel{J, B} <: AbstractJonesModel
     jones::J
     refbasis::B
 end
@@ -20,7 +22,7 @@ reference basis
 """
 JonesModel(jones::J) where {J} = JonesModel{J, CirBasis}(jones, CirBasis())
 
-
+struct IdealInstrument <: AbstractJonesModel end
 
 """
     $(TYPEDEF)
@@ -51,7 +53,7 @@ and the `model` which describes the on-sky polarized visibilities. The third arg
 can either be the `tcache` that converts from the model coherency basis to the instrumental
 basis, or just the `refbasis` that will be used when constructing the model coherency matrices.
 """
-struct VLBIModel{J<:JonesModel, M<:AbstractModel} <: RIMEModel
+struct VLBIModel{J<:AbstractJonesModel, M<:AbstractModel} <: RIMEModel
     """
     The instrument model for the telescope. This is usually a sparse matrix that multiplies
     the visibilties.
@@ -82,6 +84,10 @@ end
 function ComradeBase.amplitudes(model::VLBIModel, ac::ArrayConfiguration)
     amp = amplitudes(model.sky, ac)
     apply_instrument(amp, model.instrument)
+end
+
+function apply_instrument(vis, ::IdealInstrument)
+    return vis
 end
 
 function apply_instrument(vis, instrument)

@@ -47,10 +47,6 @@ function vlbimodel(d::RadioLikelihood, θ)
     return VLBIModel(intm, skym)
 end
 
-function vlbimodel(d::RadioLikelihood{F,<:Nothing}, θ) where {F}
-    skym = skymodel(d, θ)
-    return skym
-end
 
 """
     dataproducts(d::RadioLikelihood)
@@ -177,7 +173,7 @@ function RadioLikelihood(
         skym = skymodel
     end
 
-    return _RadioLikelihood(skym, nothing, dataproducts...)
+    return _RadioLikelihood(skym, Returns(IdealInstrument()), dataproducts...)
 end
 
 

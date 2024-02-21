@@ -31,8 +31,22 @@ using Zygote
 
     ndim = dimension(post)
     @inferred logdensityof(post, prior_sample(post))
-    @inferred logdensityof(tpostf, rand(ndim))
-    @inferred logdensityof(tpostc, rand(ndim))
+    @inferred logdensityof(tpostf, prior_sample(tpostf))
+    @inferred logdensityof(tpostc, prior_sample(tpostc))
+
+    x = prior_sample(tpostf)
+    @test logdensityof(tpostf, x) == tpostf(x)
+    x = prior_sample(tpostc)
+    @test logdensityof(tpostc, x) == tpostc(x)
+
+    @test dataproducts(post) == dataproducts(post.lklhd)
+
+
+    x = prior_sample(post)
+    @test skymodel(post, x) == test_model(x)
+    @test instrumentmodel(post, x) == instrumentmodel(post.lklhd, x)
+    @test vlbimodel(post, x) == vlbimodel(post.lklhd, x)
+
 
 
     # @test dimension(post) == dimension(tpost)
