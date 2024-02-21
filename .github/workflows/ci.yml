@@ -70,4 +70,6 @@ jobs:
           directories: src,lib/ComradeOptimization/src,lib/ComradeAHMC/src,lib/ComradeDynesty/src,lib/ComradeNested/src,lib/ComradeAdaptMCMC/src
       - uses: codecov/codecov-action@v4
         with:
-          file: lcov.info
+              token: ${{ secrets.CODECOV_TOKEN }}
+              fail_ci_if_error: false  # or true if you want CI to fail when Codecov fails
+              file: lcov.info
