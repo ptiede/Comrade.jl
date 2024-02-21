@@ -186,11 +186,10 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
                 chain_type = Array, kwargs...
                 )
 
-    stats = [Table(getproperty.(r, :stat)) for r in res]
+    stats = reduce(hcat, (getproperty.(r, :stat) for r in res))
     samples = [getproperty.(getproperty.(r, :z), :θ) for r in res]
-    chains = [Table(transform.(Ref(tpost), s)) for s in samples]
-    return chains, stats
-
+    chains = reduce(hcat, (transform.(Ref(tpost), s) for s in samples))
+    return PosteriorSamples(chains, stats; metadata=Dict(:sampler=>:AHMC, :sampler_kwargs=>kwargs, :post=>tpost))
 end
 
 """
@@ -281,10 +280,10 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
                 chain_type = Array, kwargs...
                 )
 
-    stats = Table(getproperty.(res, :stat))
+    stats = getproperty.(res, :stat)
     samples = getproperty.(getproperty.(res, :z), :θ)
     chain = transform.(Ref(tpost), samples)
-    return Table(chain), stats
+    return PosteriorSamples(chain, stats; metadata=Dict(:sampler=>:AHMC, :sampler_kwargs=>kwargs, :post=>tpost))
 end
 
 struct DiskOutput
@@ -334,16 +333,17 @@ end
 
 function _process_samples(pt, tpost, next, time, nscans, out, outbase, outdir, iter)
     (chain, state) = next
-    stats = Table(getproperty.(chain, :stat))
-    samples = transform.(Ref(tpost), getproperty.(getproperty.(chain, :z), :θ)) |> Table
+    stats = getproperty.(chain, :stat)
+    samples = transform.(Ref(tpost), getproperty.(getproperty.(chain, :z), :θ))
+    s = PosteriorSamples(samples, stats; metadata=Dict(:sampler=>:AHMC))
     @info("Scan $(iter)/$nscans statistics:\n"*
           "  Total time:     $(time) seconds\n"*
-          "  Mean tree depth: $(round(mean(stats.tree_depth); digits=1))\n"*
-          "  Mode tree depth: $(round(StatsBase.mode(stats.tree_depth); digits=1))\n"*
-          "  n-divergences:   $(sum(stats.numerical_error))/$(length(stats))\n"*
-          "  Avg log-post:    $(mean(stats.log_density))\n")
+          "  Mean tree depth: $(round(mean(samplerstats(s).tree_depth); digits=1))\n"*
+          "  Mode tree depth: $(round(StatsBase.mode(samplerstats(s).tree_depth); digits=1))\n"*
+          "  n-divergences:   $(sum(samplerstats(s).numerical_error))/$(length(stats))\n"*
+          "  Avg log-post:    $(mean(samplerstats(s).log_density))\n")
 
-    jldsave(outbase*(@sprintf "%05d.jld2" iter); stats, samples)
+    jldsave(outbase*(@sprintf "%05d.jld2" iter); samples=Comrade.postsamples(s), stats=Comrade.samplerstats(s))
     chain = nothing
     samples = nothing
     stats = nothing
@@ -352,7 +352,6 @@ function _process_samples(pt, tpost, next, time, nscans, out, outbase, outdir, i
     serialize(joinpath(outdir, "checkpoint.jls"), (;pt, state, out, iter))
     return state, iter
 end
-
 
 function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
                         sampler::AHMC, nsamples, args...;
@@ -408,13 +407,31 @@ i.e. the path specified in [`DiskStore`](@ref).
 """
 function load_table(
         out::DiskOutput,
-        indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples"
+        indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="both"
         )
-    @assert (table == "samples" || table == "stats") "Please select either `samples` or `stats`"
+    @assert (table == "samples" || table == "stats" || table=="both") "Please select either `samples` or `stats`"
     d = readdir(joinpath(abspath(out.filename), "samples"), join=true)
 
+    if table == "both"
+        chain = load_table(out, indices; table="samples")
+        stats = load_table(out, indices; table="stats")
+        return PosteriorSamples(Comrade.postsamples(chain), stats,
+                ; metadata=Dict(:sampler=>:AHMC))
+    end
+
+
+
     # load and return the entire table
-    indices == Base.Colon() && (return reduce(vcat, load.(d, table)))
+    if indices == Base.Colon()
+        if table =="samples"
+            return PosteriorSamples(reduce(vcat, load.(d, table)), nothing, metadata=Dict(:sampler=>:AHMC))
+        else
+            return Comrade.StructArray(reduce(vcat, load.(d, table)))
+        end
+    end
+
+    @info table
+
 
     # Now get the index of the first file
     ind0 = first(indices)
@@ -436,11 +453,17 @@ function load_table(
         offset1 = out.stride
     end
 
+
     t = reduce(vcat, load.(d[find0:find1], table))
-    return t[offset0:step(indices):(out.stride*(find1-find0) + offset1)]
+    out =  t[offset0:step(indices):(out.stride*(find1-find0) + offset1)]
+    if table == "samples"
+        return PosteriorSamples(out, nothing; metadata=Dict(:sampler=>:AHMC))
+    else
+        return Comrade.StructArray(out)
+    end
 end
 
-function load_table(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="samples")
+function load_table(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table="both")
     @assert isdir(abspath(out)) "$out is not a directory. This isn't where the HMC samples are stored"
     @assert isfile(joinpath(abspath(out), "parameters.jld2")) "parameters.jld2 "
     p = load(joinpath(abspath(out), "parameters.jld2"), "params")

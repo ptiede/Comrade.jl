@@ -2,7 +2,6 @@ module ComradeAdaptMCMC
 
 using AdaptiveMCMC
 using Comrade
-using TypedTables
 using AbstractMCMC
 using Random
 
@@ -89,18 +88,13 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedP
                        L = sampler.ntemp,
                        acc_sw = sampler.acc_sw,
                        log_pr = lpr,
-                       all_levels=sampler.all_levels,
                        swaps = sampler.swap,
                        kwargs...
                        )
 
-    stats = (logl = apt.D, state = apt.R, accexp = apt.accRWM, accswp=apt.accSW)
-    if sampler.all_levels
-        chains = Tuple(Table(transform.(Ref(post), eachcol(apt.allX[i]))) for i in eachindex(apt.allX))
-    else
-        chains = transform.(Ref(post), eachcol(apt.X)) |> Table
-    end
-    return chains, stats
+    stats = nothing
+    chains = transform.(Ref(post), eachcol(apt.X))
+    return Comrade.PosteriorSamples(chains, stats, Dict(:sampler=>:AdaptMCMC, :post=>post, :burnin=>burnin, :initial_params=>initial_params, :sampler_out=>apt))
 end
 
 

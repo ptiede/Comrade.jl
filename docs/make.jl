@@ -29,7 +29,7 @@ makedocs(;
              ComradeOptimization, ComradeAHMC,
              ComradeNested, ComradeDynesty,
              ComradeAdaptMCMC],
-    repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
+    # repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
     format = Documenter.HTML(;prettyurls=true),
     pages=Any[
