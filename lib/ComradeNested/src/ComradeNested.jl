@@ -33,7 +33,7 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedP
     samples, stats = sample(rng, model, sampler, args...; chain_type=Array, kwargs...)
     weights = samples[:, end]
     chain = transform.(Ref(post), eachrow(samples[:,1:end-1]))
-    return PosteriorSamples(chain, merge((;weights,), stats), Dict(:sampler => :NestedSampler))
+    return PosteriorSamples(chain, merge((;weights,), stats); metadata= Dict(:sampler => :NestedSampler))
 end
 
 end

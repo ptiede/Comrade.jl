@@ -424,7 +424,7 @@ function load_table(
     # load and return the entire table
     if indices == Base.Colon()
         if table =="samples"
-            return PosteriorSamples(reduce(vcat, load.(d, table)), nothing, metadata=Dict(:sampler=>:AHMC))
+            return PosteriorSamples(reduce(vcat, load.(d, table)), nothing; metadata=Dict(:sampler=>:AHMC))
         else
             return Comrade.StructArray(reduce(vcat, load.(d, table)))
         end

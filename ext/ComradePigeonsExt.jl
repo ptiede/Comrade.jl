@@ -72,7 +72,7 @@ function Pigeons.sample_array(tpost::Comrade.TransformedPosterior, pt::Pigeons.P
 
     sts = (logdensity= samples[:, end, :] |> vec,)
 
-    return Comrade.PosteriorSamples(tbl, sts, Dict(:sampler=>:Pigeons, :post=>tpost))
+    return Comrade.PosteriorSamples(tbl, sts; metadata=Dict(:sampler=>:Pigeons, :post=>tpost))
 end
 
 

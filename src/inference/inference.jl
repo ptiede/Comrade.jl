@@ -129,9 +129,9 @@ function Base.show(io::IO, ::MIME"text/plain", s::PosteriorSamples)
     println(io, "  Samples size: $(size(s))")
     println(io, "  sampler used: ", get(samplerinfo(s), :sampler, "unknown"))
     ct = postsamples(s)
-    pretty_table(io, [rmap(mean, ct)]; title="Mean"
+    pretty_table(io, [rmap(mean, ct)]; title="Mean", alignment=:l
                 )
-    pretty_table(io, [rmap(std, ct)]; title="std"
+    pretty_table(io, [rmap(std, ct)]; title="Std. Dev.", alignment=:l
                 )
 
 end
