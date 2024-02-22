@@ -5,6 +5,7 @@ using AbstractMCMC
 using Reexport
 using Random
 
+export resample_equal
 @reexport using NestedSamplers
 
 Comrade.samplertype(::Type{<:Nested}) = Comrade.IsCube()
@@ -33,7 +34,19 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedP
     samples, stats = sample(rng, model, sampler, args...; chain_type=Array, kwargs...)
     weights = samples[:, end]
     chain = transform.(Ref(post), eachrow(samples[:,1:end-1]))
-    return PosteriorSamples(chain, merge((;weights,), stats); metadata= Dict(:sampler => :NestedSampler))
+    metadata = merge(Dict(:sampler => :NestedSamplers, :sampler_type=>sampler),
+                     Dict(Pair.(keys(stats), values(stats)))
+                     )
+
+    return PosteriorSamples(chain, (;weights); metadata)
+end
+
+function resample_equal(post::PosteriorSamples, n::Int)
+    !(:weights ∈ propertynames(samplerstats(post))) && throw(ArgumentError("Weights not in chain stats, cannot resample"))
+    echain = sample(post, AbstractMCMC.StatsBase.Weights(samplerstats(post).weights), n)
+    metadata = samplerinfo(post)
+    metadata[:sampler] = :NestedSamplers_resampled
+    return PosteriorSamples(echain, nothing; metadata)
 end
 
 end

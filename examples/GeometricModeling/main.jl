@@ -193,9 +193,9 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # list, please see the Libraries section of the docs. For this example, we will be using
 # [Pigeons.jl](https://github.com/Julia-Tempering/Pigeons.jl) which is a state-of-the-art
 # parallel tempering sampler that enables global exploration of the posterior. For smaller dimension
-# problems (< 100) we recommend using this sampler especially if you have access to > 1 core.
+# problems (< 100) we recommend using this sampler, especially if you have access to > 1 core.
 using Pigeons
-pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=10, n_rounds=7)
+pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=16, n_rounds=8)
 
 
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.
@@ -236,7 +236,7 @@ for i in 1:10
     Plots.scatter!(p1, uva, mlca[:measurement], color=:grey, label=:none, alpha=0.1)
     Plots.scatter!(p2, uvp, atan.(sin.(mcp[:measurement]), cos.(mcp[:measurement])), color=:grey, label=:none, alpha=0.1)
 end
-p = plot(p1, p2, layout=(2,1));
+p = Plots.plot(p1, p2, layout=(2,1));
 DisplayAs.Text(DisplayAs.PNG(p))
 
 
@@ -245,5 +245,5 @@ DisplayAs.Text(DisplayAs.PNG(p))
 # and the model, divided by the data's error:
 p1 = residual(model(chain[end]), dlcamp);
 p2 = residual(model(chain[end]), dcphase);
-p = plot(p1, p2, layout=(2,1));
+p = Plots.plot(p1, p2, layout=(2,1));
 DisplayAs.Text(DisplayAs.PNG(p))
