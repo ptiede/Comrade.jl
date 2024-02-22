@@ -1,10 +1,11 @@
 name = "ComradeAHMC"
 uuid = "a4336a5c-78bc-4363-8a90-ce3fa9d3abe4"
 authors = ["Paul Tiede <ptiede91@gmail.com> and contributors"]
-version = "0.4.0"
+version = "0.5.0"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
+Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
 AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
 ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"

@@ -6,9 +6,9 @@ using Reexport
 using Comrade
 using DocStringExtensions
 using LogDensityProblems, LogDensityProblemsAD
-using TypedTables
 using ArgCheck: @argcheck
 using Random
+using Accessors
 using JLD2
 using Printf
 using StatsBase
@@ -117,10 +117,7 @@ is specified `nchains` random samples from the prior will be chosen for the star
 
 For possible `kwargs` please see the [`AdvancedHMC.jl docs`](https://github.com/TuringLang/AdvancedHMC.jl)
 
-This returns a tuple where the first element is `nchains` of `TypedTable`'s
-each which contains the MCMC samples of one of the parallel chain and the second argument
-is a set of ancilliary information about each set of samples.
-
+This returns a `PosteriorSamples` object indexed as iteration × chain.
 # Notes
 
 This will automatically transform the posterior to the flattened unconstrained space.
@@ -242,8 +239,7 @@ he samples are dumped to disk.
 
 For possible `kwargs` please see the [`AdvancedHMC.jl docs`](https://github.com/TuringLang/AdvancedHMC.jl)
 
-This returns a tuple where the first element is a `TypedTable` of the MCMC samples in parameter space
-and the second argument is a set of ancilliary information about the sampler.
+This returns a `PosteriorSamples` object.
 
 
 # Notes
@@ -306,6 +302,15 @@ function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior
         @assert isfile(joinpath(outdir, "checkpoint.jls")) "Checkpoint file does not exist in $(outdir)"
         tmp = deserialize(joinpath(outdir, "checkpoint.jls"))
         (;pt, state, out, iter) = tmp
+        if iter*output_stride >= nsamples
+            @warn("Not sampling because the current number of samples is greater than the number you requested")
+            return pt, state, out, iter
+        end
+        if pt.c.coll.stop != nsamples
+            @warn("The number of samples wanted in the stored checkpoint does not match the number of samples requested."*
+                  "Changing to the number you requested")
+            pt = @set pt.c.coll.stop = nsamples
+        end
         @info "Resuming from checkpoint on iteration $iter"
         return pt, state, out, iter
     end
