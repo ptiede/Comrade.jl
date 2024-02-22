@@ -18,7 +18,7 @@ Julia's PPL ecosystem matures.
 
 ## Tutorials
 
-Our tutorial section currently has a large number of examples. The simplest example is fitting simple geometric models to the 2017 M87 data and is detailed in the [Geometric Modeling of EHT Data tutorial](@ref). We also include "non-parametric" modeling or imaging examples in [Imaging a Black Hole using only Closure Quantities](@ref), and [Stokes I Simultaneous Image and Instrument Modeling](@ref). There is also an introduction to hybrid geometric and image modeling in [Hybrid Imaging of a Black Hole](@ref), which combines physically motivated geometric modeling with the flexibility of image-based models. Finally, we
+Our tutorial section currently has a large number of examples. The simplest example is fitting simple geometric models to the 2017 M87 data and is detailed in the [Geometric Modeling of EHT Data](@ref) tutorial. We also include "non-parametric" modeling or imaging examples in [Imaging a Black Hole using only Closure Quantities](@ref), and [Stokes I Simultaneous Image and Instrument Modeling](@ref). There is also an introduction to hybrid geometric and image modeling in [Hybrid Imaging of a Black Hole](@ref), which combines physically motivated geometric modeling with the flexibility of image-based models. Finally, we
 provide a tutorial on how to use `Comrade` to model polarized data including simultaneously solving for 
 the image and instrumental effects like gain ratios and leakage terms in [Polarized Image and Instrumental Modeling](@ref).
 
