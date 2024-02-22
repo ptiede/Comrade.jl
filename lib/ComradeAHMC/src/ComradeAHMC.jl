@@ -115,6 +115,7 @@ To initialize the chain the user can set `initial_params` to `Vector{NamedTuple}
 elements are the starting locations for each of the `nchains`. If no starting location
 is specified `nchains` random samples from the prior will be chosen for the starting locations.
 
+
 For possible `kwargs` please see the [`AdvancedHMC.jl docs`](https://github.com/TuringLang/AdvancedHMC.jl)
 
 This returns a `PosteriorSamples` object indexed as iteration × chain.
@@ -234,8 +235,9 @@ elements are the starting locations for each of the `nchains`. If no starting lo
 is specified `nchains` random samples from the prior will be chosen for the starting locations.
 
 With `saveto` the user can optionally specify whether to store the samples in memory `MemoryStore`
-or save directly to disk with `DiskStore(filename, stride)`. The `stride` controls how often t
-he samples are dumped to disk.
+or save directly to disk with `DiskStore(filename, stride)`. The `stride` controls how often
+the samples are dumped to disk. In addition is saving to disk the user can also resume a
+previous run by setting `restart=true`.
 
 For possible `kwargs` please see the [`AdvancedHMC.jl docs`](https://github.com/TuringLang/AdvancedHMC.jl)
 
