@@ -1,7 +1,7 @@
 name = "ComradeNested"
 uuid = "233675ba-9426-43ce-b06d-28ea4529d7f1"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.2.5"
+version = "0.3.0"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -12,7 +12,7 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 
 [compat]
 AbstractMCMC = "4, 5"
-Comrade = "0.8, 0.9"
+Comrade = "^0.9.3"
 NestedSamplers = "0.8"
 Random = "1.8"
 Reexport = "1"
