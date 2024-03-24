@@ -58,15 +58,17 @@ dvis = extract_table(obs, ComplexVisibilities())
 
 function sky(θ, metadata)
     (;fg, c, σimg) = θ
-    (;ftot, K, meanpr, cache) = metadata
+    (;ftot, meanpr, cache) = metadata
     ## Transform to the log-ratio pixel fluxes
     cp = meanpr .+ σimg.*c.params
     ## Transform to image space
-    rast = (ftot*(1-fg))*K(to_simplex(AdditiveLR(), cp))
+    rast = (ftot*(1-fg))*to_simplex(CenteredLR(), cp)
     m = ContinuousImage(rast, cache)
+    x0, y0 = centroid(m.image)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(ftot*fg))
-    return m + g
+    return shifted(m, -x0, -y0) + g
+    # return m
 end
 
 # Unlike other imaging examples
@@ -81,10 +83,14 @@ function instrument(θ, metadata)
     (; gcache, gcachep) = metadata
     ## Now form our instrument model
     gvis = exp.(lgamp)
-    gphase = exp.(1im.*gphase)
+    # gphase = exp.(1im.*gphase)
     jgamp = jonesStokes(gvis, gcache)
-    jgphase = jonesStokes(gphase, gcachep)
-    return JonesModel(jgamp*jgphase)
+    jgphase = jonesStokes(1im.*gphase, gcachep)
+
+    J = map(jgamp, jgphase) do ga, gp
+        return ga*exp.(gp)
+    end
+    return JonesModel(J)
 end
 
 # The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
@@ -106,9 +112,9 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 42
-fovx = μas2rad(150.0)
-fovy = μas2rad(150.0)
+npix = 48
+fovx = μas2rad(120.0)
+fovy = μas2rad(120.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -130,13 +136,13 @@ imgpr = intensitymap(mpr, grid)
 # our mean image has unit flux
 imgpr ./= flux(imgpr)
 # and since our prior is not on the simplex we need to convert it to `unconstrained or real space`.
-meanpr = to_real(AdditiveLR(), Comrade.baseimage(imgpr))
+meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
 
 # Now we can form our metadata we need to fully define our model.
 # We will also fix the total flux to be the observed value 1.1. This is because
 # total flux is degenerate with a global shift in the gain amplitudes making the problem
 # degenerate. To fix this we use the observed total flux as our value.
-skymeta = (;ftot = 1.1, cache, K=CenterImage(grid), meanpr)
+skymeta = (;ftot = 1.1, cache, meanpr)
 
 # Second, we now construct our instrument model cache. This tells us how to map from the gains
 # to the model visibilities. However, to construct this map, we also need to specify the observation
@@ -149,7 +155,7 @@ skymeta = (;ftot = 1.1, cache, K=CenterImage(grid), meanpr)
 # the timescale we expect them to vary. For the phases we use a station specific scheme where
 # we set AA to be fixed to unit gain because it will function as a reference station.
 gcache = jonescache(dvis, ScanSeg())
-gcachep = jonescache(dvis, ScanSeg(); autoref=SEFDReference((complex(1.0))))
+gcachep = jonescache(dvis, ScanSeg(true); autoref=SEFDReference(0.0))
 
 
 # This information can then be passed through our instrument model as metadata.
@@ -208,7 +214,7 @@ crcache = ConditionalMarkov(GMRF, grid; order=1)
 # and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image. If the data wants more complexity
 # then it will drive us away from the prior.
-cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1)*rat); upper=npix))
+cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1)*rat)))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -217,7 +223,7 @@ cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1)*rat); 
 prior = NamedDist(
          c = cprior,
          fg = Uniform(0.0, 1.0),
-         σimg = truncated(Normal(0.0, 0.1); lower = 0.0),
+         σimg = Exponential(1.0),
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
         )
@@ -247,10 +253,11 @@ ndim = dimension(tpost)
 using ComradeOptimization
 using OptimizationOptimJL
 using Zygote
+# Enzyme.API.runtimeActivity!(true)
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, randn(rng, ndim), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=1000, g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=5000, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
@@ -270,7 +277,7 @@ residual(vlbimodel(post, xopt), dvis)
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=3) #hide
 img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
-imageviz(img, size=(400, 400))
+imageviz(img, size=(500, 400))
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
@@ -301,7 +308,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt, progress=false)
+chain = sample(rng, post, AHMC(;metric), 2500; n_adapts=1500, initial_params=chain[end], progress=true)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -312,7 +319,7 @@ chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=50
 #-
 
 # Now we prune the adaptation phase
-chain = chain[501:end]
+chain = chain3[501:end]
 
 #-
 # !!! warning
@@ -347,7 +354,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[begin:2:end])
+samples = skymodel.(Ref(post), chain[begin:20:end])
 imgs = intensitymap.(samples, fovx, fovy, 128,  128)
 
 mimg = mean(imgs)
