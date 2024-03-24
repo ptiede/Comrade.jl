@@ -153,8 +153,8 @@ end
 
 
 
-
-include(joinpath(@__DIR__, "designmatrix.jl"))
-include(joinpath(@__DIR__, "jones.jl"))
-include(joinpath(@__DIR__, "priors.jl"))
-include(joinpath(@__DIR__, "caltable.jl"))
+include("stationarray.jl")
+include("designmatrix.jl")
+include("jones.jl")
+include("priors.jl")
+include("caltable.jl")

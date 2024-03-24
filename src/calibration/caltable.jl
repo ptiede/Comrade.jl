@@ -305,3 +305,21 @@ function caltable(g::JonesCache, gains::AbstractVector, f=identity)
     gmat .= f.(gmat)
     return CalTable(stations, lookup, times, gmat)
 end
+
+function caltable(sarr::SiteArray)
+    stations = sort(unique(sites(sarr)))
+    time = unique(times(sarr))
+    gmat = Matrix{Union{eltype(sarr), Missing}}(missing, length(time), length(stations))
+    gmat .= missing
+    lookup = Dict(stations[i]=>i for i in eachindex(stations))
+    for (j, s) in enumerate(stations)
+        cterms = site(sarr, s)
+        for (i, t) in enumerate(time)
+            ind = findfirst(==(t), times(cterms))
+            if !isnothing(ind)
+                gmat[i, j] = cterms[ind]
+            end
+        end
+    end
+    return CalTable(stations, lookup, time, gmat)
+end

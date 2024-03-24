@@ -124,6 +124,12 @@ struct JonesCache{D1, D2, S, Sc, R} <: AbstractJonesCache
     references::R
 end
 
+designmatrices(j::AbstractJonesCache) = (j.m1, j.m2)
+using Enzyme: EnzymeRules
+# Do This because the caches are always fixed
+# EnzymeRules.inactive(::typeof(designmatrices), args...) = nothing
+
+
 function Base.show(io::IO, d::T) where {T<:AbstractJonesCache}
     st = split("$T", "{")[1]
     println(io, st)
@@ -778,6 +784,8 @@ function gmat(f::F, g1, g2, m) where {F}
    StructArray{SMatrix{2,2,S,4}}((gs1, offdiag, offdiag, gs2))
 end
 
+
+
 """
     jonesG(g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache)
     jonesG(f, g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache)
@@ -795,8 +803,9 @@ The layout for each matrix is as follows:
 ```
 """
 function jonesG(f::F, g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache) where {F}
-    gm1 = gmat(f, g1, g2, jcache.m1)
-    gm2 = gmat(f, g1, g2, jcache.m2)
+    m1, m2 = designmatrices(jcache)
+    gm1 = gmat(f, g1, g2, m1)
+    gm2 = gmat(f, g1, g2, m2)
     return JonesPairs(gm1, gm2)
 end
 jonesG(g1::AbstractVector, g2::AbstractVector, jcache::AbstractJonesCache) = jonesG(identity, g1, g2, jcache)
@@ -833,8 +842,9 @@ The layout for each matrix is as follows:
 ```
 """
 function jonesD(f::F, d1::T,d2::T,jcache::AbstractJonesCache) where {F, T}
-    dm1 = dmat(f, d1, d2, jcache.m1)
-    dm2 = dmat(f, d1, d2, jcache.m2)
+    m1, m2 = designmatrices(jcache)
+    dm1 = dmat(f, d1, d2, m1)
+    dm2 = dmat(f, d1, d2, m2)
     return JonesPairs(dm1, dm2)
 end
 jonesD(d1::AbstractVector, d2::AbstractVector, jcache::AbstractJonesCache) = jonesD(identity, d1, d2, jcache)
@@ -903,7 +913,8 @@ function jonesStokes(f::F, g::AbstractVector, gcache::AbstractJonesCache) where 
 end
 
 function jonesStokes(::typeof(identity), g::AbstractVector, gcache::AbstractJonesCache)
-    return JonesPairs((gcache.m1*g), (gcache.m2*g))
+    m1, m2 = designmatrices(gcache)
+    return JonesPairs((m1*g), (m2*g))
 end
 
 
