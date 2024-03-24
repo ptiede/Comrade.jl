@@ -10,8 +10,13 @@ using DensityInterface
 import Distributions as Dists
 using DocStringExtensions
 using ChainRulesCore
+using Enzyme
+# Turn off the type analysis depth limit warning since it looks scary
+# Enzyme.API.typeWarning!(false)
+# Enzyme.API.runtimeActivity!(true)
 using FillArrays: Fill
 using ForwardDiff
+using IntervalSets
 #using MappedArrays: mappedarray
 using NamedTupleTools
 using Printf

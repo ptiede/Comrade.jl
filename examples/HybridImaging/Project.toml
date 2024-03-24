@@ -18,7 +18,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 [compat]
 CairoMakie = "0.11"
 Comrade = "0.9"
-ComradeAHMC = "0.4"
+ComradeAHMC = "0.5"
 ComradeOptimization = "0.1"
 Distributions = "0.25"
 DistributionsAD = "0.6"

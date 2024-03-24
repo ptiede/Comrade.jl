@@ -50,20 +50,55 @@ dvis = extract_table(obs, Coherencies())
 #       the total number of parameters we need to model.
 
 
+m1 = Parameterize(MRing{2}()) do x
+    return x.α, x.β
+end
+
+m2 = Parameterize(ContinuousImage(cache)) do x
+    return to_simplex(CenteredLR(), x.c.params)
+end
+
+m = m1+m2
+
+setmodel(m, prior_sample(post))
+
+intensitymap()
 
 @sky function polimage(ftot, cache)
-    σ ~ truncated(Normal(0.0, 0.1); lower = 0.0)
-    c ~ HierarchicalPrior(ConditionalMarkov(GMRF, cache), InverseGamma())
-    p ~ HierarchicalPrior(ConditionalMarkov(GMRF, cache), InverseGamma())
-    p0 ~ Normal(-2.0, 1.0)
-    pσ ~ truncated(Normal(0.0, 0.1); lower = 0.0)
-    s ~ ImageSphericalUniform(size(K))
-    img = ftot*to_simplex(CenteredLR(), σ.*params(c))
+    σ    ~ truncated(Normal(0.0, 0.1); lower = 0.0)
+    c    ~ HierarchicalPrior(ConditionalMarkov(GMRF, cache), InverseGamma())
+    p    ~ HierarchicalPrior(ConditionalMarkov(GMRF, cache), InverseGamma())
+    p0   ~ Normal(-2.0, 1.0)
+    pσ   ~ truncated(Normal(0.0, 0.1); lower = 0.0)
+    s    ~ ImageSphericalUniform(size(K))
+    img  = ftot*to_simplex(CenteredLR(), σ.*params(c))
     pimg = logistic.(p0 + pσ.*params(p))
     return PoincareMap(img, pimg, s, cache)
 end
 
 skym = polimage(1.0)
+
+
+G = JonesMatrix(JonesG(prior1, prior2)) do x
+    return exp.(x.lgR), exp.(x.lgR .+ x.lgrat)
+end
+
+D = JonesMatrix(JonesD(), TrackSeg(), TrackSeg(), TrackSeg()) do x
+    return complex(x.dRx, x.dRy), complex(x.dLx, x.dLy)
+end
+
+R = JonesMatrix(JonesR(array))
+
+JM = JonesModel(G, D, R) do g, d, r
+    return adjoint(r)*g*d*r
+end
+
+instrumentmodel = Instrument(JM, array)
+
+
+
+
+
 
 
 @instrument function rime(array)
