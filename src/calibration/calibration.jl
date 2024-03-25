@@ -153,8 +153,9 @@ end
 
 
 
-include("stationarray.jl")
+include("site_array.jl")
 include("designmatrix.jl")
+include("instrument_transforms.jl")
 include("jones.jl")
 include("priors.jl")
 include("caltable.jl")
