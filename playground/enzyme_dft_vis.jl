@@ -11,7 +11,7 @@
 
 
 using Pkg #hide
-Pkg.activate(joinpath(@__DIR__, "../examples/StokesIImaging")) #hide
+Pkg.activate(joinpath(@__DIR__, ".")) #hide
 #-
 using Comrade
 using Pyehtim
@@ -82,10 +82,10 @@ distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 
-prior = NamedDist(
-            c = ImageDirichlet(1.0, npix, npix),
+prior = ComponentDist(
+            (c = ImageDirichlet(1.0, npix, npix),
             lgamp = CalPrior(distamp, gcache),
-            gphase = CalPrior(distphase, gcachep),
+            gphase = CalPrior(distphase, gcachep),)
             )
 
 
@@ -102,7 +102,7 @@ Enzyme.API.runtimeActivity!(true)
 # Enzyme.Compiler.bitcode_replacement!(false)
 
 # Enzyme.API.printall!(false)
-x0 = prior_sample(tpost)
+x0 = randn(ndim)
 dx0 = zero(x0)
 lt=logdensityof(tpost)
 ℓ = logdensityof(tpost, x0)

@@ -65,6 +65,7 @@ function sky(θ, metadata)
     rast = (ftot*(1-fg))*(to_simplex(CenteredLR(), cp))
     m = ContinuousImage(rast, cache)
     x0, y0 = centroid(m.image)
+    x0, y0 = centroid(m.image)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(ftot*fg))
     return shifted(m, -x0, -y0) + g
@@ -82,10 +83,14 @@ function instrument(θ, metadata)
     (; gcache, gcachep) = metadata
     ## Now form our instrument model
     gvis = exp.(lgamp)
-    gphase = exp.(1im.*gphase)
+    # gphase = exp.(1im.*gphase)
     jgamp = jonesStokes(gvis, gcache)
-    jgphase = jonesStokes(gphase, gcachep)
-    return JonesModel(jgamp*jgphase)
+    jgphase = jonesStokes(1im.*gphase, gcachep)
+
+    J = map(jgamp, jgphase) do ga, gp
+        return ga*exp.(gp)
+    end
+    return JonesModel(J)
 end
 
 # The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
@@ -150,7 +155,7 @@ skymeta = (;ftot = 1.1, cache, meanpr)
 # the timescale we expect them to vary. For the phases we use a station specific scheme where
 # we set AA to be fixed to unit gain because it will function as a reference station.
 gcache = jonescache(dvis, ScanSeg())
-gcachep = jonescache(dvis, ScanSeg(); autoref=SEFDReference((complex(1.0))))
+gcachep = jonescache(dvis, ScanSeg(true); autoref=SEFDReference(0.0))
 
 
 # This information can then be passed through our instrument model as metadata.
@@ -209,7 +214,7 @@ crcache = ConditionalMarkov(GMRF, grid; order=1)
 # and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image. If the data wants more complexity
 # then it will drive us away from the prior.
-cprior = HierarchicalPrior(crcache, truncated(InverseGamma(1.0, -log(0.1)*rat); lower=1.0, upper=npix*5))
+cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1)*rat)))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -217,8 +222,8 @@ cprior = HierarchicalPrior(crcache, truncated(InverseGamma(1.0, -log(0.1)*rat); 
 # which automatically constructs the prior for the given jones cache `gcache`.
 prior = NamedDist(
          c = cprior,
-         σimg = truncated(Normal(0.0, 0.1); lower = 0.0),
          fg = Uniform(0.0, 1.0),
+         σimg = Exponential(1.0),
          lgamp = CalPrior(distamp, gcache),
          gphase = CalPrior(distphase, gcachep),
         )
@@ -247,19 +252,12 @@ ndim = dimension(tpost)
 # To initialize our sampler we will use optimize using LBFGS
 using ComradeOptimization
 using OptimizationOptimJL
-# using Zygote
-using Enzyme
-Enzyme.API.typeWarning!(false)
-
-Enzyme.API.runtimeActivity!(true)
-x = prior_sample(tpost)
-dx = zero(x)
-autodiff(Reverse, Const(tpost), Duplicated(x, dx))
-
-
-f = OptimizationFunction(tpost, Optimization.AutoEnzyme())
-prob = Optimization.OptimizationProblem(f, rand(rng, ndim) .- 0.5, nothing)
-sol = solve(prob, LBFGS(), maxiters=1000, g_tol=1e-1);
+using Zygote
+# Enzyme.API.runtimeActivity!(true)
+f = OptimizationFunction(tpost, Optimization.AutoZygote())
+prob = Optimization.OptimizationProblem(f, randn(rng, ndim), nothing)
+ℓ = logdensityof(tpost)
+sol = solve(prob, LBFGS(), maxiters=5000, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
@@ -310,7 +308,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Enzyme)), 700; n_adapts=500, initial_params=xopt, progress=true)
+chain = sample(rng, post, AHMC(;metric), 2500; n_adapts=1500, initial_params=chain[end], progress=true)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -323,7 +321,7 @@ chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Enzyme)), 700; n_adapts=50
 
 
 # Now we prune the adaptation phase
-chain = chain[501:end]
+chain = chain3[501:end]
 
 #-
 # !!! warning
@@ -351,7 +349,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[begin:2:end])
+samples = skymodel.(Ref(post), chain[begin:20:end])
 imgs = intensitymap.(samples, fovx, fovy, 128,  128)
 
 mimg = mean(imgs)

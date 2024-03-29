@@ -62,14 +62,14 @@ end
 function site(arr::SiteArray, p)
     inds = findall(in(p), sites(arr))
     nd = view(parent(arr), inds)
-    return SiteArray(nd, view(times(arr), inds), view(sites(arr), inds))
+    return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
 
 function time_interval(arr::SiteArray, a::Interval)
     inds = findall(in(a), times(arr))
     nd = view(parent(arr), inds)
-    return SiteArray(nd, view(times(arr), inds), view(sites(arr), inds))
+    return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
 
@@ -95,5 +95,41 @@ end
 function site_time_interval(arr::SiteArray, site, time::Interval)
     inds = findall(i->((Comrade.sites(arr)[i] ∈ site)&&(Comrade.times(arr)[i] ∈ time)), eachindex(arr))
     nd = view(parent(arr), inds)
-    return SiteArray(nd, view(times(arr), inds), view(sites(arr), inds))
+    return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
+end
+
+struct SiteMap{L<:NamedTuple, N, Ti<:AbstractArray{<:Number, N}, Fr<:AbstractArray{<:Number, N}, Sy<:AbstractArray{<:Any, N}}
+    lookup::L
+    times::Ti
+    frequencies::Fr
+    sites::Sy
+end
+
+function sitemap!(f, out::AbstractArray, gains::AbstractArray, cache::AbstractJonesCache)
+    sm = cache.site_map
+    map(sm.lookup) do site
+        ys = @view gains[site]
+        outs = @view out[site]
+        outs .= f.(ys)
+    end
+end
+
+function sitemap(f, gains::AbstractArray, cache::AbstractJonesCache)
+    out = similar(T, gains)
+    sitemap!(f, out, gains, cache)
+    return out
+end
+
+function sitemap!(::typeof(cumsum), out::AbstractArray, gains::AbstractArray, cache::AbstractJonesCache)
+    map(site_map.lookup) do site
+        ys = @view gains[site]
+        cumsum!(ys, ys)
+    end
+    return out
+end
+
+function sitemap(s::SiteArray)
+    slist = Comrade.sites(s)
+    sites = Tuple(sort(unique(slist)))
+    return SiteMap(NamedTuple{sites}(map(p->findall(==(p), slist), sites)), times(s), frequencies(s), slist)
 end

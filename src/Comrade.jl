@@ -27,6 +27,7 @@ using StaticArraysCore
 using StructArrays: StructVector, StructArray, append!!
 import StructArrays
 using Tables
+import TransformVariables as TV
 using TypedTables
 import ComradeBase: save
 
