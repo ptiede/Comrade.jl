@@ -79,21 +79,30 @@ end
 skym = polimage(1.0)
 
 
-G = JonesMatrix(JonesG(prior1, prior2)) do x
+G = JonesMatrix(JonesG()) do x
     return exp.(x.lgR), exp.(x.lgR .+ x.lgrat)
 end
 
-D = JonesMatrix(JonesD(), TrackSeg(), TrackSeg(), TrackSeg()) do x
+D = JonesMatrix(JonesD()) do x
     return complex(x.dRx, x.dRy), complex(x.dLx, x.dLy)
 end
 
-R = JonesMatrix(JonesR(array))
+R = JonesMatrix(JonesR())
 
 JM = JonesModel(G, D, R) do g, d, r
     return adjoint(r)*g*d*r
 end
 
-instrumentmodel = Instrument(JM, array)
+prior = (
+    lgR = ArrayPrior(SitePrior(Normal(0.0, 0.1), ScanSeg())); LM = Normal(0.0, 1.0)),
+    lgrat = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
+    dRx = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
+    dRy = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
+    dLx = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
+    dLy = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())
+)
+
+instrumentmodel = InstrumentModel(JM, prior, array; refant = SEFDStrategy())
 
 
 

@@ -11,7 +11,7 @@
 
 
 using Pkg #hide
-Pkg.activate(joinpath(@__DIR__, "../examples")) #hide
+Pkg.activate(joinpath(@__DIR__, "../examples/StokesIImaging")) #hide
 #-
 using Comrade
 using Pyehtim
@@ -28,7 +28,7 @@ rng = StableRNG(42)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(dirname(pathof(Comrade)), "..", "examples", "Data", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 
 obs = scan_average(obs.add_fractional_noise(0.01))
 
@@ -44,12 +44,12 @@ function sky(θ, metadata)
     return m
 end
 
-npix = 48
+npix = 13
 fovx = μas2rad(80.0)
 fovy = μas2rad(80.0)
 
 grid = imagepixels(fovx, fovy, npix, npix)
-cache = create_cache(NFFTAlg(dvis), grid, DeltaPulse())
+cache = create_cache(DFTAlg(dvis), grid, BSplinePulse{3}())
 
 
 
@@ -99,7 +99,7 @@ ndim = dimension(tpost)
 using Enzyme
 using Zygote
 Enzyme.API.runtimeActivity!(true)
-Enzyme.Compiler.bitcode_replacement!(false)
+# Enzyme.Compiler.bitcode_replacement!(false)
 
 # Enzyme.API.printall!(false)
 x0 = prior_sample(tpost)
@@ -109,5 +109,5 @@ lt=logdensityof(tpost)
 gz,  = Zygote.gradient(lt, x0)
 using BenchmarkTools
 autodiff(Reverse, Const(lt), Active, Duplicated(x0, fill!(dx0, 0.0)))
-# autodiff(Reverse, logdensityof, (Const(tpost)), Duplicated(x0, fill!(dx0, 0.0)))
+@benchmark autodiff($Reverse, $logdensityof, $(Const(tpost)), Duplicated($x0, fill!($dx0, 0.0)))
 # @benchmark Zygote.gradient($lt, $x0)

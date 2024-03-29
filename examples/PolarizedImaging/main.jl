@@ -101,7 +101,7 @@ using Comrade
 
 # ## Load the Data
 using Pyehtim
-
+using StatsFuns
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(14)
@@ -143,13 +143,14 @@ dvis = extract_table(obs, Coherencies())
 
 
 function sky(θ, metadata)
-    (;c, p, angparams) = θ
-    (;K, grid, cache) = metadata
+    (;σ, c, p, angparams) = θ
+    (;cache) = metadata
     ## Construct the image model
     ## produce Stokes images from parameters
-    imgI = K(c)
-    ## Converts from poincare sphere parameterization of polzarization to Stokes Parameters
-    m = PoincareSphere2Map(imgI, p, angparams, cache)
+    imgI = to_simplex(CenteredLR(), σ.*c)
+    pl = logistic.(p)
+    ## Converts from poincare sphere pa11rameterization of polzarization to Stokes Parameters
+    m = PoincareSphere2Map(imgI, pl, angparams, cache)
     return m
 end
 
@@ -165,7 +166,7 @@ function instrument(θ, metadata)
     ## Now construct the basis transformation cache
     jT = jonesR(tcache)
 
-    ## Gain product parameters
+    # Gain product parameters
     gPa = exp.(lgp)
     gRa = exp.(lgp .+ lgr)
     Gp = jonesG(gPa, gRa, scancache)
@@ -177,27 +178,27 @@ function instrument(θ, metadata)
     D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), trackcache)
     ## sandwich all the jones matrices together
     J = Gp*Gr*D*jT
-    ## form the complete Jones or RIME model. We use tcache here
-    ## to set the reference basis of the model.
+    # form the complete Jones or RIME model. We use tcache here
+    # to set the reference basis of the model.
     return JonesModel(J, tcache)
 end
+
 
 # Now, we define the model metadata required to build the model.
 # We specify our image grid and cache model needed to define the polarimetric
 # image model.
 fovx = μas2rad(50.0)
 fovy = μas2rad(50.0)
-nx = 8
+nx = 64
 ny = floor(Int, fovy/fovx*nx)
 grid = imagepixels(fovx, fovy, nx, ny) # image grid
 pulse = BSplinePulse{3}() # pulse we will be using
 cache = create_cache(NFFTAlg(dvis), grid, pulse) # cache to define the NFFT transform
+skymeta = (;cache,)
 
 
 # Finally we compute a center projector that forces the centroid to live at the image origin
 using VLBIImagePriors
-K = CenterImage(grid)
-skymeta = (;K, cache, grid)
 
 # To define the instrument models, $T$, $G$, $D$, we need to build some Jones caches (see [`JonesCache`](@ref)) that map from a flat
 # vector of gain/dterms to the specific sites for each baseline.
@@ -262,17 +263,18 @@ distD = station_tuple(dvis, Normal(0.0, 0.1))
 # that specifies the segmentation scheme. For the gain products, we use the `scancache`, while
 # for every other quantity, we use the `trackcache`.
 prior = NamedDist(
-          c = ImageDirichlet(3.0, nx, ny),
-          p = ImageUniform(nx, ny),
+          σ = Exponential(0.1),
+          c = GMRF(10.0, (nx, ny)),
+          p = GMRF(10.0, (nx, ny)),
           angparams = ImageSphericalUniform(nx, ny),
-          dRx = CalPrior(distD, trackcache),
-          dRy = CalPrior(distD, trackcache),
-          dLx = CalPrior(distD, trackcache),
-          dLy = CalPrior(distD, trackcache),
           lgp = CalPrior(distamp, scancache),
           gpp = CalPrior(distphase, phasecache),
           lgr = CalPrior(distamp_ratio, scancache),
           gpr = CalPrior(distphase_ratio,phasecache),
+          dRx = CalPrior(distD, trackcache),
+          dRy = CalPrior(distD, trackcache),
+          dLx = CalPrior(distD, trackcache),
+          dLy = CalPrior(distD, trackcache),
           )
 
 
@@ -303,10 +305,18 @@ ndim = dimension(tpost)
 using ComradeOptimization
 using OptimizationOptimJL
 using Zygote
-f = OptimizationFunction(tpost, Optimization.AutoZygote())
+using Enzyme
+Enzyme.API.typeWarning!(false)
+Enzyme.API.runtimeActivity!(true)
+
+x = prior_sample(tpost)
+dx = zero(x)
+autodiff(Reverse, Const(tpost), Active, Duplicated(x, dx))
+
+f = OptimizationFunction(tpost, Optimization.AutoEnzyme())
 ℓ = logdensityof(tpost)
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(), maxiters=12_000, g_tol=1e-1);
+sol = solve(prob, LBFGS(), maxiters=2_000, g_tol=1e-1);
 
 # !!! warning
 #     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that
