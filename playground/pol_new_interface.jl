@@ -79,30 +79,35 @@ end
 skym = polimage(1.0)
 
 
-G = JonesMatrix(JonesG()) do x
+Ga = JonesG() do x
     return exp.(x.lgR), exp.(x.lgR .+ x.lgrat)
 end
 
-D = JonesMatrix(JonesD()) do x
+Gp = JonesG() do x
+    return exp.(1im*x.gpR), exp.(1im*(x.gpR .+ x.gprat))
+end
+
+D = JonesD() do x
     return complex(x.dRx, x.dRy), complex(x.dLx, x.dLy)
 end
 
-R = JonesMatrix(JonesR())
+R = JonesR()
 
 JM = JonesModel(G, D, R) do g, d, r
     return adjoint(r)*g*d*r
 end
 
-prior = (
-    lgR = ArrayPrior(SitePrior(Normal(0.0, 0.1), ScanSeg())); LM = Normal(0.0, 1.0)),
+prior = NamedDist(
+    lgR   = ArrayPrior(SitePrior(Normal(0.0, 0.1), ScanSeg()); LM = SitePrior(Normal(), ScanSeg())),
     lgrat = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
-    dRx = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
-    dRy = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
-    dLx = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
-    dLy = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())
+    gpR   = ArrayPrior(SitePrior(Normal(0.0, 0.1), ScanSeg()); refant = SEFDReference(0.0)),
+    dRx   = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
+    dRy   = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
+    dLx   = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
+    dLy   = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg()))
 )
 
-instrumentmodel = InstrumentModel(JM, prior, array; refant = SEFDStrategy())
+instrumentmodel = InstrumentModel(JM, prior, array; refbasis = CirBasis())
 
 
 
