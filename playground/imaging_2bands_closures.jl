@@ -74,7 +74,7 @@ end
 
 
 
-# First we define the station gain priors
+# First we define the sites gain priors
 fovx = μas2rad(75.0)
 fovy = μas2rad(75.0)
 nx = 12

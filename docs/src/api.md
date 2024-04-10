@@ -79,7 +79,7 @@ Comrade.getdata
 Comrade.getuv
 Comrade.getuvtimefreq
 Comrade.scantable
-Comrade.stations
+Comrade.sites
 Comrade.uvpositions
 Comrade.ArrayConfiguration
 Comrade.ClosureConfig
@@ -139,7 +139,7 @@ Comrade.samplertype
 ## Misc
 
 ```@docs
-Comrade.station_tuple
+Comrade.sites_tuple
 Comrade.dirty_image
 Comrade.dirty_beam
 Comrade.beamsize

@@ -166,12 +166,12 @@ samplertype(::Type) = ArgumentError("samplertype not specified")
 
 
 """
-    sample(post::Posterior, sampler::S, args...; initial_params=nothing, kwargs...)
+    sample(post::VLBIPosterior, sampler::S, args...; initial_params=nothing, kwargs...)
 
 Sample a posterior `post` using the `sampler`. You can optionally pass the starting location
 of the sampler using `initial_params`, otherwise a random draw from the prior will be used.
 """
-function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Posterior, sampler::S, args...; initial_params=nothing, kwargs...) where {S}
+function AbstractMCMC.sample(rng::Random.AbstractRNG, post::VLBIPosterior, sampler::S, args...; initial_params=nothing, kwargs...) where {S}
     θ0 = initial_params
     if isnothing(initial_params)
         θ0 = prior_sample(post)
@@ -179,7 +179,7 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Posterior, sampler::
     return _sample(samplertype(S), rng, post, sampler, args...; initial_params=θ0, kwargs...)
 end
 
-function AbstractMCMC.sample(post::Posterior, sampler, args...; initial_params=nothing, kwargs...)
+function AbstractMCMC.sample(post::VLBIPosterior, sampler, args...; initial_params=nothing, kwargs...)
     sample(Random.default_rng(), post, sampler, args...; initial_params, kwargs...)
 end
 

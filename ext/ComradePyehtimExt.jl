@@ -620,8 +620,8 @@ function _minimal_closure(stcl, st)
         # print some info
         #println("For timestamp $(stcl.times[i]):")
 
-        # get the current stations
-        #println("Observing stations are $(stations(scancl))")
+        # get the current sites
+        #println("Observing sites are $(sites(scancl))")
 
         #println("Size of maximal set of closure products = $(length(scancl))")
         #println("Size of minimal set of closure products = $(nmin)")

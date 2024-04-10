@@ -27,7 +27,7 @@ using StaticArrays
 
     m = test_model(θ)
 
-    tel = stations(vis)
+    tel = sites(vis)
     gamp_prior = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
     gph_prior_0 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.5), length(tel)))
     gph_prior = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
@@ -35,8 +35,8 @@ using StaticArrays
     jcache = jonescache(vis, ScanSeg())
     jcacher = jonescache(vis, ScanSeg(true))
 
-    @test station_tuple(tel, ScanSeg()) == station_tuple(vis, ScanSeg())
-    @test station_tuple(tel, ScanSeg(); AA=FixedSeg(0.0)) == station_tuple(vis, ScanSeg(); AA=FixedSeg(0.0))
+    @test sites_tuple(tel, ScanSeg()) == sites_tuple(vis, ScanSeg())
+    @test sites_tuple(tel, ScanSeg(); AA=FixedSeg(0.0)) == sites_tuple(vis, ScanSeg(); AA=FixedSeg(0.0))
 
     # test the design matrix
     d1 = Comrade.DesignMatrix(jcache.m1, jcache.schema.times, jcache.schema.sites)
@@ -54,7 +54,7 @@ using StaticArrays
     gphar = CalPrior(gph_prior_0, gph_prior, jcache)
 
 
-    # gamp_h = HierarchicalCalPrior{Normal}(gamp_prior, station_tuple(vis, truncated(Normal(0.0, 0.1); lower=0.0)), jcache)
+    # gamp_h = HierarchicalCalPrior{Normal}(gamp_prior, sites_tuple(vis, truncated(Normal(0.0, 0.1); lower=0.0)), jcache)
     # x = rand(gamp_h)
     # @inferred logdensityof(gamp_h, x)
 
@@ -96,7 +96,7 @@ using StaticArrays
         @test c1.time == Tables.getcolumn(c1, 1)
         @test c1.AA == Tables.getcolumn(c1, :AA)
         @test c1.AA == Tables.getcolumn(c1, 2)
-        @test Tables.columnnames(c1) == [:time, sort(stations(amp))...]
+        @test Tables.columnnames(c1) == [:time, sort(sites(amp))...]
 
         c1row = first(c1)
         @test eltype(c1) == typeof(c1row)
@@ -106,7 +106,7 @@ using StaticArrays
         @test Tables.getcolumn(c1row, :time) == c1.time[1]
         @test Tables.getcolumn(c1row, 2) == c1.AA[1]
         @test Tables.getcolumn(c1row, 1) == c1.time[1]
-        @test propertynames(c1) == propertynames(c1row) == [:time, sort(stations(amp))...]
+        @test propertynames(c1) == propertynames(c1row) == [:time, sort(sites(amp))...]
 
 
     end
@@ -133,7 +133,7 @@ end
 
 @testset "calibration priors" begin
     _,vis, amp, lcamp, cphase, dcoh = load_data()
-    tel = stations(vis)
+    tel = sites(vis)
 
     dReal = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
     dImag = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
@@ -161,7 +161,7 @@ end
 
 # @testset "Hierarchical calibration priors" begin
 #     _,vis, amp, lcamp, cphase, dcoh = load_data()
-#     tel = stations(vis)
+#     tel = sites(vis)
 
 #     meand = NamedDist(NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel))))
 #     stdd = NamedDist(NamedTuple{Tuple(tel)}(ntuple(_->LogNormal(0.0, 0.1), length(tel))))
@@ -178,13 +178,13 @@ end
 
 @testset "dterms" begin
     _,vis, amp, lcamp, cphase, dcoh = load_data()
-    tel = stations(vis)
+    tel = sites(vis)
 
     dReal = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
     dImag = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
 
-    dReal = station_tuple(dcoh, Uniform(0.0, 1.0), AA = Uniform(-1.0, 0.0))
-    dImag = station_tuple(dcoh, Uniform(0.0, 1.0), AA = Uniform(-1.0, 0.0))
+    dReal = sites_tuple(dcoh, Uniform(0.0, 1.0), AA = Uniform(-1.0, 0.0))
+    dImag = sites_tuple(dcoh, Uniform(0.0, 1.0), AA = Uniform(-1.0, 0.0))
 
     dcache = jonescache(dcoh, TrackSeg())
     pdReal = CalPrior(dReal, dcache)
@@ -283,7 +283,7 @@ end
 
 @testset "JonesPairs" begin
     _,vis, amp, lcamp, cphase, dcoh = load_data()
-    tel = stations(dcoh)
+    tel = sites(dcoh)
 
     gprior0 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.5), length(tel)))
     gprior1 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
@@ -371,9 +371,9 @@ end
     trackcache= jonescache(dcoh, TrackSeg())
     tcache    = ResponseCache(dcoh; add_fr=true)
 
-    dga = CalPrior(station_tuple(dcoh, LogNormal(0.0, 0.1)), scancache)
-    dgp = CalPrior(station_tuple(dcoh, Uniform(0.0, 2π)), phasecache)
-    dd  = CalPrior(station_tuple(dcoh, Normal(0.0, 0.1)), trackcache)
+    dga = CalPrior(sites_tuple(dcoh, LogNormal(0.0, 0.1)), scancache)
+    dgp = CalPrior(sites_tuple(dcoh, Uniform(0.0, 2π)), phasecache)
+    dd  = CalPrior(sites_tuple(dcoh, Normal(0.0, 0.1)), trackcache)
 
     lga1 = rand(dga)
     lga2 = rand(dga)
@@ -402,14 +402,14 @@ end
 
 @testset "rlgains" begin
     _,vis, amp, lcamp, cphase, dcoh = load_data()
-    tel = stations(vis)
+    tel = sites(vis)
 
     gprior0 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.5), length(tel)))
     gprior1 = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
 
     trackcache = jonescache(dcoh, TrackSeg())
     scancache = jonescache(dcoh, ScanSeg())
-    segs = station_tuple(dcoh, ScanSeg(); AA = FixedSeg(1.0 + 0.0im))
+    segs = sites_tuple(dcoh, ScanSeg(); AA = FixedSeg(1.0 + 0.0im))
     phasecache = jonescache(dcoh, segs)
     gp = cis.(rand(size(phasecache.m1,2)))
 

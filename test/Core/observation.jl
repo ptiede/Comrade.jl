@@ -104,7 +104,7 @@ using Pyehtim
     @test length(amp) == length(obsavg.amp)
     # @test length(Comrade.extract_cphase(obsavg; snrcut=3, count="min")) == length(obsavg.cphase)
     # @test length(Comrade.extract_lcamp(obsavg; snrcut=3, count="min")) == length(obsavg.logcamp)
-    #@test Set(stations(vis)) == Set(Symbol.(collect(get(obsavg.tarr, "site"))))
+    #@test Set(sites(vis)) == Set(Symbol.(collect(get(obsavg.tarr, "site"))))
     # @test mean(getdata(amp, :measurement)) ≈ pyconvert(Float64, mean(obsavg.amp["amp"]))
 
     println("observation: ")

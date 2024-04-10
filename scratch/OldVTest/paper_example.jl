@@ -74,7 +74,7 @@ using MCMCDiagnostics
 using Tables
 ess = map(effective_sample_size, Tables.columns(chain))
 # We can also calculate the split-rhat or potential scale reduction. For this we should actually
-# use at least 4 chains. However for demonstation purposes we will use one chain that we split in two
+# use at least 4 chains. However for demonsites purposes we will use one chain that we split in two
 rhats = map(Tables.columns(chain)) do c
     c1 = @view c[2001:3000]
     c2 = @view c[3001:4000]

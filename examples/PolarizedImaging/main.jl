@@ -72,7 +72,7 @@
 #      some reference basis to the observed coherency basis (this allows for mixed basis measurements).
 #      The second is the feed rotation, $F$, that transforms from some reference axis to the axis of the
 #      telescope as the source moves in the sky. The feed rotation matrix `F` in terms of
-#      the per station feed rotation angle $\varphi$ is
+#      the per sites feed rotation angle $\varphi$ is
 # ```math
 #   F = \begin{pmatrix}
 #           e^{-i\varphi}   & 0\\
@@ -214,8 +214,8 @@ rcache = ResponseCache(dvis)
 # Next we define our cache that maps quantities e.g., gain products, that change from scan-to-scan.
 scancache = jonescache(dvis, ScanSeg())
 
-# In addition we will assign a reference station. This is necessary for gain phases due to a trivial degeneracy being present.
-# To do this we will select ALMA `AA` as the reference station as is standard in EHT analyses.
+# In addition we will assign a reference sites. This is necessary for gain phases due to a trivial degeneracy being present.
+# To do this we will select ALMA `AA` as the reference sites as is standard in EHT analyses.
 phasecache1 = jonescache(dvis, ScanSeg(); autoref = SEFDReference(complex(1.0)))
 phasecache2 = jonescache(dvis, ScanSeg(); autoref = SingleReference(:AA, complex(1.0)))
 
@@ -226,34 +226,34 @@ trackcache = jonescache(dvis, TrackSeg())
 instrumentmeta = (;rcache, scancache, phasecache1, phasecache2, trackcache)
 
 # Moving onto our prior, we first focus on the instrument model priors.
-# Each station gain requires its own prior on both the amplitudes and phases.
+# Each sites gain requires its own prior on both the amplitudes and phases.
 # For the amplitudes, we assume that the gains are apriori well calibrated around unit gains (or 0 log gain amplitudes)
 # which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
-# all stations except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT,
+# all sites except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT,
 # we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
 
 using Distributions
 using DistributionsAD
 using VLBIImagePriors
-distamp = station_tuple(dvis, Normal(0.0, 0.1))
-distamp_ratio = station_tuple(dvis, Normal(0.0, 0.01))
+distamp = sites_tuple(dvis, Normal(0.0, 0.1))
+distamp_ratio = sites_tuple(dvis, Normal(0.0, 0.01))
 
 #-
 # For the phases, we assume that the atmosphere effectively scrambles the gains.
-# Since the gain phases are periodic, we also use broad von Mises priors for all stations.
+# Since the gain phases are periodic, we also use broad von Mises priors for all sites.
 # Notice that we don't assign a prior for AA since we have already fixed it.
-distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)); reference=:AA)
+distphase = sites_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)); reference=:AA)
 
 #-
 # However, we can now also use a little additional information about the phase offsets
 # where in most cases, they are much better behaved than the products
-distphase_ratio = station_tuple(dvis, DiagonalVonMises(0.0, inv(0.1)); reference=:AA)
+distphase_ratio = sites_tuple(dvis, DiagonalVonMises(0.0, inv(0.1)); reference=:AA)
 
 
 # Moving onto the d-terms, here we directly parameterize the real and complex components
 # of the d-terms since they are expected to be complex numbers near the origin. To help enforce
 # this smallness, a weakly informative Normal prior is used.
-dist_leak = station_tuple(dvis, Normal(0.0, 0.1))
+dist_leak = sites_tuple(dvis, Normal(0.0, 0.1))
 
 
 # Our image priors are:
@@ -269,7 +269,7 @@ cprior = HierarchicalPrior(cmarkov, dρ)
 
 
 # For all the calibration parameters, we use a helper function `CalPrior` which builds the
-# prior given the named tuple of station priors and a `JonesCache`
+# prior given the named tuple of sites priors and a `JonesCache`
 # that specifies the segmentation scheme. For the gain products, we use the `scancache`, while
 # for every other quantity, we use the `trackcache`.
 fwhmfac = 2.0*sqrt(2.0*log(2.0))

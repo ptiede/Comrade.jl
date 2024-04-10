@@ -3,7 +3,7 @@ export caltable
 """
     $(TYPEDEF)
 
-A Tabes of calibration quantities. The columns of the table are the telescope station codes.
+A Tabes of calibration quantities. The columns of the table are the telescope sites codes.
 The rows are the calibration quantities at a specific time stamp. This user should not
 use this struct directly. Instead that should call [`caltable`](@ref).
 """
@@ -26,17 +26,17 @@ Tables.istable(::Type{<:CalTable}) = true
 Tables.columnaccess(::Type{<:CalTable}) = true
 
 """
-    stations(g::CalTable)
+    sites(g::CalTable)
 
-Return the stations in the calibration table
+Return the sites in the calibration table
 """
-stations(g::CalTable) = getfield(g, :names)
+sites(g::CalTable) = getfield(g, :names)
 scantimes(g::CalTable) = getfield(g, :times)
 lookup(g::CalTable) = getfield(g, :lookup)
 gmat(g::CalTable) = getfield(g, :gmat)
 function Tables.schema(g::CalTable{T,G}) where {T,G}
     nms = [:time]
-    append!(nms, stations(g))
+    append!(nms, sites(g))
     types = Type[eltype(T)]
     append!(types, fill(eltype(G), size(gmat(g),2)))
     return Tables.Schema(nms, types)
@@ -64,7 +64,7 @@ function viewcolumn(gt::CalTable, nm::Symbol)
     return @view gmat(gt)[:, lookup(gt)[nm]]
 end
 
-Tables.columnnames(g::CalTable) = [:time, stations(g)...]
+Tables.columnnames(g::CalTable) = [:time, sites(g)...]
 
 Tables.rowaccess(::Type{<:CalTable}) = true
 Tables.rows(g::CalTable) = g
@@ -138,11 +138,11 @@ function Tables.getcolumn(g::CalTableRow, nm::Symbol)
     return gmat(src)[getfield(g, :row), lookup(src)[nm]]
 end
 
-@recipe function f(gt::CalTable; sites=stations(gt), datagains=false)
+@recipe function f(gt::CalTable; sites=sites(gt), datagains=false)
 
-    @argcheck prod(sites .∈ Ref(stations(gt))) "passed site isn't in array\n"*
+    @argcheck prod(sites .∈ Ref(sites(gt))) "passed site isn't in array\n"*
                                                 "sites:     $(sites)\n"*
-                                                "telescope: $(stations(gt))"
+                                                "telescope: $(sites(gt))"
     #if !datagains
     #    plot_title --> "Model Gain Amp."
     #else
@@ -184,7 +184,7 @@ end
     end
 end
 
-Tables.columnnames(g::CalTableRow) = [:time, stations(getfield(g, :source))...]
+Tables.columnnames(g::CalTableRow) = [:time, sites(getfield(g, :source))...]
 
 using PrettyTables
 
@@ -197,122 +197,14 @@ function Base.show(io::IO, ct::CalTable, )
 end
 
 
-"""
-    caltable(obs::EHTObservation, gains::AbstractVector)
-
-Create a calibration table for the observations `obs` with `gains`. This returns
-a [`CalTable`](@ref) object that satisfies the
-`Tables.jl` interface. This table is very similar to the `DataFrames` interface.
-
-# Example
-
-```julia
-ct = caltable(obs, gains)
-
-# Access a particular station (here ALMA)
-ct[:AA]
-ct.AA
-
-# Access a the first row
-ct[1, :]
-```
-"""
-function caltable(obs::EHTObservation, gains::AbstractVector, seg = ScanSeg())
-    gcache = jonescache(obs, seg)
-    return caltable(gcache, gains)
-end
-
-function fill_gmat!(gmat, ::ScanSeg{false}, lookup, i, allstations, alltimes, gains)
-    t = findfirst(t->(t==alltimes[i]), unique(alltimes))
-    c = lookup[allstations[i]]
-    gmat[t,c] = gains[i]
-end
-
-function fill_gmat!(gmat, ::ScanSeg{true}, lookup, i, allstations, alltimes, gains)
-    t = findfirst(t->(t==alltimes[i]), unique(alltimes))
-    c = lookup[allstations[i]]
-    indprev = findlast(!=(0.0), @view(gmat[begin:t-1, c]))
-    gmat[t,c] = gains[i] + (!isnothing(indprev) ? gmat[indprev, c] : 0)
-end
-
-function fill_gmat!(gmat, ::TrackSeg, lookup, i, allstations, alltimes, gains)
-    t = findfirst(t->(t==alltimes[i]), unique(alltimes))
-    c = lookup[allstations[i]]
-    gmat[t,c] = gains[i]
-end
-
-function fill_gmat!(gmat, v::FixedSeg, lookup, i, allstations, alltimes, gains)
-    t = findfirst(t->(t==alltimes[i]), unique(alltimes))
-    c = lookup[allstations[i]]
-    gmat[t,c] .= v.value
-end
-
-function stations(g::JonesCache)
-    s1 = keys(g.seg)
-    if !(g.references isa AbstractVector{<:NoReference})
-        s = (s1..., getproperty.(g.references, :site)...)
-        return sort(unique(s))
-    end
-    return sort(unique(s1))
-end
-
-
-"""
-    caltable(g::JonesCache, jterms::AbstractVector)
-
-Convert the JonesCache `g` and recovered Jones/corruption elements `jterms` into a `CalTable`
-which satisfies the `Tables.jl` interface.
-
-# Example
-
-```julia
-ct = caltable(gcache, gains)
-
-# Access a particular station (here ALMA)
-ct[:AA]
-ct.AA
-
-# Access a the first row
-ct[1, :]
-```
-"""
-function caltable(g::JonesCache, gains::AbstractVector, f=identity)
-    @argcheck length(g.schema.times) == length(gains)
-
-    stations = Comrade.stations(g)
-    times = unique(g.schema.times)
-    gmat = Matrix{Union{eltype(gains), Missing}}(missing, length(times), length(stations))
-    gmat .= 0.0
-    segs = g.seg
-    alltimes = g.schema.times
-    allstations = g.schema.sites
-    # Create the lookup dict
-    lookup = Dict(stations[i]=>i for i in eachindex(stations))
-    for i in eachindex(gains)
-        seg = getproperty(segs, allstations[i])
-        fill_gmat!(gmat, seg, lookup, i, allstations, alltimes, gains)
-    end
-
-    for i in eachindex(g.references)
-        s = g.references[i]
-        if !(s isa NoReference)
-            c = lookup[s.site]
-            gmat[i, c] = s.scheme.value
-        end
-    end
-
-    replace!(x->(x==0 ? missing : x), gmat)
-    gmat .= f.(gmat)
-    return CalTable(stations, lookup, times, gmat)
-end
 
 function caltable(sarr::SiteArray)
-    stations = sort(unique(sites(sarr)))
+    sites = sort(unique(sites(sarr)))
     time = unique(times(sarr))
-    gmat = Matrix{Union{eltype(sarr), Missing}}(missing, length(time), length(stations))
+    gmat = Matrix{Union{eltype(sarr), Missing}}(missing, length(time), length(sites))
     gmat .= missing
-    lookup = Dict(stations[i]=>i for i in eachindex(stations))
-    for (j, s) in enumerate(stations)
+    lookup = Dict(sites[i]=>i for i in eachindex(sites))
+    for (j, s) in enumerate(sites)
         cterms = site(sarr, s)
         for (i, t) in enumerate(time)
             ind = findfirst(==(t), times(cterms))
@@ -321,5 +213,5 @@ function caltable(sarr::SiteArray)
             end
         end
     end
-    return CalTable(stations, lookup, time, gmat)
+    return CalTable(sites, lookup, time, gmat)
 end

@@ -66,7 +66,7 @@ include("distributions/radiolikelihood.jl")
 include("visualizations/visualizations.jl")
 include("bayes/bayes.jl")
 include("inference/inference.jl")
-include("calibration/calibration.jl")
+include("instrument/instrument.jl")
 include("clean.jl")
 include("rules.jl")
 

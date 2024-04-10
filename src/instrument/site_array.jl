@@ -105,7 +105,7 @@ struct SiteMap{L<:NamedTuple, N, Ti<:AbstractArray{<:Number, N}, Fr<:AbstractArr
     sites::Sy
 end
 
-function sitemap!(f, out::AbstractArray, gains::AbstractArray, cache::AbstractJonesCache)
+function sitemap!(f, out::AbstractArray, gains::AbstractArray, cache::SiteMap)
     sm = cache.site_map
     map(sm.lookup) do site
         ys = @view gains[site]
@@ -114,13 +114,13 @@ function sitemap!(f, out::AbstractArray, gains::AbstractArray, cache::AbstractJo
     end
 end
 
-function sitemap(f, gains::AbstractArray, cache::AbstractJonesCache)
+function sitemap(f, gains::AbstractArray, cache::SiteMap)
     out = similar(T, gains)
     sitemap!(f, out, gains, cache)
     return out
 end
 
-function sitemap!(::typeof(cumsum), out::AbstractArray, gains::AbstractArray, cache::AbstractJonesCache)
+function sitemap!(::typeof(cumsum), out::AbstractArray, gains::AbstractArray, cache::SiteMap)
     map(site_map.lookup) do site
         ys = @view gains[site]
         cumsum!(ys, ys)

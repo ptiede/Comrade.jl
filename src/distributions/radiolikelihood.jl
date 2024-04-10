@@ -1,14 +1,14 @@
-export RadioLikelihood, logdensityof, MultiRadioLikelihood, likelihood
+export AbstractRadioLikelihood, logdensityof, MultiRadioLikelihood, likelihood
 using LinearAlgebra
 using VLBILikelihoods
 
 export vlbimodel
 
-abstract type VLBILikelihood end
-@inline DensityInterface.DensityKind(::VLBILikelihood) = DensityInterface.IsDensity()
+abstract type AbstractRadioLikelihood end
+@inline DensityInterface.DensityKind(::AbstractRadioLikelihood) = DensityInterface.IsDensity()
 
 
-struct RadioLikelihood{MS,MI,D,T,A,P} <: VLBILikelihood
+struct VLBILikelihood{MS,MI,D,T,A,P} <: AbstractRadioLikelihood
     skymodel::MS
     instrumentmodel::MI
     data::D
@@ -18,20 +18,20 @@ struct RadioLikelihood{MS,MI,D,T,A,P} <: VLBILikelihood
 end
 
 """
-    skymodel(post::RadioLikelihood, θ)
+    skymodel(post::AbstractRadioLikelihood, θ)
 
 Returns the sky model or image of a posterior using the parameter values`θ`
 """
-function skymodel(lklhd::RadioLikelihood, θ)
+function skymodel(lklhd::AbstractRadioLikelihood, θ)
     lklhd.skymodel(θ)
 end
 
 """
-    skymodel(lklhd::RadioLikelihood, θ)
+    skymodel(lklhd::AbstractRadioLikelihood, θ)
 
 Returns the instrument model of a lklhderior using the parameter values`θ`
 """
-function instrumentmodel(lklhd::RadioLikelihood, θ)
+function instrumentmodel(lklhd::AbstractRadioLikelihood, θ)
     lklhd.instrumentmodel(θ)
 end
 
@@ -41,7 +41,7 @@ end
 Returns the instrument model and sky model as a [`VLBIModel`](@ref) of a posterior using the parameter values `θ`
 
 """
-function vlbimodel(d::RadioLikelihood, θ)
+function vlbimodel(d::AbstractRadioLikelihood, θ)
     skym = skymodel(d, θ)
     intm = instrumentmodel(d, θ)
     return VLBIModel(intm, skym)
@@ -49,12 +49,12 @@ end
 
 
 """
-    dataproducts(d::RadioLikelihood)
+    dataproducts(d::AbstractRadioLikelihood)
 
 Returns the data products you are fitting as a tuple. The order of the tuple corresponds
-to the order of the `dataproducts` argument in [`RadioLikelihood`](@ref).
+to the order of the `dataproducts` argument in [`AbstractRadioLikelihood`](@ref).
 """
-function dataproducts(d::RadioLikelihood)
+function dataproducts(d::AbstractRadioLikelihood)
     return d.data
 end
 
@@ -70,19 +70,19 @@ function (m::ModelMetadata)(θ)
 end
 
 
-function _RadioLikelihood(skymodel, instrumentmodel, data::EHTObservation...)
+function _VLBILikelihood(skymodel, instrumentmodel, data::EHTObservation...)
     ls = Tuple(map(makelikelihood, data))
     acs = map(arrayconfig, data)
     positions = getuvtimefreq(data[1].config)
-    RadioLikelihood{typeof(skymodel), typeof(instrumentmodel), typeof(data), typeof(ls), typeof(acs[1]), typeof(positions)}(skymodel, instrumentmodel, data, ls, acs[1], positions)
+    VLBILikelihood{typeof(skymodel), typeof(instrumentmodel), typeof(data), typeof(ls), typeof(acs[1]), typeof(positions)}(skymodel, instrumentmodel, data, ls, acs[1], positions)
 end
 
 """
-    RadioLikelihood(skymodel, instumentmodel, dataproducts::EHTObservation...;
+    VLBILikelihood(skymodel, instumentmodel, dataproducts::EHTObservation...;
                     skymeta=nothing,
                     instrumentmeta=nothing)
 
-Creates a RadioLikelihood using the `skymodel` its related metadata `skymeta`
+Creates a VLBILikelihood using the `skymodel` its related metadata `skymeta`
 and the `instrumentmodel` and its metadata `instumentmeta`.
 . The `model`
 is a function that converts from parameters `θ` to a Comrade
@@ -119,12 +119,12 @@ prior = (
          a = Uniform(0.1, 5.0)
          )
 
-RadioLikelihood(skymodel, instrumentmodel, dataproducts::EHTObservation...;
+VLBILikelihood(skymodel, instrumentmodel, dataproducts::EHTObservation...;
                  skymeta=(;cache,),
                  instrumentmeta=(;gcache))
 ```
 """
-function RadioLikelihood(
+function VLBILikelihood(
         skymodel,
         instrumentmodel,
         dataproducts::EHTObservation...;
@@ -142,11 +142,11 @@ function RadioLikelihood(
     else
         intm = instrumentmodel
     end
-    return _RadioLikelihood(skym, intm, dataproducts...)
+    return _VLBILikelihood(skym, intm, dataproducts...)
 end
 
 """
-    RadioLikelihood(skymodel, dataproducts::EHTObservation...; skymeta=nothing)
+    AbstractRadioLikelihood(skymodel, dataproducts::EHTObservation...; skymeta=nothing)
 
 Forms a radio likelihood from a set of data products using only a sky model.
 This intrinsically assumes that the instrument model is not required since it is perfect.
@@ -159,10 +159,10 @@ such as when fitting different wavelengths or days, you can combine them using
 # Example
 
 ```julia-repl
-julia> RadioLikelihood(skymodel, dcphase, dlcamp)
+julia> AbstractRadioLikelihood(skymodel, dcphase, dlcamp)
 ```
 """
-function RadioLikelihood(
+function VLBILikelihood(
     skymodel,
     dataproducts::EHTObservation...;
     skymeta=nothing)
@@ -173,7 +173,7 @@ function RadioLikelihood(
         skym = skymodel
     end
 
-    return _RadioLikelihood(skym, Returns(IdealInstrument()), dataproducts...)
+    return _VLBILikelihood(skym, Returns(IdealInstrument()), dataproducts...)
 end
 
 
@@ -183,17 +183,17 @@ end
 Combines multiple likelihoods into one object that is useful for fitting multiple days/frequencies.
 
 ```julia-repl
-julia> lklhd1 = RadioLikelihood(dcphase1, dlcamp1)
-julia> lklhd2 = RadioLikelihood(dcphase2, dlcamp2)
+julia> lklhd1 = AbstractRadioLikelihood(dcphase1, dlcamp1)
+julia> lklhd2 = AbstractRadioLikelihood(dcphase2, dlcamp2)
 julia> MultiRadioLikelihood(lklhd1, lklhd2)
 ```
 
 """
-struct MultiRadioLikelihood{L} <: VLBILikelihood
+struct MultiRadioLikelihood{L} <: AbstractRadioLikelihood
     lklhds::L
 end
 
-MultiRadioLikelihood(lklhds::RadioLikelihood...) = MultiRadioLikelihood(lklhds)
+MultiRadioLikelihood(lklhds::AbstractRadioLikelihood...) = MultiRadioLikelihood(lklhds)
 
 function Base.show(io::IO, d::MultiRadioLikelihood)
     println(io, "MultiRadioLikelihood: ")
@@ -210,8 +210,8 @@ end
 
 
 
-function Base.show(io::IO, d::RadioLikelihood{T}) where {T}
-    println(io, "RadioLikelihood")
+function Base.show(io::IO, d::VLBILikelihood)
+    println(io, "VLBILikelihood")
     println(io, "\tNumber of data products: ", length(d.lklhds))
 end
 
@@ -247,7 +247,7 @@ phase(vis::AbstractArray{<:Complex}) = angle.(vis)
 
 
 
-function DensityInterface.logdensityof(d::RadioLikelihood, θ)
+function DensityInterface.logdensityof(d::AbstractRadioLikelihood, θ)
     ac = d.positions
     m = vlbimodel(d, θ)
     # Convert because of conventions
@@ -255,7 +255,7 @@ function DensityInterface.logdensityof(d::RadioLikelihood, θ)
     return _logdensityofvis(d, vis)
 end
 
-function _logdensityofvis(d::RadioLikelihood, vis::AbstractArray)
+function _logdensityofvis(d::AbstractRadioLikelihood, vis::AbstractArray)
     # This sum is fast and more generic than a loop
     #f = Base.Fix2(logdensityof, vis)
     #return sum(f, d.lklhds)
@@ -267,15 +267,15 @@ function _logdensityofvis(d::RadioLikelihood, vis::AbstractArray)
         return acc
 end
 
-struct ConditionedLikelihood{F, O} <: VLBILikelihood
+struct ConditionedLikelihood{F, O} <: AbstractRadioLikelihood
     kernel::F
     obs::O
 end
 
 DensityInterface.logdensityof(d::ConditionedLikelihood, μ) = logdensityof(d.kernel(μ), d.obs)
 
-function RadioLikelihood(model, data::ConditionedLikelihood...)
-    return RadioLikelihood{typeof(model), typeof(data), Nothing}(model, data, nothing)
+function AbstractRadioLikelihood(model, data::ConditionedLikelihood...)
+    return AbstractRadioLikelihood{typeof(model), typeof(data), Nothing}(model, data, nothing)
 end
 
 

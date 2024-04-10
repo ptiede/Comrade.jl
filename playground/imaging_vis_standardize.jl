@@ -85,7 +85,7 @@ end
 # Thanks to the EHT pre-calibration, the gains are stable over scans. Therefore, we can
 # model the gains on a scan-by-scan basis. To form the instrument model, we need our
 #   1. Our (log) gain amplitudes and phases are given below by `lgamp` and `gphase`
-#   2. Our function or cache that maps the gains from a list to the stations they impact `gcache.`
+#   2. Our function or cache that maps the gains from a list to the sites they impact `gcache.`
 #   3. The set of [`Comrade.JonesPairs`](@ref) produced by [`jonesStokes`](@ref)
 # These three ingredients then specify our instrument model. The instrument model can then be
 # combined with our image model `cimg` to form the total `JonesModel`.
@@ -111,12 +111,12 @@ cache = create_cache(NFFTAlg(dvis), buffer, DeltaPulse())
 # to the model visibilities. However, to construct this map, we also need to specify the observation
 # segmentation over which we expect the gains to change. This is specified in the second argument
 # to `jonescache`, and currently, there are two options
-#   - `FixedSeg(val)`: Fixes the corruption to the value `val` for all time. This is usefule for reference stations
+#   - `FixedSeg(val)`: Fixes the corruption to the value `val` for all time. This is usefule for reference sites
 #   - `ScanSeg()`: which forces the corruptions to only change from scan-to-scan
 #   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
 # For this work, we use the scan segmentation for the gain amplitudes since that is roughly
-# the timescale we expect them to vary. For the phases we use a station specific scheme where
-# we set AA to be fixed to unit gain because it will function as a reference station.
+# the timescale we expect them to vary. For the phases we use a sites specific scheme where
+# we set AA to be fixed to unit gain because it will function as a reference sites.
 gcache = jonescache(dvis, ScanSeg())
 gcachep = jonescache(dvis, ScanSeg{true}(); autoref=SEFDReference((complex(0.0))))
 
@@ -142,15 +142,15 @@ meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
 # degenerate. To fix this we use the observed total flux as our value.
 
 # Moving onto our prior, we first focus on the instrument model priors.
-# Each station requires its own prior on both the amplitudes and phases.
+# Each sites requires its own prior on both the amplitudes and phases.
 # For the amplitudes
 # we assume that the gains are apriori well calibrated around unit gains (or 0 log gain amplitudes)
 # which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
-# all stations except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT
+# all sites except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT
 # we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
 using Distributions
 using DistributionsAD
-distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
+distamp = sites_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 
 
 # For the phases, as mentioned above, we will use a segmented gain prior.
@@ -163,9 +163,9 @@ distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 # dealing with pre-2*rand(rng, ndim) .- 1.5calibrated data, so often, the gain phase jumps from scan to scan are
 # minor. As such, we can put a more informative prior on `distphase`.
 # !!! warning
-#     We use AA (ALMA) as a reference station so we do not have to specify a gain prior for it.
+#     We use AA (ALMA) as a reference sites so we do not have to specify a gain prior for it.
 #-
-distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
+distphase = sites_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 
 
@@ -204,7 +204,7 @@ prior = NamedDist(
          λ = truncated(Normal(0.0, 0.25*inv(rat)); lower=2/npix),
          ν = InverseGamma(5.0, 10.0),
          lgamp = CalPrior(distamp, gcache),
-         gphase = CalPrior(distphase, station_tuple(dvis, DiagonalVonMises(0.0, inv(0.1^2))),gcachep)
+         gphase = CalPrior(distphase, sites_tuple(dvis, DiagonalVonMises(0.0, inv(0.1^2))),gcachep)
         )
 
 
@@ -271,7 +271,7 @@ gt = Comrade.caltable(gcachep, xopt.gphase)
 plot(gt, layout=(3,3), size=(600,500))
 
 # The gain phases are pretty random, although much of this is due to us picking a random
-# reference station for each scan.
+# reference sites for each scan.
 
 # Moving onto the gain amplitudes, we see that most of the gain variation is within 10% as expected
 # except LMT, which has massive variations.

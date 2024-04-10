@@ -1,4 +1,4 @@
-export Posterior, prior_sample, asflat, ascube, flatten, logdensityof, transform, inverse, dimension,
+export VLBIPosterior, prior_sample, asflat, ascube, flatten, logdensityof, transform, inverse, dimension,
        skymodel, instrumentmodel, simulate_observation, dataproducts
 
 import DensityInterface
@@ -35,13 +35,13 @@ where `post::Posterior`.
 
 To generate random draws from the prior see the [`prior_sample`](@ref prior_sample) function.
 """
-struct Posterior{L,P<:Dists.ContinuousDistribution} <: AbstractPosterior
+struct VLBIPosterior{L,P<:Dists.ContinuousDistribution} <: AbstractPosterior
     lklhd::L
     prior::P
 end
 
-function Base.show(io::IO, post::Posterior)
-    println(io, "Posterior(")
+function Base.show(io::IO, post::VLBIPosterior)
+    println(io, "VLBIPosterior(")
     println(io, post.lklhd)
     println(io, "Prior:")
     println(io, post.prior)
@@ -49,83 +49,83 @@ function Base.show(io::IO, post::Posterior)
 end
 
 
-@inline DensityInterface.DensityKind(::Posterior) = DensityInterface.IsDensity()
+@inline DensityInterface.DensityKind(::VLBIPosterior) = DensityInterface.IsDensity()
 
-function DensityInterface.logdensityof(post::Posterior, x)
+function DensityInterface.logdensityof(post::VLBIPosterior, x)
     pr = logdensityof(post.prior, x)
     !isfinite(pr) && return -Inf
     return logdensityof(post.lklhd, x) + pr
 end
 
-(post::Posterior)(θ) = logdensityof(post, θ)
+(post::VLBIPosterior)(θ) = logdensityof(post, θ)
 
 """
-    prior_sample([rng::AbstractRandom], post::Posterior, args...)
+    prior_sample([rng::AbstractRandom], post::VLBIPosterior, args...)
 
 Samples the prior distribution from the posterior. The `args...` are forwarded to the
 `Base.rand` method.
 """
-function prior_sample(rng, post::Posterior, args...)
+function prior_sample(rng, post::VLBIPosterior, args...)
     return rand(rng, post.prior, args...)
 end
 
 
 """
-    prior_sample([rng::AbstractRandom], post::Posterior)
+    prior_sample([rng::AbstractRandom], post::VLBIPosterior)
 
 Returns a single sample from the prior distribution.
 """
-function prior_sample(rng, post::Posterior)
+function prior_sample(rng, post::VLBIPosterior)
     return rand(rng, post.prior)
 end
 
 """
-    skymodel(post::Posterior, θ)
+    skymodel(post::VLBIPosterior, θ)
 
 Returns the sky model or image of a posterior using the parameter values`θ`
 """
-function skymodel(post::Posterior, θ)
+function skymodel(post::VLBIPosterior, θ)
     skymodel(post.lklhd, θ)
 end
 
 """
-    skymodel(post::Posterior, θ)
+    skymodel(post::VLBIPosterior, θ)
 
 Returns the instrument model of a posterior using the parameter values`θ`
 """
-function instrumentmodel(post::Posterior, θ)
+function instrumentmodel(post::VLBIPosterior, θ)
     instrumentmodel(post.lklhd, θ)
 end
 
 """
-    vlbimodel(post::Posterior, θ)
+    vlbimodel(post::VLBIPosterior, θ)
 
 Returns the instrument model and sky model as a [`VLBIModel`](@ref) of a posterior using the parameter values `θ`
 
 """
-function vlbimodel(post::Posterior, θ)
+function vlbimodel(post::VLBIPosterior, θ)
     vlbimodel(post.lklhd, θ)
 end
 
 """
-    dataproducts(d::Posterior)
+    dataproducts(d::VLBIPosterior)
 
 Returns the data products you are fitting as a tuple. The order of the tuple corresponds
 to the order of the `dataproducts` argument in [`RadioLikelihood`](@ref).
 """
-function dataproducts(d::Posterior)
+function dataproducts(d::VLBIPosterior)
     return dataproducts(d.lklhd)
 end
 
 
 
 """
-    simulate_observation([rng::Random.AbstractRNG], post::Posterior, θ)
+    simulate_observation([rng::Random.AbstractRNG], post::VLBIPosterior, θ)
 
 Create a simulated observation using the posterior and its data `post` using the parameter
 values `θ`. In Bayesian terminology this is a draw from the posterior predictive distribution.
 """
-function simulate_observation(rng::Random.AbstractRNG, post::Posterior, θ)
+function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ)
     # ls = map(x->likelihood(x, visibilities(vlbimodel(post, θ), post.lklhd.ac)), post.lklhd.lklhds)
     ls = map(x->likelihood(x, visibilities(vlbimodel(post, θ), post.lklhd.ac)), post.lklhd.lklhds)
     ms = map(x->rand(rng, x), ls)
@@ -135,7 +135,7 @@ function simulate_observation(rng::Random.AbstractRNG, post::Posterior, θ)
     end
     return data
 end
-simulate_observation(post::Posterior, θ) = simulate_observation(Random.default_rng(), post, θ)
+simulate_observation(post::VLBIPosterior, θ) = simulate_observation(Random.default_rng(), post, θ)
 
 
 
@@ -143,12 +143,12 @@ simulate_observation(post::Posterior, θ) = simulate_observation(Random.default_
 
 """
     $(TYPEDEF)
-A transformed version of a `Posterior` object.
+A transformed version of a `VLBIPosterior` object.
 This is an internal type that an end user shouldn't have to directly construct.
 To construct a transformed posterior see the [`asflat`](@ref asflat), [`ascube`](@ref ascube),
 and [`flatten`](@ref Comrade.flatten) docstrings.
 """
-struct TransformedPosterior{P<:Posterior,T} <: AbstractPosterior
+struct TransformedPosterior{P<:VLBIPosterior,T} <: AbstractPosterior
     lpost::P
     transform::T
 end
@@ -167,7 +167,7 @@ function prior_sample(rng, tpost::TransformedPosterior)
     inv(prior_sample(rng, tpost.lpost))
 end
 
-prior_sample(post::Union{TransformedPosterior, Posterior}, args...) = prior_sample(Random.default_rng(), post, args...)
+prior_sample(post::Union{TransformedPosterior, VLBIPosterior}, args...) = prior_sample(Random.default_rng(), post, args...)
 
 @inline DensityInterface.DensityKind(::TransformedPosterior) = DensityInterface.IsDensity()
 
@@ -196,11 +196,11 @@ HypercubeTransform.inverse(p::TransformedPosterior, y) = HypercubeTransform.inve
 
 
 
-# MeasureBase.logdensityof(tpost::Union{Posterior,TransformedPosterior}, x) = DensityInterface.logdensityof(tpost, x)
+# MeasureBase.logdensityof(tpost::Union{VLBIPosterior,TransformedPosterior}, x) = DensityInterface.logdensityof(tpost, x)
 
 
 """
-    asflat(post::Posterior)
+    asflat(post::VLBIPosterior)
 
 Construct a flattened version of the posterior where the parameters are transformed to live in
 (-∞, ∞).
@@ -221,7 +221,7 @@ This is the transform that should be used if using typical MCMC methods, i.e. `C
 For the transformation to the unit hypercube see [`ascube`](@ref ascube)
 
 """
-function HypercubeTransform.asflat(post::Posterior)
+function HypercubeTransform.asflat(post::VLBIPosterior)
     pr = post.prior
     tr = asflat(pr)
     return TransformedPosterior(post, tr)
@@ -242,10 +242,10 @@ end
 end
 
 HypercubeTransform.dimension(post::TransformedPosterior) = dimension(post.transform)
-HypercubeTransform.dimension(post::Posterior) = dimension(asflat(post))
+HypercubeTransform.dimension(post::VLBIPosterior) = dimension(asflat(post))
 
 """
-    ascube(post::Posterior)
+    ascube(post::VLBIPosterior)
 
 Construct a flattened version of the posterior where the parameters are transformed to live in
 (0, 1), i.e. the unit hypercube.
@@ -265,7 +265,7 @@ julia> logdensityof(tpost, x0)
 This is the transform that should be used if using typical NestedSampling methods,
 i.e. `ComradeNested`. For the transformation to unconstrained space see [`asflat`](@ref asflat)
 """
-function HypercubeTransform.ascube(post::Posterior)
+function HypercubeTransform.ascube(post::VLBIPosterior)
     pr = post.prior
     tr = ascube(pr)
     return TransformedPosterior(post, tr)
@@ -298,7 +298,7 @@ HypercubeTransform.inverse(::FlatTransform, x) = first(ParameterHandling.flatten
 HypercubeTransform.dimension(t::FlatTransform) = t.transform.unflatten.sz[end]
 
 """
-    flatten(post::Posterior)
+    flatten(post::VLBIPosterior)
 
 Construct a flattened version of the posterior but **do not** transform to any space, i.e.
 use the support specified by the prior.
@@ -318,7 +318,7 @@ julia> logdensityof(tpost, x0)
 This is the transform that should be used if using typical MCMC methods, i.e. `ComradeAHMC`.
 For the transformation to the unit hypercube see [`ascube`](@ref ascube)
 """
-function ParameterHandling.flatten(post::Posterior)
+function ParameterHandling.flatten(post::VLBIPosterior)
     x0 = rand(post.prior)
     _, unflatten = ParameterHandling.flatten(x0)
     return TransformedPosterior(post, FlatTransform(unflatten))

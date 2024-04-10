@@ -94,7 +94,7 @@ function (model::GModel)(θ)
     Comrade.GainModel(model.gcache, g, m)
 end
 
-# First we define the station gain priors
+# First we define the sites gain priors
 distamp = (AA = Normal(0.0, 0.1),
            AP = Normal(0.0, 0.1),
            LM = Normal(0.0, 0.9),

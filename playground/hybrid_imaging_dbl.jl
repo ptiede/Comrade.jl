@@ -136,11 +136,11 @@ metadata = (;grid, cache, gcache, gcachep)
 lklhd = RadioLikelihood(model, metadata, dvis)
 
 # Moving onto our prior, we first focus on the instrument model priors.
-# Each station requires its own prior on both the amplitudes and phases.
+# Each sites requires its own prior on both the amplitudes and phases.
 # For the amplitudes
 # we assume that the gains are apriori well calibrated around unit gains (or 0 log gain amplitudes)
 # which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
-# all stations except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT
+# all sites except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT
 # we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
 using Distributions
 using DistributionsAD
@@ -155,7 +155,7 @@ distamp = (AA = Normal(0.0, 0.1),
 
 # For the phases, we use a wrapped von Mises prior to respect the periodicity of the variable.
 # !!! warning
-#     We use AA (ALMA) as a reference station (it is `FixedSeg`) so we do not need to specify a gain prior for it.
+#     We use AA (ALMA) as a reference sites (it is `FixedSeg`) so we do not need to specify a gain prior for it.
 #-
 using VLBIImagePriors
 distphase = (
@@ -262,7 +262,7 @@ chain, stats = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 600; n_ad
 
 # Now lets plot the mean image and standard deviation images.
 # To do this we first clip the first 400 MCMC steps since that is during tuning and
-# so the posterior is not sampling from the correct stationary distribution.
+# so the posterior is not sampling from the correct sitesary distribution.
 using StatsBase
 msamples = model.(chain[401:2:end], Ref(metadata))
 

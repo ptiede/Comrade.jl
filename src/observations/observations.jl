@@ -14,7 +14,7 @@ abstract type Observation{T} end
 
 using AstroTime: modified_julian
 
-export uvpositions, stations, getdata, arrayconfig,
+export uvpositions, sites, getdata, arrayconfig,
        getuv, baselines, scantable, extract_table,
        ClosurePhases, LogClosureAmplitudes, VisibilityAmplitudes,
        ComplexVisibilities, Coherencies, beamsize
@@ -419,7 +419,7 @@ say you want the times of all measurement then
 getdata(obs, :time)
 ```
 """
-getdata(obs::Observation, s::Symbol) = getproperty(getfield(obs, :data), s)
+getdata(obs::Union{ArrayConfiguration, Observation}, s::Symbol) = getproperty(getfield(obs, :data), s)
 
 function getuv(ac::EHTObservation)
     return (U=ac.data.U, V=ac.data.V)
@@ -437,29 +437,31 @@ distance.
 """
 beamsize(obs::EHTObservation) = beamsize(arrayconfig(obs))
 
+EHTArrayOrObs = Union{EHTObservation, EHTArrayConfiguration}
+
 # Implement the tables interface
-Tables.istable(::Type{<:EHTObservation}) = true
-Tables.columnaccess(::Type{<:EHTObservation}) = true
-Tables.columns(t::EHTObservation) = getfield(t, :data)
+Tables.istable(::Type{<:EHTArrayOrObs}) = true
+Tables.columnaccess(::Type{<:EHTArrayOrObs}) = true
+Tables.columns(t::EHTArrayOrObs) = getfield(t, :data)
 
-Tables.getcolumn(t::EHTObservation, ::Type{T}, col::Int, nm::Symbol) where {T} = getdata(t, nm)
-Tables.getcolumn(t::EHTObservation, nm::Symbol) = getdata(t, nm)
-Tables.getcolumn(t::EHTObservation, i::Int) = Tables.getcolumn(t, Tables.columnames(t)[i])
-Tables.columnnames(t::EHTObservation) = propertynames(getfield(t, :data))
+Tables.getcolumn(t::EHTArrayOrObs, ::Type{T}, col::Int, nm::Symbol) where {T} = getdata(t, nm)
+Tables.getcolumn(t::EHTArrayOrObs, nm::Symbol) = getdata(t, nm)
+Tables.getcolumn(t::EHTArrayOrObs, i::Int) = Tables.getcolumn(t, Tables.columnames(t)[i])
+Tables.columnnames(t::EHTArrayOrObs) = propertynames(getfield(t, :data))
 
-Base.getindex(data::EHTObservation, s::Symbol) = Tables.getcolumn(data, s)
-Base.getindex(data::EHTObservation, i::Int) = data.data[i]
-Base.getindex(data::EHTObservation, I...) = getindex(data.data, I...)
-Base.length(data::EHTObservation) = length(data.data)
-Base.lastindex(data::EHTObservation) = lastindex(data.data)
-Base.firstindex(data::EHTObservation) = firstindex(data.data)
+Base.getindex(data::EHTArrayOrObs, s::Symbol) = Tables.getcolumn(data, s)
+Base.getindex(data::EHTArrayOrObs, i::Int) = data.data[i]
+Base.getindex(data::EHTArrayOrObs, I...) = getindex(data.data, I...)
+Base.length(data::EHTArrayOrObs) = length(data.data)
+Base.lastindex(data::EHTArrayOrObs) = lastindex(data.data)
+Base.firstindex(data::EHTArrayOrObs) = firstindex(data.data)
 
 """
-    stations(d::EHTObservation)
+    sites(d::EHTObservation)
 
-Get all the stations in a observation. The result is a vector of symbols.
+Get all the sites in a observation. The result is a vector of symbols.
 """
-function stations(d::EHTObservation{T,A}) where {T,A<:AbstractInterferometryDatum}
+function sites(d::EHTObservation{T,A}) where {T,A<:AbstractInterferometryDatum}
     bl = getdata(d, :baseline)
     s1 = first.(bl)
     s2 = last.(bl)
@@ -473,7 +475,7 @@ function Base.show(io::IO, d::EHTObservation{F,D}) where {F,D}
     println(io, "  mjd: ", d.mjd)
     println(io, "  frequency: ", first(d.data.F))
     println(io, "  bandwidth: ", d.bandwidth)
-    println(io, "  stations: ", stations(d))
+    println(io, "  sites: ", sites(d))
     println(io, "  nsamples: ", length(d))
 end
 
@@ -517,7 +519,7 @@ Base.@kwdef struct EHTVisibilityDatum{S<:Number} <: AbstractVisibilityDatum{S}
     """
     F::S
     """
-    station baseline codes
+    sites baseline codes
     """
     baseline::NTuple{2,Symbol}
 end
@@ -582,7 +584,7 @@ Base.@kwdef struct EHTVisibilityAmplitudeDatum{S<:Number} <: AbstractVisibilityD
     """
     F::S
     """
-    station baseline codes
+    sites baseline codes
     """
     baseline::NTuple{2,Symbol}
 end
@@ -595,7 +597,7 @@ function checktriangle(D1::EHTVisibilityDatum,
     b2 = D2.baseline
     b3 = D3.baseline
     l = length(unique([b1..., b2..., b3...]))
-    @assert l == 3 "For a valid closure phase you need 3 unique stations not $l"
+    @assert l == 3 "For a valid closure phase you need 3 unique sites not $l"
     @assert (D1.time == D2.time == D3.time) "For a valid closure phase the times need to match"
 
 end
@@ -633,27 +635,27 @@ Base.@kwdef struct EHTClosurePhaseDatum{S<:Number} <: ClosureProducts{S}
     """
     error::S
     """
-    u (λ) of first station
+    u (λ) of first sites
     """
     U1::S
     """
-    v (λ) of first station
+    v (λ) of first sites
     """
     V1::S
     """
-    u (λ) of second station
+    u (λ) of second sites
     """
     U2::S
     """
-    v (λ) of second station
+    v (λ) of second sites
     """
     V2::S
     """
-    u (λ) of third station
+    u (λ) of third sites
     """
     U3::S
     """
-    v (λ) of third station
+    v (λ) of third sites
     """
     V3::S
     """
@@ -665,7 +667,7 @@ Base.@kwdef struct EHTClosurePhaseDatum{S<:Number} <: ClosureProducts{S}
     """
     F::S
     """
-    station baselines used
+    sites baselines used
     """
     triangle::NTuple{3,Symbol}
 end
@@ -706,17 +708,17 @@ Base.@kwdef struct EHTCoherencyDatum{S, B1, B2, M<:SMatrix{2,2,Complex{S}}, E<:S
     """
     F::S
     """
-    station baseline codes
+    sites baseline codes
     """
     baseline::NTuple{2,Symbol}
     """
-    polarization basis for each station
+    polarization basis for each sites
     """
     polbasis::Tuple{B1, B2}
 end
 
 
-function stations(d::EHTObservation{T,A}) where {T,A<:EHTClosurePhaseDatum}
+function sites(d::EHTObservation{T,A}) where {T,A<:EHTClosurePhaseDatum}
     bl = getdata(d, :triangle)
     return sort(unique(vcat(collect.(bl)...)))
 end
@@ -789,35 +791,35 @@ Base.@kwdef struct EHTLogClosureAmplitudeDatum{S<:Number} <: ClosureProducts{S}
     """
     error::S
     """
-    u (λ) of first station
+    u (λ) of first sites
     """
     U1::S
     """
-    v (λ) of first station
+    v (λ) of first sites
     """
     V1::S
     """
-    u (λ) of second station
+    u (λ) of second sites
     """
     U2::S
     """
-    v (λ) of second station
+    v (λ) of second sites
     """
     V2::S
     """
-    u (λ) of third station
+    u (λ) of third sites
     """
     U3::S
     """
-    v (λ) of third station
+    v (λ) of third sites
     """
     V3::S
     """
-    u (λ) of fourth station
+    u (λ) of fourth sites
     """
     U4::S
     """
-    v (λ) of fourth station
+    v (λ) of fourth sites
     """
     V4::S
     """
@@ -829,7 +831,7 @@ Base.@kwdef struct EHTLogClosureAmplitudeDatum{S<:Number} <: ClosureProducts{S}
     """
     F::S
     """
-    station codes for the quadrangle
+    sites codes for the quadrangle
     """
     quadrangle::NTuple{4,Symbol}
 end
@@ -845,7 +847,7 @@ function baselines(CP::EHTLogClosureAmplitudeDatum)
     return ((quad[1],quad[2]), (quad[3], quad[4]), (quad[1], quad[3]), (quad[2], quad[4]))
 end
 
-function stations(d::EHTObservation{T,A}) where {T,A<:EHTLogClosureAmplitudeDatum}
+function sites(d::EHTObservation{T,A}) where {T,A<:EHTLogClosureAmplitudeDatum}
     bl = getdata(d, :quadrangle)
     return sort(unique(vcat(collect.(bl)...)))
 end
@@ -916,7 +918,7 @@ end
 Base.length(st::ScanTable) = length(st.times)
 Base.firstindex(st::ScanTable) = firstindex(st.times)
 Base.lastindex(st::ScanTable) = lastindex(st.times)
-stations(st::ScanTable) = stations(st.obs)
+sites(st::ScanTable) = sites(st.obs)
 
 """
     $(TYPEDEF)
@@ -950,7 +952,7 @@ Return the baselines for each datum in a scan
 """
 function baselines(scan::Scan{A,B,C}) where {A,B,C<:StructArray{<:AbstractInterferometryDatum}}
     bl = scan.scan.baseline
-    # organize the closure phase stations
+    # organize the closure phase sites
     ant1 = first.(bl)
     ant2 = last.(bl)
     return ant1, ant2
@@ -960,7 +962,7 @@ end
 # Closures are special
 function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTClosurePhaseDatum}}
     tri = scancp.scan.triangle
-    # organize the closure phase stations
+    # organize the closure phase sites
     ant1 = getindex.(tri, 1)
     ant2 = getindex.(tri, 2)
     ant3 = getindex.(tri, 3)
@@ -969,7 +971,7 @@ end
 
 function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTLogClosureAmplitudeDatum}}
     tri = scancp.scan.quadrangle
-    # organize the closure phase stations
+    # organize the closure phase sites
     ant1 = getindex.(tri, 1)
     ant2 = getindex.(tri, 2)
     ant3 = getindex.(tri, 3)
@@ -980,7 +982,7 @@ end
 
 
 
-function stations(s::Scan)
+function sites(s::Scan)
     ants = baselines(s)
     stat = unique(vcat(ants...))
     return sort(stat)
@@ -990,7 +992,7 @@ function Base.show(io::IO, s::Scan)
     println(io, "VLBI Scan")
     println(io, "\tscan index: ", s.index)
     println(io, "\tscan time:  ", s.time)
-    println(io, "\tstations: ", stations(s))
+    println(io, "\tsites: ", sites(s))
 end
 
 function Base.getindex(st::ScanTable, i::Int)

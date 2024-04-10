@@ -132,13 +132,13 @@ skymetadata = (;ftot=1.1, cache)
 # to the model visibilities. However, to construct this map, we also need to specify the observation
 # segmentation over which we expect the gains to change. This is specified in the second argument
 # to `jonescache`, and currently, there are two options
-#   - `FixedSeg(val)`: Fixes the corruption to the value `val` for all time. This is usefule for reference stations
+#   - `FixedSeg(val)`: Fixes the corruption to the value `val` for all time. This is usefule for reference sites
 #   - `ScanSeg()`: which forces the corruptions to only change from scan-to-scan
 #   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
 # For this work, we use the scan segmentation for the gain amplitudes since that is roughly
-# the timescale we expect them to vary. For the phases we need to set a reference station for
+# the timescale we expect them to vary. For the phases we need to set a reference sites for
 # each scan to prevent a global phase offset degeneracy. To do this we select a reference
-# station for each scan based on the SEFD of each telescope. The telescope with the lowest
+# sites for each scan based on the SEFD of each telescope. The telescope with the lowest
 # SEFD that is in each scan is selected. For M87 2017 this is almost always ALMA.
 gcache = jonescache(dvis, ScanSeg())
 gcachep = jonescache(dvis, ScanSeg(), autoref=SEFDReference(1.0 + 0.0im))
@@ -173,15 +173,15 @@ cprior = GaussMarkovRandomField(rat, size(grid); order=2)
 # GaussMarkovRandomField(meanpr, 0.1*rat, 1.0, crcache)
 
 # Now we can construct the instrument model prior
-# Each station requires its own prior on both the amplitudes and phases.
+# Each sites requires its own prior on both the amplitudes and phases.
 # For the amplitudes
 # we assume that the gains are apriori well calibrated around unit gains (or 0 log gain amplitudes)
 # which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
-# all stations except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT
+# all sites except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT
 # we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
 using Distributions
 using DistributionsAD
-distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(0.0, 1.0))
+distamp = sites_tuple(dvis, Normal(0.0, 0.1); LM = Normal(0.0, 1.0))
 
 # For the phases, as mentioned above, we will use a segmented gain prior.
 # This means that rather than the parameters
@@ -193,9 +193,9 @@ distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(0.0, 1.0))
 # dealing with pre-calibrated data, so often, the gain phase jumps from scan to scan are
 # minor. As such, we can put a more informative prior on `distphase`.
 # !!! warning
-#     We use AA (ALMA) as a reference station so we do not have to specify a gain prior for it.
+#     We use AA (ALMA) as a reference sites so we do not have to specify a gain prior for it.
 #-
-distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
+distphase = sites_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 # Finally we can put form the total model prior
 prior = NamedDist(
@@ -285,7 +285,7 @@ chain = chain[501:end]
 
 # Now lets plot the mean image and standard deviation images.
 # To do this we first clip the first 250 MCMC steps since that is during tuning and
-# so the posterior is not sampling from the correct stationary distribution.
+# so the posterior is not sampling from the correct sitesary distribution.
 
 using StatsBase
 msamples = skymodel.(Ref(post), chain[begin:2:end]);

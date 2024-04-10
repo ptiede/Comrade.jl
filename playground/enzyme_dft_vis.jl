@@ -77,9 +77,9 @@ metadata = (;gcache, gcachep)
 
 using Distributions
 using DistributionsAD
-distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
+distamp = sites_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 
-distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
+distphase = sites_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 
 prior = ComponentDist(
