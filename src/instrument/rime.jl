@@ -40,6 +40,18 @@ struct RIMEModel{J, B<:BaselineSiteMap, A<:ArrayConfiguration, Ba} <: AbstractRI
     refbasis::Ba
 end
 
+function RIMEModel(jones::JonesModel, prior::InstrumentPrior; refbasis=CirBasis())
+    arr = array(prior)
+    # First pre_allocate arrays if needed (i.e. feed rotations)
+    jones2 = preallocate_jones(jones, arr, refbasis)
+    # Construct the baseline site map for each prior
+    x = rand(prior)
+    bsitemaps = map(x->_construct_baselinemap(arr, x), x)
+    # build the jones model
+    return RIMEModel(jones2, bsitemaps, array, refbasis)
+end
+
+
 
 intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
 intout(vis::AbstractArray{T}) where {T<:Real} = similar(vis, Complex{T})

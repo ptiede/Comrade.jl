@@ -11,33 +11,31 @@ struct SitesPrior{T, D, A, R}
     refant::R
 end
 
+function SitesPrior(corr, dist; refant=nothing, kwargs...)
+    return SitesPrior(corr, dist, kwargs, refant)
+end
+
 struct ObservedSitesPrior{D, S}
     dists::D
     sitemap::S
 end
 
-
-
-
-struct InstrumentPrior{A, N} <: AbstractInstrumentPrior
-    array::A
-    site_dists::N
-    function InstrumentPrior(array, site_dists::NamedTuple{N, T}) where {N, T<:NTuple{<:Any, <:InstrumentPrior}}
-        dists = map(x->build_site_dist(array, x), site_dists)
-        return new{typeof(array), typeof(dists)}(array, dists)
-    end
+function ObservedSitePrior(d::SitesPriors, array::EHTArrayConfiguration)
+    sts = sites(array)
+    ts  = timestamps(d.timecorr, array)
 end
 
-function RIMEModel(jones::JonesModel, prior::InstrumentPrior; refbasis=CirBasis())
-    arr = array(prior)
-    # First pre_allocate arrays if needed (i.e. feed rotations)
-    jones2 = preallocate_jones(jones, arr, refbasis)
-    # Construct the baseline site map for each prior
-    x = rand(prior)
-    bsitemaps = map(x->_construct_baselinemap(arr, x), x)
-    # build the jones model
-    return RIMEModel(jones2, bsitemaps, array, refbasis)
+function timestamps(s::ScanSeg, array)
+    st = array.scans
+    scanid = 1:length(st)
+    mjd =
+    return TimeStamps.()
 end
+
+
+
+
+
 
 
 

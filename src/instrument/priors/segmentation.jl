@@ -20,10 +20,6 @@ struct TrackSeg <: ObsSegmentation end
     $(TYPEDEF)
 
 Data segmentation such that the quantity is constant over a `scan`.
-
-## Warning
-Currently we do not explicity track the telescope scans. This will be fixed in a future version.
-Right now `ScanSeg` and `TrackSeg` are the same
 """
 struct ScanSeg <: ObsSegmentation end
 
@@ -32,6 +28,28 @@ struct ScanSeg <: ObsSegmentation end
 """
     $(TYPEDEF)
 
-Data segmentation such that the quantity is constant over a correlation integration.
+Data segmentation such that the quantity is constant over the time stamps in the data.
+If the data is scan-averaged before then `IntegSeg` will be identical to `ScanSeg`.
 """
 struct IntegSeg <: ObsSegmentation end
+
+
+struct TimeStamp{T, I<:Integer}
+    mjd::T
+    scanid::I
+    start_time::T
+    stop_time::T
+end
+
+Base.in(t::Number, ts::TimeStamp) = ts.start_time ≤ t < ts.stop_time
+scanid(ts::TimeStamp) = ts.scanid
+mjd(ts::TimeStamp) = ts.mjd
+
+
+struct FrequencyChannel{T, I<:Integer}
+    central::T
+    bandwidth::T
+    channel::I
+end
+
+Base.in(f::Number, fs::Frequency) = (fs.central-fs.bandwidth/2) ≤ f < (fs.central+fs.bandwidth/2)

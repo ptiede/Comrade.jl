@@ -56,5 +56,5 @@ function build_feedrotation(obs::EHTArrayConfiguration)
     jF1 = StructArray{SMatrix{2,2,S,4}}((cis.(-FR1), offdiag, offdiag, cis.(FR1)))
     jF2 = StructArray{SMatrix{2,2,S,4}}((cis.(-FR2), offdiag, offdiag, cis.(FR2)))
 
-    return JonesPairs(jF1, jF2)
+    return jF1, jF2
 end

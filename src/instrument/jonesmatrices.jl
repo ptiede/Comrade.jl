@@ -58,7 +58,7 @@ function preallocate_jones(J::JonesR, array::ArrayConfiguration, ref)
         @. T1 .= Tcirc1*field_rotations.m1*adjoint(Tcirc1)*T1
         @. T2 .= Tcirc2*field_rotations.m2*adjoint(Tcirc2)*T2
     end
-    return JonesPairs(T1, T2)
+    return (T1, T2)
 
 end
 
