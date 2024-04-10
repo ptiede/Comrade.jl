@@ -1,4 +1,4 @@
-export SingleStokesGain, JonesG, JonesG, JonesF, JonesR, GenericJones,
+export SingleStokesGain, JonesG, JonesD, JonesF, JonesR, GenericJones,
        JonesModel
 
 abstract type AbstractJonesMatrix end
@@ -43,7 +43,7 @@ function preallocate_jones(::JonesF, array::ArrayConfiguration)
     return field_rotations
 end
 
-Base.@kwdef struct JonesR{M, B} <: AbstractJonesMatrix
+Base.@kwdef struct JonesR{M} <: AbstractJonesMatrix
     matrices::M = nothing
     add_fr::Bool = true
 end
@@ -63,7 +63,7 @@ function preallocate_jones(J::JonesR, array::ArrayConfiguration, ref)
 end
 
 
-struct JonesModel{J, M, B} <: AbstractJonesMatrix
+struct JonesModel{J, M} <: AbstractJonesMatrix
     jones_map::J
     matrices::M
 end
