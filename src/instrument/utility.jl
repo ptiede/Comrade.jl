@@ -30,4 +30,5 @@ function sites_tuple(sites::NTuple{N, Symbol}, default; kwargs...) where {N}
     return NamedTuple{st}(out)
 end
 sites_tuple(dvis::EHTObservation, default; kwargs...) = sites_tuple(Tuple(sites(dvis)), default; kwargs...)
+sites_tuple(dvis::EHTArrayConfiguration, default; kwargs...) = sites_tuple(Tuple(sites(dvis)), default; kwargs...)
 sites_tuple(st::AbstractVector{Symbol}, default; kwargs...) = sites_tuple(Tuple(st), default; kwargs...)
