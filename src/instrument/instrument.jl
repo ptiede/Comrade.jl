@@ -61,11 +61,31 @@ function visibilities_numeric(model::VLBIModel, u, v, time, freq)
     return apply_instrument(vis, model.instrument)
 end
 
+struct IntegrationTime{T, I}
+    mjd::T
+    scanid::I
+    t0::T
+    dt::T
+end
+
+Base.in(t::Number, ts::IntegrationTime) = (ts.t0 - ts.dt/2) ≤ t < (ts.t0 + ts.dt/2)
+scanid(ts::IntegrationTime) = ts.scanid
+mjd(ts::IntegrationTime) = ts.mjd
+
+
+struct FrequencyChannel{T, I<:Integer}
+    central::T
+    bandwidth::T
+    channel::I
+end
+
+Base.in(f::Number, fs::FrequencyChannel) = (fs.central-fs.bandwidth/2) ≤ f < (fs.central+fs.bandwidth/2)
+channel(fs::FrequencyChannel) = fs.channel
+
 
 include("site_array.jl")
 include("feedrotations.jl")
 include("jonesmatrices.jl")
-include("refant.jl")
 include("priors/priors.jl")
 include("instrument_transforms.jl")
 include("rime.jl")

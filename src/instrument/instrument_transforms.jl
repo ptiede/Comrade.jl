@@ -14,13 +14,13 @@ function TV.inverse_at!(x::AbstractArray, index, t::AbstractInstrumentTransform,
 end
 
 
-struct InstrumentTransform{T, L<:SiteMap} <: AbstractInstrumentTransform
+struct InstrumentTransform{T, L<:SiteLookup} <: AbstractInstrumentTransform
     inner_transform::T
     site_map::L
 end
 
 
-struct MarkovInstrumentTransform{T, L<:SiteMap} <: AbstractInstrumentTransform
+struct MarkovInstrumentTransform{T, L<:SiteLookup} <: AbstractInstrumentTransform
     inner_transform::T
     site_map::L
 end
@@ -40,7 +40,7 @@ function _instrument_transform_with(flag::TV.LogJacFlag, m::MarkovInstrumentTran
     return y, ℓ, index
 end
 
-function site_sum!(y, site_map::SiteMap)
+function site_sum!(y, site_map::SiteLookup)
     map(site_map.lookup) do site
         ys = @view y[site]
         # y should never alias so we should be fine here.
@@ -63,7 +63,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_in
 end
 
 
-function site_diff!(y, site_map::SiteMap)
+function site_diff!(y, site_map::SiteLookup)
     map(site_map.lookup) do site
         ys = @view y[site]
         # y should never alias so we should be fine here.

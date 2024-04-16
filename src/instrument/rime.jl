@@ -1,4 +1,4 @@
-struct BaselineSiteMap{V<:AbstractArray{<:Integer}}
+struct BaselineSiteLookup{V<:AbstractArray{<:Integer}}
     indices_1::V
     indices_2::V
 end
@@ -26,14 +26,14 @@ function _construct_baselinemap(array::EHTArrayConfiguration, x::SiteArray)
         ind1[i] = i1
         ind2[i] = i2
     end
-    BaselineSiteMap(ind1, ind2)
+    BaselineSiteLookup(ind1, ind2)
 end
 
 
 
 
 
-struct RIMEModel{J, B<:BaselineSiteMap, A<:ArrayConfiguration, Ba} <: AbstractRIMEModel
+struct RIMEModel{J, B<:BaselineSiteLookup, A<:ArrayConfiguration, Ba} <: AbstractRIMEModel
     jones::J
     bsitemaps::B
     array::A
