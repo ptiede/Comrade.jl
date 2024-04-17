@@ -4,33 +4,123 @@ abstract type AbstractSitePrior <: Distributions.ContinuousMultivariateDistribut
 
 abstract type AbstractInstrumentPrior <: Distributions.ContinuousMultivariateDistribution end
 
+include("segmentation.jl")
+include("independent.jl")
+include("refant.jl")
+include("instrument.jl")
+
 struct SitesPrior{T, D, A, R}
     timecorr::T
     default_dist::D
-    special_dist::A
+    override_dist::A
     refant::R
 end
 
-function SitesPrior(corr, dist; refant=nothing, kwargs...)
+function SitesPrior(corr, dist; refant=NoReference(), kwargs...)
     return SitesPrior(corr, dist, kwargs, refant)
 end
+
 
 struct ObservedSitesPrior{D, S}
     dists::D
     sitemap::S
 end
 
-function ObservedSitePrior(d::SitesPriors, array::EHTArrayConfiguration)
+function build_sitemap(segmentation, array)
     sts = sites(array)
-    ts  = timestamps(d.timecorr, array)
+    ts  = timestamps(segmentation, array)
+    fs  = unique(array[:F])
+
+    T  = array[:T]
+    bl = array[:baseline]
+    F  = array[:F]
+
+    times = eltype(T)[]
+    freqs = eltype(F)[]
+    slist = Symbol[]
+
+    # This is frequency, time, station ordering
+    for f in fs, t in ts, s in sts
+        if any(i->((T[i]∈t)&&s∈bl[i]&&f==F[i]), eachindex(T))
+            push!(times, t.t0)
+            push!(slist, s)
+            push!(freqs, f)
+        end
+    end
+    return SiteLookup(slist, times, freqs), ts
 end
 
-function timestamps(s::ScanSeg, array)
-    st = array.scans
-    scanid = 1:length(st)
-    mjd =
-    return TimeStamps.()
+function ObservedSitePrior(d::SitesPrior, array::EHTArrayConfiguration)
+    smap, ts, fs = build_sitemap(d.timecorr, array)
+    site_dists = site_tuple(array, d.default_dist; d.override_dist...)
+    dists = build_dist(site_dists, smap, d.refants)
+    return ObservedSitesPrior(dists, sitemap)
 end
+
+function get_site_inds(timesfreqs, time, freq)
+
+    return findall((t, f)->(t==time)&&(f==freq), timesfreqs)
+end
+
+function build_dist(dists::NamedTuple, smap::SiteLookup, refant)
+    ts = smap.times
+    ss = smap.sites
+    fs = smap.frequencies
+
+    tuni = unique(ts)
+    funi = unique(fs)
+    timefreq = StructArray((ts, fs))
+
+    refantinds = build_refant(timefreq, refant)
+
+    for i in eachindex(ts, ss, fs)
+
+    end
+    refants =
+    map(ts) do t
+        inds = findall(==(t), times(smap))
+        sts = unique(@view(sites(sites(smap))[inds]))
+
+    end
+end
+
+function timestamps(::ScanSeg, array)
+    st     = array.scans
+    scanid = 1:length(st)
+    mjd    = array.mjd
+
+    # Shift the central time to the middle of the scan
+    dt = (st.stop .- st.start)
+    t0 = st.start .+ dt./2
+    return IntegrationTime.(5.0, scanid, t0, dt)
+end
+
+getscan(scans, t) = findfirst(i->scans.start[i]≤t<scans.stop[i], 1:length(scans))
+
+function timestamps(::IntegSeg, array)
+    ts = unique(array[:T])
+    st     = array.scans
+    scanids = getscan.(Ref(st), ts)
+    mjd    = array.mjd
+
+    # TODO build in the dt into the data format
+    dt = minimum(diff(ts))
+    return IntegrationTime.(mjd, scanids, ts, dt)
+end
+
+function timestamps(::TrackSeg, array)
+    st     = array.scans
+    mjd    = array.mjd
+
+    tstart, tend = extrema(array[:T])
+    dt = tend - tstart
+
+    # TODO build in the dt into the data format
+    return IntegrationTime(mjd, 1:length(st), t, dt)
+end
+
+
+
 
 
 
@@ -62,7 +152,7 @@ In other words `distt` is the uncorrelated transition probability when moving fr
 i to timestamp i+1. For the typical pre-calibrated dataset the gain prior on `distt` can be
 tighter than the prior on `dist0`.
 """
-function InstrumentParamPrior(dist0::NamedTuple, distt::NamedTuple, jcache::SiteMap)
+function InstrumentParamPrior(dist0::NamedTuple, distt::NamedTuple, jcache::SiteLookup)
     sites = Tuple(unique(jcache.schema.sites))
     gstat = jcache.schema.sites
     @argcheck issubset(Set(gstat), Set(keys(dist0)))

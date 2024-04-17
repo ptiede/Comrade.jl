@@ -33,7 +33,7 @@ end
 
 
 
-struct RIMEModel{J, B<:BaselineSiteLookup, A<:ArrayConfiguration, Ba} <: AbstractRIMEModel
+struct RIMEModel{J, B<:BaselineSiteLookup, A<:AbstractArrayConfiguration, Ba} <: AbstractRIMEModel
     jones::J
     bsitemaps::B
     array::A

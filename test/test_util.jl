@@ -20,10 +20,10 @@ function load_data()
     cphase = extract_table(obsm, ClosurePhases(cut_trivial=true))
     dcoh = extract_table(obspol, Coherencies())
 
-    derr = dcoh[:error]
+    derr = dcoh[:noise]
     derr.:2 .= derr.:1
     derr.:3 .= derr.:1
-    dcoh.data.error .= derr
+    dcoh.data.noise .= derr
 
     return m, vis, amp, lcamp, cphase, dcoh
 end

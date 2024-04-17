@@ -38,7 +38,7 @@ struct JonesF{M} <: AbstractJonesMatrix
 end
 JonesF() = JonesF(nothing)
 construct_jones(J::JonesF, x, index, ::Val{M}) where {M} = J.matrices[index][M]
-function preallocate_jones(::JonesF, array::ArrayConfiguration)
+function preallocate_jones(::JonesF, array::AbstractArrayConfiguration)
     field_rotations = build_frs(array)
     return field_rotations
 end
@@ -48,7 +48,7 @@ Base.@kwdef struct JonesR{M} <: AbstractJonesMatrix
     add_fr::Bool = true
 end
 construct_jones(J::JonesR, x, index, ::Val{M}) where {M} = J.matrices[index][M]
-function preallocate_jones(J::JonesR, array::ArrayConfiguration, ref)
+function preallocate_jones(J::JonesR, array::AbstractArrayConfiguration, ref)
     T1 = StructArray(map(x -> basis_transform(ref, x[1]), array.data.polbasis))
     T2 = StructArray(map(x -> basis_transform(ref, x[2]), array.data.polbasis))
     Tcirc1 = StructArray(map(x -> basis_transform(CirBasis(), x[1]), array.data.polbasis))
@@ -73,7 +73,7 @@ function JonesModel(map, matrices::AbstractJonesMatrix...)
 end
 
 param_map(j::JonesModel, x) = map(j->param_map(j, x), j.matrices)
-function preallocate_jones(J::JonesModel, array::ArrayConfiguration)
+function preallocate_jones(J::JonesModel, array::AbstractArrayConfiguration)
     m2 = map(x->preallocate_jones(x, array), J.matrices, J.refbasis)
     return JonesModel(J.jones_map, m2, J.refbasis)
 end

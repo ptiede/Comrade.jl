@@ -1,18 +1,23 @@
 abstract type AbstractObservationTable{F<:AbstractVisibilityDatum} <: AbstractVLBITable{F} end
 measurement(t::AbstractObservationTable) = getfield(t, :measurement)
-error(t::AbstractObservationTable) = getfield(t, :error)
+noise(t::AbstractObservationTable) = getfield(t, :noise)
 baseline(t::AbstractObservationTable) = datatable(arrayconfig(t))
+arrayconfig(c::AbstractObservationTable, p::Symbol) = getindex(arrayconfig(c), p)
+Base.length(obs::AbstractObservationTable) = length(measurement(obs))
+Base.firstindex(obs::AbstractObservationTable) = firstindex(measurement(obs))
+Base.lastindex(obs::AbstractObservationTable) = lastindex(measurement(obs))
 
-function Base.getindex(data::F, i::AbstractVector) where {F<:AbstractObservationTable}
-    config = arrayconfig(data)
-    newconftable = datatable(config)[i]
-    newconfig = @set config.datatable = newconftable
-    return F(measurement(data)[i], error(data)[i], newconfig)
+function VLBISkyModels.rebuild(data::F, newtable) where {F<:AbstractObservationTable}
+    m = newtable.measurement
+    s = newtable.noise
+    b = newtable.baseline
+    newconf = rebuild(arrayconfig(data), b)
+    return F(m, s, newconf)
 end
 
 
 function datatable(obs::AbstractObservationTable{F}) where {F}
-    return StructArray{F}((measurement=obs.measurement, error=obs.error, baseline=datatable(obs.config)))
+    StructArray((build_datum(obs, i) for i in 1:length(obs)), unwrap=(T->(T<:Tuple || T<:AbstractBaselineDatum)))
 end
 
 """
@@ -32,7 +37,7 @@ unless they are implementing a new `AbstractObservationTable`.
 function build_datum(data::AbstractObservationTable{F}, i::Int) where {F}
     arr = arrayconfig(data)
     m   = measurement(data)
-    e   = error(data)
+    e   = noise(data)
     return build_datum(F, m[i], e[i], arr[i])
 end
 
@@ -70,9 +75,9 @@ struct EHTObservationTable{T<:AbstractVisibilityDatum,S<:AbstractArray, E<:Abstr
     """
     measurement::S
     """
-    Observation thermal error
+    Observation thermal noise
     """
-    error::E
+    noise::E
     """
     Array config holds ancillary information about array
     """
@@ -83,9 +88,7 @@ struct EHTObservationTable{T<:AbstractVisibilityDatum,S<:AbstractArray, E<:Abstr
     function EHTObservationTable{A, B, C, D}(meas, err, config) where {A, B, C, D}
         return new{A, B, C, D}(meas, err, config)
     end
-
 end
-
 
 function Base.show(io::IO, d::EHTObservationTable{F}) where {F}
     config = arrayconfig(d)
@@ -94,8 +97,21 @@ function Base.show(io::IO, d::EHTObservationTable{F}) where {F}
     println(io, "EHTObservation{$sF}")
     println(io, "  source:      ", config.source)
     println(io, "  mjd:         ", config.mjd)
-    println(io, "  frequencies: ", unique(config[:F]))
     println(io, "  bandwidth:   ", config.bandwidth)
-    println(io, "  sites:       ", sites(config))
-    print(io, "  nsamples:    ", length(config))
+    println(io, "  sites:       ", sites(d))
+    print(io,   "  nsamples:    ", length(config))
+end
+
+function Base.getindex(obs::EHTObservationTable{F}, i::AbstractVector) where {F<:ClosureProducts}
+    conf = arrayconfig(obs)[i]
+    m = measurement(obs)[i]
+    s = noise(obs)[i, i]
+    return EHTObservationTable{F}(m, s, conf)
+end
+
+function Base.view(obs::EHTObservationTable{F}, i::AbstractVector) where {F<:ClosureProducts}
+    conf = @view arrayconfig(obs)[i]
+    m = @view measurement(obs)[i]
+    s = @view noise(obs)[i, i]
+    return EHTObservationTable{F}(m, s, conf)
 end

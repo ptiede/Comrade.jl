@@ -70,7 +70,7 @@ function (m::ModelMetadata)(θ)
 end
 
 
-function _VLBILikelihood(skymodel, instrumentmodel, data::EHTObservation...)
+function _VLBILikelihood(skymodel, instrumentmodel, data::EHTObservationTable...)
     ls = Tuple(map(makelikelihood, data))
     acs = map(arrayconfig, data)
     positions = getuvtimefreq(data[1].config)
@@ -127,7 +127,7 @@ VLBILikelihood(skymodel, instrumentmodel, dataproducts::EHTObservation...;
 function VLBILikelihood(
         skymodel,
         instrumentmodel,
-        dataproducts::EHTObservation...;
+        dataproducts::EHTObservationTable...;
         skymeta = nothing,
         instrumentmeta = nothing)
 
@@ -164,7 +164,7 @@ julia> AbstractRadioLikelihood(skymodel, dcphase, dlcamp)
 """
 function VLBILikelihood(
     skymodel,
-    dataproducts::EHTObservation...;
+    dataproducts::EHTObservationTable...;
     skymeta=nothing)
 
     if !isnothing(skymeta)
@@ -224,9 +224,9 @@ Compute the log-closure amplitudes for a set of visibilities and an array config
 # Notes
 This uses a closure design matrix for the computation.
 """
-function logclosure_amplitudes(vis::AbstractArray{<:Complex}, ac::ArrayConfiguration)
+function logclosure_amplitudes(vis::AbstractArray{<:Complex}, ac::ClosureConfig)
     lva = log.(abs.(vis))
-    return ac.designmat*lva
+    return designmat(ac)*lva
 end
 
 """
@@ -237,12 +237,12 @@ Compute the closure phases for a set of visibilities and an array configuration
 # Notes
 This uses a closure design matrix for the computation.
 """
-function closure_phases(vis::AbstractArray{<:Complex}, ac::ArrayConfiguration)
+function closure_phases(vis::AbstractArray{<:Complex}, ac::ClosureConfig)
     ph = angle.(vis)
-    return ac.designmat*ph
+    return designmat(ac)*ph
 end
 
-amplitudes(vis::AbstractArray{<:Complex}, ac::ArrayConfiguration) = abs.(vis)
+amplitudes(vis::AbstractArray{<:Complex}, ac::AbstractArrayConfiguration) = abs.(vis)
 phase(vis::AbstractArray{<:Complex}) = angle.(vis)
 
 
@@ -291,7 +291,7 @@ likelihood(d::ConditionedLikelihood, μ) = d.kernel(μ)
 
 
 # internal function that creates the likelihood for a set of complex visibilities
-function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityDatum})
+function makelikelihood(data::Comrade.EHTObservationTable{<:Real, <:Comrade.EHTComplexVisibilityDatum})
     Σ = data[:error].^2
     vis = data[:measurement]
     lnorm = VLBILikelihoods.lognorm(ComplexVisLikelihood(vis, Σ))
@@ -301,8 +301,8 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
     return ℓ
 end
 
-function makelikelihood(data::Comrade.EHTObservation{T, <:Comrade.EHTCoherencyDatum}) where {T}
-    Σ = deepcopy(map(x->x.^2, data[:error]))
+function makelikelihood(data::Comrade.EHTObservationTable{T, <:Comrade.EHTCoherencyDatum}) where {T}
+    Σ = deepcopy(map(x->x.^2, data[:noise]))
     vis = data[:measurement]
     # lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, Σ))
     ℓ = ConditionedLikelihood(vis) do μ
@@ -312,8 +312,8 @@ function makelikelihood(data::Comrade.EHTObservation{T, <:Comrade.EHTCoherencyDa
 end
 
 # internal function that creates the likelihood for a set of visibility amplitudes
-function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
-    Σ = data[:error].^2
+function makelikelihood(data::Comrade.EHTObservationTable{<:Real, <:Comrade.EHTVisibilityAmplitudeDatum})
+    Σ = data[:noise].^2
     amp = data[:measurement]
     ℓ = ConditionedLikelihood(amp) do μ
         RiceAmplitudeLikelihood(abs.(μ), Σ)
@@ -322,7 +322,7 @@ function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTVisibi
 end
 
 # internal function that creates the likelihood for a set of log closure amplitudes
-function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
+function makelikelihood(data::Comrade.EHTObservationTable{<:Real, <:Comrade.EHTLogClosureAmplitudeDatum})
     dmat = data.config.designmat
     amp2 = abs2.(data.config.ac.data.measurement)
     Σlamp = data.config.ac.data.error.^2 ./ amp2
@@ -340,7 +340,7 @@ end
 
 
 # internal function that creates the likelihood for a set of closure phase datum
-function makelikelihood(data::Comrade.EHTObservation{<:Real, <:Comrade.EHTClosurePhaseDatum})
+function makelikelihood(data::Comrade.EHTObservationTable{<:Real, <:Comrade.EHTClosurePhaseDatum})
     dmat = data.config.designmat
     amp2 = abs2.(data.config.ac.data.measurement)
     Σphase = data.config.ac.data.error.^2 ./ amp2

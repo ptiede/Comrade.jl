@@ -1,4 +1,4 @@
-export measurement, error, baseline
+export measurement, noise, baseline
 
 """
     AbstractVisibilityDatum
@@ -7,14 +7,14 @@ An abstract type for all VLBI data types. See [`Comrade.EHTComplexVisibilityDatu
 abstract type AbstractVisibilityDatum{T} end
 baseline(p::AbstractVisibilityDatum) = getfield(p, :baseline)
 measurement(p::AbstractVisibilityDatum) = getfield(p, :measurement)
-error(p::AbstractVisibilityDatum) = getfield(p, :error)
+noise(p::AbstractVisibilityDatum) = getfield(p, :noise)
 
 # function Base.propertynames(p::AbstractVisibilityDatum)
-#     return (propertynames(baseline(p))..., :measurement, :error)
+#     return (propertynames(baseline(p))..., :measurement, :noise)
 # end
 # function Base.getproperty(p::AbstractVisibilityDatum, s::Symbol)
 #     s == :measurement && return measurement(p)
-#     s == :error       && return error(p)
+#     s == :noise       && return noise(p)
 #     return getproperty(baseline(p), s)
 # end
 
@@ -42,7 +42,7 @@ Base.@kwdef struct EHTCoherencyDatum{S, B<:AbstractBaselineDatum, M<:SMatrix{2,2
     """
     visibility uncertainty matrix, with entries in Jy
     """
-    error::E
+    noise::E
     """
     baseline information
     """
@@ -65,9 +65,9 @@ Base.@kwdef struct EHTComplexVisibilityDatum{S<:Number, B<:AbstractBaselineDatum
     """
     measurement::Complex{S}
     """
-    error of the complex vis (Jy)
+    noise of the complex vis (Jy)
     """
-    error::S
+    noise::S
     """
     baseline information
     """
@@ -91,9 +91,9 @@ Base.@kwdef struct EHTVisibilityAmplitudeDatum{S<:Number, B<:AbstractBaselineDat
     """
     measurement::S
     """
-    error of the visibility amplitude (Jy)
+    noise of the visibility amplitude (Jy)
     """
-    error::S
+    noise::S
     """
     baseline information
     """
@@ -115,9 +115,9 @@ Base.@kwdef struct EHTClosurePhaseDatum{S<:Number, B<:AbstractBaselineDatum} <: 
     """
     measurement::S
     """
-    error of the closure phase assuming the high-snr limit
+    noise of the closure phase assuming the high-snr limit
     """
-    error::S
+    noise::S
     """
     baselines for the closure phase
     """
@@ -147,9 +147,9 @@ Base.@kwdef struct EHTLogClosureAmplitudeDatum{S<:Number, B<:AbstractBaselineDat
     """
     measurement::S
     """
-    log-closure amplitude error in the high-snr limit
+    log-closure amplitude noise in the high-snr limit
     """
-    error::S
+    noise::S
     """
     baselines for the closure phase
     """

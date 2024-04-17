@@ -32,24 +32,3 @@ Data segmentation such that the quantity is constant over the time stamps in the
 If the data is scan-averaged before then `IntegSeg` will be identical to `ScanSeg`.
 """
 struct IntegSeg <: ObsSegmentation end
-
-
-struct TimeStamp{T, I<:Integer}
-    mjd::T
-    scanid::I
-    start_time::T
-    stop_time::T
-end
-
-Base.in(t::Number, ts::TimeStamp) = ts.start_time ≤ t < ts.stop_time
-scanid(ts::TimeStamp) = ts.scanid
-mjd(ts::TimeStamp) = ts.mjd
-
-
-struct FrequencyChannel{T, I<:Integer}
-    central::T
-    bandwidth::T
-    channel::I
-end
-
-Base.in(f::Number, fs::Frequency) = (fs.central-fs.bandwidth/2) ≤ f < (fs.central+fs.bandwidth/2)

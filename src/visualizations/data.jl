@@ -9,16 +9,16 @@ export residuals, chi2
     v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
     vis = dvis[:measurement]
-    error = getdata(dvis, :error)
+    noise = getdata(dvis, :noise)
     vre = real.(vis)
     vim = imag.(vis)
-    #add data errorbars
+    #add data noisebars
     @series begin
         seriestype := :scatter
         markershape := datamarker
         markercolor := datacolor
         alpha := 0.5
-        yerr := error
+        yerr := noise
         linecolor := nothing
         label := "Data"
         uvdist./1e9, vre
@@ -33,7 +33,7 @@ export residuals, chi2
         markerstrokealpha := 1.0
         linecolor :=nothing
         label := nothing
-        yerr := error
+        yerr := noise
         uvdist./1e9, vim
     end
 
@@ -50,14 +50,14 @@ end
     v = getdata(dvis, :V)
     uvdist = hypot.(u,v)./1e9
     vis = dvis[:measurement]
-    error = getdata(dvis, :error)
+    noise = getdata(dvis, :noise)
     vmod = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
     layout := (2,2)
-    #add data errorbars
+    #add data noisebars
     @series begin
         v = getindex.(vis, 1, 1)
         vm = getindex.(vmod, 1, 1)
-        err = getindex.(error, 1, 1)
+        err = getindex.(noise, 1, 1)
         subplot := 1
         yguide := "C₁₁ (Jy)"
         seriestype := :scatter
@@ -85,7 +85,7 @@ end
         subplot := 2
         v = getindex.(vis, 1, 2)
         vm = getindex.(vis, 1, 2)
-        err = getindex.(error, 1, 2)
+        err = getindex.(noise, 1, 2)
         yguide := "C₁₂ (Jy)"
         legend := nothing
         seriestype := :scatter
@@ -113,7 +113,7 @@ end
         subplot := 3
         v = getindex.(vis, 2, 1)
         vm = getindex.(vis, 2, 1)
-        err = getindex.(error, 2, 1)
+        err = getindex.(noise, 2, 1)
         legend := nothing
         seriestype := :scatter
         yguide := "C₂₁ (Jy)"
@@ -141,7 +141,7 @@ end
         subplot := 4
         v = getindex.(vis, 2, 2)
         vm = getindex.(vis, 2, 2)
-        err = getindex.(error, 2, 2)
+        err = getindex.(noise, 2, 2)
         legend := nothing
         seriestype := :scatter
         yguide := "C₂₂ (Jy)"
@@ -176,14 +176,14 @@ end
     v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
     vis = dvis[:measurement]
-    error = getdata(dvis, :error)
+    noise = getdata(dvis, :noise)
     vre = real.(vis)
     vim = imag.(vis)
-    #add data errorbars
+    #add data noisebars
     @series begin
         seriestype := :scatter
         alpha := 0.5
-        yerr := error
+        yerr := noise
         linecolor := nothing
         label := "Real"
         uvdist./1e9, vre
@@ -196,7 +196,7 @@ end
         markerstrokealpha := 1.0
         linecolor :=nothing
         label := nothing
-        yerr := error
+        yerr := noise
         label := "Imag"
         uvdist./1e9, vim
     end
@@ -209,17 +209,17 @@ end
     v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
     coh = dvis[:measurement]
-    error = dvis[:error]
+    noise = dvis[:noise]
     layout := (2,2)
 
-    #add data errorbars
+    #add data noisebars
     @series begin
         xguide --> "uv-distance (Gλ)"
         subplot := 1
         yguide := "RR (Jy)"
         vre = real.(getindex.(coh, 1, 1))
         vim = imag.(getindex.(coh, 1, 1))
-        err = getindex.(error, 1, 1)
+        err = getindex.(noise, 1, 1)
         @series begin
             seriestype := :scatter
             alpha := 0.5
@@ -246,7 +246,7 @@ end
         yguide := "RL (Jy)"
         vre = real.(getindex.(coh, 1, 2))
         vim = imag.(getindex.(coh, 1, 2))
-        err = getindex.(error, 1, 2)
+        err = getindex.(noise, 1, 2)
         @series begin
             seriestype := :scatter
             alpha := 0.5
@@ -274,7 +274,7 @@ end
         yguide := "LR (Jy)"
         vre = real.(getindex.(coh, 2, 1))
         vim = imag.(getindex.(coh, 2, 1))
-        err = getindex.(error, 1, 1)
+        err = getindex.(noise, 1, 1)
         @series begin
             seriestype := :scatter
             alpha := 0.5
@@ -301,7 +301,7 @@ end
         yguide := "LL (Jy)"
         vre = real.(getindex.(coh, 2, 2))
         vim = imag.(getindex.(coh, 2, 2))
-        err = getindex.(error, 1, 1)
+        err = getindex.(noise, 1, 1)
         @series begin
             seriestype := :scatter
             alpha := 0.5
@@ -334,11 +334,11 @@ end
     v = getdata(dvis, :V)/1e9
     uvdist = hypot.(u,v)
     amp = dvis[:measurement]
-    error = getdata(dvis, :error)
-    #add data errorbars
+    noise = getdata(dvis, :noise)
+    #add data noisebars
     seriestype --> :scatter
     alpha --> 0.5
-    yerr := error
+    yerr := noise
     linecolor --> nothing
     label --> "Data"
     uvdist, amp
@@ -350,7 +350,7 @@ end
     markershape --> :circle
 
     u, v = getuv(acc)
-    #add data errorbars
+    #add data noisebars
     seriestype --> :scatter
     linecolor --> nothing
     aspect_ratio --> :equal
@@ -368,14 +368,14 @@ end
     v = getdata(dvis, :V)
     uvdist = hypot.(u,v)
     amp = dvis[:measurement]
-    error = getdata(dvis, :error)
-    #add data errorbars
+    noise = getdata(dvis, :error)
+    #add data noisebars
     @series begin
         seriestype := :scatter
         markershape := datamarker
         markercolor := datacolor
         alpha := 0.5
-        yerr := error
+        yerr := noise
         linecolor := nothing
         label := "Data"
         uvdist./1e9, amp
@@ -417,11 +417,11 @@ end
     markershape --> :diamond
     area = sqrt.(uvarea.(dlca.data))
     phase = getdata(dlca, :measurement)
-    error = getdata(dlca, :error)
-    #add data errorbars
+    noise = getdata(dlca, :noise)
+    #add data noisebars
     seriestype --> :scatter
     alpha := 0.5
-    yerr := error
+    yerr := noise
     label --> "Data"
     linecolor --> nothing
     area, phase
@@ -442,14 +442,14 @@ end
     v4 = getdata(dlca, :V4)
     area = sqrt.(uvarea.(dlca.data))
     phase = getdata(dlca, :measurement)
-    error = getdata(dlca, :error)
-    #add data errorbars
+    noise = getdata(dlca, :noise)
+    #add data noisebars
     @series begin
         seriestype := :scatter
         markershape := datamarker
         markercolor := datacolor
         alpha := 0.5
-        yerr := error
+        yerr := noise
         linecolor := nothing
         label := "Data"
         area, phase
@@ -473,10 +473,10 @@ end
     v3 = getdata(dcp, :V3)
     area = sqrt.(uvarea.(dcp.data))
     phase = getdata(dcp, :measurement)
-    error = getdata(dcp, :error)
+    noise = getdata(dcp, :noise)
     seriestype := :scatter
     alpha --> 0.5
-    yerr := error
+    yerr := noise
     linecolor --> nothing
     label --> "Data"
     area, phase
@@ -494,14 +494,14 @@ end
     v3 = getdata(dcp, :V3)
     area = sqrt.(uvarea.(dcp.data))
     phase = getdata(dcp, :measurement)
-    error = getdata(dcp, :error)
-    #add data errorbars
+    noise = getdata(dcp, :noise)
+    #add data noisebars
     @series begin
         seriestype := :scatter
         markershape := datamarker
         markercolor := datacolor
         alpha := 0.5
-        yerr := error
+        yerr := noise
         linecolor := nothing
         label --> "Data"
         area, phase
@@ -523,7 +523,7 @@ ndata(d::EHTObservationTable{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d
 @recipe function f(h::Residual)
     if length(h.args) != 2 || !(typeof(h.args[1]) <: AbstractModel) ||
         !(typeof(h.args[2]) <: EHTObservation)
-        error("Residual should be given a model and data product.  Got: $(typeof(h.args))")
+        noise("Residual should be given a model and data product.  Got: $(typeof(h.args))")
     end
     m, damp = h.args
     uvdist, res = residuals(m, damp)
@@ -606,7 +606,7 @@ function residuals(m, dvis::EHTObservationTable{T, A}) where {T, A<:EHTComplexVi
     v = getdata(dvis, :V)
     vis = dvis[:measurement]
     mvis = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
-    res = (vis - mvis)./getdata(dvis, :error)
+    res = (vis - mvis)./getdata(dvis, :noise)
     re = real.(res)
     im = imag.(res)
     return hypot.(u, v), hcat(re, im)
@@ -617,7 +617,7 @@ function residuals(m, dvis::EHTObservationTable{T, A}) where {T, A<:EHTCoherency
     v = getdata(dvis, :V)
     coh = dvis[:measurement]
     mcoh = visibilities(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
-    res = map((x,y,z)->((x .- y)./z), coh, mcoh, dvis[:error])
+    res = map((x,y,z)->((x .- y)./z), coh, mcoh, dvis[:noise])
     return hypot.(u, v), StructArray(res)
 end
 
@@ -628,7 +628,7 @@ function residuals(m, damp::EHTObservationTable{T, A}) where {T, A<:EHTVisibilit
     v = getdata(damp, :V)
 
     mamp = amplitudes(m, (U=u, V=v))
-    res = (amp - mamp)./getdata(damp, :error)
+    res = (amp - mamp)./getdata(damp, :noise)
     return hypot.(u, v), res
 end
 
@@ -636,14 +636,14 @@ end
 function residuals(m, dcp::EHTObservationTable{T, A}) where {T, A<:EHTClosurePhaseDatum}
     area = sqrt.(uvarea.(dcp.data))
     phase = getdata(dcp, :measurement)
-    error = getdata(dcp, :error)
+    noise = getdata(dcp, :noise)
 
     mphase = closure_phases(m, dcp.config)
     res = zeros(length(phase))
     for i in eachindex(res)
         #s,c  = sincos(phase[i] - mphase[i])
         #dθ = atan(s,c)
-        res[i] = abs(cis(phase[i]) - cis(mphase[i]))/error[i]
+        res[i] = abs(cis(phase[i]) - cis(mphase[i]))/noise[i]
     end
 return area, res
 end
@@ -652,9 +652,9 @@ end
 function residuals(m, dlca::EHTObservationTable{T, A}) where {T, A<:EHTLogClosureAmplitudeDatum}
     area = sqrt.(uvarea.(dlca.data))
     phase = getdata(dlca, :measurement)
-    error = getdata(dlca, :error)
+    noise = getdata(dlca, :noise)
 
     mphase = logclosure_amplitudes(m, dlca.config)
-    res = (phase- mphase)./error
+    res = (phase- mphase)./noise
     return area, res
 end

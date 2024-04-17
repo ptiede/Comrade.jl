@@ -1,5 +1,5 @@
-@inline function ComradeBase.visibilities(m::M, p::ArrayConfiguration) where {M <: AbstractModel}
-    return _visibilities(visanalytic(M), m, p.data.U, p.data.V, p.data.T, p.data.F)
+@inline function ComradeBase.visibilities(m::M, p::EHTArrayConfiguration) where {M <: AbstractModel}
+    return _visibilities(visanalytic(M), m, p[:U], p[:V], p[:T], p[:F])
 end
 
 @inline function ComradeBase.visibilities(m::M, p::ClosureConfig) where {M <: AbstractModel}
@@ -7,8 +7,8 @@ end
 end
 
 
-@inline function ComradeBase.amplitudes(m::AbstractModel, p::ArrayConfiguration)
-    return amplitudes(m, (U = p.data.U, V = p.data.V, T=p.data.T, F=p.data.F))
+@inline function ComradeBase.amplitudes(m::AbstractModel, p::EHTArrayConfiguration)
+    return amplitudes(m, (U = p[:U], V = p[:V], T=p[:T], F=p[:F]))
 end
 
 

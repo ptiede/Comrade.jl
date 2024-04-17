@@ -5,24 +5,24 @@ Composable Modeling of Radio Emission
 module Comrade
 
 using AbstractMCMC
+using Accessors: @set
 using ArgCheck: @argcheck
 using DensityInterface
 import Distributions as Dists
 using DocStringExtensions
 using ChainRulesCore
 using Enzyme
-# Turn off the type analysis depth limit warning since it looks scary
-# Enzyme.API.typeWarning!(false)
-# Enzyme.API.runtimeActivity!(true)
 using FillArrays: Fill
 using ForwardDiff
 using IntervalSets
+using LinearAlgebra
 #using MappedArrays: mappedarray
 using NamedTupleTools
 using Printf
 using Random
 using RecipesBase
 using Reexport
+using SparseArrays
 using StaticArraysCore
 using StructArrays: StructVector, StructArray, append!!
 import StructArrays

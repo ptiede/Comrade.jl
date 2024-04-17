@@ -24,12 +24,9 @@ Comrade.Comrade
 
 ```@docs
 Comrade.CalTable
-Comrade.caltable(::Comrade.JonesCache, ::AbstractVector)
-Comrade.caltable(::Comrade.EHTObservation, ::AbstractVector)
-Comrade.DesignMatrix
-Comrade.JonesCache
-Comrade.ResponseCache
-Comrade.JonesModel
+Comrade.caltable(::Comrade.SiteLookup, array::AbstractArray)
+Comrade.caltable(::Comrade.SiteArray)
+Comrade.JonesSandwich
 Comrade.VLBIModel
 Comrade.CalPrior
 Comrade.CalPrior(::NamedTuple, ::JonesCache)
@@ -74,7 +71,7 @@ Comrade.LogClosureAmplitudes
 Comrade.Coherencies
 Comrade.baselines
 Comrade.arrayconfig
-Comrade.closure_phase(::Comrade.EHTVisibilityDatum, ::Comrade.EHTVisibilityDatum, ::Comrade.EHTVisibilityDatum)
+Comrade.closure_phase(::Comrade.EHTComplexVisibilityDatum, ::Comrade.EHTComplexVisibilityDatum, ::Comrade.EHTComplexVisibilityDatum)
 Comrade.getdata
 Comrade.getuv
 Comrade.getuvtimefreq
@@ -84,11 +81,11 @@ Comrade.uvpositions
 Comrade.ArrayConfiguration
 Comrade.ClosureConfig
 Comrade.AbstractInterferometryDatum
-Comrade.ArrayBaselineDatum
+Comrade.EHTArrayBaselineDatum
 Comrade.EHTObservation
 Comrade.EHTArrayConfiguration
 Comrade.EHTCoherencyDatum
-Comrade.EHTVisibilityDatum
+Comrade.EHTComplexVisibilityDatum
 Comrade.EHTVisibilityAmplitudeDatum
 Comrade.EHTLogClosureAmplitudeDatum
 Comrade.EHTClosurePhaseDatum

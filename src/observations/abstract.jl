@@ -1,6 +1,16 @@
 export datatable
 abstract type AbstractVLBITable{F} end
 datatable(obs::AbstractVLBITable) = getfield(obs, :datatable)
+function Base.getindex(config::F, i::AbstractVector) where {F<:AbstractVLBITable}
+    newconf = datatable(config)[i]
+    return rebuild(config, newconf)
+end
+
+function Base.view(config::F, i::AbstractVector) where {F<:AbstractVLBITable}
+    newconf = @view(datatable(config)[i])
+    return rebuild(config, newconf)
+end
+
 
 # Implement the tables interface
 Tables.istable(::Type{<:AbstractVLBITable}) = true
@@ -14,6 +24,9 @@ Tables.columnnames(t::AbstractVLBITable) = propertynames(datatable(t))
 
 Base.getindex(data::AbstractVLBITable, s::Symbol) = Tables.getcolumn(data, s)
 Base.length(data::AbstractVLBITable) = length(datatable(data))
-Base.lastindex(data::AbstractVLBITable) = lastindex(data.data)
-Base.firstindex(data::AbstractVLBITable) = firstindex(data.data)
+Base.lastindex(data::AbstractVLBITable) = lastindex(datatable(data))
+Base.firstindex(data::AbstractVLBITable) = firstindex(datatable(data))
 Base.getindex(data::AbstractVLBITable, i::Int) = build_datum(data, i)
+function VLBISkyModels.rebuild(config::AbstractVLBITable, table)
+    throw(MethodError(rebuild, config, table))
+end

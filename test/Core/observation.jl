@@ -20,7 +20,7 @@ using Pyehtim
     vis1 = Comrade.extract_vis(obsavg)
     vis  = extract_table(obsavg, ComplexVisibilities())
     @test vis[:measurement] ≈ vis1[:measurement]
-    @test vis[:error] ≈ vis1[:error]
+    @test vis[:noise] ≈ vis1[:noise]
     @test vis[:U] ≈ vis1[:U]
     @test vis[:V] ≈ vis1[:V]
     plot(vis)
@@ -29,7 +29,7 @@ using Pyehtim
     amp1 = Comrade.extract_amp(obsavg)
     amp = extract_table(obsavg, VisibilityAmplitudes())
     @test amp[:measurement] ≈ amp1[:measurement]
-    @test amp[:error] ≈ amp1[:error]
+    @test amp[:noise] ≈ amp1[:noise]
     @test amp[:U] ≈ amp1[:U]
     @test amp[:V] ≈ amp1[:V]
     plot(amp)
@@ -38,7 +38,7 @@ using Pyehtim
     cphase1 = Comrade.extract_cphase(obsavg; snrcut=3.0)
     cphase = extract_table(obsavg, ClosurePhases(;snrcut=3.0))
     @test cphase[:measurement] ≈ cphase1[:measurement]
-    @test cphase[:error] ≈ cphase1[:error]
+    @test cphase[:noise] ≈ cphase1[:noise]
     @test cphase[:U1] ≈ cphase1[:U1]
     @test cphase[:V1] ≈ cphase1[:V1]
     @test cphase[:U2] ≈ cphase1[:U2]
@@ -52,7 +52,7 @@ using Pyehtim
     lcamp1 = Comrade.extract_lcamp(obsavg; snrcut=3.0)
     lcamp  = extract_table(obsavg, LogClosureAmplitudes(;snrcut=3.0))
     @test lcamp[:measurement] ≈ lcamp1[:measurement]
-    @test lcamp[:error] ≈ lcamp1[:error]
+    @test lcamp[:noise] ≈ lcamp1[:noise]
     @test lcamp[:U1] ≈ lcamp1[:U1]
     @test lcamp[:V1] ≈ lcamp1[:V1]
     @test lcamp[:U2] ≈ lcamp1[:U2]
@@ -67,7 +67,7 @@ using Pyehtim
     dcoh1 = Comrade.extract_coherency(obspolavg)
     dcoh  = extract_table(obspolavg, Coherencies())
     @test dcoh[:measurement].:1 ≈ dcoh1[:measurement].:1
-    @test dcoh[:error].:1 ≈ dcoh1[:error].:1
+    @test dcoh[:noise].:1 ≈ dcoh1[:noise].:1
     @test dcoh[:U] ≈ dcoh1[:U]
     @test dcoh[:V] ≈ dcoh1[:V]
 
@@ -117,7 +117,7 @@ using Pyehtim
     baselines(lcamp[1])
 
     #Test amplitude which is already debiased for very very dumb reasons
-    @test sqrt(abs(visibility(vis[1]))^2 - vis[1].error^2) ≈ amp[1].measurement
+    @test sqrt(abs(visibility(vis[1]))^2 - vis[1].noise^2) ≈ amp[1].measurement
     ac = arrayconfig(vis)
     plot(ac)
 

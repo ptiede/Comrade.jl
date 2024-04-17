@@ -61,7 +61,7 @@ include("scantable.jl")
 # Computes the closure phase of the three visibility datums.
 
 # # Notes
-# We currently use the high SNR Gaussian error approximation for the closure phase.
+# We currently use the high SNR Gaussian noise approximation for the closure phase.
 # In the future we may use the moment matching from Monte Carlo sampling.
 # """
 # function closure_phase(D1::EHTComplexVisibilityDatum,
@@ -81,7 +81,7 @@ include("scantable.jl")
 #     s12 = unique([D1.baseline..., D2.baseline...])
 #     s123 = unique([s12..., D3.baseline...])
 #     #Use the Gaussian approximation TODO hook this into Measurements.jl?
-#     err = sqrt((D1.error/amp1)^2 + (D2.error/amp2)^2 + (D3.error/amp3)^2)
+#     err = sqrt((D1.noise/amp1)^2 + (D2.noise/amp2)^2 + (D3.noise/amp3)^2)
 #     return EHTClosurePhaseDatum(angle(bis), err,
 #                                 u1, v1, u2, v2, u3, v3,
 #                                 time, s123)
@@ -97,7 +97,7 @@ function _arrayconfig(data, angles, tarr, scans, bandwidth, ra, dec, mjd, source
     u = getproperty(data, :U)
     v = getproperty(data, :V)
     times = getproperty(data, :T)
-    error = getproperty(data, :error)
+    noise = getproperty(data, :noise)
     baseline = getproperty(data, :baseline)
     frequency = getproperty(data, :F)
     uvsamples = StructArray{EHTArrayBaselineDatum}(T=times,
@@ -105,7 +105,7 @@ function _arrayconfig(data, angles, tarr, scans, bandwidth, ra, dec, mjd, source
                                         V=v,
                                         F = frequency,
                                         baseline=baseline,
-                                        error=error,
+                                        noise=noise,
                                         elevation = StructArray(angles[1]),
                                         parallactic  = StructArray(angles[2])
                                     )

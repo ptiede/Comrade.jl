@@ -62,8 +62,8 @@ Base.length(s::Scan) = length(s.scan)
 
 Return the baselines for each datum in a scan
 """
-function baselines(scan::Scan{A,B,C}) where {A,B,C<:StructArray{<:AbstractVisibilityDatum}}
-    bl = scan.scan.baseline
+function baselines(scan::Scan{A,B,<:EHTObservationTable}) where {A, B}
+    bl = arrayconfig(scan.scan)[:sites]
     # organize the closure phase sites
     ant1 = first.(bl)
     ant2 = last.(bl)
@@ -95,16 +95,14 @@ end
 
 
 function sites(s::Scan)
-    ants = baselines(s)
-    stat = unique(vcat(ants...))
-    return sort(stat)
+    return sites(s.scan)
 end
 
 function Base.show(io::IO, s::Scan)
     println(io, "VLBI Scan")
     println(io, "\tscan index: ", s.index)
     println(io, "\tscan time:  ", s.time)
-    println(io, "\tsites: ", sites(s))
+    print(io, "\tsites: ", sites(s))
 end
 
 function Base.getindex(st::ScanTable, i::Int)
@@ -114,7 +112,7 @@ function Base.getindex(st::ScanTable, i::Int)
     else
         iend = length(st.obs)
     end
-    return Scan(st.times[i], (i, istart, iend), @view st.obs.data[istart:iend])
+    return Scan(st.times[i], (i, istart, iend), @view st.obs[istart:iend])
 end
 
 function Base.getindex(st::ScanTable, I)
@@ -158,7 +156,7 @@ scan1[:baseline]
 
 """
 function scantable(obs::EHTObservationTable)
-    times = obs[:T]
+    times = arrayconfig(obs, :T)
     scantimes = unique(times)
     scanind = Int[]
     for t in scantimes
