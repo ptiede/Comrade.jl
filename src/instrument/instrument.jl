@@ -62,7 +62,7 @@ function visibilities_numeric(model::VLBIModel, u, v, time, freq)
 end
 
 struct IntegrationTime{T, I}
-    mjd::T
+    mjd::Int
     scanid::I
     t0::T
     dt::T

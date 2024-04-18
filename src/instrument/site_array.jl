@@ -64,13 +64,13 @@ function site(arr::SiteArray, p)
 end
 
 
-function time(arr::SiteArray, a::Union{Interval, IntegrationTime})
+function time(arr::SiteArray, a::Union{AbstractInterval, IntegrationTime})
     inds = findall(in(a), times(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
-function frequency(arr::SiteArray, a::Union{Interval, FrequencyChannel})
+function frequency(arr::SiteArray, a::Union{AbstractInterval, FrequencyChannel})
     inds = findall(in(a), times(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
@@ -80,7 +80,7 @@ end
 @inline function _maybe_all(arr, X)
     if X isa Base.Colon
         ext = extrema(arr)
-        return Interval(ext[1], ext[2])
+        return ClosedInterval(ext[1], ext[2])
     else
         return X
     end
@@ -93,13 +93,13 @@ function Base.getindex(arr::SiteArray; F=Base.Colon(), S=Base.Colon(), T=Base.Co
     return select_region(arr, S2, T2, F2)
 end
 
-function select_region(arr::SiteArray, S::Symbol, T::Union{IntegrationTime, Interval}, F::Union{FrequencyChannel, Interval})
+function select_region(arr::SiteArray, S::Symbol, T::Union{IntegrationTime, AbstractInterval}, F::Union{FrequencyChannel, AbstractInterval})
     select_region(arr, (S,), T, F)
 end
 
 
-function select_region(arr::SiteArray, site, time::Interval, T::Union{IntegrationTime, Interval}, F::Union{FrequencyChannel, Interval})
-    inds = findall(i->((Comrade.sites(arr)[i] ∈ site)&&(Comrade.times(arr)[i] ∈ time)), eachindex(arr))
+function select_region(arr::SiteArray, site, T::Union{IntegrationTime, AbstractInterval}, F::Union{FrequencyChannel, AbstractInterval})
+    inds = findall(i->((Comrade.sites(arr)[i] ∈ site)&&(Comrade.times(arr)[i] ∈ T)), eachindex(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
@@ -140,7 +140,6 @@ end
 
 function SiteLookup(sites::AbstractArray, times::AbstractVector,  frequencies::AbstractArray)
     slist = Tuple(sort(unique(sites)))
-    println(slist)
     return SiteLookup(NamedTuple{slist}(map(p->findall(==(p), sites), slist)), times, frequencies, sites)
 end
 

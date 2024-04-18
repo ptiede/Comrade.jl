@@ -1,4 +1,4 @@
-export ObservedSitesPrior, InstrumentPrior
+export SitesPrior, ObservedSitesPrior
 
 abstract type AbstractSitePrior <: Distributions.ContinuousMultivariateDistribution end
 
@@ -21,10 +21,14 @@ function SitesPrior(corr, dist; refant=NoReference(), kwargs...)
 end
 
 
-struct ObservedSitesPrior{D, S}
+struct ObservedSitesPrior{D, S} <: Distributions.ContinuousMultivariateDistribution
     dists::D
     sitemap::S
 end
+Base.eltype(d::ObservedSitesPrior) = eltype(d.dists)
+Base.length(d::ObservedSitesPrior) = length(d.dists)
+Dists._logpdf(d::ObservedSitesPrior, x::AbstractArray{<:Real}) = Dists._logpdf(d.dists, x)
+Dists._rand!(rng::Random.AbstractRNG, d::ObservedSitesPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
 
 function build_sitemap(segmentation, array)
     sts = sites(array)
@@ -32,7 +36,7 @@ function build_sitemap(segmentation, array)
     fs  = unique(array[:F])
 
     T  = array[:T]
-    bl = array[:baseline]
+    bl = array[:sites]
     F  = array[:F]
 
     times = eltype(T)[]
@@ -47,82 +51,30 @@ function build_sitemap(segmentation, array)
             push!(freqs, f)
         end
     end
-    return SiteLookup(slist, times, freqs), ts
+    return SiteLookup(slist, times, freqs)
 end
 
-function ObservedSitePrior(d::SitesPrior, array::EHTArrayConfiguration)
-    smap, ts, fs = build_sitemap(d.timecorr, array)
-    site_dists = site_tuple(array, d.default_dist; d.override_dist...)
-    dists = build_dist(site_dists, smap, d.refants)
-    return ObservedSitesPrior(dists, sitemap)
+function ObservedSitesPrior(d::SitesPrior, array::EHTArrayConfiguration)
+    smap = build_sitemap(d.timecorr, array)
+    site_dists = sites_tuple(array, d.default_dist; d.override_dist...)
+    dists = build_dist(site_dists, smap, array, d.refant)
+    return ObservedSitesPrior(dists, smap)
 end
 
-function get_site_inds(timesfreqs, time, freq)
-
-    return findall((t, f)->(t==time)&&(f==freq), timesfreqs)
-end
-
-function build_dist(dists::NamedTuple, smap::SiteLookup, refant)
+function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants)
     ts = smap.times
     ss = smap.sites
-    fs = smap.frequencies
+    # fs = smap.frequencies
+    fixedinds, vals = reference_indices(array, smap, refants)
 
-    tuni = unique(ts)
-    funi = unique(fs)
-    timefreq = StructArray((ts, fs))
-
-    refantinds = build_refant(timefreq, refant)
-
-    for i in eachindex(ts, ss, fs)
-
+    variateinds = setdiff(eachindex(ts), fixedinds)
+    dist = map(variateinds) do i
+        getproperty(dists, ss[i])
     end
-    refants =
-    map(ts) do t
-        inds = findall(==(t), times(smap))
-        sts = unique(@view(sites(sites(smap))[inds]))
-
-    end
+    dist = Dists.product_distribution(dist)
+    length(fixedinds) == 0 && return dist
+    return PartiallyConditionedDist(dist, variateinds, fixedinds, vals)
 end
-
-function timestamps(::ScanSeg, array)
-    st     = array.scans
-    scanid = 1:length(st)
-    mjd    = array.mjd
-
-    # Shift the central time to the middle of the scan
-    dt = (st.stop .- st.start)
-    t0 = st.start .+ dt./2
-    return IntegrationTime.(5.0, scanid, t0, dt)
-end
-
-getscan(scans, t) = findfirst(i->scans.start[i]≤t<scans.stop[i], 1:length(scans))
-
-function timestamps(::IntegSeg, array)
-    ts = unique(array[:T])
-    st     = array.scans
-    scanids = getscan.(Ref(st), ts)
-    mjd    = array.mjd
-
-    # TODO build in the dt into the data format
-    dt = minimum(diff(ts))
-    return IntegrationTime.(mjd, scanids, ts, dt)
-end
-
-function timestamps(::TrackSeg, array)
-    st     = array.scans
-    mjd    = array.mjd
-
-    tstart, tend = extrema(array[:T])
-    dt = tend - tstart
-
-    # TODO build in the dt into the data format
-    return IntegrationTime(mjd, 1:length(st), t, dt)
-end
-
-
-
-
-
 
 
 

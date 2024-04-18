@@ -1,6 +1,6 @@
 abstract type ReferencingScheme end
 
-export NoReference, SingleReference, RandomReference, SEFDReference
+export NoReference, SingleReference, SEFDReference
 
 struct NoReference <: ReferencingScheme end
 
@@ -9,12 +9,6 @@ struct SingleReference{T} <: ReferencingScheme
     value::T
 end
 
-"""
-    SingleReference(site::Symbol, val::Number)
-
-Use a single site as a reference. The sites gain will be set equal to `val`.
-"""
-SingleReference(sites::Symbol, scheme::Number) = SingleReference(sites, FixedSeg(scheme))
 
 
 struct SEFDReference{T} <: ReferencingScheme
@@ -35,22 +29,29 @@ site will be used.
 """
 SEFDReference(val::Number, offset::Int=0) = SEFDReference{typeof(FixedSeg(val))}(FixedSeg(val), offset)
 
-reference_sites(::AbstractArrayConfiguration, st::SiteLookup, ::NoReference) = Fill(NoReference(), length(st))
-reference_sites(::AbstractArrayConfiguration, st::SiteLookup, p::SingleReference) = Fill(p, length(st))
+reference_indices(::AbstractArrayConfiguration, st::SiteLookup, ::NoReference) = [], nothing
+function reference_indices(::AbstractArrayConfiguration, st::SiteLookup, p::SingleReference)
+    inds = findall(==(p.site), st.sites)
+    return inds, Fill(p.value, length(inds))
+end
 
-function reference_sites(array::AbstractArrayConfiguration, st::SiteLookup, p::SEFDReference)
+function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r::SEFDReference)
     tarr = array.tarr
     t = unique(sitemap.times)
     sefd = NamedTuple{Tuple(tarr.sites)}(Tuple(tarr.SEFD1 .+ tarr.SEFD2))
-    map(eachindex(t)) do i
+    fixedinds = map(eachindex(t)) do i
         inds = findall(==(t[i]), st.times)
         sites = Tuple(sitmap.sites[inds])
         @assert length(sites) < length(sefd) "Error in reference site generation. Too many sites"
         sp = select(sefd, sites)
         _, ind = findmin(values(sp))[2]
-        return SingleReference(sites[ind], p.value), inds[ind]
+        return inds[ind]
     end
+    return fixedinds, Fill(r.val, length(fixedinds))
 end
+
+
+
 
 struct PartiallyConditionedDist{D<:Distributions.ContinuousMultivariateDistribution, I, F} <: Distributions.ContinuousMultivariateDistribution
     dist::D
@@ -59,16 +60,18 @@ struct PartiallyConditionedDist{D<:Distributions.ContinuousMultivariateDistribut
     fixed_values::F
 end
 
-Base.length(d::PartiallyConditionedDist) = length(d.variate_index) + length(d.fix)
-Base.size(d::PartiallyConditionedDist) = size(d.variate_index) .+ size(d.fixed_index)
+Base.length(d::PartiallyConditionedDist) = length(d.variate_index) + length(d.fixed_index)
 Base.eltype(d::PartiallyConditionedDist) = eltype(d.dist)
+
+
+Distributions.sampler(d::PartiallyConditionedDist) = d
 
 function Distributions._logpdf(d::PartiallyConditionedDist, x)
     xv = @view x[d.variate_index]
-    return logpdf(d.dist, xv)
+    return Dists.logpdf(d.dist, xv)
 end
 
-function Distributions._rand!(rng::AbstractRNG, d::PartiallyConditionedDist, x::AbstractArray)
+function Distributions._rand!(rng::AbstractRNG, d::PartiallyConditionedDist, x::AbstractArray{<:Real})
     rand!(rng, d.dist, @view(x[d.variate_index]))
     # Now adjust the other indices
     x[d.fixed_index] .= d.fixed_values
