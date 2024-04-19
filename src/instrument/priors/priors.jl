@@ -56,6 +56,7 @@ function build_sitemap(segmentation, array)
     return SiteLookup(slist, times, freqs)
 end
 
+
 function ObservedSitesPrior(d::SitesPrior, array::EHTArrayConfiguration)
     smap = build_sitemap(d.timecorr, array)
     site_dists = sites_tuple(array, d.default_dist; d.override_dist...)

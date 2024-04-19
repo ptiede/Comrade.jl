@@ -27,7 +27,7 @@ use the `n` lowest SEFD site by passing `sefd_index = n`.
 This is done on a per-scan basis so if a site is missing from a scan the next highest SEFD
 site will be used.
 """
-SEFDReference(val::Number, offset::Int=0) = SEFDReference{typeof(FixedSeg(val))}(FixedSeg(val), offset)
+SEFDReference(val::Number) = SEFDReference(val, 0)
 
 reference_indices(::AbstractArrayConfiguration, st::SiteLookup, ::NoReference) = [], nothing
 function reference_indices(::AbstractArrayConfiguration, st::SiteLookup, p::SingleReference)
@@ -37,17 +37,17 @@ end
 
 function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r::SEFDReference)
     tarr = array.tarr
-    t = unique(sitemap.times)
+    t = unique(st.times)
     sefd = NamedTuple{Tuple(tarr.sites)}(Tuple(tarr.SEFD1 .+ tarr.SEFD2))
     fixedinds = map(eachindex(t)) do i
         inds = findall(==(t[i]), st.times)
-        sites = Tuple(sitmap.sites[inds])
+        sites = Tuple(st.sites[inds])
         @assert length(sites) < length(sefd) "Error in reference site generation. Too many sites"
         sp = select(sefd, sites)
-        _, ind = findmin(values(sp))[2]
+        _, ind = findmin(values(sp))
         return inds[ind]
     end
-    return fixedinds, Fill(r.val, length(fixedinds))
+    return fixedinds, Fill(r.value, length(fixedinds))
 end
 
 
