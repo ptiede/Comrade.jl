@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.9.3"
+version = "0.10.0"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -61,7 +61,7 @@ AbstractMCMC = "3, 4, 5"
 ArgCheck = "2"
 AstroTime = "0.6,0.7"
 ChainRulesCore = "1"
-ComradeBase = "0.6"
+ComradeBase = "0.7"
 DelimitedFiles = "1"
 DensityInterface = "0.4"
 DimensionalData = "0.25, 0.26"
@@ -93,7 +93,7 @@ Tables = "1"
 TransformVariables = "0.8"
 TypedTables = "1"
 VLBILikelihoods = "^0.2.1"
-VLBISkyModels = "0.4"
+VLBISkyModels = "0.5"
 julia = "1.8"
 
 [extras]

@@ -66,11 +66,11 @@ dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePh
 # are constant to the model, such as the image `cache` object that we will define below.
 function sky(θ, metadata)
     (;fg, c, σimg) = θ
-    (;meanpr, cache) = metadata
+    (;meanpr, grid) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
     cp = meanpr .+ σimg.*c.params
     rast = ((1-fg))*to_simplex(AdditiveLR(), cp)
-    m = ContinuousImage(rast, cache)
+    m = ContinuousImage(rast, grid, BSplinePulse{3}())
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
     return m + g
@@ -87,7 +87,7 @@ fovxy = μas2rad(150.0)
 # To define the image model we need to specify both the grid we will be using and the
 # FT algorithm we will use, in this case the NFFT which is the most efficient.
 grid = imagepixels(fovxy, fovxy, npix, npix)
-cache = create_cache(NFFTAlg(dlcamp), grid, BSplinePulse{3}())
+gfour  = FourierDualDomain(grid, arrayconfig(obs), NFFTAlg())
 
 
 
@@ -106,7 +106,7 @@ imgpr ./= flux(imgpr)
 meanpr = to_real(AdditiveLR(), baseimage(imgpr));
 
 #
-skymeta = (;meanpr, cache);
+skymeta = (;meanpr, grid);
 
 # In addition we want a reasonable guess for what the resolution of our image should be.
 # For radio astronomy this is given by roughly the longest baseline in the image. To put this
@@ -128,9 +128,9 @@ cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1*rat)); 
 
 prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 0.1); lower = 0.0), fg=Uniform(0.0, 1.0))
 
-lklhd = RadioLikelihood(sky, dlcamp, dcphase;
-                        skymeta = skymeta)
-post = Posterior(lklhd, prior)
+# Form the sky model
+skym = SkyModel(sky, metadata, gfour, prior)
+post = VLBIPosterior(skym, dlcamp, dcphase)
 
 # ## Reconstructing the Image
 

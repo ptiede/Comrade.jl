@@ -141,47 +141,51 @@ dvis = extract_table(obs, Coherencies())
 #       Using this apriori knowledge, we can build this into our model and reduce
 #       the total number of parameters we need to model.
 
-using StatsFuns: logistic
+G = JonesG() do x
+    gR = exp(x.lgR + 1im*x.gpR)
+    gL = gR*exp(x.lgrat + 1im*x.gprat)
+    return gR, gL
+end
+
+D = JonesD() do x
+    return complex(x.dRx, x.dRy), complex(x.dLx, x.dLy)
+end
+
+R = JonesR()
+
+J = JonesSandwich(G, R, D) do g, d, r
+    return g*d*r
+end
+
+sitepriors = (
+    lgR   = SitePrior(Normal(0.0, 0.1), ScanSeg()); LM = SitePrior(Normal(), ScanSeg()),
+    lgrat = SitePrior(Normal(0.0, 0.1), TrackSeg()),
+    gpR   = SitePrior(Normal(0.0, 0.1), ScanSeg()); refant = SEFDReference(0.0),
+    gprat = SitePrior(Normal(0.0, 0.1), ScanSeg()); refant = SingleReference(:AA, 0.0),
+    dRx   = SitePrior(Normal(0.0, 0.1), TrackSeg()),
+    dRy   = SitePrior(Normal(0.0, 0.1), TrackSeg()),
+    dLx   = SitePrior(Normal(0.0, 0.1), TrackSeg()),
+    dLy   = SitePrior(Normal(0.0, 0.1), TrackSeg())
+)
+
+intm = InstrumentModel(J, prior, array; refbasis=CirBasis())
+
+using Distributions
+using DistributionsAD
+using VLBIImagePriors
+
+
 function sky(θ, metadata)
     (;c, σ, p, p0, pσ, angparams) = θ
-    (;cache) = metadata
+    (;grid) = metadata
     cp = σ.*c.params
     rast = to_simplex(CenteredLR(), cp)
     pim = logistic.(p0 .+ pσ.*p.params)
-    m = PoincareSphere2Map(rast, pim, angparams, cache)
+    m = PoincareSphere2Map(rast, pim, angparams, grid, BSplinePulse{3}())
     x0, y0 = centroid(stokes(m, :I))
     ms = shifted(m, -x0, -y0)
     return ms
 end
-
-
-
-function instrument(θ, metadata)
-    (; lgR, lgL, gpR, gpL, dRx, dRy, dLx, dLy) = θ
-    (; rcache, scancache, phasecache1, phasecache2, trackcache) = metadata
-    ## Now construct the basis transformation cache
-    jT = jonesR(rcache)
-
-    ## Gain product parameters
-    gRa = exp.(lgR .+ 0.0im)
-    gLa = exp.(lgL .+ lgR .+ 0.0im) # directly model hte LR offset
-    Ga = jonesG(gRa, gLa, scancache)
-
-    gRp = exp.(1im*gpR)
-    gLp = exp.(1im*(gpL))
-    Gp1 = jonesG(gRp, gRp, phasecache1)
-    Gp2 = jonesG(fill(complex(1.0), length(gLp)), gLp, phasecache2)
-
-    ##D-terms
-    D = jonesD(complex.(dRx, dRy), complex.(dLx, dLy), trackcache)
-    ## sandwich all the jones matrices together
-    J = map(Ga, Gp1, Gp2, D, jT) do ga, gp1, gp2, d, jt
-        ga*gp1*gp2*d*jt
-    end
-
-    return JonesModel(J, rcache)
-end
-
 
 # Now, we define the model metadata required to build the model.
 # We specify our image grid and cache model needed to define the polarimetric
@@ -191,150 +195,42 @@ fovy = μas2rad(50.0)
 nx = 12
 ny = floor(Int, fovy/fovx*nx)
 grid = imagepixels(fovx, fovy, nx, ny) # image grid
-pulse = BSplinePulse{3}() # pulse we will be using
-cache = create_cache(NFFTAlg(dvis), grid, pulse) # cache to define the NFFT transform
-skymeta = (;cache)
+gfour = FourierDualDomain(grid, array(dvis), NFFTAlg())
 
-
-instrumentmeta = (;rcache, scancache, phasecache1, phasecache2, trackcache)
-lklhd = RadioLikelihood(sky, instrument, dvis;
-                        skymeta, instrumentmeta)
-
-
-
-
-# To define the instrument models, $T$, $G$, $D$, we need to build some Jones caches (see [`JonesCache`](@ref)) that map from a flat
-# vector of gain/dterms to the specific sites for each baseline.
-#
-# First, we will define our deterministic response cache. This define how the telescope reponds
-# to a signal, including the impact of telescope field rotation due to parallactic and elevation
-# changes.
-rcache = ResponseCache(dvis)
-#-
-# Next we define our cache that maps quantities e.g., gain products, that change from scan-to-scan.
-scancache = jonescache(dvis, ScanSeg())
-
-# In addition we will assign a reference sites. This is necessary for gain phases due to a trivial degeneracy being present.
-# To do this we will select ALMA `AA` as the reference sites as is standard in EHT analyses.
-phasecache1 = jonescache(dvis, ScanSeg(); autoref = SEFDReference(complex(1.0)))
-phasecache2 = jonescache(dvis, ScanSeg(); autoref = SingleReference(:AA, complex(1.0)))
-
-#-
-# Finally, we define our cache that maps quantities, e.g., gain ratios and d-terms, that are constant
-# across a observation night, and we collect everything together.
-trackcache = jonescache(dvis, TrackSeg())
-instrumentmeta = (;rcache, scancache, phasecache1, phasecache2, trackcache)
-
-# Moving onto our prior, we first focus on the instrument model priors.
-# Each sites gain requires its own prior on both the amplitudes and phases.
-# For the amplitudes, we assume that the gains are apriori well calibrated around unit gains (or 0 log gain amplitudes)
-# which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
-# all sites except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT,
-# we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
-
-using Distributions
-using DistributionsAD
-using VLBIImagePriors
-distamp = sites_tuple(dvis, Normal(0.0, 0.1))
-distamp_ratio = sites_tuple(dvis, Normal(0.0, 0.01))
-
-#-
-# For the phases, we assume that the atmosphere effectively scrambles the gains.
-# Since the gain phases are periodic, we also use broad von Mises priors for all sites.
-# Notice that we don't assign a prior for AA since we have already fixed it.
-distphase = sites_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)); reference=:AA)
-
-#-
-# However, we can now also use a little additional information about the phase offsets
-# where in most cases, they are much better behaved than the products
-distphase_ratio = sites_tuple(dvis, DiagonalVonMises(0.0, inv(0.1)); reference=:AA)
-
-
-# Moving onto the d-terms, here we directly parameterize the real and complex components
-# of the d-terms since they are expected to be complex numbers near the origin. To help enforce
-# this smallness, a weakly informative Normal prior is used.
-dist_leak = sites_tuple(dvis, Normal(0.0, 0.1))
-
-
-# Our image priors are:
-#   - We use a Dirichlet prior, `ImageDirichlet`, with unit concentration for our stokes I image pixels, `c`.
-#   - For the total polarization fraction, `p`, we assume an uncorrelated uniform prior `ImageUniform` for each pixel.
-#   - To specify the orientation of the polarization, `angparams`, on the Poincare sphere,
-#     we use a uniform spherical distribution, `ImageSphericalUniform`.
-#-
-rat = beamsize(dvis)/step(grid.X)
+# We want to use a correlated image priors to model the polarized image.
+# We will use a GMRF prior with a inverse gamma prior on the GMRF correlation length.
+fwhmfac = 2.0*sqrt(2.0*log(2.0))
+rat = beamsize(dvis)/pixelsizes(grid).X
 cmarkov = ConditionalMarkov(GMRF, grid; order=1)
-dρ = truncated(InverseGamma(2.0, -log(0.1)*rat); lower=2.0, upper=max(nx, ny))
+dρ = truncated(InverseGamma(1.0, -log(0.1)*rat); lower=2.0, upper=max(nx, ny))
 cprior = HierarchicalPrior(cmarkov, dρ)
 
-
-# For all the calibration parameters, we use a helper function `CalPrior` which builds the
-# prior given the named tuple of sites priors and a `JonesCache`
-# that specifies the segmentation scheme. For the gain products, we use the `scancache`, while
-# for every other quantity, we use the `trackcache`.
-fwhmfac = 2.0*sqrt(2.0*log(2.0))
-prior = NamedDist(
+skyprior = NamedDist(
     c = cprior,
     σ  = truncated(Normal(0.0, 0.1); lower=0.0),
     p  = cprior,
     p0 = Normal(-2.0, 1.0),
     pσ =  truncated(Normal(0.0, 1.0); lower=0.01),
     angparams = ImageSphericalUniform(nx, ny),
-    lgR  = CalPrior(distamp, scancache),
-    gpR  = CalPrior(distphase, phasecache1),
-    lgL  = CalPrior(distamp_ratio, scancache),
-    gpL  = CalPrior(distphase_ratio, phasecache2),
-    dRx = CalPrior(dist_leak, trackcache),
-    dRy = CalPrior(dist_leak, trackcache),
-    dLx = CalPrior(dist_leak, trackcache),
-    dLy = CalPrior(dist_leak, trackcache),
     )
 
+grid = imagepixels(fovx, fovy, nx, ny)
+skym = SkyModel(sky, metadata, skyprior, gfour)
 
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling.
-lklhd = RadioLikelihood(sky, instrument, dvis; skymeta, instrumentmeta)
-post = Posterior(lklhd, prior)
+post = VLBIPosterior(skym, instm, dvis)
 
-# ## Reconstructing the Image and Instrument Effects
-
-# To sample from this posterior, it is convenient to move from our constrained parameter space
-# to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This transformation is
-# done using the `asflat` function.
-tpost = asflat(post)
-
-# We can now also find the dimension of our posterior or the number of parameters we will sample.
-# !!! warning
-#     This can often be different from what you would expect. This difference is especially true when using
-#     angular variables, where we often artificially increase the dimension
-#     of the parameter space to make sampling easier.
-#-
-
-ndim = dimension(tpost)
-
-
-# Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
-# due to the higher dimension of the space.
 using ComradeOptimization
 using OptimizationOptimisers
 using Zygote
-Comrade.Enzyme.API.runtimeActivity!(true)
-f = OptimizationFunction(tpost, Optimization.AutoZygote())
-ℓ = logdensityof(tpost)
-prob = Optimization.OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
-sol = solve(prob, OptimizationOptimisers.Adam(), maxiters=1_000, g_tol=1e-1);
-
-# !!! warning
-#     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that
-#     optimization can take a long time, and starting from a good starting location
-#     is often required.
-#-
-# Before we analyze our solution, we need to transform it back to parameter space.
-xopt = transform(tpost, sol.u)
+opt = optimal_synthetsis(post, AutoZygote(), start, alg)
 
 # Now let's evaluate our fits by plotting the residuals
 using Plots
-residual(vlbimodel(post, xopt), dvis)
+residual(vlbimodel(post, opt), dvis)
+
+trace = sample(post, AHMC(), 1000; n_adapts=500, progress=true)
 
 # These look reasonable, although there may be some minor overfitting.
 # Let's compare our results to the ground truth values we know in this example.
@@ -421,13 +317,7 @@ plot!(gamp_ratio, layout=(3,3), size=(650,500))
 # which is identical to every other imaging example
 # (see, e.g., [Stokes I Simultaneous Image and Instrument Modeling](@ref)). However,
 # due to the time it takes to sample, we will skip that for this tutorial.
-using ComradeAHMC
-metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, tpost, AHMC(;metric), 700; n_adapts=500, initial_params=sol.u, progress=true)
 
-ms = skymodel.(Ref(post), chain[500:5:end])
-imgs = intensitymap.(ms, Ref(grid))
-imageviz(mean(imgs), plot_total=false, nvec=10, colormap=:afmhot, adjust_length=true)
 
 # [^1]: Hamaker J.P, Bregman J.D., Sault R.J. (1996) [https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H]
 # [^2]: Pesce D. (2021) [https://ui.adsabs.harvard.edu/abs/2021AJ....161..178P/abstract]
