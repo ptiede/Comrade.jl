@@ -126,8 +126,8 @@ Create a simulated observation using the posterior and its data `post` using the
 values `θ`. In Bayesian terminology this is a draw from the posterior predictive distribution.
 """
 function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ)
-    # ls = map(x->likelihood(x, visibilities(vlbimodel(post, θ), post.lklhd.ac)), post.lklhd.lklhds)
-    ls = map(x->likelihood(x, visibilities(vlbimodel(post, θ), post.lklhd.ac)), post.lklhd.lklhds)
+    # ls = map(x->likelihood(x, visibilitymap(vlbimodel(post, θ), post.lklhd.ac)), post.lklhd.lklhds)
+    ls = map(x->likelihood(x, visibilitymap(vlbimodel(post, θ), post.lklhd.ac)), post.lklhd.lklhds)
     ms = map(x->rand(rng, x), ls)
     data = map(deepcopy, post.lklhd.data)
     map(1:length(ms)) do i

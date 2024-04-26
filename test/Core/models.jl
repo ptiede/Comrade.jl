@@ -48,12 +48,12 @@ function testft(m, npix=256, atol=1e-4)
     mimg_ff2 = modelimage(mn, cache)
 
     p = (U=uu, V=vv)
-    va = visibilities(m, p)
-    vff = visibilities(mimg_ff, p)
-    vff2 = visibilities(mimg_ff2, p)
-    vnf = visibilities(mimg_nf, p)
-    vdf = visibilities(mimg_df, p)
-    visibilities(modelimage(mn, cache_nf), p)
+    va = visibilitymap(m, p)
+    vff = visibilitymap(mimg_ff, p)
+    vff2 = visibilitymap(mimg_ff2, p)
+    vnf = visibilitymap(mimg_nf, p)
+    vdf = visibilitymap(mimg_df, p)
+    visibilitymap(modelimage(mn, cache_nf), p)
 
     @test isapprox(maximum(abs, vff2-vff), 0, atol=atol)
     @test isapprox(maximum(abs, va-vff), 0, atol=atol*5)
@@ -92,9 +92,9 @@ function testft_cimg(m, atol=1e-4)
     mimg_df = modelimage(m, DFTAlg(u, v))
 
     p = (U=u, V=v)
-    vff = visibilities(mimg_ff, p)
-    vnf = visibilities(mimg_nf, p)
-    vdf = visibilities(mimg_df, p)
+    vff = visibilitymap(mimg_ff, p)
+    vnf = visibilitymap(mimg_nf, p)
+    vdf = visibilitymap(mimg_df, p)
 
     @test isapprox(maximum(abs, vdf .- vnf), 0, atol=atol)
     @test isapprox(maximum(abs, vff .- vdf), 0, atol=atol)
@@ -139,7 +139,7 @@ end
             shifted(Gaussian(), x[5], x[6]),
             x[7]*Gaussian()
         )
-        vis = Comrade.apply_instrument(Comrade.visibilities_analytic(m, u, v, t, f), jm)
+        vis = Comrade.apply_instrument(Comrade.visibilitymap_analytic(m, u, v, t, f), jm)
         Σ = map(x->real.(x .+ 1), zero.(vis))
         l = Comrade.CoherencyLikelihood(vis, Σ, 0.0)
         return logdensityof(l, zero.(vis))
@@ -181,8 +181,8 @@ end
     mimg_nf = modelimage(cimg, cache_nf)
     mimg_df = modelimage(cimg, cache_df)
 
-    vnf = visibilities(mimg_nf, ac_amp)
-    vdf = visibilities(mimg_df, ac_amp)
+    vnf = visibilitymap(mimg_nf, ac_amp)
+    vdf = visibilitymap(mimg_df, ac_amp)
 
     atol = 1e-5
 

@@ -86,7 +86,7 @@ Creates a VLBILikelihood using the `skymodel` its related metadata `skymeta`
 and the `instrumentmodel` and its metadata `instumentmeta`.
 . The `model`
 is a function that converts from parameters `θ` to a Comrade
-AbstractModel which can be used to compute [`visibilities`](@ref) and a set of
+AbstractModel which can be used to compute [`visibilitymap`](@ref) and a set of
 `metadata` that is used by `model` to compute the model.
 
 # Warning
@@ -251,7 +251,7 @@ function DensityInterface.logdensityof(d::AbstractRadioLikelihood, θ)
     ac = d.positions
     m = vlbimodel(d, θ)
     # Convert because of conventions
-    vis = visibilities(m, ac)
+    vis = visibilitymap(m, ac)
     return _logdensityofvis(d, vis)
 end
 

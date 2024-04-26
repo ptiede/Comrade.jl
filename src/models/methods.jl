@@ -1,9 +1,9 @@
 @inline function ComradeBase.visibilities(m::M, p::EHTArrayConfiguration) where {M <: AbstractModel}
-    return _visibilities(visanalytic(M), m, p[:U], p[:V], p[:T], p[:F])
+    return _visibilitymap(visanalytic(M), m, p[:U], p[:V], p[:T], p[:F])
 end
 
-@inline function ComradeBase.visibilities(m::M, p::ClosureConfig) where {M <: AbstractModel}
-    return visibilities(m, arrayconfig(p.ac))
+@inline function ComradeBase.visibilitymap(m::M, p::ClosureConfig) where {M <: AbstractModel}
+    return visibilitymap(m, arrayconfig(p.ac))
 end
 
 

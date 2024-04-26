@@ -122,7 +122,7 @@ using Pyehtim
     plot(ac)
 
     u,v = getuv(ac)
-    @test visibilities(m, ac) ≈ visibilities(m, (U=u, V=v))
+    @test visibilitymap(m, ac) ≈ visibilitymap(m, (U=u, V=v))
 
     @test visibility(m, ac.data[1]) ≈ visibility(m, (U=u[1], V=v[1]))
 

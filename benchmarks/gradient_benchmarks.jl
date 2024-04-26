@@ -76,7 +76,7 @@ fooE = let lca=dlcamp, cp=dcphase,
         I = IntensityMap(x, fovx, fovy)
         cI = ContinuousImage(I, BSplinePulse{3}())
         mimg = modelimage(cI, cache)
-        vis = visibilities(mimg, (U=U, V=V))
+        vis = visibilitymap(mimg, (U=U, V=V))
         mcp = closure_phases(vis, dcphase.config)
         mlca = logclosure_amplitudes(vis, dlcamp.config)
         l1 = sum(abs2, (lca[:amp] .- mlca)./lca[:error])

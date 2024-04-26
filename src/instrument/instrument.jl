@@ -49,15 +49,15 @@ imanalytic(::Type{<:VLBIModel{J,M}}) where {J,M} = imanalytic(M)
 ispolarized(::Type{<:VLBIModel{J,M}}) where {J,M} = ispolarized(M)
 
 
-function visibilities_analytic(model::VLBIModel, u, v, time, freq)
+function visibilitymap_analytic(model::VLBIModel, u, v, time, freq)
     skym = model.sky(model.skyparams)
-    vis = visibilities_analytic(skym, u, v, time, freq)
+    vis = visibilitymap_analytic(skym, u, v, time, freq)
     return apply_instrument(vis, model.instrument, model.instrumentparams)
 end
 
-function visibilities_numeric(model::VLBIModel, u, v, time, freq)
+function visibilitymap_numeric(model::VLBIModel, u, v, time, freq)
     skym = model.sky
-    vis = visibilities_numeric(skym, u, v, time, freq)
+    vis = visibilitymap_numeric(skym, u, v, time, freq)
     return apply_instrument(vis, model.instrument)
 end
 

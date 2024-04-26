@@ -23,8 +23,8 @@ CurrentModule = ComradeBase
 ```@docs
 ComradeBase.flux
 ComradeBase.visibility
-ComradeBase.visibilities
-ComradeBase.visibilities!
+ComradeBase.visibilitymap
+ComradeBase.visibilitymap!
 ComradeBase.intensitymap
 ComradeBase.intensitymap!
 ComradeBase.IntensityMap
@@ -53,10 +53,10 @@ ComradeBase.DensityAnalytic
 ComradeBase.IsAnalytic
 ComradeBase.NotAnalytic
 ComradeBase.visibility_point
-ComradeBase.visibilities_analytic
-ComradeBase.visibilities_analytic!
-ComradeBase.visibilities_numeric
-ComradeBase.visibilities_numeric!
+ComradeBase.visibilitymap_analytic
+ComradeBase.visibilitymap_analytic!
+ComradeBase.visibilitymap_numeric
+ComradeBase.visibilitymap_numeric!
 ComradeBase.intensity_point
 ComradeBase.intensitymap_analytic
 ComradeBase.intensitymap_analytic!

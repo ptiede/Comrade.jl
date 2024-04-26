@@ -145,8 +145,8 @@ Comrade.beamsize
 ## Internal (Not Public API)
 ```@docs
 Comrade.extract_FRs
-ComradeBase._visibilities!
-ComradeBase._visibilities
+ComradeBase._visibilitymap!
+ComradeBase._visibilitymap
 ```
 
 ### eht-imaging interface (Internal)

@@ -119,7 +119,7 @@ using StaticArrays
     ac = arrayconfig(vis)
     cpac = arrayconfig(cphase)
     lcac = arrayconfig(lcamp)
-    @test visibilities(gm, ac) ≈ visibilities(m, ac)
+    @test visibilitymap(gm, ac) ≈ visibilitymap(m, ac)
     @test amplitudes(gm, ac) ≈ amplitudes(m, ac)
     @test closure_phases(gm, cpac) ≈ closure_phases(m, cpac)
     @test logclosure_amplitudes(gm, lcac) ≈ logclosure_amplitudes(m, lcac)
