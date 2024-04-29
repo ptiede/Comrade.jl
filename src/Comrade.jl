@@ -16,6 +16,7 @@ using FillArrays: Fill
 using ForwardDiff
 using IntervalSets
 using LinearAlgebra
+import HypercubeTransform: ascube, asflat, NamedDist
 #using MappedArrays: mappedarray
 using NamedTupleTools
 using Printf
@@ -37,7 +38,8 @@ import ComradeBase: save
 @reexport using PolarizedTypes
 
 export linearpol, mbreve, evpa
-using ComradeBase: AbstractGrid, AbstractModel, AbstractPolarizedModel, AbstractHeader
+using ComradeBase: AbstractRectiGrid, AbstractDomain, UnstructuredDomain,
+                   AbstractModel, AbstractPolarizedModel, AbstractHeader
 using ComradeBase: load
 
 
@@ -55,18 +57,17 @@ import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
                     visanalytic, imanalytic, ispolarized,
                     NotAnalytic, IsAnalytic, NotPolarized, IsPolarized,
                     visibility_point, intensity_point,
-                    closure_phase, closure_phases,
-                    logclosure_amplitude, logclosure_amplitudes,
+                    closure_phase, closure_phasemap,
+                    logclosure_amplitude, logclosure_amplitudemap,
                     visibility, amplitude,
-                    amplitudes, bispectra, bispectrum
-export create_cache
+                    amplitudemap
 include("observations/observations.jl")
-include("models/models.jl")
+include("instrument/instrument.jl")
+include("skymodels/models.jl")
 include("distributions/radiolikelihood.jl")
 include("visualizations/visualizations.jl")
 include("bayes/bayes.jl")
 include("inference/inference.jl")
-include("instrument/instrument.jl")
 include("clean.jl")
 include("rules.jl")
 

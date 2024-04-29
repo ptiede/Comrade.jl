@@ -75,7 +75,7 @@ Comrade.closure_phase(::Comrade.EHTComplexVisibilityDatum, ::Comrade.EHTComplexV
 Comrade.getdata
 Comrade.getuv
 Comrade.getuvtimefreq
-Comrade.scantable
+Comrade.timetable
 Comrade.sites
 Comrade.uvpositions
 Comrade.ArrayConfiguration
@@ -90,7 +90,7 @@ Comrade.EHTVisibilityAmplitudeDatum
 Comrade.EHTLogClosureAmplitudeDatum
 Comrade.EHTClosurePhaseDatum
 Comrade.Scan
-Comrade.ScanTable
+Comrade.TimeTable
 ```
 
 ## Model Cache
@@ -136,7 +136,7 @@ Comrade.samplertype
 ## Misc
 
 ```@docs
-Comrade.sites_tuple
+Comrade.site_tuple
 Comrade.dirty_image
 Comrade.dirty_beam
 Comrade.beamsize

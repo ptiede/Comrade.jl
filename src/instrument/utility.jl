@@ -1,8 +1,8 @@
-export sites_tuple
+export site_tuple
 
 """
-    sites_tuple(sites, default; reference=nothing kwargs...)
-    sites_tuple(obs::EHTObservation, default; reference=nothing, kwargs...)
+    site_tuple(sites, default; reference=nothing kwargs...)
+    site_tuple(obs::EHTObservation, default; reference=nothing, kwargs...)
 
 Convienence function that will construct a `NamedTuple` of objects
 whose names are the `sites` in the observation `obs` or explicitly in the argument
@@ -15,20 +15,20 @@ This is useful for selecting a reference sites for gain phases
 ## Examples
 ```julia-repl
 julia> sites = (:AA, :AP, :LM, :PV)
-julia> sites_tuple(sites, ScanSeg())
+julia> site_tuple(sites, ScanSeg())
 (AA = ScanSeg(), AP = ScanSeg(), LM = ScanSeg(), PV = ScanSeg())
-julia> sites_tuple(sites, ScanSeg(); AA = FixedSeg(1.0))
+julia> site_tuple(sites, ScanSeg(); AA = FixedSeg(1.0))
 (AA = FixedSeg(1.0), AP = ScanSeg(), LM = ScanSeg(), PV = ScanSeg())
-julia> sites_tuple(sites, ScanSeg(); AA = FixedSeg(1.0), PV = TrackSeg())
+julia> site_tuple(sites, ScanSeg(); AA = FixedSeg(1.0), PV = TrackSeg())
 (AA = FixedSeg(1.0), AP = ScanSeg(), LM = ScanSeg(), PV = TrackSeg())
-julia> sites_tuple(sites, Normal(0.0, 0.1); reference=:AA, LM = Normal(0.0, 1.0))
+julia> site_tuple(sites, Normal(0.0, 0.1); reference=:AA, LM = Normal(0.0, 1.0))
 (AP = Normal(0.0, 0.1), LM = Normal(0.0, 1.0), PV = Normal(0.0, 0.1))
 ```
 """
-function sites_tuple(sites::NTuple{N, Symbol}, default; kwargs...) where {N}
+function site_tuple(sites::NTuple{N, Symbol}, default; kwargs...) where {N}
     out = map(x->get(kwargs, x, default), sites)
     return NamedTuple{sites}(out)
 end
-sites_tuple(dvis::AbstractObservationTable, default; kwargs...) = sites_tuple(Tuple(sites(dvis)), default; kwargs...)
-sites_tuple(dvis::AbstractArrayConfiguration, default; kwargs...) = sites_tuple(Tuple(sites(dvis)), default; kwargs...)
-sites_tuple(st::AbstractVector{Symbol}, default; kwargs...) = sites_tuple(Tuple(st), default; kwargs...)
+site_tuple(dvis::AbstractObservationTable, default; kwargs...) = site_tuple(Tuple(sites(dvis)), default; kwargs...)
+site_tuple(dvis::AbstractArrayConfiguration, default; kwargs...) = site_tuple(Tuple(sites(dvis)), default; kwargs...)
+site_tuple(st::AbstractVector{Symbol}, default; kwargs...) = site_tuple(Tuple(st), default; kwargs...)

@@ -77,21 +77,21 @@ end
 #   - Gain amplitudes which are typically known to 10-20%, except for LMT, which has amplitudes closer to 50-100%.
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
-
-function instrument(θ, metadata)
-    (; lgamp, gphase) = θ
-    (; gcache, gcachep) = metadata
-    ## Now form our instrument model
-    gvis = exp.(lgamp)
-    # gphase = exp.(1im.*gphase)
-    jgamp = jonesStokes(gvis, gcache)
-    jgphase = jonesStokes(1im.*gphase, gcachep)
-
-    J = map(jgamp, jgphase) do ga, gp
-        return ga*exp.(gp)
-    end
-    return JonesModel(J)
+using VLBIImagePriors
+using Distributions
+G = SingleStokesGain() do x
+    lg = x.lg0 + exp.(x.lgσ).*x.lgz
+    gp = exp.(x.gpσ).*x.gpz
 end
+
+intpr = (
+    lg0= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)); LM = IIDSitePrior(TrackSeg(), Normal(0.0, 1.0))),
+    lgσ= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(-1.0,1.0)); LM = IIDSitePrior(TrackSeg(), Normal(-1.0, 1.0))),
+    lgz= ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 1.0))),
+    gpσ= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 1.0)); refant=SEFDReference(0.0)),
+    gpz= ArrayPrior(IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0))
+        )
+intmodel = InstrumentModel(G, intpr, arrayconfig(dvis))
 
 # The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
 # except we include a large scale gaussian since we want to model the zero baselines.
@@ -119,9 +119,7 @@ fovy = μas2rad(150.0)
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
 grid = imagepixels(fovx, fovy, npix, npix)
-cache = create_cache(NFFTAlg(dvis), grid, BSplinePulse{3}())
 
-using VLBIImagePriors
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
 # Random field prior
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
@@ -144,42 +142,6 @@ meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
 # degenerate. To fix this we use the observed total flux as our value.
 skymeta = (;ftot = 1.1, cache, meanpr)
 
-# Second, we now construct our instrument model cache. This tells us how to map from the gains
-# to the model visibilities. However, to construct this map, we also need to specify the observation
-# segmentation over which we expect the gains to change. This is specified in the second argument
-# to `jonescache`, and currently, there are two options
-#   - `FixedSeg(val)`: Fixes the corruption to the value `val` for all time. This is usefule for reference sites
-#   - `ScanSeg()`: which forces the corruptions to only change from scan-to-scan
-#   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
-# For this work, we use the scan segmentation for the gain amplitudes since that is roughly
-# the timescale we expect them to vary. For the phases we use a sites specific scheme where
-# we set AA to be fixed to unit gain because it will function as a reference sites.
-gcache = jonescache(dvis, ScanSeg())
-gcachep = jonescache(dvis, ScanSeg(true); autoref=SEFDReference(0.0))
-
-
-# This information can then be passed through our instrument model as metadata.
-# Future versions of Comrade will do this for you automatically.
-instrumentmeta = (;gcache, gcachep)
-
-
-# Moving onto our prior, we first focus on the instrument model priors.
-# Each sites requires its own prior on both the amplitudes and phases.
-# For the amplitudes
-# we assume that the gains are apriori well calibrated around unit gains (or 0 log gain amplitudes)
-# which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
-# all sites except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT
-# we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
-using Distributions
-# using DistributionsAD
-distamp = sites_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
-
-
-# For the phases, we will use a unconstrained white noise prior, where the
-# gain phase is fit independtly fit for each scan. Since the phases are periodic
-# we use a von-Mises prior with concentration parameter (similar to inverse variance)
-# 1/π^2.
-distphase = sites_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 
 

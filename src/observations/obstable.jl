@@ -7,12 +7,8 @@ Base.length(obs::AbstractObservationTable) = length(measurement(obs))
 Base.firstindex(obs::AbstractObservationTable) = firstindex(measurement(obs))
 Base.lastindex(obs::AbstractObservationTable) = lastindex(measurement(obs))
 
-function VLBISkyModels.rebuild(data::F, newtable) where {F<:AbstractObservationTable}
-    m = newtable.measurement
-    s = newtable.noise
-    b = newtable.baseline
-    newconf = rebuild(arrayconfig(data), b)
-    return F(m, s, newconf)
+function getuvtimefreq(obs::AbstractObservationTable)
+    return getuvtimefreq(arrayconfig(obs))
 end
 
 
@@ -88,6 +84,14 @@ struct EHTObservationTable{T<:AbstractVisibilityDatum,S<:AbstractArray, E<:Abstr
     function EHTObservationTable{A, B, C, D}(meas, err, config) where {A, B, C, D}
         return new{A, B, C, D}(meas, err, config)
     end
+end
+
+function VLBISkyModels.rebuild(data::EHTObservationTable{T}, newtable) where {T}
+    m = newtable.measurement
+    s = newtable.noise
+    b = newtable.baseline
+    newconf = rebuild(arrayconfig(data), b)
+    return EHTObservationTable{T}(m, s, newconf)
 end
 
 function Base.show(io::IO, d::EHTObservationTable{F}) where {F}

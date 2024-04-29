@@ -35,7 +35,7 @@ basemodel(m::RIMEModel) = m.sky
 flux(m::RIMEModel) = flux(basemodel(m))
 radialextent(m::RIMEModel) = radialextent(basemodel(m))
 
-function intensitymap(model::RIMEModel, dims::AbstractGrid)
+function intensitymap(model::RIMEModel, dims::AbstractDomain)
     return intensitymap(basemodel(model), dims)
 end
 
@@ -81,8 +81,8 @@ function visibilitymap_numeric(model::VLBIModel, u, v, time, freq)
     return apply_instrument(vis, model.instrument)
 end
 
-function ComradeBase.amplitudes(model::VLBIModel, ac::ArrayConfiguration)
-    amp = amplitudes(model.sky, ac)
+function ComradeBase.amplitudemap(model::VLBIModel, ac::ArrayConfiguration)
+    amp = amplitudemap(model.sky, ac)
     apply_instrument(amp, model.instrument)
 end
 

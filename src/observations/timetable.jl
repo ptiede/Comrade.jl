@@ -7,12 +7,12 @@ indexing into the table. This will create a view into the table not copying the 
 
 # Example
 ```julia-repl
-julia> st = scantable(obs)
+julia> st = timetable(obs)
 julia> st[begin] # grab first scan
 julia> st[end]   # grab last scan
 ```
 """
-struct ScanTable{O <: AbstractObservationTable, T, S}
+struct TimeTable{O <: AbstractVLBITable, T, S}
     """
     Parent array information
     """
@@ -27,10 +27,11 @@ struct ScanTable{O <: AbstractObservationTable, T, S}
     scanind::S
 end
 
-Base.length(st::ScanTable) = length(st.times)
-Base.firstindex(st::ScanTable) = firstindex(st.times)
-Base.lastindex(st::ScanTable) = lastindex(st.times)
-sites(st::ScanTable) = sites(st.obs)
+Base.length(st::TimeTable) = length(st.times)
+Base.firstindex(st::TimeTable) = firstindex(st.times)
+Base.lastindex(st::TimeTable) = lastindex(st.times)
+sites(st::TimeTable) = sites(st.obs)
+Base.eachindex(st::TimeTable) = LinearIndices(firstindex(st):lastindex(st))
 
 """
     $(TYPEDEF)
@@ -105,7 +106,7 @@ function Base.show(io::IO, s::Scan)
     print(io, "\tsites: ", sites(s))
 end
 
-function Base.getindex(st::ScanTable, i::Int)
+function Base.getindex(st::TimeTable, i::Int)
     istart = st.scanind[i]
     if i < length(st.scanind)
         iend = st.scanind[i+1]-1
@@ -115,7 +116,7 @@ function Base.getindex(st::ScanTable, i::Int)
     return Scan(st.times[i], (i, istart, iend), @view st.obs[istart:iend])
 end
 
-function Base.getindex(st::ScanTable, I)
+function Base.getindex(st::TimeTable, I)
     [getindex(st, i) for i in I]
 end
 
@@ -132,18 +133,18 @@ function Base.getindex(scan::Scan, i::AbstractVector{<:Union{Bool,Int}})
 end
 
 
-Base.first(st::ScanTable) = st[1]
-Base.last(st::ScanTable) = st[length(st)]
+Base.first(st::TimeTable) = st[1]
+Base.last(st::TimeTable) = st[length(st)]
 
 """
-    scantable(obs::EHTObservationTable)
+    timetable(obs::AbstractArrayConfiguration)
 Reorganizes the observation into a table of scans, where scan are defined by unique timestamps.
 To access the data you can use scalar indexing
 
 # Example
 
 ```julia
-st = scantable(obs)
+st = timetable(obs)
 # Grab the first scan
 scan1 = st[1]
 
@@ -155,13 +156,13 @@ scan1[:baseline]
 ```
 
 """
-function scantable(obs::EHTObservationTable)
-    times = arrayconfig(obs, :T)
+function timetable(arr::AbstractVLBITable)
+    times = getuvtimefreq(arr).Ti
     scantimes = unique(times)
     scanind = Int[]
     for t in scantimes
         ind = findfirst(==(t), times)
         append!(scanind, ind)
     end
-    return ScanTable(obs, scantimes, scanind)
+    return TimeTable(arr, scantimes, scanind)
 end

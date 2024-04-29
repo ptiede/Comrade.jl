@@ -93,18 +93,19 @@ end
 
 R = JonesR()
 
-JM = JonesModel(G, D, R) do g, d, r
-    return adjoint(r)*g*d*r
+JM = JonesSandwich(Ga, Gp, D, R) do ga, gp, d, r
+    return adjoint(r)*ga*gp*d*r
 end
 
-prior = NamedDist(
-    lgR   = ArrayPrior(SitePrior(Normal(0.0, 0.1), ScanSeg()); LM = SitePrior(Normal(), ScanSeg())),
-    lgrat = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
-    gpR   = ArrayPrior(SitePrior(Normal(0.0, 0.1), ScanSeg()); refant = SEFDReference(0.0)),
-    dRx   = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
-    dRy   = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
-    dLx   = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg())),
-    dLy   = ArrayPrior(SitePrior(Normal(0.0, 0.1), TrackSeg()))
+prior = (
+    lgR   = ArrayPrior(Normal(0.0, 0.1), ScanSeg(); LM = SitePrior(Normal(), ScanSeg())),
+    lgrat = ArrayPrior(Normal(0.0, 0.1), TrackSeg()),
+    gpR   = ArrayPrior(Normal(0.0, 0.1), ScanSeg(); refant = SEFDReference(0.0)),
+    gprat = ArrayPrior(Normal(0.0, 0.1), ScanSeg(); refant = SingleReference(:AA, 0.0)),
+    dRx   = ArrayPrior(Normal(0.0, 0.1), TrackSeg()),
+    dRy   = ArrayPrior(Normal(0.0, 0.1), TrackSeg()),
+    dLx   = ArrayPrior(Normal(0.0, 0.1), TrackSeg()),
+    dLy   = ArrayPrior(Normal(0.0, 0.1), TrackSeg())
 )
 
 instrumentmodel = InstrumentModel(JM, prior, array; refbasis = CirBasis())

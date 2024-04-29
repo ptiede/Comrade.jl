@@ -87,7 +87,7 @@ fovxy = μas2rad(150.0)
 # To define the image model we need to specify both the grid we will be using and the
 # FT algorithm we will use, in this case the NFFT which is the most efficient.
 grid = imagepixels(fovxy, fovxy, npix, npix)
-gfour  = FourierDualDomain(grid, arrayconfig(obs), NFFTAlg())
+gfour  = FourierDualDomain(grid, arrayconfig(dcphase), NFFTAlg())
 
 
 

@@ -34,10 +34,11 @@ Get the u, v, time, freq of the array as a tuple.
 function getuvtimefreq(ac::AbstractArrayConfiguration)
     u = ac[:U]
     v = ac[:V]
-    t = ac[:T]
-    ν = ac[:F]
-    return (U=u, V=v, T=t, F=ν)
+    t = ac[:Ti]
+    ν = ac[:Fr]
+    return UnstructuredDomain((U=u, V=v, Ti=t, Fr=ν))
 end
+
 
 
 """
@@ -67,11 +68,11 @@ struct EHTArrayBaselineDatum{T,P,V} <: AbstractBaselineDatum
     """
     time of the data point in (Hr)
     """
-    T::T
+    Ti::T
     """
     frequency of the data point (Hz)
     """
-    F::T
+    Fr::T
     """
     Sites codes of the baseline (u,v)
     """
@@ -98,7 +99,7 @@ struct EHTArrayBaselineDatum{T,P,V} <: AbstractBaselineDatum
 end
 
 function flipbaseline(d::EHTArrayBaselineDatum)
-    return EHTArrayBaselineDatum(-d.U, -d.V, d.T, d.F,
+    return EHTArrayBaselineDatum(-d.U, -d.V, d.Ti, d.Fr,
                                 (d.sites[2], d.sites[1]),
                                 (d.polbasis[2], d.polbasis[1]),
                                 (d.elevation[2], d.elevation[1]),
@@ -158,7 +159,7 @@ function Base.show(io::IO, config::EHTArrayConfiguration)
     println(io, "EHTArrayConfiguration:")
     println(io, "  source:      ", config.source)
     println(io, "  mjd:         ", config.mjd)
-    println(io, "  frequencies: ", unique(config[:F]))
+    println(io, "  frequencies: ", unique(config[:Fr]))
     println(io, "  bandwidth:   ", config.bandwidth)
     println(io, "  sites:       ", sites(config))
     print(io, "  nsamples:    ", length(config))

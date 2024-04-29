@@ -2,7 +2,7 @@
 using AstroTime: modified_julian
 
 export uvpositions, sites, getdata, arrayconfig,
-       getuv, baselines, scantable, beamsize
+       getuv, baselines, timetable, beamsize
 
 
 include("dataproducts.jl")
@@ -10,7 +10,7 @@ include("datums.jl")
 include("abstract.jl")
 include("array.jl")
 include("obstable.jl")
-include("scantable.jl")
+include("timetable.jl")
 
 
 

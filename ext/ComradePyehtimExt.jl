@@ -33,13 +33,13 @@ function build_arrayconfig(obs)
     V   = pyconvert(Vector,         obsd["v"])
     t1  = pyconvert(Vector{Symbol}, obsd["t1"])
     t2  = pyconvert(Vector{Symbol}, obsd["t2"])
-    T= pyconvert(Vector,         obsd["time"])
-    F= fill(pyconvert(eltype(U), obsc.rf), length(U))
+    Ti= pyconvert(Vector,         obsd["time"])
+    Fr= fill(pyconvert(eltype(U), obsc.rf), length(U))
     sites = tuple.(t1, t2)
     single_polbasis = (CirBasis(), CirBasis())
     polbasis = fill(single_polbasis,length(U))
     data = StructArray{Comrade.EHTArrayBaselineDatum{eltype(U), eltype(polbasis), eltype(elevation[1][1])}}(
-                (;U, V, T, F, sites, polbasis, elevation, parallactic)
+                (;U, V, Ti, Fr, sites, polbasis, elevation, parallactic)
     )
     return Comrade.EHTArrayConfiguration(bw, tarr, scans, mjd, ra, dec, source, :UTC, data)
 end
@@ -301,11 +301,11 @@ function minimal_lcamp(obsc; kwargs...)
     obs.reorder_tarr_snr()
 
     lcamp = _ehtim_lcamp(obs; count="max", kwargs...)
-    stlca = scantable(lcamp)
+    stlca = timetable(lcamp)
 
     #Now make the vis obs
     dvis = Comrade.extract_vis(obsc)
-    st = scantable(dvis)
+    st = timetable(dvis)
 
     minset, dmat = _minimal_closure(stlca, st)
 
@@ -515,7 +515,7 @@ function Comrade.extract_cphase(obs; count="min", kwargs...)
     cphase, dvis = _ehtim_cphase(obsc; count="max", kwargs...)
 
     #Now make the vis obs
-    st = scantable(dvis)
+    st = timetable(dvis)
 
     if count == "min"
         dmat = _minimal_closure(:cphase, cphase, st)
@@ -564,7 +564,7 @@ function Comrade.extract_lcamp(obs; count="min", kwargs...)
     lcamp, dvis = _ehtim_lcamp(obsc; count="max", kwargs...)
 
     #Now make the vis obs
-    st = scantable(dvis)
+    st = timetable(dvis)
 
     if count == "min"
         dmat = _minimal_closure(:lcamp, lcamp, st)

@@ -7,10 +7,10 @@ using StaticArrays
 @testset "gains" begin
     _,vis, amp, lcamp, cphase, = load_data()
 
-    st = scantable(vis)
-    stamp = scantable(amp)
-    stcp = scantable(cphase)
-    stlca = scantable(lcamp)
+    st = timetable(vis)
+    stamp = timetable(amp)
+    stcp = timetable(cphase)
+    stlca = timetable(lcamp)
 
 
     θ = (f1 = 1.0,
@@ -35,8 +35,8 @@ using StaticArrays
     jcache = jonescache(vis, ScanSeg())
     jcacher = jonescache(vis, ScanSeg(true))
 
-    @test sites_tuple(tel, ScanSeg()) == sites_tuple(vis, ScanSeg())
-    @test sites_tuple(tel, ScanSeg(); AA=FixedSeg(0.0)) == sites_tuple(vis, ScanSeg(); AA=FixedSeg(0.0))
+    @test site_tuple(tel, ScanSeg()) == site_tuple(vis, ScanSeg())
+    @test site_tuple(tel, ScanSeg(); AA=FixedSeg(0.0)) == site_tuple(vis, ScanSeg(); AA=FixedSeg(0.0))
 
     # test the design matrix
     d1 = Comrade.DesignMatrix(jcache.m1, jcache.schema.times, jcache.schema.sites)
@@ -54,7 +54,7 @@ using StaticArrays
     gphar = CalPrior(gph_prior_0, gph_prior, jcache)
 
 
-    # gamp_h = HierarchicalCalPrior{Normal}(gamp_prior, sites_tuple(vis, truncated(Normal(0.0, 0.1); lower=0.0)), jcache)
+    # gamp_h = HierarchicalCalPrior{Normal}(gamp_prior, site_tuple(vis, truncated(Normal(0.0, 0.1); lower=0.0)), jcache)
     # x = rand(gamp_h)
     # @inferred logdensityof(gamp_h, x)
 
@@ -183,8 +183,8 @@ end
     dReal = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
     dImag = NamedTuple{Tuple(tel)}(ntuple(_->Normal(0.0, 0.1), length(tel)))
 
-    dReal = sites_tuple(dcoh, Uniform(0.0, 1.0), AA = Uniform(-1.0, 0.0))
-    dImag = sites_tuple(dcoh, Uniform(0.0, 1.0), AA = Uniform(-1.0, 0.0))
+    dReal = site_tuple(dcoh, Uniform(0.0, 1.0), AA = Uniform(-1.0, 0.0))
+    dImag = site_tuple(dcoh, Uniform(0.0, 1.0), AA = Uniform(-1.0, 0.0))
 
     dcache = jonescache(dcoh, TrackSeg())
     pdReal = CalPrior(dReal, dcache)
@@ -371,9 +371,9 @@ end
     trackcache= jonescache(dcoh, TrackSeg())
     tcache    = ResponseCache(dcoh; add_fr=true)
 
-    dga = CalPrior(sites_tuple(dcoh, LogNormal(0.0, 0.1)), scancache)
-    dgp = CalPrior(sites_tuple(dcoh, Uniform(0.0, 2π)), phasecache)
-    dd  = CalPrior(sites_tuple(dcoh, Normal(0.0, 0.1)), trackcache)
+    dga = CalPrior(site_tuple(dcoh, LogNormal(0.0, 0.1)), scancache)
+    dgp = CalPrior(site_tuple(dcoh, Uniform(0.0, 2π)), phasecache)
+    dd  = CalPrior(site_tuple(dcoh, Normal(0.0, 0.1)), trackcache)
 
     lga1 = rand(dga)
     lga2 = rand(dga)
@@ -409,7 +409,7 @@ end
 
     trackcache = jonescache(dcoh, TrackSeg())
     scancache = jonescache(dcoh, ScanSeg())
-    segs = sites_tuple(dcoh, ScanSeg(); AA = FixedSeg(1.0 + 0.0im))
+    segs = site_tuple(dcoh, ScanSeg(); AA = FixedSeg(1.0 + 0.0im))
     phasecache = jonescache(dcoh, segs)
     gp = cis.(rand(size(phasecache.m1,2)))
 

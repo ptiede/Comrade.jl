@@ -1,5 +1,5 @@
 export SingleStokesGain, JonesG, JonesD, JonesF, JonesR, GenericJones,
-       JonesModel
+       JonesSandwich
 
 abstract type AbstractJonesMatrix end
 @inline jonesmatrix(mat::AbstractJonesMatrix, params, visindex, site) = construct_jones(mat, param_map(mat, params), visindex, site)
@@ -9,7 +9,8 @@ preallocate_jones(g::AbstractJonesMatrix, array, refbasis) = g
 struct SingleStokesGain{F} <: AbstractJonesMatrix
     param_map::F
 end
-@inline contruct_jones(::SingleStokesGain, x, index, site) = x
+construct_jones(::SingleStokesGain, x, index, site) = x
+
 
 struct JonesG{F} <: AbstractJonesMatrix
     param_map::F
@@ -63,17 +64,40 @@ function preallocate_jones(J::JonesR, array::AbstractArrayConfiguration, ref)
 end
 
 
-struct JonesModel{J, M} <: AbstractJonesMatrix
+struct JonesSandwich{J, M} <: AbstractJonesMatrix
     jones_map::J
     matrices::M
 end
 
-function JonesModel(map, matrices::AbstractJonesMatrix...)
-    return JonesModel(map, matrices)
+"""
+    JonesSandwich(decomp_function, matrices::AbstractJonesMatrix...)
+
+Constructs a Jones matrix that is the results combining multiple Jones matrices together.
+The specific composition is determined by the `decomp_function`. For example if the
+decomp function is `*` then the matrices are multiplied together, if it is `+` then they
+are added.
+
+
+## Examples
+```julia
+G = JonesG(x->(x.gR, x.gL)) # Gain matrix
+D = JonesD(x->(x.dR, x.dL)) # leakage matrix
+F = JonesF()                # Feed rotation matrix
+
+J = JonesSandwich(*, G, D, F) # Construct the full Jones matrix as G*D*F
+
+# Or if you want to include FR calibration
+J = JonesSandwich(G, D, F) do g, d, f
+    return adjoint(f)g*d*f
+end
+```
+"""
+function JonesSandwich(map, matrices::AbstractJonesMatrix...)
+    return JonesSandwich(map, matrices)
 end
 
-param_map(j::JonesModel, x) = map(j->param_map(j, x), j.matrices)
-function preallocate_jones(J::JonesModel, array::AbstractArrayConfiguration)
-    m2 = map(x->preallocate_jones(x, array), J.matrices, J.refbasis)
-    return JonesModel(J.jones_map, m2, J.refbasis)
+param_map(j::JonesSandwich, x) = map(j->param_map(j, x), j.matrices)
+function preallocate_jones(J::JonesSandwich, array::AbstractArrayConfiguration, refbasis=CirBasis())
+    m2 = map(x->preallocate_jones(x, array), J.matrices, refbasis)
+    return JonesSandwich(J.jones_map, m2)
 end

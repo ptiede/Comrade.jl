@@ -1,5 +1,6 @@
-@inline function ComradeBase.visibilities(m::M, p::EHTArrayConfiguration) where {M <: AbstractModel}
-    return _visibilitymap(visanalytic(M), m, p[:U], p[:V], p[:T], p[:F])
+@inline function ComradeBase.visibilitymap(m::M, p::EHTArrayConfiguration) where {M <: AbstractModel}
+    p = UnstructuredDomain((U=p[:U], V=p[:V], T=p[:T], F=p[:F]))
+    return _visibilitymap(visanalytic(M), m, p)
 end
 
 @inline function ComradeBase.visibilitymap(m::M, p::ClosureConfig) where {M <: AbstractModel}
@@ -7,7 +8,7 @@ end
 end
 
 
-@inline function ComradeBase.amplitudes(m::AbstractModel, p::EHTArrayConfiguration)
+@inline function ComradeBase.amplitudemap(m::AbstractModel, p::EHTArrayConfiguration)
     return amplitudes(m, (U = p[:U], V = p[:V], T=p[:T], F=p[:F]))
 end
 
@@ -24,8 +25,8 @@ from Blackburn et al.[^1]
 
 [^1]: Blackburn L., et al "Closure Statistics in Interferometric Data" ApJ 2020
 """
-function ComradeBase.closure_phases(m::AbstractModel, ac::ClosureConfig)
-    vis = visibilities(m, arrayconfig(ac.ac))
+function ComradeBase.closure_phasemap(m::AbstractModel, ac::ClosureConfig)
+    vis = visibilitymap(m, arrayconfig(ac.ac))
     return ac.designmat*angle.(vis)
 end
 
@@ -41,7 +42,7 @@ from Blackburn et al.[^1]
 
 [^1]: Blackburn L., et al "Closure Statistics in Interferometric Data" ApJ 2020
 """
-function ComradeBase.logclosure_amplitudes(m::AbstractModel, ac::ClosureConfig)
-    vis = visibilities(m, arrayconfig(ac.ac))
+function ComradeBase.logclosure_amplitudemap(m::AbstractModel, ac::ClosureConfig)
+    vis = visibilitymap(m, arrayconfig(ac))
     return ac.designmat*log.(abs.(vis))
 end

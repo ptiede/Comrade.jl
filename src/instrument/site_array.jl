@@ -1,6 +1,6 @@
 export SiteArray, site, time_interval
 
-struct SiteArray{T, N, A<:AbstractArray{T,N}, Ti<:AbstractArray{<:Number, N}, Fr<:AbstractArray{<:Number, N}, Sy<:AbstractArray{<:Any, N}} <: AbstractArray{T, N}
+struct SiteArray{T, N, A<:AbstractArray{T,N}, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:Number, N}, Sy<:AbstractArray{<:Any, N}} <: AbstractArray{T, N}
     data::A
     times::Ti
     frequencies::Fr
@@ -24,8 +24,12 @@ function Base.getindex(m::SiteArray, I...)
 end
 
 function Base.view(A::SiteArray, I...)
-    return SiteArray(view(A.data, I...), view(A.times, I...), view(A.frequencies, I...), view(A.sites, I...))
+    return SiteArray(view(A.data, I...), view(times(A), I...), view(frequencies(A), I...), view(sites(A), I...))
 end
+
+# Enzyme.EnzymeRules.inactive(::typeof(times), ::SiteArray) = nothing
+# Enzyme.EnzymeRules.inactive(::typeof(frequencies), ::SiteArray) = nothing
+# Enzyme.EnzymeRules.inactive(::typeof(sites), ::SiteArray) = nothing
 
 
 function Base.similar(m::SiteArray, ::Type{S}) where {S}
@@ -104,7 +108,7 @@ function select_region(arr::SiteArray, site, T::Union{IntegrationTime, AbstractI
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
-struct SiteLookup{L<:NamedTuple, N, Ti<:AbstractArray{<:Number, N}, Fr<:AbstractArray{<:Number, N}, Sy<:AbstractArray{<:Any, N}}
+struct SiteLookup{L<:NamedTuple, N, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:Number, N}, Sy<:AbstractArray{<:Any, N}}
     lookup::L
     times::Ti
     frequencies::Fr

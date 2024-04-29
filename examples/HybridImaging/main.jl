@@ -181,7 +181,7 @@ cprior = GaussMarkovRandomField(rat, size(grid); order=2)
 # we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
 using Distributions
 using DistributionsAD
-distamp = sites_tuple(dvis, Normal(0.0, 0.1); LM = Normal(0.0, 1.0))
+distamp = site_tuple(dvis, Normal(0.0, 0.1); LM = Normal(0.0, 1.0))
 
 # For the phases, as mentioned above, we will use a segmented gain prior.
 # This means that rather than the parameters
@@ -195,7 +195,7 @@ distamp = sites_tuple(dvis, Normal(0.0, 0.1); LM = Normal(0.0, 1.0))
 # !!! warning
 #     We use AA (ALMA) as a reference sites so we do not have to specify a gain prior for it.
 #-
-distphase = sites_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
+distphase = site_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 # Finally we can put form the total model prior
 prior = NamedDist(

@@ -124,7 +124,7 @@ This returns a `PosteriorSamples` object indexed as iteration × chain.
 This will automatically transform the posterior to the flattened unconstrained space.
 """
 function AbstractMCMC.sample(
-    rng::Random.AbstractRNG, post::Comrade.Posterior,
+    rng::Random.AbstractRNG, post::Comrade.VLBIPosterior,
     sampler::A, parallel::AbstractMCMC.AbstractMCMCEnsemble,
     nsamples, nchains;
     initial_params=nothing, kwargs...

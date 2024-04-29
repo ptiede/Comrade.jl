@@ -12,7 +12,7 @@ import SciMLBase
 export laplace
 
 
-function SciMLBase.OptimizationFunction(post::Comrade.Posterior, args...; kwargs...)
+function SciMLBase.OptimizationFunction(post::Comrade.VLBIPosterior, args...; kwargs...)
     throw("Transform the posterior first using `asflat` or `ascube`")
 end
 

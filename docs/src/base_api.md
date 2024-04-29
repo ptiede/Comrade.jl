@@ -66,7 +66,7 @@ ComradeBase.intensitymap_numeric!
 
 ### Image Types
 ```@docs
-ComradeBase.IntensityMap(::AbstractArray, ::AbstractGrid)
+ComradeBase.IntensityMap(::AbstractArray, ::AbstractRectiGrid)
 ComradeBase.StokesIntensityMap
 ComradeBase.imagepixels
 ComradeBase.RectiGrid

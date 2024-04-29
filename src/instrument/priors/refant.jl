@@ -49,31 +49,3 @@ function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r:
     end
     return fixedinds, Fill(r.value, length(fixedinds))
 end
-
-
-
-
-struct PartiallyConditionedDist{D<:Distributions.ContinuousMultivariateDistribution, I, F} <: Distributions.ContinuousMultivariateDistribution
-    dist::D
-    variate_index::I
-    fixed_index::I
-    fixed_values::F
-end
-
-Base.length(d::PartiallyConditionedDist) = length(d.variate_index) + length(d.fixed_index)
-Base.eltype(d::PartiallyConditionedDist) = eltype(d.dist)
-
-
-Distributions.sampler(d::PartiallyConditionedDist) = d
-
-function Distributions._logpdf(d::PartiallyConditionedDist, x)
-    xv = @view x[d.variate_index]
-    return Dists.logpdf(d.dist, xv)
-end
-
-function Distributions._rand!(rng::AbstractRNG, d::PartiallyConditionedDist, x::AbstractArray{<:Real})
-    rand!(rng, d.dist, @view(x[d.variate_index]))
-    # Now adjust the other indices
-    x[d.fixed_index] .= d.fixed_values
-    return x
-end
