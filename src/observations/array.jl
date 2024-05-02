@@ -29,14 +29,14 @@ end
 """
     $(SIGNATURES)
 
-Get the u, v, time, freq of the array as a tuple.
+Get the u, v, time, freq domain of the array as a tuple.
 """
-function getuvtimefreq(ac::AbstractArrayConfiguration)
+function domain(ac::AbstractArrayConfiguration; executor=Serial())
     u = ac[:U]
     v = ac[:V]
     t = ac[:Ti]
     ν = ac[:Fr]
-    return UnstructuredDomain((U=u, V=v, Ti=t, Fr=ν))
+    return UnstructuredDomain((U=u, V=v, Ti=t, Fr=ν); executor)
 end
 
 
@@ -228,6 +228,8 @@ arrayconfig(c::ClosureConfig) = getfield(c, :ac)
 Base.length(c::ClosureConfig) = size(designmat(c), 1)
 Base.firstindex(c::ClosureConfig) = 1
 Base.lastindex(c::ClosureConfig) = length(c)
+beamsize(ac::ClosureConfig) = beamsize(arrayconfig(ac))
+
 
 function Base.getindex(c::ClosureConfig, i::AbstractVector)
     dmat = designmat(c)
@@ -247,6 +249,7 @@ function Base.getproperty(c::ClosureConfig, p::Symbol)
     getproperty(arrayconfig(c), p)
 end
 designmat(c::ClosureConfig) = getfield(c, :designmat)
+ChainRulesCore.@non_differentiable designmat(c::ClosureConfig)
 
 function build_datum(arr::ClosureConfig{F, A, <:DesignMatrix{T, N}}, i::Int) where {F, A, T, N}
     arrvis = arrayconfig(arr)
@@ -269,10 +272,16 @@ function sites(c::ClosureConfig)
     sites(arrayconfig(c))
 end
 
+function noisecovariance(c::ClosureConfig)
+    dmat = designmat(c)
+    amp2 = abs2.(getfield(c, :vis))
+    Σphase = getfield(c, :noise).^2 ./ amp2
+    return VLBILikelihoods.CholeskyFactor(sparse(dmat*Diagonal(Σphase)*transpose(dmat)))
+end
 
 
-function getuvtimefreq(ac::ClosureConfig)
-    return getuvtimefreq(arrayconfig(ac))
+function domain(ac::ClosureConfig; executor=Serial())
+    return domain(arrayconfig(ac); executor)
 end
 
 function Base.show(io::IO, config::ClosureConfig)
@@ -283,3 +292,33 @@ function Base.show(io::IO, config::ClosureConfig)
     println(io, "  sites:       ", sites(arrayconfig(config)))
     print(io, "  nclosures:    ", length(config))
 end
+
+
+"""
+    logclosure_amplitudes(vis::AbstractArray, ac::ClosureConfig)
+
+Compute the log-closure amplitudes for a set of visibilities and an array configuration
+
+# Notes
+This uses a closure design matrix for the computation.
+"""
+function logclosure_amplitudes(vis::AbstractArray{<:Complex}, ac::ClosureConfig)
+    lva = log.(abs.(vis))
+    return designmat(ac)*lva
+end
+
+"""
+    closure_phases(vis::AbstractArray, ac::ClosureConfig)
+
+Compute the closure phases for a set of visibilities and an array configuration
+
+# Notes
+This uses a closure design matrix for the computation.
+"""
+function closure_phases(vis::AbstractArray{<:Complex}, ac::ClosureConfig)
+    ph = angle.(vis)
+    return designmat(ac)*ph
+end
+
+amplitudes(vis::AbstractArray{<:Complex}, ::AbstractArrayConfiguration) = abs.(vis)
+phase(vis::AbstractArray{<:Complex}) = angle.(vis)

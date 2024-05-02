@@ -7,36 +7,30 @@ abstract type AbstractInstrumentModel end
 
 Constructs an ideal instrument that has no corruptions including feed rotations.
 """
-struct IdealInstrumentModel{A} <: AbstractInstrumentModel
-    array::A
+struct IdealInstrumentModel <: AbstractInstrumentModel end
+
+
+struct InstrumentModel{J<:AbstractJonesMatrix, PI, P<:PolBasis} <: AbstractInstrumentModel
+    jones::J
+    prior::PI
+    refbasis::P
 end
 
 
+struct ObservedInstrumentModel{I<:AbstractJonesMatrix, PB<:PolBasis, B} <: AbstractInstrumentModel
+    """
+    The abstract instrument model
+    """
+    instrument::I
+    """
+    reference basis used to define the ideal basis
 
-
-
-struct InstrumentModel{J<:AbstractJonesMatrix, PI, B, A<:AbstractArrayConfiguration, P<:PolBasis} <: AbstractInstrumentModel
     """
-    The instrument model for the telescope. This is usually a sparse matrix that multiplies
-    the visibilties.
-    """
-    instrument::J
-    """
-    The prior for the instrument model
-    """
-    prior::PI
+    refbasis::PB
     """
     The baseline site lookup for the instrument model
     """
     bsitelookup::B
-    """
-    Abstract array configuration
-    """
-    array::A
-    """
-    The reference basis for the instrument model
-    """
-    polbasis::P
 end
 
 """
@@ -46,17 +40,26 @@ Builds an instrument model using the jones matrix `jones`, with priors `prior` a
 array configuration `array`. The reference basis is `refbasis` and is used to define what
 the ideal basis is. Namely, the basis that you have the ideal visibilties to be represented in.
 """
-function InstrumentModel(jones::AbstractJonesMatrix, prior::NamedTuple{N, <:NTuple{M, ArrayPrior}}, array::AbstractArrayConfiguration; refbasis = CirBasis()) where {N, M}
+function InstrumentModel(jones::AbstractJonesMatrix, prior::NamedTuple{N, <:NTuple{M, ArrayPrior}}; refbasis = CirBasis()) where {N, M}
+    return InstrumentModel(jones, prior, refbasis)
+end
+
+function set_array(int::InstrumentModel, array::AbstractArrayConfiguration)
+    (;jones, prior, refbasis) = int
     # 1. preallocate and jones matrices
     Jpre = preallocate_jones(jones, array, refbasis)
     # 2. construct the prior with the array you have
-    prior_obs = NamedDist(map(x->ObservedArrayPrior(x, array), prior))
+    prior_obs = map(x->ObservedArrayPrior(x, array), prior)
     # 3. construct the baseline site map for each prior
     x = rand(prior_obs)
     bsitemaps = map(x->_construct_baselinemap(array, x), x)
-    return InstrumentModel(Jpre, prior_obs, bsitemaps, array, refbasis)
+    intobs = ObservedInstrumentModel(Jpre, refbasis, bsitemaps)
+    return intobs, prior_obs
 end
 
+function set_array(int::IdealInstrumentModel, ::AbstractArrayConfiguration)
+    return (int, ())
+end
 
 struct BaselineSiteLookup{V<:AbstractArray{<:Integer}}
     indices_1::V
@@ -68,6 +71,10 @@ function _construct_baselinemap(array::EHTArrayConfiguration, x::SiteArray)
     F = array[:Fr]
     bl = array[:sites]
 
+    return _construct_baselinemap(T, F, bl, x)
+end
+
+function _construct_baselinemap(T, F, bl, x::SiteArray)
     tcal = times(x)
     scal = sites(x)
     fcal = frequencies(x)
@@ -98,13 +105,13 @@ intout(vis::AbstractArray{T}) where {T<:Complex} = similar(vis, T)
 intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
 
 
-function apply_instrument(vis, J::AbstractInstrumentModel, x)
+function apply_instrument(vis, J::ObservedInstrumentModel, x)
     vout = intout(vis)
     apply_instrument!(vout, vis, J, x)
     return vout
 end
 
-function apply_instrument!(vout, vis, J::AbstractInstrumentModel, x)
+function apply_instrument!(vout, vis, J::ObservedInstrumentModel, x)
     @inbounds for i in eachindex(vout, vis)
         vout[i] = apply_jones(vis[i], i, J, x)
     end
@@ -115,17 +122,20 @@ end
 @inline get_indices(bsitemaps, index, ::Val{1}) = map(x->getindex(x.indices_1, index), bsitemaps)
 @inline get_indices(bsitemaps, index, ::Val{2}) = map(x->getindex(x.indices_2, index), bsitemaps)
 @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map((xx, ii)->getindex(xx, ii), x, indices))
+@inline function build_jones(index::Int, J::ObservedInstrumentModel, x, ::Val{N}) where N
+    indices = get_indices(J.bsitelookup, index, Val(N))
+    params = get_params(x, indices)
+    return jonesmatrix(J.instrument.jones, params, index, Val(N))
+end
 
-@inline function apply_jones(v, index::Int, J::InstrumentModel, x)
-    indices1 = get_indices(J.bsitelookup, index, Val(1))
-    indices2 = get_indices(J.bsitelookup, index, Val(2))
-    params1 = get_params(x, indices1)
-    params2 = get_params(x, indices2)
-    j1 = jonesmatrix(J.instrument, params1, index, Val(1))
-    j2 = jonesmatrix(J.instrument, params2, index, Val(2))
+
+@inline function apply_jones(v, index::Int, J::ObservedInstrumentModel{<:InstrumentModel}, x)
+    j1 = build_jones(index, J, x, Val(1))
+    j2 = build_jones(index, J, x, Val(2))
     vout =  _apply_jones(v, j1, j2, J.polbasis)
     return vout
 end
+
 
 @inline _apply_jones(v::Number, j1, j2, ::B) where {B} = j1*v*conj(j2)
 @inline _apply_jones(v::CoherencyMatrix, j1, j2, ::B) where {B} = j1*CoherencyMatrix{B,B}(v)*j2'
@@ -135,7 +145,7 @@ end
 
 apply_instrument(vis, ::IdealInstrumentModel, x) = vis
 
-function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::InstrumentModel, x)
+function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel, x)
     out = apply_instrument(vis, J, x)
     function _apply_instrument_pb(Δ)
         Δout = similar(out)

@@ -157,7 +157,7 @@ scan1[:baseline]
 
 """
 function timetable(arr::AbstractVLBITable)
-    times = getuvtimefreq(arr).Ti
+    times = domain(arr).Ti
     scantimes = unique(times)
     scanind = Int[]
     for t in scantimes

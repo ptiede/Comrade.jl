@@ -141,11 +141,15 @@ dvis = extract_table(obs, Coherencies())
 #       Using this apriori knowledge, we can build this into our model and reduce
 #       the total number of parameters we need to model.
 
-G = JonesG() do x
+
+function f(x)
     gR = exp(x.lgR + 1im*x.gpR)
     gL = gR*exp(x.lgrat + 1im*x.gprat)
     return gR, gL
 end
+
+G = JonesG(f)
+
 
 D = JonesD() do x
     return complex(x.dRx, x.dRy), complex(x.dLx, x.dLy)
@@ -153,8 +157,14 @@ end
 
 R = JonesR()
 
-J = JonesSandwich(G, R, D) do g, d, r
-    return g*d*r
+Jones() do x
+    gR = exp(x.lgR + 1im*x.gpR)
+    gL = gR*exp(x.lgrat + 1im*x.gprat)
+    return JonesG(gR, gL) * D(dr, dl) * R()
+end
+
+J = JonesSandwich(G, D) do g, d, r
+    return (g + d0)*d*f*d2
 end
 
 sitepriors = (
@@ -168,6 +178,24 @@ sitepriors = (
     dLy   = SitePrior(Normal(0.0, 0.1), TrackSeg())
 )
 
+@instrument function int(array)
+    lgR   ~ SitePrior(Normal(0.0, 0.1), ScanSeg()); LM = SitePrior(Normal(), ScanSeg())
+    lgrat ~ SitePrior(Normal(0.0, 0.1), TrackSeg())
+    gpR   ~ SitePrior(Normal(0.0, 0.1), ScanSeg()); refant = SEFDReference(0.0)
+    gprat ~ SitePrior(Normal(0.0, 0.1), ScanSeg()); refant = SingleReference(:AA, 0.0)
+    dRx   ~ SitePrior(Normal(0.0, 0.1), TrackSeg())
+    dRy   ~ SitePrior(Normal(0.0, 0.1), TrackSeg())
+    dLx   ~ SitePrior(Normal(0.0, 0.1), TrackSeg())
+    dLy   ~ SitePrior(Normal(0.0, 0.1), TrackSeg())
+
+    J = Jones() do x
+        gR = exp(x.lgR + 1im*x.gpR)
+        gL = gR*exp(x.lgrat + 1im*x.gprat)
+        return JonesFromG(gR, gL) * D()
+    end
+    return J
+end
+
 intm = InstrumentModel(J, prior, array; refbasis=CirBasis())
 
 using Distributions
@@ -175,9 +203,15 @@ using DistributionsAD
 using VLBIImagePriors
 
 
-function sky(θ, metadata)
+@skymodel function sky(grid, ftot, beam)
     (;c, σ, p, p0, pσ, angparams) = θ
-    (;grid) = metadata
+    c ~ HierarchicalPrior(ConditionalMarkov(GMRF, grid), InverseGamma(1.0, -log(0.1)*beam/rat))
+    σ ~ truncated(Normal(0.0, 0.1); lower=0.0)
+    p ~ HierarchicalPrior(ConditionalMarkov(GMRF, grid), InverseGamma(1.0, -log(0.1)*beam/rat))
+    p0 ~ Normal(-2.0, 1.0)
+    pσ ~ truncated(Normal(0.0, 1.0); lower=0.01)
+    angparams ~ ImageSphericalUniform(size(grid))
+
     cp = σ.*c.params
     rast = to_simplex(CenteredLR(), cp)
     pim = logistic.(p0 .+ pσ.*p.params)
@@ -187,39 +221,15 @@ function sky(θ, metadata)
     return ms
 end
 
-# Now, we define the model metadata required to build the model.
-# We specify our image grid and cache model needed to define the polarimetric
-# image model.
-fovx = μas2rad(50.0)
-fovy = μas2rad(50.0)
-nx = 12
-ny = floor(Int, fovy/fovx*nx)
-grid = imagepixels(fovx, fovy, nx, ny) # image grid
-gfour = FourierDualDomain(grid, array(dvis), NFFTAlg())
 
 # We want to use a correlated image priors to model the polarized image.
 # We will use a GMRF prior with a inverse gamma prior on the GMRF correlation length.
-fwhmfac = 2.0*sqrt(2.0*log(2.0))
-rat = beamsize(dvis)/pixelsizes(grid).X
-cmarkov = ConditionalMarkov(GMRF, grid; order=1)
-dρ = truncated(InverseGamma(1.0, -log(0.1)*rat); lower=2.0, upper=max(nx, ny))
-cprior = HierarchicalPrior(cmarkov, dρ)
-
-skyprior = NamedDist(
-    c = cprior,
-    σ  = truncated(Normal(0.0, 0.1); lower=0.0),
-    p  = cprior,
-    p0 = Normal(-2.0, 1.0),
-    pσ =  truncated(Normal(0.0, 1.0); lower=0.01),
-    angparams = ImageSphericalUniform(nx, ny),
-    )
-
 grid = imagepixels(fovx, fovy, nx, ny)
-skym = SkyModel(sky, metadata, skyprior, gfour)
+skym = skym(grid, 1.0, beam)
 
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling.
-post = VLBIPosterior(skym, instm, dvis)
+post = VLBIPosterior(sky, instrument, obs...)
 
 using ComradeOptimization
 using OptimizationOptimisers

@@ -69,7 +69,7 @@ function sky(θ, metadata)
     (;meanpr, grid) = metadata
     ## Construct the image model we fix the flux to 0.6 Jy in this case
     cp = meanpr .+ σimg.*c.params
-    rast = ((1-fg))*to_simplex(AdditiveLR(), cp)
+    rast = ((1-fg))*to_simplex(CenteredLR(), cp)
     m = ContinuousImage(rast, grid, BSplinePulse{3}())
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
@@ -81,13 +81,12 @@ end
 # the EHT is not very sensitive to a larger field of views; typically, 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 32
-fovxy = μas2rad(150.0)
+npix = 64
+fovxy = μas2rad(300.0)
 
 # To define the image model we need to specify both the grid we will be using and the
 # FT algorithm we will use, in this case the NFFT which is the most efficient.
 grid = imagepixels(fovxy, fovxy, npix, npix)
-gfour  = FourierDualDomain(grid, arrayconfig(dcphase), NFFTAlg())
 
 
 
@@ -97,13 +96,13 @@ using VLBIImagePriors, Distributions, DistributionsAD
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 50 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(100.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
 # our mean image has unit flux before we transform
 imgpr ./= flux(imgpr)
-meanpr = to_real(AdditiveLR(), baseimage(imgpr));
+meanpr = to_real(CenteredLR(), baseimage(imgpr));
 
 #
 skymeta = (;meanpr, grid);
@@ -117,19 +116,19 @@ rat = (beam/(step(grid.X)))
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
 # that allow us to scale things linearly with the number of image pixels. This drastically improves
 # the usual N^3 scaling you get from usual Gaussian Processes.
-crcache = ConditionalMarkov(GMRF, grid)
+crcache = ConditionalMarkov(GMRF, grid; order=1)
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
 # correlation length is given by a inverse gamma prior to prevent overfitting.
 # Gaussian Markov random fields are extremly flexible models.
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1*rat)); upper=npix))
+cprior = HierarchicalPrior(crcache, truncated(InverseGamma(1.0, -log(0.1)*rat); upper=2*npix))
 
-prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 0.1); lower = 0.0), fg=Uniform(0.0, 1.0))
+prior = NamedDist(c = cprior, σimg = Exponential(0.1), fg=Uniform(0.0, 1.0))
 
 # Form the sky model
-skym = SkyModel(sky, metadata, gfour, prior)
+skym = SkyModel(sky, prior, grid; metadata=skymeta)
 post = VLBIPosterior(skym, dlcamp, dcphase)
 
 # ## Reconstructing the Image
@@ -173,7 +172,8 @@ DisplayAs.Text(DisplayAs.PNG(p))
 # Now let's plot the MAP estimate.
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=1) #hide
-img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
+g = imagepixels(μas2rad(300.0), μas2rad(300.0), 100, 100)
+img = intensitymap(skymodel(post, xopt), g)
 fig = imageviz(img);
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
@@ -191,7 +191,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=false);
+chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=true, initial_params=chain[end]);
 
 
 # !!! warning
@@ -206,7 +206,7 @@ msamples = skymodel.(Ref(post), chain[501:2:end]);
 
 # The mean image is then given by
 using StatsBase
-imgs = intensitymap.(msamples, μas2rad(150.0), μas2rad(150.0), 128, 128)
+imgs = intensitymap.(msamples, Ref(g))
 mimg = mean(imgs)
 simg = std(imgs)
 fig = CM.Figure(;resolution=(700, 700));

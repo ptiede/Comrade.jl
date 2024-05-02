@@ -15,8 +15,10 @@ using Enzyme
 using FillArrays: Fill
 using ForwardDiff
 using IntervalSets
+using LogDensityProblems
 using LinearAlgebra
-import HypercubeTransform: ascube, asflat, NamedDist
+import HypercubeTransform: ascube, asflat, NamedDist, transform, inverse
+using HypercubeTransform
 #using MappedArrays: mappedarray
 using NamedTupleTools
 using Printf
@@ -31,6 +33,8 @@ using Tables
 import TransformVariables as TV
 using TypedTables
 import ComradeBase: save
+using ComradeBase: AbstractDomain, AbstractSingleDomain, AbstractRectiGrid
+using VLBISkyModels: FourierTransform, FourierDualDomain
 
 # Reexport the core libraries for Comrade
 @reexport using VLBISkyModels
@@ -64,9 +68,8 @@ import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
 include("observations/observations.jl")
 include("instrument/instrument.jl")
 include("skymodels/models.jl")
-include("distributions/radiolikelihood.jl")
 include("visualizations/visualizations.jl")
-include("bayes/bayes.jl")
+include("posterior/abstract.jl")
 include("inference/inference.jl")
 include("clean.jl")
 include("rules.jl")

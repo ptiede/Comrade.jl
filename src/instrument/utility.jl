@@ -2,7 +2,8 @@ export site_tuple
 
 """
     site_tuple(sites, default; reference=nothing kwargs...)
-    site_tuple(obs::EHTObservation, default; reference=nothing, kwargs...)
+    site_tuple(obs::AbstractObservationTable, default; reference=nothing, kwargs...)
+    site_tuple(obs::AbstractArrayConfiguration, default; reference=nothing, kwargs...)
 
 Convienence function that will construct a `NamedTuple` of objects
 whose names are the `sites` in the observation `obs` or explicitly in the argument

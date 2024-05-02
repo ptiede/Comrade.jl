@@ -12,8 +12,9 @@ import SciMLBase
 export laplace
 
 
-function SciMLBase.OptimizationFunction(post::Comrade.VLBIPosterior, args...; kwargs...)
-    throw("Transform the posterior first using `asflat` or `ascube`")
+function SciMLBase.OptimizationFunction(post::Comrade.VLBIPosterior, adtype; kwargs...)
+    (adtype isa NoAD) && return OptimizationFunction(ascube(post); kwargs...)
+    return OptimizationFunction(asflat(post), adtype; kwargs...)
 end
 
 """
@@ -23,7 +24,7 @@ Constructs a `OptimizationFunction` from a `Comrade.TransformedPosterior` object
 Note that a user must **transform the posterior first**. This is so we know which
 space is most amenable to optimization.
 """
-function SciMLBase.OptimizationFunction(post::Comrade.TransformedPosterior, args...; kwargs...)
+function SciMLBase.OptimizationFunction(post::Comrade.TransformedVLBIPosterior, args...; kwargs...)
     ℓ(x,p) = -logdensityof(post, x)
     return SciMLBase.OptimizationFunction(ℓ, args...; kwargs...)
 end

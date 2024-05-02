@@ -36,8 +36,6 @@ Comrade.ObsSegmentation
 Comrade.IntegSeg
 Comrade.ScanSeg
 Comrade.TrackSeg
-Comrade.FixedSeg
-Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.ObsSegmentation)
 Comrade.SingleReference
 Comrade.RandomReference
 Comrade.SEFDReference
@@ -74,7 +72,7 @@ Comrade.arrayconfig
 Comrade.closure_phase(::Comrade.EHTComplexVisibilityDatum, ::Comrade.EHTComplexVisibilityDatum, ::Comrade.EHTComplexVisibilityDatum)
 Comrade.getdata
 Comrade.getuv
-Comrade.getuvtimefreq
+Comrade.domain
 Comrade.timetable
 Comrade.sites
 Comrade.uvpositions
@@ -82,7 +80,7 @@ Comrade.ArrayConfiguration
 Comrade.ClosureConfig
 Comrade.AbstractInterferometryDatum
 Comrade.EHTArrayBaselineDatum
-Comrade.EHTObservation
+Comrade.EHTObservationTable
 Comrade.EHTArrayConfiguration
 Comrade.EHTCoherencyDatum
 Comrade.EHTComplexVisibilityDatum
@@ -93,12 +91,11 @@ Comrade.Scan
 Comrade.TimeTable
 ```
 
-## Model Cache
+## Fourier Transform Algorithms
 ```@docs
-VLBISkyModels.NFFTAlg(::Comrade.EHTObservation)
-VLBISkyModels.NFFTAlg(::Comrade.ArrayConfiguration)
-VLBISkyModels.DFTAlg(::Comrade.EHTObservation)
-VLBISkyModels.DFTAlg(::Comrade.ArrayConfiguration)
+VLBISkyModels.NFFTAlg()
+VLBISkyModels.DFTAlg()
+VLBISkyModels.FFTAlg()
 ```
 
 

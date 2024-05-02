@@ -92,14 +92,14 @@ end
 
 Comrade.samplertype(::Type{<:AHMC}) = Comrade.IsFlat()
 
-function _initialize_hmc(tpost::Comrade.TransformedPosterior, initial_params, nchains)
+function _initialize_hmc(tpost::Comrade.TransformedVLBIPosterior, initial_params, nchains)
     isnothing(initial_params) && return prior_sample(tpost, nchains)
     @argcheck length(initial_params) == nchains
     return initial_params
 end
 
 """
-    AbstractMCMC.sample(post::Comrade.Posterior,
+    AbstractMCMC.sample(post::Comrade.VLBIPosterior,
                         sampler::AHMC,
                         parallel::AbstractMCMC.AbstractMCMCEnsemble,
                         nsamples,
@@ -158,14 +158,14 @@ function make_sampler(∇ℓ, sampler::AHMC, θ0)
     return model, HMCSampler(proposal, sampler.metric, adaptor)
 end
 
-function AbstractMCMC.Sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior, sampler::AHMC; kwargs...)
+function AbstractMCMC.Sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior, sampler::AHMC; kwargs...)
     ∇ℓ = ADgradient(sampler.autodiff, tpost)
     model, smplr = make_sampler(∇ℓ, sampler, 0)
     return AbstractMCMC.Sample(rng, model, smplr; kwargs...)
 end
 
 
-function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
+function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior,
                              sampler::AHMC, parallel::AbstractMCMC.AbstractMCMCEnsemble,
                              nsamples, nchains;
                              initial_params=nothing, kwargs...
@@ -220,7 +220,7 @@ end
 DiskStore(name::String) = DiskStore(name, 100)
 
 """
-    AbstractMCMC.sample(post::Comrade.Posterior,
+    AbstractMCMC.sample(post::Comrade.VLBIPosterior,
                         sampler::AHMC,
                         nsamples;
                         initial_params=nothing,
@@ -248,7 +248,7 @@ This returns a `PosteriorSamples` object.
 
 This will automatically transform the posterior to the flattened unconstrained space.
 """
-function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
+function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior,
                              sampler::AHMC, nsamples, args...;
                              saveto=MemoryStore(),
                              initial_params=nothing,
@@ -292,7 +292,7 @@ struct DiskOutput
 end
 
 
-function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
+function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior,
     sampler::AHMC, nsamples, outbase, args...;
     n_adapts = min(nsamples÷2, 1000),
     initial_params=nothing, outdir = "Results",
@@ -360,7 +360,7 @@ function _process_samples(pt, tpost, next, time, nscans, out, outbase, outdir, i
     return state, iter
 end
 
-function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedPosterior,
+function sample_to_disk(rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior,
                         sampler::AHMC, nsamples, args...;
                         n_adapts = min(nsamples÷2, 1000),
                         initial_params=nothing, outdir = "Results",

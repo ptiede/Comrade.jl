@@ -147,7 +147,7 @@ intmetadata = (;gcache, gcachep);
 
 # This is everything we need to form our likelihood. Note the first two arguments must be
 # the model and then the metadata for the likelihood. The rest of the arguments are required
-# to be [`Comrade.EHTObservation`](@ref)
+# to be [`Comrade.EHTObservationTable`](@ref)
 lklhd = RadioLikelihood(sky, instrument, dvis;
                         skymeta=skymetadata, instrumentmeta=intmetadata)
 

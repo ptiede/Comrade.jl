@@ -1,6 +1,6 @@
 export residuals, chi2
 
-@recipe function f(m::AbstractModel, dvis::EHTObservationTable{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTComplexVisibilityDatum}
+@recipe function f(m::AbstractModel, dvis::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTComplexVisibilityDatum}
     xguide --> "uv-distance (λ)"
     yguide --> "V (Jy)"
     markershape --> :diamond
@@ -44,7 +44,7 @@ export residuals, chi2
     uvdist./1e9, hcat(real.(vmod), imag.(vmod))
 end
 
-@recipe function f(m::AbstractModel, dvis::EHTObservationTable{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTCoherencyDatum}
+@recipe function f(m::AbstractModel, dvis::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTCoherencyDatum}
 
     u = getdata(dvis, :U)
     v = getdata(dvis, :V)
@@ -167,7 +167,7 @@ end
 
 end
 
-@recipe function f(dvis::EHTObservationTable{T,A};) where {T,A<:EHTComplexVisibilityDatum}
+@recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTComplexVisibilityDatum}
     xguide --> "uv-distance (Gλ)"
     yguide --> "V (Jy)"
     markershape --> :circle
@@ -202,7 +202,7 @@ end
     end
 end
 
-@recipe function f(dvis::EHTObservationTable{T,A};) where {T,A<:EHTCoherencyDatum}
+@recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTCoherencyDatum}
     markershape --> :circle
 
     u = getdata(dvis, :U)
@@ -325,7 +325,7 @@ end
 
 end
 
-@recipe function f(dvis::EHTObservationTable{T,A};) where {T,A<:EHTVisibilityAmplitudeDatum}
+@recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTVisibilityAmplitudeDatum}
     xguide --> "uv-distance (Gλ)"
     yguide --> "|V| (Jy)"
     markershape --> :diamond
@@ -359,7 +359,7 @@ end
     vcat(u/1e9,-u/1e9), vcat(v/1e9,-v/1e9)
 end
 
-@recipe function f(m::AbstractModel, dvis::EHTObservationTable{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTVisibilityAmplitudeDatum}
+@recipe function f(m::AbstractModel, dvis::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTVisibilityAmplitudeDatum}
     xguide --> "uv-distance (Gλ)"
     yguide --> "V (Jy)"
     markershape --> :diamond
@@ -389,10 +389,11 @@ end
 
 export uvarea
 function uvarea(d::EHTClosurePhaseDatum)
-    u1, v1, u2, v2, u3, v3 = uvpositions(d)
-    a = hypot(u1-u2, v1-v2)
-    b = hypot(u2-u3, v2-v3)
-    c = hypot(u3-u1, v3-v1)
+    u = map(x->x.U, d.baseline)
+    v = map(x->x.V, d.baseline)
+    a = hypot(u[1]-u[2], v[1]-v[2])
+    b = hypot(u[2]-u[3], v[2]-v[3])
+    c = hypot(u[3]-u[1], v[3]-v[1])
     heron(a,b,c)
 end
 
@@ -402,47 +403,40 @@ function heron(a,b,c)
 end
 
 function uvarea(d::EHTLogClosureAmplitudeDatum)
-    u1, v1, u2, v2, u3, v3, u4, v4 = uvpositions(d)
-    a = hypot(u1-u2, v1-v2)
-    b = hypot(u2-u3, v2-v3)
-    c = hypot(u3-u4, v3-v4)
-    d = hypot(u4-u1, v4-v1)
-    h = hypot(u1-u3, v1-v3)
+    u = map(x->x.U, d.baseline)
+    v = map(x->x.V, d.baseline)
+    a = hypot(u[1]-u[2], v[1]-v[2])
+    b = hypot(u[2]-u[3], v[2]-v[3])
+    c = hypot(u[3]-u[4], v[3]-v[4])
+    d = hypot(u[4]-u[1], v[4]-v[1])
+    h = hypot(u[1]-u[3], v[1]-v[3])
     return heron(a,b,h)+heron(c,d,h)
 end
 
-@recipe function f(dlca::EHTObservationTable{T,A}) where {T,A<:EHTLogClosureAmplitudeDatum}
+@recipe function f(dlca::EHTObservationTable{A}) where {A<:EHTLogClosureAmplitudeDatum}
     xguide --> "√(quadrangle area) (λ)"
     yguide --> "Log Clos. Amp."
     markershape --> :diamond
-    area = sqrt.(uvarea.(dlca.data))
-    phase = getdata(dlca, :measurement)
-    noise = getdata(dlca, :noise)
+    area = sqrt.(uvarea.(datatable(dlca)))
+    phase = measurement(dlca)
+    err = noise(dlca)
     #add data noisebars
     seriestype --> :scatter
     alpha := 0.5
-    yerr := noise
+    yerr := err
     label --> "Data"
     linecolor --> nothing
     area, phase
 end
 
 
-@recipe function f(m::AbstractModel, dlca::EHTObservationTable{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTLogClosureAmplitudeDatum}
+@recipe function f(m::AbstractModel, dlca::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTLogClosureAmplitudeDatum}
     xguide --> "√(quadrangle area) (λ)"
     yguide --> "Log Clos. Amp."
     markershape --> :diamond
-    u1 = getdata(dlca, :U1)
-    v1 = getdata(dlca, :V1)
-    u2 = getdata(dlca, :U2)
-    v2 = getdata(dlca, :V2)
-    u3 = getdata(dlca, :U3)
-    v3 = getdata(dlca, :V3)
-    u4 = getdata(dlca, :U4)
-    v4 = getdata(dlca, :V4)
-    area = sqrt.(uvarea.(dlca.data))
-    phase = getdata(dlca, :measurement)
-    noise = getdata(dlca, :noise)
+    area = sqrt.(uvarea.(datatable(dlca)))
+    phase = measurement(dlca)
+    noise = noise(dlca)
     #add data noisebars
     @series begin
         seriestype := :scatter
@@ -461,7 +455,7 @@ end
     area,amod
 end
 
-@recipe function f(dcp::EHTObservationTable{T,A}) where {T, A<:EHTClosurePhaseDatum}
+@recipe function f(dcp::EHTObservationTable{A}) where {A<:EHTClosurePhaseDatum}
     xguide --> "√(triangle area) (λ)"
     yguide --> "Phase (rad)"
     markershape --> :circle
@@ -482,7 +476,7 @@ end
     area, phase
 end
 
-@recipe function f(m::AbstractModel, dcp::EHTObservationTable{T,A}; datamarker=:circle, datacolor=:grey) where {T,A<:EHTClosurePhaseDatum}
+@recipe function f(m::AbstractModel, dcp::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTClosurePhaseDatum}
     xguide --> "√(triangle area) (λ)"
     yguide --> "Phase (rad)"
     markershape --> :diamond
@@ -517,12 +511,12 @@ end
 
 export ndata
 ndata(d::EHTObservationTable) = length(d)
-ndata(d::EHTObservationTable{T, D}) where {T, D<:EHTComplexVisibilityDatum} = 2*length(d)
-ndata(d::EHTObservationTable{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d)
+ndata(d::EHTObservationTable{D}) where {D<:EHTComplexVisibilityDatum} = 2*length(d)
+ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
 
 @recipe function f(h::Residual)
     if length(h.args) != 2 || !(typeof(h.args[1]) <: AbstractModel) ||
-        !(typeof(h.args[2]) <: EHTObservation)
+        !(typeof(h.args[2]) <: EHTObservationTable)
         noise("Residual should be given a model and data product.  Got: $(typeof(h.args))")
     end
     m, damp = h.args
@@ -531,7 +525,7 @@ ndata(d::EHTObservationTable{T, D}) where {T, D<:EHTCoherencyDatum} = 8*length(d
     # title-->"Norm. Residuals"
     legend-->nothing
 
-    if damp isa EHTObservation{<:Any, <:EHTCoherencyDatum}
+    if damp isa EHTObservationTable{<:EHTCoherencyDatum}
         layout := (2,2)
         res2 = reinterpret(reshape, Float64, res)'
         @series begin
@@ -588,7 +582,7 @@ function chi2(m, data::EHTObservationTable)
     return sum(x->abs2.(x), last(residuals(m, data)))
 end
 
-function chi2(m, data::EHTObservationTable{T, A}) where {T, A<:EHTCoherencyDatum}
+function chi2(m, data::EHTObservationTable{A}) where {A<:EHTCoherencyDatum}
     res = last(residuals(m, data))
     return mapreduce(+, 1:4) do i
         sum(abs2, filter(!isnan, getproperty(res, i)))
@@ -601,60 +595,39 @@ function chi2(m, data::EHTObservationTable...)
 end
 
 
-function residuals(m, dvis::EHTObservationTable{T, A}) where {T, A<:EHTComplexVisibilityDatum}
-    u = getdata(dvis, :U)
-    v = getdata(dvis, :V)
-    vis = dvis[:measurement]
-    mvis = visibilitymap(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
+function residuals_data(vis, data::EHTObservationTable{A}) where {A<:EHTClosurePhaseDatum}
+    phase = measurement(data)
+    err = noise(data)
+
+    mphase = closure_phases(vis, arrayconfig(data))
+    res = @. abs(cis(phase) - cis(mphase))
+    return EHTObservationTable{A}(res, err, arrayconfig(data))
+end
+
+
+function residuals_data(vis, dlca::EHTObservationTable{A}) where {A<:EHTLogClosureAmplitudeDatum}
+    phase = measurement(dlca)
+    err = noise(dlca)
+    mphase = logclosure_amplitudes(vis, arrayconfig(dlca))
+    res = (phase .- mphase)
+    return EHTObservationTable{A}(res, err, arrayconfig(dlca))
+end
+
+function residuals_data(vis, damp::EHTObservationTable{A}) where {A<:EHTVisibilityAmplitudeDatum}
+    mamp = abs.(vis)
+    amp = measurement(damp)
+    res = (amp - mamp)
+    return EHTObservationTable{A}(res, noise(damp), arrayconfig(damp))
+end
+
+function residuals_data(vis, dvis::EHTObservationTable{A}) where {A<:EHTCoherencyDatum}
+    coh = measurement(dvis)
+    res = coh .- vis
+    return EHTObservationTable{A}(res, noise(dvis), arrayconfig(dvis))
+end
+
+function residuals_data(mvis, dvis::EHTObservationTable{A}) where {A<:EHTComplexVisibilityDatum}
+    vis = measurement(dvis)
     res = (vis - mvis)./getdata(dvis, :noise)
-    re = real.(res)
-    im = imag.(res)
-    return hypot.(u, v), hcat(re, im)
-end
-
-function residuals(m, dvis::EHTObservationTable{T, A}) where {T, A<:EHTCoherencyDatum}
-    u = getdata(dvis, :U)
-    v = getdata(dvis, :V)
-    coh = dvis[:measurement]
-    mcoh = visibilitymap(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
-    res = map((x,y,z)->((x .- y)./z), coh, mcoh, dvis[:noise])
-    return hypot.(u, v), StructArray(res)
-end
-
-
-function residuals(m, damp::EHTObservationTable{T, A}) where {T, A<:EHTVisibilityAmplitudeDatum}
-    amp = getdata(damp, :measurement)
-    u = getdata(damp, :U)
-    v = getdata(damp, :V)
-
-    mamp = amplitudes(m, (U=u, V=v))
-    res = (amp - mamp)./getdata(damp, :noise)
     return hypot.(u, v), res
-end
-
-
-function residuals(m, dcp::EHTObservationTable{T, A}) where {T, A<:EHTClosurePhaseDatum}
-    area = sqrt.(uvarea.(dcp.data))
-    phase = getdata(dcp, :measurement)
-    noise = getdata(dcp, :noise)
-
-    mphase = closure_phases(m, dcp.config)
-    res = zeros(length(phase))
-    for i in eachindex(res)
-        #s,c  = sincos(phase[i] - mphase[i])
-        #dθ = atan(s,c)
-        res[i] = abs(cis(phase[i]) - cis(mphase[i]))/noise[i]
-    end
-return area, res
-end
-
-
-function residuals(m, dlca::EHTObservationTable{T, A}) where {T, A<:EHTLogClosureAmplitudeDatum}
-    area = sqrt.(uvarea.(dlca.data))
-    phase = getdata(dlca, :measurement)
-    noise = getdata(dlca, :noise)
-
-    mphase = logclosure_amplitudes(m, dlca.config)
-    res = (phase- mphase)./noise
-    return area, res
 end

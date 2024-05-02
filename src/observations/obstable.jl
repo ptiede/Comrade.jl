@@ -6,9 +6,10 @@ arrayconfig(c::AbstractObservationTable, p::Symbol) = getindex(arrayconfig(c), p
 Base.length(obs::AbstractObservationTable) = length(measurement(obs))
 Base.firstindex(obs::AbstractObservationTable) = firstindex(measurement(obs))
 Base.lastindex(obs::AbstractObservationTable) = lastindex(measurement(obs))
+datumtype(::AbstractObservationTable{T}) where {T} = T
 
-function getuvtimefreq(obs::AbstractObservationTable)
-    return getuvtimefreq(arrayconfig(obs))
+function domain(obs::AbstractObservationTable)
+    return domain(arrayconfig(obs))
 end
 
 
