@@ -138,9 +138,9 @@ function Tables.getcolumn(g::CalTableRow, nm::Symbol)
     return gmat(src)[getfield(g, :row), lookup(src)[nm]]
 end
 
-@recipe function f(gt::CalTable; sites=sites(gt), datagains=false)
+@recipe function f(gt::CalTable; sites=Comrade.sites(gt), datagains=false)
 
-    @argcheck prod(sites .∈ Ref(sites(gt))) "passed site isn't in array\n"*
+    @argcheck prod(sites .∈ Ref(Comrade.sites(gt))) "passed site isn't in array\n"*
                                                 "sites:     $(sites)\n"*
                                                 "telescope: $(sites(gt))"
     #if !datagains
@@ -158,7 +158,8 @@ end
     #else
     #    ylims --> inv.(lims)[end:-1:begin]
     #end
-    xlims --> (gt[:time][begin], gt[:time][end] + 0.01*abs(gt[:time][end]))
+    t = getproperty.(gt[:time], :t0)
+    xlims --> (t[begin], t[end] + 0.01*abs(t[end]))
     for (i,s) in enumerate(sites)
         @series begin
             seriestype := :scatter
@@ -179,7 +180,7 @@ end
             end
 
             title --> string(s)
-            gt[:time][ind], T.(yy)
+            t[ind], T.(yy)
         end
     end
 end
@@ -192,14 +193,14 @@ function Base.show(io::IO, ct::CalTable, )
     pretty_table(io, Tables.columns(ct);
                      header=Tables.columnnames(ct),
                      vlines=[1],
-                     formatters = (v,i,j)->round(v, digits=3)
+                    #  formatters = (v,i,j)->round(v, digits=3)
                 )
 end
 
 
 
 function caltable(sarr::SiteArray)
-    sites = sort(unique(sites(sarr)))
+    sites = sort(unique(Comrade.sites(sarr)))
     time = unique(times(sarr))
     gmat = Matrix{Union{eltype(sarr), Missing}}(missing, length(time), length(sites))
     gmat .= missing

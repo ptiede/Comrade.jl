@@ -35,7 +35,7 @@ end
 
 function forward_model(d::AbstractVLBIPosterior, θ)
     vis = idealvisibilities(skymodel(d), θ.sky)
-    return apply_instrument(vis, instrumentmodel(d), θ)
+    return apply_instrument(vis, instrumentmodel(d), θ.instrument)
 end
 
 

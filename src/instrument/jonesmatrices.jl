@@ -21,7 +21,7 @@ construct_jones(::JonesG, x::NTuple{2, T}, index, site) where {T} = Diagonal(SVe
 struct JonesD{F} <: AbstractJonesMatrix
     param_map::F
 end
-construct_jones(::JonesD, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(1, x[1], x[2], 1)
+construct_jones(::JonesD, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(1, x[2], x[1], 1)
 
 
 """
@@ -39,27 +39,30 @@ struct JonesF{M} <: AbstractJonesMatrix
 end
 JonesF() = JonesF(nothing)
 construct_jones(J::JonesF, x, index, ::Val{M}) where {M} = J.matrices[index][M]
+param_map(::JonesF, x) = x
 function preallocate_jones(::JonesF, array::AbstractArrayConfiguration)
     field_rotations = build_frs(array)
-    return field_rotations
+    return JonesF(field_rotations)
 end
 
 Base.@kwdef struct JonesR{M} <: AbstractJonesMatrix
     matrices::M = nothing
     add_fr::Bool = true
 end
-construct_jones(J::JonesR, x, index, ::Val{M}) where {M} = J.matrices[index][M]
+construct_jones(J::JonesR, x, index, ::Val{M}) where {M} = J.matrices[M][index]
+param_map(::JonesR, x) = x
+
 function preallocate_jones(J::JonesR, array::AbstractArrayConfiguration, ref)
-    T1 = StructArray(map(x -> basis_transform(ref, x[1]), array.data.polbasis))
-    T2 = StructArray(map(x -> basis_transform(ref, x[2]), array.data.polbasis))
-    Tcirc1 = StructArray(map(x -> basis_transform(CirBasis(), x[1]), array.data.polbasis))
-    Tcirc2 = StructArray(map(x -> basis_transform(CirBasis(), x[2]), array.data.polbasis))
+    T1 = StructArray(map(x -> basis_transform(ref, x[1]), array[:polbasis]))
+    T2 = StructArray(map(x -> basis_transform(ref, x[2]), array[:polbasis]))
+    Tcirc1 = StructArray(map(x -> basis_transform(CirBasis(), x[1]), array[:polbasis]))
+    Tcirc2 = StructArray(map(x -> basis_transform(CirBasis(), x[2]), array[:polbasis]))
     if J.add_fr
-        field_rotations = build_frs(array)
-        @. T1 .= Tcirc1*field_rotations.m1*adjoint(Tcirc1)*T1
-        @. T2 .= Tcirc2*field_rotations.m2*adjoint(Tcirc2)*T2
+        field_rotations = build_feedrotation(array)
+        @. T1 .= Tcirc1*field_rotations[1]*adjoint(Tcirc1)*T1
+        @. T2 .= Tcirc2*field_rotations[2]*adjoint(Tcirc2)*T2
     end
-    return (T1, T2)
+    return JonesR((T1, T2), J.add_fr)
 
 end
 
@@ -96,8 +99,11 @@ function JonesSandwich(map, matrices::AbstractJonesMatrix...)
     return JonesSandwich(map, matrices)
 end
 
-param_map(j::JonesSandwich, x) = map(j->param_map(j, x), j.matrices)
+function jonesmatrix(J::JonesSandwich, x, index, site)
+    return J.jones_map(map(m->construct_jones(m, param_map(m, x), index, site), J.matrices))
+end
+
 function preallocate_jones(J::JonesSandwich, array::AbstractArrayConfiguration, refbasis=CirBasis())
-    m2 = map(x->preallocate_jones(x, array), J.matrices, refbasis)
+    m2 = map(x->preallocate_jones(x, array, refbasis), J.matrices)
     return JonesSandwich(J.jones_map, m2)
 end

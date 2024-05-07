@@ -49,7 +49,7 @@ function set_array(int::InstrumentModel, array::AbstractArrayConfiguration)
     # 1. preallocate and jones matrices
     Jpre = preallocate_jones(jones, array, refbasis)
     # 2. construct the prior with the array you have
-    prior_obs = map(x->ObservedArrayPrior(x, array), prior)
+    prior_obs = NamedDist(map(x->ObservedArrayPrior(x, array), prior))
     # 3. construct the baseline site map for each prior
     x = rand(prior_obs)
     bsitemaps = map(x->_construct_baselinemap(array, x), x)
@@ -125,14 +125,14 @@ end
 @inline function build_jones(index::Int, J::ObservedInstrumentModel, x, ::Val{N}) where N
     indices = get_indices(J.bsitelookup, index, Val(N))
     params = get_params(x, indices)
-    return jonesmatrix(J.instrument.jones, params, index, Val(N))
+    return jonesmatrix(J.instrument, params, index, Val(N))
 end
 
 
-@inline function apply_jones(v, index::Int, J::ObservedInstrumentModel{<:InstrumentModel}, x)
+@inline function apply_jones(v, index::Int, J::ObservedInstrumentModel, x)
     j1 = build_jones(index, J, x, Val(1))
     j2 = build_jones(index, J, x, Val(2))
-    vout =  _apply_jones(v, j1, j2, J.polbasis)
+    vout =  _apply_jones(v, j1, j2, J.refbasis)
     return vout
 end
 

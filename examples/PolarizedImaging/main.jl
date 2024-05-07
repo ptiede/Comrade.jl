@@ -72,7 +72,7 @@
 #      some reference basis to the observed coherency basis (this allows for mixed basis measurements).
 #      The second is the feed rotation, $F$, that transforms from some reference axis to the axis of the
 #      telescope as the source moves in the sky. The feed rotation matrix `F` in terms of
-#      the per sites feed rotation angle $\varphi$ is
+#      the per station feed rotation angle $\varphi$ is
 # ```math
 #   F = \begin{pmatrix}
 #           e^{-i\varphi}   & 0\\
@@ -101,7 +101,7 @@ using Comrade
 
 # ## Load the Data
 using Pyehtim
-using StatsFuns
+
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(14)
@@ -141,114 +141,155 @@ dvis = extract_table(obs, Coherencies())
 #       Using this apriori knowledge, we can build this into our model and reduce
 #       the total number of parameters we need to model.
 
+using StatsFuns: logistic
+function sky(θ, metadata)
+    (;c, σ, p, p0, pσ, angparams) = θ
+    (;ftot, grid) = metadata
+    cp = σ.*c.params
+    rast = ftot*to_simplex(CenteredLR(), cp)
+    pim = logistic.(p0 .+ pσ.*p.params)
+    pmap = PoincareSphere2Map(rast, pim, angparams, grid)
+    m = ContinuousImage(pmap, BSplinePulse{3}())
+    x0, y0 = centroid(stokes(pmap, :I))
+    ms = shifted(m, -x0, -y0)
+    return ms
+end
 
-function f(x)
+
+G = JonesG() do x
     gR = exp(x.lgR + 1im*x.gpR)
     gL = gR*exp(x.lgrat + 1im*x.gprat)
     return gR, gL
 end
 
-G = JonesG(f)
-
-
 D = JonesD() do x
-    return complex(x.dRx, x.dRy), complex(x.dLx, x.dLy)
+    dR = complex(x.dRx, x.dRy)
+    dL = complex(x.dLx, x.dLy)
+    return dR, dL
+
 end
 
-R = JonesR()
+R = JonesR(;add_fr=true)
 
-Jones() do x
-    gR = exp(x.lgR + 1im*x.gpR)
-    gL = gR*exp(x.lgrat + 1im*x.gprat)
-    return JonesG(gR, gL) * D(dr, dl) * R()
-end
 
-J = JonesSandwich(G, D) do g, d, r
-    return (g + d0)*d*f*d2
-end
+J = JonesSandwich(splat(*), G, D, R)
 
-sitepriors = (
-    lgR   = SitePrior(Normal(0.0, 0.1), ScanSeg()); LM = SitePrior(Normal(), ScanSeg()),
-    lgrat = SitePrior(Normal(0.0, 0.1), TrackSeg()),
-    gpR   = SitePrior(Normal(0.0, 0.1), ScanSeg()); refant = SEFDReference(0.0),
-    gprat = SitePrior(Normal(0.0, 0.1), ScanSeg()); refant = SingleReference(:AA, 0.0),
-    dRx   = SitePrior(Normal(0.0, 0.1), TrackSeg()),
-    dRy   = SitePrior(Normal(0.0, 0.1), TrackSeg()),
-    dLx   = SitePrior(Normal(0.0, 0.1), TrackSeg()),
-    dLy   = SitePrior(Normal(0.0, 0.1), TrackSeg())
-)
-
-@instrument function int(array)
-    lgR   ~ SitePrior(Normal(0.0, 0.1), ScanSeg()); LM = SitePrior(Normal(), ScanSeg())
-    lgrat ~ SitePrior(Normal(0.0, 0.1), TrackSeg())
-    gpR   ~ SitePrior(Normal(0.0, 0.1), ScanSeg()); refant = SEFDReference(0.0)
-    gprat ~ SitePrior(Normal(0.0, 0.1), ScanSeg()); refant = SingleReference(:AA, 0.0)
-    dRx   ~ SitePrior(Normal(0.0, 0.1), TrackSeg())
-    dRy   ~ SitePrior(Normal(0.0, 0.1), TrackSeg())
-    dLx   ~ SitePrior(Normal(0.0, 0.1), TrackSeg())
-    dLy   ~ SitePrior(Normal(0.0, 0.1), TrackSeg())
-
-    J = Jones() do x
-        gR = exp(x.lgR + 1im*x.gpR)
-        gL = gR*exp(x.lgrat + 1im*x.gprat)
-        return JonesFromG(gR, gL) * D()
-    end
-    return J
-end
-
-intm = InstrumentModel(J, prior, array; refbasis=CirBasis())
 
 using Distributions
 using DistributionsAD
 using VLBIImagePriors
 
 
-@skymodel function sky(grid, ftot, beam)
-    (;c, σ, p, p0, pσ, angparams) = θ
-    c ~ HierarchicalPrior(ConditionalMarkov(GMRF, grid), InverseGamma(1.0, -log(0.1)*beam/rat))
-    σ ~ truncated(Normal(0.0, 0.1); lower=0.0)
-    p ~ HierarchicalPrior(ConditionalMarkov(GMRF, grid), InverseGamma(1.0, -log(0.1)*beam/rat))
-    p0 ~ Normal(-2.0, 1.0)
-    pσ ~ truncated(Normal(0.0, 1.0); lower=0.01)
-    angparams ~ ImageSphericalUniform(size(grid))
+intprior = (
+    lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+    gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π  ^2))); refant=SEFDReference(0.0)),
+    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+    gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)); refant = SingleReference(:AA, 0.0)),
+    dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    dLx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    dLy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+)
 
-    cp = σ.*c.params
-    rast = to_simplex(CenteredLR(), cp)
-    pim = logistic.(p0 .+ pσ.*p.params)
-    m = PoincareSphere2Map(rast, pim, angparams, grid, BSplinePulse{3}())
-    x0, y0 = centroid(stokes(m, :I))
-    ms = shifted(m, -x0, -y0)
-    return ms
-end
+intmodel = InstrumentModel(J, intprior)
+
+# Now, we define the model metadata required to build the model.
+# We specify our image grid and cache model needed to define the polarimetric
+# image model.
+fovx = μas2rad(60.0)
+fovy = μas2rad(60.0)
+nx = 10
+ny = floor(Int, fovy/fovx*nx)
+grid = imagepixels(fovx, fovy, nx, ny) # image grid
+skymeta = (;ftot=1.0, grid)
 
 
-# We want to use a correlated image priors to model the polarized image.
-# We will use a GMRF prior with a inverse gamma prior on the GMRF correlation length.
-grid = imagepixels(fovx, fovy, nx, ny)
-skym = skym(grid, 1.0, beam)
+# Moving onto our prior, we first focus on the instrument model priors.
+# Each station gain requires its own prior on both the amplitudes and phases.
+# For the amplitudes, we assume that the gains are apriori well calibrated around unit gains (or 0 log gain amplitudes)
+# which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
+# all stations except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT,
+# we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
+
+
+
+# Our image priors are:
+#   - We use a Dirichlet prior, `ImageDirichlet`, with unit concentration for our stokes I image pixels, `c`.
+#   - For the total polarization fraction, `p`, we assume an uncorrelated uniform prior `ImageUniform` for each pixel.
+#   - To specify the orientation of the polarization, `angparams`, on the Poincare sphere,
+#     we use a uniform spherical distribution, `ImageSphericalUniform`.
+#-
+rat = beamsize(dvis)/step(grid.X)
+cmarkov = ConditionalMarkov(GMRF, grid; order=1)
+dρ = truncated(InverseGamma(1.0, -log(0.1)*rat); lower=2.0, upper=max(nx, ny))
+cprior = HierarchicalPrior(cmarkov, dρ)
+
+
+# For all the calibration parameters, we use a helper function `CalPrior` which builds the
+# prior given the named tuple of station priors and a `JonesCache`
+# that specifies the segmentation scheme. For the gain products, we use the `scancache`, while
+# for every other quantity, we use the `trackcache`.
+fwhmfac = 2.0*sqrt(2.0*log(2.0))
+skyprior = (
+    c = cprior,
+    σ  = truncated(Normal(0.0, 1.0); lower=0.0),
+    p  = cprior,
+    p0 = Normal(-2.0, 2.0),
+    pσ =  truncated(Normal(0.0, 1.0); lower=0.01),
+    angparams = ImageSphericalUniform(nx, ny),
+    )
+
+skymodel = SkyModel(sky, skyprior, grid; metadata=skymeta)
 
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling.
-post = VLBIPosterior(sky, instrument, obs...)
+post = VLBIPosterior(skymodel, intmodel, dvis)
 
+# ## Reconstructing the Image and Instrument Effects
+
+# To sample from this posterior, it is convenient to move from our constrained parameter space
+# to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This transformation is
+# done using the `asflat` function.
+tpost = asflat(post)
+
+# We can now also find the dimension of our posterior or the number of parameters we will sample.
+# !!! warning
+#     This can often be different from what you would expect. This difference is especially true when using
+#     angular variables, where we often artificially increase the dimension
+#     of the parameter space to make sampling easier.
+#-
+
+ndim = dimension(tpost)
+
+
+# Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
+# due to the higher dimension of the space.
 using ComradeOptimization
 using OptimizationOptimisers
 using Zygote
-opt = optimal_synthetsis(post, AutoZygote(), start, alg)
+fopt = OptimizationFunction(tpost, Optimization.AutoZygote())
+prob = Optimization.OptimizationProblem(fopt, rand(ndim) .- 0.5, nothing)
+sol = solve(prob, OptimizationOptimisers.Adam(), maxiters=15_000, g_tol=1e-1);
+
+# !!! warning
+#     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that
+#     optimization can take a long time, and starting from a good starting location
+#     is often required.
+#-
+# Before we analyze our solution, we need to transform it back to parameter space.
+xopt = transform(tpost, sol.u)
 
 # Now let's evaluate our fits by plotting the residuals
 using Plots
-residual(vlbimodel(post, opt), dvis)
-
-trace = sample(post, AHMC(), 1000; n_adapts=500, progress=true)
+residual(vlbimodel(post, xopt), dvis)
 
 # These look reasonable, although there may be some minor overfitting.
 # Let's compare our results to the ground truth values we know in this example.
 # First, we will load the polarized truth
-imgtrue = Comrade.load(joinpath(__DIR, "..", "Data", "polarized_gaussian.fits"), StokesIntensityMap)
+imgtrue = Comrade.load(joinpath(__DIR, "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams})
 # Select a reasonable zoom in of the image.
 imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx*4, ny*4))
-img = intensitymap!(copy(imgtruesub), skymodel(post, xopt))
+img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
 
 #Plotting the results gives
 import CairoMakie as CM
@@ -284,7 +325,7 @@ frecon = flux(img);
 # Because we also fit the instrument model, we can inspect their parameters.
 # To do this, `Comrade` provides a `caltable` function that converts the flattened gain parameters
 # to a tabular format based on the time and its segmentation.
-dR = caltable(trackcache, complex.(xopt.dRx, xopt.dRy))
+dR = caltable(complex.(xopt.instrument.dRx, xopt.instrument.dRy))
 
 # We can compare this to the ground truth d-terms
 #
@@ -295,7 +336,7 @@ dR = caltable(trackcache, complex.(xopt.dRx, xopt.dRy))
 
 # And same for the left-handed dterms
 #
-dL = caltable(trackcache, complex.(xopt.dLx, xopt.dLy))
+dL = caltable(complex.(xopt.instrument.dLx, xopt.instrument.dLy))
 #
 # |      time |            AA   |           AP   |         AZ   |        JC    |        LM    |       PV     |      SM |
 # |-----------|-----------------|----------------|--------------|--------------|--------------|--------------|---------|
@@ -304,30 +345,36 @@ dL = caltable(trackcache, complex.(xopt.dLx, xopt.dLy))
 
 
 # Looking at the gain phase ratio
-gphase_ratio = caltable(phasecache2, xopt.gpL)
+gphase_ratio = caltable(xopt.instrument.gprat)
 #-
 # we see that they are all very small. Which should be the case since this data doesn't have gain corruptions!
 # Similarly our gain ratio amplitudes are also very close to unity as expected.
-gamp_ratio   = caltable(scancache, exp.(xopt.lgL))
+gamp_ratio   = caltable(exp.(xopt.instrument.lgrat))
 #-
 # Plotting the gain phases, we see some offsets from zero. This is because the prior on the gain product
 # phases is very broad, so we can't phase center the image. For realistic data
 # this is always the case since the atmosphere effectively scrambles the phases.
-gphase_prod = caltable(phasecache1, xopt.gpR)
-plot(gphase_prod, layout=(3,3), size=(650,500))
+gphaseR = caltable(xopt.instrument.gpR)
+plot(gphaseR, layout=(3,3), size=(650,500))
 plot!(gphase_ratio, layout=(3,3), size=(650,500))
 #-
 # Finally, the product gain amplitudes are all very close to unity as well, as expected since gain corruptions
 # have not been added to the data.
-gamp_prod = caltable(scancache, exp.(xopt.lgR))
-plot(gamp_prod, layout=(3,3), size=(650,500))
+gampr = caltable(exp.(xopt.instrument.lgR))
+plot(gampr, layout=(3,3), size=(650,500))
 plot!(gamp_ratio, layout=(3,3), size=(650,500))
 #-
 # At this point, you should run the sampler to recover an uncertainty estimate,
 # which is identical to every other imaging example
 # (see, e.g., [Stokes I Simultaneous Image and Instrument Modeling](@ref)). However,
 # due to the time it takes to sample, we will skip that for this tutorial.
+using ComradeAHMC
+metric = DiagEuclideanMetric(ndim)
+chain = sample(rng, post, AHMC(;metric), 700; n_adapts=500, initial_params=xopt, progress=true)
 
+ms = Comrade.skymodel.(Ref(post), chain[500:5:end])
+imgs = intensitymap.(ms, Ref(axisdims(img)))
+imageviz(mean(imgs), plot_total=false, nvec=10, colormap=:afmhot, pcolorrange=(0.0, 0.2), adjust_length=true)
 
 # [^1]: Hamaker J.P, Bregman J.D., Sault R.J. (1996) [https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H]
 # [^2]: Pesce D. (2021) [https://ui.adsabs.harvard.edu/abs/2021AJ....161..178P/abstract]

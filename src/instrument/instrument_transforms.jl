@@ -19,17 +19,21 @@ struct InstrumentTransform{T, L<:SiteLookup} <: AbstractInstrumentTransform
     site_map::L
 end
 
+function TV.inverse_eltype(::AbstractInstrumentTransform, x)
+    return eltype(x)
+end
+
 
 struct MarkovInstrumentTransform{T, L<:SiteLookup} <: AbstractInstrumentTransform
     inner_transform::T
     site_map::L
 end
 
-TV.dimension(m::MarkovInstrumentTransform) = TV.dimension(m.inner_transform)
+TV.dimension(m::InstrumentTransform) = TV.dimension(inner_transform(m))
 
 
 function _instrument_transform_with(flag::TV.LogJacFlag, m::InstrumentTransform, x, index)
-    itrf = instrument_transform(m)
+    itrf = inner_transform(m)
     return TV.transform_with(flag, itrf, x, index)
 end
 

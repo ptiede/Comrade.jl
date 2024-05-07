@@ -58,14 +58,13 @@ dvis = extract_table(obs, ComplexVisibilities())
 
 function sky(θ, metadata)
     (;fg, c, σimg) = θ
-    (;ftot, meanpr, cache) = metadata
+    (;ftot, meanpr, grid) = metadata
     ## Transform to the log-ratio pixel fluxes
     cp = meanpr .+ σimg.*c.params
     ## Transform to image space
     rast = (ftot*(1-fg))*(to_simplex(CenteredLR(), cp))
-    m = ContinuousImage(rast, cache)
-    x0, y0 = centroid(m.image)
-    x0, y0 = centroid(m.image)
+    m = ContinuousImage(rast, grid, BSplinePulse{3}())
+    x0, y0 = centroid(m.img)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(ftot*fg))
     return shifted(m, -x0, -y0) + g
@@ -80,18 +79,19 @@ end
 using VLBIImagePriors
 using Distributions
 G = SingleStokesGain() do x
-    lg = x.lg0 + exp.(x.lgσ).*x.lgz
-    gp = exp.(x.gpσ).*x.gpz
+    lg = x.lg
+    gp = x.gp
+    return exp(lg + 1im*gp)
 end
 
 intpr = (
-    lg0= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)); LM = IIDSitePrior(TrackSeg(), Normal(0.0, 1.0))),
-    lgσ= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(-1.0,1.0)); LM = IIDSitePrior(TrackSeg(), Normal(-1.0, 1.0))),
-    lgz= ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 1.0))),
-    gpσ= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 1.0)); refant=SEFDReference(0.0)),
-    gpz= ArrayPrior(IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0))
+    # lg0= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)); LM = IIDSitePrior(TrackSeg(), Normal(0.0, 1.0))),
+    # lgσ= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(-1.0,1.0)); LM = IIDSitePrior(TrackSeg(), Normal(-1.0, 1.0))),
+    lg= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2))),
+    # gpσ= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 1.0)); refant=SEFDReference(0.0)),
+    gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0))
         )
-intmodel = InstrumentModel(G, intpr, arrayconfig(dvis))
+intmodel = InstrumentModel(G, intpr)
 
 # The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
 # except we include a large scale gaussian since we want to model the zero baselines.
@@ -112,7 +112,7 @@ intmodel = InstrumentModel(G, intpr, arrayconfig(dvis))
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 64
+npix = 32
 fovx = μas2rad(150.0)
 fovy = μas2rad(150.0)
 
@@ -140,8 +140,7 @@ meanpr = to_real(CenteredLR(), Comrade.baseimage(imgpr))
 # We will also fix the total flux to be the observed value 1.1. This is because
 # total flux is degenerate with a global shift in the gain amplitudes making the problem
 # degenerate. To fix this we use the observed total flux as our value.
-skymeta = (;ftot = 1.1, cache, meanpr)
-
+skymeta = (;ftot = 1.1, meanpr, grid)
 
 
 
@@ -176,7 +175,7 @@ crcache = ConditionalMarkov(GMRF, grid; order=1)
 # and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image. If the data wants more complexity
 # then it will drive us away from the prior.
-cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1)*rat)))
+cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1)*rat); upper=2*npix))
 
 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
@@ -185,21 +184,12 @@ cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1)*rat)))
 prior = NamedDist(
          c = cprior,
          fg = Uniform(0.0, 1.0),
-         σimg = Exponential(1.0),
-         lgamp = CalPrior(distamp, gcache),
-         gphase = CalPrior(distphase, gcachep),
+         σimg = Exponential(0.1),
         )
 
+skym = SkyModel(sky, prior, grid; metadata=skymeta)
 
-# Putting it all together we form our likelihood and posterior objects for optimization and
-# sampling.
-lklhd = RadioLikelihood(sky, instrument, dvis; skymeta, instrumentmeta)
-post = Posterior(lklhd, prior)
-
-# ## Reconstructing the Image and Instrument Effects
-
-# To sample from this posterior, it is convenient to move from our constrained parameter space
-# to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This is
+post = VLBIPosterior(skym, intmodel, dvis)
 # done using the `asflat` function.
 tpost = asflat(post)
 ndim = dimension(tpost)
@@ -230,7 +220,7 @@ xopt = transform(tpost, sol.u)
 #-
 # First we will evaluate our fit by plotting the residuals
 using Plots
-residual(vlbimodel(post, xopt), dvis)
+residual(post, xopt)
 
 # These look reasonable, although there may be some minor overfitting. This could be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
@@ -238,14 +228,15 @@ residual(vlbimodel(post, xopt), dvis)
 # [Imaging a Black Hole using only Closure Quantities](@ref).
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=3) #hide
-img = intensitymap(skymodel(post, xopt), fovx, fovy, 128, 128)
+g = imagepixels(fovx, fovy, 128, 128)
+img = intensitymap(skymodel(post, xopt), g)
 imageviz(img, size=(500, 400))
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
 # To do this, `Comrade` provides a `caltable` function that converts the flattened gain parameters
 # to a tabular format based on the time and its segmentation.
-gt = Comrade.caltable(gcachep, xopt.gphase)
+gt = Comrade.caltable(xopt.instrument.gp)
 plot(gt, layout=(3,3), size=(600,500))
 
 # The gain phases are pretty random, although much of this is due to us picking a random
@@ -253,7 +244,7 @@ plot(gt, layout=(3,3), size=(600,500))
 
 # Moving onto the gain amplitudes, we see that most of the gain variation is within 10% as expected
 # except LMT, which has massive variations.
-gt = Comrade.caltable(gcache, exp.(xopt.lgamp))
+gt = Comrade.caltable(exp.(xopt.instrument.lg))
 plot(gt, layout=(3,3), size=(600,500))
 
 
@@ -270,7 +261,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric), 2500; n_adapts=1500, initial_params=chain[end], progress=true)
+chain = sample(rng, post, AHMC(;metric), 2500; n_adapts=1500, progress=true)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -283,7 +274,7 @@ chain = sample(rng, post, AHMC(;metric), 2500; n_adapts=1500, initial_params=cha
 
 
 # Now we prune the adaptation phase
-chain = chain3[501:end]
+chain = chain[1501:end]
 
 #-
 # !!! warning
@@ -299,10 +290,10 @@ schain = Comrade.rmap(std, chain)
 # First we create a `caltable` the same way but making sure all of our variables have errors
 # attached to them.
 using Measurements
-gmeas_am = measurement.(mchain.lgamp, schain.lgamp)
-ctable_am = caltable(gcache, exp.(gmeas_am)) # caltable expects gmeas_am to be a Vector
-gmeas_ph = measurement.(mchain.gphase, schain.gphase)
-ctable_ph = caltable(gcachep, gmeas_ph)
+gmeas_am = Measurements.measurement.(mchain.instrument.lg, schain.instrument.lg)
+ctable_am = caltable(exp.(gmeas_am)) # caltable expects gmeas_am to be a Vector
+gmeas_ph = Measurements.measurement.(mchain.instrument.gp, schain.instrument.gp)
+ctable_ph = caltable(gmeas_ph)
 
 # Now let's plot the phase curves
 plot(ctable_ph, layout=(3,3), size=(600,500))
@@ -312,7 +303,7 @@ plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
 samples = skymodel.(Ref(post), chain[begin:20:end])
-imgs = intensitymap.(samples, fovx, fovy, 128,  128)
+imgs = intensitymap.(samples, Ref(g))
 
 mimg = mean(imgs)
 simg = std(imgs)

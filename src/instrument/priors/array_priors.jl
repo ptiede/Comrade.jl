@@ -21,8 +21,8 @@ Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)
 Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists._logpdf(d.dists, x)
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
-asflat(d::ObservedArrayPrior) = asflat(d.dists)
-ascube(d::ObservedArrayPrior) = ascube(d.dists)
+asflat(d::ObservedArrayPrior) = InstrumentTransform(asflat(d.dists), d.sitemap)
+ascube(d::ObservedArrayPrior) = InstrumentTransform(ascube(d.dists), d.sitemap)
 
 function build_sitemap(d::ArrayPrior, array)
     # construct the site by site prior
@@ -81,6 +81,42 @@ function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
     return ObservedArrayPrior(dists, smap)
 end
 
+
+struct PartiallyFixedTransform{T, I, F} <: TV.AbstractTransform
+    transform::T
+    variate_index::I
+    fixed_index::I
+    fixed_values::F
+end
+
+TV.dimension(t::PartiallyFixedTransform) = TV.dimension(t.transform)
+
+function TV.transform_with(flag::TV.LogJacFlag, t::PartiallyFixedTransform, x, index)
+    y, ℓ, index = TV.transform_with(flag, t.transform, x, index)
+    yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
+    yfv[t.variate_index] .= y
+    yfv[t.fixed_index] .= t.fixed_values
+    return yfv, ℓ, index
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(TV.transform_with), flag, t::PartiallyFixedTransform, x, index)
+    (y, ℓ, index), dt = rrule_via_ad(config, TV.transform_with, flag, t.transform, x, index)
+    yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
+    yfv[t.variate_index] .= y
+    yfv[t.fixed_index] .= t.fixed_values
+    function _partially_fixed_transform_pullback(Δ)
+        Δy = @view(Δ[1][t.variate_index])
+        return dt((Δy, Δ[2], Δ[3]))
+    end
+    return (yfv, ℓ, index), _partially_fixed_transform_pullback
+end
+
+function TV.inverse_at!(x::AbstractArray, index, t::PartiallyFixedTransform, y)
+    return TV.inverse_at!(x, index, t.transform, y[t.variate_index])
+end
+
+
+
 struct PartiallyConditionedDist{D<:Distributions.ContinuousMultivariateDistribution, I, F} <: Distributions.ContinuousMultivariateDistribution
     dist::D
     variate_index::I
@@ -105,6 +141,9 @@ function Distributions._rand!(rng::AbstractRNG, d::PartiallyConditionedDist, x::
     x[d.fixed_index] .= d.fixed_values
     return x
 end
+
+HypercubeTransform.asflat(t::PartiallyConditionedDist) = PartiallyFixedTransform(asflat(t.dist), t.variate_index, t.fixed_index, t.fixed_values)
+
 
 
 function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants)

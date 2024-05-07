@@ -32,7 +32,8 @@ function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTCoherency
     vis = measurement(data)
     # lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, Σ))
     ℓ = ConditionedLikelihood(vis) do μ
-        CoherencyLikelihood(μ, Σ, 0.0)
+        # @info typeof(μ)
+        CoherencyLikelihood(baseimage(μ), Σ, 0.0)
     end
     return ℓ
 end
