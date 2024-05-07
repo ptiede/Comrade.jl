@@ -8,6 +8,7 @@ abstract type AbstractVisibilityDatum{T} end
 baseline(p::AbstractVisibilityDatum) = getfield(p, :baseline)
 measurement(p::AbstractVisibilityDatum) = getfield(p, :measurement)
 noise(p::AbstractVisibilityDatum) = getfield(p, :noise)
+polarization(p::AbstractVisibilityDatum) = getfield(p, :polarization)
 
 # function Base.propertynames(p::AbstractVisibilityDatum)
 #     return (propertynames(baseline(p))..., :measurement, :noise)
@@ -48,6 +49,7 @@ Base.@kwdef struct EHTCoherencyDatum{S, B<:AbstractBaselineDatum, M<:SMatrix{2,2
     """
     baseline::B
 end
+polarization(b::EHTCoherencyDatum) = b.baseline.polbasis
 
 
 """
@@ -59,7 +61,7 @@ A struct holding the information for a single measured complex visibility.
 $(FIELDS)
 
 """
-Base.@kwdef struct EHTComplexVisibilityDatum{S<:Number, B<:AbstractBaselineDatum} <: AbstractVisibilityDatum{S}
+Base.@kwdef struct EHTVisibilityDatum{S<:Number, B<:AbstractBaselineDatum} <: AbstractVisibilityDatum{S}
     """
     Complex Vis. measurement (Jy)
     """
@@ -72,6 +74,10 @@ Base.@kwdef struct EHTComplexVisibilityDatum{S<:Number, B<:AbstractBaselineDatum
     baseline information
     """
     baseline::B
+    """
+    polarization
+    """
+    polarization::Symbol
 end
 
 
@@ -98,6 +104,10 @@ Base.@kwdef struct EHTVisibilityAmplitudeDatum{S<:Number, B<:AbstractBaselineDat
     baseline information
     """
     baseline::B
+    """
+    polarization
+    """
+    polarization::Symbol
 end
 
 """
@@ -122,6 +132,10 @@ Base.@kwdef struct EHTClosurePhaseDatum{S<:Number, B<:AbstractBaselineDatum} <: 
     baselines for the closure phase
     """
     baseline::NTuple{3, B}
+    """
+    polarization
+    """
+    polarization::Symbol
 end
 
 """
@@ -154,4 +168,8 @@ Base.@kwdef struct EHTLogClosureAmplitudeDatum{S<:Number, B<:AbstractBaselineDat
     baselines for the closure phase
     """
     baseline::NTuple{4, B}
+    """
+    polarization
+    """
+    polarization::Symbol
 end
