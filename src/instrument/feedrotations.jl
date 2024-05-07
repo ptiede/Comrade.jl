@@ -2,12 +2,12 @@ function build_feedrotation(obs::EHTArrayConfiguration)
 
     # read elevation angles for each station
     config = arrayconfig(obs)
-    el1 = StructArrays.component(config.data.elevation, 1)
-    el2 = StructArrays.component(config.data.elevation, 2)
+    el1 = StructArrays.component(config[:elevation], 1)
+    el2 = StructArrays.component(config[:elevation], 2)
 
     # read parallactic angles for each station
-    par1 = StructArrays.component(config.data.parallactic, 1)
-    par2 = StructArrays.component(config.data.parallactic, 2)
+    par1 = StructArrays.component(config[:parallactic], 1)
+    par2 = StructArrays.component(config[:parallactic], 2)
 
 
     # get ehtobservation array info
@@ -19,7 +19,7 @@ function build_feedrotation(obs::EHTArrayConfiguration)
 
 
     # get station names
-    bls = config.data.baseline
+    bls = config[:sites]
     ant1 = first.(bls)
     ant2 = last.(bls)
 
@@ -47,10 +47,6 @@ function build_feedrotation(obs::EHTArrayConfiguration)
     FR1 = (f_el1 .* el1) .+ (f_par1 .* par1) .+ f_off1
     FR2 = (f_el2 .* el2) .+ (f_par2 .* par2) .+ f_off2
 
-    if ehtim_fr_convention
-        FR1 .*= 2
-        FR2 .*= 2
-    end
     S = Complex{eltype(FR1)}
     offdiag = fill(zero(eltype(FR1)), length(FR1))
     jF1 = StructArray{SMatrix{2,2,S,4}}((cis.(-FR1), offdiag, offdiag, cis.(FR1)))

@@ -7,12 +7,21 @@ struct SiteArray{T, N, A<:AbstractArray{T,N}, Ti<:AbstractArray{<:IntegrationTim
     sites::Sy
 end
 
+function ChainRulesCore.rrule(::Type{SiteArray}, data::AbstractArray, args...)
+    s = SiteArray(data, args...)
+    pd = ProjectTo(data)
+    function _SiteArrayPB(Δ)
+        (NoTangent(), @thunk(pd(Δ)), map(i->NoTangent(), args)...)
+    end
+    return s, _SiteArrayPB
+end
+
 times(a::SiteArray) = a.times
 sites(a::SiteArray) = a.sites
 frequencies(a::SiteArray) = a.frequencies
 
 
-Base.parent(a::SiteArray) = a.data
+Base.parent(a::SiteArray) = getfield(a, :data)
 Base.size(a::SiteArray) = size(parent(a))
 Base.IndexStyle(::Type{<:SiteArray{T, N, A}}) where {T, N, A} = Base.IndexStyle(A)
 Base.getindex(a::SiteArray, i::Integer) = getindex(parent(a), i)
@@ -26,6 +35,18 @@ end
 function Base.view(A::SiteArray, I...)
     return SiteArray(view(A.data, I...), view(times(A), I...), view(frequencies(A), I...), view(sites(A), I...))
 end
+
+function ChainRulesCore.ProjectTo(s::SiteArray)
+    return ProjectTo{SiteArray}(; data=parent(s),
+                                  times=times(s),
+                                  frequencies=frequencies(s),
+                                  sites=sites(s))
+end
+
+(project::ProjectTo{SiteArray})(s) = SiteArray(s, project.times, project.frequencies, project.sites)
+(project::ProjectTo{SiteArray})(s::AbstractZero) = s
+
+
 
 # Enzyme.EnzymeRules.inactive(::typeof(times), ::SiteArray) = nothing
 # Enzyme.EnzymeRules.inactive(::typeof(frequencies), ::SiteArray) = nothing
