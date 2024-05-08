@@ -99,7 +99,7 @@ function Base.show(io::IO, d::EHTObservationTable{F}) where {F}
     config = arrayconfig(d)
     sF = split("$F", ",")[1]
     sF = sF*"}"
-    println(io, "EHTObservation{$sF}")
+    println(io, "EHTObservationTable{$sF}")
     println(io, "  source:      ", config.source)
     println(io, "  mjd:         ", config.mjd)
     println(io, "  bandwidth:   ", config.bandwidth)

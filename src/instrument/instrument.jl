@@ -20,7 +20,6 @@ struct FrequencyChannel{T, I<:Integer}
     bandwidth::T
     channel::I
 end
-
 Base.in(f::Number, fs::FrequencyChannel) = (fs.central-fs.bandwidth/2) ≤ f < (fs.central+fs.bandwidth/2)
 channel(fs::FrequencyChannel) = fs.channel
 
