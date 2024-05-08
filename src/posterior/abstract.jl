@@ -23,15 +23,31 @@ HypercubeTransform.dimension(d::AbstractVLBIPosterior) = length(d.prior)
 function ChainRulesCore.rrule(::typeof(logprior), d::AbstractVLBIPosterior, x)
     p = logprior(d, x)
     # We need this
+    px = ProjectTo(x)
     function _logprior_pullback(Δ)
         # @info "HERE"
         xr = Ref(x)
         dxr = Ref(ntzero(x))
         autodiff(Reverse, logprior_ref, Active, Const(d), Duplicated(xr, dxr))
-        return NoTangent(), NoTangent(), Comrade.rmap(x->Δ*x, dxr[])
+        return NoTangent(), NoTangent(), (_perturb(Δ, dxr[]))
     end
     return p, _logprior_pullback
 end
+
+function _perturb(Δ, x::Union{NamedTuple, Tuple})
+    return map(x->_perturb(Δ, x), x)
+end
+
+function _perturb(Δ, x)
+    return Δ*x
+end
+
+function _perturb(Δ, x::AbstractArray)
+    x .= Δ*x
+    return x
+end
+
+
 
 function DensityInterface.logdensityof(post::AbstractVLBIPosterior, x)
     pr = logprior(post, x)
