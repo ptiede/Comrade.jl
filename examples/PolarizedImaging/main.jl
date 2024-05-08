@@ -268,8 +268,8 @@ using ComradeOptimization
 using OptimizationOptimisers
 using Zygote
 fopt = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(fopt, rand(ndim) .- 0.5, nothing)
-sol = solve(prob, OptimizationOptimisers.Adam(), maxiters=15_000, g_tol=1e-1);
+prob = Optimization.OptimizationProblem(fopt, prior_sample(tpost), nothing)
+sol = solve(prob, OptimizationOptimisers.Adam(), maxiters=5_000);
 
 # !!! warning
 #     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that

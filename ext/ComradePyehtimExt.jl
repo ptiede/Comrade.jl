@@ -147,14 +147,14 @@ Any valid keyword arguments to `add_amp` in ehtim can be passed through extract_
 
 Returns an EHTObservationTable with visibility amplitude data
 """
-function Comrade.extract_amp(obsc; kwargs...)
+function Comrade.extract_amp(obsc; pol=:I, kwargs...)
     obs = obsc.copy()
     obs.add_scans()
     obs.reorder_tarr_snr()
     obs.add_amp(;kwargs...)
     config = build_arrayconfig(obs)
     amp, amperr = getampfield(obs)
-    T = Comrade.EHTVisibilityAmplitudeDatum{eltype(amp), typeof(config[1])}
+    T = Comrade.EHTVisibilityAmplitudeDatum{pol, eltype(amp), typeof(config[1])}
     return Comrade.EHTObservationTable{T}(amp, amperr, config)
 end
 
@@ -170,13 +170,13 @@ This grabs the raw `data` object from the obs object. Any keyword arguments are 
 
 Returns an EHTObservationTable with complex visibility data
 """
-function Comrade.extract_vis(obsc; kwargs...)
+function Comrade.extract_vis(obsc; pol=:I, kwargs...)
     obs = obsc.copy()
     obs.add_scans()
     obs.reorder_tarr_snr()
     config = build_arrayconfig(obs)
     vis, viserr = getvisfield(obs)
-    T = Comrade.EHTVisibilityDatum{eltype(viserr), typeof(config[1])}
+    T = Comrade.EHTVisibilityDatum{pol, eltype(viserr), typeof(config[1])}
     return Comrade.EHTObservationTable{T}(vis, viserr, config)
 end
 
@@ -506,7 +506,7 @@ options are also included. However, the current `ehtim` count="min" option is br
 and does construct proper minimal sets of closure quantities if the array isn't fully connected.
 
 """
-function Comrade.extract_cphase(obs; count="min", kwargs...)
+function Comrade.extract_cphase(obs; pol=:I, count="min", kwargs...)
     # compute a maximum set of closure phases
     obsc = obs.copy()
     # reorder to maximize the snr
@@ -525,7 +525,7 @@ function Comrade.extract_cphase(obs; count="min", kwargs...)
         throw(ArgumentError("$(count) is not valid use 'min' or 'max'"))
     end
     clac = Comrade.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
-    T = Comrade.EHTClosurePhaseDatum{eltype(cphase.T), typeof(arrayconfig(dvis)[1])}
+    T = Comrade.EHTClosurePhaseDatum{pol, eltype(cphase.T), typeof(arrayconfig(dvis)[1])}
     cp = Comrade.closure_phases(measurement(dvis), clac)
     cp_sig = abs2.(Comrade.noise(dvis)./Comrade.measurement(dvis))
     cp_cov = Comrade.designmat(clac)*Diagonal(cp_sig)*transpose(Comrade.designmat(clac))
@@ -555,7 +555,7 @@ options are also included. However, the current `ehtim` count="min" option is br
 and does construct proper minimal sets of closure quantities if the array isn't fully connected.
 
 """
-function Comrade.extract_lcamp(obs; count="min", kwargs...)
+function Comrade.extract_lcamp(obs; pol=:I, count="min", kwargs...)
     # compute a maximum set of closure phases
     obsc = obs.copy()
     # reorder to maximize the snr
@@ -575,7 +575,7 @@ function Comrade.extract_lcamp(obs; count="min", kwargs...)
     end
     clac = Comrade.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
     cldmat = Comrade.designmat(clac)
-    T = Comrade.EHTLogClosureAmplitudeDatum{eltype(lcamp.T), typeof(arrayconfig(dvis)[1])}
+    T = Comrade.EHTLogClosureAmplitudeDatum{pol, eltype(lcamp.T), typeof(arrayconfig(dvis)[1])}
     lcamp = Comrade.logclosure_amplitudes(measurement(dvis), clac)
     lcamp_sig = abs2.(Comrade.noise(dvis)./Comrade.measurement(dvis))
     lcamp_cov = cldmat*Diagonal(lcamp_sig)*transpose(cldmat)

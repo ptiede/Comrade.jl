@@ -85,10 +85,7 @@ G = SingleStokesGain() do x
 end
 
 intpr = (
-    # lg0= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)); LM = IIDSitePrior(TrackSeg(), Normal(0.0, 1.0))),
-    # lgσ= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(-1.0,1.0)); LM = IIDSitePrior(TrackSeg(), Normal(-1.0, 1.0))),
     lg= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    # gpσ= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 1.0)); refant=SEFDReference(0.0)),
     gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0))
         )
 intmodel = InstrumentModel(G, intpr)

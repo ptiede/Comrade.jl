@@ -21,7 +21,7 @@ VLBISkyModels.polarization(p::AbstractVisibilityDatum) = getfield(p, :polarizati
 
 build_datum(F::Type{<:AbstractVisibilityDatum}, m, e, b) = F(m, e, b)
 
-
+abstract type AbstractSinglePolDatum{P,S} <: AbstractVisibilityDatum{S} end
 abstract type ClosureProducts{P,T} <: AbstractSinglePolDatum{P,T} end
 
 abstract type AbstractBaselineDatum end
@@ -61,7 +61,7 @@ A struct holding the information for a single measured complex visibility.
 $(FIELDS)
 
 """
-Base.@kwdef struct EHTVisibilityDatum{Pol, S<:Number, B<:AbstractBaselineDatum,} <: AbstractSinglePol{Pol,S}
+Base.@kwdef struct EHTVisibilityDatum{Pol, S<:Number, B<:AbstractBaselineDatum} <: AbstractSinglePolDatum{Pol,S}
     """
     Complex Vis. measurement (Jy)
     """
@@ -89,7 +89,7 @@ A struct holding the information for a single measured visibility amplitude.
 $(FIELDS)
 
 """
-Base.@kwdef struct EHTVisibilityAmplitudeDatum{S<:Number, B<:AbstractBaselineDatum,P} <: AbstractSinglePol{Pol,S}
+Base.@kwdef struct EHTVisibilityAmplitudeDatum{P, S<:Number, B<:AbstractBaselineDatum} <: AbstractSinglePolDatum{P,S}
     """
     amplitude (Jy)
     """

@@ -20,7 +20,6 @@ HypercubeTransform.dimension(d::AbstractVLBIPosterior) = length(d.prior)
 
 @noinline logprior_ref(d, x) = logprior(d, x[])
 
-Enzyme.API.runtimeActivity!(true)
 function ChainRulesCore.rrule(::typeof(logprior), d::AbstractVLBIPosterior, x)
     p = logprior(d, x)
     # We need this
@@ -29,7 +28,7 @@ function ChainRulesCore.rrule(::typeof(logprior), d::AbstractVLBIPosterior, x)
         xr = Ref(x)
         dxr = Ref(ntzero(x))
         autodiff(Reverse, logprior_ref, Active, Const(d), Duplicated(xr, dxr))
-        return NoTangent(), NoTangent(), dxr[]
+        return NoTangent(), NoTangent(), Comrade.rmap(x->Δ*x, dxr[])
     end
     return p, _logprior_pullback
 end
