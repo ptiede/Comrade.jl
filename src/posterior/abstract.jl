@@ -2,18 +2,37 @@ using LinearAlgebra
 using VLBILikelihoods
 
 export vlbimodel, logdensityof, dimension, skymodel, instrumentmodel, dataproducts,
-       forward_model, NamedDist, prior_sample, simulate_observation,
+       forward_model, prior_sample, simulate_observation,
        VLBIPosterior, logdensityof, loglikelihood
 
 abstract type AbstractVLBIPosterior end
 @inline DensityInterface.DensityKind(::AbstractVLBIPosterior) = DensityInterface.IsDensity()
-logprior(d::AbstractVLBIPosterior, θ) = logdensityof(d.prior, θ)
+function logprior(d::AbstractVLBIPosterior, θ)
+    # @info "HERE"
+    logdensityof(d.prior, θ)
+end
 LogDensityProblems.logdensity(d::AbstractVLBIPosterior, θ) = logdensityof(d, θ)
 LogDensityProblems.dimension(d::AbstractVLBIPosterior) = dimension(d)
 LogDensityProblems.capabilities(::Type{<:AbstractVLBIPosterior}) = LogDensityProblems.LogDensityOrder{0}()
 skymodel(d::AbstractVLBIPosterior) = getfield(d, :skymodel)
 instrumentmodel(d::AbstractVLBIPosterior) = getfield(d, :instrumentmodel)
 HypercubeTransform.dimension(d::AbstractVLBIPosterior) = length(d.prior)
+
+@noinline logprior_ref(d, x) = logprior(d, x[])
+
+Enzyme.API.runtimeActivity!(true)
+function ChainRulesCore.rrule(::typeof(logprior), d::AbstractVLBIPosterior, x)
+    p = logprior(d, x)
+    # We need this
+    function _logprior_pullback(Δ)
+        # @info "HERE"
+        xr = Ref(x)
+        dxr = Ref(ntzero(x))
+        autodiff(Reverse, logprior_ref, Active, Const(d), Duplicated(xr, dxr))
+        return NoTangent(), NoTangent(), dxr[]
+    end
+    return p, _logprior_pullback
+end
 
 function DensityInterface.logdensityof(post::AbstractVLBIPosterior, x)
     pr = logprior(post, x)

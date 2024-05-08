@@ -82,6 +82,53 @@ function Base.show(io::IO, post::TransformedVLBIPosterior{P, T}) where {P, T<:TV
     print(io, ")")
 end
 
+# @noinline function _refed_transform_and_logprior(t::TV.AbstractTransform, prior, x)
+#     # @info "HERE"
+#     p, logjac = transform_and_logjac(t, x)
+#     logpr = logdensityof(prior, p)
+#     return p, logpr + logjac
+# end
+
+# @noinline function _refered_transform_and_logprior!(y, t, prior, x)
+#     out = _refed_transform_and_logprior(t, prior, x)
+#     y[] = out
+#     nothing
+# end
+
+# function ChainRulesCore.rrule(::typeof(_refed_transform_and_logprior), t::TV.AbstractTransform, prior, x)
+#     out = _refed_transform_and_logprior(t, prior, x)
+#     px = ProjectTo(x)
+#     function _refed_transform_and_logprior_pullback(Δ)
+#         # @info typeof(Δ)
+#         Δout = make_sensitivity(out, Δ)
+#         @info Δout
+#         # @info typeof(out)
+#         Δoutr = Ref(Δout)
+#         outr = Ref(ntzero(out))
+#         dx = zero(x)
+#         autodiff(Reverse, _refered_transform_and_logprior!, Duplicated(outr, Δoutr), Const(t), Const(prior), Duplicated(x, dx))
+#         return NoTangent(), NoTangent(), NoTangent(), px(dx)
+#     end
+#     return out, _refed_transform_and_logprior_pullback
+# end
+
+# function make_sensitivity(out::NTuple{N, Any}, Δ::Tangent) where {N}
+#     # @info typeof(Δ)
+#     return ntuple(i->make_sensitivity(out[i], Δ[i]), Val(N))
+# end
+
+# function make_sensitivity(out::NamedTuple{N}, Δ::Tangent) where {N}
+#     # @info typeof(Δ)
+#     return NamedTuple{N}(map(N) do N
+#         return make_sensitivity(out[N], Δ[N])
+#     end)
+# end
+
+# make_sensitivity(out, Δ::Tangent) = throw(ArgumentError("wtf $(typeof(Δ))"))
+# make_sensitivity(out, Δ) = (Δ)
+# make_sensitivity(out, ::AbstractZero) = zero(out)
+
+
 @inline function DensityInterface.logdensityof(post::TransformedVLBIPosterior{P, T}, x::AbstractArray) where {P, T<:TV.AbstractTransform}
     p, logjac = transform_and_logjac(post.transform, x)
     lp = post.lpost

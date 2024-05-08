@@ -82,7 +82,7 @@ distamp = site_tuple(dvis, Normal(0.0, 0.1); LM = Normal(1.0))
 distphase = site_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 
-prior = ComponentDist(
+prior = NamedDist(
             (c = ImageDirichlet(1.0, npix, npix),
             lgamp = CalPrior(distamp, gcache),
             gphase = CalPrior(distphase, gcachep),)
