@@ -17,7 +17,7 @@ likelihood(d::ConditionedLikelihood, μ) = d.kernel(μ)
 
 
 # internal function that creates the likelihood for a set of complex visibilities
-function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTComplexVisibilityDatum})
+function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTVisibilityDatum})
     Σ = noise(data).^2
     vis = measurement(data)
     lnorm = VLBILikelihoods.lognorm(ComplexVisLikelihood(vis, Σ))

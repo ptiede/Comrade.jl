@@ -69,7 +69,7 @@ Comrade.LogClosureAmplitudes
 Comrade.Coherencies
 Comrade.baselines
 Comrade.arrayconfig
-Comrade.closure_phase(::Comrade.EHTComplexVisibilityDatum, ::Comrade.EHTComplexVisibilityDatum, ::Comrade.EHTComplexVisibilityDatum)
+Comrade.closure_phase(::Comrade.EHTVisibilityDatum, ::Comrade.EHTVisibilityDatum, ::Comrade.EHTVisibilityDatum)
 Comrade.getdata
 Comrade.getuv
 Comrade.domain
@@ -83,7 +83,7 @@ Comrade.EHTArrayBaselineDatum
 Comrade.EHTObservationTable
 Comrade.EHTArrayConfiguration
 Comrade.EHTCoherencyDatum
-Comrade.EHTComplexVisibilityDatum
+Comrade.EHTVisibilityDatum
 Comrade.EHTVisibilityAmplitudeDatum
 Comrade.EHTLogClosureAmplitudeDatum
 Comrade.EHTClosurePhaseDatum
