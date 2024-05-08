@@ -77,7 +77,7 @@ end
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
 using VLBIImagePriors
-using Distributions
+using Distributions, DistributionsAD
 G = SingleStokesGain() do x
     lg = x.lg
     gp = x.gp
@@ -87,7 +87,7 @@ end
 intpr = (
     # lg0= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)); LM = IIDSitePrior(TrackSeg(), Normal(0.0, 1.0))),
     # lgσ= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(-1.0,1.0)); LM = IIDSitePrior(TrackSeg(), Normal(-1.0, 1.0))),
-    lg= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2))),
+    lg= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
     # gpσ= ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 1.0)); refant=SEFDReference(0.0)),
     gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0))
         )
@@ -181,10 +181,10 @@ cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1)*rat); 
 # We can now form our model parameter priors. Like our other imaging examples, we use a
 # Dirichlet prior for our image pixels. For the log gain amplitudes, we use the `CalPrior`
 # which automatically constructs the prior for the given jones cache `gcache`.
-prior = NamedDist(
+prior = (
          c = cprior,
          fg = Uniform(0.0, 1.0),
-         σimg = Exponential(0.1),
+         σimg = truncated(Normal(0.0, 1.0), lower=0.0)
         )
 
 skym = SkyModel(sky, prior, grid; metadata=skymeta)
@@ -203,13 +203,12 @@ ndim = dimension(tpost)
 
 # To initialize our sampler we will use optimize using LBFGS
 using ComradeOptimization
-using OptimizationOptimJL
+using OptimizationOptimisers
 using Zygote
-# Enzyme.API.runtimeActivity!(true)
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, randn(rng, ndim), nothing)
+prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing)
 ℓ = logdensityof(tpost)
-sol = solve(prob, LBFGS(), maxiters=5000, g_tol=1e-1);
+sol = solve(prob, Optimisers.Adam(), maxiters=10_000, g_tol=1e-1);
 
 # Now transform back to parameter space
 xopt = transform(tpost, sol.u)
@@ -261,7 +260,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric), 2500; n_adapts=1500, progress=true)
+chain = sample(rng, post, AHMC(;metric), 2500; n_adapts=1500, progress=true, initial_params=xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this

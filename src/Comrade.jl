@@ -12,12 +12,13 @@ import Distributions as Dists
 using DocStringExtensions
 using ChainRulesCore
 using Enzyme
+Enzyme.API.runtimeActivity!(true)
 using FillArrays: Fill
 using ForwardDiff
 using IntervalSets
 using LogDensityProblems
 using LinearAlgebra
-import HypercubeTransform: ascube, asflat, NamedDist, transform, inverse
+import HypercubeTransform: ascube, asflat, NamedDist, NamedDist, transform, inverse
 using HypercubeTransform
 #using MappedArrays: mappedarray
 using NamedTupleTools

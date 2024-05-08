@@ -1,6 +1,6 @@
 export residuals, chi2
 
-@recipe function f(m::AbstractModel, dvis::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTComplexVisibilityDatum}
+@recipe function f(m::AbstractModel, dvis::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTVisibilityDatum}
     xguide --> "uv-distance (λ)"
     yguide --> "V (Jy)"
     markershape --> :diamond
@@ -167,7 +167,7 @@ end
 
 end
 
-@recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTComplexVisibilityDatum}
+@recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTVisibilityDatum}
     xguide --> "uv-distance (Gλ)"
     yguide --> "V (Jy)"
     markershape --> :circle
@@ -511,7 +511,7 @@ end
 
 export ndata
 ndata(d::EHTObservationTable) = length(d)
-ndata(d::EHTObservationTable{D}) where {D<:EHTComplexVisibilityDatum} = 2*length(d)
+ndata(d::EHTObservationTable{D}) where {D<:EHTVisibilityDatum} = 2*length(d)
 ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
 
 @recipe function f(h::Residual)
@@ -626,7 +626,7 @@ function residuals_data(vis, dvis::EHTObservationTable{A}) where {A<:EHTCoherenc
     return EHTObservationTable{A}(res, noise(dvis), arrayconfig(dvis))
 end
 
-function residuals_data(mvis, dvis::EHTObservationTable{A}) where {A<:EHTComplexVisibilityDatum}
+function residuals_data(mvis, dvis::EHTObservationTable{A}) where {A<:EHTVisibilityDatum}
     vis = measurement(dvis)
     res = (vis - mvis)./getdata(dvis, :noise)
     return hypot.(u, v), res

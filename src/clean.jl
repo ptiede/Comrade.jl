@@ -29,7 +29,7 @@ end
 
 
 """
-    dirty_image(fov::Real, npix::Int, obs::EHTObservation{T,<:EHTComplexVisibilityDatum}) where T
+    dirty_image(fov::Real, npix::Int, obs::EHTObservation{T,<:EHTVisibilityDatum}) where T
 
 Computes the dirty image of the complex visibilities assuming a field of view of `fov`
 and number of pixels `npix` using the complex visibilities found in the observation `obs`.
@@ -38,7 +38,7 @@ The `dirty image` is the inverse Fourier transform of the measured visibilties a
 other visibility is zero.
 
 """
-function dirty_image(fov::Real, npix::Int, obs::EHTObservationTable{T,D}) where {T, D<:EHTComplexVisibilityDatum}
+function dirty_image(fov::Real, npix::Int, obs::EHTObservationTable{T,D}) where {T, D<:EHTVisibilityDatum}
     # First we double the baselines, i.e. we reflect them and conjugate the measurements
     # This ensures a real NFFT
     img = IntensityMap(zeros(npix, npix), imagepixels(fov, fov, npix, npix))
@@ -56,7 +56,7 @@ end
 
 
 """
-    dirty_beam(fov::Real, npix::Int, obs::EHTObservation{T,<:EHTComplexVisibilityDatum}) where T
+    dirty_beam(fov::Real, npix::Int, obs::EHTObservation{T,<:EHTVisibilityDatum}) where T
 
 Computes the dirty beam of the complex visibilities assuming a field of view of `fov`
 and number of pixels `npix` using baseline coverage found in `obs`.
@@ -65,7 +65,7 @@ The `dirty beam` is the inverse Fourier transform of the (u,v) coverage assuming
 visibility is unity and everywhere else is zero.
 
 """
-function dirty_beam(fov, npix, obs::EHTObservationTable{T,D}) where {T, D<:EHTComplexVisibilityDatum}
+function dirty_beam(fov, npix, obs::EHTObservationTable{T,D}) where {T, D<:EHTVisibilityDatum}
     vis2 = reflect_vis(obs)
     vis2.data.measurement .= complex(one(T), zero(T))
     return dirty_image(fov, npix, vis2)

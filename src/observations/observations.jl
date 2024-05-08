@@ -23,9 +23,9 @@ include("timetable.jl")
 
 
 # # internal method that checks whether the triangle is closes
-# function checktriangle(D1::EHTComplexVisibilityDatum,
-#                        D2::EHTComplexVisibilityDatum,
-#                        D3::EHTComplexVisibilityDatum)
+# function checktriangle(D1::EHTVisibilityDatum,
+#                        D2::EHTVisibilityDatum,
+#                        D3::EHTVisibilityDatum)
 #     b1 = D1.baseline
 #     b2 = D2.baseline
 #     b3 = D3.baseline
@@ -37,12 +37,12 @@ include("timetable.jl")
 
 
 # """
-#     bispectrum(d1::T, d2::T, d3::T) where {T<:EHTComplexVisibilityDatum}
+#     bispectrum(d1::T, d2::T, d3::T) where {T<:EHTVisibilityDatum}
 
 # Finds the bispectrum of three visibilities. We will assume these form closed triangles,
 # i.e. the phase of the bispectrum is a closure phase.
 # """
-# @inline function bispectrum(D1::EHTComplexVisibilityDatum, D2::EHTComplexVisibilityDatum, D3::EHTComplexVisibilityDatum)
+# @inline function bispectrum(D1::EHTVisibilityDatum, D2::EHTVisibilityDatum, D3::EHTVisibilityDatum)
 #     checktriangle(D1, D2, D3)
 #     visibility(D1)*visibility(D2)*visibility(D3)
 # end
@@ -53,9 +53,9 @@ include("timetable.jl")
 
 
 # """
-#     closure_phase(D1::EHTComplexVisibilityDatum,
-#                   D2::EHTComplexVisibilityDatum,
-#                   D3::EHTComplexVisibilityDatum
+#     closure_phase(D1::EHTVisibilityDatum,
+#                   D2::EHTVisibilityDatum,
+#                   D3::EHTVisibilityDatum
 #                   )
 
 # Computes the closure phase of the three visibility datums.
@@ -64,9 +64,9 @@ include("timetable.jl")
 # We currently use the high SNR Gaussian noise approximation for the closure phase.
 # In the future we may use the moment matching from Monte Carlo sampling.
 # """
-# function closure_phase(D1::EHTComplexVisibilityDatum,
-#                       D2::EHTComplexVisibilityDatum,
-#                       D3::EHTComplexVisibilityDatum)
+# function closure_phase(D1::EHTVisibilityDatum,
+#                       D2::EHTVisibilityDatum,
+#                       D3::EHTVisibilityDatum)
 
 #     checktriangle(D1,D2,D3)
 

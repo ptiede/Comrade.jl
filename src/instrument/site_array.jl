@@ -11,6 +11,7 @@ function ChainRulesCore.rrule(::Type{SiteArray}, data::AbstractArray, args...)
     s = SiteArray(data, args...)
     pd = ProjectTo(data)
     function _SiteArrayPB(Δ)
+        # @info typeof(Δ)
         (NoTangent(), @thunk(pd(Δ)), map(i->NoTangent(), args)...)
     end
     return s, _SiteArrayPB
@@ -20,7 +21,7 @@ times(a::SiteArray) = a.times
 sites(a::SiteArray) = a.sites
 frequencies(a::SiteArray) = a.frequencies
 
-
+EnzymeRules.inactive(::(typeof(Base.size)), ::SiteArray) = nothing
 Base.parent(a::SiteArray) = getfield(a, :data)
 Base.size(a::SiteArray) = size(parent(a))
 Base.IndexStyle(::Type{<:SiteArray{T, N, A}}) where {T, N, A} = Base.IndexStyle(A)
@@ -44,13 +45,18 @@ function ChainRulesCore.ProjectTo(s::SiteArray)
 end
 
 (project::ProjectTo{SiteArray})(s) = SiteArray(s, project.times, project.frequencies, project.sites)
+(project::ProjectTo{SiteArray})(s::SiteArray) = s
 (project::ProjectTo{SiteArray})(s::AbstractZero) = s
-
+(project::ProjectTo{SiteArray})(s::Tangent) = SiteArray(s.data, project.times, project.frequencies, project.sites)
 
 
 # Enzyme.EnzymeRules.inactive(::typeof(times), ::SiteArray) = nothing
 # Enzyme.EnzymeRules.inactive(::typeof(frequencies), ::SiteArray) = nothing
 # Enzyme.EnzymeRules.inactive(::typeof(sites), ::SiteArray) = nothing
+
+ntzero(x::NamedTuple) = map(ntzero, x)
+ntzero(x::Tuple) = map(ntzero, x)
+ntzero(x) = zero(x)
 
 
 function Base.similar(m::SiteArray, ::Type{S}) where {S}
@@ -170,4 +176,12 @@ end
 
 function SiteArray(a::AbstractArray, map::SiteLookup)
     return SiteArray(a, map.times, map.frequencies, map.sites)
+end
+
+function SiteArray(data::SiteArray{T, N}, times::AbstractArray{<:IntegrationTime, N}, frequencies::AbstractArray{<:Number, N}, sites::AbstractArray{<:Number, N}) where {T, N}
+    return data
+end
+
+function SiteArray(data::SiteArray, ::SiteLookup)
+    return data
 end

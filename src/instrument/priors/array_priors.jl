@@ -19,7 +19,7 @@ struct ObservedArrayPrior{D, S} <: Distributions.ContinuousMultivariateDistribut
 end
 Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)
-Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists._logpdf(d.dists, x)
+Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists._logpdf(d.dists, parent(x))
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
 asflat(d::ObservedArrayPrior) = InstrumentTransform(asflat(d.dists), d.sitemap)
 ascube(d::ObservedArrayPrior) = InstrumentTransform(ascube(d.dists), d.sitemap)
@@ -131,7 +131,7 @@ Base.eltype(d::PartiallyConditionedDist) = eltype(d.dist)
 Distributions.sampler(d::PartiallyConditionedDist) = d
 
 function Distributions._logpdf(d::PartiallyConditionedDist, x)
-    xv = @view x[d.variate_index]
+    xv = @view parent(x)[d.variate_index]
     return Dists.logpdf(d.dist, xv)
 end
 

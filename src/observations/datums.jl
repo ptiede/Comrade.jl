@@ -2,15 +2,13 @@ export measurement, noise, baseline
 
 """
     AbstractVisibilityDatum
-An abstract type for all VLBI data types. See [`Comrade.EHTComplexVisibilityDatum`](@ref) for an example.
+An abstract type for all VLBI data types. See [`Comrade.EHTVisibilityDatum`](@ref) for an example.
 """
 abstract type AbstractVisibilityDatum{T} end
 baseline(p::AbstractVisibilityDatum) = getfield(p, :baseline)
 measurement(p::AbstractVisibilityDatum) = getfield(p, :measurement)
 noise(p::AbstractVisibilityDatum) = getfield(p, :noise)
-
-abstract type AbstractSinglePolDatum{P,T} <: AbstractVisibilityDatum{T} end
-polarization(::AbstractSinglePolDatum{P,T}) = P
+VLBISkyModels.polarization(p::AbstractVisibilityDatum) = getfield(p, :polarization)
 
 # function Base.propertynames(p::AbstractVisibilityDatum)
 #     return (propertynames(baseline(p))..., :measurement, :noise)
@@ -51,7 +49,7 @@ Base.@kwdef struct EHTCoherencyDatum{S, B<:AbstractBaselineDatum, M<:SMatrix{2,2
     """
     baseline::B
 end
-polarization(b::EHTCoherencyDatum) = b.baseline.polbasis
+VLBISkyModels.polarization(b::EHTCoherencyDatum) = b.baseline.polbasis
 
 
 """

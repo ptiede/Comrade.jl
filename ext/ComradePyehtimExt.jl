@@ -176,7 +176,7 @@ function Comrade.extract_vis(obsc; kwargs...)
     obs.reorder_tarr_snr()
     config = build_arrayconfig(obs)
     vis, viserr = getvisfield(obs)
-    T = Comrade.EHTComplexVisibilityDatum{eltype(viserr), typeof(config[1])}
+    T = Comrade.EHTVisibilityDatum{eltype(viserr), typeof(config[1])}
     return Comrade.EHTObservationTable{T}(vis, viserr, config)
 end
 
