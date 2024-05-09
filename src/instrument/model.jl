@@ -107,12 +107,11 @@ intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = si
 
 function apply_instrument(vis, J::ObservedInstrumentModel, x)
     vout = intout(vis)
-    apply_instrument!(vout, vis, J, x)
+    _apply_instrument!(vout, vis, J, x.instrument)
     return vout
 end
 
-function apply_instrument!(vout, vis, J::ObservedInstrumentModel, x)
-    xint = x.instrument
+function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
     @inbounds for i in eachindex(vout, vis)
         vout[i] = apply_jones(vis[i], i, J, xint)
     end
@@ -151,10 +150,11 @@ function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstru
     function _apply_instrument_pb(Δ)
         Δout = similar(out)
         Δout .= unthunk(Δ)
-        dx = ntzero(x)
+        xi = x.instrument
+        dx = ntzero(xi)
         dvis = zero(vis)
-        autodiff(Reverse, apply_instrument!, Duplicated(out, Δout), Duplicated(vis, dvis), Const(J), Duplicated(x, dx))
-        return NoTangent(), dvis, NoTangent(), Tangent{typeof(x)}(;dx...)
+        autodiff(Reverse, _apply_instrument!, Duplicated(out, Δout), Duplicated(vis, dvis), Const(J), Duplicated(xi, dx))
+        return NoTangent(), dvis, NoTangent(), Tangent{typeof(x)}(;sky = ZeroTangent(), instrument = dx)
     end
     return out, _apply_instrument_pb
 end

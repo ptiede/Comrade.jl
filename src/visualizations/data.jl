@@ -172,11 +172,11 @@ end
     yguide --> "V (Jy)"
     markershape --> :circle
 
-    u = getdata(dvis, :U)
-    v = getdata(dvis, :V)
+    u = dvis[:baseline].U
+    v = dvis[:baseline].V
     uvdist = hypot.(u,v)
     vis = dvis[:measurement]
-    noise = getdata(dvis, :noise)
+    noise = dvis[:noise]
     vre = real.(vis)
     vim = imag.(vis)
     #add data noisebars
@@ -515,17 +515,18 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTVisibilityDatum} = 2*length(d)
 ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
 
 @recipe function f(h::Residual)
-    if length(h.args) != 2 || !(typeof(h.args[1]) <: AbstractModel) ||
-        !(typeof(h.args[2]) <: EHTObservationTable)
-        noise("Residual should be given a model and data product.  Got: $(typeof(h.args))")
+    if length(h.args) != 2 || !(typeof(h.args[1]) <: AbstractVLBIPosterior)
+        noise("Residual should be given a posterior and parameters.  Got: $(typeof(h.args))")
     end
-    m, damp = h.args
-    uvdist, res = residuals(m, damp)
-    c2 = chi2(m, damp)
+    post, p = h.args
+    res = residuals(post, p)[1]
+    c2 = chi2(post, p)[1]
     # title-->"Norm. Residuals"
     legend-->nothing
 
-    if damp isa EHTObservationTable{<:EHTCoherencyDatum}
+    uvdist = hypot.(res[:baseline].U, res[:baseline].V)
+
+    if res isa EHTObservationTable{<:EHTCoherencyDatum}
         layout := (2,2)
         res2 = reinterpret(reshape, Float64, res)'
         @series begin
@@ -572,27 +573,23 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
         linecolor --> nothing
         legend --> false
 
-        title --> @sprintf "<χ²> = %.2f" c2/ndata(damp)
-        return uvdist./1e9, res
+        title --> @sprintf "<χ²> = %.2f" c2/ndata(res)
+        return uvdist./1e9, hcat(real.(measurement(res))./noise(res), imag.(measurement(res)./noise(res)))
     end
 end
 
 
-function chi2(m, data::EHTObservationTable)
-    return sum(x->abs2.(x), last(residuals(m, data)))
+function chi2(post::AbstractVLBIPosterior, p)
+    res = residuals(post, p)
+    return map(_chi2, res)
 end
 
-function chi2(m, data::EHTObservationTable{A}) where {A<:EHTCoherencyDatum}
-    res = last(residuals(m, data))
-    return mapreduce(+, 1:4) do i
-        sum(abs2, filter(!isnan, getproperty(res, i)))
+function _chi2(res::EHTObservationTable)
+    return sum(datatable(res)) do d
+            return abs2(d.measurement/d.noise)
     end
 end
 
-
-function chi2(m, data::EHTObservationTable...)
-    return mapreduce(d->chi2(m, d), +, data)
-end
 
 
 function residuals_data(vis, data::EHTObservationTable{A}) where {A<:EHTClosurePhaseDatum}
@@ -628,6 +625,6 @@ end
 
 function residuals_data(mvis, dvis::EHTObservationTable{A}) where {A<:EHTVisibilityDatum}
     vis = measurement(dvis)
-    res = (vis - mvis)./getdata(dvis, :noise)
-    return hypot.(u, v), res
+    res = (vis - mvis)
+    return EHTObservationTable{A}(res, noise(dvis), arrayconfig(dvis))
 end

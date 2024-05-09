@@ -45,7 +45,24 @@ function skymodel(m::AbstractSkyModel, x)
     return m.f(x, m.metadata)
 end
 
-preallocate_image(x, ::AbstractSingleDomain, ::FourierTransform) = x
-function preallocate_image(x::AbstractRectiGrid, uv::AbstractSingleDomain, alg::FourierTransform)
-    return FourierDualDomain(x, uv, alg)
+
+Base.@kwdef struct FixedSkyModel{M<:AbstractModel, MI, MV, G} <: AbstractSkyModel
+    model::M
+    grid::G
+    algorithm::FourierTransform = NFFTAlg()
+end
+
+function ObservedSkyModel(m::FixedSkyModel, arr::AbstractArrayConfiguration)
+    gfour = FourierDualDomain(m.grid, arr, m.algorithm)
+    img = intensitymap(model, gfour)
+    vis = visibilitymap(model, grid)
+    return ObservedSkyModel(m, m.grid, (;img, vis))
+end
+
+function idealvisibilities(m::ObservedSkyModel{<:FixedSkyModel}, x)
+    return m.metadata.vis
+end
+
+function skymodel(m::ObservedSkyModel{<:FixedSkyModel}, x)
+    return m.f.model
 end

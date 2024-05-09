@@ -7,10 +7,7 @@ export vlbimodel, logdensityof, dimension, skymodel, instrumentmodel, dataproduc
 
 abstract type AbstractVLBIPosterior end
 @inline DensityInterface.DensityKind(::AbstractVLBIPosterior) = DensityInterface.IsDensity()
-function logprior(d::AbstractVLBIPosterior, θ)
-    # @info "HERE"
-    logdensityof(d.prior, θ)
-end
+logprior(d::AbstractVLBIPosterior, θ) = logdensityof(d.prior, θ)
 LogDensityProblems.logdensity(d::AbstractVLBIPosterior, θ) = logdensityof(d, θ)
 LogDensityProblems.dimension(d::AbstractVLBIPosterior) = dimension(d)
 LogDensityProblems.capabilities(::Type{<:AbstractVLBIPosterior}) = LogDensityProblems.LogDensityOrder{0}()
@@ -88,16 +85,6 @@ function skymodel(post::AbstractVLBIPosterior, θ)
     return skymodel(post.skymodel, θ.sky)
 end
 
-"""
-    instrumentmodel(post::AbstractVLBIPosterior, θ; decompose=true)
-
-Returns the instrument model for the posterior with parameters `θ`.
-If `decompose` is true, then each Jones matrix of the instrument model is returned individually.
-Note that for Stokes I imaging the complex gains are returned.
-"""
-function instrumentmodel(post::AbstractVLBIPosterior, θ; decompose=true)
-    jonesmatrices(instrumentmodel(post), θ; decompose)
-end
 
 """
     dataproducts(d::AbstractRadioLikelihood)

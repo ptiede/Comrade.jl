@@ -277,7 +277,7 @@ sol = solve(prob, OptimizationOptimisers.Adam(), maxiters=5_000);
 #     is often required.
 #-
 # Before we analyze our solution, we need to transform it back to parameter space.
-xopt = transform(tpost, sol.u)
+xopt = transform(tpost, sol)
 
 # Now let's evaluate our fits by plotting the residuals
 using Plots
