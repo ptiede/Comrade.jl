@@ -112,8 +112,9 @@ function apply_instrument(vis, J::ObservedInstrumentModel, x)
 end
 
 function apply_instrument!(vout, vis, J::ObservedInstrumentModel, x)
+    xint = x.instrument
     @inbounds for i in eachindex(vout, vis)
-        vout[i] = apply_jones(vis[i], i, J, x)
+        vout[i] = apply_jones(vis[i], i, J, xint)
     end
     # vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(x))
     return nothing
@@ -150,7 +151,7 @@ function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstru
     function _apply_instrument_pb(Δ)
         Δout = similar(out)
         Δout .= unthunk(Δ)
-        dx = map(zero, x)
+        dx = ntzero(x)
         dvis = zero(vis)
         autodiff(Reverse, apply_instrument!, Duplicated(out, Δout), Duplicated(vis, dvis), Const(J), Duplicated(x, dx))
         return NoTangent(), dvis, NoTangent(), Tangent{typeof(x)}(;dx...)

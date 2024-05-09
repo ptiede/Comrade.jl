@@ -37,7 +37,7 @@ end
 
 
 function idealvisibilities(m::AbstractSkyModel, x)
-    skym = skymodel(m, x)
+    skym = skymodel(m, x.sky)
     return visibilitymap(skym, domain(m))
 end
 
