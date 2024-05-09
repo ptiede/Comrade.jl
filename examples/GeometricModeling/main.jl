@@ -55,7 +55,7 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosureP
 # Comrade expects that any model function must accept a named tuple and returns  must always
 # return an object that implements the [VLBISkyModels Interface](https://ehtjulia.github.io/VLBISkyModels.jl/stable/interface/)
 #-
-function model(θ)
+function model(θ, p)
     (;radius, width, ma, mp, τ, ξτ, f, σG, τG, ξG, xG, yG) = θ
     α = ma.*cos.(mp .- ξτ)
     β = ma.*sin.(mp .- ξτ)
@@ -67,13 +67,12 @@ end
 # To construct our likelihood `p(V|M)` where `V` is our data and `M` is our model, we use the `RadioLikelihood` function.
 # The first argument of `RadioLikelihood` is always a function that constructs our Comrade
 # model from the set of parameters `θ`.
-lklhd = RadioLikelihood(model, dlcamp, dcphase)
 
 # We now need to specify the priors for our model. The easiest way to do this is to
 # specify a NamedTuple of distributions:
 
 using Distributions, VLBIImagePriors
-prior = NamedDist(
+prior = (
           radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
           width = Uniform(μas2rad(1.0), μas2rad(10.0)),
           ma = (Uniform(0.0, 0.5), Uniform(0.0, 0.5)),
@@ -88,6 +87,8 @@ prior = NamedDist(
           yG = Uniform(-μas2rad(80.0), μas2rad(80.0))
         )
 
+skym = SkyModel(model, prior, imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128))
+
 
 # Note that for `α` and `β` we use a product distribution to signify that we want to use a
 # multivariate uniform for the mring components `α` and `β`. In general the structure of the
@@ -95,7 +96,7 @@ prior = NamedDist(
 # model definition `model(θ)`.
 
 # To form the posterior we now call
-post = Posterior(lklhd, prior)
+post = VLBIPosterior(skym, dlcamp, dcphase)
 
 # !!!warn
 #    As of Comrade 0.9 we have switched to the proper covariant closure likelihood.
@@ -105,7 +106,7 @@ post = Posterior(lklhd, prior)
 # This constructs a posterior density that can be evaluated by calling `logdensityof`.
 # For example,
 
-logdensityof(post, (radius = μas2rad(20.0),
+logdensityof(post, (sky = (radius = μas2rad(20.0),
                   width = μas2rad(10.0),
                   ma = (0.3, 0.3),
                   mp = (π/2, π),
@@ -116,7 +117,7 @@ logdensityof(post, (radius = μas2rad(20.0),
                   τG = 0.1,
                   ξG = 0.5,
                   xG = 0.0,
-                  yG = 0.0))
+                  yG = 0.0),))
 
 # ## Reconstruction
 
@@ -178,7 +179,7 @@ using DisplayAs
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=1) #hide
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
-fig = imageviz(intensitymap(model(xopt), g), colormap=:afmhot, size=(500, 400));
+fig = imageviz(intensitymap(skymodel(post, xopt), g), colormap=:afmhot, size=(500, 400));
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
@@ -204,7 +205,7 @@ chain = sample_array(cpost, pt)
 
 # First to plot the image we call
 using DisplayAs #hide
-imgs = intensitymap.(skymodel.(Ref(post), sample(chain, 100)), μas2rad(200.0), μas2rad(200.0), 128, 128)
+imgs = intensitymap.(skymodel.(Ref(post), sample(chain, 100)), Ref(g))
 fig = imageviz(imgs[end], colormap=:afmhot)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
@@ -219,7 +220,7 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
 using Plots
-p = Plots.plot(model(xopt), dlcamp, label="MAP");
+p = Plots.plot(model(xopt, nothing), dlcamp, label="MAP");
 DisplayAs.Text(DisplayAs.PNG(p))
 
 # We can also plot random draws from the posterior predictive distribution.
