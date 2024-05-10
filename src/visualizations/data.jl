@@ -49,7 +49,7 @@ end
     @series begin
         xguide --> "uv-distance (Gλ)"
         subplot := 1
-        yguide := "RR (Jy)"
+        yguide := "C₁₁ (Jy)"
         vre = real.(getindex.(coh, 1, 1))
         vim = imag.(getindex.(coh, 1, 1))
         err = getindex.(noise, 1, 1)
@@ -76,7 +76,7 @@ end
     @series begin
         xguide --> "uv-distance (Gλ)"
         subplot := 2
-        yguide := "RL (Jy)"
+        yguide := "C₁₂ (Jy)"
         vre = real.(getindex.(coh, 1, 2))
         vim = imag.(getindex.(coh, 1, 2))
         err = getindex.(noise, 1, 2)
@@ -104,7 +104,7 @@ end
     @series begin
         xguide --> "uv-distance (Gλ)"
         subplot := 3
-        yguide := "LR (Jy)"
+        yguide := "C₂₁ (Jy)"
         vre = real.(getindex.(coh, 2, 1))
         vim = imag.(getindex.(coh, 2, 1))
         err = getindex.(noise, 1, 1)
@@ -131,7 +131,7 @@ end
     @series begin
         xguide --> "uv-distance (Gλ)"
         subplot := 4
-        yguide := "LL (Jy)"
+        yguide := "C₂₂ (Jy)"
         vre = real.(getindex.(coh, 2, 2))
         vim = imag.(getindex.(coh, 2, 2))
         err = getindex.(noise, 1, 1)
@@ -166,7 +166,7 @@ end
     v = dvis[:baseline].V
     uvdist = hypot.(u,v)
     amp = dvis[:measurement]
-    noise = getdata(dvis, :noise)
+    noise = dvis[:noise]
     #add data noisebars
     seriestype --> :scatter
     alpha --> 0.5
@@ -181,14 +181,14 @@ end
     yguide --> "v (Gλ)"
     markershape --> :circle
 
-    u = dvis[:baseline].U
-    v = dvis[:baseline].V
+    u = acc[:U]
+    v = acc[:V]
     #add data noisebars
     seriestype --> :scatter
     linecolor --> nothing
     aspect_ratio --> :equal
     label -->"Data"
-    title --> "Frequency: $(first(acc.data.F)/1e9) GHz"
+    title --> "Frequency: $(first(acc[:Fr])/1e9) GHz"
     vcat(u/1e9,-u/1e9), vcat(v/1e9,-v/1e9)
 end
 
