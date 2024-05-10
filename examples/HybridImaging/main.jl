@@ -232,10 +232,10 @@ msamples = skymodel.(Ref(post), chain[begin:2:end]);
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, Ref(gpl))
-fig = imageviz(mean(imgs), colormap=:afmhot, size=(400, 300))
+fig = imageviz(mean(imgs), colormap=:afmhot, size=(400, 300));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 #-
-fig = imageviz(std(imgs), colormap=:batlow, size=(400, 300))
+fig = imageviz(std(imgs), colormap=:batlow, size=(400, 300));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 #-
@@ -244,8 +244,8 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 comp = Comrade.components.(msamples)
 ring_samples = getindex.(comp, 2)
 rast_samples = first.(comp)
-ring_imgs = intensitymap.(ring_samples, Ref(gpl))
-rast_imgs = intensitymap.(rast_samples, Ref(gpl))
+ring_imgs = intensitymap.(ring_samples, Ref(gpl));
+rast_imgs = intensitymap.(rast_samples, Ref(gpl));
 
 ring_mean, ring_std = mean_and_std(ring_imgs);
 rast_mean, rast_std = mean_and_std(rast_imgs);
@@ -255,7 +255,7 @@ axes = [CM.Axis(fig[i, j], xreversed=true, aspect=CM.DataAspect()) for i in 1:2,
 CM.image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
 CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
 CM.image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"
-CM.image!(axes[2,2], rast_std, colormap=:afmhot); axes[2,2].title = "Rast Std. Dev."
+CM.image!(axes[2,2], rast_mean./rast_std, colormap=:afmhot, colorrange=(1.5, 3)); axes[2,2].title = "Rast SNR"
 CM.hidedecorations!.(axes)
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
@@ -272,7 +272,7 @@ DisplayAs.Text(DisplayAs.PNG(figd)) #hide
 # Now let's check the residuals using draws from the posterior
 p = Plots.plot();
 for s in sample(chain, 10)
-    residual!(p, vlbimodel(post, s), dvis)
+    residual!(p, post, s, legend=false)
 end
 DisplayAs.Text(DisplayAs.PNG(p)) #hide
 
