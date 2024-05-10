@@ -280,7 +280,7 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
         c2 = c2s[i]
         uvdist = Comrade.uvdist.(datatable(rest))
 
-        if res isa EHTObservationTable{<:EHTCoherencyDatum}
+        if rest isa EHTObservationTable{<:EHTCoherencyDatum}
             layout := (2,2)
             res2 = reinterpret(reshape, Float64, res)'
             @series begin
@@ -352,9 +352,10 @@ end
 
 function _chi2(res::EHTObservationTable)
     return sum(datatable(res)) do d
-            return abs2(d.measurement/d.noise)
+            return @. abs2(d.measurement/d.noise)
     end
 end
+
 
 
 

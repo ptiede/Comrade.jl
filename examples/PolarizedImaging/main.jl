@@ -156,46 +156,16 @@ function sky(θ, metadata)
 end
 
 
-G = JonesG() do x
-    gR = exp(x.lgR + 1im*x.gpR)
-    gL = gR*exp(x.lgrat + 1im*x.gprat)
-    return gR, gL
-end
-
-D = JonesD() do x
-    dR = complex(x.dRx, x.dRy)
-    dL = complex(x.dLx, x.dLy)
-    return dR, dL
-
-end
-
-R = JonesR(;add_fr=true)
 
 
-J = JonesSandwich(splat(*), G, D, R)
 
-
-using Distributions
-using DistributionsAD
-using VLBIImagePriors
-
-
-intprior = (
-    lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-    gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π  ^2))); refant=SEFDReference(0.0)),
-    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-    gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)); refant = SingleReference(:AA, 0.0)),
-    dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dLx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dLy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-)
-
-intmodel = InstrumentModel(J, intprior)
 
 # Now, we define the model metadata required to build the model.
 # We specify our image grid and cache model needed to define the polarimetric
 # image model.
+using Distributions
+using DistributionsAD
+using VLBIImagePriors
 fovx = μas2rad(60.0)
 fovy = μas2rad(60.0)
 nx = 10
@@ -239,11 +209,81 @@ skyprior = (
     angparams = ImageSphericalUniform(nx, ny),
     )
 
-skymodel = SkyModel(sky, skyprior, grid; metadata=skymeta)
+skym = SkyModel(sky, skyprior, grid; metadata=skymeta)
+
+
+# Now we build the instrument model. Due to the complexity of VLBI the instrument model is critical
+# to the success of imaging and getting reliable results. For this example we will use the standard
+# instrument model used in polarized EHT analyses expressed in the RIME formalism. Our Jones
+# decomposition will be given by `GDR`, where `G` are the complex gains, `D` are the d-terms, and `R`
+# is what we call the *ideal instrument response*, which is how an ideal interferometer using the
+# feed basis we observe relative to some reference basis.
+#
+# Given the possible flexibility in different parameterizations of the individual Jones matrices
+# each Jones matrix requires the user to specify a function that converts from parameters
+# to specific parameterization f the jones matrices.
+
+# For the complex gain matrix, we used the `JonesG` jones matrix. The first argument is now
+# a function that converts from the parameters to the complex gain matrix. In this case, we
+# will use a amplitude and phase decomposition of the complex gain matrix. Note that since
+# the gain matrix is a diagonal 2x2 matrix the function must return a 2-element tuple.
+# The first element of the tuple is the gain for the first polarization feed (R) and the
+# second is the gain for the second polarization feed (L).
+G = JonesG() do x
+    gR = exp(x.lgR + 1im*x.gpR)
+    gL = gR*exp(x.lgrat + 1im*x.gprat)
+    return gR, gL
+end
+# Note that we are using the Julia `do` syntax here to define an anonymous function. This
+# could've also been written as
+# ```julia
+# fgain(x) = (exp(x.lgR + 1im*x.gpR), exp(x.lgR + x.lgrat + 1im*(x.gpR + x.gprat)))
+# G = JonesG(fgain)
+# ```
+
+
+# Similarly we provide a `JonesD` function for the leakage terms. Since we assume that we
+# are in the small leakage limit, we will use the decomposition
+# 1 d1
+# d2 1
+# Therefore, there are 2 free parameters for the JonesD our parameterization function
+# must return a 2-element tuple. For d-terms we will use a re-im parameterization.
+D = JonesD() do x
+    dR = complex(x.dRx, x.dRy)
+    dL = complex(x.dLx, x.dLy)
+    return dR, dL
+end
+
+# Finally we define our response Jones matrix. This matrix is a basis transform matrix
+# plus the feed rotation angle for each station. These are typically set by the telescope
+# so there are no free parameters, so no parameterization is necessary.
+R = JonesR(;add_fr=true)
+
+# Finally, we build our total Jones matrix by using the `JonesSandwich` function. The
+# first argument is a function that specifies how to combine each Jones matrix. In this case,
+# we are completely standard so we just need to multiply the different jones matrices.
+# Note that if no function is provided, the default is to multiply the Jones matrices,
+# so we could've removed the splat(*) argument in this case.
+J = JonesSandwich(splat(*), G, D, R)
+
+
+intprior = (
+    lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+    gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π  ^2))); refant=SEFDReference(0.0)),
+    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+    gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)); refant = SingleReference(:AA, 0.0)),
+    dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    dLx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    dLy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+)
+
+intmodel = InstrumentModel(J, intprior)
+
 
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling.
-post = VLBIPosterior(skymodel, intmodel, dvis)
+post = VLBIPosterior(skym, intmodel, dvis)
 
 # ## Reconstructing the Image and Instrument Effects
 
@@ -269,7 +309,7 @@ using OptimizationOptimisers
 using Zygote
 fopt = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(fopt, prior_sample(tpost), nothing)
-sol = solve(prob, OptimizationOptimisers.Adam(), maxiters=5_000);
+sol = solve(prob, OptimizationOptimisers.Adam(), maxiters=20_000);
 
 # !!! warning
 #     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that
@@ -281,7 +321,7 @@ xopt = transform(tpost, sol)
 
 # Now let's evaluate our fits by plotting the residuals
 using Plots
-residual(vlbimodel(post, xopt), dvis)
+residual(post, xopt)
 
 # These look reasonable, although there may be some minor overfitting.
 # Let's compare our results to the ground truth values we know in this example.
@@ -364,17 +404,6 @@ gampr = caltable(exp.(xopt.instrument.lgR))
 plot(gampr, layout=(3,3), size=(650,500))
 plot!(gamp_ratio, layout=(3,3), size=(650,500))
 #-
-# At this point, you should run the sampler to recover an uncertainty estimate,
-# which is identical to every other imaging example
-# (see, e.g., [Stokes I Simultaneous Image and Instrument Modeling](@ref)). However,
-# due to the time it takes to sample, we will skip that for this tutorial.
-using ComradeAHMC
-metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric), 700; n_adapts=500, initial_params=xopt, progress=true)
-
-ms = Comrade.skymodel.(Ref(post), chain[500:5:end])
-imgs = intensitymap.(ms, Ref(axisdims(img)))
-imageviz(mean(imgs), plot_total=false, nvec=10, colormap=:afmhot, pcolorrange=(0.0, 0.2), adjust_length=true)
 
 # [^1]: Hamaker J.P, Bregman J.D., Sault R.J. (1996) [https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H]
 # [^2]: Pesce D. (2021) [https://ui.adsabs.harvard.edu/abs/2021AJ....161..178P/abstract]
