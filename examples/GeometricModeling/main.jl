@@ -220,22 +220,25 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
 using Plots
-p = Plots.plot(model(xopt, nothing), dlcamp, label="MAP");
-DisplayAs.Text(DisplayAs.PNG(p))
+p1 = Plots.plot(simulate_observation(post, xopt; add_thermal_noise=false)[1], label="MAP")
+Plots.plot!(p1, dlcamp)
+p2 = Plots.plot(simulate_observation(post, xopt; add_thermal_noise=false)[2], label="MAP")
+Plots.plot!(p2, dcphase)
+DisplayAs.Text(DisplayAs.PNG(Plots.plot(p1, p2, layout=(2,1))))
 
 # We can also plot random draws from the posterior predictive distribution.
 # The posterior predictive distribution create a number of synthetic observations that
 # are marginalized over the posterior.
 p1 = Plots.plot(dlcamp);
 p2 = Plots.plot(dcphase);
-uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
-uvp = [sqrt.(uvarea(dcphase[i])) for i in 1:length(dcphase)]
+uva = uvdist.(datatable(dlcamp))
+uvp = uvdist.(datatable(dcphase))
 for i in 1:10
     mobs = simulate_observation(post, sample(chain, 1)[1])
     mlca = mobs[1]
     mcp  = mobs[2]
-    Plots.scatter!(p1, uva, mlca[:measurement], color=:grey, label=:none, alpha=0.1)
-    Plots.scatter!(p2, uvp, atan.(sin.(mcp[:measurement]), cos.(mcp[:measurement])), color=:grey, label=:none, alpha=0.1)
+    Plots.scatter!(p1, uva, mlca[:measurement], color=:grey, label=:none, alpha=0.2)
+    Plots.scatter!(p2, uvp, atan.(sin.(mcp[:measurement]), cos.(mcp[:measurement])), color=:grey, label=:none, alpha=0.2)
 end
 p = Plots.plot(p1, p2, layout=(2,1));
 DisplayAs.Text(DisplayAs.PNG(p))
@@ -244,7 +247,5 @@ DisplayAs.Text(DisplayAs.PNG(p))
 # Finally, we can also put everything onto a common scale and plot the normalized residuals.
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
-p1 = residual(model(chain[end]), dlcamp);
-p2 = residual(model(chain[end]), dcphase);
-p = Plots.plot(p1, p2, layout=(2,1));
+p = residual(post, chain[end]);
 DisplayAs.Text(DisplayAs.PNG(p))

@@ -250,7 +250,7 @@ end
     yerr := noise
     linecolor --> nothing
     label --> "Data"
-    area, phase
+    area, @. atan(sin(phase), cos(phase))
 end
 
 @userplot Residual

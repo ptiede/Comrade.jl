@@ -103,8 +103,8 @@ return the model visibilities.
 """
 function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; add_thermal_noise=true)
     # ls = map(x->likelihood(x, visibilitymap(vlbimodel(post, θ), post.lklhd.ac)), post.lklhd.lklhds)
-    vis = forward_model(vlbimodel(post, θ), θ)
-    ls = map(x->likelihood(x, vis), post.lklhd.lklhds)
+    vis = forward_model(post, θ)
+    ls = map(x->likelihood(x, vis), post.lklhds)
     if add_thermal_noise
         ms = map(x->rand(rng, x), ls)
     else
@@ -117,7 +117,7 @@ function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; 
         return EHTObservationTable{datumtype(di)}(ms[i], noise(di), configs[i])
     end
 end
-simulate_observation(post::VLBIPosterior, θ) = simulate_observation(Random.default_rng(), post, θ)
+simulate_observation(post::VLBIPosterior, θ; add_thermal_noise=true) = simulate_observation(Random.default_rng(), post, θ; add_thermal_noise)
 
 function residuals(post::VLBIPosterior, p)
     vis = forward_model(post, p)
