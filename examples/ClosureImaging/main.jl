@@ -73,7 +73,8 @@ function sky(θ, metadata)
     m = ContinuousImage(rast, grid, BSplinePulse{3}())
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
-    return m + g
+    x0, y0 = centroid(m.img)
+    return shifted(m, -x0, -y0) + g
 end
 
 
@@ -81,8 +82,8 @@ end
 # the EHT is not very sensitive to a larger field of views; typically, 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 64
-fovxy = μas2rad(300.0)
+npix = 32
+fovxy = μas2rad(100.0)
 
 # To define the image model we need to specify both the grid we will be using and the
 # FT algorithm we will use, in this case the NFFT which is the most efficient.
@@ -96,7 +97,7 @@ using VLBIImagePriors, Distributions, DistributionsAD
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 50 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(100.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(40.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
 # Now since we are actually modeling our image on the simplex we need to ensure that
@@ -125,7 +126,7 @@ crcache = ConditionalMarkov(GMRF, grid; order=1)
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
 cprior = HierarchicalPrior(crcache, truncated(InverseGamma(1.0, -log(0.1)*rat); upper=2*npix))
 
-prior = NamedDist(c = cprior, σimg = Exponential(0.1), fg=Uniform(0.0, 1.0))
+prior = (c = cprior, σimg = Exponential(1.0), fg=Uniform(0.0, 1.0))
 
 # Form the sky model
 skym = SkyModel(sky, prior, grid; metadata=skymeta)
@@ -153,7 +154,7 @@ using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(); maxiters=500);
+sol = solve(prob, LBFGS(); maxiters=100);
 
 
 # Before we analyze our solution we first need to transform back to parameter space.
@@ -162,17 +163,13 @@ xopt = transform(tpost, sol)
 # First we will evaluate our fit by plotting the residuals
 using DisplayAs #hide
 using Plots
-p = residual(skymodel(post, xopt), dlcamp, ylabel="Log Closure Amplitude Res.")
+p = residual(post, xopt)
 DisplayAs.Text(DisplayAs.PNG(p)) #hide
-# and now closure phases
-#-
-p = residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
-DisplayAs.Text(DisplayAs.PNG(p))
 
 # Now let's plot the MAP estimate.
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=1) #hide
-g = imagepixels(μas2rad(300.0), μas2rad(300.0), 100, 100)
+g = imagepixels(μas2rad(100.0), μas2rad(100.0), 100, 100)
 img = intensitymap(skymodel(post, xopt), g)
 fig = imageviz(img);
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
@@ -191,7 +188,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=true, initial_params=chain[end]);
+chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=true, initial_params=xopt);
 
 
 # !!! warning
@@ -226,21 +223,11 @@ CM.hidedecorations!.(fig.content)
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 # Now let's see whether our residuals look better.
-p = Plots.plot();
+p = Plots.plot(layout=(2,1))
 for s in sample(chain[501:end], 10)
-    residual!(p, vlbimodel(post, s), dlcamp)
+    residual!(post, s)
 end
-Plots.ylabel!("Log-Closure Amplitude Res.");
-DisplayAs.Text(DisplayAs.PNG(p))
-#-
-
-
-p = Plots.plot();
-for s in sample(chain[501:end], 10)
-    residual!(p, vlbimodel(post, s), dcphase)
-end
-Plots.ylabel!("|Closure Phase Res.|");
-DisplayAs.Text(DisplayAs.PNG(p))
+p
 
 
 # And viola, you have a quick and preliminary image of M87 fitting only closure products.

@@ -1,172 +1,5 @@
 export residuals, chi2
 
-@recipe function f(m::AbstractModel, dvis::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTVisibilityDatum}
-    xguide --> "uv-distance (λ)"
-    yguide --> "V (Jy)"
-    markershape --> :diamond
-
-    u = getdata(dvis, :U)
-    v = getdata(dvis, :V)
-    uvdist = hypot.(u,v)
-    vis = dvis[:measurement]
-    noise = getdata(dvis, :noise)
-    vre = real.(vis)
-    vim = imag.(vis)
-    #add data noisebars
-    @series begin
-        seriestype := :scatter
-        markershape := datamarker
-        markercolor := datacolor
-        alpha := 0.5
-        yerr := noise
-        linecolor := nothing
-        label := "Data"
-        uvdist./1e9, vre
-    end
-
-    @series begin
-        seriestype := :scatter
-        markershape := datamarker
-        markercolor := :white
-        markeralpha := 0.01
-        markerstrokecolor := :black
-        markerstrokealpha := 1.0
-        linecolor :=nothing
-        label := nothing
-        yerr := noise
-        uvdist./1e9, vim
-    end
-
-
-    seriestype-->:scatter
-    vmod = visibilitymap(m, arrayconfig(dvis))
-    labels --> "Model"
-    uvdist./1e9, hcat(real.(vmod), imag.(vmod))
-end
-
-@recipe function f(m::AbstractModel, dvis::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTCoherencyDatum}
-
-    u = getdata(dvis, :U)
-    v = getdata(dvis, :V)
-    uvdist = hypot.(u,v)./1e9
-    vis = dvis[:measurement]
-    noise = getdata(dvis, :noise)
-    vmod = visibilitymap(m, (U=u, V=v, T=dvis[:T], F=dvis[:F]))
-    layout := (2,2)
-    #add data noisebars
-    @series begin
-        v = getindex.(vis, 1, 1)
-        vm = getindex.(vmod, 1, 1)
-        err = getindex.(noise, 1, 1)
-        subplot := 1
-        yguide := "C₁₁ (Jy)"
-        seriestype := :scatter
-
-        @series begin
-            markershape := [:+ :x]
-            markercolor := datacolor
-            seriestype := :scatter
-            alpha := 0.9
-            yerr := err
-            linecolor := nothing
-            label := ["Data Real" "DataImag"]
-            uvdist, hcat(real.(v), imag.(v))
-        end
-
-        label := ["Model Real" "Model Imag"]
-        markershape := :o
-        markercolor := [:red :orange]
-        markerstrokecolor := [:red :orange]
-        markeralpha := 0.2
-        uvdist, hcat(real.(vm), imag.(vm))
-    end
-
-    @series begin
-        subplot := 2
-        v = getindex.(vis, 1, 2)
-        vm = getindex.(vis, 1, 2)
-        err = getindex.(noise, 1, 2)
-        yguide := "C₁₂ (Jy)"
-        legend := nothing
-        seriestype := :scatter
-        @series begin
-            markershape := [:+ :x]
-            markercolor := datacolor
-            seriestype := :scatter
-            alpha := 0.9
-            yerr := err
-            linecolor := nothing
-            label := ["Data Real" "DataImag"]
-            uvdist, hcat(real.(v), imag.(v))
-        end
-
-        label := ["Model Real" "Model Imag"]
-        markershape := :o
-        markercolor := [:red :orange]
-        markerstrokecolor := [:red :orange]
-        markeralpha := 0.2
-        uvdist, hcat(real.(vm), imag.(vm))
-    end
-
-
-    @series begin
-        subplot := 3
-        v = getindex.(vis, 2, 1)
-        vm = getindex.(vis, 2, 1)
-        err = getindex.(noise, 2, 1)
-        legend := nothing
-        seriestype := :scatter
-        yguide := "C₂₁ (Jy)"
-        @series begin
-            markershape := [:+ :x]
-            markercolor := datacolor
-            seriestype := :scatter
-            alpha := 0.9
-            yerr := err
-            linecolor := nothing
-            label := ["Data Real" "DataImag"]
-            uvdist, hcat(real.(v), imag.(v))
-        end
-
-        xguide := "uv distance (Gλ)"
-        label := ["Model Real" "Model Imag"]
-        markershape := :o
-        markercolor := [:red :orange]
-        markerstrokecolor := [:red :orange]
-        markeralpha := 0.2
-        uvdist, hcat(real.(vm), imag.(vm))
-    end
-
-    @series begin
-        subplot := 4
-        v = getindex.(vis, 2, 2)
-        vm = getindex.(vis, 2, 2)
-        err = getindex.(noise, 2, 2)
-        legend := nothing
-        seriestype := :scatter
-        yguide := "C₂₂ (Jy)"
-        @series begin
-            markershape := [:+ :x]
-            markercolor := datacolor
-            seriestype := :scatter
-            alpha := 0.9
-            yerr := err
-            linecolor := nothing
-            label := ["Data Real" "DataImag"]
-            uvdist, hcat(real.(v), imag.(v))
-        end
-
-        label := ["Model Real" "Model Imag"]
-        markershape := :o
-        markercolor := [:red :orange]
-        markerstrokecolor := [:red :orange]
-        markeralpha := 0.2
-        uvdist, hcat(real.(vm), imag.(vm))
-
-    end
-
-end
-
 @recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTVisibilityDatum}
     xguide --> "uv-distance (Gλ)"
     yguide --> "V (Jy)"
@@ -205,8 +38,8 @@ end
 @recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTCoherencyDatum}
     markershape --> :circle
 
-    u = getdata(dvis, :U)
-    v = getdata(dvis, :V)
+    u = dvis[:baseline].U
+    v = dvis[:baseline].V
     uvdist = hypot.(u,v)
     coh = dvis[:measurement]
     noise = dvis[:noise]
@@ -322,7 +155,6 @@ end
             label := "Imag"
             uvdist./1e9, vim
     end
-
 end
 
 @recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTVisibilityAmplitudeDatum}
@@ -330,8 +162,8 @@ end
     yguide --> "|V| (Jy)"
     markershape --> :diamond
 
-    u = getdata(dvis, :U)/1e9
-    v = getdata(dvis, :V)/1e9
+    u = dvis[:baseline].U
+    v = dvis[:baseline].V
     uvdist = hypot.(u,v)
     amp = dvis[:measurement]
     noise = getdata(dvis, :noise)
@@ -341,7 +173,7 @@ end
     yerr := noise
     linecolor --> nothing
     label --> "Data"
-    uvdist, amp
+    uvdist./1e9, amp
 end
 
 @recipe function f(acc::AbstractArrayConfiguration)
@@ -349,7 +181,8 @@ end
     yguide --> "v (Gλ)"
     markershape --> :circle
 
-    u, v = getuv(acc)
+    u = dvis[:baseline].U
+    v = dvis[:baseline].V
     #add data noisebars
     seriestype --> :scatter
     linecolor --> nothing
@@ -359,42 +192,17 @@ end
     vcat(u/1e9,-u/1e9), vcat(v/1e9,-v/1e9)
 end
 
-@recipe function f(m::AbstractModel, dvis::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTVisibilityAmplitudeDatum}
-    xguide --> "uv-distance (Gλ)"
-    yguide --> "V (Jy)"
-    markershape --> :diamond
 
-    u = getdata(dvis, :U)
-    v = getdata(dvis, :V)
-    uvdist = hypot.(u,v)
-    amp = dvis[:measurement]
-    noise = getdata(dvis, :error)
-    #add data noisebars
-    @series begin
-        seriestype := :scatter
-        markershape := datamarker
-        markercolor := datacolor
-        alpha := 0.5
-        yerr := noise
-        linecolor := nothing
-        label := "Data"
-        uvdist./1e9, amp
-    end
+export uvdist
+uvdist(d) = hypot(d.U, d.V)
 
-    seriestype-->:scatter
-    amod = abs.(visibilitymap(m, arrayconfig(dvis)))
-    labels --> "Model"
-    uvdist./1e9, amod
-end
-
-export uvarea
-function uvarea(d::EHTClosurePhaseDatum)
+function uvdist(d::EHTClosurePhaseDatum)
     u = map(x->x.U, d.baseline)
     v = map(x->x.V, d.baseline)
     a = hypot(u[1]-u[2], v[1]-v[2])
     b = hypot(u[2]-u[3], v[2]-v[3])
     c = hypot(u[3]-u[1], v[3]-v[1])
-    heron(a,b,c)
+    sqrt(heron(a,b,c))
 end
 
 function heron(a,b,c)
@@ -402,7 +210,7 @@ function heron(a,b,c)
     return sqrt(s*(s-a)*(s-b)*(s-c))
 end
 
-function uvarea(d::EHTLogClosureAmplitudeDatum)
+function uvdist(d::EHTLogClosureAmplitudeDatum)
     u = map(x->x.U, d.baseline)
     v = map(x->x.V, d.baseline)
     a = hypot(u[1]-u[2], v[1]-v[2])
@@ -410,14 +218,14 @@ function uvarea(d::EHTLogClosureAmplitudeDatum)
     c = hypot(u[3]-u[4], v[3]-v[4])
     d = hypot(u[4]-u[1], v[4]-v[1])
     h = hypot(u[1]-u[3], v[1]-v[3])
-    return heron(a,b,h)+heron(c,d,h)
+    return sqrt(heron(a,b,h)+heron(c,d,h))
 end
 
 @recipe function f(dlca::EHTObservationTable{A}) where {A<:EHTLogClosureAmplitudeDatum}
-    xguide --> "√(quadrangle area) (λ)"
+    xguide --> "√(convex quadrangle area) (λ)"
     yguide --> "Log Clos. Amp."
     markershape --> :diamond
-    area = sqrt.(uvarea.(datatable(dlca)))
+    area = (uvdist.(datatable(dlca)))
     phase = measurement(dlca)
     err = noise(dlca)
     #add data noisebars
@@ -430,81 +238,19 @@ end
 end
 
 
-@recipe function f(m::AbstractModel, dlca::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTLogClosureAmplitudeDatum}
-    xguide --> "√(quadrangle area) (λ)"
-    yguide --> "Log Clos. Amp."
-    markershape --> :diamond
-    area = sqrt.(uvarea.(datatable(dlca)))
-    phase = measurement(dlca)
-    noise = noise(dlca)
-    #add data noisebars
-    @series begin
-        seriestype := :scatter
-        markershape := datamarker
-        markercolor := datacolor
-        alpha := 0.5
-        yerr := noise
-        linecolor := nothing
-        label := "Data"
-        area, phase
-    end
-
-    seriestype-->:scatter
-    amod = logclosure_amplitudes(m, dlca.config)
-    labels --> "Model"
-    area,amod
-end
-
 @recipe function f(dcp::EHTObservationTable{A}) where {A<:EHTClosurePhaseDatum}
     xguide --> "√(triangle area) (λ)"
     yguide --> "Phase (rad)"
     markershape --> :circle
-    u1 = getdata(dcp, :U1)
-    v1 = getdata(dcp, :V1)
-    u2 = getdata(dcp, :U2)
-    v2 = getdata(dcp, :V2)
-    u3 = getdata(dcp, :U3)
-    v3 = getdata(dcp, :V3)
-    area = sqrt.(uvarea.(dcp.data))
-    phase = getdata(dcp, :measurement)
-    noise = getdata(dcp, :noise)
+    area = (uvdist.(datatable(dcp)))
+    phase = dcp[:measurement]
+    noise = dcp[:noise]
     seriestype := :scatter
     alpha --> 0.5
     yerr := noise
     linecolor --> nothing
     label --> "Data"
     area, phase
-end
-
-@recipe function f(m::AbstractModel, dcp::EHTObservationTable{A}; datamarker=:circle, datacolor=:grey) where {A<:EHTClosurePhaseDatum}
-    xguide --> "√(triangle area) (λ)"
-    yguide --> "Phase (rad)"
-    markershape --> :diamond
-    u1 = getdata(dcp, :U1)
-    v1 = getdata(dcp, :V1)
-    u2 = getdata(dcp, :U2)
-    v2 = getdata(dcp, :V2)
-    u3 = getdata(dcp, :U3)
-    v3 = getdata(dcp, :V3)
-    area = sqrt.(uvarea.(dcp.data))
-    phase = getdata(dcp, :measurement)
-    noise = getdata(dcp, :noise)
-    #add data noisebars
-    @series begin
-        seriestype := :scatter
-        markershape := datamarker
-        markercolor := datacolor
-        alpha := 0.5
-        yerr := noise
-        linecolor := nothing
-        label --> "Data"
-        area, phase
-    end
-
-    seriestype-->:scatter
-    amod = closure_phases(m, dcp.config)
-    labels --> "Model"
-    area,amod
 end
 
 @userplot Residual
@@ -519,62 +265,78 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
         noise("Residual should be given a posterior and parameters.  Got: $(typeof(h.args))")
     end
     post, p = h.args
-    res = residuals(post, p)[1]
-    c2 = chi2(post, p)[1]
+    ress = residuals(post, p)
+    c2s = chi2(post, p)
     # title-->"Norm. Residuals"
     legend-->nothing
+    layout--> (length(ress), 1)
+    size --> (600, 300*length(ress))
 
-    uvdist = hypot.(res[:baseline].U, res[:baseline].V)
-
-    if res isa EHTObservationTable{<:EHTCoherencyDatum}
-        layout := (2,2)
-        res2 = reinterpret(reshape, Float64, res)'
-        @series begin
-            yguide := "RR"
-            subplot := 1
-            seriestype := :scatter
-            alpha := 0.5
-            linecolor := nothing
-            title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,1:2]))/(2*size(res2,1))
-            uvdist./1e9, res2[:,1:2]
+    for i in eachindex(ress)
+        rest = ress[i]
+        res = map(datatable(rest)) do d
+            d.measurement./d.noise
         end
-        @series begin
+        c2 = c2s[i]
+        uvdist = Comrade.uvdist.(datatable(rest))
+
+        if res isa EHTObservationTable{<:EHTCoherencyDatum}
+            layout := (2,2)
+            res2 = reinterpret(reshape, Float64, res)'
+            @series begin
+                yguide := "RR"
+                subplot := 1
+                seriestype := :scatter
+                alpha := 0.5
+                linecolor := nothing
+                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,1:2]))/(2*size(res2,1))
+                uvdist./1e9, res2[:,1:2]
+            end
+            @series begin
+                xguide --> "uv-distance (Gλ)"
+                yguide := "LR"
+                subplot := 3
+                seriestype := :scatter
+                alpha := 0.5
+                linecolor := nothing
+                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,3:4]))/(2*size(res2,1))
+                uvdist./1e9, res2[:,3:4]
+            end
+            @series begin
+                yguide := "RL"
+                subplot := 2
+                seriestype := :scatter
+                alpha := 0.5
+                linecolor := nothing
+                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,5:6]))/(2*size(res2,1))
+                uvdist./1e9, res2[:,5:6]
+            end
+            @series begin
+                yguide := "LL"
+                subplot := 4
+                seriestype := :scatter
+                alpha := 0.5
+                linecolor := nothing
+                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,7:8]))/(2*size(res2,1))
+                uvdist./1e9, res2[:,7:8]
+            end
+        else
+            @series begin
             xguide --> "uv-distance (Gλ)"
-            yguide := "LR"
-            subplot := 3
-            seriestype := :scatter
-            alpha := 0.5
-            linecolor := nothing
-            title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,3:4]))/(2*size(res2,1))
-            uvdist./1e9, res2[:,3:4]
+            T = datumtype(rest)
+            ST = split("$T", "Datum{")[1] |> x->split(x, ".EHT")[end]
+            yguide --> "Norm. Res. $ST"
+            markershape --> :circle
+            linecolor --> nothing
+            legend --> false
+            subplot := i
+            title --> @sprintf "<χ²> = %.2f" c2/ndata(rest)
+            if eltype(res) isa Complex
+                res = reinterpret(reshape, Float64, res)'
+            end
+            return uvdist./1e9, res
+            end
         end
-        @series begin
-            yguide := "RL"
-            subplot := 2
-            seriestype := :scatter
-            alpha := 0.5
-            linecolor := nothing
-            title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,5:6]))/(2*size(res2,1))
-            uvdist./1e9, res2[:,5:6]
-        end
-        @series begin
-            yguide := "LL"
-            subplot := 4
-            seriestype := :scatter
-            alpha := 0.5
-            linecolor := nothing
-            title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,7:8]))/(2*size(res2,1))
-            uvdist./1e9, res2[:,7:8]
-        end
-    else
-        xguide --> "uv-distance (Gλ)"
-        yguide --> "Normalized Residual"
-        markershape --> :circle
-        linecolor --> nothing
-        legend --> false
-
-        title --> @sprintf "<χ²> = %.2f" c2/ndata(res)
-        return uvdist./1e9, hcat(real.(measurement(res))./noise(res), imag.(measurement(res)./noise(res)))
     end
 end
 
@@ -597,7 +359,7 @@ function residuals_data(vis, data::EHTObservationTable{A}) where {A<:EHTClosureP
     err = noise(data)
 
     mphase = closure_phases(vis, arrayconfig(data))
-    res = @. abs(cis(phase) - cis(mphase))
+    res = @. atan(sin(phase - mphase), cos(phase - mphase))
     return EHTObservationTable{A}(res, err, arrayconfig(data))
 end
 

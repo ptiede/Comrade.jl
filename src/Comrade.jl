@@ -69,10 +69,10 @@ import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
 include("observations/observations.jl")
 include("instrument/instrument.jl")
 include("skymodels/models.jl")
-include("visualizations/visualizations.jl")
 include("posterior/abstract.jl")
 include("inference/inference.jl")
-include("clean.jl")
+include("visualizations/visualizations.jl")
+include("dirty_image.jl")
 include("rules.jl")
 
 # Load extensions using requires for verions < 1.9

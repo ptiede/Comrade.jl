@@ -38,6 +38,14 @@ function build_datum(data::AbstractObservationTable{F}, i::Int) where {F}
     return build_datum(F, m[i], e[i], arr[i])
 end
 
+function build_datum(data::AbstractObservationTable{F}, i::Int) where {F<:ClosureProducts}
+    arr = arrayconfig(data)
+    m   = measurement(data)
+    e   = noise(data)
+    return build_datum(F, m[i], sqrt(e[i,i]), arr[i])
+end
+
+
 """
     beamsize(obs::AbstractObservationTable)
 

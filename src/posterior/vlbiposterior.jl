@@ -93,16 +93,23 @@ end
 
 
 """
-    simulate_observation([rng::Random.AbstractRNG], post::VLBIPosterior, θ)
+    simulate_observation([rng::Random.AbstractRNG], post::VLBIPosterior, θ; add_thermal_noise=true)
 
 Create a simulated observation using the posterior and its data `post` using the parameter
 values `θ`. In Bayesian terminology this is a draw from the posterior predictive distribution.
+
+If `add_thermal_noise` is true then baseline based thermal noise is added. Otherwise, we just
+return the model visibilities.
 """
-function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ)
+function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; add_thermal_noise=true)
     # ls = map(x->likelihood(x, visibilitymap(vlbimodel(post, θ), post.lklhd.ac)), post.lklhd.lklhds)
     vis = forward_model(vlbimodel(post, θ), θ)
     ls = map(x->likelihood(x, vis), post.lklhd.lklhds)
-    ms = map(x->rand(rng, x), ls)
+    if add_thermal_noise
+        ms = map(x->rand(rng, x), ls)
+    else
+        ms = map(x->x.μ, ls)
+    end
     configs = map(arrayconfig, post.data)
     data = post.data
     return map(eachindex(ms, configs)) do i
