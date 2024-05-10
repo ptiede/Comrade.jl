@@ -83,7 +83,7 @@ end
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
 npix = 32
-fovxy = μas2rad(100.0)
+fovxy = μas2rad(150.0)
 
 # To define the image model we need to specify both the grid we will be using and the
 # FT algorithm we will use, in this case the NFFT which is the most efficient.
@@ -126,7 +126,7 @@ crcache = ConditionalMarkov(GMRF, grid; order=1)
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
 cprior = HierarchicalPrior(crcache, truncated(InverseGamma(1.0, -log(0.1)*rat); upper=2*npix))
 
-prior = (c = cprior, σimg = Exponential(1.0), fg=Uniform(0.0, 1.0))
+prior = (c = cprior, σimg = Exponential(0.5), fg=Uniform(0.0, 1.0))
 
 # Form the sky model
 skym = SkyModel(sky, prior, grid; metadata=skymeta)
@@ -154,7 +154,7 @@ using OptimizationOptimJL
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(); maxiters=100);
+sol = solve(prob, LBFGS(); maxiters=1000);
 
 
 # Before we analyze our solution we first need to transform back to parameter space.
@@ -169,7 +169,7 @@ DisplayAs.Text(DisplayAs.PNG(p)) #hide
 # Now let's plot the MAP estimate.
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=1) #hide
-g = imagepixels(μas2rad(100.0), μas2rad(100.0), 100, 100)
+g = imagepixels(μas2rad(150.0), μas2rad(150.0), 100, 100)
 img = intensitymap(skymodel(post, xopt), g)
 fig = imageviz(img);
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
@@ -188,7 +188,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=true, initial_params=xopt);
+chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=false, initial_params=xopt);
 
 
 # !!! warning
@@ -210,7 +210,7 @@ fig = CM.Figure(;resolution=(700, 700));
 CM.image(fig[1,1], mimg,
                    axis=(xreversed=true, aspect=1, title="Mean Image"),
                    colormap=:afmhot);
-CM.image(fig[1,2], simg./(max.(mimg, 1e-5)),
+CM.image(fig[1,2], simg./(max.(mimg, 1e-8)),
                    axis=(xreversed=true, aspect=1, title="1/SNR",), colorrange=(0.0, 2.0),
                    colormap=:afmhot);
 CM.image(fig[2,1], imgs[1],
