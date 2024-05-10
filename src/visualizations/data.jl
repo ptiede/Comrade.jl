@@ -330,7 +330,6 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
             linecolor --> nothing
             subplot := i
             title --> @sprintf "<χ²> = %.2f" c2/ndata(rest)
-            @info eltype(res) <: Complex
             if eltype(res) <: Complex
                 res = reinterpret(reshape, Float64, res)'
                 label --> ["Real" "Imag"]

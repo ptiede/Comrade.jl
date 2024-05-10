@@ -214,7 +214,7 @@ imageviz(intensitymap(skymodel(post, xopt), gpl), figure=(;resolution=(500, 400)
 # We will now move directly to sampling at this point.
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt, progress=true);
+chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Enzyme)), 700; n_adapts=500, progress=true);
 
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]

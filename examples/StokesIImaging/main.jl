@@ -204,7 +204,6 @@ using OptimizationOptimisers
 using Zygote
 f = OptimizationFunction(tpost, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing)
-ℓ = logdensityof(tpost)
 sol = solve(prob, Optimisers.Adam(), maxiters=10_000, g_tol=1e-1);
 
 # Now transform back to parameter space
@@ -257,7 +256,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric), 2500; n_adapts=1500, progress=true, initial_params=xopt)
+chain = sample(rng, post, AHMC(;metric), 700; n_adapts=500, progress=true, initial_params=xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
