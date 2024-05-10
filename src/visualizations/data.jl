@@ -194,7 +194,7 @@ end
 
 
 export uvdist
-uvdist(d) = hypot(d.U, d.V)
+uvdist(d) = hypot(d.baseline.U, d.baseline.V)
 
 function uvdist(d::EHTClosurePhaseDatum)
     u = map(x->x.U, d.baseline)
@@ -328,11 +328,15 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
             yguide --> "Norm. Res. $ST"
             markershape --> :circle
             linecolor --> nothing
-            legend --> false
             subplot := i
             title --> @sprintf "<χ²> = %.2f" c2/ndata(rest)
-            if eltype(res) isa Complex
+            @info eltype(res) <: Complex
+            if eltype(res) <: Complex
                 res = reinterpret(reshape, Float64, res)'
+                label --> ["Real" "Imag"]
+                legend := true
+            else
+                # legend --> false
             end
             return uvdist./1e9, res
             end

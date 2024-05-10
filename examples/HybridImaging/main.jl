@@ -166,7 +166,7 @@ using DisplayAs #hide
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=1) #hide
 gpl = imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128)
-fig = imageviz(intensitymap(skymodel(post, xrand), gpl), size=(400, 400))
+fig = imageviz(intensitymap(skymodel(post, xrand), gpl), size=(400, 400));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
@@ -199,7 +199,7 @@ xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
 using Plots
-fig = residual(vlbimodel(post, xopt), dvis, ylabel="Correlated Flux Residual")
+fig = residual(post, xopt);
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 # and now closure phases
