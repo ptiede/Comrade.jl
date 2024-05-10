@@ -73,7 +73,7 @@ struct JonesSandwich{J, M} <: AbstractJonesMatrix
 end
 
 """
-    JonesSandwich(decomp_function, matrices::AbstractJonesMatrix...)
+    JonesSandwich([decomp_function=splat(*),] matrices::AbstractJonesMatrix...)
 
 Constructs a Jones matrix that is the results combining multiple Jones matrices together.
 The specific composition is determined by the `decomp_function`. For example if the
@@ -97,6 +97,10 @@ end
 """
 function JonesSandwich(map, matrices::AbstractJonesMatrix...)
     return JonesSandwich(map, matrices)
+end
+
+function JonesSandwich(matrices::AbstractJonesMatrix)
+    return JonesSandwich(splat(*), matrices...)
 end
 
 function jonesmatrix(J::JonesSandwich, x, index, site)
