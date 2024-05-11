@@ -2,6 +2,7 @@
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 ComradeAHMC = "a4336a5c-78bc-4363-8a90-ce3fa9d3abe4"
+ComradeBase = "6d8c423b-a35f-4ef1-850c-862fe21f82c4"
 ComradeOptimization = "26988f03-70df-4135-959e-06268cc6415a"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 DistributionsAD = "ced4e74d-a319-5a8a-b0ac-84af2272839c"
