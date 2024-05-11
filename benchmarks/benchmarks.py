@@ -1,96 +1,3 @@
-# Benchmarks
-
-`Comrade` was partially designed with performance in mind. Solving imaging inverse problems is traditionally very computationally expensive, especially since Comrade uses Bayesian inference. To benchmark `Comrade` we will compare it to two of the most common modeling or imaging packages within the EHT:
-
-- [eht-imaging](https://github.com/achael/eht-imaging/)
-- [Themis](https://iopscience.iop.org/article/10.3847/1538-4357/ab91a4)
-
-`eht-imaging`[^1] or `ehtim` is a Python package that is widely used within the EHT for its imaging and modeling interfaces. It is easy to use and is commonly used in the EHT. However, to specify the model, the user must specify how to calculate the model's complex visibilities **and** its gradients, allowing eht-imaging's modeling package to achieve acceptable speeds.
-
-Themis is a C++ package focused on providing Bayesian estimates of the image structure. In fact, `Comrade` took some design cues from `Themis`. Themis has been used in various EHT publications and is the standard Bayesian modeling tool used in the EHT. However, `Themis` is quite challenging to use and requires a high level of knowledge from its users, requiring them to understand makefile, C++, and the MPI standard. Additionally, Themis provides no infrastructure to compute gradients, instead relying on finite differencing, which scales poorly for large numbers of model parameters. 
-
-## Benchmarking Problem
-
-For our benchmarking problem, we analyze a situation very similar to the one explained in  Namely, we will consider fitting 2017 M87 April 6 data using an m-ring and a single Gaussian component. Please see the end of this page to see the code we used for `Comrade` and `eht-imaging`.
-
-## Results
-
-All tests were run using the following system
-
-```julia
-Julia Version 1.10.3
-Python Version 3.10.12
-Comrade Version 0.10.0
-eht-imaging Version 1.2.7
-Platform Info:
-  OS: Linux (x86_64-pc-linux-gnu)
-  CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
-  WORD_SIZE: 64
-  LIBM: libopenlibm
-  LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)
-```
-
-Our benchmark results are the following:
-
-| | Comrade (micro sec) | eht-imaging (micro sec) | Themis (micro sec)|
-|---|---|---|---|
-| posterior eval (min) | 31  | 445  | 55  |
-| posterior eval (mean) | 36  | 476  | 60  |
-| grad posterior eval (min) |  105 (ForwardDiff) | 1898  | 1809  |
-| grad posterior eval (mean) |  119 (ForwardDiff) | 1971 |  1866  |
-
-Therefore, for this test we found that `Comrade` was the fastest method in all tests. For the posterior evaluation we found that Comrade is > 10x faster than `eht-imaging`, and 2x faster then `Themis`. For gradient evaluations we have `Comrade` is > 15x faster than both `eht-imaging` and `Themis`.
-
-[^1]: Chael A, et al. *Inteferometric Imaging Directly with Closure Phases* 2018 ApJ 857 1 arXiv:1803/07088
-
-## Code
-
-### Julia Code
-
-```julia
-# To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "..", "examples", "Data", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
-obsavg = scan_average(obs)
-amp = extract_table(obsavg, VisibilityAmplitudes())
-
-function model(θ, p)
-    (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
-    ring = f*smoothed(stretched(MRing((a,), (b,)), μas2rad(rad), μas2rad(rad)), μas2rad(wid))
-    g = (1-f)*shifted(rotated(stretched(Gaussian(), μas2rad(sig)*asy, μas2rad(sig)), pa), μas2rad(x), μas2rad(y))
-    return ring + g
-end
-prior = (
-          rad = Uniform(10.0, 30.0),
-          wid = Uniform(1.0, 10.0),
-          a = Uniform(-0.5, 0.5), b = Uniform(-0.5, 0.5),
-          f = Uniform(0.0, 1.0),
-          sig = Uniform((1.0), (60.0)),
-          asy = Uniform(0.0, 0.9),
-          pa = Uniform(0.0, 1π),
-          x = Uniform(-(80.0), (80.0)),
-          y = Uniform(-(80.0), (80.0))
-        )
-# Now form the posterior
-skym = SkyModel(model, prior, imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128))
-
-θ = (rad= 22.0, wid= 3.0, a = 0.0, b = 0.15, f=0.8, sig = 20.0, asy=0.2, pa=π/2, x=20.0, y=20.0)
-m = model(θ, nothing)
-
-post = VLBIPosterior(skym, amp)
-tpost = asflat(post)
-
-x0 = prior_sample(tpost)
-
-using Zygote
-@benchmark $(tpost)($x0)
-# 32 μs
-@benchmark Zygote.gradient($tpost, $x0)
-# 175 μs
-```
-
-### eht-imaging Code
-
-```python
 import ehtim as eh
 import numpy as np
 import os
@@ -207,11 +114,10 @@ eh.modeling.modeling_utils.globdict = {"trial_model" : trial_model,
 
 # This is the negative log-posterior
 fobj = eh.modeling.modeling_utils.objfunc
-%timeit fobj(pinit)
 # 298 us +/- 7.7
 
 # This is the gradient of the negative log-posterior
 gfobj = eh.modeling.modeling_utils.objgrad
-%timeit gfobj(pinit)
 # 1.3 ms
-```
+
+
