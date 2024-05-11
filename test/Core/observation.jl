@@ -21,8 +21,8 @@ using Pyehtim
     vis  = extract_table(obsavg, ComplexVisibilities())
     @test vis[:measurement] ≈ vis1[:measurement]
     @test vis[:noise] ≈ vis1[:noise]
-    @test vis[:U] ≈ vis1[:U]
-    @test vis[:V] ≈ vis1[:V]
+    @test vis[:baseline].U ≈ vis1[:baseline].U
+    @test vis[:baseline].V ≈ vis1[:baseline].V
     plot(vis)
     show(vis)
 
@@ -30,8 +30,8 @@ using Pyehtim
     amp = extract_table(obsavg, VisibilityAmplitudes())
     @test amp[:measurement] ≈ amp1[:measurement]
     @test amp[:noise] ≈ amp1[:noise]
-    @test amp[:U] ≈ amp1[:U]
-    @test amp[:V] ≈ amp1[:V]
+    @test amp[:baseline].U ≈ amp1[:baseline].U
+    @test amp[:baseline].V ≈ amp1[:baseline].V
     plot(amp)
     show(amp)
 
@@ -39,12 +39,12 @@ using Pyehtim
     cphase = extract_table(obsavg, ClosurePhases(;snrcut=3.0))
     @test cphase[:measurement] ≈ cphase1[:measurement]
     @test cphase[:noise] ≈ cphase1[:noise]
-    @test cphase[:U1] ≈ cphase1[:U1]
-    @test cphase[:V1] ≈ cphase1[:V1]
-    @test cphase[:U2] ≈ cphase1[:U2]
-    @test cphase[:V2] ≈ cphase1[:V2]
-    @test cphase[:U3] ≈ cphase1[:U3]
-    @test cphase[:V3] ≈ cphase1[:V3]
+    @test cphase[:baseline].U1 ≈ cphase1[:baseline].U1
+    @test cphase[:baseline].V1 ≈ cphase1[:baseline].V1
+    @test cphase[:baseline].U2 ≈ cphase1[:baseline].U2
+    @test cphase[:baseline].V2 ≈ cphase1[:baseline].V2
+    @test cphase[:baseline].U3 ≈ cphase1[:baseline].U3
+    @test cphase[:baseline].V3 ≈ cphase1[:baseline].V3
     plot(cphase)
     show(cphase)
 
@@ -53,14 +53,14 @@ using Pyehtim
     lcamp  = extract_table(obsavg, LogClosureAmplitudes(;snrcut=3.0))
     @test lcamp[:measurement] ≈ lcamp1[:measurement]
     @test lcamp[:noise] ≈ lcamp1[:noise]
-    @test lcamp[:U1] ≈ lcamp1[:U1]
-    @test lcamp[:V1] ≈ lcamp1[:V1]
-    @test lcamp[:U2] ≈ lcamp1[:U2]
-    @test lcamp[:V2] ≈ lcamp1[:V2]
-    @test lcamp[:U3] ≈ lcamp1[:U3]
-    @test lcamp[:V3] ≈ lcamp1[:V3]
-    @test lcamp[:U4] ≈ lcamp1[:U4]
-    @test lcamp[:V4] ≈ lcamp1[:V4]
+    @test lcamp[:baseline].U1 ≈ lcamp1[:baseline].U1
+    @test lcamp[:baseline].V1 ≈ lcamp1[:baseline].V1
+    @test lcamp[:baseline].U2 ≈ lcamp1[:baseline].U2
+    @test lcamp[:baseline].V2 ≈ lcamp1[:baseline].V2
+    @test lcamp[:baseline].U3 ≈ lcamp1[:baseline].U3
+    @test lcamp[:baseline].V3 ≈ lcamp1[:baseline].V3
+    @test lcamp[:baseline].U4 ≈ lcamp1[:baseline].U4
+    @test lcamp[:baseline].V4 ≈ lcamp1[:baseline].V4
     plot(lcamp)
     show(lcamp)
 
@@ -68,8 +68,8 @@ using Pyehtim
     dcoh  = extract_table(obspolavg, Coherencies())
     @test dcoh[:measurement].:1 ≈ dcoh1[:measurement].:1
     @test dcoh[:noise].:1 ≈ dcoh1[:noise].:1
-    @test dcoh[:U] ≈ dcoh1[:U]
-    @test dcoh[:V] ≈ dcoh1[:V]
+    @test dcoh[:baseline].U ≈ dcoh1[:baseline].U
+    @test dcoh[:baseline].V ≈ dcoh1[:baseline].V
 
     plot(dcoh)
     show(dcoh)

@@ -22,7 +22,11 @@ Tables.getcolumn(t::AbstractVLBITable, nm::Symbol) = getproperty(datatable(t), n
 Tables.getcolumn(t::AbstractVLBITable, i::Int) = Tables.getcolumn(t, Tables.columnames(t)[i])
 Tables.columnnames(t::AbstractVLBITable) = propertynames(datatable(t))
 
-Base.getindex(data::AbstractVLBITable, s::Symbol) = Tables.getcolumn(data, s)
+function Base.getindex(data::AbstractVLBITable, s::Symbol)
+    s == :measurement && return measurement(data)
+    s == :noise       && return noise(data)
+    return Tables.getcolumn(data, s)
+end
 Base.length(data::AbstractVLBITable) = length(datatable(data))
 Base.lastindex(data::AbstractVLBITable) = lastindex(datatable(data))
 Base.firstindex(data::AbstractVLBITable) = firstindex(datatable(data))

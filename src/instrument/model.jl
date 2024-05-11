@@ -9,12 +9,14 @@ Constructs an ideal instrument that has no corruptions including feed rotations.
 """
 struct IdealInstrumentModel <: AbstractInstrumentModel end
 
+Base.show(io::IO, mime::MIME"text/plain", m::IdealInstrumentModel) = printstyled(io, "IdealInstrumentModel"; color=:light_cyan, bold=true)
 
 struct InstrumentModel{J<:AbstractJonesMatrix, PI, P<:PolBasis} <: AbstractInstrumentModel
     jones::J
     prior::PI
     refbasis::P
 end
+
 
 
 struct ObservedInstrumentModel{I<:AbstractJonesMatrix, PB<:PolBasis, B} <: AbstractInstrumentModel
@@ -32,6 +34,16 @@ struct ObservedInstrumentModel{I<:AbstractJonesMatrix, PB<:PolBasis, B} <: Abstr
     """
     bsitelookup::B
 end
+
+function Base.show(io::IO, mime::MIME"text/plain", m::ObservedInstrumentModel)
+    printstyled(io, "ObservedInstrumentModel"; bold=true, color=:light_cyan)
+    println(io)
+    T = typeof(m.instrument)
+    ST = split(split(" $T", '{')[1], ".")[end]
+    println(io, "  with Jones: ", ST)
+    print(io, "  with reference basis: ", m.refbasis)
+end
+
 
 """
     InstrumentModel(jones, prior, array; refbasis = CirBasis())

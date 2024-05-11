@@ -20,16 +20,17 @@ function load_data()
     cphase = extract_table(obsm, ClosurePhases(cut_trivial=true))
     dcoh = extract_table(obspol, Coherencies())
 
-    derr = dcoh[:noise]
+    derr = noise(dcoh)
+    typeof(derr)
     derr.:2 .= derr.:1
     derr.:3 .= derr.:1
-    dcoh.data.noise .= derr
+
 
     return m, vis, amp, lcamp, cphase, dcoh
 end
 
 
-function test_model(θ)
+function test_model(θ, meta)
     m1 = θ.f1*rotated(stretched(Gaussian(), θ.σ1*θ.τ1, θ.σ1), θ.ξ1)
     m2 = θ.f2*rotated(stretched(Gaussian(), θ.σ2*θ.τ2, θ.σ2), θ.ξ2)
     return m1 + shifted(m2, θ.x, θ.y)
@@ -49,13 +50,12 @@ function test_instrumentmodel_polarized(θ, metadata)
 end
 
 function test_model2(θ, metadata)
-    (; alg, g) = metadata
     m2 = θ.f*stretched(ExtendedRing(θ.α), θ.r*(1+θ.τ), θ.r)
-    return modelimage(m2, g; alg, thread=true)
+    return m2
 end
 
 function test_prior2()
-    return NamedDist(f = Uniform(0.8, 1.2),
+    return (f = Uniform(0.8, 1.2),
             r = Uniform(μas2rad(5.0), μas2rad(30.0)),
             τ = Uniform(0.0, 0.5),
             α = Uniform(2.0, 8.0)
@@ -63,7 +63,7 @@ function test_prior2()
 end
 
 function test_prior()
-    return NamedDist(f1=Uniform(0.8, 1.2),
+    return (f1=Uniform(0.8, 1.2),
              σ1 = Uniform(μas2rad(1.0), μas2rad(40.0)),
              τ1 = Uniform(0.35, 0.65),
              ξ1 = Uniform(-π/2, π/2),

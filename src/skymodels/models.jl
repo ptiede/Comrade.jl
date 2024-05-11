@@ -10,6 +10,17 @@ struct SkyModel{F,P,G<:AbstractDomain, A<:FourierTransform, M} <: AbstractSkyMod
     metadata::M
 end
 
+function Base.show(io::IO, mime::MIME"text/plain", m::AbstractSkyModel)
+    T = typeof(m)
+    ST = split(split(" $T", '{')[1], ".")[end]
+    printstyled(io, ST; bold=true, color=:blue)
+    println(io)
+    println(io, "  with map: $(m.f)")
+    GT = typeof(m.grid)
+    SGT = split("$GT", '{')[1]
+    print(io, "   on grid: $SGT")
+end
+
 function SkyModel(f, prior, grid::AbstractRectiGrid; algorithm = NFFTAlg(), metadata=nothing)
     return SkyModel(f, prior, grid, algorithm, metadata)
 end

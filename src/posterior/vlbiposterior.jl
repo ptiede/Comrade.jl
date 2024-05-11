@@ -87,8 +87,25 @@ function combine_prior(skymodel, ::Tuple{})
     return NamedDist((sky=skymodel,))
 end
 
+function combine_prior(skymodel, ::NamedDist{()})
+    return NamedDist((sky=skymodel,))
+end
+
+
 function combine_prior(::Tuple{}, instrumentmodel)
     return NamedDist((instrument=skymodel.instrument,))
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", post::VLBIPosterior)
+    printstyled(io, "VLBIPosterior"; bold=true, color=:light_magenta)
+    println(io)
+    show(io, mime, post.skymodel)
+    println()
+    show(io, mime, post.instrumentmodel)
+    println()
+    printstyled(io, "Data Products: ", color=:light_green);
+    println(io, map(x->split(string(datumtype(x)), "{")[1], post.data)...)
+    # println(io, "  Prior: ", post.prior)
 end
 
 

@@ -75,9 +75,9 @@ function HypercubeTransform.asflat(post::VLBIPosterior)
     return TransformedVLBIPosterior(post, tr)
 end
 
-function Base.show(io::IO, post::TransformedVLBIPosterior{P, T}) where {P, T<:TV.AbstractTransform}
+function Base.show(io::IO, mime::MIME"text/plain", post::TransformedVLBIPosterior{P, T}) where {P, T<:TV.AbstractTransform}
     println(io, "TransformedVLBIPosterior(")
-    println(io, post.lpost)
+    show(io, mime, post.lpost)
     println(io, "Transform: Params to ℝ^$(dimension(post))")
     print(io, ")")
 end

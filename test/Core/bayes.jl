@@ -12,16 +12,14 @@ using Zygote
 
 @testset "bayes" begin
     _,vis, amp, lcamp, cphase = load_data()
-    lklhd_cl = RadioLikelihood(test_model, lcamp, cphase)
-    lklhd = RadioLikelihood(test_model, vis)
-    show(lklhd)
-    show(lklhd_cl)
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    skym = SkyModel(test_model, test_prior(), g)
+    post_cl = VLBIPosterior(skym, lcamp, cphase)
+    post    = VLBIPosterior(skym, vis)
 
     prior = test_prior()
 
-    post = Posterior(lklhd, prior)
     prior_sample(post)
-    prior_sample(post, 2)
     tpostf = asflat(post)
     tpostc = ascube(post)
     show(post)
@@ -39,19 +37,18 @@ using Zygote
     x = prior_sample(tpostc)
     @test logdensityof(tpostc, x) == tpostc(x)
 
-    @test dataproducts(post) == dataproducts(post.lklhd)
+    @test dataproducts(post) == (post.data)
 
 
     x = prior_sample(post)
-    @test skymodel(post, x) == test_model(x)
-    @test instrumentmodel(post, x) == instrumentmodel(post.lklhd, x)
-    @test vlbimodel(post, x) == vlbimodel(post.lklhd, x)
+    @test skymodel(post, x) == test_model(x.sky, nothing)
+    @test Comrade.idealvisibilities(skymodel(post), x) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
+    @test Comrade.forward_model(post, x) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
 
 
-
-    # @test dimension(post) == dimension(tpost)
-    @test dimension(post) == dimension(tpostf)
-    @test dimension(post) == dimension(tpostc)
+    @test dimension(post) == length(post.prior)
+    @test dimension(tpostf) == length(prior_sample(tpostf))
+    @test dimension(tpostc) == length(prior_sample(tpostc))
 
     f = OptimizationFunction(tpostf, Optimization.AutoZygote())
     x0 = [ 0.1,
@@ -68,30 +65,31 @@ using Zygote
     sol = solve(prob, GCMAESOpt(); maxiters=10_000)
 
     xopt = transform(tpostf, sol)
-    @test isapprox(xopt.f1/xopt.f2, 2.0, atol=1e-3)
-    @test isapprox(xopt.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-3)
-    @test isapprox(xopt.σ1*xopt.τ1*2*sqrt(2*log(2)), μas2rad(20.0), rtol=1e-3)
-    @test isapprox(xopt.ξ1, π/3, atol=1e-3)
-    @test isapprox(xopt.σ2*2*sqrt(2*log(2)), μas2rad(20.0), atol=1e-3)
-    @test isapprox(xopt.σ2*xopt.τ2*2*sqrt(2*log(2)), μas2rad(10.0), rtol=1e-3)
-    @test isapprox(xopt.ξ2, π/6, atol=1e-3)
-    @test isapprox(xopt.x, μas2rad(30.0), rtol=1e-3)
-    @test isapprox(xopt.y, μas2rad(30.0), rtol=1e-3)
+    @test isapprox(xopt.sky.f1/xopt.sky.f2, 2.0, atol=1e-3)
+    @test isapprox(xopt.sky.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-3)
+    @test isapprox(xopt.sky.σ1*xopt.sky.τ1*2*sqrt(2*log(2)), μas2rad(20.0), rtol=1e-3)
+    @test isapprox(xopt.sky.ξ1, π/3, atol=1e-3)
+    @test isapprox(xopt.sky.σ2*2*sqrt(2*log(2)), μas2rad(20.0), atol=1e-3)
+    @test isapprox(xopt.sky.σ2*xopt.sky.τ2*2*sqrt(2*log(2)), μas2rad(10.0), rtol=1e-3)
+    @test isapprox(xopt.sky.ξ2, π/6, atol=1e-3)
+    @test isapprox(xopt.sky.x, μas2rad(30.0), rtol=1e-3)
+    @test isapprox(xopt.sky.y, μas2rad(30.0), rtol=1e-3)
 
-    mopt = test_model(xopt)
+    show(IOBuffer(), MIME"text/plain"(), post)
+    show(IOBuffer(), MIME"text/plain"(), tpostf)
 
-    @testset "Plot model" begin
-        plot(mopt, vis)
-        plot(mopt, amp)
-        plot(mopt, lcamp)
-        plot(mopt, cphase)
-    end
+    mopt = test_model(xopt.sky, nothing)
+    @test mopt == Comrade.skymodel(post, xopt)
 
     @testset "Plot residuals" begin
-        residual(mopt, vis)
-        residual(mopt, amp)
-        residual(mopt, lcamp)
-        residual(mopt, cphase)
+        post = VLBIPosterior(skym, vis)
+        residual(post, xopt)
+        post = VLBIPosterior(skym, amp)
+        residual(post, xopt)
+        post = VLBIPosterior(skym, lcamp)
+        residual(post, xopt)
+        post = VLBIPosterior(skym, cphase)
+        residual(post, xopt)
     end
 
     @testset "LogDensityProblems" begin
@@ -114,13 +112,13 @@ using Zygote
 
 end
 
-@testset "RadioLikelihood" begin
+@testset "Polarized" begin
     _,vis, amp, lcamp, cphase, coh = load_data()
-    tcache = ResponseCache(coh)
-    lklhd_amp = RadioLikelihood(test_model, amp)
-    lklhd_cp = RadioLikelihood(test_model, cphase)
-    lklhd_lc = RadioLikelihood(test_model, lcamp)
-    lklhd_vis = RadioLikelihood(test_model, vis)
+
+    R = JonesR()
+    intm = InstrumentModel(R, NamedTuple())
+    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256))
+    post = VLBIPosterior(skym, intm, coh)
     lklhd_coh = RadioLikelihood(test_skymodel_polarized, test_instrumentmodel_polarized, coh;
                                 skymeta = (;lp = 0.1), instrumentmeta=(;tcache))
 
@@ -134,11 +132,6 @@ end
     llc  = logdensityof(lklhd_lc, x0)
     lvis = logdensityof(lklhd_vis, x0)
     lcoh = logdensityof(lklhd_coh, x0)
-
-    lklhd = MultiRadioLikelihood(lklhd_cp, lklhd_coh)
-    show(lklhd)
-    l = logdensityof(lklhd, x0)
-    @test l ≈ lcp + lcoh
 
 end
 
