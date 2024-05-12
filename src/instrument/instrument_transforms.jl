@@ -29,7 +29,7 @@ struct MarkovInstrumentTransform{T, L<:SiteLookup} <: AbstractInstrumentTransfor
     site_map::L
 end
 
-TV.dimension(m::InstrumentTransform) = TV.dimension(inner_transform(m))
+TV.dimension(m::AbstractInstrumentTransform) = TV.dimension(inner_transform(m))
 
 
 function _instrument_transform_with(flag::TV.LogJacFlag, m::InstrumentTransform, x, index)
@@ -48,30 +48,30 @@ function site_sum!(y, site_map::SiteLookup)
     map(site_map.lookup) do site
         ys = @view y[site]
         # y should never alias so we should be fine here.
-        cumsum!(ys, ys)
+        cumsum!(ys, (ys))
     end
     return nothing
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_instrument_transform_with), flag, m::MarkovInstrumentTransform, x, index)
-    (y, ℓ, index), dt = rrule_via_ad(config, TV.transform_with, flag, m.inner_transform, x, index)
+    (y, ℓ, index2), dt = rrule_via_ad(config, TV.transform_with, flag, m.inner_transform, x, index)
     site_sum!(y, m.site_map)
     py = ProjectTo(y)
     function _markov_transform_pullback(Δ)
-        Δy = py(unthunk(Δ[1]))
-        autodiff(Reverse, site_diff!, Const, Duplicated(y, Δy), Const(m.site_map))
+        Δy  = similar(y)
+        Δy .= py(unthunk(Δ[1]))
+        autodiff(Reverse, site_sum!, Const, Duplicated(y, Δy), Const(m.site_map))
         din = dt((Δy, Δ[2], NoTangent()))
         return din
     end
-    return (y, ℓ, index), _markov_transform_pullback
+    return (y, ℓ, index2), _markov_transform_pullback
 end
 
 
 function site_diff!(y, site_map::SiteLookup)
     map(site_map.lookup) do site
         ys = @view y[site]
-        # y should never alias so we should be fine here.
-        simplediff!(ys, ys)
+        simplediff!(ys, copy(ys))
     end
     return nothing
 end
@@ -88,11 +88,11 @@ function simplediff!(y::AbstractVector, x::AbstractVector)
     return nothing
 end
 
-function TV.inverse_at!(x::AbstractArray, index, t::MarkovInstrumentTransform, y)
+function TV.inverse_at!(x::AbstractArray, index, t::MarkovInstrumentTransform, y::SiteArray)
     (;inner_transform, site_map) = t
     # Now difference to get the raw values
     yd = copy(y)
-    site_diff!(@view(yd[index:index+TV.dimension(inner_transform)-1]), site_map)
+    site_diff!(yd, site_map)
     # and now inverse
     return TV.inverse_at!(x, index, inner_transform, yd)
 end

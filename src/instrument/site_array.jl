@@ -169,7 +169,7 @@ function SiteLookup(s::SiteArray)
     return SiteLookup(times(s), frequencies(s), sites(s))
 end
 
-function SiteLookup(sites::AbstractArray, times::AbstractVector,  frequencies::AbstractArray)
+function SiteLookup(times::AbstractVector, frequencies::AbstractArray, sites::AbstractArray)
     slist = Tuple(sort(unique(sites)))
     return SiteLookup(NamedTuple{slist}(map(p->findall(==(p), sites), slist)), times, frequencies, sites)
 end

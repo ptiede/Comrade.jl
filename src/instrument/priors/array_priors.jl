@@ -2,10 +2,11 @@ struct ArrayPrior{D, A, R}
     default_dist::D
     override_dist::A
     refant::R
+    phase::Bool
 end
 
-function ArrayPrior(dist; refant=NoReference(), kwargs...)
-    return ArrayPrior(dist, kwargs, refant)
+function ArrayPrior(dist; refant=NoReference(), phase=false, kwargs...)
+    return ArrayPrior(dist, kwargs, refant, phase)
 end
 
 function site_priors(d::ArrayPrior, array)
@@ -16,12 +17,19 @@ end
 struct ObservedArrayPrior{D, S} <: Distributions.ContinuousMultivariateDistribution
     dists::D
     sitemap::S
+    phase::Bool
 end
 Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)
 Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists._logpdf(d.dists, parent(x))
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
-asflat(d::ObservedArrayPrior) = InstrumentTransform(asflat(d.dists), d.sitemap)
+function asflat(d::ObservedArrayPrior)
+    if d.phase
+        return MarkovInstrumentTransform(asflat(d.dists), d.sitemap)
+    else
+        return InstrumentTransform(asflat(d.dists), d.sitemap)
+    end
+end
 ascube(d::ObservedArrayPrior) = InstrumentTransform(ascube(d.dists), d.sitemap)
 
 function build_sitemap(d::ArrayPrior, array)
@@ -71,14 +79,14 @@ function build_sitemap(d::ArrayPrior, array)
         ind0 += length(ind)
     end
     freqs = Fill(F[1], length(tlistre))
-    return SiteLookup(slistre, tlistre, freqs)
+    return SiteLookup(tlistre, freqs, slistre)
 end
 
 function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
     smap = build_sitemap(d, array)
     site_dists = site_tuple(array, d.default_dist; d.override_dist...)
     dists = build_dist(site_dists, smap, array, d.refant)
-    return ObservedArrayPrior(dists, smap)
+    return ObservedArrayPrior(dists, smap, d.phase)
 end
 
 

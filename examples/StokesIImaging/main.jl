@@ -163,7 +163,7 @@ end
 
 intpr = (
     lg= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0))
+    gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0), phase=true)
         )
 intmodel = InstrumentModel(G, intpr)
 
@@ -238,7 +238,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric), 700; n_adapts=500, progress=true, initial_params=xopt)
+chain = sample(rng, post, AHMC(;metric), 1500; n_adapts=1000, progress=true, initial_params=xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -251,7 +251,7 @@ chain = sample(rng, post, AHMC(;metric), 700; n_adapts=500, progress=true, initi
 
 
 # Now we prune the adaptation phase
-chain = chain[501:end]
+chain = chain[1001:end]
 
 #-
 # !!! warning
