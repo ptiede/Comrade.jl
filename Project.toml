@@ -90,7 +90,7 @@ Tables = "1"
 TransformVariables = "0.8"
 TypedTables = "1"
 VLBILikelihoods = "0.2.1 - 0.2.3"
-VLBISkyModels = "0.4"
+VLBISkyModels = "0.4, 0.5"
 julia = "1.8"
 
 [extras]
