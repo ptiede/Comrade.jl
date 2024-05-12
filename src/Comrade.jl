@@ -41,6 +41,7 @@ using VLBISkyModels: FourierTransform, FourierDualDomain
 @reexport using VLBISkyModels
 @reexport using ComradeBase
 @reexport using PolarizedTypes
+@reexport using VLBIImagePriors
 
 export linearpol, mbreve, evpa
 using ComradeBase: AbstractRectiGrid, AbstractDomain, UnstructuredDomain,
@@ -73,6 +74,7 @@ include("posterior/abstract.jl")
 include("inference/inference.jl")
 include("visualizations/visualizations.jl")
 include("dirty_image.jl")
+include("mrf_image.jl")
 include("rules.jl")
 
 # Load extensions using requires for verions < 1.9

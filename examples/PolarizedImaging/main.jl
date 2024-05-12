@@ -9,9 +9,11 @@
 # related to the electric field at the telescope along two *directions* using feeds.
 # There are two types of feeds at telescopes: circular, which measure $R/L$ components of the
 # electric field, and linear feeds, which measure $X/Y$ components of the electric field.
-# Most sites in the
-# EHT use circular feeds, meaning they measure the right (R) and left electric field (L) at each telescope.
-# These circular electric field measurements are then correlated, producing **coherency matrices**,
+# Most sites in the EHT use circular feeds, meaning they measure the right (R) and left
+# electric field (L) at each telescope. Although note that ALMA actually uses linear feeds.
+# Currently Comrade has the ability to fit natively mixed polarization data however, the
+# publically released EHT data has been converted to circular polarization.
+# For a VLBI array whose feeds are purely circluar the **coherency matrices** are given by,
 #
 # ```math
 #  C_{ij} = \begin{pmatrix}
@@ -21,8 +23,8 @@
 # ```
 #
 # These coherency matrices are the fundamental object in interferometry and what
-# the telescope observes. For a perfect interferometer, these coherency matrices are related to
-# the usual Fourier transform of the stokes parameters by
+# the telescope observes. For a perfect interferometer, these circular coherency matrices
+# are related to the usual Fourier transform of the stokes parameters by
 #
 # ```math
 #   \begin{pmatrix}
@@ -34,9 +36,8 @@
 #      RL^* + LR^* \\
 #      i(LR^* - RL^*)\\
 #      RR^* - LL^*
-#   \end{pmatrix},
+#   \end{pmatrix}.
 # ```
-# for circularly polarized measurements.
 #-
 # !!! note
 #     In this tutorial, we stick to circular feeds but Comrade has the capabilities
@@ -53,26 +54,26 @@
 #-
 # `Comrade` is highly flexible with how the Jones matrices are formed and provides several
 # convenience functions that parameterize standard Jones matrices. These matrices include:
-#   - [`jonesG`](@ref) which builds the set of complex gain Jones matrices
+#   - [`JonesG`](@ref) which builds the set of complex gain Jones matrices
 # ```math
 #   G = \begin{pmatrix}
 #           g_a   &0\\
 #           0     &g_b\\
 #       \end{pmatrix}
 # ```
-#   - [`jonesD`](@ref) which builds the set of complex d-terms Jones matrices
+#   - [`JonesD`](@ref) which builds the set of complex d-terms Jones matrices
 # ```math
 #   D = \begin{pmatrix}
 #           1   & d_a\\
 #           d_b     &1\\
 #       \end{pmatrix}
 # ```
-#   - [`jonesR`](@ref) is the basis transform matrix $T$. This transformation is special and
+#   - [`JonesR`](@ref) is the basis transform matrix $T$. This transformation is special and
 #      combines two things using the decomposition $T=FB$. The first, $B$, is the transformation from
 #      some reference basis to the observed coherency basis (this allows for mixed basis measurements).
 #      The second is the feed rotation, $F$, that transforms from some reference axis to the axis of the
-#      telescope as the source moves in the sky. The feed rotation matrix `F` in terms of
-#      the per station feed rotation angle $\varphi$ is
+#      telescope as the source moves in the sky. The feed rotation matrix `F` for circular feeds
+#      in terms of the per station feed rotation angle $\varphi$ is
 # ```math
 #   F = \begin{pmatrix}
 #           e^{-i\varphi}   & 0\\
@@ -104,7 +105,7 @@ using Pyehtim
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(14)
+rng = StableRNG(42)
 
 
 # Now we will load some synthetic polarized data.
@@ -128,29 +129,38 @@ dvis = extract_table(obs, Coherencies())
 
 # To build the model, we first break it down into two parts:
 #    1. **The image or sky model**. In Comrade, all polarized image models are written in terms of the Stokes parameters.
-#       The reason for using Stokes parameters is that it is usually what physical models consider and is
-#       the often easiest to reason about since they are additive. In this tutorial, we will use a polarized image model based on Pesce (2021)[^2].
-#       This model parameterizes the polarized image in terms of the [`Poincare sphere`](https://en.wikipedia.org/wiki/Unpolarized_light#Poincar%C3%A9_sphere),
-#       and allows us to easily incorporate physical restrictions such as $I^2 ≥ Q^2 + U^2 + V^2$.
+#       In this tutorial, we will use a polarized image model based on Pesce (2021)[^2], and
+#       parameterizes each pixel in terms of the [`Poincare sphere`](https://en.wikipedia.org/wiki/Unpolarized_light#Poincar%C3%A9_sphere).
+#       This parameterization ensures that we have all the physical properties of stokes parameters.
+#       Note that we also have a parameterization in terms of hyperbolic trig functions `VLBISkyModels.PolExp2Map`
 #    2. **The instrument model**. The instrument model specifies the model that describes the impact of instrumental and atmospheric effects.
-#       We will be using the $J = GDT$ decomposition we described above. However, to parameterize the
+#       We will be using the $J = GDR$ decomposition we described above. However, to parameterize the
 #       R/L complex gains, we will be using a gain product and ratio decomposition. The reason for this decomposition
 #       is that in realistic measurements, the gain ratios and products have different temporal characteristics.
 #       Namely, many of the EHT observations tend to demonstrate constant R/L gain ratios across an
-#       nights observations, compared to the gain products, which vary every scan. Additionally, the gain ratios tend to be smaller (i.e., closer to unity) than the gain products.
+#       nights observations, compared to the gain products, which vary every scan. Additionally,
+#       the gain ratios tend to be smaller (i.e., closer to unity) than the gain products.
 #       Using this apriori knowledge, we can build this into our model and reduce
 #       the total number of parameters we need to model.
 
+
+# First we specify our sky model. As always `Comrade` requires this to be a two argument
+# function where the first argument is typically a NamedTuple of parameters we will fit
+# and the second are additional metadata required to build the model.
 using StatsFuns: logistic
 function sky(θ, metadata)
     (;c, σ, p, p0, pσ, angparams) = θ
     (;ftot, grid) = metadata
-    cp = σ.*c.params
-    rast = ftot*to_simplex(CenteredLR(), cp)
+    ## Build the stokes I model
+    rast = ftot*to_simplex(CenteredLR(), σ.*c.params)
+    ## The total polarization fraction is modeled in logit space so we transform it back
     pim = logistic.(p0 .+ pσ.*p.params)
+    ## Build our IntensityMap
     pmap = PoincareSphere2Map(rast, pim, angparams, grid)
+    # Construct the actual image model which uses a third order B-spline pulse
     m = ContinuousImage(pmap, BSplinePulse{3}())
-    x0, y0 = centroid(stokes(pmap, :I))
+    ## Finally find the image centroid and shift it to be at the center
+    x0, y0 = centroid(pmap)
     ms = shifted(m, -x0, -y0)
     return ms
 end
@@ -162,28 +172,22 @@ end
 
 # Now, we define the model metadata required to build the model.
 # We specify our image grid and cache model needed to define the polarimetric
-# image model.
-using Distributions
-using DistributionsAD
+# image model. Our image will be a 10x10 raster with a 60μas FOV.
+using Distributions, DistributionsAD
 using VLBIImagePriors
 fovx = μas2rad(60.0)
 fovy = μas2rad(60.0)
 nx = 10
 ny = floor(Int, fovy/fovx*nx)
-grid = imagepixels(fovx, fovy, nx, ny) # image grid
+grid = imagepixels(fovx, fovy, nx, ny)
+
+# For the image metadata we specify the grid and the total flux of the image, which is 1.0.
+# Note that we specify the total flux out front since it is degenerate with an overall shift
+# in the gain amplitudes.
 skymeta = (;ftot=1.0, grid)
 
 
-# Moving onto our prior, we first focus on the instrument model priors.
-# Each station gain requires its own prior on both the amplitudes and phases.
-# For the amplitudes, we assume that the gains are apriori well calibrated around unit gains (or 0 log gain amplitudes)
-# which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
-# all stations except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT,
-# we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
-
-
-
-# Our image priors are:
+# For our image prior we will use a simpler prior than
 #   - We use a Dirichlet prior, `ImageDirichlet`, with unit concentration for our stokes I image pixels, `c`.
 #   - For the total polarization fraction, `p`, we assume an uncorrelated uniform prior `ImageUniform` for each pixel.
 #   - To specify the orientation of the polarization, `angparams`, on the Poincare sphere,
@@ -292,7 +296,7 @@ post = VLBIPosterior(skym, intmodel, dvis)
 # done using the `asflat` function.
 tpost = asflat(post)
 
-# We can now also find the dimension of our posterior or the number of parameters we will sample.
+# We can also query the dimension of our posterior or the number of parameters we will sample.
 # !!! warning
 #     This can often be different from what you would expect. This difference is especially true when using
 #     angular variables, where we often artificially increase the dimension
@@ -303,12 +307,15 @@ ndim = dimension(tpost)
 
 
 # Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
-# due to the higher dimension of the space.
+# due to the higher dimension of the space. In addition the only AD package that can currently
+# work with the polarized Comrade posterior is Zygote. Note that in the future we expect to
+# shift entirely to Enzyme, and in fact large portions of Comrade's AD already uses Enzyme
+# through custom rules.
 using ComradeOptimization
 using OptimizationOptimisers
 using Zygote
-fopt = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(fopt, prior_sample(tpost), nothing)
+fopt = OptimizationFunction(tpost, Optimization.AutoZygote());
+prob = Optimization.OptimizationProblem(fopt, prior_sample(rng, tpost), nothing)
 sol = solve(prob, OptimizationOptimisers.Adam(), maxiters=20_000);
 
 # !!! warning
@@ -334,7 +341,7 @@ img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
 #Plotting the results gives
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=3) #hide
-fig = CM.Figure(;resolution=(450, 350));
+fig = CM.Figure(;size=(450, 350));
 polimage(fig[1,1], imgtruesub,
                    axis=(xreversed=true, aspect=1, title="Truth"),
                    nvec = 8,

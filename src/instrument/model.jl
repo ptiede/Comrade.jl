@@ -20,7 +20,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", m::InstrumentModel)
     printstyled(io, "InstrumentModel"; bold=true, color=:light_cyan)
     println(io)
-    T = typeof(m.instrument)
+    T = typeof(m.jones)
     ST = split(split(" $T", '{')[1], ".")[end]
     println(io, "  with Jones: ", ST)
     print(io, "  with reference basis: ", m.refbasis)

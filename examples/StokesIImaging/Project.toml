@@ -1,5 +1,4 @@
 [deps]
-AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 ComradeAHMC = "a4336a5c-78bc-4363-8a90-ce3fa9d3abe4"
