@@ -145,11 +145,11 @@ Any valid keyword arguments to `add_amp` in ehtim can be passed through extract_
 
 Returns an EHTObservationTable with visibility amplitude data
 """
-function Comrade.extract_amp(obsc; pol=:I, kwargs...)
+function Comrade.extract_amp(obsc; pol=:I, debias=false, kwargs...)
     obs = obsc.copy()
     obs.add_scans()
     obs.reorder_tarr_snr()
-    obs.add_amp(;kwargs...)
+    obs.add_amp(;debias, kwargs...)
     config = build_arrayconfig(obs)
     amp, amperr = getampfield(obs)
     T = Comrade.EHTVisibilityAmplitudeDatum{pol, eltype(amp), typeof(config[1])}
@@ -208,7 +208,7 @@ end
 
 
 function closurephase_designmat(cphase, scanvis)
-    antvis1, antvis2 = baselines(scanvis)
+    antvis1, antvis2 = baseline(scanvis)
     design_mat = zeros(length(cphase), length(scanvis))
     #throw("here")
     # fill in each row of the design matrix
@@ -230,7 +230,7 @@ function closurephase_designmat(cphase, scanvis)
 end
 
 function closureamp_designmat(lcamp, scanvis)
-    antvis1, antvis2 = baselines(scanvis)
+    antvis1, antvis2 = baseline(scanvis)
     design_mat = zeros(length(lcamp), length(scanvis))
     # fill in each row of the design matrix
     for i in axes(design_mat, 2), j in axes(design_mat,1)
@@ -289,35 +289,6 @@ function build_dmats(type::Symbol, closure, st)
     end
     return dmat
 end
-
-
-function minimal_lcamp(obsc; kwargs...)
-
-    obs = obsc.copy()
-    obs.add_scans()
-    # reorder to maximize the snr
-    obs.reorder_tarr_snr()
-
-    lcamp = _ehtim_lcamp(obs; count="max", kwargs...)
-    stlca = timetable(lcamp)
-
-    #Now make the vis obs
-    dvis = Comrade.extract_vis(obsc)
-    st = timetable(dvis)
-
-    minset, dmat = _minimal_closure(stlca, st)
-
-    config = build_arrayconfig(obs)
-    clac = Comrade.ClosureConfig(config, dmat)
-    return Comrade.EHTObservation(data = minset, mjd = mjd,
-                          config=clac,
-                          ra = ra, dec= dec,
-                          bandwidth=bw,
-                          source = source,
-                        )
-
-end
-
 
 function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs...)
     obs = obsc.copy()

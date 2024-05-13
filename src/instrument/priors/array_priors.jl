@@ -123,6 +123,8 @@ function TV.inverse_at!(x::AbstractArray, index, t::PartiallyFixedTransform, y)
     return TV.inverse_at!(x, index, t.transform, y[t.variate_index])
 end
 
+TV.inverse_eltype(t::PartiallyFixedTransform, y) = TV.inverse_eltype(t.transform, y)
+
 
 
 struct PartiallyConditionedDist{D<:Distributions.ContinuousMultivariateDistribution, I, F} <: Distributions.ContinuousMultivariateDistribution

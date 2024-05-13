@@ -1,4 +1,4 @@
-export SkyModel
+export SkyModel, FixedSkyModel
 
 abstract type AbstractSkyModel end
 
@@ -61,7 +61,7 @@ struct ObservedSkyModel{F, G<:VLBISkyModels.AbstractFourierDualDomain, M} <: Abs
     metadata::M
 end
 
-function domain(m::AbstractSkyModel)
+function domain(m::AbstractSkyModel; kwargs...)
     return getfield(m, :grid)
 end
 
@@ -110,17 +110,25 @@ image structure is known apriori but the instrument model is unknown.
    `NFFTAlg()` which uses a non-uniform fast Fourier transform. Other options can be found by using
    `subtypes(VLBISkyModels.FourierTransform)`
 """
-Base.@kwdef struct FixedSkyModel{M<:AbstractModel, MI, MV, G} <: AbstractSkyModel
+Base.@kwdef struct FixedSkyModel{M<:AbstractModel, G, A<:FourierTransform} <: AbstractSkyModel
     model::M
     grid::G
-    algorithm::FourierTransform = NFFTAlg()
+    algorithm::A = NFFTAlg()
+end
+
+function FixedSkyModel(m::AbstractModel, grid::AbstractRectiGrid; algorithm = NFFTAlg())
+    return FixedSkyModel(m, grid, algorithm)
 end
 
 function ObservedSkyModel(m::FixedSkyModel, arr::AbstractArrayConfiguration)
     gfour = FourierDualDomain(m.grid, arr, m.algorithm)
-    img = intensitymap(model, gfour)
-    vis = visibilitymap(model, grid)
-    return ObservedSkyModel(m, m.grid, (;img, vis))
+    img = intensitymap(m.model, gfour)
+    vis = visibilitymap(m.model, gfour)
+    return ObservedSkyModel(m, gfour, (;img, vis))
+end
+
+function set_array(m::FixedSkyModel, array::AbstractArrayConfiguration)
+    return ObservedSkyModel(m, array), NamedTuple()
 end
 
 function idealvisibilities(m::ObservedSkyModel{<:FixedSkyModel}, x)

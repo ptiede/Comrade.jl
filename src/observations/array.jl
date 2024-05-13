@@ -29,14 +29,14 @@ end
 """
     $(SIGNATURES)
 
-Get the u, v, time, freq domain of the array as a tuple.
+Get the u, v, time, freq domain of the array.
 """
-function domain(ac::AbstractArrayConfiguration; executor=Serial())
+function domain(ac::AbstractArrayConfiguration; executor=Serial(), header=ComradeBase.NoHeader())
     u = ac[:U]
     v = ac[:V]
     t = ac[:Ti]
     ν = ac[:Fr]
-    return UnstructuredDomain((U=u, V=v, Ti=t, Fr=ν); executor)
+    return UnstructuredDomain((U=u, V=v, Ti=t, Fr=ν); executor, header)
 end
 
 
@@ -272,7 +272,7 @@ function sites(c::ClosureConfig)
     sites(arrayconfig(c))
 end
 
-function noisecovariance(c::ClosureConfig)
+function factornoisecovariance(c::ClosureConfig)
     dmat = designmat(c)
     amp2 = abs2.(getfield(c, :vis))
     Σphase = getfield(c, :noise).^2 ./ amp2
@@ -280,8 +280,8 @@ function noisecovariance(c::ClosureConfig)
 end
 
 
-function domain(ac::ClosureConfig; executor=Serial())
-    return domain(arrayconfig(ac); executor)
+function domain(ac::ClosureConfig; executor=Serial(), header=ComradeBase.NoHeader())
+    return domain(arrayconfig(ac); executor, header)
 end
 
 function Base.show(io::IO, config::ClosureConfig)

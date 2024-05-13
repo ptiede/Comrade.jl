@@ -45,7 +45,7 @@ obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "../Data/SR1_M87_2017_096_lo_hop
 obs = scan_average(obs).add_fractional_noise(0.01)
 
 # Now we extract our complex visibilities.
-dvis = extract_table(obs, ComplexVisibilities())
+dvis = extract_table(obs, Visibilities())
 
 # ##Building the Model/Posterior
 

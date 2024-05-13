@@ -1,26 +1,45 @@
+export domain, datatable, arrayconfig, sites, beamsize, EHTObservationTable
+
 abstract type AbstractObservationTable{F<:AbstractVisibilityDatum} <: AbstractVLBITable{F} end
 measurement(t::AbstractObservationTable) = getfield(t, :measurement)
 noise(t::AbstractObservationTable) = getfield(t, :noise)
 baseline(t::AbstractObservationTable) = datatable(arrayconfig(t))
+
+
 arrayconfig(c::AbstractObservationTable, p::Symbol) = getindex(arrayconfig(c), p)
 Base.length(obs::AbstractObservationTable) = length(measurement(obs))
 Base.firstindex(obs::AbstractObservationTable) = firstindex(measurement(obs))
 Base.lastindex(obs::AbstractObservationTable) = lastindex(measurement(obs))
+
+# Returns the data type of the observation table
 datumtype(::AbstractObservationTable{T}) where {T} = T
 
-function domain(obs::AbstractObservationTable)
-    return domain(arrayconfig(obs))
+
+"""
+    domain(obs::AbstractObservationTable)
+
+Returns the u, v, time, frequency domain of the observation.
+"""
+function domain(obs::AbstractObservationTable; executor=Serial(), header=ComradeBase.NoHeader())
+    return domain(arrayconfig(obs); executor, header)
 end
 
+"""
+    datatable(obs::AbstractObservationTable)
 
+Returns a tabular representation of the data. Note that for closures this ignores the covariance
+between quantities, which is otherwise included in the full `EHTObservationTable`.
+"""
 function datatable(obs::AbstractObservationTable{F}) where {F}
     StructArray((build_datum(obs, i) for i in 1:length(obs)), unwrap=(T->(T<:Tuple || T<:AbstractBaselineDatum)))
 end
 
 """
     arrayconfig(obs::AbstractObservationTable)
+    arrayconfig(obs::AbstractObservationTable, p::Symbol)
 
-Returns the array configuration for a given observation.
+Returns the array configuration for a given observation. If `p` is provided then only the
+property `p` is returned.
 """
 arrayconfig(obs::AbstractObservationTable) = getfield(obs, :config)
 
@@ -69,7 +88,9 @@ end
     $(TYPEDEF)
 
 The main data product type in `Comrade` this stores the `data` which can be a StructArray
-of any `AbstractInterferometryDatum` type.
+of any `AbstractInterferometryDatum` type. Note that the underlying structure is not part
+of the public API. Users should typically construct tables from the [`extract_table`](@ref)
+function.
 
 # Fields
 $FIELDS

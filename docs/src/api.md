@@ -62,7 +62,7 @@ For the description of the model API see [VLBISkyModels](https://ehtjulia.github
 
 ```@docs
 Comrade.extract_table
-Comrade.ComplexVisibilities
+Comrade.Visibilities
 Comrade.VisibilityAmplitudes
 Comrade.ClosurePhases
 Comrade.LogClosureAmplitudes

@@ -11,6 +11,7 @@ struct IntegrationTime{T}
 end
 
 Base.in(t::Number, ts::IntegrationTime) = (ts.t0 - ts.dt/2) ≤ t < (ts.t0 + ts.dt)
+Base.isless(t::IntegrationTime, ts::IntegrationTime) = t.t0 < ts.t0
 scanid(ts::IntegrationTime) = ts.scanid
 mjd(ts::IntegrationTime) = ts.mjd
 

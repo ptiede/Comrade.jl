@@ -118,7 +118,7 @@ using FiniteDifferences
     _,vis, amp, lcamp, cphase, coh = load_data()
 
     R = JonesR()
-    intm = InstrumentModel(R, (;a=ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 1.0)))))
+    intm = InstrumentModel(R)
     skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata=(;lp=0.1))
     post = VLBIPosterior(skym, intm, coh)
 
@@ -129,6 +129,22 @@ using FiniteDifferences
     mfd = central_fdm(5,1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
+
+    R = JonesR()
+    Gp = JonesG(x->(exp(x.lg + 1im*x.gp), exp(x.lg + 1im*x.gp)))
+    J = JonesSandwich(Gp, R)
+    pr = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+          gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant=SEFDReference(0.0), phase=true))
+    intm_coh = InstrumentModel(J, pr)
+    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata=(;lp=0.1))
+    post = VLBIPosterior(skym, intm_coh, coh)
+    tpost = asflat(post)
+    x = prior_sample(tpost)
+    gz, = Zygote.gradient(tpost, x)
+    mfd = central_fdm(5,1)
+    gfd, = FiniteDifferences.grad(mfd, tpost, x)
+    @test gz ≈ gfd
+
 end
 
 @testset "simulate_obs" begin
@@ -166,7 +182,9 @@ end
 
 
     R = JonesR()
-    intm_coh = InstrumentModel(R, (;a=ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 1.0)))))
+    Gp = JonesG(x->(exp(x.lg + 1im*x.gp), exp(x.lg + 1im*x.gp)))
+    J = JonesSandwich(Gp, R)
+    intm_coh = InstrumentModel(J, intm.prior)
     skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata=(;lp=0.1))
     post_coh = VLBIPosterior(skym, intm_coh, coh)
     test_simobs(post_coh, prior_sample(post_coh))

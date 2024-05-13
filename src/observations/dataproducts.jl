@@ -1,6 +1,6 @@
-export VLBIDataProducts, extract_table,
+export extract_table,
        ClosurePhases, LogClosureAmplitudes,
-       VisibilityAmplitudes, ComplexVisibilities, Coherencies
+       VisibilityAmplitudes, Visibilities, Coherencies
 
 abstract type VLBIDataProducts{K} end
 
@@ -58,7 +58,7 @@ struct LogClosureAmplitudes{K} <: VLBIDataProducts{K}
 end
 
 """
-    ComplexVisibilities(;kwargs...)
+    Visibilities(;kwargs...)
 
 Type to specify to extract the log closure amplitudes table in the [`extract_table`](@ref) function.
 Optional keywords are passed through `extract_table` to specify additional option.
@@ -71,7 +71,7 @@ struct VisibilityAmplitudes{K} <: VLBIDataProducts{K}
 end
 
 """
-    ComplexVisibilities(;kwargs...)
+    Visibilities(;kwargs...)
 
 Type to specify to extract the complex visibilities table in the [`extract_table`](@ref) function.
 Optional keywords are passed through `extract_table` to specify additional option.
@@ -79,7 +79,7 @@ Optional keywords are passed through `extract_table` to specify additional optio
 # Special keywords for eht-imaging with Pyehtim.jl
 Any keyword arguments are ignored for now. Use eht-imaging directly to modify the data.
 """
-struct ComplexVisibilities{K} <: VLBIDataProducts{K}
+struct Visibilities{K} <: VLBIDataProducts{K}
     keywords::K
 end
 
@@ -96,7 +96,7 @@ struct Coherencies{K} <: VLBIDataProducts{K}
     keywords::K
 end
 
-for c in [:ClosurePhases, :LogClosureAmplitudes, :VisibilityAmplitudes, :ComplexVisibilities, :Coherencies]
+for c in [:ClosurePhases, :LogClosureAmplitudes, :VisibilityAmplitudes, :Visibilities, :Coherencies]
     @eval begin
         $(c)(;kwargs...) = $(c)(kwargs)
     end
@@ -129,7 +129,7 @@ function extract_table(obs, dataproduct::LogClosureAmplitudes)
     return extract_lcamp(obs; keywords(dataproduct)...)
 end
 
-function extract_table(obs, dataproduct::ComplexVisibilities)
+function extract_table(obs, dataproduct::Visibilities)
     return extract_vis(obs; keywords(dataproduct)...)
 end
 

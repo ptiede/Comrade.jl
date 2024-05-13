@@ -14,7 +14,7 @@ function load_data()
     m = m.add_gauss(0.5, μas2rad(20.0), μas2rad(10.0), π/6, μas2rad(30.0), μas2rad(30.0))
     obsm = m.observe_same_nonoise(obsavg.switch_polrep("stokes"))
 
-    vis = extract_table(obsm, ComplexVisibilities())
+    vis = extract_table(obsm, Visibilities())
     amp = extract_table(obsm, VisibilityAmplitudes())
     lcamp = extract_table(obsm, LogClosureAmplitudes())
     cphase = extract_table(obsm, ClosurePhases())

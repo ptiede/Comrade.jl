@@ -50,7 +50,7 @@ end
 
 # internal function that creates the likelihood for a set of log closure amplitudes
 function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTLogClosureAmplitudeDatum})
-    Σlca = noisecovariance(arrayconfig(data))
+    Σlca = factornoisecovariance(arrayconfig(data))
     f = Base.Fix2(logclosure_amplitudes, arrayconfig(data))
     amp = measurement(data)
     lnorm = VLBILikelihoods.lognorm(AmplitudeLikelihood(amp, Σlca))
@@ -63,7 +63,7 @@ end
 
 # internal function that creates the likelihood for a set of closure phase datum
 function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTClosurePhaseDatum})
-    Σcp = noisecovariance(arrayconfig(data))
+    Σcp = factornoisecovariance(arrayconfig(data))
     f = Base.Fix2(closure_phases, arrayconfig(data))
     phase = measurement(data)
     lnorm = VLBILikelihoods.lognorm(ClosurePhaseLikelihood(phase, Σcp))

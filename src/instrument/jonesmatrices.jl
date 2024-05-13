@@ -99,7 +99,7 @@ function JonesSandwich(map, matrices::AbstractJonesMatrix...)
     return JonesSandwich(map, matrices)
 end
 
-function JonesSandwich(matrices::AbstractJonesMatrix)
+function JonesSandwich(matrices::AbstractJonesMatrix...)
     return JonesSandwich(splat(*), matrices...)
 end
 

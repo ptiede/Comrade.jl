@@ -1,3 +1,5 @@
+export timetable
+
 """
     $(TYPEDEF)
 
@@ -32,6 +34,16 @@ Base.firstindex(st::TimeTable) = firstindex(st.times)
 Base.lastindex(st::TimeTable) = lastindex(st.times)
 sites(st::TimeTable) = sites(st.obs)
 Base.eachindex(st::TimeTable) = LinearIndices(firstindex(st):lastindex(st))
+function Base.getindex(st::TimeTable, i::Int)
+    istart = st.scanind[i]
+    if i < length(st.scanind)
+        iend = st.scanind[i+1]-1
+    else
+        iend = length(st.obs)
+    end
+    return Scan(st.times[i], (i, istart, iend), @view st.obs[istart:iend])
+end
+
 
 """
     $(TYPEDEF)
@@ -59,39 +71,17 @@ end
 Base.length(s::Scan) = length(s.scan)
 
 """
-    baselines(scan::Scan)
+    baseline(scan::Scan)
 
 Return the baselines for each datum in a scan
 """
-function baselines(scan::Scan{A,B,<:EHTObservationTable}) where {A, B}
+function baseline(scan::Scan{A,B,<:EHTObservationTable}) where {A, B}
     bl = arrayconfig(scan.scan)[:sites]
     # organize the closure phase sites
     ant1 = first.(bl)
     ant2 = last.(bl)
     return ant1, ant2
 end
-
-
-# Closures are special
-function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTClosurePhaseDatum}}
-    tri = scancp.scan.baseline
-    # organize the closure phase sites
-    ant1 = getindex.(tri, 1)
-    ant2 = getindex.(tri, 2)
-    ant3 = getindex.(tri, 3)
-    return ant1, ant2, ant3
-end
-
-function baselines(scancp::Scan{A,B,C}) where {A,B,C<:StructArray{<:EHTLogClosureAmplitudeDatum}}
-    tri = scancp.scan.quadrangle
-    # organize the closure phase sites
-    ant1 = getindex.(tri, 1)
-    ant2 = getindex.(tri, 2)
-    ant3 = getindex.(tri, 3)
-    ant4 = getindex.(tri, 4)
-    return ant1, ant2, ant3, ant4
-end
-
 
 
 
@@ -106,22 +96,13 @@ function Base.show(io::IO, s::Scan)
     print(io, "\tsites: ", sites(s))
 end
 
-function Base.getindex(st::TimeTable, i::Int)
-    istart = st.scanind[i]
-    if i < length(st.scanind)
-        iend = st.scanind[i+1]-1
-    else
-        iend = length(st.obs)
-    end
-    return Scan(st.times[i], (i, istart, iend), @view st.obs[istart:iend])
-end
 
 function Base.getindex(st::TimeTable, I)
     [getindex(st, i) for i in I]
 end
 
 function Base.getindex(scan::Scan, s::Symbol)
-    getproperty(scan.scan, s)
+    getindex(scan.scan, s)
 end
 
 function Base.getindex(scan::Scan, i::Int)

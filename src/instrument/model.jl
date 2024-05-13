@@ -5,11 +5,14 @@ abstract type AbstractInstrumentModel end
 """
     IdealInstrument(array::AbstractArrayConfiguration)
 
-Constructs an ideal instrument that has no corruptions including feed rotations.
+Constructs an ideal instrument that has no corruptions or feed rotation.
 """
 struct IdealInstrumentModel <: AbstractInstrumentModel end
 
 Base.show(io::IO, mime::MIME"text/plain", m::IdealInstrumentModel) = printstyled(io, "IdealInstrumentModel"; color=:light_cyan, bold=true)
+
+apply_instrument(vis, ::IdealInstrumentModel, x) = vis
+
 
 struct InstrumentModel{J<:AbstractJonesMatrix, PI, P<:PolBasis} <: AbstractInstrumentModel
     jones::J
@@ -56,14 +59,77 @@ end
 
 
 """
-    InstrumentModel(jones, prior, array; refbasis = CirBasis())
+    InstrumentModel(jones, prior; refbasis = CirBasis())
 
-Builds an instrument model using the jones matrix `jones`, with priors `prior` and the
-array configuration `array`. The reference basis is `refbasis` and is used to define what
+Builds an instrument model using the jones matrix `jones`, with priors `prior`.
+The reference basis is `refbasis` and is used to define what
 the ideal basis is. Namely, the basis that you have the ideal visibilties to be represented in.
+For classical VLBI `refbasis = CirBasis` is a good default option, sinc the majority of the
+array uses circular feeds. For linear feed arrays like VGOS a user should switch to `LinBasis`,
+although failure to do so will not cause any errors, and is just a less efficient representation of the
+visibilities.
+
+# Arguments
+
+ - `jones` : The jones matrix that represents the instrument. This is a function that takes in the
+    parameters of the instrument and returns a jones matrix. See [`SingleStokesGain`](@ref)
+    for a Stokes I example and [`JonesG`](@ref) or [`JonesD`](@ref) for polarized examples.
+ - `prior`: A named tuple of [`ArrayPrior`](@ref) that specify what the priors are for each
+    component used to construct the jones matrix using the function `jones`
+
+
+# Optional Arguments
+  - `refbasis`: The reference basis used for the computation. The default is `CirBasis()` which are circular feeds.
+
+
+# Example
+
+A Stokes I example is
+```julia-repl
+julia> G = SingleStokesGain(x->exp(x.lg + 1im*x.pg))
+julia> intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+            pg = ArrayPrior(IIDSitePrior(ScanSeg(), DiagVonMises(0.0, inv(π^2))))
+            )
+
+julia> intm = InstrumentModel(G, intprior)
+```
+
+A standard polarized example is
+```julia-repl
+julia> G = JonesG() do
+        gR = exp.(x.lgr + 1im*x.gpr)
+        gL = gr*exp.(x.lgrat + 1im*x.gprat)
+        return gR, gL
+    end
+julia> D = JonesD() do
+        dR = complex.(x.dRre, x.dRim)
+        dL = complex.(x.dLre, x.dLim)
+        return gR, gL
+    end
+julia> R = JonesR()
+julia> J = JonesSandwich(G, D, R)
+julia> intprior = (lgr = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)),
+                    gpr = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))),
+                    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)),
+                    gprat = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))),
+                    dRre = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)),
+                    dRim = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)),
+                    dLre = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)),
+                    dLim = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1))
+                    )
+julia> intm = InstrumentModel(J, intprior)
+```
+
+which construct the gain matrix from R and ratios, and D is the small leakage matrix. [`JonesR`](@ref)
+is the *response matrix* that controls how the site responds to the ideal visibility in the reference
+basis.
 """
 function InstrumentModel(jones::AbstractJonesMatrix, prior::NamedTuple{N, <:NTuple{M, ArrayPrior}}; refbasis = CirBasis()) where {N, M}
     return InstrumentModel(jones, prior, refbasis)
+end
+
+function InstrumentModel(jones::JonesR; refbasis=CirBasis())
+    return InstrumentModel(jones, NamedTuple(), refbasis)
 end
 
 function set_array(int::InstrumentModel, array::AbstractArrayConfiguration)
@@ -133,6 +199,13 @@ function apply_instrument(vis, J::ObservedInstrumentModel, x)
     return vout
 end
 
+function apply_instrument(vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
+    vout = intout(vis)
+    _apply_instrument!(vout, vis, J, (;))
+    return vout
+end
+
+
 function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
     @inbounds for i in eachindex(vout, vis)
         vout[i] = apply_jones(vis[i], i, J, xint)
@@ -165,10 +238,10 @@ end
 
 
 
-apply_instrument(vis, ::IdealInstrumentModel, x) = vis
 
 function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel, x)
     out = apply_instrument(vis, J, x)
+    px = ProjectTo(x)
     function _apply_instrument_pb(Δ)
         Δout = similar(out)
         Δout .= unthunk(Δ)
@@ -176,7 +249,19 @@ function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstru
         dx = ntzero(xi)
         dvis = zero(vis)
         autodiff(Reverse, _apply_instrument!, Duplicated(out, Δout), Duplicated(vis, dvis), Const(J), Duplicated(xi, dx))
-        return NoTangent(), dvis, NoTangent(), Tangent{typeof(x)}(;sky = ZeroTangent(), instrument = dx)
+        return NoTangent(), dvis, NoTangent(), px((;instrument = dx))
+    end
+    return out, _apply_instrument_pb
+end
+
+function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
+    out = apply_instrument(vis, J, x)
+    function _apply_instrument_pb(Δ)
+        Δout = similar(out)
+        Δout .= unthunk(Δ)
+        dvis = zero(vis)
+        autodiff(Reverse, _apply_instrument!, Duplicated(out, Δout), Duplicated(vis, dvis), Const(J), Const((;)))
+        return NoTangent(), dvis, NoTangent(), NoTangent()
     end
     return out, _apply_instrument_pb
 end

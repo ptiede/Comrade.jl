@@ -137,7 +137,7 @@ EHTClosurePhaseDatum(m::Number, n::Number, b) = EHTClosurePhaseDatum{:I, typeof(
 
 Returns the sites used in the closure phase triangle.
 """
-triangle(b::EHTClosurePhaseDatum) = map(x->first(getproperty(x, :baseline)), baseline(b))
+triangle(b::EHTClosurePhaseDatum) = map(x->first(getproperty(x, :sites)), baseline(b))
 
 
 
@@ -164,3 +164,10 @@ Base.@kwdef struct EHTLogClosureAmplitudeDatum{P, S<:Number, B<:AbstractBaseline
     baseline::NTuple{4, B}
 end
 EHTLogClosureAmplitudeDatum(m::Number, n::Number, b) = EHTLogClosureAmplitudeDatum{:I, typeof(m), typeof(b)}(m, n, b)
+
+"""
+    quadrangle(b::EHTClosurePhaseDatum)
+
+Returns the sites used in the closure amplitude quadrangle.
+"""
+quadrangle(b::EHTLogClosureAmplitudeDatum) = map(x->first(getproperty(x, :sites)), baseline(b))

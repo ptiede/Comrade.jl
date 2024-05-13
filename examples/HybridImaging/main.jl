@@ -55,7 +55,7 @@ obs = scan_average(obs).add_fractional_noise(0.02)
 # For this tutorial we will once again fit complex visibilities since they
 # provide the most information once the telescope/instrument model are taken
 # into account.
-dvis  = extract_table(obs, ComplexVisibilities())
+dvis  = extract_table(obs, Visibilities())
 
 # ## Building the Model/Posterior
 

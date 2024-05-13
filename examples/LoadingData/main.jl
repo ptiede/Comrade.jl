@@ -40,7 +40,7 @@ obs = Pyehtim.scan_average(obseht)
 #     We use a custom scan-averaging function to ensure that the scan-times are homogenized.
 #-
 # We can now extract data products that `Comrade` can use
-vis    = extract_table(obs, ComplexVisibilities()) ## complex visibilites
+vis    = extract_table(obs, Visibilities()) ## complex visibilites
 amp    = extract_table(obs, VisibilityAmplitudes()) ## visibility amplitudes
 cphase = extract_table(obs, ClosurePhases(; snrcut=3.0)) ## extract minimal set of closure phases
 lcamp  = extract_table(obs, LogClosureAmplitudes(; snrcut=3.0)) ## extract minimal set of log-closure amplitudes
