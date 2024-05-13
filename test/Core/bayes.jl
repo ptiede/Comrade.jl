@@ -112,113 +112,94 @@ using Zygote
 
 end
 
+using Zygote
+using FiniteDifferences
 @testset "Polarized" begin
     _,vis, amp, lcamp, cphase, coh = load_data()
 
     R = JonesR()
-    intm = InstrumentModel(R, NamedTuple())
-    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256))
+    intm = InstrumentModel(R, (;a=ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 1.0)))))
+    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata=(;lp=0.1))
     post = VLBIPosterior(skym, intm, coh)
-    lklhd_coh = RadioLikelihood(test_skymodel_polarized, test_instrumentmodel_polarized, coh;
-                                skymeta = (;lp = 0.1), instrumentmeta=(;tcache))
 
+    tpost = asflat(post)
 
-    prior = test_prior()
-    post = Posterior(lklhd_amp, prior)
-    x0 = prior_sample(post)
-
-    lamp = logdensityof(lklhd_amp, x0)
-    lcp  = logdensityof(lklhd_cp, x0)
-    llc  = logdensityof(lklhd_lc, x0)
-    lvis = logdensityof(lklhd_vis, x0)
-    lcoh = logdensityof(lklhd_coh, x0)
-
+    x = prior_sample(tpost)
+    gz, = Zygote.gradient(tpost, x)
+    mfd = central_fdm(5,1)
+    gfd, = FiniteDifferences.grad(mfd, tpost, x)
+    @test gz ≈ gfd
 end
 
 @testset "simulate_obs" begin
     _,vis, amp, lcamp, cphase, coh = load_data()
-    tcache = ResponseCache(coh)
-    lklhd_amp = RadioLikelihood(test_model, amp)
-    lklhd_cp = RadioLikelihood(test_model, cphase)
-    lklhd_lc = RadioLikelihood(test_model, lcamp)
-    lklhd_vis = RadioLikelihood(test_model, vis)
-    lklhd_coh = RadioLikelihood(test_skymodel_polarized, test_instrumentmodel_polarized, coh;
-                                skymeta = (;lp = 0.1), instrumentmeta=(;tcache))
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    skym = SkyModel(test_model, test_prior(), g)
+
+    post_amp = VLBIPosterior(skym, amp)
+    post_cp = VLBIPosterior(skym, cphase)
+    post_lc = VLBIPosterior(skym, lcamp)
+    post_vis = VLBIPosterior(skym, vis)
+
+    G = SingleStokesGain(x->exp(x.lg + 1im.*x.gp))
+    intm = InstrumentModel(G, (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+                               gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant=SEFDReference(0.0), phase=true)))
+    post_gvis = VLBIPosterior(skym, vis)
+
+    function test_simobs(post, x)
+        obs = simulate_observation(post, x)[begin]
+        @info typeof(Comrade.measurement(obs))
+        @info typeof(Comrade.measurement(post.data[begin]))
+        @test length(obs) == length(post.data[begin])
+        obs_nn = simulate_observation(post, x, add_thermal_noise=false)[begin]
+        @test Comrade.measurement(obs_nn) == Comrade.likelihood(post.lklhds[1], Comrade.forward_model(post, x)).μ
+    end
+
+    test_simobs(post_amp, prior_sample(post_amp))
+    test_simobs(post_cp,  prior_sample(post_cp))
+    test_simobs(post_lc,  prior_sample(post_lc))
+    test_simobs(post_vis, prior_sample(post_vis))
+    test_simobs(post_gvis, prior_sample(post_gvis))
+
+    post_all = VLBIPosterior(skym, vis, amp, lcamp, cphase)
+    simulate_observation(post_all, prior_sample(post_all))
 
 
-    prior = test_prior()
-
-    simulate_observation(Posterior(lklhd_amp, prior), rand(prior))
-    simulate_observation(Posterior(lklhd_cp,  prior), rand(prior))
-    simulate_observation(Posterior(lklhd_lc,  prior), rand(prior))
-    simulate_observation(Posterior(lklhd_vis, prior), rand(prior))
-    simulate_observation(Posterior(lklhd_coh, prior), rand(prior))
-
-    lklhd_all = RadioLikelihood(test_model, amp, cphase, lcamp, vis)
-
-    simulate_observation(Posterior(lklhd_all, prior), rand(prior))
-
+    R = JonesR()
+    intm_coh = InstrumentModel(R, (;a=ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 1.0)))))
+    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata=(;lp=0.1))
+    post_coh = VLBIPosterior(skym, intm_coh, coh)
+    test_simobs(post_coh, prior_sample(post_coh))
 end
 
 
-using ForwardDiff
-using FiniteDifferences
-@testset "Bayes Non-analytic ForwardDiff" begin
+@testset "Bayes Non-analytic Zygote" begin
     _,vis, amp, lcamp, cphase = load_data()
 
     mfd = central_fdm(5,1)
-    @testset "DFT" begin
-        g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
-        mt = (g=g, alg=DFTAlg())
-        lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
 
-        prior = test_prior2()
+    G = SingleStokesGain(x->exp(x.lg + 1im.*x.gp))
+    intm = InstrumentModel(G, (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+                               gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant=SEFDReference(0.0), phase=true)))
 
-        post = Posterior(lklhd, prior)
+    function test_nonanalytic(intm, algorithm, vis)
+        skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256))
+        post = VLBIPosterior(skym, intm, vis)
+
         tpostf = asflat(post)
         x0 = prior_sample(tpostf)
 
         @inferred logdensityof(tpostf, x0)
-        ℓ = logdensityof(tpostf)
-        gf = ForwardDiff.gradient(ℓ, x0)
-        gn = FiniteDifferences.grad(mfd, ℓ, x0)
-        @test isapprox(gf, gn[1], atol=1e-1, rtol=1e-5)
+        gz, = Zygote.gradient(tpostf, x0)
+        gn, = FiniteDifferences.grad(mfd, tpostf, x0)
+        @test gz ≈ gn
+    end
+    @testset "DFT" begin
+        test_nonanalytic(intm, DFTAlg(), vis)
     end
 
     @testset "NFFT" begin
-        g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
-        mt = (g=g, alg=DFTAlg())
-        lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
-
-        prior = test_prior2()
-
-        post = Posterior(lklhd, prior)
-        tpostf = asflat(post)
-        x0 = prior_sample(tpostf)
-
-        # @inferred logdensityof(tpostf, x0)
-        ℓ = logdensityof(tpostf)
-        gf = ForwardDiff.gradient(ℓ, x0)
-        gn = FiniteDifferences.grad(mfd, ℓ, x0)
-        @test isapprox(gf, gn[1], atol=1e-1, rtol=1e-5)
-    end
-
-    @testset "FFT" begin
-        g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
-        mt = (g=g, alg=DFTAlg())
-        lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
-
-        prior = test_prior2()
-
-        post = Posterior(lklhd, prior)
-        tpostf = asflat(post)
-        x0 = prior_sample(tpostf)
-
-        @inferred logdensityof(tpostf, x0)
-        ℓ = logdensityof(tpostf)
-        gf = ForwardDiff.gradient(ℓ, x0)
-        gn = FiniteDifferences.grad(mfd, ℓ, x0)
-        @test isapprox(gf, gn[1], atol=1e-1, rtol=1e-5)
+        test_nonanalytic(intm, NFFTAlg(), vis)
     end
 
 end

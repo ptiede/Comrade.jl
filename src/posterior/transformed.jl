@@ -4,8 +4,7 @@ export transform, asflat, ascube
     $(TYPEDEF)
 A transformed version of a `VLBIPosterior` object.
 This is an internal type that an end user shouldn't have to directly construct.
-To construct a transformed posterior see the [`asflat`](@ref asflat), [`ascube`](@ref ascube),
-and [`flatten`](@ref Comrade.flatten) docstrings.
+To construct a transformed posterior see the [`asflat`](@ref asflat), [`ascube`](@ref ascube).
 """
 struct TransformedVLBIPosterior{P<:VLBIPosterior,T} <: AbstractVLBIPosterior
     lpost::P

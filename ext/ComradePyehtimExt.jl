@@ -6,13 +6,11 @@ if isdefined(Base, :get_extension)
     using StructArrays: StructVector, StructArray, append!!
     using LinearAlgebra
     using StaticArraysCore
-    using TypedTables
 else
     using ..Pyehtim
     using ..StructArrays: StructVector, StructArray, append!!
     using ..LinearAlgebra
     using ..StaticArraysCore
-    using ..TypedTables
 end
 
 function build_arrayconfig(obs)
@@ -102,7 +100,7 @@ function getcpfield(obs)
     t3 = pyconvert(Vector{Symbol}, obscp["t3"])
     noise = pyconvert(Vector, obscp["sigmacp"])
     baseline = tuple.(t1, t2, t3)
-    return Table((;T=time, F=freq, noise, baseline))
+    return StructArray((;T=time, F=freq, noise, baseline))
 end
 
 function getlcampfield(obs)
@@ -117,12 +115,12 @@ function getlcampfield(obs)
     baseline = tuple.(t1, t2, t3, t4)
     noise = pyconvert(Vector, obslcamp["sigmaca"])
     freq = fill(get_rf(obs), length(time))
-    return Table((;T=time, F=freq, baseline, noise))
+    return StructArray((;T=time, F=freq, baseline, noise))
 end
 
 
 function get_arraytable(obs)
-    return Table(
+    return StructArray(
         sites = pyconvert(Vector{Symbol}, obs.tarr["site"]),
         X     = pyconvert(Vector, obs.tarr["x"]),
         Y     = pyconvert(Vector, obs.tarr["y"]),

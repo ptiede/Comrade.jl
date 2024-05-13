@@ -136,6 +136,12 @@ function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; 
 end
 simulate_observation(post::VLBIPosterior, θ; add_thermal_noise=true) = simulate_observation(Random.default_rng(), post, θ; add_thermal_noise)
 
+"""
+    residuals(post::VLBIPosterior, θ)
+
+Compute the residuals for each data product in `post` using the parameter values `θ`.
+The resturn objects are `EHTObservationTables`, where the measurements are the residuals.
+"""
 function residuals(post::VLBIPosterior, p)
     vis = forward_model(post, p)
     res = map(x->residuals_data(vis, x), post.data)

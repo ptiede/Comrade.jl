@@ -137,8 +137,8 @@ cprior = GaussMarkovRandomField(rat, size(g); order=2)
 
 # Finally we can put form the total model prior
 skyprior = (
+    ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
           c  = cprior,
-          ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
           σimg = truncated(Normal(0.0, 1.0); lower=0.01),
           f  = Uniform(0.0, 1.0),
           r  = Uniform(μas2rad(10.0), μas2rad(30.0)),
@@ -214,7 +214,7 @@ imageviz(intensitymap(skymodel(post, xopt), gpl), figure=(;resolution=(500, 400)
 # We will now move directly to sampling at this point.
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Enzyme)), 700; n_adapts=500, progress=true);
+chain = sample(rng, post, AHMC(;metric), 700; n_adapts=500, progress=true);
 
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]

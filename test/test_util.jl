@@ -17,7 +17,7 @@ function load_data()
     vis = extract_table(obsm, ComplexVisibilities())
     amp = extract_table(obsm, VisibilityAmplitudes())
     lcamp = extract_table(obsm, LogClosureAmplitudes())
-    cphase = extract_table(obsm, ClosurePhases(cut_trivial=true))
+    cphase = extract_table(obsm, ClosurePhases())
     dcoh = extract_table(obspol, Coherencies())
 
     derr = noise(dcoh)
@@ -44,10 +44,6 @@ function test_skymodel_polarized(θ, metadata)
     return PolarizedModel(mI, lp*mI, lp/2*mI, 0.02*mI)
 end
 
-function test_instrumentmodel_polarized(θ, metadata)
-    jt = jonesT(metadata.tcache)
-    return JonesModel(jt, metadata.tcache)
-end
 
 function test_model2(θ, metadata)
     m2 = θ.f*stretched(ExtendedRing(θ.α), θ.r*(1+θ.τ), θ.r)

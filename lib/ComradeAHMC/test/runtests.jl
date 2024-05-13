@@ -7,10 +7,10 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 @testset "ComradeAHMC.jl" begin
 
     _, _, _, lcamp, cphase = load_data()
-    lklhd = RadioLikelihood(test_model, lcamp, cphase)
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    skym = SkyModel(test_model, test_prior(), g)
+    post = VLBIPosterior(skym, lcamp, cphase)
 
-    prior = test_prior()
-    post = Posterior(lklhd, prior)
     ndim = dimension(post)
     x0 = (f1 = 1.0916271439905998,
           σ1 = 8.230088139590025e-11,

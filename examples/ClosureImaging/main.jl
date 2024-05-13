@@ -66,14 +66,13 @@ dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePh
 # are constant to the model, such as the image `cache` object that we will define below.
 function sky(θ, metadata)
     (;fg, c, σimg) = θ
-    (;meanpr, grid) = metadata
-    ## Construct the image model we fix the flux to 0.6 Jy in this case
-    cp = meanpr .+ σimg.*c.params
-    rast = ((1-fg))*to_simplex(CenteredLR(), cp)
-    m = ContinuousImage(rast, grid, BSplinePulse{3}())
+    (;mimg) = metadata
+    ## Apply the GMRF fluctuations to the image
+    rast = apply_fluctuations(CenteredLR(), mimg, σimg.*c.params)
+    m = ContinuousImage(((1-fg)).*rast, BSplinePulse{3}())
+    x0, y0 = centroid(m)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
-    x0, y0 = centroid(m.img)
     return shifted(m, -x0, -y0) + g
 end
 
@@ -97,16 +96,10 @@ using VLBIImagePriors, Distributions, DistributionsAD
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 50 μas
 fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(40.0)./fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
-# Now since we are actually modeling our image on the simplex we need to ensure that
-# our mean image has unit flux before we transform
-imgpr ./= flux(imgpr)
-meanpr = to_real(CenteredLR(), baseimage(imgpr));
-
-#
-skymeta = (;meanpr, grid);
+skymeta = (;mimg = imgpr./flux(imgpr), grid);
 
 # In addition we want a reasonable guess for what the resolution of our image should be.
 # For radio astronomy this is given by roughly the longest baseline in the image. To put this
@@ -188,7 +181,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 using ComradeAHMC
 using Zygote
 metric = DiagEuclideanMetric(ndim)
-chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=false, initial_params=xopt);
+chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=true, initial_params=xopt);
 
 
 # !!! warning
@@ -223,7 +216,7 @@ CM.hidedecorations!.(fig.content)
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 # Now let's see whether our residuals look better.
-p = Plots.plot(layout=(2,1))
+p = Plots.plot(layout=(2,1));
 for s in sample(chain[501:end], 10)
     residual!(post, s)
 end

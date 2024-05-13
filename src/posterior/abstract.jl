@@ -55,21 +55,39 @@ end
 prior_sample(post::AbstractVLBIPosterior, args...) = prior_sample(Random.default_rng(), post, args...)
 
 """
-    prior_sample([rng::AbstractRandom], post::AbstractVLBIPosterior)
+    prior_sample([rng::AbstractRandom], post::AbstractVLBIPosterior, [dims=1])
 
-Returns a single sample from the prior distribution.
+Returns sample from the prior distribution of the posterior. If dims is specified then
+multiple independent draws are returned with shape dims.
 """
 function prior_sample(rng, post::AbstractVLBIPosterior)
     return rand(rng, post.prior)
 end
 
 
+function prior_sample(rng, post::AbstractVLBIPosterior, dims)
+    map(CartesianIndices(dims)) do _
+        return prior_sample(rng, post)
+    end
+end
+
+"""
+    forward_model(d::AbstractVLBIPosterior, θ)
+
+Computes the forward model visibilities of the posterior `d` with parameters `θ`.
+Note these are the complex visiblities or the coherency matrices, not the actual
+data products observed.
+"""
 function forward_model(d::AbstractVLBIPosterior, θ)
     vis = idealvisibilities(skymodel(d), θ)
     return apply_instrument(vis, instrumentmodel(d), θ)
 end
 
+"""
+    loglikelihood(d::AbstractVLBIPosterior, θ)
 
+Computes the log-likelihood of the posterior `d` with parameters `θ`.
+"""
 function loglikelihood(d::AbstractVLBIPosterior, θ)
     vis = forward_model(d, θ)
     # Convert because of conventions

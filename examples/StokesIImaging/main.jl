@@ -238,7 +238,7 @@ plot(gt, layout=(3,3), size=(600,500))
 #-
 using ComradeAHMC
 metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric), 1500; n_adapts=1000, progress=true, initial_params=xopt)
+chain = sample(rng, post, AHMC(;metric), 700; n_adapts=500, progress=true, initial_params=xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -251,7 +251,7 @@ chain = sample(rng, post, AHMC(;metric), 1500; n_adapts=1000, progress=true, ini
 
 
 # Now we prune the adaptation phase
-chain = chain[1001:end]
+chain = chain[501:end]
 
 #-
 # !!! warning

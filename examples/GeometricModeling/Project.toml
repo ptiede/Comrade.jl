@@ -14,7 +14,7 @@ VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 VLBISkyModels = "d6343c73-7174-4e0f-bb64-562643efbeca"
 
 [compat]
-CairoMakie = "0.11"
+CairoMakie = "0.11, 0.12"
 Comrade = "0.10"
 ComradeOptimization = "0.1"
 Distributions = "0.25"
