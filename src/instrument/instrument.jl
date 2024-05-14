@@ -12,7 +12,8 @@ end
 
 Base.in(t::Number, ts::IntegrationTime) = (ts.t0 - ts.dt/2) ≤ t < (ts.t0 + ts.dt)
 Base.isless(t::IntegrationTime, ts::IntegrationTime) = t.t0 < ts.t0
-scanid(ts::IntegrationTime) = ts.scanid
+Base.isless(s::Number, t::IntegrationTime) = s < (t.t0 - t.dt/2)
+Base.isless(t::IntegrationTime, s::Number) = (t.t0 + t.dt/2) < s
 mjd(ts::IntegrationTime) = ts.mjd
 
 

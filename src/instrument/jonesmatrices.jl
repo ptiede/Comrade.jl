@@ -126,8 +126,8 @@ end
 JonesF() = JonesF(nothing)
 construct_jones(J::JonesF, x, index, ::Val{M}) where {M} = J.matrices[index][M]
 param_map(::JonesF, x) = x
-function preallocate_jones(::JonesF, array::AbstractArrayConfiguration)
-    field_rotations = build_frs(array)
+function preallocate_jones(::JonesF, array::AbstractArrayConfiguration, ref)
+    field_rotations = build_feedrotation(array)
     return JonesF(field_rotations)
 end
 

@@ -140,6 +140,7 @@ using FiniteDifferences
     post = VLBIPosterior(skym, intm_coh, coh)
     tpost = asflat(post)
     x = prior_sample(tpost)
+    residual(post, Comrade.transform(tpost, x))
     gz, = Zygote.gradient(tpost, x)
     mfd = central_fdm(5,1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)

@@ -157,7 +157,7 @@ function sky(θ, metadata)
     pim = logistic.(p0 .+ pσ.*p.params)
     ## Build our IntensityMap
     pmap = PoincareSphere2Map(rast, pim, angparams, grid)
-    # Construct the actual image model which uses a third order B-spline pulse
+    ## Construct the actual image model which uses a third order B-spline pulse
     m = ContinuousImage(pmap, BSplinePulse{3}())
     ## Finally find the image centroid and shift it to be at the center
     x0, y0 = centroid(pmap)

@@ -20,33 +20,6 @@ Comrade.Comrade
 
 ## Model Definitions
 
-### Calibration Models
-
-```@docs
-Comrade.CalTable
-Comrade.caltable(::Comrade.SiteArray)
-Comrade.IIDSitePrior
-Comrade.ArrayPrior
-Comrade.RIMEModel
-Comrade.Segmentation
-Comrade.IntegSeg
-Comrade.ScanSeg
-Comrade.TrackSeg
-Comrade.timestamps
-Comrade.SingleReference
-Comrade.SEFDReference
-Comrade.SingleStokesGain
-Comrade.JonesG
-Comrade.JonesD
-Comrade.JonesR
-Comrade.JonesF
-Comrade.JonesSandwich
-Comrade.IdealInstrument
-Comrade.InstrumentModel
-Comrade.site_tuple
-Comrade.SiteArray
-Comrade.SiteLookup
-```
 
 ### Models
 
@@ -108,35 +81,83 @@ Comrade.Coherencies
 
 
 
-## Bayesian Tools
+## VLBI Modeling
+
+### Sky Models
+
+```@docs
+Comrade.AbstractSkyModel
+Comrade.SkyModel
+Comrade.FixedSkyModel
+```
+
+### Instrument Models
+
+```@docs
+Comrade.CalTable
+Comrade.caltable(::Comrade.SiteArray)
+Comrade.IIDSitePrior
+Comrade.ArrayPrior
+Comrade.Segmentation
+Comrade.IntegSeg
+Comrade.ScanSeg
+Comrade.TrackSeg
+Comrade.timestamps
+Comrade.SingleReference
+Comrade.SEFDReference
+Comrade.SingleStokesGain
+Comrade.JonesG
+Comrade.JonesD
+Comrade.JonesR
+Comrade.JonesF
+Comrade.JonesSandwich
+Comrade.AbstractInstrumentModel
+Comrade.IdealInstrumentModel
+Comrade.InstrumentModel
+Comrade.SiteArray
+Comrade.SiteLookup
+```
+
 
 ### Posterior Constructions
 
 ```@docs
-Comrade.ascube
-Comrade.asflat
-Comrade.flatten
-Comrade.inverse
+Comrade.AbstractVLBIPosterior
+Comrade.logprior
+Comrade.loglikelihood
+Comrade.dataproducts
+Comrade.skymodel(::Comrade.AbstractVLBIPosterior)
+Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior)
+Comrade.forward_model
 Comrade.prior_sample
 Comrade.likelihood
+Comrade.VLBIPosterior
 Comrade.simulate_observation
-Comrade.dataproducts
-Comrade.skymodel
-Comrade.instrumentmodel
-Comrade.vlbimodel
-Comrade.sample(::Posterior)
-Comrade.transform
-Comrade.MultiRadioLikelihood
-Comrade.Posterior
-Comrade.TransformedPosterior
-Comrade.RadioLikelihood
-Comrade.IsFlat
-Comrade.IsCube
+Comrade.residuals
+Comrade.TransformedVLBIPosterior
+HypercubeTransform.transform(::Comrade.AbstractVLBIPosterior, ::Any)
+HypercubeTransform.inverse(::Comrade.AbstractVLBIPosterior, ::Any)
+HypercubeTransform.ascube(::Comrade.AbstractVLBIPosterior)
+HypercubeTransform.asflat(::Comrade.AbstractVLBIPosterior)
 ```
 
-### Sampler Tools
+### Inference
 ```@docs
-Comrade.samplertype
+Comrade.comrade_opt
+Dynesty.dysample(::Comrade.VLBIPosterior)
+AbstractMCMC.sample(rng::AbstractRNG, ::Comrade.VLBIPosterior, ::AdvancedHMC.AbstractHMCSampler)
+AbstractMCMC.sample(rng::AbstractRNG, ::Comrade.VLBIPosterior, ::NestedSamplers.Nested)
+Comrade.MemoryStore
+Comrade.DiskStore
+Comrade.load_samples
+Comrade.PosteriorSamples
+Comrade.postsamples
+Comrade.samplerstats
+Comrade.samplerinfo
+Comrade.resample_equal
+Comrade.residual
+Comrade.residual_data
+Comrade.chi2
 ```
 
 ## Misc
@@ -146,14 +167,10 @@ Comrade.site_tuple
 Comrade.dirty_image
 Comrade.dirty_beam
 Comrade.beamsize
+Comrade.apply_fluctuations
 ```
 
 ## Internal (Not Public API)
-```@docs
-Comrade.extract_FRs
-ComradeBase._visibilitymap!
-ComradeBase._visibilitymap
-```
 
 ### eht-imaging interface (Internal)
 

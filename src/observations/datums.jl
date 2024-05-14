@@ -8,7 +8,6 @@ abstract type AbstractVisibilityDatum{T} end
 baseline(p::AbstractVisibilityDatum) = getfield(p, :baseline)
 measurement(p::AbstractVisibilityDatum) = getfield(p, :measurement)
 noise(p::AbstractVisibilityDatum) = getfield(p, :noise)
-VLBISkyModels.polarization(p::AbstractVisibilityDatum) = getfield(p, :polarization)
 
 # function Base.propertynames(p::AbstractVisibilityDatum)
 #     return (propertynames(baseline(p))..., :measurement, :noise)
@@ -23,6 +22,9 @@ build_datum(F::Type{<:AbstractVisibilityDatum}, m, e, b) = F(m, e, b)
 
 abstract type AbstractSinglePolDatum{P,S} <: AbstractVisibilityDatum{S} end
 abstract type ClosureProducts{P,T} <: AbstractSinglePolDatum{P,T} end
+
+VLBISkyModels.polarization(p::AbstractSinglePolDatum{Pol}) where {Pol} = Pol
+
 
 abstract type AbstractBaselineDatum end
 

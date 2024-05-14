@@ -3,14 +3,10 @@
 # ENV["GKS_WSTYPE"]="nul"
 
 using Documenter, Pkg
-using Comrade, ComradeBase,
-     ComradeAHMC,
-     ComradeOptimization,
-     ComradeNested,
-     ComradeDynesty,
-     ComradeAdaptMCMC
-
+using Comrade, ComradeBase, AdvancedHMC, Dynesty, NestedSamplers, Optimization,
+      PolarizedTypes
 using Pyehtim, VLBISkyModels, InteractiveUtils
+using AbstractMCMC
 
 deployconfig = Documenter.auto_detect_deploy_system()
 Documenter.post_status(deployconfig; type="pending", repo="github.com/ptiede/Comrade.jl.git")
@@ -25,10 +21,7 @@ TUTORIALS = [
      ]
 
 makedocs(;
-    modules=[ComradeBase, Comrade,
-             ComradeOptimization, ComradeAHMC,
-             ComradeNested, ComradeDynesty,
-             ComradeAdaptMCMC],
+    modules=[ComradeBase, Comrade, PolarizedTypes],
     # repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
     format = Documenter.HTML(;prettyurls=true),
@@ -38,12 +31,11 @@ makedocs(;
         "vlbi_imaging_problem.md",
         "conventions.md",
         "Tutorials" => TUTORIALS,
-        "Libraries" => [
-                        "libs/optimization.md",
-                        "libs/ahmc.md",
-                        "libs/nested.md",
-                        "libs/dynesty.md",
-                        "libs/adaptmcmc.md"
+        "Extensions" => [
+                        "ext/optimization.md",
+                        "ext/ahmc.md",
+                        "ext/nested.md",
+                        "ext/dynesty.md",
                        ],
         "base_api.md",
         "api.md"

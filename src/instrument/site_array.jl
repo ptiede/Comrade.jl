@@ -158,23 +158,22 @@ struct SiteLookup{L<:NamedTuple, N, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<
     sites::Sy
 end
 
-function sitemap!(f, out::AbstractArray, gains::AbstractArray, cache::SiteLookup)
-    sm = cache.site_map
-    map(sm.lookup) do site
+function sitemap!(f, out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
+    map(slook.lookup) do site
         ysite = @view gains[site]
         outsite = @view out[site]
         outsite .= f.(ysite)
     end
 end
 
-function sitemap(f, gains::AbstractArray, cache::SiteLookup)
-    out = similar(T, gains)
-    sitemap!(f, out, gains, cache)
+function sitemap(f, gains::AbstractArray{T}, slook::SiteLookup) where {T}
+    out = similar(gains)
+    sitemap!(f, out, gains, slook)
     return out
 end
 
-function sitemap!(::typeof(cumsum), out::AbstractArray, gains::AbstractArray, cache::SiteLookup)
-    map(site_map.lookup) do site
+function sitemap!(::typeof(cumsum), out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
+    map(slook.lookup) do site
         ys = @view gains[site]
         cumsum!(ys, ys)
     end

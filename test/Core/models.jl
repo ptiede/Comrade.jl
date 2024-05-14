@@ -12,6 +12,7 @@ using StaticArrays
 using Tables
 using Plots
 import TransformVariables as TV
+using VLBIImagePriors
 
 ntequal(x::NamedTuple{N}, y::NamedTuple{N}) where {N} = map(_ntequal, (x), (y))
 ntequal(x, y) = false
@@ -42,6 +43,24 @@ _ntequal(x, y) = x ≈ y
     end
 end
 
+@testset "GMRF" begin
+    δ = rand(GMRF(64.0, (128, 128)))
+    m = modify(Gaussian(), Stretch(μas2rad(40.0)))
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128)
+    img = apply_fluctuations(exp, m, g, δ)
+    mimg = intensitymap(m, g)
+    img2 = apply_fluctuations(exp, mimg, δ)
+    @test img isa IntensityMap
+    @test img2 ≈ img
+
+    img3 = apply_fluctuations(mimg, δ)
+
+    img4 = apply_fluctuations(CenteredLR(), m, g, δ)
+    @test_throws ArgumentError apply_fluctuations(CenteredLR(), mimg, δ)
+    img5 = apply_fluctuations(CenteredLR(), mimg./flux(mimg), δ)
+    @test img4 ≈ img5
+
+end
 
 function FiniteDifferences.to_vec(k::SiteArray)
     v, b = to_vec(parent(k))
@@ -52,6 +71,49 @@ end
 
 @testset "InstrumentModel" begin
     _,dvis, amp, lcamp, cphase, dcoh = load_data()
+
+
+    @testset "SiteArray" begin
+
+        G = SingleStokesGain(x->exp(x.lg + 1im*x.gp))
+        intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+                    gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant=SEFDReference(0.0))
+                    )
+
+        intm = InstrumentModel(G, intprior)
+        ointm, printm = Comrade.set_array(intm, arrayconfig(dvis))
+        show(IOBuffer(), MIME"text/plain"(), ointm)
+        x = rand(printm)
+        sl = Comrade.SiteLookup(x.lg)
+
+        @test sl isa Comrade.SiteLookup
+        s2 =  SiteArray(parent(x.lg), sl)
+        @test s2 == x.lg
+        @test Comrade.times(s2) == Comrade.times(x.lg)
+        @test Comrade.frequencies(s2) == Comrade.frequencies(x.lg)
+        @test Comrade.sites(s2) == Comrade.sites(x.lg)
+
+        @test Comrade.sitemap(exp, parent(x.lg), sl) ≈ exp.(x.lg)
+        Comrade.sitemap(cumsum, parent(x.lg), sl)
+
+        @test x.lg[1] == parent(x.lg)[1]
+        x.lg[1] = 1.0
+        @test x.lg[1] == 1.0
+
+        sarr = x.lg[1:16]
+        @test_throws DimensionMismatch similar(sarr, Float64, (4,4)) isa Comrade.SiteArray
+
+        @test Comrade.SiteArray(x.lg, sl) == x.lg
+
+        Comrade.time(x.lg, 5.0..6.0)
+        Comrade.frequency(x.lg, 1.0..400.0)
+
+        ps = ProjectTo(x.lg)
+        @test ps(x.lg) == x.lg
+        @test ps(NoTangent()) isa NoTangent
+        @test ps(Tangent{typeof(x.lg)}(data = parent(x.lg))) == x.lg
+
+    end
 
     @testset "StokesI" begin
         vis = Comrade.measurement(dvis)
@@ -138,6 +200,11 @@ end
 
         J = JonesSandwich(splat(*), G, D, R)
 
+        F = JonesF()
+
+        JG = GenericJones(x->(x.lg, x.lg, x.lg, x.lg))
+
+
         intprior = (
         lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
         gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π  ^2))); phase=true, refant=SEFDReference(0.0)),
@@ -154,6 +221,11 @@ end
         show(IOBuffer(), MIME"text/plain"(), intm)
 
         ointm, printm = Comrade.set_array(intm, arrayconfig(dcoh))
+
+        Fpre = Comrade.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
+        Rpre = Comrade.preallocate_jones(JonesR(;add_fr=true), arrayconfig(dcoh), CirBasis())
+        @test Fpre.matrices[1] ≈ Rpre.matrices[1]
+        @test Fpre.matrices[2] ≈ Rpre.matrices[2]
 
         @testset "ObservedArrayPrior" begin
             @inferred logpdf(printm, rand(printm))
@@ -297,6 +369,17 @@ end
             @test Tables.getcolumn(c1row, 2) == c1.AA[30]
             @test Tables.getcolumn(c1row, 1) == c1.time[30]
             @test propertynames(c1) == propertynames(c1row) == [:time, sort(sites(amp))...]
+
+            Tables.schema(c1) isa Tables.Schema
+            Tables.getcolumn(c1, Float64, 1, :test)
+            Tables.getcolumn(c1, Float64, 2, :test)
+
+            @test c1[1, :AA] ≈ c1.AA[1]
+            @test c1[!, :AA] ≈ c1.AA
+            @test c1[:, :AA] ≈ c1.AA
+            @test length(c1) == length(c1.AA)
+            @test c1[1 ,:] isa Comrade.CalTableRow
+            @test length(Tables.getrow(c1, 1:5)) == 5
 
             plot(c1)
             plot(c1, datagains=true)

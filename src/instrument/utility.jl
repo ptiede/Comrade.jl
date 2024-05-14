@@ -30,6 +30,6 @@ function site_tuple(sites::NTuple{N, Symbol}, default; kwargs...) where {N}
     out = map(x->get(kwargs, x, default), sites)
     return NamedTuple{sites}(out)
 end
-site_tuple(dvis::AbstractObservationTable, default; kwargs...) = site_tuple(Tuple(sites(dvis)), default; kwargs...)
-site_tuple(dvis::AbstractArrayConfiguration, default; kwargs...) = site_tuple(Tuple(sites(dvis)), default; kwargs...)
+site_tuple(dvis::AbstractObservationTable, default; kwargs...) = site_tuple((sites(dvis)), default; kwargs...)
+site_tuple(dvis::AbstractArrayConfiguration, default; kwargs...) = site_tuple((sites(dvis)), default; kwargs...)
 site_tuple(st::AbstractVector{Symbol}, default; kwargs...) = site_tuple(Tuple(st), default; kwargs...)

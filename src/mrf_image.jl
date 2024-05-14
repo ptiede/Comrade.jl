@@ -25,7 +25,7 @@ end
 
 
 function apply_fluctuations(mimg::IntensityMap, δ::AbstractArray)
-    return apply_fluctuations(identity, mimg, δ; normalize)
+    return apply_fluctuations(identity, mimg, δ)
 end
 
 function _apply_fluctuations(f, mimg::AbstractArray, δ::AbstractArray)

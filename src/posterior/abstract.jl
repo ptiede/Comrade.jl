@@ -5,13 +5,49 @@ export vlbimodel, logdensityof, dimension, skymodel, instrumentmodel, dataproduc
        forward_model, prior_sample, simulate_observation,
        VLBIPosterior, logdensityof, loglikelihood
 
+
+"""
+    $(TYPEDEF)
+
+An abstract VLBI posterior. See [`VLBIPosterior`](@ref) for a concrete implementation.
+This implements the  `DensityInterface` and `LogDensityProblem` interfaces.
+
+Default methods include:
+
+ - `logprior(d::AbstractVLBIPosterior, θ)`: Computes the log-prior of the posterior.
+ - `loglikelihood(d::AbstractVLBIPosterior, θ)`: Computes the log-likelihood of the posterior.
+ - `dimension(d::AbstractVLBIPosterior)`: Returns the dimension of the posterior.
+ - `skymodel(d::AbstractVLBIPosterior, θ)`: Returns the sky model of the posterior.
+ - `prior_sample(rng::AbstractRandom, d::AbstractVLBIPosterior, dims...)`: Samples from the prior of the posterior.
+ - `forward_model(d::AbstractVLBIPosterior, θ)`: Computes the forward model visibilities of the posterior.
+ - `dataproducts(d::AbstractVLBIPosterior)`: Returns the data products you are fitting as a tuple.
+
+"""
 abstract type AbstractVLBIPosterior end
 @inline DensityInterface.DensityKind(::AbstractVLBIPosterior) = DensityInterface.IsDensity()
+
+"""
+    logprior(d::AbstractVLBIPosterior, θ)
+
+Computes the log-prior of the posterior `d` with parameters `θ`.
+"""
 logprior(d::AbstractVLBIPosterior, θ) = logdensityof(d.prior, θ)
 LogDensityProblems.logdensity(d::AbstractVLBIPosterior, θ) = logdensityof(d, θ)
 LogDensityProblems.dimension(d::AbstractVLBIPosterior) = dimension(d)
 LogDensityProblems.capabilities(::Type{<:AbstractVLBIPosterior}) = LogDensityProblems.LogDensityOrder{0}()
+
+"""
+    skymodel(d::AbstractVLBIPosterior)
+
+Returns the sky model of the posterior `d`.
+"""
 skymodel(d::AbstractVLBIPosterior) = getfield(d, :skymodel)
+
+"""
+    instrumentmodel(d::AbstractVLBIPosterior)
+
+Returns the instrument model of the posterior `d`.
+"""
 instrumentmodel(d::AbstractVLBIPosterior) = getfield(d, :instrumentmodel)
 HypercubeTransform.dimension(d::AbstractVLBIPosterior) = length(d.prior)
 

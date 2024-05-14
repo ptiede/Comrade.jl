@@ -1,5 +1,18 @@
 export InstrumentModel
 
+"""
+    $(TYPEDEF)
+
+The abstract instrument model. For a concrete implementation see [`IdealInstrumentModel`](@ref) and
+[`InstrumentModel`](@ref).
+
+Any subtype must implement the following methods
+
+ - `set_array(m::AbstractInstrumentModel, array::AbstractArrayConfiguration)`: Sets the array configuration
+    for the instrument model `m` and returns the observed instrument model and prior.
+ - `apply_instrument(vis, m::AbstractInstrumentModel, x)`: Applies the instrument model `m` to the visibilities
+    `vis` given the model parameters `x`.
+"""
 abstract type AbstractInstrumentModel end
 
 """

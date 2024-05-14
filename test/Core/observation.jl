@@ -67,11 +67,30 @@ end
 
     vis, amp, cphase, lcamp = extract_table(obsavg, Visibilities(), VisibilityAmplitudes(), ClosurePhases(), LogClosureAmplitudes())
 
+    @testset "Dirty stuff" begin
+        dbeam = dirty_beam(μas2rad(150.0), 256, vis)
+        dimg = dirty_image(μas2rad(150.0), 256, vis)
+    end
+
     @test vis[:measurement] == Comrade.measurement(vis)
     @test vis[:noise] == Comrade.noise(vis)
     @test firstindex(vis) == 1
     @test lastindex(vis) == length(vis)
     @test vis[1] isa Comrade.datumtype(vis)
+    @test vis[1:10] isa Comrade.EHTObservationTable
+    @test @view(vis[1:10]) isa Comrade.EHTObservationTable
+
+    @test dvis[1] isa Comrade.EHTVisibilityDatum
+    @test Tables.istable(typeof(dvis))
+    @test Tables.columnaccess(typeof(dvis))
+    @test Tables.columns(dvis) == datatable(dvis)
+    @test Tables.getcolumn(dvis, 1) == Comrade.measurement(dvis)
+    @test lastindex(dvis) == length(Comrade.measurement(dvis))
+    @test firstindex(dvis) == 1
+
+    @test beamsize(dvis) == beamsize(arrayconfig(dvis))
+
+    show(IOBuffer(), arrayconfig(dvis))
 
 
     @test amp[:measurement] == Comrade.measurement(amp)
@@ -79,6 +98,9 @@ end
     @test firstindex(amp) == 1
     @test lastindex(amp) == length(amp)
     @test amp[1] isa Comrade.datumtype(amp)
+    @test Comrade.measurement(amp[1]) == Comrade.measurement(amp)[1]
+    @test Comrade.noise(amp[1]) == Comrade.noise(amp)[1]
+    @test VLBISkyModels.polarization(amp[1]) == :I
 
 
 
@@ -139,6 +161,13 @@ end
         @test lcamp[1] isa Comrade.datumtype(lcamp)
         @test length(Comrade.quadrangle(lcamp[1])) == 4
 
+        ac = arrayconfig(cphase)
+        @test ac[1] isa NTuple{3, Comrade.EHTArrayBaselineDatum}
+        @test firstindex(ac) == 1
+        @test lastindex(ac) == length(cphase)
+        @test beamsize(ac) == beamsize(cphase)
+        @test @view(ac[1:10]) isa Comrade.ClosureConfig
+        @test (ac[1:10]) isa Comrade.ClosureConfig
 
 
     end
@@ -154,6 +183,7 @@ end
         @test firstindex(coh) == 1
         @test lastindex(coh) == length(coh)
         @test coh[1] isa Comrade.datumtype(coh)
+        @test VLBISkyModels.polarization(coh[1]) == (CirBasis(), CirBasis())
 
     end
 end
@@ -178,6 +208,9 @@ end
 
 
         scan = ttab[10]
+        @test scan[1] isa Comrade.EHTVisibilityDatum
+        first(ttab)
+        last(ttab)
         bl = baseline(scan)
         s = sites(scan)
         @test s == sort(unique(vcat(bl...)))

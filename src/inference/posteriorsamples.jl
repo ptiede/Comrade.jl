@@ -12,6 +12,7 @@ struct PosteriorSamples{T, N, C<:AbstractArray{T,N}, S, M} <: AbstractArray{T,N}
         C = typeof(c)
         new{T,N,C,S, M}(c, stats, metadata)
     end
+
     function PosteriorSamples(chain::StructArray{T,N}, stats::StructArray, metadata) where {T,N}
         length(chain) != length(stats) && throw(ArgumentError("chain and stats must have the same length"))
         new{T, N, typeof(chain), typeof(stats), typeof(metadata)}(chain, stats, metadata)
@@ -42,6 +43,20 @@ function PosteriorSamples(chain, stats; metadata=Dict(:sampler=>:unknown))
     return PosteriorSamples(ch, stats, metadata)
 end
 
+"""
+PosteriorSamples(chain, stats; metadata=Dict(:sampler=>:unknown))
+
+This is the default sampler output from Comrade MCMC extensions. The object contains the
+posterior samples, the sampler statistics, and metadata about the sampler used.
+
+Indexing this array behaves like indexing the samples organized as a StructArray. By
+default all NamedTuples and Tuples are unwrapped.
+
+To access the samples use [`postsamples`](@ref) and to access the sampler statistics use [`samplerstats`](@ref),
+or the acesss sampler specific information use [`samplerinfo`](@ref).
+
+To recursively map a function over the samples the unexported [`Comrade.rmap`](@ref).
+"""
 function PosteriorSamples(chain::StructArray{T,N}, stats::StructArray; metadata=Dict(:sampler=>:unknown)) where {T,N}
     length(chain) != length(stats) && throw(ArgumentError("chain and stats must have the same length"))
     return PosteriorSamples(chain, stats, metadata)
@@ -84,6 +99,13 @@ end
 Base.IndexStyle(::Type{<:PosteriorSamples{T,N,C}}) where {T,N,C} = Base.IndexStyle(C)
 
 rmap(f, x) = f(x)
+
+"""
+    Comrade.rmap(f, x::PosteriorSamples)
+
+Recursively map a function `f` over the elements of `x`. For instance to compute the mean
+of all fields you can do `Comrade.rmap(mean, chain)`
+"""
 rmap(f, x::PosteriorSamples) = rmap(f, postsamples(x))
 
 function rmap(f, t::Tuple)
@@ -124,18 +146,42 @@ function Base.getproperty(s::PosteriorSamples, p::Symbol)
     return getproperty(postsamples(s), p)
 end
 
+"""
+    postsamples(s::PosteriorSamples)
+
+Return the samples from the PosteriorSamples object `s`
+"""
 function postsamples(s::PosteriorSamples)
     return getfield(s, :chain)
 end
 
+"""
+    samplerstats(s::PosteriorSamples)
+
+Return the sampler statistics from the PosteriorSamples object `s`
+"""
 function samplerstats(s::PosteriorSamples)
     return getfield(s, :stats)
 end
 
+
+"""
+    samplerinfo(s::PosteriorSamples)
+
+Return the metadata from the PosteriorSamples object `s`.
+"""
 function samplerinfo(s::PosteriorSamples)
     return getfield(s, :metadata)
 end
 
+
+"""
+    resample_equal(post::PosteriorSamples, nsamples::Int)
+
+Resample the posterior samples so you have `nsamples` of equal weight. In order for this method to
+be applicable a `:weights` field must be present in the sampler statistics and the weight
+must correspond to the probability weights of the samples.
+"""
 function resample_equal(post::PosteriorSamples, n::Int)
     !(:weights ∈ propertynames(samplerstats(post))) && throw(ArgumentError("Weights not in chain stats, cannot resample"))
     echain = sample(post, AbstractMCMC.StatsBase.Weights(samplerstats(post).weights), n)

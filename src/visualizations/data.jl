@@ -253,6 +253,13 @@ end
     area, @. atan(sin(phase), cos(phase))
 end
 
+"""
+    residual(post::AbstractVLBIPosterior, p)
+
+Plots the normalized residuals for the posterior `post` given the parameters `p`.
+"""
+function residual end
+
 @userplot Residual
 
 export ndata
@@ -343,7 +350,12 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
     end
 end
 
+"""
+    chi2(post::AbstractVLBIPosterior, p)
 
+Returns a tuple of the chi-squared values for each data product in the posterior `post` given the parameters `p`.
+Note that the chi-square is not reduced.
+"""
 function chi2(post::AbstractVLBIPosterior, p)
     res = residuals(post, p)
     return map(_chi2, res)
@@ -357,8 +369,13 @@ end
 
 
 
+"""
+    residual_data(vis, data::EHTObservationTable)
 
-function residuals_data(vis, data::EHTObservationTable{A}) where {A<:EHTClosurePhaseDatum}
+Compute the residuals for the model visibilities `vis` and the data `data`.
+The residuals are not normalized and the returned object is an `EHTObservationTable`.
+"""
+function residual_data(vis, data::EHTObservationTable{A}) where {A<:EHTClosurePhaseDatum}
     phase = measurement(data)
     err = noise(data)
 
@@ -368,7 +385,7 @@ function residuals_data(vis, data::EHTObservationTable{A}) where {A<:EHTClosureP
 end
 
 
-function residuals_data(vis, dlca::EHTObservationTable{A}) where {A<:EHTLogClosureAmplitudeDatum}
+function residual_data(vis, dlca::EHTObservationTable{A}) where {A<:EHTLogClosureAmplitudeDatum}
     phase = measurement(dlca)
     err = noise(dlca)
     mphase = logclosure_amplitudes(vis, designmat(arrayconfig(dlca)))
@@ -376,20 +393,20 @@ function residuals_data(vis, dlca::EHTObservationTable{A}) where {A<:EHTLogClosu
     return EHTObservationTable{A}(res, err, arrayconfig(dlca))
 end
 
-function residuals_data(vis, damp::EHTObservationTable{A}) where {A<:EHTVisibilityAmplitudeDatum}
+function residual_data(vis, damp::EHTObservationTable{A}) where {A<:EHTVisibilityAmplitudeDatum}
     mamp = abs.(vis)
     amp = measurement(damp)
     res = (amp - mamp)
     return EHTObservationTable{A}(res, noise(damp), arrayconfig(damp))
 end
 
-function residuals_data(vis, dvis::EHTObservationTable{A}) where {A<:EHTCoherencyDatum}
+function residual_data(vis, dvis::EHTObservationTable{A}) where {A<:EHTCoherencyDatum}
     coh = measurement(dvis)
     res = coh .- vis
     return EHTObservationTable{A}(res, noise(dvis), arrayconfig(dvis))
 end
 
-function residuals_data(mvis, dvis::EHTObservationTable{A}) where {A<:EHTVisibilityDatum}
+function residual_data(mvis, dvis::EHTObservationTable{A}) where {A<:EHTVisibilityDatum}
     vis = measurement(dvis)
     res = (vis - mvis)
     return EHTObservationTable{A}(res, noise(dvis), arrayconfig(dvis))

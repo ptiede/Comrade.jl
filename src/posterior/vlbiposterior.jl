@@ -144,6 +144,6 @@ The resturn objects are `EHTObservationTables`, where the measurements are the r
 """
 function residuals(post::VLBIPosterior, p)
     vis = forward_model(post, p)
-    res = map(x->residuals_data(vis, x), post.data)
+    res = map(x->residual_data(vis, x), post.data)
     return res
 end

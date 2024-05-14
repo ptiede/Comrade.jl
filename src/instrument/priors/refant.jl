@@ -4,6 +4,11 @@ export NoReference, SingleReference, SEFDReference
 
 struct NoReference <: ReferencingScheme end
 
+"""
+    SingleReference(site::Symbol, val)
+
+Selects a single reference site for all scans. The value of the site is set to `val`.
+"""
 struct SingleReference{T} <: ReferencingScheme
     site::Symbol
     value::T

@@ -28,11 +28,11 @@ end
 # Implement the tables interface
 Tables.istable(::Type{<:AbstractVLBITable}) = true
 Tables.columnaccess(::Type{<:AbstractVLBITable}) = true
-Tables.columns(t::AbstractVLBITable) = getfield(t, :data)
+Tables.columns(t::AbstractVLBITable) = datatable(t)
 
-Tables.getcolumn(t::AbstractVLBITable, ::Type{T}, col::Int, nm::Symbol) where {T} = getdata(t, nm)
+Tables.getcolumn(t::AbstractVLBITable, ::Type{T}, col::Int, nm::Symbol) where {T} = Tables.getcolumn(t, nm)
 Tables.getcolumn(t::AbstractVLBITable, nm::Symbol) = getproperty(datatable(t), nm)
-Tables.getcolumn(t::AbstractVLBITable, i::Int) = Tables.getcolumn(t, Tables.columnames(t)[i])
+Tables.getcolumn(t::AbstractVLBITable, i::Int) = Tables.getcolumn(t, Tables.columnnames(t)[i])
 Tables.columnnames(t::AbstractVLBITable) = propertynames(datatable(t))
 
 function Base.getindex(data::AbstractVLBITable, s::Symbol)

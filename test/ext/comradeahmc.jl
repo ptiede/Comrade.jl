@@ -25,6 +25,9 @@ using Zygote
     out = sample(post, s1, 1_000; n_adapts=500, saveto=DiskStore(name=joinpath(@__DIR__, "Test")), initial_params=x0)
     out = sample(post, s1, 1_200; n_adapts=500, saveto=DiskStore(name=joinpath(@__DIR__, "Test")), initial_params=x0, restart=true)
 
+    show(IOBuffer(), MIME"text/plain"(), hchain)
+    hchain.sky
+
     c1 = load_samples(out)
     @test c1[201:451] == load_samples(out, 201:451)
 

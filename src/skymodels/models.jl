@@ -1,5 +1,22 @@
 export SkyModel, FixedSkyModel
 
+
+"""
+    AbstractSkyModel
+
+The abstract type for Comrade Sky Models. For a concrete implementation see [`SkyModel`](@ref).
+
+Any subtype must implement the following methods
+
+ - `set_array(m::AbstractSkyModel, array::AbstractArrayConfiguration)`: Sets the array configuration
+    for the sky model `m` and returns the observed sky model and prior.
+
+The following methods have default implementations:
+ - `idealvisibilities(m::AbstractSkyModel, x)`: Computes the ideal visibilities of the sky model `m`
+    given the model parameters `x`.
+ - `skymodel(m::AbstractSkyModel, x)`: Returns the sky model image given the model parameters `x`.
+ - `domain(m::AbstractSkyModel)`: Returns the domain of the sky model `m`.
+"""
 abstract type AbstractSkyModel end
 
 
@@ -82,7 +99,11 @@ function set_array(m::AbstractSkyModel, array::AbstractArrayConfiguration)
     return ObservedSkyModel(m, array), m.prior
 end
 
+"""
+    idealvisibilities(m::AbstractSkyModel, x)
 
+Computes the ideal non-corrupted visibilities of the sky model `m` given the model parameters `x`.
+"""
 function idealvisibilities(m::AbstractSkyModel, x)
     skym = skymodel(m, x.sky)
     return visibilitymap(skym, domain(m))

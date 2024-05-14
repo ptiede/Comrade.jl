@@ -9,8 +9,8 @@ DensityInterface.logdensityof(d::ConditionedLikelihood, μ) = logdensityof(d.ker
     likelihood(d::ConditionedLikelihood, μ)
 
 Returns the likelihood of the model, with parameters μ. That is, we return the
-distribution of the data given the model parameters μ. This is an actual probability
-distribution.
+distribution of the data given the model parameters μ. Samples from this distribution
+are simulated data.
 """
 likelihood(d::ConditionedLikelihood, μ) = d.kernel(μ)
 
