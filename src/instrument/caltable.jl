@@ -39,7 +39,7 @@ end
 
 Tables.columns(g::CalTable) = Tables.table([scantimes(g) gmat(g)]; header=Tables.columnnames(g))
 function Tables.getcolumn(g::CalTable, ::Type{T}, col::Int, nm::Symbol) where {T}
-    (i == 1 || nm == :time) && return scantimes(g)
+    (col == 1 || nm == :time) && return scantimes(g)
     gmat(g)[:, col-1]
 end
 
