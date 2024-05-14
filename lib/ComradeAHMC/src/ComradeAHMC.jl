@@ -41,7 +41,7 @@ Base.@kwdef struct AHMC{S,I,P,T,A,D}
     """
     `AdvancedHMC` metric to use
     """
-    metric::S
+    metric::S = DiagEuclideanMetric
     """
     `AdvancedHMC` integrator
     Defaults to `AdvancedHMC.Leapfrog`
@@ -145,22 +145,23 @@ function AbstractMCMC.sample(
                             kwargs...)
 end
 
-function make_sampler(∇ℓ, sampler::AHMC, θ0)
+function make_sampler(∇ℓ, sampler::AHMC, ndim)
     model = AdvancedHMC.LogDensityModel(∇ℓ)
     initial_ϵ = 1e-4
     integrator = sampler.integrator(initial_ϵ)
     proposal = HMCKernel(Trajectory{sampler.trajectory}(integrator, sampler.termination))
-    adaptor = sampler.adaptor(MassMatrixAdaptor(sampler.metric), StepSizeAdaptor(sampler.targetacc, integrator);
+    metric = sampler.metric(ndim)
+    adaptor = sampler.adaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(sampler.targetacc, integrator);
                         init_buffer = sampler.init_buffer,
                         term_buffer = sampler.term_buffer,
                         window_size = sampler.window_size)
 
-    return model, HMCSampler(proposal, sampler.metric, adaptor)
+    return model, HMCSampler(proposal, metric, adaptor)
 end
 
 function AbstractMCMC.Sample(rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior, sampler::AHMC; kwargs...)
     ∇ℓ = ADgradient(sampler.autodiff, tpost)
-    model, smplr = make_sampler(∇ℓ, sampler, 0)
+    model, smplr = make_sampler(∇ℓ, sampler, dimension(tpost))
     return AbstractMCMC.Sample(rng, model, smplr; kwargs...)
 end
 
@@ -173,7 +174,7 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
 
     ∇ℓ = ADgradient(sampler.autodiff, tpost)
     θ0 = _initialize_hmc(tpost, initial_params, nchains)
-    model, smplr = make_sampler(∇ℓ, sampler, first(θ0))
+    model, smplr = make_sampler(∇ℓ, sampler, dimension(tpost))
 
 
     res = AbstractMCMC.sample(
@@ -267,7 +268,7 @@ function AbstractMCMC.sample(rng::Random.AbstractRNG, tpost::Comrade.Transformed
         θ0 = prior_sample(rng, tpost)
     end
 
-    model, smplr = make_sampler(∇ℓ, sampler, θ0)
+    model, smplr = make_sampler(∇ℓ, sampler, dimension(tpost))
 
 
     res = AbstractMCMC.sample(
@@ -437,7 +438,6 @@ function load_table(
         end
     end
 
-    @info table
 
 
     # Now get the index of the first file

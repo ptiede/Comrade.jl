@@ -495,7 +495,7 @@ function Comrade.extract_cphase(obs; pol=:I, count="min", kwargs...)
     end
     clac = Comrade.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
     T = Comrade.EHTClosurePhaseDatum{pol, eltype(cphase.T), typeof(arrayconfig(dvis)[1])}
-    cp = Comrade.closure_phases(measurement(dvis), clac)
+    cp = Comrade.closure_phases(measurement(dvis), Comrade.designmat(clac))
     cp_sig = abs2.(Comrade.noise(dvis)./Comrade.measurement(dvis))
     cp_cov = Comrade.designmat(clac)*Diagonal(cp_sig)*transpose(Comrade.designmat(clac))
     return Comrade.EHTObservationTable{T}(cp, cp_cov, clac)
@@ -545,7 +545,7 @@ function Comrade.extract_lcamp(obs; pol=:I, count="min", kwargs...)
     clac = Comrade.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
     cldmat = Comrade.designmat(clac)
     T = Comrade.EHTLogClosureAmplitudeDatum{pol, eltype(lcamp.T), typeof(arrayconfig(dvis)[1])}
-    lcamp = Comrade.logclosure_amplitudes(measurement(dvis), clac)
+    lcamp = Comrade.logclosure_amplitudes(measurement(dvis), Comrade.designmat(clac))
     lcamp_sig = abs2.(Comrade.noise(dvis)./Comrade.measurement(dvis))
     lcamp_cov = cldmat*Diagonal(lcamp_sig)*transpose(cldmat)
     return Comrade.EHTObservationTable{T}(lcamp, lcamp_cov, clac)

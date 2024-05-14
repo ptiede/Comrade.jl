@@ -190,7 +190,8 @@ Base.getindex(m::DesignMatrix, I::Vararg{Int,N}) where {N} = getindex(m.matrix, 
 # Base.setindex!(m::DesignMatrix, v, i::Vararg{Int, N}) where {N} = setindex!(m.matrix, v, i...)
 
 Base.similar(m::DesignMatrix, ::Type{S}, dims::Dims) where {S} = similar(m.matrix, S, dims)
-
+Base.:*(m::DesignMatrix, x::AbstractVector) = m.matrix*x
+Base.adjoint(m::DesignMatrix) = adjoint(m.matrix)
 LinearAlgebra.mul!(out::AbstractArray, m::DesignMatrix, x::AbstractArray) = mul!(out, parent(m), x)
 Base.show(io::IO, mime::MIME"text/plain",   m::DesignMatrix) = show(io, mime, m.matrix)
 
@@ -302,10 +303,12 @@ Compute the log-closure amplitudes for a set of visibilities and an array config
 # Notes
 This uses a closure design matrix for the computation.
 """
-function logclosure_amplitudes(vis::AbstractArray{<:Complex}, ac::ClosureConfig)
+function logclosure_amplitudes(vis::AbstractArray{<:Complex}, ac::DesignMatrix)
     lva = log.(abs.(vis))
-    return designmat(ac)*lva
+    return ac*lva
 end
+
+@noinline logclosure_amplitudes(vis::UnstructuredMap, ac::DesignMatrix) = logclosure_amplitudes(baseimage(vis), ac)
 
 """
     closure_phases(vis::AbstractArray, ac::ClosureConfig)
@@ -315,10 +318,12 @@ Compute the closure phases for a set of visibilities and an array configuration
 # Notes
 This uses a closure design matrix for the computation.
 """
-function closure_phases(vis::AbstractArray{<:Complex}, ac::ClosureConfig)
+function closure_phases(vis::AbstractArray{<:Complex}, ac::DesignMatrix)
     ph = angle.(vis)
-    return designmat(ac)*ph
+    return ac*ph
 end
+
+@noinline closure_phases(vis::UnstructuredMap, ac::DesignMatrix) = closure_phases(baseimage(vis), ac)
 
 amplitudes(vis::AbstractArray{<:Complex}, ::AbstractArrayConfiguration) = abs.(vis)
 phase(vis::AbstractArray{<:Complex}) = angle.(vis)
