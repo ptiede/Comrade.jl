@@ -1,7 +1,7 @@
 name = "ComradeDynesty"
 uuid = "0e22d245-d796-46d0-bd67-132aa2ceb697"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.4.0"
+version = "0.4.1"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"

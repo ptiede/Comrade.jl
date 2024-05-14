@@ -11,7 +11,7 @@ export resample_equal
 Comrade.samplertype(::Type{<:Nested}) = Comrade.IsCube()
 
 """
-    AbstractMCMC.sample(post::Comrade.Posterior, smplr::Nested, args...; kwargs...)
+    AbstractMCMC.sample(post::Comrade.VLBIPosterior, smplr::Nested, args...; kwargs...)
 
 Sample the posterior `post` using `NestedSamplers.jl` `Nested` sampler. The `args/kwargs`
 are forwarded to `NestedSampler` for more information see its [docs](https://github.com/TuringLang/NestedSamplers.jl)
@@ -27,7 +27,7 @@ chain, stats = sample(post, NestedSampler(dimension(post), 1000))
 equal_weighted_chain = sample(chain, Weights(stats.weights), 10_000)
 
 """
-function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedPosterior, sampler::Nested, args...; kwargs...)
+function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedVLBIPosterior, sampler::Nested, args...; kwargs...)
     ℓ = logdensityof(post)
     model = NestedModel(ℓ, identity)
 

@@ -45,10 +45,12 @@ VLBILikelihoods = "90db92cd-0007-4c0a-8e51-dbf0782ce592"
 VLBISkyModels = "d6343c73-7174-4e0f-bb64-562643efbeca"
 
 [weakdeps]
+Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 Pigeons = "0eb8d820-af6a-4919-95ae-11206f830c31"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 
 [extensions]
+ComradeOptimizationExt = "Optimization"
 ComradePigeonsExt = "Pigeons"
 ComradePyehtimExt = "Pyehtim"
 
@@ -70,6 +72,7 @@ HypercubeTransform = "0.4"
 LogDensityProblems = "2"
 Makie = "0.20"
 NamedTupleTools = "0.13,0.14"
+Optimization = "3"
 PaddedViews = "0.5"
 ParameterHandling = "0.4, 0.5"
 Pigeons = "0.3, 0.4"
@@ -93,9 +96,10 @@ julia = "1.9"
 [extras]
 CPUSummary = "2a0fbf3d-bb9c-48f3-b0a9-814d99fd7ab9"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 Pigeons = "0eb8d820-af6a-4919-95ae-11206f830c31"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "Makie", "Pigeons", "Pyehtim"]
+test = ["Test", "Makie", "Optimization", "Pigeons", "Pyehtim"]
