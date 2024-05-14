@@ -45,12 +45,10 @@ VLBILikelihoods = "90db92cd-0007-4c0a-8e51-dbf0782ce592"
 VLBISkyModels = "d6343c73-7174-4e0f-bb64-562643efbeca"
 
 [weakdeps]
-Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Pigeons = "0eb8d820-af6a-4919-95ae-11206f830c31"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 
 [extensions]
-ComradeMakieExt = "Makie"
 ComradePigeonsExt = "Pigeons"
 ComradePyehtimExt = "Pyehtim"
 

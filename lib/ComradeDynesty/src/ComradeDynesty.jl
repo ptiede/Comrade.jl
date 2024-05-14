@@ -14,8 +14,8 @@ Comrade.samplertype(::Type{<:NestedSampler}) = Comrade.IsCube()
 Comrade.samplertype(::Type{<:DynamicNestedSampler}) = Comrade.IsCube()
 
 """
-    AbstractMCMC.sample(post::Comrade.Posterior, smplr::Dynesty.NestedSampler, args...; kwargs...)
-    AbstractMCMC.sample(post::Comrade.Posterior, smplr::Dynesty.DynamicNestedSampler, args...; kwargs...)
+    AbstractMCMC.sample(post::Comrade.VLBIPosterior, smplr::Dynesty.NestedSampler, args...; kwargs...)
+    AbstractMCMC.sample(post::Comrade.VLBIPosterior, smplr::Dynesty.DynamicNestedSampler, args...; kwargs...)
 
 Sample the posterior `post` using `Dynesty.jl` `NestedSampler/DynamicNestedSampler` sampler.
 The `args/kwargs`
@@ -33,7 +33,7 @@ chain = sample(post, NestedSampler(dimension(post), 1000))
 equal_weighted_chain = sample(chain, Weights(stats.weights), 10_000)
 ```
 """
-function AbstractMCMC.sample(::Random.AbstractRNG, post::Comrade.TransformedPosterior,
+function AbstractMCMC.sample(::Random.AbstractRNG, post::Comrade.TransformedVLBIPosterior,
                              sampler::Union{NestedSampler, DynamicNestedSampler}
                              ; initial_params=nothing,
                              kwargs...)
