@@ -76,18 +76,6 @@ include("dirty_image.jl")
 include("mrf_image.jl")
 include("rules.jl")
 
-# Load extensions using requires for verions < 1.9
-if !isdefined(Base, :get_extension)
-    using Requires
-end
-
-@static if !isdefined(Base, :get_extension)
-    function __init__()
-        @require Pyehtim="3d61700d-6e5b-419a-8e22-9c066cf00468" include(joinpath(@__DIR__, "../ext/ComradePyehtimExt.jl"))
-        @require Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" include(joinpath(@__DIR__, "../ext/ComradeMakieExt.jl"))
-    end
-end
-
 
 
 end

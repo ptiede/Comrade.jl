@@ -2,22 +2,13 @@ module ComradePigeonsExt
 
 using Comrade
 
-if isdefined(Base, :get_extension)
-    using Pigeons
-    using AbstractMCMC
-    using LogDensityProblems
-    using HypercubeTransform
-    using TransformVariables
-    using Random
+using Pigeons
+using AbstractMCMC
+using LogDensityProblems
+using HypercubeTransform
+using TransformVariables
+using Random
 
-else
-    using ..Pigeons
-    using ..AbstractMCMC
-    using ..LogDensityProblems
-    using ..HypercubeTransform
-    using ..TransformVariables
-    using ..Random
-end
 
 Pigeons.initialization(tpost::Comrade.TransformedVLBIPosterior, rng::Random.AbstractRNG, ::Int) = prior_sample(rng, tpost)
 

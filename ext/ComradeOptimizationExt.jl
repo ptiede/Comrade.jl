@@ -2,17 +2,9 @@ module ComradeOptimizationExt
 
 using Comrade
 
-if isdefined(Base, :get_extension)
-    using ADTypes
-    using Optimization
-    using Distributions
-    using LinearAlgebra
-else
-    using ..ADTypes
-    using ..Optimization
-    using ..Distributions
-    using ..LinearAlgebra
-end
+using Optimization
+using Distributions
+using LinearAlgebra
 
 """
     SciMLBase.OptimizationFunction(post::Posterior, args...; kwargs...)

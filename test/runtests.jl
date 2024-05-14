@@ -29,6 +29,8 @@ if GROUP == "ALL" || GROUP == "Core"
     dev_subpkg("ComradeOptimization")
     Pkg.develop(PackageSpec(url="https://github.com/ptiede/ComradeBase.jl"))
     @safetestset "CORE Comrade.jl" begin
+        using Optimization
+        using Comrade
         include(joinpath(@__DIR__, "Core/core.jl"))
         include(joinpath(@__DIR__, "ext/comradeoptimization.jl"))
     end

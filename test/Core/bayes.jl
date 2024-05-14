@@ -50,8 +50,12 @@ using Zygote
     @test dimension(tpostf) == length(prior_sample(tpostf))
     @test dimension(tpostc) == length(prior_sample(tpostc))
 
+    show(IOBuffer(), MIME"text/plain"(), post)
+    show(IOBuffer(), MIME"text/plain"(), tpostf)
+
+
     f = OptimizationFunction(tpostf, Optimization.AutoZygote())
-    x0 = [ 0.1,
+    x0 = transform(tpostf, [ 0.1,
            0.4,
            0.5,
            0.9,
@@ -60,11 +64,9 @@ using Zygote
            0.4,
            0.7,
            0.8,
-           0.8]
-    prob = OptimizationProblem(f, x0, nothing; lb=fill(-5.0, ndim), ub = fill(5.0, ndim))
-    sol = solve(prob, GCMAESOpt(); maxiters=10_000)
+           0.8])
+    xopt, sol = comrade_opt(post, Optimization.LBFGS(), Optimization.AutoZygote(); initial_params=x0, maxiters=10_000)
 
-    xopt = transform(tpostf, sol)
     @test isapprox(xopt.sky.f1/xopt.sky.f2, 2.0, atol=1e-3)
     @test isapprox(xopt.sky.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-3)
     @test isapprox(xopt.sky.σ1*xopt.sky.τ1*2*sqrt(2*log(2)), μas2rad(20.0), rtol=1e-3)
@@ -75,8 +77,6 @@ using Zygote
     @test isapprox(xopt.sky.x, μas2rad(30.0), rtol=1e-3)
     @test isapprox(xopt.sky.y, μas2rad(30.0), rtol=1e-3)
 
-    show(IOBuffer(), MIME"text/plain"(), post)
-    show(IOBuffer(), MIME"text/plain"(), tpostf)
 
     mopt = test_model(xopt.sky, nothing)
     @test mopt == Comrade.skymodel(post, xopt)

@@ -1,17 +1,10 @@
 module ComradePyehtimExt
 
 using Comrade
-if isdefined(Base, :get_extension)
-    using Pyehtim
-    using StructArrays: StructVector, StructArray, append!!
-    using LinearAlgebra
-    using StaticArraysCore
-else
-    using ..Pyehtim
-    using ..StructArrays: StructVector, StructArray, append!!
-    using ..LinearAlgebra
-    using ..StaticArraysCore
-end
+using Pyehtim
+using StructArrays: StructVector, StructArray, append!!
+using LinearAlgebra
+using StaticArraysCore
 
 function build_arrayconfig(obs)
     obsd = obs.data
