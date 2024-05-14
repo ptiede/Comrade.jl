@@ -5,6 +5,7 @@ using Comrade
 using Optimization
 using Distributions
 using LinearAlgebra
+using HypercubeTransform
 
 """
     SciMLBase.OptimizationFunction(post::Posterior, args...; kwargs...)
@@ -30,7 +31,7 @@ Note the quadratic approximation is in the space of the transformed posterior
 not the usual parameter space. This is better for constrained problems where
 we may run up against a boundary.
 """
-function comrade_laplace(prob::SciMLBase.OptimizationProblem, opt, args...; kwargs...)
+function Comrade.comrade_laplace(prob::SciMLBase.OptimizationProblem, opt, args...; kwargs...)
     sol = solve(prob, opt, args...; kwargs...)
     f = Base.Fix2(prob.f, nothing)
     J = ForwardDiff.hessian(f, sol)
@@ -39,24 +40,27 @@ function comrade_laplace(prob::SciMLBase.OptimizationProblem, opt, args...; kwar
     return MvNormalCanon(h, Symmetric(J))
 end
 
-function comrade_opt(post::VLBIPosterior, opt, adtype=Optimization.NoAD(), args...; initial_params=nothing, kwargs...)
-    if (adtype isa SciMLBase.NoAD)
+function Comrade.comrade_opt(post::VLBIPosterior, opt, adtype=nothing, args...; initial_params=nothing, kwargs...)
+    if isnothing(adtype)
+        adtype = Optimization.SciMLBase.NoAD()
         tpost = ascube(post)
     else
         tpost = asflat(post)
     end
 
-    f = OptimizationFunction(tpost, adtype; kwargs...)
+    f = OptimizationFunction(tpost, adtype)
 
     if isnothing(initial_params)
         initial_params = prior_sample(tpost)
+    else
+        initial_params = Comrade.inverse(tpost, initial_params)
     end
 
     lb = nothing
     ub = nothing
     if tpost.transform isa HypercubeTransform.AbstractHypercubeTransform
-        lb=fill(-5.0, dimension(tpost))
-        ub = fill(5.0, dimension(tpost))
+        lb=fill(0.0001, dimension(tpost))
+        ub = fill(0.9999, dimension(tpost))
     end
 
     prob = OptimizationProblem(f, initial_params, nothing; lb, ub)

@@ -100,7 +100,7 @@ mimg = intensitymap(mpr, grid)
 # We will also fix the total flux to be the observed value 1.1. This is because
 # total flux is degenerate with a global shift in the gain amplitudes making the problem
 # degenerate. To fix this we use the observed total flux as our value.
-skymeta = (;ftot = 1.1, mimg = mimg./flux(mimg), grid)
+skymeta = (;ftot = 1.1, mimg = mimg./flux(mimg))
 
 
 
@@ -180,16 +180,11 @@ ndim = dimension(tpost)
 #     of the parameter space to make sampling easier.
 #-
 
-# To initialize our sampler we will use optimize using LBFGS
-using ComradeOptimization
+# To initialize our sampler we will use optimize using Adam
+using Optimization
 using OptimizationOptimisers
 using Zygote
-f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, prior_sample(tpost), nothing)
-sol = solve(prob, Optimisers.Adam(), maxiters=15_000, g_tol=1e-1);
-
-# Now transform back to parameter space
-xopt = transform(tpost, sol.u)
+xopt, sol = comrade_opt(post, Optimisers.Adam(), Optimization.AutoZygote(); initial_params=prior_sample(rng, post), maxiters=15_000, g_tol=1e-1)
 
 # !!! warning
 #     Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -228,24 +223,19 @@ plot(gt, layout=(3,3), size=(600,500))
 # To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For
 # information about NUTS,
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
-# !!! note
-#     For our `metric,` we use a diagonal matrix due to easier tuning
-#-
 # However, due to the need to sample a large number of gain parameters, constructing the posterior
 # is rather time-consuming. Therefore, for this tutorial, we will only do a quick preliminary
-# run, and any posterior
-# inferences should be appropriately skeptical.
+# run
 #-
-using ComradeAHMC
-metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric), 700; n_adapts=500, progress=true, initial_params=xopt)
+using AdvancedHMC
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=true, initial_params=xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
 #     can lead to out-of-memory issues. To fix that you can include the keyword argument
 #     `saveto = DiskStore()` which periodically saves the samples to disk limiting memory
-#     useage. You can load the chain using `load_table(diskout)` where `diskout` is
-#     the object returned from sample. For more information please see [ComradeAHMC](@ref).
+#     useage. You can load the chain using `load_samples(diskout)` where `diskout` is
+#     the object returned from sample.
 #-
 
 
@@ -279,7 +269,7 @@ plot(ctable_ph, layout=(3,3), size=(600,500))
 plot(ctable_am, layout=(3,3), size=(600,500))
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[begin:20:end])
+samples = skymodel.(Ref(post), chain[begin:2:end])
 imgs = intensitymap.(samples, Ref(g))
 
 mimg = mean(imgs)

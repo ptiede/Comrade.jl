@@ -1,3 +1,5 @@
+export comrade_opt, comrade_laplace
+
 """
     comrade_opt(post::VLBIPosterior, opt, adtype=Optimization.NoAD(), args...; initial_params=nothing, kwargs...)
 

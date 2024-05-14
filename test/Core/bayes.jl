@@ -1,5 +1,5 @@
 using Distributions
-using ComradeOptimization
+using Optimization
 using OptimizationGCMAES
 using StatsBase
 using Plots

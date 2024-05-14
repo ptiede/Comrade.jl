@@ -311,20 +311,17 @@ ndim = dimension(tpost)
 # work with the polarized Comrade posterior is Zygote. Note that in the future we expect to
 # shift entirely to Enzyme, and in fact large portions of Comrade's AD already uses Enzyme
 # through custom rules.
-using ComradeOptimization
+using Optimization
 using OptimizationOptimisers
 using Zygote
-fopt = OptimizationFunction(tpost, Optimization.AutoZygote());
-prob = Optimization.OptimizationProblem(fopt, prior_sample(rng, tpost), nothing)
-sol = solve(prob, OptimizationOptimisers.Adam(), maxiters=20_000);
+xopt, sol = comrade_opt(post, Optimisers.Adam(), Optimization.AutoZygote(); initial_params=prior_sample(rng, post), maxiters=20_000)
+
 
 # !!! warning
 #     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that
 #     optimization can take a long time, and starting from a good starting location
 #     is often required.
 #-
-# Before we analyze our solution, we need to transform it back to parameter space.
-xopt = transform(tpost, sol)
 
 # Now let's evaluate our fits by plotting the residuals
 using Plots

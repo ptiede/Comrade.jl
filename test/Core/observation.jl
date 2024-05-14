@@ -119,7 +119,7 @@ end
         @test size(Comrade.designmat(arrayconfig(cphase)), 1) == length(cphase)
         @test sites(cphase) == sites(arrayconfig(cphase))
         @test sites(cphase) == sites(vis)
-        @test Comrade.closure_phases(vis.measurement, arrayconfig(cphase)) ≈ cphase.measurement
+        @test Comrade.closure_phases(vis.measurement, Comrade.designmat(arrayconfig(cphase))) ≈ cphase.measurement
         @test Comrade.factornoisecovariance(arrayconfig(cphase)) ≈ Comrade.VLBILikelihoods.CholeskyFactor(cphase[:noise])
         @test firstindex(cphase) == 1
         @test lastindex(cphase) == length(cphase)
@@ -132,7 +132,7 @@ end
         @test size(Comrade.designmat(arrayconfig(lcamp)), 1) == length(lcamp)
         @test sites(lcamp) == sites(arrayconfig(lcamp))
         @test sites(lcamp) == sites(vis)
-        @test Comrade.logclosure_amplitudes(vis.measurement, arrayconfig(lcamp)) ≈ lcamp.measurement
+        @test Comrade.logclosure_amplitudes(vis.measurement, Comrade.designmat(arrayconfig(lcamp))) ≈ lcamp.measurement
         @test Comrade.factornoisecovariance(arrayconfig(lcamp)) ≈ Comrade.VLBILikelihoods.CholeskyFactor(lcamp[:noise])
         @test firstindex(lcamp) == 1
         @test lastindex(lcamp) == length(lcamp)

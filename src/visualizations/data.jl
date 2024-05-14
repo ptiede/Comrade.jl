@@ -362,7 +362,7 @@ function residuals_data(vis, data::EHTObservationTable{A}) where {A<:EHTClosureP
     phase = measurement(data)
     err = noise(data)
 
-    mphase = closure_phases(vis, arrayconfig(data))
+    mphase = closure_phases(vis, designmat(arrayconfig(data)))
     res = @. atan(sin(phase - mphase), cos(phase - mphase))
     return EHTObservationTable{A}(res, err, arrayconfig(data))
 end
@@ -371,7 +371,7 @@ end
 function residuals_data(vis, dlca::EHTObservationTable{A}) where {A<:EHTLogClosureAmplitudeDatum}
     phase = measurement(dlca)
     err = noise(dlca)
-    mphase = logclosure_amplitudes(vis, arrayconfig(dlca))
+    mphase = logclosure_amplitudes(vis, designmat(arrayconfig(dlca)))
     res = (phase .- mphase)
     return EHTObservationTable{A}(res, err, arrayconfig(dlca))
 end

@@ -65,7 +65,7 @@ function prior_sample(rng, post::AbstractVLBIPosterior)
 end
 
 
-function prior_sample(rng, post::AbstractVLBIPosterior, dims)
+function prior_sample(rng, post::AbstractVLBIPosterior, dims...)
     map(CartesianIndices(dims)) do _
         return prior_sample(rng, post)
     end

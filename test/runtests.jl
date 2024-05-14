@@ -1,9 +1,13 @@
 #if lowercase(get(ENV, "CI", "false")) == "true"
 #    include("install_pycall.jl")
 #end
-using SafeTestsets, Pkg, Distributions
+using Pkg, Distributions
 using ChainRulesTestUtils
 using Pyehtim
+using Optimization
+using Comrade
+using Test
+
 
 # Now we need to grab all the subpackages for testing
 const GROUP = get(ENV, "GROUP", "ALL")
@@ -24,14 +28,17 @@ function activate_subpkg_env(subpkg)
     Pkg.instantiate()
 end
 
+include(joinpath(@__DIR__, "test_util.jl"))
+
 # Now split depending on what kind of test we are doing
 if GROUP == "ALL" || GROUP == "Core"
-    dev_subpkg("ComradeOptimization")
     Pkg.develop(PackageSpec(url="https://github.com/ptiede/ComradeBase.jl"))
-    @safetestset "CORE Comrade.jl" begin
-        using Optimization
-        using Comrade
+    @testset "Comrade.jl" begin
         include(joinpath(@__DIR__, "Core/core.jl"))
+        include(joinpath(@__DIR__, "ext/comradeahmc.jl"))
         include(joinpath(@__DIR__, "ext/comradeoptimization.jl"))
+        include(joinpath(@__DIR__, "ext/comradepigeons.jl"))
+        include(joinpath(@__DIR__, "ext/comradedynesty.jl"))
+        include(joinpath(@__DIR__, "ext/comradenested.jl"))
     end
 end

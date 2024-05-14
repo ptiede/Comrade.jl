@@ -142,16 +142,11 @@ ndim = dimension(tpost)
 
 
 # Now we optimize using LBFGS
-using ComradeOptimization
+using Optimization
 using OptimizationOptimJL
 using Zygote
-f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(); maxiters=1000);
+xopt, sol = comrade_opt(post, LBFGS(), Optimization.AutoZygote(); initial_params=prior_sample(rng, post), maxiters=1000)
 
-
-# Before we analyze our solution we first need to transform back to parameter space.
-xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
 using DisplayAs #hide
@@ -178,10 +173,9 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 # !!! note
 #     For our `metric` we use a diagonal matrix due to easier tuning.
 #-
-using ComradeAHMC
+using AdvancedHMC
 using Zygote
-metric = DiagEuclideanMetric(ndim)
-chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=true, initial_params=xopt);
+chain = sample(post, NUTS(0.8), 700; n_adapts=500, progress=true, initial_params=xopt);
 
 
 # !!! warning

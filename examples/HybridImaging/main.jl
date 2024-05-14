@@ -172,49 +172,33 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 # ## Reconstructing the Image
 
-# To sample from this posterior, it is convenient to first move from our constrained parameter space
-# to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This is
-# done using the `asflat` function.
-tpost = asflat(post)
-
-# We can now also find the dimension of our posterior or the number of parameters we will sample.
-# !!! warning
-#     This can often be different from what you would expect. This is especially true when using
-#     angular variables, where we often artificially increase the dimension
-#     of the parameter space to make sampling easier.
-#-
-ndim = dimension(tpost)
-
-# Now we optimize using LBFGS
-using ComradeOptimization
+# To find the image we will demonstrate two methods:
+#  - Optimization to find the MAP (fast but often a poor estimator)
+#  - Sampling to find the posterior (slow but provides a substantially better estimator)
+# For optimization we will use the `Optimization.jl` package and the LBFGS optimizer.
+# To use this we use the [`comrade_opt`](@ref) function
+using Optimization
 using OptimizationOptimJL
 using Zygote
-f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(); maxiters=2000, g_tol=1e-0);
+xopt, sol = comrade_opt(post, LBFGS(), Optimization.AutoZygote(); initial_params=prior_sample(rng, post), maxiters=1000, g_tol=1e0)
 
-
-# Before we analyze our solution we first need to transform back to parameter space.
-xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
 using Plots
 fig = residual(post, xopt);
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
-# and now closure phases
-#-
-
-# Now these residuals look a bit high. However, it turns out this is because the MAP is typically
-# not a great estimator and will not provide very predictive measurements of the data. We
-# will show this below after sampling from the posterior.
+# These residuals suggest that we are substantially overfitting the data. This is a common
+# side effect of MAP imaging. As a result if we plot the image we see that there
+# is substantial high-frequency structure in the image that isn't supported by the data.
 imageviz(intensitymap(skymodel(post, xopt), gpl), figure=(;resolution=(500, 400),))
 
 
-# We will now move directly to sampling at this point.
-using ComradeAHMC
-metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric), 700; n_adapts=500, progress=true);
+# To improve our results we will now move to Posterior sampling. This is the main method
+# we recommend for all inference problems in `Comrade`. While it is slower the results are
+# often substantially better. To sample we will use the `AdvancedHMC` package.
+using AdvancedHMC
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
 
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]

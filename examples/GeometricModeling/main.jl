@@ -150,28 +150,11 @@ logdensityof(fpost, randn(rng, dimension(fpost)))
 # Typically, most VLBI modeling codes only care about finding the optimal or best guess
 # image of our posterior `post` To do this, we will use [`Optimization.jl`](https://docs.sciml.ai/Optimization/stable/) and
 # specifically the [`BlackBoxOptim.jl`](https://github.com/robertfeldt/BlackBoxOptim.jl) package. For Comrade, this workflow is
-# very similar to the usual `Optimization.jl` workflow. The only thing to keep in
-# mind is that `Optimization.jl` expects that the function we are evaluating expects the
-# parameters to be represented as a flat `Vector` of float. Therefore, we must use
-# one of our transformed posteriors, `cpost` or `fpost`. For this example,
-# we will use `cpost` since it restricts the domain to live within the compact unit hypercube
-# which is easier to explore for non-gradient-based optimizers like `BBO`.
+# we use the [`comrade_opt`](@ref) function.
 
-using ComradeOptimization
+using Optimization
 using OptimizationBBO
-
-ndim = dimension(fpost)
-f = OptimizationFunction(fpost)
-prob = Optimization.OptimizationProblem(f, randn(rng, ndim), nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
-
-# Now we solve for our optimial image.
-
-sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000);
-
-# The sol vector is in the transformed space, so first we need to transform back to parameter space
-# to that we can interpret the solution.
-
-xopt = transform(fpost, sol)
+xopt, sol = comrade_opt(post, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000);
 
 # Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 
