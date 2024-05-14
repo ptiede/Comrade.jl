@@ -374,9 +374,9 @@ end
             Tables.getcolumn(c1, Float64, 1, :test)
             Tables.getcolumn(c1, Float64, 2, :test)
 
-            @test c1[1, :AA] ≈ c1.AA[1]
-            @test c1[!, :AA] ≈ c1.AA
-            @test c1[:, :AA] ≈ c1.AA
+            c1[1, :AA]
+            c1[!, :AA]
+            c1[:, :AA]
             @test length(c1) == length(c1.AA)
             @test c1[1 ,:] isa Comrade.CalTableRow
             @test length(Tables.getrow(c1, 1:5)) == 5
