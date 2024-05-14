@@ -5,6 +5,29 @@ struct ArrayPrior{D, A, R}
     phase::Bool
 end
 
+
+"""
+    ArrayPrior(default_dist; refant=NoReference(), phase=false, kwargs...)
+
+Construct a prior for an entire array of sites.
+
+ - The `default_dist` is the default distribution for all sites. Currently only `IIDSitePrior` is supported.
+ - Different priors for specified sites can be set using kwargs.
+ - The `refant`  set the reference antennae to be used and is typically only done for priors that
+correspond to gain phases.
+ - The `phase` argument is a boolean that specifies if
+the prior is for a `phase` or not. *The phase argument is experimental and we
+recommend setting it to false currently.*
+
+# Example
+
+```julia
+p = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0, 0.1)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)) refant=SEFDReference())
+```
+
+means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM which is mean
+zero and unit std. dev. Finally the refant is using the [`SEFDReference`](@ref) scheme.
+"""
 function ArrayPrior(dist; refant=NoReference(), phase=false, kwargs...)
     return ArrayPrior(dist, kwargs, refant, phase)
 end

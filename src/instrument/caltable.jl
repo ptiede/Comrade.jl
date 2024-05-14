@@ -14,12 +14,6 @@ struct CalTable{T,G<:AbstractVecOrMat}
     gmat::G
 end
 
-"""
-    caltable(args...)
-
-Creates a calibration table from a set of arguments. The specific arguments
-depend on what calibration you are applying.
-"""
 function caltable end
 
 Tables.istable(::Type{<:CalTable}) = true
@@ -198,7 +192,11 @@ function Base.show(io::IO, ct::CalTable, )
 end
 
 
+"""
+    caltable(s::SiteArray)
 
+Creates a calibration table from a site array
+"""
 function caltable(sarr::SiteArray)
     sites = sort(unique(Comrade.sites(sarr)))
     time = unique(times(sarr))

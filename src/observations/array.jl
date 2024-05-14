@@ -296,9 +296,9 @@ end
 
 
 """
-    logclosure_amplitudes(vis::AbstractArray, ac::ClosureConfig)
+    logclosure_amplitudes(vis::AbstractArray, d::DesignMatrix)
 
-Compute the log-closure amplitudes for a set of visibilities and an array configuration
+Compute the log-closure amplitudes for a set of visibilities with a design matrix `d`.
 
 # Notes
 This uses a closure design matrix for the computation.
@@ -311,9 +311,9 @@ end
 @noinline logclosure_amplitudes(vis::UnstructuredMap, ac::DesignMatrix) = logclosure_amplitudes(baseimage(vis), ac)
 
 """
-    closure_phases(vis::AbstractArray, ac::ClosureConfig)
+    closure_phases(vis::AbstractArray, d::DesignMatrix)
 
-Compute the closure phases for a set of visibilities and an array configuration
+Compute the closure phases for a set of visibilities and design matrix `d`
 
 # Notes
 This uses a closure design matrix for the computation.

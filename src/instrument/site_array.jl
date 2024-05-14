@@ -1,5 +1,21 @@
 export SiteArray, site, time_interval
 
+"""
+    SiteArray(data, times, frequencies, sites)
+
+A `SiteArray` is an array of data that has a specified ordering of `times`, `frequencies`, and `sites`.
+Each data point is assigned a unique `time`, `frequency`, and `site` code. This allows for easy
+selection of data points based on these criteria and forms the base array for instrument modeling.
+
+To select a subset of the data based on a specifid site, time and frequency you can use
+```
+sarr[S=:ALMA, Ti=1:10, Fr=1:10]
+```
+which will grab the first 10 time and frequency points for the ALMA site.
+
+Otherwise indexing into the array will return an element whose time, frequency, and site are
+the element of the `times`, `frequencies`, and `sites` arrays respectively.
+"""
 struct SiteArray{T, N, A<:AbstractArray{T,N}, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:Number, N}, Sy<:AbstractArray{<:Any, N}} <: AbstractArray{T, N}
     data::A
     times::Ti
@@ -165,6 +181,11 @@ function sitemap!(::typeof(cumsum), out::AbstractArray, gains::AbstractArray, ca
     return out
 end
 
+"""
+    SiteLookup(s::SiteArray)
+
+Construct a site lookup dictionary for a site array.
+"""
 function SiteLookup(s::SiteArray)
     return SiteLookup(times(s), frequencies(s), sites(s))
 end
@@ -174,6 +195,12 @@ function SiteLookup(times::AbstractVector, frequencies::AbstractArray, sites::Ab
     return SiteLookup(NamedTuple{slist}(map(p->findall(==(p), sites), slist)), times, frequencies, sites)
 end
 
+"""
+    SiteArray(arr, sitelookup::SiteLookup)
+
+Construct a site array with the entries `arr` and the site ordering implied by
+`sitelookup`.
+"""
 function SiteArray(a::AbstractArray, map::SiteLookup)
     return SiteArray(a, map.times, map.frequencies, map.sites)
 end

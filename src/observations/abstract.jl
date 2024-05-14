@@ -1,5 +1,18 @@
 export datatable
+
+"""
+    $(TYPEDEF)
+
+An abstract VLBI table that is used to store data for a VLBI observation.
+To implement your own table you just need to specify the  `VLBISkyModels.rebuild` function.
+"""
 abstract type AbstractVLBITable{F} end
+
+"""
+    datatable(obs::AbstractVLBITable)
+
+Construct a table from the observation `obs`. The table is usually a StructArray of fields
+"""
 datatable(obs::AbstractVLBITable) = getfield(obs, :datatable)
 function Base.getindex(config::F, i::AbstractVector) where {F<:AbstractVLBITable}
     newconf = datatable(config)[i]

@@ -1,5 +1,10 @@
 export domain, datatable, arrayconfig, sites, beamsize, EHTObservationTable
 
+"""
+    $(TYPEDEF)
+
+The abstract obervation table. This contains actual data plus the array configuration.
+"""
 abstract type AbstractObservationTable{F<:AbstractVisibilityDatum} <: AbstractVLBITable{F} end
 measurement(t::AbstractObservationTable) = getfield(t, :measurement)
 noise(t::AbstractObservationTable) = getfield(t, :noise)
@@ -16,7 +21,7 @@ datumtype(::AbstractObservationTable{T}) where {T} = T
 
 
 """
-    domain(obs::AbstractObservationTable)
+    domain(obs::AbstractObservationTable; executor=Serial(), header=ComradeBase.NoHeader()
 
 Returns the u, v, time, frequency domain of the observation.
 """

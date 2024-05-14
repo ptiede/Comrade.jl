@@ -24,30 +24,28 @@ Comrade.Comrade
 
 ```@docs
 Comrade.CalTable
-Comrade.caltable(::Comrade.SiteLookup, array::AbstractArray)
 Comrade.caltable(::Comrade.SiteArray)
-Comrade.JonesSandwich
-Comrade.VLBIModel
-Comrade.CalPrior
-Comrade.CalPrior(::NamedTuple, ::JonesCache)
-Comrade.CalPrior(::NamedTuple, ::NamedTuple, ::JonesCache)
+Comrade.IIDSitePrior
+Comrade.ArrayPrior
 Comrade.RIMEModel
-Comrade.ObsSegmentation
+Comrade.Segmentation
 Comrade.IntegSeg
 Comrade.ScanSeg
 Comrade.TrackSeg
+Comrade.timestamps
 Comrade.SingleReference
-Comrade.RandomReference
 Comrade.SEFDReference
-Comrade.jonesStokes
-Comrade.jonesG
-Comrade.jonesD
-Comrade.jonesR
-Base.map(::Any, ::Vararg{Comrade.JonesPairs})
-Comrade.caltable
-Comrade.JonesPairs
-Comrade.GainSchema
-Comrade.SegmentedJonesCache
+Comrade.SingleStokesGain
+Comrade.JonesG
+Comrade.JonesD
+Comrade.JonesR
+Comrade.JonesF
+Comrade.JonesSandwich
+Comrade.IdealInstrument
+Comrade.InstrumentModel
+Comrade.site_tuple
+Comrade.SiteArray
+Comrade.SiteLookup
 ```
 
 ### Models
@@ -57,8 +55,47 @@ For the description of the model API see [VLBISkyModels](https://ehtjulia.github
 
 
 
-## Data Types
+## Data Interface
 
+
+### Data Tables
+
+```@docs
+Comrade.AbstractVLBITable
+Comrade.datatable(::Comrade.AbstractVLBITable)
+Comrade.AbstractArrayConfiguration
+Comrade.EHTArrayBaselineDatum
+Comrade.EHTArrayConfiguration
+Comrade.ClosureConfig
+Comrade.sites(::Comrade.AbstractArrayConfiguration)
+Comrade.domain(::Comrade.AbstractArrayConfiguration)
+Comrade.beamsize(::Comrade.AbstractArrayConfiguration)
+Comrade.logclosure_amplitudes
+Comrade.closure_phases
+Comrade.AbstractObservationTable
+Comrade.EHTObservationTable
+Comrade.datatable(::Comrade.AbstractObservationTable)
+Comrade.domain(::Comrade.AbstractObservationTable)
+Comrade.arrayconfig(::Comrade.AbstractObservationTable)
+Comrade.beamsize(::Comrade.AbstractObservationTable)
+Comrade.sites(::Comrade.AbstractObservationTable)
+Comrade.TimeTable
+Comrade.Scan
+Comrade.timetable
+```
+
+### Datums
+
+```@docs
+Comrade.AbstractVisibilityDatum
+Comrade.EHTCoherencyDatum
+Comrade.EHTVisibilityDatum
+Comrade.EHTVisibilityAmplitudeDatum
+Comrade.EHTLogClosureAmplitudeDatum
+Comrade.EHTClosurePhaseDatum
+```
+
+### Data Products
 
 ```@docs
 Comrade.extract_table
@@ -67,36 +104,8 @@ Comrade.VisibilityAmplitudes
 Comrade.ClosurePhases
 Comrade.LogClosureAmplitudes
 Comrade.Coherencies
-Comrade.baselines
-Comrade.arrayconfig
-Comrade.closure_phase(::Comrade.EHTVisibilityDatum, ::Comrade.EHTVisibilityDatum, ::Comrade.EHTVisibilityDatum)
-Comrade.getdata
-Comrade.getuv
-Comrade.domain
-Comrade.timetable
-Comrade.sites
-Comrade.uvpositions
-Comrade.ArrayConfiguration
-Comrade.ClosureConfig
-Comrade.AbstractInterferometryDatum
-Comrade.EHTArrayBaselineDatum
-Comrade.EHTObservationTable
-Comrade.EHTArrayConfiguration
-Comrade.EHTCoherencyDatum
-Comrade.EHTVisibilityDatum
-Comrade.EHTVisibilityAmplitudeDatum
-Comrade.EHTLogClosureAmplitudeDatum
-Comrade.EHTClosurePhaseDatum
-Comrade.Scan
-Comrade.TimeTable
 ```
 
-## Fourier Transform Algorithms
-```@docs
-VLBISkyModels.NFFTAlg()
-VLBISkyModels.DFTAlg()
-VLBISkyModels.FFTAlg()
-```
 
 
 ## Bayesian Tools
