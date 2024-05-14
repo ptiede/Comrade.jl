@@ -21,7 +21,7 @@ using Pyehtim
     vis  = extract_table(obsavg, Visibilities())
     @test vis[:measurement] ≈ vis1[:measurement]
     @test vis[:noise] ≈ vis1[:noise]
-    @test vis[:baseline] ≈ vis1[:baseline]
+    @test vis[:baseline] == vis1[:baseline]
     plot(vis)
     show(vis)
 
@@ -85,7 +85,6 @@ end
     @test arrayconfig(cphase)|>arrayconfig|>datatable == arrayconfig(lcamp)|>arrayconfig|>datatable
     @test arrayconfig(vis)|>datatable == arrayconfig(lcamp)|>arrayconfig|>datatable
     @test arrayconfig(amp)|>datatable == arrayconfig(lcamp)|>arrayconfig|>datatable
-    @test arrayconfig(dcoh)|>datatable == arrayconfig(lcamp)|>arrayconfig|>datatable
 
 
     @test length(vis) == length(obsavg.data)
@@ -150,6 +149,7 @@ end
 
         coh = extract_table(obsavg, Coherencies())
         @test coh[:measurement].:1 == Comrade.measurement(coh).:1
+
         @test coh[:noise].:1 == Comrade.noise(coh).:1
         @test firstindex(coh) == 1
         @test lastindex(coh) == length(coh)

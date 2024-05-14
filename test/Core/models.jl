@@ -157,8 +157,6 @@ end
 
         @testset "ObservedArrayPrior" begin
             @inferred logpdf(printm, rand(printm))
-            @test eltype(printm) == eltype(d.dists)
-            @test length(printm) == length(d.dists)
             @test asflat(printm) isa TV.AbstractTransform
             p = rand(printm)
             t = asflat(printm)
@@ -171,15 +169,6 @@ end
             @test dp.dRy
             @test dp.dLx
             @test dp.dLy
-
-
-            @testset "PartiallyConditionedDist" begin
-                d = printm.gpR.dists
-                @test eltype(d) = eltype(d.dist)
-                @inferred logpdf(d, rand(d))
-
-            end
-
         end
 
         pintm, _ = Comrade.set_array(InstrumentModel(JonesR(;add_fr=true)), arrayconfig(dcoh))

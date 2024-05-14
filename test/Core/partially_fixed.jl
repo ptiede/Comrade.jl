@@ -1,3 +1,7 @@
+using Distributions
+import TransformVariables as TV
+using FiniteDifferences
+using Zygote
 @testset "Partially fixed" begin
 
     d = MvLogNormal(randn(10), rand(10))

@@ -164,8 +164,6 @@ end
 
     function test_simobs(post, x)
         obs = simulate_observation(post, x)[begin]
-        @info typeof(Comrade.measurement(obs))
-        @info typeof(Comrade.measurement(post.data[begin]))
         @test length(obs) == length(post.data[begin])
         obs_nn = simulate_observation(post, x, add_thermal_noise=false)[begin]
         @test Comrade.measurement(obs_nn) == Comrade.likelihood(post.lklhds[1], Comrade.forward_model(post, x)).μ
