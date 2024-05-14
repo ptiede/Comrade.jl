@@ -66,7 +66,7 @@ This return a tuple where:
    `accexp` for each tempering level, and average temperate swap acceptance rates `accswp`
     for each tempering level.
 """
-function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; initial_params=nothing, kwargs...)
+function AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.TransformedVLBIPosterior, sampler::AdaptMCMC, nsamples, burnin=nsamples÷2, args...; initial_params=nothing, kwargs...)
     ℓ = logdensityof(post)
     function lpr(xx)
         for x in xx
