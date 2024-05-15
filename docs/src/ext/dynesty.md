@@ -21,7 +21,7 @@ post # of type Comrade.Posterior
 # Create sampler using 1000 live points
 smplr = NestedSampler(;nlive=1000)
 
-chain = sample(post, smplr; dlogz=1.0)
+chain = dysample(post, smplr; dlogz=1.0)
 
 # Optionally resample the chain to create an equal weighted output
 using StatsBase
