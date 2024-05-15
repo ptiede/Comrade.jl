@@ -1,5 +1,6 @@
 using PythonCall
 using Pyehtim
+using Tables
 
 
 @testset "extract_table ehtim" begin
@@ -81,16 +82,16 @@ end
     @test @view(vis[1:10]) isa Comrade.EHTObservationTable
 
     @test dvis[1] isa Comrade.EHTVisibilityDatum
-    @test Tables.istable(typeof(dvis))
-    @test Tables.columnaccess(typeof(dvis))
-    @test Tables.columns(dvis) == datatable(dvis)
-    @test Tables.getcolumn(dvis, 1) == Comrade.measurement(dvis)
-    @test lastindex(dvis) == length(Comrade.measurement(dvis))
-    @test firstindex(dvis) == 1
+    @test Tables.istable(typeof(vis))
+    @test Tables.columnaccess(typeof(vis))
+    @test Tables.columns(vis) == datatable(vis)
+    @test Tables.getcolumn(vis, 1) == Comrade.measurement(vis)
+    @test lastindex(vis) == length(Comrade.measurement(vis))
+    @test firstindex(vis) == 1
 
-    @test beamsize(dvis) == beamsize(arrayconfig(dvis))
+    @test beamsize(vis) == beamsize(arrayconfig(vis))
 
-    show(IOBuffer(), arrayconfig(dvis))
+    show(IOBuffer(), arrayconfig(vis))
 
 
     @test amp[:measurement] == Comrade.measurement(amp)
