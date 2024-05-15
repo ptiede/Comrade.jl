@@ -183,7 +183,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 #-
 using AdvancedHMC
 using Zygote
-chain = sample(post, NUTS(0.8), 700; n_adapts=500, progress=false, saveto=DiskStore(;stride=10), initial_params=xopt);
+chain = sample(post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
 
 
 # !!! warning
