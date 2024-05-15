@@ -7,17 +7,19 @@
 
 
 # ## Introduction to Closure Imaging
-# The EHT is the highest-resolution telescope ever created. Its resolution is equivalent
+# The EHT is one of the highest-resolution telescope ever created. Its resolution is equivalent
 # to roughly tracking a hockey puck on the moon when viewing it from the earth. However,
-# the EHT is also a unique interferometer. For one, the data it produces is incredibly sparse.
-# The array is formed from only eight geographic locations around the planet, each with its unique
-# telescope. Additionally, the EHT observes at a much higher frequency than typical interferometers.
-# As a result, it is often difficult to directly provide calibrated data since the source model can be complicated. This implies there can be large instrumental effects
-# often called *gains* that can corrupt our signal. One way to deal with this is to fit quantities
-# that are independent of gains. These are often called **closure quantities**. The types of
-# closure quantities are briefly described in [Introduction to the VLBI Imaging Problem](@ref).
+# the EHT is also a unique interferometer. First, EHT data is incredibly sparse, the
+# array is formed from only eight geographic locations around the planet. Second, the obseving
+# frequency is much higher than traditional VLBI. Lastly, each site in the array is unique.
+# They have different dishes, recievers, feeds, and electronics.
+# Putting this all together implies that many of the common imaging techniques struggle to
+# fit the EHT data and explore the uncertainty in both the image and instrument. One way to
+# deal with some of these uncertainties is to not directly fit the data but instead fit
+# closure quantities, which are independent of many of the instrumental effects that plague the
+# data. The types of closure quantities are briefly described in [Introduction to the VLBI Imaging Problem](@ref).
 #
-# In this tutorial, we will do closure-only modeling of M87 to produce preliminary images of M87.
+# In this tutorial, we will do closure-only modeling of M87 to produce a posterior of images of M87.
 
 import Pkg #hide
 __DIR = @__DIR__ #hide
@@ -54,22 +56,30 @@ obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "../Data/SR1_M87_2017_096_lo_hop
 #   - Add 2% systematic noise to deal with calibration issues such as leakage.
 obs = scan_average(obs).add_fractional_noise(0.02)
 
-# Now, we extract our closure quantities from the EHT data set.
+# Now, we extract our closure quantities from the EHT data set. We flag now SNR points since
+# the closure likelihood we use is only applicable to high SNR data.
 dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePhases(;snrcut=3))
+
+# !!! note
+#     Fitting low SNR closure data is complicated and requires a more sophisticated likelihood.
+#     If low-SNR data is very important we recommend fitting visibilties with a instrumental model.
+
 
 # ## Build the Model/Posterior
 # For our model, we will be using an image model that consists of a raster of point sources,
-# convolved with some pulse or kernel to make a `ContinuousImage` object with it `Comrade's.`
-# generic image model. For this we will define a two argument function. The first argument
-# is typically a named tuple with the model parameters. The second argument defines the metadata
-# for the model that is typically constant. This allows us to explicitly pass arguments that
-# are constant to the model, such as the image `cache` object that we will define below.
+# convolved with some pulse or kernel to make a `ContinuousImage`.
+# To define this model we define the standard two argument function `sky` that defines the
+# sky model we want to fit. The first argument are the model parameters, and are typically
+# a NamedTuple. The second argument defines the metadata
+# for the model that is typically constant. For our model the constant `metdata` will just
+# by the mean or prior image.
 function sky(θ, metadata)
     (;fg, c, σimg) = θ
     (;mimg) = metadata
     ## Apply the GMRF fluctuations to the image
     rast = apply_fluctuations(CenteredLR(), mimg, σimg.*c.params)
     m = ContinuousImage(((1-fg)).*rast, BSplinePulse{3}())
+    ## Force the image centroid to be at the origin
     x0, y0 = centroid(m)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
@@ -93,13 +103,13 @@ grid = imagepixels(fovxy, fovxy, npix, npix)
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
 # Random field prior
 using VLBIImagePriors, Distributions, DistributionsAD
+
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 50 μas
 fwhmfac = 2*sqrt(2*log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
-
-skymeta = (;mimg = imgpr./flux(imgpr), grid);
+skymeta = (;mimg = imgpr./flux(imgpr));
 
 # In addition we want a reasonable guess for what the resolution of our image should be.
 # For radio astronomy this is given by roughly the longest baseline in the image. To put this
@@ -118,30 +128,26 @@ crcache = ConditionalMarkov(GMRF, grid; order=1)
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
 cprior = HierarchicalPrior(crcache, truncated(InverseGamma(1.0, -log(0.1)*rat); upper=2*npix))
-
 prior = (c = cprior, σimg = Exponential(0.5), fg=Uniform(0.0, 1.0))
 
-# Form the sky model
+# Putting this all together we can define our sky model.
 skym = SkyModel(sky, prior, grid; metadata=skymeta)
+
+# Since we are fitting closures we do not need to include an instrument model, since
+# the closure likelihood is approximately independent of gains in the high SNR limit.
 post = VLBIPosterior(skym, dlcamp, dcphase)
 
 # ## Reconstructing the Image
 
-# To sample from this posterior, it is convenient to first move from our constrained parameter space
-# to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This is
-# done using the `asflat` function.
-tpost = asflat(post)
+# To reconstruct the image we will first use the MAP estimate. This is approach is basically
+# a re-implentation of regularized maximum likelihood (RML) imaging. However, unlike traditional
+# RML imaging we also fit the regularizer hyperparameters, thanks to our interpretation of
+# as our imaging prior as a hierarchical model.
 
-# We can now also find the dimension of our posterior or the number of parameters we will sample.
-# !!! warning
-#     This can often be different from what you would expect. This is especially true when using
-#     angular variables, where we often artificially increase the dimension
-#     of the parameter space to make sampling easier.
-#-
-ndim = dimension(tpost)
-
-
-# Now we optimize using LBFGS
+# To optimize our posterior `Comrade` provides the `comrade_opt` function. To use this
+# functionality a user first needs to import `Optimization.jl` and the optimizer of choice.
+# In this tutorial we will use Optim.jl's L-BFGS optimizer, which is defined in the sub-package
+# OptimizationOptimJL. We also need to import Zygote to allow for automatic differentiation.
 using Optimization
 using OptimizationOptimJL
 using Zygote
@@ -163,10 +169,12 @@ fig = imageviz(img, size=(600, 500));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
-# That doesn't look great. The reason for this is that the MAP, from a Bayesian standpoint,
-# is not representative of the posterior. In fact, the MAP often overfits the data and depends
-# on the choice of parameterization of the posterior. Given this we will turn to sampling
-# from the posterior instead.
+# That doesn't look great. This is pretty common for the sparse EHT data. In this case the
+# MAP often drastically overfits the data, producing a image filled with artifacts. In addition,
+# we note that the MAP itself is not invariant to the model parameterization. Namely, if we
+# changed our prior to use a fully centered parameterization we would get a very different image.
+# Fortunately, these issues go away when we sample from the posterior, and construct expectations
+# of the posterior, like the mean image.
 
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
