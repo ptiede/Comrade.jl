@@ -14,6 +14,8 @@ abstract type AbstractVLBITable{F} end
 Construct a table from the observation `obs`. The table is usually a StructArray of fields
 """
 datatable(obs::AbstractVLBITable) = getfield(obs, :datatable)
+
+
 function Base.getindex(config::F, i::AbstractVector) where {F<:AbstractVLBITable}
     newconf = datatable(config)[i]
     return rebuild(config, newconf)
