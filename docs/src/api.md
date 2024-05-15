@@ -35,7 +35,7 @@ For the description of the model API see [VLBISkyModels](https://ehtjulia.github
 
 ```@docs
 Comrade.AbstractVLBITable
-Comrade.datatable(::Comrade.AbstractVLBITable)
+Comrade.datatable
 Comrade.AbstractArrayConfiguration
 Comrade.EHTArrayBaselineDatum
 Comrade.EHTArrayConfiguration
@@ -47,7 +47,6 @@ Comrade.logclosure_amplitudes
 Comrade.closure_phases
 Comrade.AbstractObservationTable
 Comrade.EHTObservationTable
-Comrade.datatable(::Comrade.AbstractObservationTable)
 Comrade.domain(::Comrade.AbstractObservationTable)
 Comrade.arrayconfig(::Comrade.AbstractObservationTable)
 Comrade.beamsize(::Comrade.AbstractObservationTable)
