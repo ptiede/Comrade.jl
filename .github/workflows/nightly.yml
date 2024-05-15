@@ -12,11 +12,6 @@ jobs:
         os: [ubuntu-latest]
         group:
           - Core 
-          - ComradeAdaptMCMC
-          - ComradeAHMC
-          - ComradeDynesty
-          - ComradeOptimization
-          - ComradeNested
         arch:
           - x64
         python-version:

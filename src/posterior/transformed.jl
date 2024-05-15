@@ -64,7 +64,7 @@ julia> logdensityof(tpost, x0)
 ```
 
 # Notes
-This is the transform that should be used if using typical MCMC methods, i.e. `ComradeAHMC`.
+This is the transform that should be used if using typical MCMC methods, i.e. NUTS.
 For the transformation to the unit hypercube see [`ascube`](@ref ascube)
 
 """

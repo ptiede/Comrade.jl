@@ -172,6 +172,7 @@ Comrade.dirty_image
 Comrade.dirty_beam
 Comrade.beamsize
 Comrade.apply_fluctuations
+Comrade.rmap
 ```
 
 ## Internal (Not Public API)
