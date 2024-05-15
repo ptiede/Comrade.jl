@@ -20,7 +20,8 @@ The return value of the `param_map` should be a single number or complex gain.
 ## Example
 ```julia
 G = SingleStokesGain(x->exp(x.lg + xp.gp))
-end
+```
+
 """
 struct SingleStokesGain{F} <: AbstractJonesMatrix
     param_map::F
@@ -50,6 +51,7 @@ G = JonesG() do
     g2 = g1*exp(x.lgratio + 1im.*x.gpratio)
     return g1, g2
 end
+```
 """
 struct JonesG{F} <: AbstractJonesMatrix
     param_map::F
@@ -58,7 +60,7 @@ construct_jones(::JonesG, x::NTuple{2, T}, index, site) where {T} = Diagonal(SVe
 
 
 """
-    JonesG(param_map)
+    JonesD(param_map)
 
 Describes a leakage Jones matrix with layout
 
@@ -80,6 +82,7 @@ D = JonesD() do
     d2 = complex(x.d2real, x.d2imag)
     return d1, d2
 end
+```
 """
 struct JonesD{F} <: AbstractJonesMatrix
     param_map::F
@@ -103,6 +106,7 @@ the entries of the jones matrix in column major order.
 J = GenericJones() do
     return x.j11, x.j21, x.j12, x.j22
 end
+```
 
 """
 struct GenericJones{F} <: AbstractJonesMatrix
