@@ -148,6 +148,9 @@ end
         @test lastindex(cphase) == length(cphase)
         @test cphase[1] isa Comrade.datumtype(cphase)
         @test length(Comrade.triangle(cphase[1])) == 3
+        @test cphase[1:10] isa Comrade.EHTObservationTable
+        @test @view(cphase[1:10]) isa Comrade.EHTObservationTable
+
 
 
         @test propertynames(arrayconfig(lcamp)) == propertynames(arrayconfig(vis))
