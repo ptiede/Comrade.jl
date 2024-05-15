@@ -151,7 +151,7 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 using Optimization
 using OptimizationOptimJL
 using Zygote
-xopt, sol = comrade_opt(post, LBFGS(), Optimization.AutoZygote(); initial_params=prior_sample(rng, post), maxiters=1000)
+xopt, sol = comrade_opt(post, LBFGS(), Optimization.AutoZygote(); maxiters=1000)
 
 
 # First we will evaluate our fit by plotting the residuals
@@ -183,7 +183,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 #-
 using AdvancedHMC
 using Zygote
-chain = sample(post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
+chain = sample(post, NUTS(0.8), 700; n_adapts=500, progress=false, saveto=DiskStore(;stride=10), initial_params=xopt);
 
 
 # !!! warning

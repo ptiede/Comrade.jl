@@ -40,7 +40,7 @@ function AbstractMCMC.Sample(
     ∇ℓ = ADgradient(adtype, tpost)
     θ0 = initialize_params(tpost, initial_params)
     model, smplr = make_sampler(rng, ∇ℓ, sampler, θ0)
-    return AbstractMCMC.Sample(rng, model, smplr; kwargs...)
+    return AbstractMCMC.Sample(rng, model, smplr; initial_params=θ0, kwargs...)
 end
 
 """
@@ -119,7 +119,8 @@ function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPoste
         @warn "No starting location chosen, picking start from prior"
         θ0 = prior_sample(rng, tpost)
     end
-    t = Sample(rng, tpost, sampler; initial_params=initial_params, adtype, n_adapts, kwargs...)(1:nsamples)
+    @info typeof(θ0)
+    t = Sample(rng, tpost, sampler; initial_params=θ0, adtype, n_adapts, kwargs...)(1:nsamples)
     pt = Iterators.partition(t, output_stride)
     nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
 
