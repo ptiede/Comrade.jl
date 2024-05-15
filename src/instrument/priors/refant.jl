@@ -47,7 +47,7 @@ function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r:
     fixedinds = map(eachindex(t)) do i
         inds = findall(==(t[i]), st.times)
         sites = Tuple(st.sites[inds])
-        @assert length(sites) < length(sefd) "Error in reference site generation. Too many sites"
+        @assert length(sites) <= length(sefd) "Error in reference site generation. Too many sites"
         sp = select(sefd, sites)
         _, ind = findmin(values(sp))
         return inds[ind]
