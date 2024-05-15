@@ -18,11 +18,10 @@ For our benchmarking problem, we analyze a situation very similar to the one exp
 All tests were run using the following system
 
 ```julia
-Julia Version 1.7.3
-Python Version 3.10.5
-Comrade Version 0.4.0
-eht-imaging Version 1.2.4
-Commit 742b9abb4d (2022-05-06 12:58 UTC)
+Julia Version 1.10.3
+Python Version 3.10.12
+Comrade Version 0.10.0
+eht-imaging Version 1.2.7
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
   CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
@@ -49,28 +48,18 @@ Therefore, for this test we found that `Comrade` was the fastest method in all t
 ### Julia Code
 
 ```julia
-using Pyehtim
-using Comrade
-using Distributions
-using BenchmarkTools
-using ForwardDiff
-using VLBIImagePriors
-using Zygote
-
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-obs = scan_average(obs)
-amp = extract_table(obs, VisibilityAmplitudes())
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "..", "examples", "Data", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+obsavg = scan_average(obs)
+amp = extract_table(obsavg, VisibilityAmplitudes())
 
-function model(θ)
+function model(θ, p)
     (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
-    ring = f*smoothed(modify(MRing((a,), (b,)), Stretch(μas2rad(rad))), μas2rad(wid))
-    g = modify(Gaussian(), Stretch(μas2rad(sig)*asy, μas2rad(sig)), Rotate(pa), Shift(μas2rad(x), μas2rad(y)), Renormalize(1-f))
+    ring = f*smoothed(stretched(MRing((a,), (b,)), μas2rad(rad), μas2rad(rad)), μas2rad(wid))
+    g = (1-f)*shifted(rotated(stretched(Gaussian(), μas2rad(sig)*asy, μas2rad(sig)), pa), μas2rad(x), μas2rad(y))
     return ring + g
 end
-
-lklhd = RadioLikelihood(model, amp)
-prior = NamedDist(
+prior = (
           rad = Uniform(10.0, 30.0),
           wid = Uniform(1.0, 10.0),
           a = Uniform(-0.5, 0.5), b = Uniform(-0.5, 0.5),
@@ -81,70 +70,67 @@ prior = NamedDist(
           x = Uniform(-(80.0), (80.0)),
           y = Uniform(-(80.0), (80.0))
         )
+# Now form the posterior
+skym = SkyModel(model, prior, imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128))
 
 θ = (rad= 22.0, wid= 3.0, a = 0.0, b = 0.15, f=0.8, sig = 20.0, asy=0.2, pa=π/2, x=20.0, y=20.0)
-m = model(θ)
+m = model(θ, nothing)
 
-post = Posterior(lklhd, prior)
+post = VLBIPosterior(skym, amp)
 tpost = asflat(post)
 
-# Transform to the unconstrained space
-x0 = inverse(tpost, θ)
+x0 = prior_sample(tpost)
 
-# Lets benchmark the posterior evaluation
-ℓ = logdensityof(tpost)
-@benchmark ℓ($x0)
-
-using LogDensityProblemsAD
-# Now we benchmark the gradient
-gℓ = ADgradient(Val(:Zygote), tpost)
-@benchmark LogDensityProblemsAD.logdensity_and_gradient($gℓ, $x0)
+using Zygote
+@benchmark $(tpost)($x0)
+# 32 μs
+@benchmark Zygote.gradient($tpost, $x0)
+# 175 μs
 ```
 
 ### eht-imaging Code
 
-```julia
-# To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "assets/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-obs = scan_average(obs)
+```python
+import ehtim as eh
+import numpy as np
+import os
+obs = eh.obsdata.load_uvfits(os.path.join("examples", "Data", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+obs.add_scans()
+obsavg = obs.avg_coherent(0.0, scan_avg=True)
 
-
-
-meh = ehtim.model.Model()
-meh = meh.add_thick_mring(F0=θ.f,
-                    d=2*μas2rad(θ.rad),
-                    alpha=2*sqrt(2*log(2))*μas2rad(θ.wid),
+meh = eh.model.Model()
+meh = meh.add_thick_mring(F0=0.8,
+                    d=2*22.0*eh.RADPERUAS,
+                    alpha=2*np.sqrt(2*np.log(2))*eh.RADPERUAS*3.0,
                     x0 = 0.0,
                     y0 = 0.0,
-                    beta_list=[0.0+θ.b]
+                    beta_list=[0.0+0.15j]
                     )
-meh = meh.add_gauss(F0=1-θ.f,
-                    FWHM_maj=2*sqrt(2*log(2))*μas2rad(θ.sig),
-                    FWHM_min=2*sqrt(2*log(2))*μas2rad(θ.sig)*θ.asy,
-                    PA = θ.pa,
-                    x0 = μas2rad(20.0),
-                    y0 = μas2rad(20.0)
+meh = meh.add_gauss(F0=1-0.8,
+                    FWHM_maj=2*np.sqrt(2*np.log(2))*eh.RADPERUAS*(3.0),
+                    FWHM_min=2*np.sqrt(2*np.log(2))*eh.RADPERUAS*(3.0)*0.2,
+                    PA = np.pi/2,
+                    x0 = eh.RADPERUAS*(20.0),
+                    y0 = eh.RADPERUAS*(20.0)
                     )
 
 preh = meh.default_prior()
-preh[1]["F0"] = Dict("prior_type"=>"flat", "min"=>0.0, "max"=>1.0)
-preh[1]["d"] = Dict("prior_type"=>"flat", "min"=>μas2rad(20.0), "max"=>μas2rad(60.0))
-preh[1]["alpha"] = Dict("prior_type"=>"flat", "min"=>μas2rad(2.0), "max"=>μas2rad(25.0))
-preh[1]["x0"] = Dict("prior_type"=>"fixed")
-preh[1]["y0"] = Dict("prior_type"=>"fixed")
+preh[0]["F0"] = {"prior_type": "flat", "min" : 0.0, "max" : 1.0}
+preh[0]["d"] = {"prior_type": "flat", "min" : eh.RADPERUAS*(20.0), "max" : eh.RADPERUAS*(60.0)}
+preh[0]["alpha"] = {"prior_type": "flat", "min" : eh.RADPERUAS*(2.0), "max" : eh.RADPERUAS*(25.0)}
+preh[0]["x0"] = {"prior_type": "fixed"}
+preh[0]["y0"] = {"prior_type": "fixed"}
 
-preh[2]["F0"] = Dict("prior_type"=>"flat", "min"=>0.0, "max"=>1.0)
-preh[2]["FWHM_maj"] = Dict("prior_type"=>"flat", "min"=>μas2rad(2.0), "max"=>μas2rad(120.0))
-preh[2]["FWHM_min"] = Dict("prior_type"=>"flat", "min"=>μas2rad(2.0), "max"=>μas2rad(120.0))
-preh[2]["x0"] = Dict("prior_type"=>"flat", "min"=>-μas2rad(40.0), "max"=>μas2rad(40.0))
-preh[2]["y0"] = Dict("prior_type"=>"flat", "min"=>-μas2rad(40.0), "max"=>μas2rad(40.0))
-preh[2]["PA"] = Dict("prior_type"=>"flat", "min"=>-1π, "max"=>1π)
+preh[1]["F0"] = {"prior_type": "flat", "min" : 0.0, "max" : 1.0}
+preh[1]["FWHM_maj"] = {"prior_type": "flat", "min" : eh.RADPERUAS*(2.0), "max" : eh.RADPERUAS*(120.0)}
+preh[1]["FWHM_min"] = {"prior_type": "flat", "min" : eh.RADPERUAS*(2.0), "max" : eh.RADPERUAS*(120.0)}
+preh[1]["x0"] = {"prior_type": "flat", "min" : -eh.RADPERUAS*(40.0), "max" : eh.RADPERUAS*(40.0)}
+preh[1]["y0"] = {"prior_type": "flat", "min" : -eh.RADPERUAS*(40.0), "max" : eh.RADPERUAS*(40.0)}
+preh[1]["PA"] = {"prior_type": "flat", "min" : -np.pi, "max" : np.pi}
 
-using PyCall
-py"""
-import ehtim
-import numpy as np
-transform_param = ehtim.modeling.modeling_utils.transform_param
+# This is a hack to get the objective function and its gradient
+# we need to do this since the functions depend on some global variables
+transform_param = eh.modeling.modeling_utils.transform_param
 def make_paraminit(param_map, meh, trial_model, model_prior):
     model_init = meh.copy()
     param_init = []
@@ -180,53 +166,52 @@ def make_paraminit(param_map, meh, trial_model, model_prior):
                 if not quiet: print('Parameter ' + param_map[j][1] + ' not understood!')
     n_params = len(param_init)
     return n_params, param_init
-"""
 
 # make the python param map and use optimize so we flatten the parameter space.
-pmap, pmask = ehtim.modeling.modeling_utils.make_param_map(meh, preh, "scipy.optimize.dual_annealing", fit_model=true)
+pmap, pmask = eh.modeling.modeling_utils.make_param_map(meh, preh, "scipy.optimize.dual_annealing", fit_model=True)
 trial_model = meh.copy()
 
 # get initial parameters
-n_params, pinit = py"make_paraminit"(pmap, meh, trial_model, preh)
+n_params, pinit = make_paraminit(pmap, meh, trial_model, preh)
 
 # make data products for the globdict
-data1, sigma1, uv1, _ = ehtim.modeling.modeling_utils.chisqdata(obs, "amp")
-data2, sigma2, uv2, _ = ehtim.modeling.modeling_utils.chisqdata(obs, false)
-data3, sigma3, uv3, _ = ehtim.modeling.modeling_utils.chisqdata(obs, false)
+data1, sigma1, uv1, _ = eh.modeling.modeling_utils.chisqdata(obsavg, "amp", pol="I")
+data2, sigma2, uv2, _ = eh.modeling.modeling_utils.chisqdata(obsavg, True, pol="I")
+data3, sigma3, uv3, _ = eh.modeling.modeling_utils.chisqdata(obsavg, True, pol="I")
+data4, sigma4, uv4, _ = eh.modeling.modeling_utils.chisqdata(obsavg, True, pol="I")
 
 # now set the ehtim modeling globdict
 
-ehtim.modeling.modeling_utils.globdict = Dict("trial_model"=>trial_model,
-                "d1"=>"amp", "d2"=>false, "d3"=>false,
-                "pol1"=>"I", "pol2"=>"I", "pol3"=>"I",
-                "data1"=>data1, "sigma1"=>sigma1, "uv1"=>uv1, "jonesdict1"=>nothing,
-                "data2"=>data2, "sigma2"=>sigma2, "uv2"=>uv2, "jonesdict2"=>nothing,
-                "data3"=>data3, "sigma3"=>sigma3, "uv3"=>uv3, "jonesdict3"=>nothing,
-                "alpha_d1"=>0, "alpha_d2"=>0, "alpha_d3"=>0,
-                "n_params"=> n_params, "n_gains"=>0, "n_leakage"=>0,
-                "model_prior"=>preh, "param_map"=>pmap, "param_mask"=>pmask,
-                "gain_prior"=>nothing, "gain_list"=>[], "gain_init"=>nothing,
-                "fit_leakage"=>false, "leakage_init"=>[], "leakage_fit"=>[],
-                "station_leakages"=>nothing, "leakage_prior"=>nothing,
-                "show_updates"=>false, "update_interval"=>1,
-                "gains_t1"=>nothing, "gains_t2"=>nothing,
-                "minimizer_func"=>"scipy.optimize.dual_annealing",
-                "Obsdata"=>obs,
-                "fit_pol"=>false, "fit_cpol"=>false,
-                "flux"=>1.0, "alpha_flux"=>0, "fit_gains"=>false,
-                "marginalize_gains"=>false, "ln_norm"=>1314.33,
-                "param_init"=>pinit, "test_gradient"=>false
-            )
+eh.modeling.modeling_utils.globdict = {"trial_model" : trial_model,
+                "d1" : "amp", "d2" : False, "d3" : False, "d4" : False,
+                "pol1" : "I", "pol2" : "I", "pol3" : "I", "pol4" : "I",
+                "data1" : data1, "sigma1" : sigma1, "uv1" : uv1, "jonesdict1" : None,
+                "data2" : data2, "sigma2" : sigma2, "uv2" : uv2, "jonesdict2" : None,
+                "data3" : data3, "sigma3" : sigma3, "uv3" : uv3, "jonesdict3" : None,
+                "data4" : data3, "sigma4" : sigma3, "uv4" : uv3, "jonesdict4" : None,
+                "alpha_d1" : 0, "alpha_d2" : 0, "alpha_d3" : 0, "alpha_d4" : 0,
+                "n_params" :  n_params, "n_gains" : 0, "n_leakage" : 0,
+                "model_prior" : preh, "param_map" : pmap, "param_mask" : pmask,
+                "gain_prior" : None, "gain_list" : [], "gain_init" : None,
+                "fit_leakage" : False, "leakage_init" : [], "leakage_fit" : [],
+                "station_leakages" : None, "leakage_prior" : None,
+                "show_updates" : False, "update_interval" : 1,
+                "gains_t1" : None, "gains_t2" : None,
+                "minimizer_func" : "scipy.optimize.dual_annealing",
+                "Obsdata" : obsavg,
+                "fit_pol" : False, "fit_cpol" : False,
+                "flux" : 1.0, "alpha_flux" : 0, "fit_gains" : False,
+                "marginalize_gains" : False, "ln_norm" : 1314.33,
+                "param_init" : pinit, "test_gradient" : False
+}
 
 # This is the negative log-posterior
-fobj = ehtim.modeling.modeling_utils.objfunc
+fobj = eh.modeling.modeling_utils.objfunc
+%timeit fobj(pinit)
+# 298 us +/- 7.7
 
 # This is the gradient of the negative log-posterior
-gfobj = ehtim.modeling.modeling_utils.objgrad
-
-# Lets benchmark the posterior evaluation
-@benchmark fobj($pinit)
-
-# Now we benchmark the gradient
-@benchmark gfobj($pinit)
+gfobj = eh.modeling.modeling_utils.objgrad
+%timeit gfobj(pinit)
+# 1.3 ms
 ```

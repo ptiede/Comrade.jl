@@ -50,20 +50,70 @@ dvis = extract_table(obs, Coherencies())
 #       the total number of parameters we need to model.
 
 
+m1 = Parameterize(MRing{2}()) do x
+    return x.α, x.β
+end
+
+m2 = Parameterize(ContinuousImage(cache)) do x
+    return to_simplex(CenteredLR(), x.c.params)
+end
+
+m = m1+m2
+
+setmodel(m, prior_sample(post))
+
+intensitymap()
 
 @sky function polimage(ftot, cache)
-    σ ~ truncated(Normal(0.0, 0.1); lower = 0.0)
-    c ~ HierarchicalPrior(ConditionalMarkov(GMRF, cache), InverseGamma())
-    p ~ HierarchicalPrior(ConditionalMarkov(GMRF, cache), InverseGamma())
-    p0 ~ Normal(-2.0, 1.0)
-    pσ ~ truncated(Normal(0.0, 0.1); lower = 0.0)
-    s ~ ImageSphericalUniform(size(K))
-    img = ftot*to_simplex(CenteredLR(), σ.*params(c))
+    σ    ~ truncated(Normal(0.0, 0.1); lower = 0.0)
+    c    ~ HierarchicalPrior(ConditionalMarkov(GMRF, cache), InverseGamma())
+    p    ~ HierarchicalPrior(ConditionalMarkov(GMRF, cache), InverseGamma())
+    p0   ~ Normal(-2.0, 1.0)
+    pσ   ~ truncated(Normal(0.0, 0.1); lower = 0.0)
+    s    ~ ImageSphericalUniform(size(K))
+    img  = ftot*to_simplex(CenteredLR(), σ.*params(c))
     pimg = logistic.(p0 + pσ.*params(p))
     return PoincareMap(img, pimg, s, cache)
 end
 
 skym = polimage(1.0)
+
+
+Ga = JonesG() do x
+    return exp.(x.lgR), exp.(x.lgR .+ x.lgrat)
+end
+
+Gp = JonesG() do x
+    return exp.(1im*x.gpR), exp.(1im*(x.gpR .+ x.gprat))
+end
+
+D = JonesD() do x
+    return complex(x.dRx, x.dRy), complex(x.dLx, x.dLy)
+end
+
+R = JonesR()
+
+JM = JonesSandwich(Ga, Gp, D, R) do ga, gp, d, r
+    return adjoint(r)*ga*gp*d*r
+end
+
+prior = (
+    lgR   = ArrayPrior(Normal(0.0, 0.1), ScanSeg(); LM = SitePrior(Normal(), ScanSeg())),
+    lgrat = ArrayPrior(Normal(0.0, 0.1), TrackSeg()),
+    gpR   = ArrayPrior(Normal(0.0, 0.1), ScanSeg(); refant = SEFDReference(0.0)),
+    gprat = ArrayPrior(Normal(0.0, 0.1), ScanSeg(); refant = SingleReference(:AA, 0.0)),
+    dRx   = ArrayPrior(Normal(0.0, 0.1), TrackSeg()),
+    dRy   = ArrayPrior(Normal(0.0, 0.1), TrackSeg()),
+    dLx   = ArrayPrior(Normal(0.0, 0.1), TrackSeg()),
+    dLy   = ArrayPrior(Normal(0.0, 0.1), TrackSeg())
+)
+
+instrumentmodel = InstrumentModel(JM, prior, array; refbasis = CirBasis())
+
+
+
+
+
 
 
 @instrument function rime(array)

@@ -35,7 +35,7 @@ ctable = ehtim.calibrating.self_cal.self_cal(obsim, img, caltable=true)
 
 dcphase = extract_cphase(obsim)
 damp = extract_amp(obsim)
-st = scantable(damp)
+st = timetable(damp)
 
 gcache = Comrade.GainCache(st)
 
@@ -44,7 +44,7 @@ struct Model{G}
     gcache::G
 end
 
-function Model(st::Comrade.ScanTable)
+function Model(st::Comrade.TimeTable)
     gcache = Comrade.GainCache(st)
     return Model{typeof(gcache)}(gcache)
 end

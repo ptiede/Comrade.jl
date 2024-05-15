@@ -16,7 +16,7 @@ is distribution assuming that the mean is the transformed `θ` and the covarianc
 is the inverse of the Fisher information.
 """
 function fishermatrix(model, t, θ::NamedTuple, ac::ArrayConfiguration)
-    v = Base.Fix2(visibilities, ac)
+    v = Base.Fix2(visibilitymap, ac)
     tr = Base.Fix1(transform, t)
 
     # split into real and imaginary since ForwardDiff struggles with complex functions

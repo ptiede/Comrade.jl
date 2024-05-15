@@ -29,3 +29,6 @@ function ChainRulesCore.rrule(::typeof(copy), x)
     ∇copy(dy) = (NoTangent(), dy)
     return copy(x), ∇copy
 end
+
+# Enzyme.EnzymeRules.inactive(::typeof(Base.dataids), u::StructArray) = nothing
+# Enzyme.EnzymeRules.inactive(::typeof(Base.unalias), u::StructArray, args...) = nothing

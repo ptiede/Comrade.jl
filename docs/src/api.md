@@ -20,40 +20,6 @@ Comrade.Comrade
 
 ## Model Definitions
 
-### Calibration Models
-
-```@docs
-Comrade.CalTable
-Comrade.caltable(::Comrade.JonesCache, ::AbstractVector)
-Comrade.caltable(::Comrade.EHTObservation, ::AbstractVector)
-Comrade.DesignMatrix
-Comrade.JonesCache
-Comrade.ResponseCache
-Comrade.JonesModel
-Comrade.VLBIModel
-Comrade.CalPrior
-Comrade.CalPrior(::NamedTuple, ::JonesCache)
-Comrade.CalPrior(::NamedTuple, ::NamedTuple, ::JonesCache)
-Comrade.RIMEModel
-Comrade.ObsSegmentation
-Comrade.IntegSeg
-Comrade.ScanSeg
-Comrade.TrackSeg
-Comrade.FixedSeg
-Comrade.jonescache(::Comrade.EHTObservation, ::Comrade.ObsSegmentation)
-Comrade.SingleReference
-Comrade.RandomReference
-Comrade.SEFDReference
-Comrade.jonesStokes
-Comrade.jonesG
-Comrade.jonesD
-Comrade.jonesR
-Base.map(::Any, ::Vararg{Comrade.JonesPairs})
-Comrade.caltable
-Comrade.JonesPairs
-Comrade.GainSchema
-Comrade.SegmentedJonesCache
-```
 
 ### Models
 
@@ -62,94 +28,158 @@ For the description of the model API see [VLBISkyModels](https://ehtjulia.github
 
 
 
-## Data Types
+## Data Interface
 
+
+### Data Tables
 
 ```@docs
-Comrade.extract_table
-Comrade.ComplexVisibilities
-Comrade.VisibilityAmplitudes
-Comrade.ClosurePhases
-Comrade.LogClosureAmplitudes
-Comrade.Coherencies
-Comrade.baselines
-Comrade.arrayconfig
-Comrade.closure_phase(::Comrade.EHTVisibilityDatum, ::Comrade.EHTVisibilityDatum, ::Comrade.EHTVisibilityDatum)
-Comrade.getdata
-Comrade.getuv
-Comrade.getuvtimefreq
-Comrade.scantable
-Comrade.stations
-Comrade.uvpositions
-Comrade.ArrayConfiguration
-Comrade.ClosureConfig
-Comrade.AbstractInterferometryDatum
-Comrade.ArrayBaselineDatum
-Comrade.EHTObservation
+Comrade.AbstractVLBITable
+Comrade.datatable(::Comrade.AbstractVLBITable)
+Comrade.AbstractArrayConfiguration
+Comrade.EHTArrayBaselineDatum
 Comrade.EHTArrayConfiguration
+Comrade.ClosureConfig
+Comrade.sites(::Comrade.AbstractArrayConfiguration)
+Comrade.domain(::Comrade.AbstractArrayConfiguration)
+Comrade.beamsize(::Comrade.AbstractArrayConfiguration)
+Comrade.logclosure_amplitudes
+Comrade.closure_phases
+Comrade.AbstractObservationTable
+Comrade.EHTObservationTable
+Comrade.datatable(::Comrade.AbstractObservationTable)
+Comrade.domain(::Comrade.AbstractObservationTable)
+Comrade.arrayconfig(::Comrade.AbstractObservationTable)
+Comrade.beamsize(::Comrade.AbstractObservationTable)
+Comrade.sites(::Comrade.AbstractObservationTable)
+Comrade.TimeTable
+Comrade.Scan
+Comrade.timetable
+```
+
+### Datums
+
+```@docs
+Comrade.AbstractVisibilityDatum
 Comrade.EHTCoherencyDatum
 Comrade.EHTVisibilityDatum
 Comrade.EHTVisibilityAmplitudeDatum
 Comrade.EHTLogClosureAmplitudeDatum
 Comrade.EHTClosurePhaseDatum
-Comrade.Scan
-Comrade.ScanTable
+Comrade.triangle
+Comrade.baseline
+Comrade.quadrangle
 ```
 
-## Model Cache
+### Data Products
+
 ```@docs
-VLBISkyModels.NFFTAlg(::Comrade.EHTObservation)
-VLBISkyModels.NFFTAlg(::Comrade.ArrayConfiguration)
-VLBISkyModels.DFTAlg(::Comrade.EHTObservation)
-VLBISkyModels.DFTAlg(::Comrade.ArrayConfiguration)
+Comrade.extract_table
+Comrade.Visibilities
+Comrade.VisibilityAmplitudes
+Comrade.ClosurePhases
+Comrade.LogClosureAmplitudes
+Comrade.Coherencies
 ```
 
 
-## Bayesian Tools
+
+## VLBI Modeling
+
+### Sky Models
+
+```@docs
+Comrade.AbstractSkyModel
+Comrade.SkyModel
+Comrade.FixedSkyModel
+Comrade.idealvisibilities
+Comrade.skymodel(::Comrade.AbstractVLBIPosterior, ::Any)
+```
+
+### Instrument Models
+
+```@docs
+Comrade.CalTable
+Comrade.caltable(::Comrade.SiteArray)
+Comrade.sites(::Comrade.CalTable)
+Comrade.IIDSitePrior
+Comrade.ArrayPrior
+Comrade.Segmentation
+Comrade.IntegSeg
+Comrade.ScanSeg
+Comrade.TrackSeg
+Comrade.timestamps
+Comrade.SingleReference
+Comrade.SEFDReference
+Comrade.SingleStokesGain
+Comrade.JonesG
+Comrade.JonesD
+Comrade.JonesR
+Comrade.JonesF
+Comrade.GenericJones
+Comrade.JonesSandwich
+Comrade.AbstractInstrumentModel
+Comrade.IdealInstrumentModel
+Comrade.InstrumentModel
+Comrade.SiteArray
+Comrade.SiteLookup
+```
+
 
 ### Posterior Constructions
 
 ```@docs
-Comrade.ascube
-Comrade.asflat
-Comrade.flatten
-Comrade.inverse
-Comrade.prior_sample
-Comrade.likelihood
-Comrade.simulate_observation
+Comrade.AbstractVLBIPosterior
+Comrade.logprior
+Comrade.loglikelihood
 Comrade.dataproducts
 Comrade.skymodel
-Comrade.instrumentmodel
-Comrade.vlbimodel
-Comrade.sample(::Posterior)
-Comrade.transform
-Comrade.MultiRadioLikelihood
-Comrade.Posterior
-Comrade.TransformedPosterior
-Comrade.RadioLikelihood
-Comrade.IsFlat
-Comrade.IsCube
+Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior)
+Comrade.forward_model
+Comrade.prior_sample
+Comrade.likelihood
+Comrade.VLBIPosterior
+Comrade.simulate_observation
+Comrade.residuals
+Comrade.TransformedVLBIPosterior
+HypercubeTransform.transform(::Comrade.TransformedVLBIPosterior, ::Any)
+HypercubeTransform.inverse(::Comrade.TransformedVLBIPosterior, ::Any)
+HypercubeTransform.ascube(::Comrade.VLBIPosterior)
+HypercubeTransform.asflat(::Comrade.VLBIPosterior)
 ```
 
-### Sampler Tools
+### Inference
 ```@docs
-Comrade.samplertype
+Comrade.comrade_opt
+Comrade.MemoryStore
+Comrade.DiskStore
+Comrade.load_samples
+Comrade.PosteriorSamples
+Comrade.postsamples
+Comrade.samplerstats
+Comrade.samplerinfo
+Comrade.resample_equal
+Comrade.residual
+Comrade.residual_data
+Comrade.chi2
 ```
 
 ## Misc
 
 ```@docs
-Comrade.station_tuple
+Comrade.site_tuple
 Comrade.dirty_image
 Comrade.dirty_beam
 Comrade.beamsize
+Comrade.apply_fluctuations
+Comrade.rmap
 ```
 
 ## Internal (Not Public API)
+
 ```@docs
-Comrade.extract_FRs
-ComradeBase._visibilities!
-ComradeBase._visibilities
+Comrade.build_datum
+Comrade.ObservedSkyModel
 ```
 
 ### eht-imaging interface (Internal)

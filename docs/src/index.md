@@ -47,5 +47,3 @@ Pages = [
     "api.md"
 ]
 ```
-
-## References

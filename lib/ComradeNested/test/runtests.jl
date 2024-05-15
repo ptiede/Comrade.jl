@@ -4,11 +4,11 @@ using Test
 include(joinpath(@__DIR__, "../../../test/test_util.jl"))
 
 @testset "ComradeNested.jl" begin
-    m, vis, amp, lcamp, cphase = load_data()
-    prior = test_prior()
-    lklhd = RadioLikelihood(test_model, lcamp, cphase)
-    post = Posterior(lklhd, prior)
-    a1 = Nested(dimension(post), 1000)
+    _, _, _, lcamp, cphase = load_data()
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    skym = SkyModel(test_model, test_prior(), g)
+    post = VLBIPosterior(skym, lcamp, cphase)
+    a1 = Nested(dimension(ascube(post)), 1000)
 
     chain = sample(post, a1; dlogz=0.01, progress=false)
     echain = resample_equal(chain, 1000)

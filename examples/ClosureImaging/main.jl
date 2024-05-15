@@ -66,14 +66,14 @@ dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePh
 # are constant to the model, such as the image `cache` object that we will define below.
 function sky(θ, metadata)
     (;fg, c, σimg) = θ
-    (;meanpr, cache) = metadata
-    ## Construct the image model we fix the flux to 0.6 Jy in this case
-    cp = meanpr .+ σimg.*c.params
-    rast = ((1-fg))*to_simplex(AdditiveLR(), cp)
-    m = ContinuousImage(rast, cache)
+    (;mimg) = metadata
+    ## Apply the GMRF fluctuations to the image
+    rast = apply_fluctuations(CenteredLR(), mimg, σimg.*c.params)
+    m = ContinuousImage(((1-fg)).*rast, BSplinePulse{3}())
+    x0, y0 = centroid(m)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
-    return m + g
+    return shifted(m, -x0, -y0) + g
 end
 
 
@@ -87,7 +87,6 @@ fovxy = μas2rad(150.0)
 # To define the image model we need to specify both the grid we will be using and the
 # FT algorithm we will use, in this case the NFFT which is the most efficient.
 grid = imagepixels(fovxy, fovxy, npix, npix)
-cache = create_cache(NFFTAlg(dlcamp), grid, BSplinePulse{3}())
 
 
 
@@ -100,13 +99,7 @@ fwhmfac = 2*sqrt(2*log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 
-# Now since we are actually modeling our image on the simplex we need to ensure that
-# our mean image has unit flux before we transform
-imgpr ./= flux(imgpr)
-meanpr = to_real(AdditiveLR(), baseimage(imgpr));
-
-#
-skymeta = (;meanpr, cache);
+skymeta = (;mimg = imgpr./flux(imgpr), grid);
 
 # In addition we want a reasonable guess for what the resolution of our image should be.
 # For radio astronomy this is given by roughly the longest baseline in the image. To put this
@@ -117,20 +110,20 @@ rat = (beam/(step(grid.X)))
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
 # that allow us to scale things linearly with the number of image pixels. This drastically improves
 # the usual N^3 scaling you get from usual Gaussian Processes.
-crcache = ConditionalMarkov(GMRF, grid)
+crcache = ConditionalMarkov(GMRF, grid; order=1)
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
 # correlation length is given by a inverse gamma prior to prevent overfitting.
 # Gaussian Markov random fields are extremly flexible models.
 # To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
 # want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(crcache, truncated(InverseGamma(2.0, -log(0.1*rat)); upper=npix))
+cprior = HierarchicalPrior(crcache, truncated(InverseGamma(1.0, -log(0.1)*rat); upper=2*npix))
 
-prior = NamedDist(c = cprior, σimg = truncated(Normal(0.0, 0.1); lower = 0.0), fg=Uniform(0.0, 1.0))
+prior = (c = cprior, σimg = Exponential(0.5), fg=Uniform(0.0, 1.0))
 
-lklhd = RadioLikelihood(sky, dlcamp, dcphase;
-                        skymeta = skymeta)
-post = Posterior(lklhd, prior)
+# Form the sky model
+skym = SkyModel(sky, prior, grid; metadata=skymeta)
+post = VLBIPosterior(skym, dlcamp, dcphase)
 
 # ## Reconstructing the Image
 
@@ -149,32 +142,24 @@ ndim = dimension(tpost)
 
 
 # Now we optimize using LBFGS
-using ComradeOptimization
+using Optimization
 using OptimizationOptimJL
 using Zygote
-f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(); maxiters=500);
+xopt, sol = comrade_opt(post, LBFGS(), Optimization.AutoZygote(); initial_params=prior_sample(rng, post), maxiters=1000)
 
-
-# Before we analyze our solution we first need to transform back to parameter space.
-xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
 using DisplayAs #hide
 using Plots
-p = residual(skymodel(post, xopt), dlcamp, ylabel="Log Closure Amplitude Res.")
+p = residual(post, xopt)
 DisplayAs.Text(DisplayAs.PNG(p)) #hide
-# and now closure phases
-#-
-p = residual(skymodel(post, xopt), dcphase, ylabel="|Closure Phase Res.|")
-DisplayAs.Text(DisplayAs.PNG(p))
 
 # Now let's plot the MAP estimate.
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=1) #hide
-img = intensitymap(skymodel(post, xopt), μas2rad(150.0), μas2rad(150.0), 100, 100)
-fig = imageviz(img);
+g = imagepixels(μas2rad(150.0), μas2rad(150.0), 100, 100)
+img = intensitymap(skymodel(post, xopt), g)
+fig = imageviz(img, size=(600, 500));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
@@ -188,10 +173,9 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 # !!! note
 #     For our `metric` we use a diagonal matrix due to easier tuning.
 #-
-using ComradeAHMC
+using AdvancedHMC
 using Zygote
-metric = DiagEuclideanMetric(ndim)
-chain = sample(post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, progress=false);
+chain = sample(post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
 
 
 # !!! warning
@@ -206,14 +190,14 @@ msamples = skymodel.(Ref(post), chain[501:2:end]);
 
 # The mean image is then given by
 using StatsBase
-imgs = intensitymap.(msamples, μas2rad(150.0), μas2rad(150.0), 128, 128)
+imgs = intensitymap.(msamples, Ref(g))
 mimg = mean(imgs)
 simg = std(imgs)
 fig = CM.Figure(;resolution=(700, 700));
 CM.image(fig[1,1], mimg,
                    axis=(xreversed=true, aspect=1, title="Mean Image"),
                    colormap=:afmhot);
-CM.image(fig[1,2], simg./(max.(mimg, 1e-5)),
+CM.image(fig[1,2], simg./(max.(mimg, 1e-8)),
                    axis=(xreversed=true, aspect=1, title="1/SNR",), colorrange=(0.0, 2.0),
                    colormap=:afmhot);
 CM.image(fig[2,1], imgs[1],
@@ -226,21 +210,11 @@ CM.hidedecorations!.(fig.content)
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 # Now let's see whether our residuals look better.
-p = Plots.plot();
+p = Plots.plot(layout=(2,1));
 for s in sample(chain[501:end], 10)
-    residual!(p, vlbimodel(post, s), dlcamp)
+    residual!(post, s)
 end
-Plots.ylabel!("Log-Closure Amplitude Res.");
-DisplayAs.Text(DisplayAs.PNG(p))
-#-
-
-
-p = Plots.plot();
-for s in sample(chain[501:end], 10)
-    residual!(p, vlbimodel(post, s), dcphase)
-end
-Plots.ylabel!("|Closure Phase Res.|");
-DisplayAs.Text(DisplayAs.PNG(p))
+p
 
 
 # And viola, you have a quick and preliminary image of M87 fitting only closure products.

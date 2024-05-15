@@ -1,7 +1,7 @@
 name = "ComradeOptimization"
 uuid = "26988f03-70df-4135-959e-06268cc6415a"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.1.5"
+version = "0.2.0"
 
 [deps]
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
@@ -13,7 +13,7 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 
 [compat]
-Comrade = "0.7, 0.8, 0.9"
+Comrade = "0.10"
 Distributions = "0.24,0.25"
 ForwardDiff = "0.9, 0.10"
 Optimization = "3"

@@ -37,7 +37,7 @@ We use the factor of 2 definition when defining the coherency matrices. That is,
   \end{pmatrix}.
 ```
 
-where $v_{pa}$ is the voltage measured from station $p$ and feed $a$.
+where $v_{pa}$ is the voltage measured from sites $p$ and feed $a$.
 
 #### Circular Polarization Conversions
 

@@ -38,7 +38,7 @@ end
 
 
 
-# First we define the station gain priors
+# First we define the sites gain priors
 distamp = (AA = Normal(0.0, 0.1),
            AP = Normal(0.0, 0.1),
            LM = Normal(0.0, 0.9),
@@ -56,13 +56,13 @@ prior = (
           c = ImageDirichlet(1.0, nx, ny),
           f = Uniform(0.4, 0.7),
           #fg = Uniform(0.0, 1.0),
-        #   lgamp = Comrade.GainPrior(distamp, scantable(damp)),
+        #   lgamp = Comrade.GainPrior(distamp, timetable(damp)),
         )
 
 
 buffer = IntensityMap(zeros(nx, ny), fovx, fovy)
 cache = create_cache(DFTAlg(damp), buffer)
-gcache = GainCache(scantable(damp))
+gcache = GainCache(timetable(damp))
 metadata = (;cache, fovx, fovy, gcache)
 
 model = Model(cache, gcache, fovx, fovy)

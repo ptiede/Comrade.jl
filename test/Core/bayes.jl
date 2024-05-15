@@ -1,5 +1,5 @@
 using Distributions
-using ComradeOptimization
+using Optimization
 using OptimizationGCMAES
 using StatsBase
 using Plots
@@ -12,16 +12,14 @@ using Zygote
 
 @testset "bayes" begin
     _,vis, amp, lcamp, cphase = load_data()
-    lklhd_cl = RadioLikelihood(test_model, lcamp, cphase)
-    lklhd = RadioLikelihood(test_model, vis)
-    show(lklhd)
-    show(lklhd_cl)
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    skym = SkyModel(test_model, test_prior(), g)
+    post_cl = VLBIPosterior(skym, lcamp, cphase)
+    post    = VLBIPosterior(skym, vis)
 
     prior = test_prior()
 
-    post = Posterior(lklhd, prior)
     prior_sample(post)
-    prior_sample(post, 2)
     tpostf = asflat(post)
     tpostc = ascube(post)
     show(post)
@@ -39,22 +37,25 @@ using Zygote
     x = prior_sample(tpostc)
     @test logdensityof(tpostc, x) == tpostc(x)
 
-    @test dataproducts(post) == dataproducts(post.lklhd)
+    @test dataproducts(post) == (post.data)
 
 
     x = prior_sample(post)
-    @test skymodel(post, x) == test_model(x)
-    @test instrumentmodel(post, x) == instrumentmodel(post.lklhd, x)
-    @test vlbimodel(post, x) == vlbimodel(post.lklhd, x)
+    @test skymodel(post, x) == test_model(x.sky, nothing)
+    @test Comrade.idealvisibilities(skymodel(post), x) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
+    @test Comrade.forward_model(post, x) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
 
 
+    @test dimension(post) == length(post.prior)
+    @test dimension(tpostf) == length(prior_sample(tpostf))
+    @test dimension(tpostc) == length(prior_sample(tpostc))
 
-    # @test dimension(post) == dimension(tpost)
-    @test dimension(post) == dimension(tpostf)
-    @test dimension(post) == dimension(tpostc)
+    show(IOBuffer(), MIME"text/plain"(), post)
+    show(IOBuffer(), MIME"text/plain"(), tpostf)
+
 
     f = OptimizationFunction(tpostf, Optimization.AutoZygote())
-    x0 = [ 0.1,
+    x0 = transform(tpostf, [ 0.1,
            0.4,
            0.5,
            0.9,
@@ -63,35 +64,32 @@ using Zygote
            0.4,
            0.7,
            0.8,
-           0.8]
-    prob = OptimizationProblem(f, x0, nothing; lb=fill(-5.0, ndim), ub = fill(5.0, ndim))
-    sol = solve(prob, GCMAESOpt(); maxiters=10_000)
+           0.8])
+    xopt, sol = comrade_opt(post, GCMAESOpt(); initial_params=x0, maxiters=10_000)
 
-    xopt = transform(tpostf, sol)
-    @test isapprox(xopt.f1/xopt.f2, 2.0, atol=1e-3)
-    @test isapprox(xopt.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-3)
-    @test isapprox(xopt.σ1*xopt.τ1*2*sqrt(2*log(2)), μas2rad(20.0), rtol=1e-3)
-    @test isapprox(xopt.ξ1, π/3, atol=1e-3)
-    @test isapprox(xopt.σ2*2*sqrt(2*log(2)), μas2rad(20.0), atol=1e-3)
-    @test isapprox(xopt.σ2*xopt.τ2*2*sqrt(2*log(2)), μas2rad(10.0), rtol=1e-3)
-    @test isapprox(xopt.ξ2, π/6, atol=1e-3)
-    @test isapprox(xopt.x, μas2rad(30.0), rtol=1e-3)
-    @test isapprox(xopt.y, μas2rad(30.0), rtol=1e-3)
+    @test isapprox(xopt.sky.f1/xopt.sky.f2, 2.0, atol=1e-3)
+    @test isapprox(xopt.sky.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-3)
+    @test isapprox(xopt.sky.σ1*xopt.sky.τ1*2*sqrt(2*log(2)), μas2rad(20.0), rtol=1e-3)
+    @test isapprox(xopt.sky.ξ1, π/3, atol=1e-3)
+    @test isapprox(xopt.sky.σ2*2*sqrt(2*log(2)), μas2rad(20.0), atol=1e-3)
+    @test isapprox(xopt.sky.σ2*xopt.sky.τ2*2*sqrt(2*log(2)), μas2rad(10.0), rtol=1e-3)
+    @test isapprox(xopt.sky.ξ2, π/6, atol=1e-3)
+    @test isapprox(xopt.sky.x, μas2rad(30.0), rtol=1e-3)
+    @test isapprox(xopt.sky.y, μas2rad(30.0), rtol=1e-3)
 
-    mopt = test_model(xopt)
 
-    @testset "Plot model" begin
-        plot(mopt, vis)
-        plot(mopt, amp)
-        plot(mopt, lcamp)
-        plot(mopt, cphase)
-    end
+    mopt = test_model(xopt.sky, nothing)
+    @test mopt == Comrade.skymodel(post, xopt)
 
     @testset "Plot residuals" begin
-        residual(mopt, vis)
-        residual(mopt, amp)
-        residual(mopt, lcamp)
-        residual(mopt, cphase)
+        post = VLBIPosterior(skym, vis)
+        residual(post, xopt)
+        post = VLBIPosterior(skym, amp)
+        residual(post, xopt)
+        post = VLBIPosterior(skym, lcamp)
+        residual(post, xopt)
+        post = VLBIPosterior(skym, cphase)
+        residual(post, xopt)
     end
 
     @testset "LogDensityProblems" begin
@@ -114,118 +112,111 @@ using Zygote
 
 end
 
-@testset "RadioLikelihood" begin
+using Zygote
+using FiniteDifferences
+@testset "Polarized" begin
     _,vis, amp, lcamp, cphase, coh = load_data()
-    tcache = ResponseCache(coh)
-    lklhd_amp = RadioLikelihood(test_model, amp)
-    lklhd_cp = RadioLikelihood(test_model, cphase)
-    lklhd_lc = RadioLikelihood(test_model, lcamp)
-    lklhd_vis = RadioLikelihood(test_model, vis)
-    lklhd_coh = RadioLikelihood(test_skymodel_polarized, test_instrumentmodel_polarized, coh;
-                                skymeta = (;lp = 0.1), instrumentmeta=(;tcache))
 
+    R = JonesR()
+    intm = InstrumentModel(R)
+    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata=(;lp=0.1))
+    post = VLBIPosterior(skym, intm, coh)
 
-    prior = test_prior()
-    post = Posterior(lklhd_amp, prior)
-    x0 = prior_sample(post)
+    tpost = asflat(post)
 
-    lamp = logdensityof(lklhd_amp, x0)
-    lcp  = logdensityof(lklhd_cp, x0)
-    llc  = logdensityof(lklhd_lc, x0)
-    lvis = logdensityof(lklhd_vis, x0)
-    lcoh = logdensityof(lklhd_coh, x0)
+    x = prior_sample(tpost)
+    gz, = Zygote.gradient(tpost, x)
+    mfd = central_fdm(5,1)
+    gfd, = FiniteDifferences.grad(mfd, tpost, x)
+    @test gz ≈ gfd
 
-    lklhd = MultiRadioLikelihood(lklhd_cp, lklhd_coh)
-    show(lklhd)
-    l = logdensityof(lklhd, x0)
-    @test l ≈ lcp + lcoh
+    R = JonesR()
+    Gp = JonesG(x->(exp(x.lg + 1im*x.gp), exp(x.lg + 1im*x.gp)))
+    J = JonesSandwich(Gp, R)
+    pr = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+          gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant=SEFDReference(0.0), phase=true))
+    intm_coh = InstrumentModel(J, pr)
+    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata=(;lp=0.1))
+    post = VLBIPosterior(skym, intm_coh, coh)
+    tpost = asflat(post)
+    x = prior_sample(tpost)
+    residual(post, Comrade.transform(tpost, x))
+    gz, = Zygote.gradient(tpost, x)
+    mfd = central_fdm(5,1)
+    gfd, = FiniteDifferences.grad(mfd, tpost, x)
+    @test gz ≈ gfd
 
 end
 
 @testset "simulate_obs" begin
     _,vis, amp, lcamp, cphase, coh = load_data()
-    tcache = ResponseCache(coh)
-    lklhd_amp = RadioLikelihood(test_model, amp)
-    lklhd_cp = RadioLikelihood(test_model, cphase)
-    lklhd_lc = RadioLikelihood(test_model, lcamp)
-    lklhd_vis = RadioLikelihood(test_model, vis)
-    lklhd_coh = RadioLikelihood(test_skymodel_polarized, test_instrumentmodel_polarized, coh;
-                                skymeta = (;lp = 0.1), instrumentmeta=(;tcache))
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    skym = SkyModel(test_model, test_prior(), g)
+
+    post_amp = VLBIPosterior(skym, amp)
+    post_cp = VLBIPosterior(skym, cphase)
+    post_lc = VLBIPosterior(skym, lcamp)
+    post_vis = VLBIPosterior(skym, vis)
+
+    G = SingleStokesGain(x->exp(x.lg + 1im.*x.gp))
+    intm = InstrumentModel(G, (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+                               gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant=SEFDReference(0.0), phase=true)))
+    post_gvis = VLBIPosterior(skym, vis)
+
+    function test_simobs(post, x)
+        obs = simulate_observation(post, x)[begin]
+        @test length(obs) == length(post.data[begin])
+        obs_nn = simulate_observation(post, x, add_thermal_noise=false)[begin]
+        @test Comrade.measurement(obs_nn) == Comrade.likelihood(post.lklhds[1], Comrade.forward_model(post, x)).μ
+    end
+
+    test_simobs(post_amp, prior_sample(post_amp))
+    test_simobs(post_cp,  prior_sample(post_cp))
+    test_simobs(post_lc,  prior_sample(post_lc))
+    test_simobs(post_vis, prior_sample(post_vis))
+    test_simobs(post_gvis, prior_sample(post_gvis))
+
+    post_all = VLBIPosterior(skym, vis, amp, lcamp, cphase)
+    simulate_observation(post_all, prior_sample(post_all))
 
 
-    prior = test_prior()
-
-    simulate_observation(Posterior(lklhd_amp, prior), rand(prior))
-    simulate_observation(Posterior(lklhd_cp,  prior), rand(prior))
-    simulate_observation(Posterior(lklhd_lc,  prior), rand(prior))
-    simulate_observation(Posterior(lklhd_vis, prior), rand(prior))
-    simulate_observation(Posterior(lklhd_coh, prior), rand(prior))
-
-    lklhd_all = RadioLikelihood(test_model, amp, cphase, lcamp, vis)
-
-    simulate_observation(Posterior(lklhd_all, prior), rand(prior))
-
+    R = JonesR()
+    Gp = JonesG(x->(exp(x.lg + 1im*x.gp), exp(x.lg + 1im*x.gp)))
+    J = JonesSandwich(Gp, R)
+    intm_coh = InstrumentModel(J, intm.prior)
+    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata=(;lp=0.1))
+    post_coh = VLBIPosterior(skym, intm_coh, coh)
+    test_simobs(post_coh, prior_sample(post_coh))
 end
 
 
-using ForwardDiff
-using FiniteDifferences
-@testset "Bayes Non-analytic ForwardDiff" begin
+@testset "Bayes Non-analytic Zygote" begin
     _,vis, amp, lcamp, cphase = load_data()
 
     mfd = central_fdm(5,1)
-    @testset "DFT" begin
-        g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
-        mt = (g=g, alg=DFTAlg())
-        lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
 
-        prior = test_prior2()
+    G = SingleStokesGain(x->exp(x.lg + 1im.*x.gp))
+    intm = InstrumentModel(G, (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+                               gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant=SEFDReference(0.0), phase=true)))
 
-        post = Posterior(lklhd, prior)
+    function test_nonanalytic(intm, algorithm, vis)
+        skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256))
+        post = VLBIPosterior(skym, intm, vis)
+
         tpostf = asflat(post)
         x0 = prior_sample(tpostf)
 
         @inferred logdensityof(tpostf, x0)
-        ℓ = logdensityof(tpostf)
-        gf = ForwardDiff.gradient(ℓ, x0)
-        gn = FiniteDifferences.grad(mfd, ℓ, x0)
-        @test isapprox(gf, gn[1], atol=1e-1, rtol=1e-5)
+        gz, = Zygote.gradient(tpostf, x0)
+        gn, = FiniteDifferences.grad(mfd, tpostf, x0)
+        @test gz ≈ gn
+    end
+    @testset "DFT" begin
+        test_nonanalytic(intm, DFTAlg(), vis)
     end
 
     @testset "NFFT" begin
-        g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
-        mt = (g=g, alg=DFTAlg())
-        lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
-
-        prior = test_prior2()
-
-        post = Posterior(lklhd, prior)
-        tpostf = asflat(post)
-        x0 = prior_sample(tpostf)
-
-        # @inferred logdensityof(tpostf, x0)
-        ℓ = logdensityof(tpostf)
-        gf = ForwardDiff.gradient(ℓ, x0)
-        gn = FiniteDifferences.grad(mfd, ℓ, x0)
-        @test isapprox(gf, gn[1], atol=1e-1, rtol=1e-5)
-    end
-
-    @testset "FFT" begin
-        g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
-        mt = (g=g, alg=DFTAlg())
-        lklhd = RadioLikelihood(test_model2, vis; skymeta=mt)
-
-        prior = test_prior2()
-
-        post = Posterior(lklhd, prior)
-        tpostf = asflat(post)
-        x0 = prior_sample(tpostf)
-
-        @inferred logdensityof(tpostf, x0)
-        ℓ = logdensityof(tpostf)
-        gf = ForwardDiff.gradient(ℓ, x0)
-        gn = FiniteDifferences.grad(mfd, ℓ, x0)
-        @test isapprox(gf, gn[1], atol=1e-1, rtol=1e-5)
+        test_nonanalytic(intm, NFFTAlg(), vis)
     end
 
 end

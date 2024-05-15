@@ -31,7 +31,7 @@ function selfcal(obs::PyCall.PyObject, model::GainModel)
     ctable = caltable(model)
 
     # Now make the caltable for eht-imaging
-    sites = stations(ctable)
+    sites = sites(ctable)
     time = ctable.time
     ctabcol = map(sites) do s
         mask = Base.:!.(ismissing.(getproperty(ctable, s)))

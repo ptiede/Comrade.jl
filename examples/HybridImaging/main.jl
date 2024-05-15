@@ -55,7 +55,7 @@ obs = scan_average(obs).add_fractional_noise(0.02)
 # For this tutorial we will once again fit complex visibilities since they
 # provide the most information once the telescope/instrument model are taken
 # into account.
-dvis  = extract_table(obs, ComplexVisibilities())
+dvis  = extract_table(obs, Visibilities())
 
 # ## Building the Model/Posterior
 
@@ -66,11 +66,11 @@ dvis  = extract_table(obs, ComplexVisibilities())
 
 function sky(θ, metadata)
     (;c, σimg, f, r, σ, τ, ξτ, ma, mp, fg) = θ
-    (;ftot, cache) = metadata
+    (;ftot, grid) = metadata
     ## Form the image model
     ## First transform to simplex space first applying the non-centered transform
-    rast = ftot*f*(1-fg)*to_simplex(CenteredLR(), σimg.*c)
-    mimg = ContinuousImage(rast, cache)
+    rast = (ftot*f*(1-fg)).*to_simplex(CenteredLR(), σimg.*c)
+    mimg = ContinuousImage(rast, grid, BSplinePulse{3}())
     ## Form the ring model
     α = ma.*cos.(mp .- ξτ)
     β = ma.*sin.(mp .- ξτ)
@@ -87,16 +87,19 @@ end
 #   - Gain amplitudes which are typically known to 10-20%, except for LMT, which has amplitudes closer to 50-100%.
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
-function instrument(θ, metadata)
-    (; lgamp, gphase) = θ
-    (; gcache, gcachep) = metadata
-    ## Now form our instrument model
-    gvis = exp.(lgamp)
-    gphase = exp.(1im.*gphase)
-    jgamp = jonesStokes(gvis, gcache)
-    jgphase = jonesStokes(gphase, gcachep)
-    return JonesModel(jgamp*jgphase)
+using VLBIImagePriors
+using Distributions, DistributionsAD
+G = SingleStokesGain() do x
+    lg = x.lg
+    gp = x.gp
+    return exp(lg + 1im*gp)
 end
+
+intpr = (
+    lg= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+    gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0))
+        )
+intmodel = InstrumentModel(G, intpr)
 
 
 # Before we move on, let's go into the `model` function a bit. This function takes two arguments
@@ -114,51 +117,9 @@ end
 # required to compute the numerical Fourier transform.
 fovxy  = μas2rad(200.0)
 npix   = 32
-grid   = imagepixels(fovxy, fovxy, npix, npix)
-
-# For our image, we will use the
-# non-uniform Fourier transform (`NFFTAlg`) to compute the numerical FT.
-# The last argument to the `create_cache` call is the image
-# *kernel* or *pulse* defines the continuous function we convolve our image with
-# to produce a continuous on-sky image.
-cache  = create_cache(NFFTAlg(dvis), grid, BSplinePulse{3}())
+g      = imagepixels(fovxy, fovxy, npix, npix)
 
 
-# Now we form the metadata
-skymetadata = (;ftot=1.1, cache)
-
-
-# Second, we now construct our instrument model cache. This tells us how to map from the gains
-# to the model visibilities. However, to construct this map, we also need to specify the observation
-# segmentation over which we expect the gains to change. This is specified in the second argument
-# to `jonescache`, and currently, there are two options
-#   - `FixedSeg(val)`: Fixes the corruption to the value `val` for all time. This is usefule for reference stations
-#   - `ScanSeg()`: which forces the corruptions to only change from scan-to-scan
-#   - `TrackSeg()`: which forces the corruptions to be constant over a night's observation
-# For this work, we use the scan segmentation for the gain amplitudes since that is roughly
-# the timescale we expect them to vary. For the phases we need to set a reference station for
-# each scan to prevent a global phase offset degeneracy. To do this we select a reference
-# station for each scan based on the SEFD of each telescope. The telescope with the lowest
-# SEFD that is in each scan is selected. For M87 2017 this is almost always ALMA.
-gcache = jonescache(dvis, ScanSeg())
-gcachep = jonescache(dvis, ScanSeg(), autoref=SEFDReference(1.0 + 0.0im))
-intmetadata = (;gcache, gcachep);
-
-
-# This is everything we need to form our likelihood. Note the first two arguments must be
-# the model and then the metadata for the likelihood. The rest of the arguments are required
-# to be [`Comrade.EHTObservation`](@ref)
-lklhd = RadioLikelihood(sky, instrument, dvis;
-                        skymeta=skymetadata, instrumentmeta=intmetadata)
-
-
-
-# The next step is defining our image priors.
-# For our raster `c`, we will use a Gaussian markov random field prior, with the softmax
-# or centered log-ratio transform so that it lives on the simplex. That is, the sum of all the numbers from a `Dirichlet`
-# distribution always equals unity. First we load `VLBIImagePriors` which containts a large number
-# of priors and transformations that are useful for imaging.
-using VLBIImagePriors
 
 # Part of hybrid imaging is to force a scale separation between
 # the different model components to make them identifiable.
@@ -166,42 +127,19 @@ using VLBIImagePriors
 # length scale of the raster component equal to the beam size of the telescope in units of
 # pixel length, which is given by
 beam = beamsize(dvis)
-rat = (beam/(step(grid.X)))
-cprior = GaussMarkovRandomField(rat, size(grid); order=2)
+rat = (beam/(step(g.X)))
+cprior = GaussMarkovRandomField(rat, size(g); order=2)
+
 # additionlly we will fix the standard deviation of the field to unity and instead
 # use a pseudo non-centered parameterization for the field.
 # GaussMarkovRandomField(meanpr, 0.1*rat, 1.0, crcache)
 
-# Now we can construct the instrument model prior
-# Each station requires its own prior on both the amplitudes and phases.
-# For the amplitudes
-# we assume that the gains are apriori well calibrated around unit gains (or 0 log gain amplitudes)
-# which corresponds to no instrument corruption. The gain dispersion is then set to 10% for
-# all stations except LMT, representing that we expect 10% deviations from scan-to-scan. For LMT
-# we let the prior expand to 100% due to the known pointing issues LMT had in 2017.
-using Distributions
-using DistributionsAD
-distamp = station_tuple(dvis, Normal(0.0, 0.1); LM = Normal(0.0, 1.0))
-
-# For the phases, as mentioned above, we will use a segmented gain prior.
-# This means that rather than the parameters
-# being directly the gains, we fit the first gain for each site, and then
-# the other parameters are the segmented gains compared to the previous time. To model this,
-# we break the gain phase prior into two parts. The first is the prior
-# for the first observing timestamp of each site, `distphase0`, and the second is the
-# prior for segmented gain ϵₜ from time i to i+1, given by `distphase`. For the EHT, we are
-# dealing with pre-calibrated data, so often, the gain phase jumps from scan to scan are
-# minor. As such, we can put a more informative prior on `distphase`.
-# !!! warning
-#     We use AA (ALMA) as a reference station so we do not have to specify a gain prior for it.
-#-
-distphase = station_tuple(dvis, DiagonalVonMises(0.0, inv(π^2)))
 
 # Finally we can put form the total model prior
-prior = NamedDist(
+skyprior = (
+    ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
           c  = cprior,
-          ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
-          σimg = truncated(Normal(0.0, 0.1); lower=0.01),
+          σimg = truncated(Normal(0.0, 1.0); lower=0.01),
           f  = Uniform(0.0, 1.0),
           r  = Uniform(μas2rad(10.0), μas2rad(30.0)),
           σ  = Uniform(μas2rad(0.1), μas2rad(10.0)),
@@ -210,13 +148,15 @@ prior = NamedDist(
           ma = ntuple(_->Uniform(0.0, 0.5), 2),
           mp = ntuple(_->Uniform(0.0, 2π), 2),
           fg = Uniform(0.0, 1.0),
-          lgamp = CalPrior(distamp, gcache),
-          gphase = CalPrior(distphase, gcachep),
         )
+
+# Now we form the metadata
+skymetadata = (;ftot=1.1, grid = g)
+skym = SkyModel(sky, skyprior, g; metadata=skymetadata)
 
 # This is everything we need to specify our posterior distribution, which our is the main
 # object of interest in image reconstructions when using Bayesian inference.
-post = Posterior(lklhd, prior)
+post = VLBIPosterior(skym, intmodel, dvis)
 
 # To sample from our prior we can do
 xrand = prior_sample(rng, post)
@@ -225,56 +165,40 @@ xrand = prior_sample(rng, post)
 using DisplayAs #hide
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=1) #hide
-g = imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128)
-fig = imageviz(intensitymap(skymodel(post, xrand), g), size=(400, 400))
+gpl = imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128)
+fig = imageviz(intensitymap(skymodel(post, xrand), gpl), size=(400, 400));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
 # ## Reconstructing the Image
 
-# To sample from this posterior, it is convenient to first move from our constrained parameter space
-# to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This is
-# done using the `asflat` function.
-tpost = asflat(post)
-
-# We can now also find the dimension of our posterior or the number of parameters we will sample.
-# !!! warning
-#     This can often be different from what you would expect. This is especially true when using
-#     angular variables, where we often artificially increase the dimension
-#     of the parameter space to make sampling easier.
-#-
-ndim = dimension(tpost)
-
-# Now we optimize using LBFGS
-using ComradeOptimization
+# To find the image we will demonstrate two methods:
+#  - Optimization to find the MAP (fast but often a poor estimator)
+#  - Sampling to find the posterior (slow but provides a substantially better estimator)
+# For optimization we will use the `Optimization.jl` package and the LBFGS optimizer.
+# To use this we use the [`comrade_opt`](@ref) function
+using Optimization
 using OptimizationOptimJL
 using Zygote
-f = OptimizationFunction(tpost, Optimization.AutoZygote())
-prob = Optimization.OptimizationProblem(f, prior_sample(rng, tpost), nothing)
-sol = solve(prob, LBFGS(); maxiters=2000, g_tol=1e-0);
+xopt, sol = comrade_opt(post, LBFGS(), Optimization.AutoZygote(); initial_params=prior_sample(rng, post), maxiters=1000, g_tol=1e0)
 
-
-# Before we analyze our solution we first need to transform back to parameter space.
-xopt = transform(tpost, sol)
 
 # First we will evaluate our fit by plotting the residuals
 using Plots
-fig = residual(vlbimodel(post, xopt), dvis, ylabel="Correlated Flux Residual")
+fig = residual(post, xopt);
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
-# and now closure phases
-#-
-
-# Now these residuals look a bit high. However, it turns out this is because the MAP is typically
-# not a great estimator and will not provide very predictive measurements of the data. We
-# will show this below after sampling from the posterior.
-CM.image(g, skymodel(post, xopt), axis=(aspect=1, xreversed=true, title="MAP"), colormap=:afmhot, figure=(;resolution=(400, 400),))
+# These residuals suggest that we are substantially overfitting the data. This is a common
+# side effect of MAP imaging. As a result if we plot the image we see that there
+# is substantial high-frequency structure in the image that isn't supported by the data.
+imageviz(intensitymap(skymodel(post, xopt), gpl), figure=(;resolution=(500, 400),))
 
 
-# We will now move directly to sampling at this point.
-using ComradeAHMC
-metric = DiagEuclideanMetric(ndim)
-chain = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote)), 700; n_adapts=500, initial_params=xopt, progress=false);
+# To improve our results we will now move to Posterior sampling. This is the main method
+# we recommend for all inference problems in `Comrade`. While it is slower the results are
+# often substantially better. To sample we will use the `AdvancedHMC` package.
+using AdvancedHMC
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
 
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]
@@ -285,17 +209,17 @@ chain = chain[501:end]
 
 # Now lets plot the mean image and standard deviation images.
 # To do this we first clip the first 250 MCMC steps since that is during tuning and
-# so the posterior is not sampling from the correct stationary distribution.
+# so the posterior is not sampling from the correct sitesary distribution.
 
 using StatsBase
 msamples = skymodel.(Ref(post), chain[begin:2:end]);
 
 # The mean image is then given by
-imgs = intensitymap.(msamples, fovxy, fovxy, 128, 128)
-fig = imageviz(mean(imgs), colormap=:afmhot, size=(400, 300))
+imgs = intensitymap.(msamples, Ref(gpl))
+fig = imageviz(mean(imgs), colormap=:afmhot, size=(400, 300));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 #-
-fig = imageviz(std(imgs), colormap=:batlow, size=(400, 300))
+fig = imageviz(std(imgs), colormap=:batlow, size=(400, 300));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 #-
@@ -304,8 +228,8 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 comp = Comrade.components.(msamples)
 ring_samples = getindex.(comp, 2)
 rast_samples = first.(comp)
-ring_imgs = intensitymap.(ring_samples, fovxy, fovxy, 128, 128)
-rast_imgs = intensitymap.(rast_samples, fovxy, fovxy, 128, 128)
+ring_imgs = intensitymap.(ring_samples, Ref(gpl));
+rast_imgs = intensitymap.(rast_samples, Ref(gpl));
 
 ring_mean, ring_std = mean_and_std(ring_imgs);
 rast_mean, rast_std = mean_and_std(rast_imgs);
@@ -315,24 +239,24 @@ axes = [CM.Axis(fig[i, j], xreversed=true, aspect=CM.DataAspect()) for i in 1:2,
 CM.image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
 CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
 CM.image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"
-CM.image!(axes[2,2], rast_std, colormap=:afmhot); axes[2,2].title = "Rast Std. Dev."
+CM.image!(axes[2,2], rast_mean./rast_std, colormap=:afmhot, colorrange=(1.5, 3)); axes[2,2].title = "Rast SNR"
 CM.hidedecorations!.(axes)
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
 # Finally, let's take a look at some of the ring parameters
-figd = CM.Figure(;resolution=(600, 400));
-p1 = CM.density(figd[1,1], rad2μas(chain.r)*2, axis=(xlabel="Ring Diameter (μas)",))
-p2 = CM.density(figd[1,2], rad2μas(chain.σ)*2*sqrt(2*log(2)), axis=(xlabel="Ring FWHM (μas)",))
-p3 = CM.density(figd[1,3], -rad2deg.(getindex.(chain.mp, 1)) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))
-p4 = CM.density(figd[2,1], 2*getindex.(chain.ma, 2), axis=(xlabel="Brightness asymmetry",))
-p5 = CM.density(figd[2,2], 1 .- chain.f, axis=(xlabel="Ring flux fraction",))
+figd = CM.Figure(;resolution=(650, 400));
+p1 = CM.density(figd[1,1], rad2μas(chain.sky.r)*2, axis=(xlabel="Ring Diameter (μas)",))
+p2 = CM.density(figd[1,2], rad2μas(chain.sky.σ)*2*sqrt(2*log(2)), axis=(xlabel="Ring FWHM (μas)",))
+p3 = CM.density(figd[1,3], -rad2deg.(chain.sky.mp.:1) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))
+p4 = CM.density(figd[2,1], 2*chain.sky.ma.:2, axis=(xlabel="Brightness asymmetry",))
+p5 = CM.density(figd[2,2], 1 .- chain.sky.f, axis=(xlabel="Ring flux fraction",))
 DisplayAs.Text(DisplayAs.PNG(figd)) #hide
 
 # Now let's check the residuals using draws from the posterior
 p = Plots.plot();
 for s in sample(chain, 10)
-    residual!(p, vlbimodel(post, s), dvis)
+    residual!(p, post, s, legend=false)
 end
 DisplayAs.Text(DisplayAs.PNG(p)) #hide
 

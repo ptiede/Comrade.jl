@@ -1,145 +1,59 @@
 module ComradePyehtimExt
 
 using Comrade
-if isdefined(Base, :get_extension)
-    using Pyehtim
-    using StructArrays: StructVector, StructArray, append!!
-    using LinearAlgebra
-    using StaticArraysCore
-else
-    using ..Pyehtim
-    using ..StructArrays: StructVector, StructArray, append!!
-    using ..LinearAlgebra
-    using ..StaticArraysCore
+using Pyehtim
+using StructArrays: StructVector, StructArray, append!!
+using LinearAlgebra
+using StaticArraysCore
+
+function build_arrayconfig(obs)
+    obsd = obs.data
+    obsc = obs.copy()
+    ra, dec = get_radec(obsc)
+    mjd = get_mjd(obsc)
+    source = get_source(obsc)
+    bw = get_bw(obsc)
+    angles = get_fr_angles(obsc)
+    tarr = Pyehtim.get_arraytable(obsc)
+    scans = get_scantable(obsc)
+    bw  = get_bw(obsc)
+    elevation = StructArray(angles[1])
+    parallactic  = StructArray(angles[2])
+
+    U   = pyconvert(Vector,         obsd["u"])
+    V   = pyconvert(Vector,         obsd["v"])
+    t1  = pyconvert(Vector{Symbol}, obsd["t1"])
+    t2  = pyconvert(Vector{Symbol}, obsd["t2"])
+    Ti= pyconvert(Vector,         obsd["time"])
+    Fr= fill(pyconvert(eltype(U), obsc.rf), length(U))
+    sites = tuple.(t1, t2)
+    single_polbasis = (CirBasis(), CirBasis())
+    polbasis = fill(single_polbasis,length(U))
+    data = StructArray{Comrade.EHTArrayBaselineDatum{eltype(U), eltype(polbasis), eltype(elevation[1][1])}}(
+                (;U, V, Ti, Fr, sites, polbasis, elevation, parallactic)
+    )
+    return Comrade.EHTArrayConfiguration(bw, tarr, scans, mjd, ra, dec, source, :UTC, data)
 end
 
 
 function getvisfield(obs)
-    obsamps = obs.data
-    u   = pyconvert(Vector,         obsamps["u"])
-    v   = pyconvert(Vector,         obsamps["v"])
-    err = pyconvert(Vector,         obsamps["sigma"])
-    vis = pyconvert(Vector,         obsamps["vis"])
-    t1  = pyconvert(Vector{Symbol}, obsamps["t1"])
-    t2  = pyconvert(Vector{Symbol}, obsamps["t2"])
-    time= pyconvert(Vector,         obsamps["time"])
-    freq= fill(pyconvert(eltype(u), obs.rf), length(time))
-    bw  = fill(pyconvert(eltype(u), obs.bw), length(time))
-    baseline = tuple.(t1, t2)
-
-    return  StructArray{Comrade.EHTVisibilityDatum{eltype(u)}}(
-        measurement = vis,
-        U = u,
-        V = v,
-        error = err,
-        T = time,
-        F = freq,
-        bandwidth = bw,
-        baseline = baseline
-    )
+    obsd = obs.data
+    vis  = pyconvert(Vector{ComplexF64}, obsd["vis"])
+    err  = pyconvert(Vector{Float64}, obsd["sigma"])
+    return vis, err
 end
 
 
 function getampfield(obs)
     obsamps = obs.amp
-    uamp   = pyconvert(Vector, obsamps["u"])
-    vamp   = pyconvert(Vector, obsamps["v"])
     erramp = pyconvert(Vector, obsamps["sigma"])
     amps   = pyconvert(Vector, obsamps["amp"])
-    t1     = pyconvert(Vector{Symbol}, obsamps["t1"])
-    t2     = pyconvert(Vector{Symbol}, obsamps["t2"])
-    baseline = tuple.(t1, t2)
-    time = pyconvert(Vector, obsamps["time"])
-    freq = fill(get_rf(obs), length(time))
-
-    return  StructArray{Comrade.EHTVisibilityAmplitudeDatum{Float64}}(
-        measurement = amps,
-        U = uamp,
-        V = vamp,
-        error = erramp,
-        T = time,
-        F = freq,
-        baseline = baseline
-    )
+    return amps, erramp
 end
-
-function getcpfield(obs)
-    obscp = obs.cphase
-    u1 = pyconvert(Vector, obscp["u1"])
-    v1 = pyconvert(Vector, obscp["v1"])
-    u2 = pyconvert(Vector, obscp["u2"])
-    v2 = pyconvert(Vector, obscp["v2"])
-    u3 = pyconvert(Vector, obscp["u3"])
-    v3 = pyconvert(Vector, obscp["v3"])
-    cp    = deg2rad.(pyconvert(Vector, obscp["cphase"]))
-    errcp = deg2rad.(pyconvert(Vector, obscp["sigmacp"]))
-
-    t1 = pyconvert(Vector{Symbol}, obscp["t1"])
-    t2 = pyconvert(Vector{Symbol}, obscp["t2"])
-    t3 = pyconvert(Vector{Symbol}, obscp["t3"])
-    baseline = tuple.(t1, t2, t3)
-    time = pyconvert(Vector, obscp["time"])
-    freq = fill(get_rf(obs), length(time))
-
-    return StructArray{Comrade.EHTClosurePhaseDatum{Float64}}(
-        measurement = cp,
-        U1 = u1,
-        V1 = v1,
-        U2 = u2,
-        V2 = v2,
-        U3 = u3,
-        V3 = v3,
-        error = errcp,
-        T = time,
-        F = freq,
-        triangle = baseline
-    )
-
-end
-
-function getlcampfield(obs)
-    obslcamp = obs.logcamp
-    u1 = pyconvert(Vector, obslcamp["u1"])
-    v1 = pyconvert(Vector, obslcamp["v1"])
-    u2 = pyconvert(Vector, obslcamp["u2"])
-    v2 = pyconvert(Vector, obslcamp["v2"])
-    u3 = pyconvert(Vector, obslcamp["u3"])
-    v3 = pyconvert(Vector, obslcamp["v3"])
-    u4 = pyconvert(Vector, obslcamp["u4"])
-    v4 = pyconvert(Vector, obslcamp["v4"])
-    camp    = pyconvert(Vector, obslcamp["camp"])
-    errcamp = pyconvert(Vector, obslcamp["sigmaca"])
-
-    t1 = pyconvert(Vector{Symbol}, obslcamp["t1"])
-    t2 = pyconvert(Vector{Symbol}, obslcamp["t2"])
-    t3 = pyconvert(Vector{Symbol}, obslcamp["t3"])
-    t4 = pyconvert(Vector{Symbol}, obslcamp["t4"])
-    baseline = tuple.(t1, t2, t3, t4)
-    time = pyconvert(Vector, obslcamp["time"])
-    freq = fill(get_rf(obs), length(time))
-
-    return StructArray{Comrade.EHTLogClosureAmplitudeDatum{Float64}}(
-        measurement = camp,
-        U1 = u1,
-        V1 = v1,
-        U2 = u2,
-        V2 = v2,
-        U3 = u3,
-        V3 = v3,
-        U4 = u4,
-        V4 = v4,
-        error = errcamp,
-        T = time,
-        F = freq,
-        quadrangle = baseline
-    )
-
-end
-
 
 function getcoherency(obs)
 
-    # check if the obs is in circular basis otherwise error out
+    # check if the obs is in circular basis otherwise noise out
     @assert((pyconvert(String, obs.polrep) == "circ"),
             "obs is not in circular polarization.\n"*
             "To fix read in the data using\n"*
@@ -148,11 +62,6 @@ function getcoherency(obs)
         )
 
 
-    # get (u,v) coordinates
-    u = pyconvert(Vector, obs.data["u"])
-    v = pyconvert(Vector, obs.data["v"])
-
-    # get visibilities
     c11 = pyconvert(Vector, obs.data["rrvis"])
     c12 = pyconvert(Vector, obs.data["rlvis"])
     c21 = pyconvert(Vector, obs.data["lrvis"])
@@ -168,75 +77,43 @@ function getcoherency(obs)
 
     errmat = StructArray{SMatrix{2,2,eltype(e11), 4}}((e11, e21, e12, e22))
 
+    return cohmat, errmat
 
-    # get timestamps and frequencies
-    time = pyconvert(Vector, obs.data["time"])
+end
+
+
+function getcpfield(obs)
+    # Here we just return the information needed to form
+    # the closure configuration
+    obscp = obs.cphase
+    time = pyconvert(Vector, obscp["time"])
     freq = fill(get_rf(obs), length(time))
-
-    # get baseline info
-    t1 = pyconvert(Vector{Symbol}, obs.data["t1"])
-    t2 = pyconvert(Vector{Symbol}, obs.data["t2"])
-    baseline = tuple.(t1, t2)
-
-    # provide the polarization basis info
-    single_polbasis = (CirBasis(), CirBasis())
-    polbasis = fill(single_polbasis,length(u))
-
-    # prepare output
-    output = StructArray{Comrade.EHTCoherencyDatum{eltype(u),
-                         typeof(single_polbasis[1]),
-                         typeof(single_polbasis[2]),
-                         eltype(cohmat),
-                         eltype(errmat)}}(
-        measurement = cohmat,
-        error = errmat,
-        U = u,
-        V = v,
-        T = time,
-        F = freq,
-        baseline = baseline,
-        polbasis = polbasis
-        )
-
-    return output
-
+    t1 = pyconvert(Vector{Symbol}, obscp["t1"])
+    t2 = pyconvert(Vector{Symbol}, obscp["t2"])
+    t3 = pyconvert(Vector{Symbol}, obscp["t3"])
+    noise = pyconvert(Vector, obscp["sigmacp"])
+    baseline = tuple.(t1, t2, t3)
+    return StructArray((;T=time, F=freq, noise, baseline))
 end
 
-
-
-
-"""
-    extract_amp(obs)
-Extracts the visibility amplitudes from an ehtim observation object.
-
-Any valid keyword arguments to `add_amp` in ehtim can be passed through extract_amp.
-
-Returns an EHTObservation with visibility amplitude data
-"""
-function Comrade.extract_amp(obsc; kwargs...)
-    obs = obsc.copy()
-    obs.add_scans()
-    obs.reorder_tarr_snr()
-    obs.add_amp(;kwargs...)
-    data = getampfield(obs)
-    ra, dec = get_radec(obs)
-    mjd = get_mjd(obs)
-    source = get_source(obs)
-    bw = get_bw(obs)
-    angles = get_fr_angles(obs)
-    tarr = Pyehtim.get_arraytable(obsc)
-    scans = get_scantable(obsc)
-    ac = Comrade._arrayconfig(data, angles, tarr, scans, bw)
-    return Comrade.EHTObservation(data = data, mjd = mjd,
-                   ra = ra, dec= dec,
-                   config = ac,
-                   bandwidth=bw,
-                   source = source,
-    )
+function getlcampfield(obs)
+    # Here we just return the information needed to form
+    # the closure configuration
+    obslcamp = obs.logcamp
+    t1 = pyconvert(Vector{Symbol}, obslcamp["t1"])
+    t2 = pyconvert(Vector{Symbol}, obslcamp["t2"])
+    t3 = pyconvert(Vector{Symbol}, obslcamp["t3"])
+    time = pyconvert(Vector, obslcamp["time"])
+    t4 = pyconvert(Vector{Symbol}, obslcamp["t4"])
+    baseline = tuple.(t1, t2, t3, t4)
+    noise = pyconvert(Vector, obslcamp["sigmaca"])
+    freq = fill(get_rf(obs), length(time))
+    return StructArray((;T=time, F=freq, baseline, noise))
 end
+
 
 function get_arraytable(obs)
-    return Table(
+    return StructArray(
         sites = pyconvert(Vector{Symbol}, obs.tarr["site"]),
         X     = pyconvert(Vector, obs.tarr["x"]),
         Y     = pyconvert(Vector, obs.tarr["y"]),
@@ -252,37 +129,46 @@ end
 
 
 
+
+"""
+    extract_amp(obs)
+Extracts the visibility amplitudes from an ehtim observation object.
+
+Any valid keyword arguments to `add_amp` in ehtim can be passed through extract_amp.
+
+Returns an EHTObservationTable with visibility amplitude data
+"""
+function Comrade.extract_amp(obsc; pol=:I, debias=false, kwargs...)
+    obs = obsc.copy()
+    obs.add_scans()
+    obs.reorder_tarr_snr()
+    obs.add_amp(;debias, kwargs...)
+    config = build_arrayconfig(obs)
+    amp, amperr = getampfield(obs)
+    T = Comrade.EHTVisibilityAmplitudeDatum{pol, eltype(amp), typeof(config[1])}
+    return Comrade.EHTObservationTable{T}(amp, amperr, config)
+end
+
+
+
+
+
 """
     extract_vis(obs; kwargs...)
 Extracts the complex visibilities from an ehtim observation object
 
 This grabs the raw `data` object from the obs object. Any keyword arguments are ignored.
 
-Returns an EHTObservation with complex visibility data
+Returns an EHTObservationTable with complex visibility data
 """
-function Comrade.extract_vis(obsc; kwargs...)
+function Comrade.extract_vis(obsc; pol=:I, kwargs...)
     obs = obsc.copy()
     obs.add_scans()
     obs.reorder_tarr_snr()
-
-    data = getvisfield(obs)
-    ra, dec = get_radec(obs)
-    mjd = get_mjd(obs)
-    source = get_source(obs)
-    bw = get_bw(obs)
-    rf = get_rf(obs)
-    angles = get_fr_angles(obs)
-    tarr = Pyehtim.get_arraytable(obsc)
-    sc = pyconvert(Matrix, obs.scans)
-    scans = get_scantable(obs)
-    ac = Comrade._arrayconfig(data, angles, tarr, scans, bw)
-    return Comrade.EHTObservation(
-                   data = data, mjd = mjd,
-                   config=ac,
-                   ra = ra, dec= dec,
-                   bandwidth=bw,
-                   source = source,
-    )
+    config = build_arrayconfig(obs)
+    vis, viserr = getvisfield(obs)
+    T = Comrade.EHTVisibilityDatum{pol, eltype(viserr), typeof(config[1])}
+    return Comrade.EHTObservationTable{T}(vis, viserr, config)
 end
 
 """
@@ -291,41 +177,36 @@ Extracts the coherency matrix from an ehtim observation object
 
 This grabs the raw `data` object from the obs object. Any keyword arguments are ignored.
 
-Returns an EHTObservation with coherency matrix
+Returns an EHTObservationTable with coherency matrices
 """
 function Comrade.extract_coherency(obsc; kwargs...)
     obs = obsc.copy()
     obs.add_scans()
-    data = getcoherency(obs)
-    ra, dec = get_radec(obs)
-    mjd = get_mjd(obs)
-    source = get_source(obs)
-    bw = get_bw(obs)
-    rf = get_rf(obs)
-    angles = get_fr_angles(obs)
-    tarr = Pyehtim.get_arraytable(obs)
-    scans = get_scantable(obs)
-    ac = Comrade._arrayconfig(data, angles, tarr, scans, bw)
-    return Comrade.EHTObservation(data = data, mjd = mjd,
-                   ra = ra, dec= dec,
-                   config = ac,
-                   bandwidth=bw,
-                   source = source,
-    )
+    obs.reorder_tarr_snr()
+    config = build_arrayconfig(obs)
+    vis, viserr = getcoherency(obs)
+    T = Comrade.EHTCoherencyDatum{eltype(real(vis[1])), typeof(config[1]), eltype(vis), eltype(viserr)}
+    return Comrade.EHTObservationTable{T}(vis, viserr, config)
+end
+
+function closure_designmat(type, closures, scanvis)
+    if type == :cphase
+        design_mat = closurephase_designmat(closures, scanvis)
+    elseif type == :lcamp
+        design_mat = closureamp_designmat(closures, scanvis)
+    else
+        throw(ArgumentError("Not a valid type of closure"))
+    end
 end
 
 
-
-function closure_designmat(scancp::Comrade.Scan{A,B,C}, scanvis) where {A,B,C<:StructArray{<:Comrade.EHTClosurePhaseDatum}}
-    ant1, ant2, ant3 = baselines(scancp)
-    antvis1, antvis2 = baselines(scanvis)
-    design_mat = zeros(length(scancp), length(scanvis))
+function closurephase_designmat(cphase, scanvis)
+    antvis1, antvis2 = baseline(scanvis)
+    design_mat = zeros(length(cphase), length(scanvis))
     #throw("here")
     # fill in each row of the design matrix
     for i in axes(design_mat, 2), j in axes(design_mat,1)
-        a1 = ant1[j]
-        a2 = ant2[j]
-        a3 = ant3[j]
+        a1, a2, a3 = cphase[j].baseline
         # check leg 1
         ((antvis1[i] == a1) & (antvis2[i] == a2)) && (design_mat[j,i] = 1.0)
         ((antvis1[i] == a2) & (antvis2[i] == a1)) && (design_mat[j,i] = -1.0)
@@ -341,16 +222,12 @@ function closure_designmat(scancp::Comrade.Scan{A,B,C}, scanvis) where {A,B,C<:S
     return design_mat
 end
 
-function closure_designmat(scanlca::Comrade.Scan{A,B,C}, scanvis) where {A,B,C<:StructArray{<:Comrade.EHTLogClosureAmplitudeDatum}}
-    ant1, ant2, ant3, ant4 = baselines(scanlca)
-    antvis1, antvis2 = baselines(scanvis)
-    design_mat = zeros(length(scanlca), length(scanvis))
+function closureamp_designmat(lcamp, scanvis)
+    antvis1, antvis2 = baseline(scanvis)
+    design_mat = zeros(length(lcamp), length(scanvis))
     # fill in each row of the design matrix
     for i in axes(design_mat, 2), j in axes(design_mat,1)
-        a1 = ant1[j]
-        a2 = ant2[j]
-        a3 = ant3[j]
-        a4 = ant4[j]
+        a1, a2, a3, a4 = lcamp[j].baseline
 
         av1 = antvis1[i]
         av2 = antvis2[i]
@@ -370,38 +247,41 @@ function closure_designmat(scanlca::Comrade.Scan{A,B,C}, scanvis) where {A,B,C<:
     return design_mat
 end
 
-function minimal_lcamp(obsc; kwargs...)
+function build_dmats(type::Symbol, closure, st)
+    S = eltype(closure.time)
+    dmat = Matrix{S}[]
+    for i in 1:length(st)
+        scanvis = st[i]
+        inds = findall(==(scanvis.time), closure.times)
+        if isnothing(inds)
+            inow = length(dmat)
+            # I want to construct block diagonal matrices for efficienty but we need
+            # to be careful with scan that can't form closures. This hack moves these
+            # scans into the preceding scan but fills it with zeros
+            if i > 1
+                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow],1), length(scanvis.scan)))
+            else
+                push!(dmat, zeros(S, 1, length(scanvis.scan)))
+            end
+            continue
+        end
+        scancl = closures[inds]
+        if type == :cphase
+            dmatscan = closurephase_designmat(scancl, scanvis)
+        elseif type == :lcamp
+            dmatscan = closureamp_designmat(scancl, scanvis)
+        else
+            throw(ArgumentError("Not a valid type of closure"))
+        end
+        push!(dmat, dmatscan)
+    end
 
-    obs = obsc.copy()
-    obs.add_scans()
-    # reorder to maximize the snr
-    obs.reorder_tarr_snr()
-
-    lcamp = _ehtim_lcamp(obs; count="max", kwargs...)
-    stlca = scantable(lcamp)
-
-    #Now make the vis obs
-    dvis = Comrade.extract_vis(obsc)
-    st = scantable(dvis)
-
-    minset, dmat = _minimal_closure(stlca, st)
-
-    # now create EHTObservation
-    ra, dec = get_radec(obs)
-    mjd = get_mjd(obs)
-    source = get_source(obs)
-    bw = get_bw(obs)
-    # ac = arrayconfig(dvis)
-    clac = Comrade.ClosureConfig(dvis, dmat)
-    return Comrade.EHTObservation(data = minset, mjd = mjd,
-                          config=clac,
-                          ra = ra, dec= dec,
-                          bandwidth=bw,
-                          source = source,
-                        )
-
+    if iszero(dmat[1])
+        dmat[2] = hcat(zeros(S, size(dmat[2],1), size(dmat[1],2)), dmat[2])
+        dmat = dmat[2:end]
+    end
+    return dmat
 end
-
 
 function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs...)
     obs = obsc.copy()
@@ -414,65 +294,12 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
     obs.reorder_tarr_snr()
 
     obs.add_cphase(;count=count, kwargs...)
-    data = getcpfield(obs)
-    ra, dec = get_radec(obs)
-    mjd = get_mjd(obs)
-    source = get_source(obs)
-    bw = get_bw(obs)
-
-
-    cphase = Comrade.EHTObservation(data = data, mjd = mjd,
-                   config=nothing,
-                   ra = ra, dec= dec,
-                   bandwidth=bw,
-                   source = source,
-    )
-
-    stcp = scantable(cphase)
-
-    #Now make the vis obs
-    dvis = Comrade.extract_vis(obsc)
-    st = scantable(dvis)
-    S = eltype(dvis[:error])
-
-    dmat = Matrix{S}[]
-    for i in 1:length(st)
-        scanvis = st[i]
-        ind = findfirst(==(scanvis.time), stcp.times)
-        if isnothing(ind)
-            inow = length(dmat)
-            # I want to construct block diagonal matrices for efficienty but we need
-            # to be careful with scan that can't form closures. This hack moves these
-            # scans into the preceding scan but fills it with zeros
-            if i > 1
-                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow],1), length(scanvis.scan)))
-            else
-                push!(dmat, zeros(S, 1, length(scanvis.scan)))
-            end
-            continue
-        end
-        dmatscan = closure_designmat(stcp[ind], st[i])
-        push!(dmat, dmatscan)
-    end
-
-    if iszero(dmat[1])
-        dmat[2] = hcat(zeros(S, size(dmat[2],1), size(dmat[1],2)), dmat[2])
-        dmat = dmat[2:end]
-    end
-
-    # ac = arrayconfig(dvis)
-    clac = Comrade.ClosureConfig(dvis, dmat)
-    return  Comrade.EHTObservation(data = data, mjd = mjd,
-                           config=clac,
-                           ra = ra, dec= dec,
-                           bandwidth=bw,
-                           source = source
-                          )
+    cphase = getcpfield(obs)
+    return cphase, Comrade.extract_vis(obs)
 end
 
 function _make_lcamp(obsc, count="max"; kwargs...)
     obs = obsc.copy()
-    obs.add_scans()
     obs.reorder_tarr_snr()
 
     obs.add_logcamp(;count=count, kwargs...)
@@ -491,22 +318,28 @@ function _make_lcamp(obsc, count="max"; kwargs...)
 
 end
 
+
 function _ehtim_lcamp(obsc; count="max", kwargs...)
+    obs = obsc.copy()
+    obs.reorder_tarr_snr()
 
-    lcamp = _make_lcamp(obsc; count, kwargs...)
+    obs.add_logcamp(;count=count, kwargs...)
+    lcamp = getlcampfield(obs)
+    return lcamp, Comrade.extract_vis(obs)
+end
 
-    stlca = scantable(lcamp)
 
-    #Now make the vis obs
-    dvis = Comrade.extract_vis(obsc)
-    st = scantable(dvis)
-    S = eltype(dvis[:U])
 
+function _minimal_closure(type, closures, st)
+
+    # Determine the number of timestamps containing a closure triangle
+    S = eltype(closures.T)
+    # loop over all timestamps
     dmat = Matrix{S}[]
     for i in 1:length(st)
         scanvis = st[i]
-        ind = findfirst(==(scanvis.time), stlca.times)
-        if isnothing(ind)
+        inds = findall(==(scanvis.time), closures.T)
+        if length(inds) == 0
             inow = length(dmat)
             # I want to construct block diagonal matrices for efficienty but we need
             # to be careful with scan that can't form closures. This hack moves these
@@ -518,120 +351,37 @@ function _ehtim_lcamp(obsc; count="max", kwargs...)
             end
             continue
         end
-        dmatscan = closure_designmat(stlca[ind], st[i])
-        push!(dmat, dmatscan)
-    end
-
-    if iszero(dmat[1])
-        dmat[2] = hcat(zeros(S, size(dmat[2],1), size(dmat[1],2)), dmat[2])
-        dmat = dmat[2:end]
-    end
-
-
-    # ac = arrayconfig(dvis)
-    clac = Comrade.ClosureConfig(dvis, dmat)
-    return  Comrade.EHTObservation(data = lcamp.data, mjd = lcamp.mjd,
-                           config=clac,
-                           ra = lcamp.ra, dec= lcamp.dec,
-                           bandwidth=lcamp.bandwidth,
-                           source = lcamp.source
-                          )
-end
-
-
-function minimal_cphase(obsc; kwargs...)
-    # compute a maximum set of closure phases
-    obs = obsc.copy()
-    obs.add_scans()
-    # reorder to maximize the snr
-    obs.reorder_tarr_snr()
-
-    cphase = _ehtim_cphase(obs; count="max", kwargs...)
-    stcp = scantable(cphase)
-
-    #Now make the vis obs
-    dvis = Comrade.extract_vis(obsc)
-    st = scantable(dvis)
-
-    minset, dmat = _minimal_closure(stcp, st)
-    # now create EHTObservation
-    ra, dec = get_radec(obs)
-    mjd = get_mjd(obs)
-    source = get_source(obs)
-    bw = get_bw(obs)
-    # ac = arrayconfig(dvis)
-    clac = Comrade.ClosureConfig(dvis, dmat)
-    return Comrade.EHTObservation(data = minset, mjd = mjd,
-                          config=clac,
-                          ra = ra, dec= dec,
-                          bandwidth=bw,
-                          source = source,
-                        )
-end
-
-
-
-
-function _minimal_closure(stcl, st)
-
-    # Determine the number of timestamps containing a closure triangle
-    T = typeof(stcl[1][1])
-    S = typeof(stcl[1][1].U1)
-    # loop over all timestamps
-    minset = StructVector{T}(undef, 0)
-    dmat = Matrix{S}[]
-    for i in 1:length(st.times)
-
-        scanvis = st[i]
-        # find closure scan that matches time
-        ind = findfirst(==(scanvis.time), stcl.times)
-        if isnothing(ind)
-            inow = length(dmat)
-            # I want to construct block diagonal matrices for efficiency but we need
-            # to be careful with scans that can't form closures. This hack moves these
-            # scans into the preceding scan but fills it with zeros
-            if i > 1
-                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow],1), length(scanvis.scan)))
-            else
-                push!(dmat, zeros(S, 1, length(scanvis.scan)))
-            end
-            continue
-        end
 
         # Get our cphase scan
-        scancl = stcl[ind]
+        scancl = closures[inds]
+        # @info scancl
 
-        # sort by closure SNR so we form a nice minimal set
-        snr = inv.(scancl.scan.error)
+        # sort by closure noise so we form a nice minimal set
+        snr = inv.(scancl.noise)
         ind_snr = sortperm(snr)
         scancl = scancl[ind_snr]
-        snr = snr[ind_snr]
-
-        # now find the visibility scan that matches the closure one based on timestamps
-
 
         # initialize the design matrix
-        design_mat = closure_designmat(scancl, scanvis)
-
+        design_mat = closure_designmat(type, scancl, scanvis)
         # determine the expected size of the minimal set
         # this is needed to make sure we aren't killing too many triangles
         nmin = rank(design_mat)
 
         # print some info
-        #println("For timestamp $(stcl.times[i]):")
+        # println("For timestamp $(scanvis.time):")
 
-        # get the current stations
-        #println("Observing stations are $(stations(scancl))")
+        # get the current sites
+        # println("Observing sites are $(scancl.baseline)")
+        # println("scanvis sites ", sites(scanvis))
 
-        #println("Size of maximal set of closure products = $(length(scancl))")
-        #println("Size of minimal set of closure products = $(nmin)")
-        #println("...")
+        # println("Size of maximal set of closure products = $(length(scancl))")
+        # println("Size of minimal set of closure products = $(nmin)")
+        # println("...")
 
         ##########################################################
         # start of loop to recover minimal set
         ##########################################################
-        minset_scan, dmat_min = minimal_closure_scan(scancl, scanvis, nmin)
-        minset = append!!(minset, minset_scan.scan)
+        dmat_min = minimal_closure_scan(type, scancl, scanvis, nmin)
         push!(dmat, dmat_min)
     end
 
@@ -641,27 +391,27 @@ function _minimal_closure(stcl, st)
         dmat[2] = hcat(zeros(S, size(dmat[2],1), size(dmat[1],2)), dmat[2])
         dmat = dmat[2:end]
     end
-    return minset, dmat
+    return dmat
 end
 
 
-function minimal_closure_scan(scancl0, scanvis, nmin::Int)
+function minimal_closure_scan(type, closures, scanvis, nmin::Int)
     # make a mask to keep track of which clhases will stick around
-    scancl = deepcopy(scancl0)
-    keep = fill(true, length(scancl))
+    scancl = deepcopy(closures)
+    keep = fill(true, length(closures))
 
     # remember the original minimal set size
     nmin0 = nmin
 
     # perform the loop
     count = 1
-    keep = fill(true, length(scancl))
+    keep = fill(true, length(closures))
     good = true
     while good
         # recreate the mask each time
-        scankeep = scancl[keep]
+        closurekeep = closures[keep]
 
-        design_mat = closure_designmat(scankeep, scanvis)
+        design_mat = closure_designmat(type, closurekeep, scanvis)
 
         # determine the size of the minimal set
         nmin = rank(design_mat)
@@ -684,13 +434,13 @@ function minimal_closure_scan(scancl0, scanvis, nmin::Int)
     end
 
     # print out the size of the recovered set for double-checking
-    scankeep = scancl[keep]
-    dmat = closure_designmat(scankeep, scanvis)
-    if length(scankeep) != nmin
-        @error "minimal set not found $(length(scankeep)) $(nmin)"
-        throw("No minimal set found at time $(scancl.time)")
+    closurekeep = closures[keep]
+    dmat = closure_designmat(type, closurekeep, scanvis)
+    if length(closurekeep) != nmin
+        @error "minimal set not found $(length(closurekeep)) $(nmin)"
+        throw("No minimal set found at time $(scanvis.time)")
     end
-    return scankeep, dmat
+    return dmat
 end
 
 """
@@ -718,12 +468,30 @@ options are also included. However, the current `ehtim` count="min" option is br
 and does construct proper minimal sets of closure quantities if the array isn't fully connected.
 
 """
-function Comrade.extract_cphase(obs; count="min-correct", cut_trivial=false, uvmin=0.1e9,  kwargs...)
-    if count == "min-correct"
-        return minimal_cphase(obs; cut_trivial, uvmin, kwargs...)
+function Comrade.extract_cphase(obs; pol=:I, count="min", kwargs...)
+    # compute a maximum set of closure phases
+    obsc = obs.copy()
+    # reorder to maximize the snr
+    obsc.reorder_tarr_snr()
+
+    cphase, dvis = _ehtim_cphase(obsc; count="max", kwargs...)
+
+    #Now make the vis obs
+    st = timetable(dvis)
+
+    if count == "min"
+        dmat = _minimal_closure(:cphase, cphase, st)
+    elseif count == "max"
+        dmat = build_dmats(:cphase, cphase, st)
     else
-        return _ehtim_cphase(obs; count=count, cut_trivial=cut_trivial, uvmin=uvmin, kwargs...)
+        throw(ArgumentError("$(count) is not valid use 'min' or 'max'"))
     end
+    clac = Comrade.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
+    T = Comrade.EHTClosurePhaseDatum{pol, eltype(cphase.T), typeof(arrayconfig(dvis)[1])}
+    cp = Comrade.closure_phases(measurement(dvis), Comrade.designmat(clac))
+    cp_sig = abs2.(Comrade.noise(dvis)./Comrade.measurement(dvis))
+    cp_cov = Comrade.designmat(clac)*Diagonal(cp_sig)*transpose(Comrade.designmat(clac))
+    return Comrade.EHTObservationTable{T}(cp, cp_cov, clac)
 end
 
 
@@ -749,12 +517,31 @@ options are also included. However, the current `ehtim` count="min" option is br
 and does construct proper minimal sets of closure quantities if the array isn't fully connected.
 
 """
-function Comrade.extract_lcamp(obs; count="min-correct", kwargs...)
-    if count == "min-correct"
-        return minimal_lcamp(obs; kwargs...)
+function Comrade.extract_lcamp(obs; pol=:I, count="min", kwargs...)
+    # compute a maximum set of closure phases
+    obsc = obs.copy()
+    # reorder to maximize the snr
+    obsc.reorder_tarr_snr()
+
+    lcamp, dvis = _ehtim_lcamp(obsc; count="max", kwargs...)
+
+    #Now make the vis obs
+    st = timetable(dvis)
+
+    if count == "min"
+        dmat = _minimal_closure(:lcamp, lcamp, st)
+    elseif count == "max"
+        dmat = build_dmats(:lcamp, lcamp, st)
     else
-        return _ehtim_lcamp(obs; count=count, kwargs...)
+        throw(ArgumentError("$(count) is not valid use 'min' or 'max'"))
     end
+    clac = Comrade.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
+    cldmat = Comrade.designmat(clac)
+    T = Comrade.EHTLogClosureAmplitudeDatum{pol, eltype(lcamp.T), typeof(arrayconfig(dvis)[1])}
+    lcamp = Comrade.logclosure_amplitudes(measurement(dvis), Comrade.designmat(clac))
+    lcamp_sig = abs2.(Comrade.noise(dvis)./Comrade.measurement(dvis))
+    lcamp_cov = cldmat*Diagonal(lcamp_sig)*transpose(cldmat)
+    return Comrade.EHTObservationTable{T}(lcamp, lcamp_cov, clac)
 end
 
 

@@ -2,24 +2,15 @@ module ComradePigeonsExt
 
 using Comrade
 
-if isdefined(Base, :get_extension)
-    using Pigeons
-    using AbstractMCMC
-    using LogDensityProblems
-    using HypercubeTransform
-    using TransformVariables
-    using Random
+using Pigeons
+using AbstractMCMC
+using LogDensityProblems
+using HypercubeTransform
+using TransformVariables
+using Random
 
-else
-    using ..Pigeons
-    using ..AbstractMCMC
-    using ..LogDensityProblems
-    using ..HypercubeTransform
-    using ..TransformVariables
-    using ..Random
-end
 
-Pigeons.initialization(tpost::Comrade.TransformedPosterior, rng::Random.AbstractRNG, ::Int) = prior_sample(rng, tpost)
+Pigeons.initialization(tpost::Comrade.TransformedVLBIPosterior, rng::Random.AbstractRNG, ::Int) = prior_sample(rng, tpost)
 
 struct PriorRef{P,T}
     model::P
@@ -38,19 +29,19 @@ function (p::PriorRef{P,<:HypercubeTransform.AbstractHypercubeTransform})(x) whe
     return zero(eltype(x))
 end
 
-Pigeons.default_explorer(::Comrade.TransformedPosterior{P,<:HypercubeTransform.AbstractHypercubeTransform}) where {P}  =
+Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P,<:HypercubeTransform.AbstractHypercubeTransform}) where {P}  =
     SliceSampler()
 
-Pigeons.default_explorer(::Comrade.TransformedPosterior{P,<:TransformVariables.AbstractTransform}) where {P} =
+Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P,<:TransformVariables.AbstractTransform}) where {P} =
     Pigeons.AutoMALA(;default_autodiff_backend = :Zygote)
 
-function Pigeons.default_reference(tpost::Comrade.TransformedPosterior)
+function Pigeons.default_reference(tpost::Comrade.TransformedVLBIPosterior)
     t = tpost.transform
     p = tpost.lpost.prior
     return PriorRef(p, t)
 end
 
-function Pigeons.sample_iid!(target::Comrade.TransformedPosterior, replica, shared)
+function Pigeons.sample_iid!(target::Comrade.TransformedVLBIPosterior, replica, shared)
     replica.state = Pigeons.initialization(target, replica.rng, replica.replica_index)
 end
 
@@ -63,7 +54,7 @@ function Pigeons.sample_iid!(::PriorRef{P,<:HypercubeTransform.AbstractHypercube
 end
 
 
-function Pigeons.sample_array(tpost::Comrade.TransformedPosterior, pt::Pigeons.PT)
+function Pigeons.sample_array(tpost::Comrade.TransformedVLBIPosterior, pt::Pigeons.PT)
     samples = sample_array(pt)
     tbl = mapreduce(hcat, eachslice(samples, dims=(3,), drop=true)) do arr
         s = map(x->Comrade.transform(tpost, @view(x[begin:end-1])), eachrow(arr))

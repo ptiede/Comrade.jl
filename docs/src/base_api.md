@@ -1,4 +1,4 @@
-# ComradeBase API
+# Base API
 
 
 
@@ -23,40 +23,40 @@ CurrentModule = ComradeBase
 ```@docs
 ComradeBase.flux
 ComradeBase.visibility
-ComradeBase.visibilities
-ComradeBase.visibilities!
+ComradeBase.visibilitymap
+ComradeBase.visibilitymap!
 ComradeBase.intensitymap
 ComradeBase.intensitymap!
-ComradeBase.IntensityMap
+ComradeBase.allocate_vismap
+ComradeBase.allocate_imgmap
+ComradeBase.create_imgmap
+ComradeBase.create_vismap
 ComradeBase.amplitude(::Any, ::Any)
-ComradeBase.amplitudes
+ComradeBase.amplitudemap
 ComradeBase.bispectrum
-ComradeBase.bispectra
+ComradeBase.bispectrummap
 ComradeBase.closure_phase
-ComradeBase.closure_phases
+ComradeBase.closure_phasemap
 ComradeBase.logclosure_amplitude
-ComradeBase.logclosure_amplitudes
+ComradeBase.logclosure_amplitudemap
 ```
 
 ### Model Interface
 ```@docs
 ComradeBase.AbstractModel
-ComradeBase.isprimitive
+ComradeBase.AbstractPolarizedModel
 ComradeBase.visanalytic
 ComradeBase.imanalytic
 ComradeBase.ispolarized
 ComradeBase.radialextent
-ComradeBase.PrimitiveTrait
-ComradeBase.IsPrimitive
-ComradeBase.NotPrimitive
 ComradeBase.DensityAnalytic
 ComradeBase.IsAnalytic
 ComradeBase.NotAnalytic
 ComradeBase.visibility_point
-ComradeBase.visibilities_analytic
-ComradeBase.visibilities_analytic!
-ComradeBase.visibilities_numeric
-ComradeBase.visibilities_numeric!
+ComradeBase.visibilitymap_analytic
+ComradeBase.visibilitymap_analytic!
+ComradeBase.visibilitymap_numeric
+ComradeBase.visibilitymap_numeric!
 ComradeBase.intensity_point
 ComradeBase.intensitymap_analytic
 ComradeBase.intensitymap_analytic!
@@ -64,32 +64,42 @@ ComradeBase.intensitymap_numeric
 ComradeBase.intensitymap_numeric!
 ```
 
-### Image Types
+### Image Domain
 ```@docs
-ComradeBase.IntensityMap(::AbstractArray, ::AbstractGrid)
-ComradeBase.StokesIntensityMap
 ComradeBase.imagepixels
 ComradeBase.RectiGrid
+ComradeBase.UnstructuredDomain
 ComradeBase.dims
 ComradeBase.named_dims
 ComradeBase.axisdims
-ComradeBase.stokes
-ComradeBase.imagegrid
+ComradeBase.domainpoints
 ComradeBase.fieldofview
 ComradeBase.pixelsizes
 ComradeBase.phasecenter
-ComradeBase.centroid
-ComradeBase.second_moment
+ComradeBase.executor
+ComradeBase.Serial
+ComradeBase.ThreadsEx
 ComradeBase.header
 ComradeBase.NoHeader
 ComradeBase.MinimalHeader
-ComradeBase.load
-ComradeBase.save
 ```
 
-
-## Polarization
-
+### Image Types
 ```@docs
-ComradeBase.AbstractPolarizedModel
+ComradeBase.IntensityMap
+ComradeBase.IntensityMap(::AbstractArray, ::AbstractRectiGrid)
+ComradeBase.UnstructuredMap
+ComradeBase.baseimage
+ComradeBase.centroid
+ComradeBase.second_moment
+ComradeBase.load
+ComradeBase.save
+ComradeBase.stokes
+```
+
+## Internal Methods not part of public API
+```@docs
+ComradeBase._visibilitymap
+ComradeBase._visibilitymap!
+ComradeBase.create_map
 ```

@@ -55,7 +55,7 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosureP
 # Comrade expects that any model function must accept a named tuple and returns  must always
 # return an object that implements the [VLBISkyModels Interface](https://ehtjulia.github.io/VLBISkyModels.jl/stable/interface/)
 #-
-function model(θ)
+function model(θ, p)
     (;radius, width, ma, mp, τ, ξτ, f, σG, τG, ξG, xG, yG) = θ
     α = ma.*cos.(mp .- ξτ)
     β = ma.*sin.(mp .- ξτ)
@@ -67,13 +67,12 @@ end
 # To construct our likelihood `p(V|M)` where `V` is our data and `M` is our model, we use the `RadioLikelihood` function.
 # The first argument of `RadioLikelihood` is always a function that constructs our Comrade
 # model from the set of parameters `θ`.
-lklhd = RadioLikelihood(model, dlcamp, dcphase)
 
 # We now need to specify the priors for our model. The easiest way to do this is to
 # specify a NamedTuple of distributions:
 
 using Distributions, VLBIImagePriors
-prior = NamedDist(
+prior = (
           radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
           width = Uniform(μas2rad(1.0), μas2rad(10.0)),
           ma = (Uniform(0.0, 0.5), Uniform(0.0, 0.5)),
@@ -88,6 +87,8 @@ prior = NamedDist(
           yG = Uniform(-μas2rad(80.0), μas2rad(80.0))
         )
 
+skym = SkyModel(model, prior, imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128))
+
 
 # Note that for `α` and `β` we use a product distribution to signify that we want to use a
 # multivariate uniform for the mring components `α` and `β`. In general the structure of the
@@ -95,7 +96,7 @@ prior = NamedDist(
 # model definition `model(θ)`.
 
 # To form the posterior we now call
-post = Posterior(lklhd, prior)
+post = VLBIPosterior(skym, dlcamp, dcphase)
 
 # !!!warn
 #    As of Comrade 0.9 we have switched to the proper covariant closure likelihood.
@@ -105,7 +106,7 @@ post = Posterior(lklhd, prior)
 # This constructs a posterior density that can be evaluated by calling `logdensityof`.
 # For example,
 
-logdensityof(post, (radius = μas2rad(20.0),
+logdensityof(post, (sky = (radius = μas2rad(20.0),
                   width = μas2rad(10.0),
                   ma = (0.3, 0.3),
                   mp = (π/2, π),
@@ -116,7 +117,7 @@ logdensityof(post, (radius = μas2rad(20.0),
                   τG = 0.1,
                   ξG = 0.5,
                   xG = 0.0,
-                  yG = 0.0))
+                  yG = 0.0),))
 
 # ## Reconstruction
 
@@ -149,28 +150,11 @@ logdensityof(fpost, randn(rng, dimension(fpost)))
 # Typically, most VLBI modeling codes only care about finding the optimal or best guess
 # image of our posterior `post` To do this, we will use [`Optimization.jl`](https://docs.sciml.ai/Optimization/stable/) and
 # specifically the [`BlackBoxOptim.jl`](https://github.com/robertfeldt/BlackBoxOptim.jl) package. For Comrade, this workflow is
-# very similar to the usual `Optimization.jl` workflow. The only thing to keep in
-# mind is that `Optimization.jl` expects that the function we are evaluating expects the
-# parameters to be represented as a flat `Vector` of float. Therefore, we must use
-# one of our transformed posteriors, `cpost` or `fpost`. For this example,
-# we will use `cpost` since it restricts the domain to live within the compact unit hypercube
-# which is easier to explore for non-gradient-based optimizers like `BBO`.
+# we use the [`comrade_opt`](@ref) function.
 
-using ComradeOptimization
+using Optimization
 using OptimizationBBO
-
-ndim = dimension(fpost)
-f = OptimizationFunction(fpost)
-prob = Optimization.OptimizationProblem(f, randn(rng, ndim), nothing, lb=fill(-5.0, ndim), ub=fill(5.0, ndim))
-
-# Now we solve for our optimial image.
-
-sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000);
-
-# The sol vector is in the transformed space, so first we need to transform back to parameter space
-# to that we can interpret the solution.
-
-xopt = transform(fpost, sol)
+xopt, sol = comrade_opt(post, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000);
 
 # Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 
@@ -178,7 +162,7 @@ using DisplayAs
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=1) #hide
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
-fig = imageviz(intensitymap(model(xopt), g), colormap=:afmhot, size=(500, 400));
+fig = imageviz(intensitymap(skymodel(post, xopt), g), colormap=:afmhot, size=(500, 400));
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
@@ -204,7 +188,7 @@ chain = sample_array(cpost, pt)
 
 # First to plot the image we call
 using DisplayAs #hide
-imgs = intensitymap.(skymodel.(Ref(post), sample(chain, 100)), μas2rad(200.0), μas2rad(200.0), 128, 128)
+imgs = intensitymap.(skymodel.(Ref(post), sample(chain, 100)), Ref(g))
 fig = imageviz(imgs[end], colormap=:afmhot)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
@@ -219,22 +203,25 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
 using Plots
-p = Plots.plot(model(xopt), dlcamp, label="MAP");
-DisplayAs.Text(DisplayAs.PNG(p))
+p1 = Plots.plot(simulate_observation(post, xopt; add_thermal_noise=false)[1], label="MAP")
+Plots.plot!(p1, dlcamp)
+p2 = Plots.plot(simulate_observation(post, xopt; add_thermal_noise=false)[2], label="MAP")
+Plots.plot!(p2, dcphase)
+DisplayAs.Text(DisplayAs.PNG(Plots.plot(p1, p2, layout=(2,1))))
 
 # We can also plot random draws from the posterior predictive distribution.
 # The posterior predictive distribution create a number of synthetic observations that
 # are marginalized over the posterior.
 p1 = Plots.plot(dlcamp);
 p2 = Plots.plot(dcphase);
-uva = [sqrt.(uvarea(dlcamp[i])) for i in 1:length(dlcamp)]
-uvp = [sqrt.(uvarea(dcphase[i])) for i in 1:length(dcphase)]
+uva = uvdist.(datatable(dlcamp))
+uvp = uvdist.(datatable(dcphase))
 for i in 1:10
     mobs = simulate_observation(post, sample(chain, 1)[1])
     mlca = mobs[1]
     mcp  = mobs[2]
-    Plots.scatter!(p1, uva, mlca[:measurement], color=:grey, label=:none, alpha=0.1)
-    Plots.scatter!(p2, uvp, atan.(sin.(mcp[:measurement]), cos.(mcp[:measurement])), color=:grey, label=:none, alpha=0.1)
+    Plots.scatter!(p1, uva, mlca[:measurement], color=:grey, label=:none, alpha=0.2)
+    Plots.scatter!(p2, uvp, atan.(sin.(mcp[:measurement]), cos.(mcp[:measurement])), color=:grey, label=:none, alpha=0.2)
 end
 p = Plots.plot(p1, p2, layout=(2,1));
 DisplayAs.Text(DisplayAs.PNG(p))
@@ -243,7 +230,5 @@ DisplayAs.Text(DisplayAs.PNG(p))
 # Finally, we can also put everything onto a common scale and plot the normalized residuals.
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
-p1 = residual(model(chain[end]), dlcamp);
-p2 = residual(model(chain[end]), dcphase);
-p = Plots.plot(p1, p2, layout=(2,1));
+p = residual(post, chain[end]);
 DisplayAs.Text(DisplayAs.PNG(p))
