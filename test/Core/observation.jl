@@ -81,7 +81,7 @@ end
     @test vis[1:10] isa Comrade.EHTObservationTable
     @test @view(vis[1:10]) isa Comrade.EHTObservationTable
 
-    @test dvis[1] isa Comrade.EHTVisibilityDatum
+    @test vis[1] isa Comrade.EHTVisibilityDatum
     @test Tables.istable(typeof(vis))
     @test Tables.columnaccess(typeof(vis))
     @test Tables.columns(vis) == datatable(vis)
