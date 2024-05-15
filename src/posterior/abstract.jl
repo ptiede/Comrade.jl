@@ -141,10 +141,10 @@ end
 
 
 """
-    dataproducts(d::AbstractRadioLikelihood)
+    dataproducts(d::AbstractVLBIPosterior)
 
 Returns the data products you are fitting as a tuple. The order of the tuple corresponds
-to the order of the `dataproducts` argument in [`AbstractRadioLikelihood`](@ref).
+to the order of the `dataproducts` argument in [`VLBIPosterior`](@ref).
 """
 function dataproducts(d::AbstractVLBIPosterior)
     return getfield(d, :data)

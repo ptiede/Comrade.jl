@@ -101,7 +101,7 @@ Base.IndexStyle(::Type{<:PosteriorSamples{T,N,C}}) where {T,N,C} = Base.IndexSty
 rmap(f, x) = f(x)
 
 """
-    Comrade.rmap(f, x::PosteriorSamples)
+    rmap(f, x::PosteriorSamples)
 
 Recursively map a function `f` over the elements of `x`. For instance to compute the mean
 of all fields you can do `Comrade.rmap(mean, chain)`

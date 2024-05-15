@@ -6,7 +6,7 @@ using NestedSamplers
 using Random
 
 """
-    AbstractMCMC.sample(rng::Random.AbstractRNG, post::Comrade.VLBIPosterior, smplr::Nested, args...; kwargs...)
+    sample(rng::Random.AbstractRNG, post::Comrade.VLBIPosterior, smplr::Nested, args...; kwargs...)
 
 Sample the posterior `post` using `NestedSamplers.jl` `Nested` sampler. The `args/kwargs`
 are forwarded to `NestedSampler` for more information see its [docs](https://github.com/TuringLang/NestedSamplers.jl)

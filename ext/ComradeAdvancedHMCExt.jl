@@ -33,6 +33,7 @@ function make_sampler(rng, ∇ℓ, sampler::AdvancedHMC.AbstractHMCSampler, θ0)
     return AdvancedHMC.LogDensityModel(∇ℓ), HMCSampler(κ, metric, adaptor)
 end
 
+
 function AbstractMCMC.Sample(
             rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior,
             sampler::AbstractHMCSampler; adtype=Val(:Zygote), initial_params=nothiing, kwargs...)
@@ -42,6 +43,27 @@ function AbstractMCMC.Sample(
     return AbstractMCMC.Sample(rng, model, smplr; kwargs...)
 end
 
+"""
+    sample(rng, post::VLBIPosterior, sampler::AbstractHMCSampler, nsamples, args...;saveto=MemoryStore(), adtype=Val(:Zygote), initial_params=nothing, kwargs...)
+
+Sample from the posterior `post` using the sampler `sampler` for `nsamples` samples. Additional
+arguments are forwarded to AbstractMCMC.sample. If `saveto` is a DiskStore, the samples will be
+saved to disk. If `initial_params` is not `nothing` then the sampler will start from that point.
+
+## Arguments
+
+ - rng: The random number generator to use
+ - post: The posterior to sample from
+ - nsamples: The total number of samples
+
+## Keyword Arguments
+
+ - `saveto`: If a DiskStore, the samples will be saved to disk, if [`MemoryStore`](@ref) the samples will be stored in memory/ram.
+ - `adtype`: The automatic differentiation type to use. The default if Zygote which is the recommended choice for Comrade currently.
+ - `initial_params`: The initial parameters to start the sampler from. If `nothing` then the sampler will start from a random point in the prior.
+ - `kwargs`: Additional keyword arguments to pass to the sampler. Examples include `n_adapts` which is the total number of samples to use for adaptation.
+    To see the others see the AdvancedHMC documentation.
+"""
 function AbstractMCMC.sample(
         rng::Random.AbstractRNG, post::Comrade.VLBIPosterior,
         sampler::AbstractHMCSampler, nsamples, args...;

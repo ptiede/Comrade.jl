@@ -105,7 +105,7 @@ end
 """
     extract_table(obs, dataproducts::VLBIDataProducts)
 
-Extract an [`Comrade.EHTObservation`](@ref) table of data products `dataproducts`.
+Extract an [`Comrade.EHTObservationTable`](@ref) table of data products `dataproducts`.
 To pass additional keyword for the data products you can pass them as keyword arguments
 to the data product type. For a list of potential data products see `subtypes(Comrade.VLBIDataProducts)`.
 

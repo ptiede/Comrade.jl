@@ -6,7 +6,7 @@ using Documenter, Pkg
 using Comrade, ComradeBase, AdvancedHMC, Dynesty, NestedSamplers, Optimization,
       PolarizedTypes
 using Pyehtim, VLBISkyModels, InteractiveUtils
-using AbstractMCMC
+using AbstractMCMC, Random, HypercubeTransform
 
 deployconfig = Documenter.auto_detect_deploy_system()
 Documenter.post_status(deployconfig; type="pending", repo="github.com/ptiede/Comrade.jl.git")
@@ -21,7 +21,7 @@ TUTORIALS = [
      ]
 
 makedocs(;
-    modules=[ComradeBase, Comrade, PolarizedTypes],
+    modules=[ComradeBase, Comrade],
     # repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
     format = Documenter.HTML(;prettyurls=true),

@@ -39,16 +39,12 @@ ComradeBase.closure_phase
 ComradeBase.closure_phasemap
 ComradeBase.logclosure_amplitude
 ComradeBase.logclosure_amplitudemap
-PolarizedTypes.mpol(::ComradeBase.AbstractPolarizedModel, ::Any)
-PolarizedTypes.polellipse(::ComradeBase.AbstractPolarizedModel, ::Any)
-PolarizedTypes.polarization(::ComradeBase.AbstractPolarizedModel, ::Any)
-PolarizedTypes.fracpolarization(::ComradeBase.AbstractPolarizedModel, ::Any)
-PolarizedTypes.mbreve(::ComradeBase.AbstractPolarizedModel, ::Any)
 ```
 
 ### Model Interface
 ```@docs
 ComradeBase.AbstractModel
+ComradeBase.AbstractPolarizedModel
 ComradeBase.visanalytic
 ComradeBase.imanalytic
 ComradeBase.ispolarized
@@ -99,31 +95,6 @@ ComradeBase.second_moment
 ComradeBase.load
 ComradeBase.save
 ComradeBase.stokes
-```
-
-
-## Polarization
-
-```@docs
-ComradeBase.AbstractPolarizedModel
-PolarizedTypes.StokesParams
-PolarizedTypes.ElectricFieldBasis
-PolarizedTypes.RPol
-PolarizedTypes.LPol
-PolarizedTypes.XPol
-PolarizedTypes.YPol
-PolarizedTypes.PolBasis
-PolarizedTypes.CirBasis
-PolarizedTypes.LinBasis
-PolarizedTypes.CoherencyMatrix
-PolarizedTypes.evpa
-PolarizedTypes.m̆
-PolarizedTypes.linearpol
-PolarizedTypes.innerprod
-PolarizedTypes.basis_components
-PolarizedTypes.basis_transform
-PolarizedTypes.polarization
-PolarizedTypes.fracpolarization
 ```
 
 ## Internal Methods not part of public API

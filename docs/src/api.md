@@ -66,6 +66,9 @@ Comrade.EHTVisibilityDatum
 Comrade.EHTVisibilityAmplitudeDatum
 Comrade.EHTLogClosureAmplitudeDatum
 Comrade.EHTClosurePhaseDatum
+Comrade.triangle
+Comrade.baseline
+Comrade.quadrangle
 ```
 
 ### Data Products
@@ -89,6 +92,8 @@ Comrade.Coherencies
 Comrade.AbstractSkyModel
 Comrade.SkyModel
 Comrade.FixedSkyModel
+Comrade.idealvisibilities
+Comrade.skymodel(::Comrade.AbstractVLBIPosterior, ::Any)
 ```
 
 ### Instrument Models
@@ -96,6 +101,7 @@ Comrade.FixedSkyModel
 ```@docs
 Comrade.CalTable
 Comrade.caltable(::Comrade.SiteArray)
+Comrade.sites(::Comrade.CalTable)
 Comrade.IIDSitePrior
 Comrade.ArrayPrior
 Comrade.Segmentation
@@ -110,6 +116,7 @@ Comrade.JonesG
 Comrade.JonesD
 Comrade.JonesR
 Comrade.JonesF
+Comrade.GenericJones
 Comrade.JonesSandwich
 Comrade.AbstractInstrumentModel
 Comrade.IdealInstrumentModel
@@ -126,7 +133,7 @@ Comrade.AbstractVLBIPosterior
 Comrade.logprior
 Comrade.loglikelihood
 Comrade.dataproducts
-Comrade.skymodel(::Comrade.AbstractVLBIPosterior)
+Comrade.skymodel
 Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior)
 Comrade.forward_model
 Comrade.prior_sample
@@ -135,18 +142,15 @@ Comrade.VLBIPosterior
 Comrade.simulate_observation
 Comrade.residuals
 Comrade.TransformedVLBIPosterior
-HypercubeTransform.transform(::Comrade.AbstractVLBIPosterior, ::Any)
-HypercubeTransform.inverse(::Comrade.AbstractVLBIPosterior, ::Any)
-HypercubeTransform.ascube(::Comrade.AbstractVLBIPosterior)
-HypercubeTransform.asflat(::Comrade.AbstractVLBIPosterior)
+HypercubeTransform.transform(::Comrade.TransformedVLBIPosterior, ::Any)
+HypercubeTransform.inverse(::Comrade.TransformedVLBIPosterior, ::Any)
+HypercubeTransform.ascube(::Comrade.VLBIPosterior)
+HypercubeTransform.asflat(::Comrade.VLBIPosterior)
 ```
 
 ### Inference
 ```@docs
 Comrade.comrade_opt
-Dynesty.dysample(::Comrade.VLBIPosterior)
-AbstractMCMC.sample(rng::AbstractRNG, ::Comrade.VLBIPosterior, ::AdvancedHMC.AbstractHMCSampler)
-AbstractMCMC.sample(rng::AbstractRNG, ::Comrade.VLBIPosterior, ::NestedSamplers.Nested)
 Comrade.MemoryStore
 Comrade.DiskStore
 Comrade.load_samples
@@ -171,6 +175,11 @@ Comrade.apply_fluctuations
 ```
 
 ## Internal (Not Public API)
+
+```@docs
+Comrade.build_datum
+Comrade.ObservedSkyModel
+```
 
 ### eht-imaging interface (Internal)
 
