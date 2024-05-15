@@ -65,7 +65,7 @@ using Zygote
            0.7,
            0.8,
            0.8])
-    xopt, sol = comrade_opt(post, Optimization.GCMAES(), Optimization.AutoZygote(); initial_params=x0, maxiters=10_000)
+    xopt, sol = comrade_opt(post, Optimization.GCMAESOpt(), Optimization.AutoZygote(); initial_params=x0, maxiters=10_000)
 
     @test isapprox(xopt.sky.f1/xopt.sky.f2, 2.0, atol=1e-3)
     @test isapprox(xopt.sky.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-3)

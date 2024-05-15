@@ -159,7 +159,7 @@ import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=1) #hide
 g = imagepixels(μas2rad(150.0), μas2rad(150.0), 100, 100)
 img = intensitymap(skymodel(post, xopt), g)
-fig = imageviz(img);
+fig = imageviz(img, size=(600, 500));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
