@@ -119,7 +119,6 @@ function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPoste
         @warn "No starting location chosen, picking start from prior"
         θ0 = prior_sample(rng, tpost)
     end
-    @info typeof(θ0)
     t = Sample(rng, tpost, sampler; initial_params=θ0, adtype, n_adapts, kwargs...)(1:nsamples)
     pt = Iterators.partition(t, output_stride)
     nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
@@ -173,7 +172,7 @@ function sample_to_disk(rng::Random.AbstractRNG, post::Comrade.VLBIPosterior,
 
     pt, state, out, i = initialize(
                             rng, tpost, sampler, nsamples, outbase, args...;
-                            n_adapts,
+                            n_adapts, adtype,
                             initial_params, restart, outdir, output_stride, kwargs...
                         )
 
