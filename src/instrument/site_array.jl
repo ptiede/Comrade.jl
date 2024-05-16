@@ -41,11 +41,11 @@ EnzymeRules.inactive(::(typeof(Base.size)), ::SiteArray) = nothing
 Base.parent(a::SiteArray) = getfield(a, :data)
 Base.size(a::SiteArray) = size(parent(a))
 Base.IndexStyle(::Type{<:SiteArray{T, N, A}}) where {T, N, A} = Base.IndexStyle(A)
-Base.getindex(a::SiteArray, i::Integer) = getindex(parent(a), i)
-Base.getindex(a::SiteArray, I::Vararg{Int, N}) where {N} = getindex(parent(a), I...)
+Base.@propagate_inbounds Base.getindex(a::SiteArray, i::Integer) = getindex(parent(a), i)
+Base.@propagate_inbounds Base.getindex(a::SiteArray, I::Vararg{Int, N}) where {N} = getindex(parent(a), I...)
 Base.setindex!(m::SiteArray, v, i::Int) = setindex!(parent(m), v, i)
 Base.setindex!(m::SiteArray, v, i::Vararg{Int, N}) where {N} = setindex!(parent(m), v, i...)
-function Base.getindex(m::SiteArray, I...)
+Base.@propagate_inbounds function Base.getindex(m::SiteArray, I...)
     return SiteArray(getindex(parent(m), I...), getindex(m.times, I...), getindex(m.frequencies, I...), getindex(m.sites, I...))
 end
 
