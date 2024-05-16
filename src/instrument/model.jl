@@ -61,6 +61,11 @@ struct ObservedInstrumentModel{I<:AbstractJonesMatrix, PB<:PolBasis, B} <: Abstr
     bsitelookup::B
 end
 
+# Site lookup is const so we add a method so we can signal
+# to Enzyme that it is not differentiable.
+sitelookup(x::ObservedInstrumentModel) = x.bsitelookup
+Enzyme.EnzymeRules.inactive(::typeof(sitelookup), args...) = nothing
+
 function Base.show(io::IO, mime::MIME"text/plain", m::ObservedInstrumentModel)
     printstyled(io, "ObservedInstrumentModel"; bold=true, color=:light_cyan)
     println(io)
@@ -220,7 +225,7 @@ end
 
 
 function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
-    @inbounds for i in eachindex(vout, vis)
+    for i in eachindex(vout, vis)
         vout[i] = apply_jones(vis[i], i, J, xint)
     end
     # vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(x))
@@ -230,8 +235,13 @@ end
 @inline get_indices(bsitemaps, index, ::Val{1}) = map(x->getindex(x.indices_1, index), bsitemaps)
 @inline get_indices(bsitemaps, index, ::Val{2}) = map(x->getindex(x.indices_2, index), bsitemaps)
 @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map((xx, ii)->getindex(xx, ii), x, indices))
+
+# We need this because Enzyme seems to crash when generating code for this
+# TODO try to find MWE and post to Enzyme.jl
+Enzyme.EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
+
 @inline function build_jones(index::Int, J::ObservedInstrumentModel, x, ::Val{N}) where N
-    indices = get_indices(J.bsitelookup, index, Val(N))
+    indices = get_indices(sitelookup(J), index, Val(N))
     params = get_params(x, indices)
     return jonesmatrix(J.instrument, params, index, Val(N))
 end
