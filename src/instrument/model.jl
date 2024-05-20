@@ -191,12 +191,14 @@ function _construct_baselinemap(T, F, bl, x::SiteArray)
         t = T[i]
         f = F[i]
         s1, s2 = bl[i]
-        i1 = findfirst(x->(t∈x[1])&&(x[2]==s1), tsf)
-        i2 = findfirst(x->(t∈x[1])&&(x[2]==s2), tsf)
+        i1 = findall(x->(t∈x[1])&&(x[2]==s1), tsf)
+        i2 = findall(x->(t∈x[1])&&(x[2]==s2), tsf)
+        length(i1) > 1 && throw(AssertionError("Multiple indices found for $t, $((s1)) in SiteArray"))
+        length(i2) > 1 && throw(AssertionError("Multiple indices found for $t, $((s2)) in SiteArray"))
         isnothing(i1) && throw(AssertionError("$t, $f, $((s1)) not found in SiteArray"))
         isnothing(i2) && throw(AssertionError("$t, $f, $((s2)) not found in SiteArray"))
-        ind1[i] = i1
-        ind2[i] = i2
+        ind1[i] = i1[begin]
+        ind2[i] = i2[begin]
     end
     BaselineSiteLookup(ind1, ind2)
 end

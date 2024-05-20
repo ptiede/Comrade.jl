@@ -58,13 +58,10 @@ ascube(d::ObservedArrayPrior) = InstrumentTransform(ascube(d.dists), d.sitemap)
 function build_sitemap(d::ArrayPrior, array)
     # construct the site by site prior
     sites_prior = site_tuple(array, d.default_dist; d.override_dist...)
-    fs  = unique(array[:Fr])
 
     # Now we need all possible times to make sure we have all combinations
     T  = array[:Ti]
     F  = array[:Fr]
-
-
 
     # Ok to so this we are going to construct the schema first over sites.
     # At the end we may re-order depending on the schema ordering we want
