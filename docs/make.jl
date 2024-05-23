@@ -3,10 +3,12 @@
 # ENV["GKS_WSTYPE"]="nul"
 
 using Documenter, Pkg
+using DocumenterVitePress
 using Comrade, ComradeBase, AdvancedHMC, Dynesty, NestedSamplers, Optimization,
       PolarizedTypes
 using Pyehtim, VLBISkyModels, InteractiveUtils
 using AbstractMCMC, Random, HypercubeTransform
+
 
 deployconfig = Documenter.auto_detect_deploy_system()
 Documenter.post_status(deployconfig; type="pending", repo="github.com/ptiede/Comrade.jl.git")
@@ -24,7 +26,9 @@ makedocs(;
     modules=[ComradeBase, Comrade],
     # repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
-    format = Documenter.HTML(;prettyurls=true),
+    format = MarkdownVitepress(
+    repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
+    ),
     pages=Any[
         "Home" => "index.md",
         "benchmarks.md",
