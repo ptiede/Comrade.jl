@@ -44,7 +44,7 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    draft=true
+    draft=false
 )
 
 deploydocs(;
