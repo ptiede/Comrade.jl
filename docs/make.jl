@@ -3,7 +3,7 @@
 # ENV["GKS_WSTYPE"]="nul"
 
 using Documenter, Pkg
-using DocumenterVitePress
+using DocumenterVitepress
 using Comrade, ComradeBase, AdvancedHMC, Dynesty, NestedSamplers, Optimization,
       PolarizedTypes
 using Pyehtim, VLBISkyModels, InteractiveUtils
