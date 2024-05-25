@@ -1,0 +1,1 @@
+import{_ as e,c as a,o,a6 as i}from"./chunks/framework.CXJHw6vz.js";const p=JSON.parse('{"title":"Comrade","description":"","frontmatter":{},"headers":[],"relativePath":"index.md","filePath":"index.md","lastUpdated":null}'),t={name:"index.md"},r=i("",12),n=[r];function s(l,d,m,u,h,c){return o(),a("div",null,n)}const g=e(t,[["render",s]]);export{p as __pageData,g as default};
