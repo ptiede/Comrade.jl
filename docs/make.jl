@@ -24,7 +24,11 @@ makedocs(;
     modules=[ComradeBase, Comrade],
     # repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
-    format = Documenter.HTML(;prettyurls=true),
+    format = MarkdownVitepress(
+        repo="https://github.com/ptiede/Comrade.jl",
+        devurl = "dev",
+        devbranch = "main",
+    ),
     pages=Any[
         "Home" => "index.md",
         "benchmarks.md",
