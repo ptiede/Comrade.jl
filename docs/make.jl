@@ -24,7 +24,7 @@ TUTORIALS = [
 
 makedocs(;
     modules=[ComradeBase, Comrade],
-    # repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
+    repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
     format = MarkdownVitepress(
         repo="https://github.com/ptiede/Comrade.jl",
@@ -46,11 +46,14 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    draft=false
+    draft=true,
+    source = "src",
+    build  = "build"
 )
 
 deploydocs(;
     repo="github.com/ptiede/Comrade.jl",
     push_preview=true,
     devbranch = "main",
+    target = "build"
 )
