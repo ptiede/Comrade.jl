@@ -27,6 +27,7 @@ makedocs(;
     # repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
     format = MarkdownVitepress(
+    devurl = "main",
     repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     ),
     pages=Any[
@@ -49,6 +50,6 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/ptiede/Comrade.jl",
-    push_preview=false,
+    push_preview=true,
     devbranch = "main",
 )
