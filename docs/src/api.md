@@ -1,13 +1,5 @@
 # Comrade API
 
-
-
-## Contents
-
-```@contents
-Pages = ["api.md"]
-```
-
 ## Index
 
 ```@index

@@ -1,12 +1,10 @@
+```@meta
+CurrentModule = ComradeBase
+```
+
 # Base API
 
 
-
-## Contents
-
-```@contents
-Pages = ["base_api.md"]
-```
 
 ## Index
 
@@ -14,9 +12,7 @@ Pages = ["base_api.md"]
 Pages = ["base_api.md"]
 ```
 
-```@meta
-CurrentModule = ComradeBase
-```
+
 
 ## Model API
 
