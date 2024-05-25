@@ -399,14 +399,14 @@ gamp_ratio   = caltable(exp.(xopt.instrument.lgrat))
 # phases is very broad, so we can't phase center the image. For realistic data
 # this is always the case since the atmosphere effectively scrambles the phases.
 gphaseR = caltable(xopt.instrument.gpR)
-plot(gphaseR, layout=(3,3), size=(650,500))
-plot!(gphase_ratio, layout=(3,3), size=(650,500))
+Plots.plot(gphaseR, layout=(3,3), size=(650,500))
+Plots.plot!(gphase_ratio, layout=(3,3), size=(650,500))
 #-
 # Finally, the product gain amplitudes are all very close to unity as well, as expected since gain corruptions
 # have not been added to the data.
 gampr = caltable(exp.(xopt.instrument.lgR))
-plot(gampr, layout=(3,3), size=(650,500))
-plot!(gamp_ratio, layout=(3,3), size=(650,500))
+Plots.plot(gampr, layout=(3,3), size=(650,500))
+Plots.plot!(gamp_ratio, layout=(3,3), size=(650,500))
 #-
 
 # [^1]: Hamaker J.P, Bregman J.D., Sault R.J. (1996) [https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H]
