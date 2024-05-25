@@ -1,0 +1,1 @@
+import{_ as i,c as s,o as a,a6 as e}from"./chunks/framework.Ck1_I4DC.js";const b=JSON.parse('{"title":"Comrade API","description":"","frontmatter":{},"headers":[],"relativePath":"api.md","filePath":"api.md","lastUpdated":null}'),t={name:"api.md"},r=e("",234),l=[r];function d(n,h,p,o,k,c){return a(),s("div",null,l)}const u=i(t,[["render",d]]);export{b as __pageData,u as default};
