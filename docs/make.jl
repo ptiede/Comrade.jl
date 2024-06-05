@@ -33,6 +33,7 @@ makedocs(;
     ),
     pages=Any[
         "Home" => "index.md",
+        "introduction.md",
         "benchmarks.md",
         "vlbi_imaging_problem.md",
         "conventions.md",
