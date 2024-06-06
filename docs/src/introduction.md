@@ -33,17 +33,4 @@ This repository has recently moved to [ColPrac](https://github.com/SciML/ColPrac
 ## Requirements
 
 The minimum Julia version we require is 1.9. In the future we may increase this as Julia advances.
-
-
-```@contents
-Pages = [
-    "index.md",
-    "vlbi_imaging_problem.md",
-    "conventions.md",
-    "Tutorials",
-    "Libraries",
-    "interface.md",
-    "base_api.md",
-    "api.md"
-]
 ```
