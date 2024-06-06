@@ -2,7 +2,7 @@
 CurrentModule = Comrade
 ```
 
-# Comrade
+# Introduction
 
 Comrade is a Bayesian differentiable modular modeling framework for use with very long baseline interferometry.
 The goal is to allow the user to easily combine and modify a set of primitive models
