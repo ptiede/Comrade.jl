@@ -1,8 +1,8 @@
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
-examples/*/Manifest.toml
-examples/*/pkg.log
+Manifest.toml
+pkg.log
 docs/build/
 docs/src/examples
 docs/src/tutorials

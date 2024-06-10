@@ -14,12 +14,19 @@ deployconfig = Documenter.auto_detect_deploy_system()
 Documenter.post_status(deployconfig; type="pending", repo="github.com/ptiede/Comrade.jl.git")
 
 TUTORIALS = [
-        "tutorials/ClosureImaging.md",
-        "tutorials/GeometricModeling.md",
-        "tutorials/HybridImaging.md",
-        "tutorials/LoadingData.md",
-        "tutorials/PolarizedImaging.md",
-        "tutorials/StokesIImaging.md",
+        "Overview" => "tutorials/index.md",
+        "Beginner" =>[
+            "tutorials/LoadingData.md",
+            "tutorials/GeometricModeling.md"
+            ],
+        "Intermediate" => [
+            "tutorials/ClosureImaging.md",
+            "tutorials/StokesIImaging.md",
+            "tutorials/PolarizedImaging.md"
+            ],
+        "Advanced" => [
+            "tutorials/HybridImaging.md",
+            ]
      ]
 
 makedocs(;
@@ -47,7 +54,7 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    draft = false,
+    draft = true,
     source = "src",
     build  = "build"
 )

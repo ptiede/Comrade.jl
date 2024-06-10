@@ -17,6 +17,6 @@ hero:
       link: https://github.com/ptiede/Comrade.jl
     - theme: alt
       text: Tutorials
-      link: /Tutorial
+      link: /tutorials
 ---
 ```
