@@ -16,16 +16,16 @@ Documenter.post_status(deployconfig; type="pending", repo="github.com/ptiede/Com
 TUTORIALS = [
         "Overview" => "tutorials/index.md",
         "Beginner" =>[
-            "tutorials/LoadingData.md",
-            "tutorials/GeometricModeling.md"
+            "tutorials/beginner/LoadingData.md",
+            "tutorials/beginner/GeometricModeling.md"
             ],
         "Intermediate" => [
-            "tutorials/ClosureImaging.md",
-            "tutorials/StokesIImaging.md",
-            "tutorials/PolarizedImaging.md"
+            "tutorials/intermediate/ClosureImaging.md",
+            "tutorials/intermediate/StokesIImaging.md",
+            "tutorials/intermediate/PolarizedImaging.md"
             ],
         "Advanced" => [
-            "tutorials/HybridImaging.md",
+            "tutorials/advanced/HybridImaging.md",
             ]
      ]
 
