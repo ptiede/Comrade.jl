@@ -23,16 +23,6 @@ const intermediate = [
         caption: "Imaging a Black Hole using Closures",
         desc: "Learn how to image M87* using only closure quantities."
     },
-    {
-        href: "intermediate/StokesIImaging.md",
-        caption: "Stokes I Simultaneous Image and Instrument Modeling",
-        desc: "Learn how to image complex visibilities using Comrade"
-    },
-    {
-        href: "intermediate/PolarizedImaging",
-        caption: "Full Stokes Imaging and Calibration using the RIME formalism",
-        desc: "Learn how to do solve the RIME with Comrade"
-    }
 ];
 
 const advanced = [
