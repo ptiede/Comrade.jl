@@ -5,7 +5,6 @@ Manifest.toml
 pkg.log
 docs/build/
 docs/src/examples
-docs/src/tutorials
 /.vscode/
 /Manifest.toml
 test/Manifest.toml
