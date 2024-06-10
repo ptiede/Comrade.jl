@@ -6,12 +6,14 @@ const beginner = [
     {
         href: "beginner/LoadingData.md",
         caption: "Loading Data with Pyehtim",
-        desc: "How to load data using standard eht-imaging in Julia"
+        src: "../assets/vis.png",
+        desc: "How to load data using standard eht-imaging in Julia."
     },
     {
         href: "beginner/GeometricModeling.md",
         caption: "Geometric Modeling of M87",
-        desc: "Fitting simple geometric models to the 2017 M87 data"
+        src: "../assets/vis.png",
+        desc: "Fitting simple geometric models to the 2017 M87 data."
     }
 ];
 
@@ -19,7 +21,7 @@ const intermediate = [
     {
         href: "intermediate/ClosureImaging.md",
         caption: "Imaging a Black Hole using Closures",
-        desc: "Learn how to image M87* using only closure quantities"
+        desc: "Learn how to image M87* using only closure quantities."
     },
     {
         href: "intermediate/StokesIImaging.md",
