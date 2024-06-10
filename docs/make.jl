@@ -17,16 +17,16 @@ TUTORIALS = [
         "Overview" => "tutorials/index.md",
         "Beginner" =>[
             "tutorials/beginner/LoadingData.md",
-            "tutorials/beginner/GeometricModeling.md"
+            #"tutorials/beginner/GeometricModeling.md"
             ],
-        "Intermediate" => [
-            "tutorials/intermediate/ClosureImaging.md",
-            "tutorials/intermediate/StokesIImaging.md",
-            "tutorials/intermediate/PolarizedImaging.md"
-            ],
-        "Advanced" => [
-            "tutorials/advanced/HybridImaging.md",
-            ]
+        #"Intermediate" => [
+        #    "tutorials/intermediate/ClosureImaging.md",
+        #    "tutorials/intermediate/StokesIImaging.md",
+        #    "tutorials/intermediate/PolarizedImaging.md"
+        #    ],
+        #"Advanced" => [
+        #    "tutorials/advanced/HybridImaging.md",
+        #    ]
      ]
 
 makedocs(;
