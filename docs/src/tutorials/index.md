@@ -25,7 +25,7 @@ const intermediate = [
         href: "intermediate/StokesIImaging.md",
         caption: "Stokes I Simultaneous Image and Instrument Modeling",
         desc: "Learn how to image complex visibilities using Comrade"
-    }
+    },
     {
         href: "intermediate/PolarizedImaging",
         caption: "Full Stokes Imaging and Calibration using the RIME formalism",
