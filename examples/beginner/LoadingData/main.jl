@@ -13,7 +13,7 @@ import Pkg #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
 Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
 Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
@@ -32,7 +32,7 @@ using Pyehtim
 # To load the data we will use `eht-imaging`. We will use the 2017 public M87 data which can be downloaded from
 # [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019)
 
-obseht = ehtim.obsdata.load_uvfits(joinpath(__DIR, "../Data/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obseht = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 # Now we will average the data over telescope scans. Note that the EHT data has been pre-calibrated so this averaging
 # doesn't induce large coherence losses.
 obs = Pyehtim.scan_average(obseht)
@@ -48,8 +48,8 @@ lcamp  = extract_table(obs, LogClosureAmplitudes(; snrcut=3.0)) ## extract minim
 # For polarization we first load the data in the cirular polarization basis
 # Additionally, we load the array table at the same time to load the telescope mounts.
 obseht = Pyehtim.load_uvfits_and_array(
-                joinpath(__DIR, "../Data", "polarized_gaussian_all_corruptions.uvfits"),
-                joinpath(__DIR, "..", "Data", "array.txt"),
+                joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits"),
+                joinpath(__DIR, "..", "..", "Data", "array.txt"),
                 polrep="circ"
                         )
 obs = Pyehtim.scan_average(obseht)

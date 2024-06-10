@@ -9,11 +9,11 @@ OUTPUT = joinpath(@__DIR__, "src", "tutorials")
 
 TUTORIALS = [
         "beginner/LoadingData/main.jl",
-        "beginner/GeometricModeling/main.jl",
-        "intermediate/ClosureImaging/main.jl",
-        "intermediate/StokesIImaging/main.jl",
-        "intermediate/PolarizedImaging/main.jl",
-        "advanced/HybridImaging/main.jl",
+        # "beginner/GeometricModeling/main.jl",
+        # "intermediate/ClosureImaging/main.jl",
+        # "intermediate/StokesIImaging/main.jl",
+        # "intermediate/PolarizedImaging/main.jl",
+        # "advanced/HybridImaging/main.jl",
         ]
 
 withenv("JULIA_DEBUG"=>"Literate") do
@@ -23,8 +23,12 @@ withenv("JULIA_DEBUG"=>"Literate") do
         name = "$((rsplit(p, "/")[2]))"
         d    = "$((rsplit(p, "/")[1]))"
         p_ = get_example_path(p)
-        @info d
-        jl_expr = "using Literate; preprocess(path, str) = replace(str, \"__DIR = @__DIR__\" => \"__DIR = \\\"\$(dirname(path))\\\"\"); Literate.markdown(\"$(p_)\", \"$(joinpath(OUTPUT, d))\"; name=\"$name\", execute=true, flavor=Literate.DocumenterFlavor(), preprocess=Base.Fix1(preprocess, \"$(p_)\"))"
+        @info p_
+        jl_expr = "using Literate;"*
+                  "preprocess(path, str) = replace(str, \"__DIR = @__DIR__\" => \"__DIR = \\\"\$(dirname(path))\\\"\");"*
+                  "Literate.markdown(\"$(p_)\", \"$(joinpath(OUTPUT, d))\";"*
+                  "name=\"$name\", execute=true, flavor=Literate.DocumenterFlavor(),"*
+                  "preprocess=Base.Fix1(preprocess, \"$(p_)\"))"
         cm = `julia --project=$(@__DIR__) -e $(jl_expr)`
         run(cm)
 
