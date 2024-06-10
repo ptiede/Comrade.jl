@@ -9,12 +9,6 @@ const beginner = [
         src: "../assets/vis.png",
         desc: "How to load data using standard eht-imaging in Julia."
     },
-    {
-        href: "beginner/GeometricModeling.md",
-        caption: "Geometric Modeling of M87",
-        src: "../assets/vis.png",
-        desc: "Fitting simple geometric models to the 2017 M87 data."
-    }
 ];
 
 const intermediate = [
@@ -23,6 +17,16 @@ const intermediate = [
         caption: "Imaging a Black Hole using Closures",
         desc: "Learn how to image M87* using only closure quantities."
     },
+    {
+        href: "intermediate/StokesIImaging.md",
+        caption: "Stokes I Simultaneous Image and Instrument Modeling",
+        desc: "Learn how to image complex visibilities using Comrade"
+    },
+    {
+        href: "intermediate/PolarizedImaging",
+        caption: "Full Stokes Imaging and Calibration using the RIME formalism",
+        desc: "Learn how to do solve the RIME with Comrade"
+    }
 ];
 
 const advanced = [
