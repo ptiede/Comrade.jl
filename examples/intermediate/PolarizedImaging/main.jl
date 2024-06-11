@@ -187,7 +187,7 @@ skymeta = (;ftot=1.0, grid)
 
 
 # For our image prior we will use a simpler prior than
-#   - We use a Dirichlet prior, `ImageDirichlet`, with unit concentration for our stokes I image pixels, `c`.
+#   - We use again use a GMRF prior. For more information see the [Imaging a Black Hole using only Closure Quantities](@ref) tutorial.
 #   - For the total polarization fraction, `p`, we assume an uncorrelated uniform prior `ImageUniform` for each pixel.
 #   - To specify the orientation of the polarization, `angparams`, on the Poincare sphere,
 #     we use a uniform spherical distribution, `ImageSphericalUniform`.
