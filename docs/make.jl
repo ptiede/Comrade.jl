@@ -54,7 +54,7 @@ makedocs(;
         "base_api.md",
         "api.md"
     ],
-    draft  = false,
+    draft  = true,
     source = "src",
     build  = "build",
     clean  = true
