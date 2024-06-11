@@ -5,15 +5,48 @@ import Gallery from "../components/Gallery.vue";
 const beginner = [
   {
     href: "beginner/LoadingData", 
-    caption: "Loading Data with Pyehtim", 
+    src: "../assets/vis.png",
+    caption: "Loading Data with Pyehtim",
     desc: "How to load data using standard eht-imaging in Julia." 
   },
   {
-    href: "beginner/GeometricModeling.md",
-    caption: "Geometric Modeling of M87",
-    desc: "Fitting simple geometric models to the 2017 M87 data."
+    href: "beginner/GeometricModeling", 
+    src: "../assets/geom_model.png",
+    caption: "Geometric Modeling of M87*",
+    desc: "Modeling a black hole with simple geometric models" 
   }
 ];
+
+const intermediate = [
+  {
+    href: "intermediate/ClosureImaging", 
+    src: "../assets/closure.png",
+    caption: "Closure Imaging of M87*",
+    desc: "Creating an image of a black hole using only closure information" 
+  },
+  {
+    href: "intermediate/StokesIImaging", 
+    src: "../assets/stokesI.png",
+    caption: "Simultaneous Imaging and Gain Modeling of M87*",
+    desc: "Imaging a black hole with simultaneous gain modeling (selfcal) using complex visibilities" 
+  },
+  {
+    href: "intermediate/PolarizedImaging", 
+    src: "../assets/telescopes.png",
+    caption: "Full Stokes Imaging using RIME",
+    desc: "Simultaneous instrument and polarized imaging of VLBI data." 
+  }
+];
+
+const advanced = [
+  {
+    href: "advanced/HybridImaging", 
+    src: "../assets/hybrid.png",
+    caption: "Hybrid ring modeling and residual imaging of M87*",
+    desc: "How to combine everything to model the ring and create a residual image of M87*." 
+  }
+];
+
 
 </script>
 
@@ -32,5 +65,6 @@ const beginner = [
 ## Advanced Tutorials
 
 <Gallery :images="advanced" />
+
 
 ```

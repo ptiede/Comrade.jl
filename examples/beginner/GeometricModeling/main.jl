@@ -33,7 +33,7 @@ rng = StableRNG(42)
 # available M 87 data which can be downloaded
 # from [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019).
 # For an introduction to data loading, see [Loading Data into Comrade](@ref).
-obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "../Data/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # Now we will kill 0-baselines since we don't care about large-scale flux and
 # since we know that the gains in this dataset are coherent across a scan, we make scan-average data

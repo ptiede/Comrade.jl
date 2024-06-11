@@ -20,7 +20,7 @@ import Pkg #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
 Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
 Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
@@ -45,7 +45,7 @@ rng = StableRNG(42)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # To load the eht-imaging obsdata object we do:
-obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "../Data/SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
@@ -137,7 +137,6 @@ cprior = GaussMarkovRandomField(rat, size(g); order=2)
 
 # Finally we can put form the total model prior
 skyprior = (
-    ## We use a strong smoothing prior since we want to limit the amount of high-frequency structure in the raster.
           c  = cprior,
           σimg = truncated(Normal(0.0, 1.0); lower=0.01),
           f  = Uniform(0.0, 1.0),
@@ -239,7 +238,7 @@ axes = [CM.Axis(fig[i, j], xreversed=true, aspect=CM.DataAspect()) for i in 1:2,
 CM.image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
 CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
 CM.image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"
-CM.image!(axes[2,2], rast_mean./rast_std, colormap=:afmhot, colorrange=(1.5, 3)); axes[2,2].title = "Rast SNR"
+CM.image!(axes[2,2], rast_std./rast_mean, colormap=:afmhot); axes[2,2].title = "Rast std/mean"
 CM.hidedecorations!.(axes)
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
