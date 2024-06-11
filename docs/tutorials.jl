@@ -9,11 +9,11 @@ OUTPUT = joinpath(@__DIR__, "src", "tutorials")
 
 TUTORIALS = [
         "beginner/LoadingData/main.jl",
-        # "beginner/GeometricModeling/main.jl",
-        # "intermediate/ClosureImaging/main.jl",
-        # "intermediate/StokesIImaging/main.jl",
-        # "intermediate/PolarizedImaging/main.jl",
-        # "advanced/HybridImaging/main.jl",
+        "beginner/GeometricModeling/main.jl",
+        "intermediate/ClosureImaging/main.jl",
+        "intermediate/StokesIImaging/main.jl",
+        "intermediate/PolarizedImaging/main.jl",
+        "advanced/HybridImaging/main.jl",
         ]
 
 withenv("JULIA_DEBUG"=>"Literate") do
