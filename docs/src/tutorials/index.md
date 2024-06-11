@@ -17,6 +17,16 @@ const beginner = [
   }
 ];
 
+const intermediate = [
+  {
+    href: "intermediate/ClosureImaging", 
+    src: "../assets/closure.png",
+    caption: "Closure Imaging of M87*",
+    desc: "Creating an image of a black hole using only closure information" 
+  }
+];
+
+
 </script>
 
 
@@ -26,6 +36,10 @@ const beginner = [
 ## Beginner Tutorials
 
 <Gallery :images="beginner" />
+
+## Intermediate Tutorials
+
+<Gallery :images="intermediate" />
 
 
 ```
