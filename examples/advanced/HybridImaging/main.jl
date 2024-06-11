@@ -238,7 +238,7 @@ axes = [CM.Axis(fig[i, j], xreversed=true, aspect=CM.DataAspect()) for i in 1:2,
 CM.image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
 CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
 CM.image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"
-CM.image!(axes[2,2], rast_mean./rast_std, colormap=:afmhot, colorrange=(1.5, 3)); axes[2,2].title = "Rast SNR"
+CM.image!(axes[2,2], rast_std./rast_mean, colormap=:afmhot); axes[2,2].title = "Rast std/mean"
 CM.hidedecorations!.(axes)
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
