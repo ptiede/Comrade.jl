@@ -25,12 +25,5 @@ const beginner = [
 
 <Gallery :images="beginner" />
 
-## Intermediate Tutorials
-
-<Gallery :images="intermediate" />
-
-## Advanced Tutorials
-
-<Gallery :images="advanced" />
 
 ```
