@@ -23,6 +23,12 @@ const intermediate = [
     src: "../assets/closure.png",
     caption: "Closure Imaging of M87*",
     desc: "Creating an image of a black hole using only closure information" 
+  },
+  {
+    href: "intermediate/StokesIImaging", 
+    src: "../assets/stokesI.png",
+    caption: "Simultaneous Imaging and Gain Modeling of M87*",
+    desc: "Imaging a black hole with simultaneous gain modeling (selfcal) using complex visibilities" 
   }
 ];
 

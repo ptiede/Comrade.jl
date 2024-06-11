@@ -16,7 +16,7 @@ VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
-CairoMakie = "0.11"
+CairoMakie = "0.12"
 Comrade = "0.10"
 Distributions = "0.25"
 OptimizationOptimisers = "0.2"
