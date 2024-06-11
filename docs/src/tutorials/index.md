@@ -29,6 +29,12 @@ const intermediate = [
     src: "../assets/stokesI.png",
     caption: "Simultaneous Imaging and Gain Modeling of M87*",
     desc: "Imaging a black hole with simultaneous gain modeling (selfcal) using complex visibilities" 
+  },
+  {
+    href: "intermediate/PolarizedImaging", 
+    src: "../assets/telescopes.png",
+    caption: "Full Stokes Imaging using RIME",
+    desc: "Simultaneous instrument and polarized imaging of VLBI data." 
   }
 ];
 

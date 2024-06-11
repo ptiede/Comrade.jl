@@ -89,7 +89,7 @@ import Pkg #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
 Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", ".."), io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
 Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
@@ -110,8 +110,8 @@ rng = StableRNG(42)
 
 # Now we will load some synthetic polarized data.
 obs = Pyehtim.load_uvfits_and_array(
-        joinpath(__DIR, "../Data", "polarized_gaussian_all_corruptions.uvfits"),
-        joinpath(__DIR, "../Data", "array.txt"), polrep="circ")
+        joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits"),
+        joinpath(__DIR, "..", "..", "Data", "array.txt"), polrep="circ")
 
 
 # Notice that, unlike other non-polarized tutorials, we need to include a second argument.
@@ -177,8 +177,7 @@ using Distributions, DistributionsAD
 using VLBIImagePriors
 fovx = μas2rad(60.0)
 fovy = μas2rad(60.0)
-nx = 10
-ny = floor(Int, fovy/fovx*nx)
+nx = ny = 10
 grid = imagepixels(fovx, fovy, nx, ny)
 
 # For the image metadata we specify the grid and the total flux of the image, which is 1.0.
@@ -330,7 +329,7 @@ residual(post, xopt)
 # These look reasonable, although there may be some minor overfitting.
 # Let's compare our results to the ground truth values we know in this example.
 # First, we will load the polarized truth
-imgtrue = Comrade.load(joinpath(__DIR, "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams})
+imgtrue = Comrade.load(joinpath(__DIR, "..", "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams})
 # Select a reasonable zoom in of the image.
 imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx*4, ny*4))
 img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
