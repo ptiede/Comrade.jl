@@ -10,6 +10,8 @@ const beginner = [
     desc: "How to load data using standard eht-imaging in Julia." 
   }, 
 ];
+</script>
+
 
 
 # Tutorials
