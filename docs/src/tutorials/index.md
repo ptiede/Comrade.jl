@@ -32,7 +32,7 @@ const intermediate = [
   },
   {
     href: "intermediate/PolarizedImaging", 
-    src: "../telescopes.png",
+    src: "../telescopes.jpg",
     caption: "Full Stokes Imaging using RIME",
     desc: "Simultaneous instrument and polarized imaging of VLBI data." 
   }
