@@ -36,7 +36,7 @@ const intermediate = [
 const advanced = [
     {
         href: "advanced/HybridImaging.md",
-        caption: "Simultaneous modeling with residual imaging for M87*"
+        caption: "Simultaneous modeling with residual imaging for M87*",
         desc: "Learn how to using a hybrid model decomposition of a black hole for improved inference"
     }
 ];
