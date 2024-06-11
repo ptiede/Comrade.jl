@@ -38,6 +38,15 @@ const intermediate = [
   }
 ];
 
+const advanced = [
+  {
+    href: "advanced/HybridImaging", 
+    src: "../assets/hybrid.png",
+    caption: "Hybrid ring modeling and residual imaging of M87*",
+    desc: "How to combine everything to model the ring and create a residual image of M87*." 
+  }
+];
+
 
 </script>
 
