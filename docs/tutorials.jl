@@ -19,7 +19,6 @@ TUTORIALS = [
 withenv("JULIA_DEBUG"=>"Literate") do
     for (d, paths) in (("", TUTORIALS),),
         (i,p) in enumerate(paths)
-        println(p)
         name = "$((rsplit(p, "/")[2]))"
         d    = "$((rsplit(p, "/")[1]))"
         p_ = get_example_path(p)
