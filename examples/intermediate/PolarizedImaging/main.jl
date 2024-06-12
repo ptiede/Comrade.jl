@@ -266,7 +266,7 @@ R = JonesR(;add_fr=true)
 # first argument is a function that specifies how to combine each Jones matrix. In this case,
 # we are completely standard so we just need to multiply the different jones matrices.
 # Note that if no function is provided, the default is to multiply the Jones matrices,
-# so we could've removed the splat(*) argument in this case.
+# so we could've removed the * argument in this case.
 J = JonesSandwich(splat(*), G, D, R)
 
 
