@@ -192,6 +192,7 @@ xopt, sol = comrade_opt(post, Optimisers.Adam(), Optimization.AutoZygote(); init
 #-
 # First we will evaluate our fit by plotting the residuals
 using Plots
+using DisplayAs
 residual(post, xopt) |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting. This could be
@@ -199,7 +200,6 @@ residual(post, xopt) |> DisplayAs.PNG |> DisplayAs.Text
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
 import CairoMakie as CM
-using DisplayAs
 CM.activate!(type = "png", px_per_unit=3) #hide
 g = imagepixels(fovx, fovy, 128, 128)
 img = intensitymap(skymodel(post, xopt), g)
