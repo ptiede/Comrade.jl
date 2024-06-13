@@ -61,18 +61,18 @@ coh = extract_table(obs, Coherencies())
 #     eht-imaging will sometimes incorrectly calculate a non-redundant set of closures.
 #-
 # We can also recover the array used in the observation using
+using DisplayAs
 ac = arrayconfig(vis)
-plot(ac) # Plot the baseline coverage
+plot(ac) |> DisplayAs.PNG |> DisplayAs.Text # Plot the baseline coverage
 
 # To plot the data we just call
 
 l = @layout [a b; c d]
-pv = plot(vis)
-pa = plot(amp)
-pcp = plot(cphase)
-plc = plot(lcamp)
-
-plot(pv, pa, pcp, plc; layout=l)
+pv = plot(vis);
+pa = plot(amp);
+pcp = plot(cphase);
+plc = plot(lcamp);
+plot(pv, pa, pcp, plc; layout=l) |> DisplayAs.PNG |> DisplayAs.Text
 
 # And also the coherency matrices
-plot(coh)
+plot(coh) |> DisplayAs.PNG |> DisplayAs.Text

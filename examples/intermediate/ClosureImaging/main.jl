@@ -201,27 +201,20 @@ imgs = intensitymap.(msamples, Ref(g))
 mimg = mean(imgs)
 simg = std(imgs)
 fig = CM.Figure(;resolution=(700, 700));
-CM.image(fig[1,1], mimg,
-                   axis=(xreversed=true, aspect=1, title="Mean Image"),
-                   colormap=:afmhot);
-CM.image(fig[1,2], simg./(max.(mimg, 1e-8)),
-                   axis=(xreversed=true, aspect=1, title="1/SNR",), colorrange=(0.0, 2.0),
-                   colormap=:afmhot);
-CM.image(fig[2,1], imgs[1],
-                   axis=(xreversed=true, aspect=1,title="Draw 1"),
-                   colormap=:afmhot);
-CM.image(fig[2,2], imgs[end],
-                   axis=(xreversed=true, aspect=1,title="Draw 2"),
-                   colormap=:afmhot);
-CM.hidedecorations!.(fig.content)
-DisplayAs.Text(DisplayAs.PNG(fig)) #hide
+axs = [CM.Axis(fig[i, j], xreversed=true, aspect=1) for i in 1:2, j in 1:2]
+CM.image!(axs[1,1], mimg, colormap=:afmhot); axs[1, 1].title="Mean"
+CM.image!(axs[1,2], simg./(max.(mimg, 1e-8)), colorrange=(0.0, 2.0), colormap=:afmhot);axs[1,2].title = "Std"
+CM.image!(axs[2,1], imgs[1],   colormap=:afmhot);
+CM.image!(axs[2,2], imgs[end], colormap=:afmhot);
+CM.hidedecorations!.(axs)
+fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # Now let's see whether our residuals look better.
 p = Plots.plot(layout=(2,1));
 for s in sample(chain[501:end], 10)
     residual!(post, s)
 end
-p
+p |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # And viola, you have a quick and preliminary image of M87 fitting only closure products.

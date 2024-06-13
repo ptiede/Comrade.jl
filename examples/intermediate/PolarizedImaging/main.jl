@@ -336,23 +336,23 @@ img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
 
 #Plotting the results gives
 import CairoMakie as CM
+using DisplayAs
 CM.activate!(type = "png", px_per_unit=3) #hide
 fig = CM.Figure(;size=(450, 350));
-polimage(fig[1,1], imgtruesub,
-                   axis=(xreversed=true, aspect=1, title="Truth"),
+axs = [CM.Axis(fig[1, i], xreversed=true, aspect=1) for i in 1:2]
+polimage!(axs[1], imgtruesub,
                    nvec = 8,
                    length_norm=1/2, plot_total=true, pcolormap=:RdBu,
-                   pcolorrange=(-0.25, 0.25),)
-polimage(fig[1,2], img,
-                   axis=(xreversed=true, aspect=1, title="Recon.",),
+                   pcolorrange=(-0.25, 0.25),); axs[1].title="True"
+polimage!(axs[2], img,
                    nvec = 8,
                    length_norm=1/2, plot_total=true, pcolormap=:RdBu,
-                   pcolorrange=(-0.25, 0.25),)
+                   pcolorrange=(-0.25, 0.25),);axs[2].title="Recon."
 CM.Colorbar(fig[2,:], colormap=:RdBu, vertical=false, colorrange=(-0.25, 0.25), label="Signed Polarization Fraction sign(V)*|p|", flipaxis=false)
 CM.colgap!(fig.layout, 3)
 CM.rowgap!(fig.layout, 3)
 CM.hidedecorations!.(fig.content[1:2])
-fig
+fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
 # Let's compare some image statics, like the total linear polarization fraction
@@ -398,14 +398,16 @@ gamp_ratio   = caltable(exp.(xopt.instrument.lgrat))
 # phases is very broad, so we can't phase center the image. For realistic data
 # this is always the case since the atmosphere effectively scrambles the phases.
 gphaseR = caltable(xopt.instrument.gpR)
-Plots.plot(gphaseR, layout=(3,3), size=(650,500))
-Plots.plot!(gphase_ratio, layout=(3,3), size=(650,500))
+p = Plots.plot(gphaseR, layout=(3,3), size=(650,500));
+Plots.plot!(p, gphase_ratio, layout=(3,3), size=(650,500));
+p |> DisplayAs.PNG |> DisplayAs.Text
 #-
 # Finally, the product gain amplitudes are all very close to unity as well, as expected since gain corruptions
 # have not been added to the data.
 gampr = caltable(exp.(xopt.instrument.lgR))
-Plots.plot(gampr, layout=(3,3), size=(650,500))
-Plots.plot!(gamp_ratio, layout=(3,3), size=(650,500))
+p = Plots.plot(gampr, layout=(3,3), size=(650,500))
+Plots.plot!(p, gamp_ratio, layout=(3,3), size=(650,500))
+p |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
 # [^1]: Hamaker J.P, Bregman J.D., Sault R.J. (1996) [https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H]

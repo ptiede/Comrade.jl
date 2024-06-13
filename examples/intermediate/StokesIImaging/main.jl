@@ -192,24 +192,26 @@ xopt, sol = comrade_opt(post, Optimisers.Adam(), Optimization.AutoZygote(); init
 #-
 # First we will evaluate our fit by plotting the residuals
 using Plots
-residual(post, xopt)
+residual(post, xopt) |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting. This could be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
 import CairoMakie as CM
+using DisplayAs
 CM.activate!(type = "png", px_per_unit=3) #hide
 g = imagepixels(fovx, fovy, 128, 128)
 img = intensitymap(skymodel(post, xopt), g)
-imageviz(img, size=(500, 400))
+imageviz(img, size=(500, 400))|> DisplayAs.PNG |> DisplayAs.Text
+
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
 # To do this, `Comrade` provides a `caltable` function that converts the flattened gain parameters
 # to a tabular format based on the time and its segmentation.
 gt = Comrade.caltable(xopt.instrument.gp)
-plot(gt, layout=(3,3), size=(600,500))
+plot(gt, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 
 # The gain phases are pretty random, although much of this is due to us picking a random
 # reference sites for each scan.
@@ -217,7 +219,7 @@ plot(gt, layout=(3,3), size=(600,500))
 # Moving onto the gain amplitudes, we see that most of the gain variation is within 10% as expected
 # except LMT, which has massive variations.
 gt = Comrade.caltable(exp.(xopt.instrument.lg))
-plot(gt, layout=(3,3), size=(600,500))
+plot(gt, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For
@@ -263,10 +265,10 @@ gmeas_ph = Measurements.measurement.(mchain.instrument.gp, schain.instrument.gp)
 ctable_ph = caltable(gmeas_ph)
 
 # Now let's plot the phase curves
-plot(ctable_ph, layout=(3,3), size=(600,500))
+plot(ctable_ph, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 #-
 # and now the amplitude curves
-plot(ctable_am, layout=(3,3), size=(600,500))
+plot(ctable_am, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Finally let's construct some representative image reconstructions.
 samples = skymodel.(Ref(post), chain[begin:2:end])
@@ -274,21 +276,14 @@ imgs = intensitymap.(samples, Ref(g))
 
 mimg = mean(imgs)
 simg = std(imgs)
-fig = CM.Figure(;resolution=(400, 400))
-CM.image(fig[1,1], mimg,
-                   axis=(xreversed=true, aspect=1, title="Mean Image"),
-                   colormap=:afmhot)
-CM.image(fig[1,2], simg./mimg,
-                   axis=(xreversed=true, aspect=1, title="1/SNR",),
-                   colormap=:afmhot)
-CM.image(fig[2,1], imgs[1],
-                   axis=(xreversed=true, aspect=1,title="Draw 1"),
-                   colormap=:afmhot)
-CM.image(fig[2,2], imgs[end],
-                   axis=(xreversed=true, aspect=1,title="Draw 2"),
-                   colormap=:afmhot)
-CM.hidedecorations!.(fig.content)
-fig
+fig = CM.Figure(;resolution=(700, 700));
+axs = [CM.Axis(fig[i, j], xreversed=true, aspect=1) for i in 1:2, j in 1:2]
+CM.image!(axs[1,1], mimg, colormap=:afmhot); axs[1, 1].title="Mean"
+CM.image!(axs[1,2], simg./(max.(mimg, 1e-8)), colorrange=(0.0, 2.0), colormap=:afmhot);axs[1,2].title = "Std"
+CM.image!(axs[2,1], imgs[1],   colormap=:afmhot);
+CM.image!(axs[2,2], imgs[end], colormap=:afmhot);
+CM.hidedecorations!.(axs)
+fig |> DisplayAs.PNG |> DisplayAs.Text
 
 
 

@@ -165,8 +165,8 @@ using DisplayAs #hide
 import CairoMakie as CM
 CM.activate!(type = "png", px_per_unit=1) #hide
 gpl = imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128)
-fig = imageviz(intensitymap(skymodel(post, xrand), gpl), size=(400, 400));
-DisplayAs.Text(DisplayAs.PNG(fig)) #hide
+fig = imageviz(intensitymap(skymodel(post, xrand), gpl));
+fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 
 # ## Reconstructing the Image
@@ -185,7 +185,7 @@ xopt, sol = comrade_opt(post, LBFGS(), Optimization.AutoZygote(); initial_params
 # First we will evaluate our fit by plotting the residuals
 using Plots
 fig = residual(post, xopt);
-DisplayAs.Text(DisplayAs.PNG(fig)) #hide
+fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # These residuals suggest that we are substantially overfitting the data. This is a common
 # side effect of MAP imaging. As a result if we plot the image we see that there
@@ -216,10 +216,10 @@ msamples = skymodel.(Ref(post), chain[begin:2:end]);
 # The mean image is then given by
 imgs = intensitymap.(msamples, Ref(gpl))
 fig = imageviz(mean(imgs), colormap=:afmhot, size=(400, 300));
-DisplayAs.Text(DisplayAs.PNG(fig)) #hide
+fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 #-
 fig = imageviz(std(imgs), colormap=:batlow, size=(400, 300));
-DisplayAs.Text(DisplayAs.PNG(fig)) #hide
+fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 #-
 #
@@ -240,7 +240,7 @@ CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. D
 CM.image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"
 CM.image!(axes[2,2], rast_std./rast_mean, colormap=:afmhot); axes[2,2].title = "Rast std/mean"
 CM.hidedecorations!.(axes)
-DisplayAs.Text(DisplayAs.PNG(fig)) #hide
+fig |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # Finally, let's take a look at some of the ring parameters
@@ -250,13 +250,13 @@ p2 = CM.density(figd[1,2], rad2μas(chain.sky.σ)*2*sqrt(2*log(2)), axis=(xlabel
 p3 = CM.density(figd[1,3], -rad2deg.(chain.sky.mp.:1) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))
 p4 = CM.density(figd[2,1], 2*chain.sky.ma.:2, axis=(xlabel="Brightness asymmetry",))
 p5 = CM.density(figd[2,2], 1 .- chain.sky.f, axis=(xlabel="Ring flux fraction",))
-DisplayAs.Text(DisplayAs.PNG(figd)) #hide
+figd |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # Now let's check the residuals using draws from the posterior
 p = Plots.plot();
 for s in sample(chain, 10)
     residual!(p, post, s, legend=false)
 end
-DisplayAs.Text(DisplayAs.PNG(p)) #hide
+p |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # And everything looks pretty good! Now comes the hard part: interpreting the results...

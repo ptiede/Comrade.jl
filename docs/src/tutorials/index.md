@@ -56,6 +56,12 @@ const advanced = [
 
 This page contains a collection of tutorials that cover a range of topics from beginner to advanced. These demonstrate how to use Comrade in a variety of scenarios. While most of them consider the EHT, they should work more generally for any VLBI arrays.
 
+!!! warning
+    All plots in this tutorial are shown using `DisplayAs` to 
+    prevent the webpage from being too big and slow. You do not
+    need to include `|> DisplayAs.PNG |> DisplayAs.Text` in your
+    code when running locally.
+
 ## Beginner Tutorials
 
 <Gallery :images="beginner" />
