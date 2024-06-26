@@ -1,8 +1,9 @@
-struct ArrayPrior{D, A, R}
+struct ArrayPrior{D, A, R, C<:Union{NTuple{2, Symbol}, Nothing}}
     default_dist::D
     override_dist::A
     refant::R
     phase::Bool
+    centroid_station::C
 end
 
 
@@ -28,8 +29,8 @@ p = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0, 0.1)); LM = IIDSitePrior(ScanSe
 means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM which is mean
 zero and unit std. dev. Finally the refant is using the [`SEFDReference`](@ref) scheme.
 """
-function ArrayPrior(dist; refant=NoReference(), phase=false, kwargs...)
-    return ArrayPrior(dist, kwargs, refant, phase)
+function ArrayPrior(dist; refant=NoReference(), phase=false, centroid_station=nothing, kwargs...)
+    return ArrayPrior(dist, kwargs, refant, phase, centroid_station)
 end
 
 function site_priors(d::ArrayPrior, array)
@@ -105,7 +106,7 @@ end
 function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
     smap = build_sitemap(d, array)
     site_dists = site_tuple(array, d.default_dist; d.override_dist...)
-    dists = build_dist(site_dists, smap, array, d.refant)
+    dists = build_dist(site_dists, smap, array, d.refant, d.centroid_station)
     return ObservedArrayPrior(dists, smap, d.phase)
 end
 
@@ -176,11 +177,21 @@ HypercubeTransform.asflat(t::PartiallyConditionedDist) = PartiallyFixedTransform
 
 
 
-function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants)
+function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroid_station)
     ts = smap.times
     ss = smap.sites
     # fs = smap.frequencies
     fixedinds, vals = reference_indices(array, smap, refants)
+
+    @info typeof(fixedinds)
+
+    if !(centroid_station isa Nothing)
+        centroid1 = findfirst(==(centroid_station[1]), ss)
+        centroid2 = findfirst(==(centroid_station[2]), ss)
+        centroid === nothing && throw(ArgumentError("Centroid station not found in site list"))
+        append!(fixedinds, [centroid1, centroid2])
+        vals = append!(collect(vals), fill(0.0, 2))
+    end
 
     variateinds = setdiff(eachindex(ts), fixedinds)
     dist = map(variateinds) do i
