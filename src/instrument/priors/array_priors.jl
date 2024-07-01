@@ -72,13 +72,17 @@ function build_sitemap(d::ArrayPrior, array)
         inds_s = findall(x->((x[1]==s)||x[2]==s), array[:sites])
         # Get all the unique times
         ts = unique(T[inds_s])
+        fs = unique(F[inds_s])
         # Now makes the acceptable time stamps given the segmentation
         tstamp = timestamps(seg, array)
         # Now we find commonalities
         times = eltype(tstamp)[]
         for t in tstamp
             if any(x->x∈t, ts) && (!(t.t0 ∈ times))
-                push!(times, t)
+                for f in fs
+                    # Now push a time for each frequency
+                    push!(times, t)
+                end
             end
         end
         return times
