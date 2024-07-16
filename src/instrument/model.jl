@@ -215,22 +215,22 @@ intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = si
 
 function apply_instrument(vis, J::ObservedInstrumentModel, x)
     vout = intout(vis)
-    _apply_instrument!(vout, vis, J, x.instrument)
+    _apply_instrument!(baseimage(vout), baseimage(vis), J, x.instrument)
     return vout
 end
 
 function apply_instrument(vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
     vout = intout(vis)
-    _apply_instrument!(vout, vis, J, (;))
+    _apply_instrument!(baseimage(vout), baseimage(vis), J, (;))
     return vout
 end
 
 
 function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
-    for i in eachindex(vout, vis)
-        vout[i] = apply_jones(vis[i], i, J, xint)
-    end
-    # vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(x))
+    # @inbounds for i in eachindex(vout, vis)
+    #     vout[i] = apply_jones(vis[i], i, J, xint)
+    # end
+    vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(xint))
     return nothing
 end
 
@@ -268,13 +268,15 @@ function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstru
     out = apply_instrument(vis, J, x)
     px = ProjectTo(x)
     function _apply_instrument_pb(Δ)
-        Δout = similar(out)
+        bvis = baseimage(vis)
+        bout = baseimage(out)
+        Δout = similar(bout)
         Δout .= unthunk(Δ)
         xi = x.instrument
         dx = ntzero(xi)
-        dvis = zero(vis)
-        autodiff(Reverse, _apply_instrument!, Duplicated(out, Δout), Duplicated(vis, dvis), Const(J), Duplicated(xi, dx))
-        return NoTangent(), dvis, NoTangent(), px((;instrument = dx))
+        dvis = zero(bvis)
+        autodiff(Reverse, _apply_instrument!, Const, Duplicated(bout, Δout), Duplicated(bvis, dvis), Const(J), Duplicated(xi, dx))
+        return NoTangent(), UnstructuredMap(dvis, axisdims(vis)), NoTangent(), px((;instrument = dx))
     end
     return out, _apply_instrument_pb
 end

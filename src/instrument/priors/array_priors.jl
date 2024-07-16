@@ -183,7 +183,6 @@ function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroi
     # fs = smap.frequencies
     fixedinds, vals = reference_indices(array, smap, refants)
 
-    @info typeof(fixedinds)
 
     if !(centroid_station isa Nothing)
         centroid1 = findfirst(==(centroid_station[1]), ss)
