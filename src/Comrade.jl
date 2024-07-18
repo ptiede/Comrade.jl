@@ -75,6 +75,7 @@ include("visualizations/visualizations.jl")
 include("dirty_image.jl")
 include("mrf_image.jl")
 include("rules.jl")
+include("network_cal.jl")
 
 
 
