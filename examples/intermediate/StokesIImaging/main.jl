@@ -17,7 +17,6 @@ Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
 
 
-ENV["GKSwstype"] = "nul" #hide
 using Comrade
 
 
@@ -36,13 +35,13 @@ rng = StableRNG(12)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-# obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-obs = ehtim.obsdata.load_uvfits("~/Dropbox (Smithsonian External)/M872021Project/Data/2021/CASA/e21e13/v1/M87_calibrated_b3.uvf.spw0to31+EVPA_rotation_10savg_testpaul.uvf")
+obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+# obs = ehtim.obsdata.load_uvfits("~/Dropbox (Smithsonian External)/M872021Project/Data/2021/CASA/e21e18/V4/M87_calibrated_b3.uvf+EVPA_rotation+netcal_10savg+flag.uvfits")
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs).add_fractional_noise(0.01)
+obs = scan_average(obs).add_fractional_noise(0.02)
 
 # Now we extract our complex visibilities.
 dvis = extract_table(obs, Visibilities())
@@ -63,11 +62,13 @@ function sky(θ, metadata)
     (;ftot, mimg) = metadata
     ## Apply the GMRF fluctuations to the image
     rast = apply_fluctuations(CenteredLR(), mimg, σimg.*c.params)
-    m = ContinuousImage((ftot*(1-fg)).*rast, BSplinePulse{3}())
-    x0, y0 = centroid(m)
+    pimg = parent(rast)
+    @. pimg = (ftot*(1-fg))*pimg
+    m = ContinuousImage(rast, BSplinePulse{3}())
+    # x0, y0 = centroid(m)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
-    g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(ftot*fg))
-    return shifted(m, -x0, -y0) + g
+    g = modify(Gaussian(), Stretch(μas2rad(500.0), μas2rad(500.0)), Renormalize(ftot*fg))
+    return m + g
 end
 
 
@@ -76,8 +77,8 @@ end
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
 npix = 64
-fovx = μas2rad(300.0)
-fovy = μas2rad(300.0)
+fovx = μas2rad(200.0)
+fovy = μas2rad(200.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -92,7 +93,7 @@ grid = imagepixels(fovx, fovy, npix, npix)
 using VLBIImagePriors
 using Distributions, DistributionsAD
 fwhmfac = 2*sqrt(2*log(2))
-mpr  = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
+mpr  = modify(Gaussian(), Stretch(μas2rad(200.0)./fwhmfac))
 mimg = intensitymap(mpr, grid)
 
 
@@ -100,7 +101,7 @@ mimg = intensitymap(mpr, grid)
 # We will also fix the total flux to be the observed value 1.1. This is because
 # total flux is degenerate with a global shift in the gain amplitudes making the problem
 # degenerate. To fix this we use the observed total flux as our value.
-skymeta = (;ftot = 1.3, mimg = mimg./flux(mimg))
+skymeta = (;ftot = 1.1, mimg = mimg./flux(mimg))
 
 
 
@@ -162,8 +163,8 @@ G = SingleStokesGain() do x
 end
 
 intpr = (
-    lg= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.5)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0), phase=true)
+    lg= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+    gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0), phase=true, centroid_station=(:AZ, :JC))
         )
 intmodel = InstrumentModel(G, intpr)
 
@@ -230,7 +231,7 @@ plot(gt, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 # run
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 400; adtype=AutoEnzyme(Enzyme.Reverse), n_adapts=200, progress=true, initial_params=chain[end])
+chain = sample(rng, post, NUTS(0.8), 10_000; adtype=AutoEnzyme(Enzyme.Reverse), n_adapts=5000, progress=true, initial_params=xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -271,7 +272,7 @@ plot(ctable_ph, layout=(4,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 plot(ctable_am, layout=(4,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[begin:20:end])
+samples = skymodel.(Ref(post), chain[begin+5001:5:end])
 imgs = intensitymap.(samples, Ref(g))
 
 mimg = mean(imgs)
