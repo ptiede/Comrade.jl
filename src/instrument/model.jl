@@ -214,7 +214,7 @@ intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = si
 
 
 function apply_instrument(vis, J::ObservedInstrumentModel, x)
-    vout = intout(vis)
+    vout = vis#intout(vis)
     _apply_instrument!(baseimage(vout), baseimage(vis), J, x.instrument)
     return vout
 end

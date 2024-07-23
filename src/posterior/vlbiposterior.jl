@@ -96,7 +96,7 @@ function combine_prior(::Tuple{}, instrumentmodel)
     return NamedDist((; instrument=instrumentmodel,))
 end
 
-function combine_prior(::NamedTuple{}, instrumentmodel)
+function combine_prior(::NamedTuple{()}, instrumentmodel)
     return NamedDist((; instrument=instrumentmodel,))
 end
 
