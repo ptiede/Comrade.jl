@@ -215,7 +215,7 @@ intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = si
 
 function apply_instrument(vis, J::ObservedInstrumentModel, x)
     vout = intout(vis)
-    _apply_instrument!(vout, vis, J, x.instrument)
+    _apply_instrument!(parent(vout), parent(vis), J, x.instrument)
     return vout
 end
 
@@ -227,10 +227,10 @@ end
 
 
 function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
-    for i in eachindex(vout, vis)
-        vout[i] = apply_jones(vis[i], i, J, xint)
-    end
-    # vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(x))
+    # for i in eachindex(vout, vis)
+    #     vout[i] = apply_jones(vis[i], i, J, xint)
+    # end
+    vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(xint))
     return nothing
 end
 
