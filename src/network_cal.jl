@@ -47,8 +47,8 @@ function set_array(m::NetworkCalSkyModel, array::AbstractArrayConfiguration)
 
     d = PartiallyConditionedDist(dists, ampinds, intrainds, fixvals)
     skypr = d
-    f = let zblflux=m.zbl_flux, intrainds=intrainds
-        x->(y = 2 .*zblflux.*elogistic.(x); y[intrainds] .= zblflux; y)
+    f = let zblflux=m.zbl_flux, intrainds=intrainds, ampinds=ampinds
+        x->(x[ampinds] .= 4 .*zblflux.*elogistic.(@view(x[ampinds])); x[intrainds] .= zblflux; y)
     end
     g = imagepixels(μas2rad(100.0), μas2rad(100.0), 256, 256)
     return ObservedSkyModel(m, FourierDualDomain(g, array, NFFTAlg()), f), skypr
