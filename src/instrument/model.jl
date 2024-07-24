@@ -220,7 +220,7 @@ function apply_instrument(vis, J::ObservedInstrumentModel, x)
 end
 
 function apply_instrument(vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
-    vout = intout(vis)
+    vout = vis#intout(vis)
     _apply_instrument!(baseimage(vout), baseimage(vis), J, (;))
     return vout
 end
