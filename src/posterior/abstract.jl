@@ -50,6 +50,7 @@ Returns the instrument model of the posterior `d`.
 """
 instrumentmodel(d::AbstractVLBIPosterior) = getfield(d, :instrumentmodel)
 HypercubeTransform.dimension(d::AbstractVLBIPosterior) = length(d.prior)
+Enzyme.EnzymeRules.inactive(::typeof(instrumentmodel), args...) = nothing
 
 @noinline logprior_ref(d, x) = logprior(d, x[])
 
@@ -114,7 +115,7 @@ Computes the forward model visibilities of the posterior `d` with parameters `θ
 Note these are the complex visiblities or the coherency matrices, not the actual
 data products observed.
 """
-function forward_model(d::AbstractVLBIPosterior, θ)
+@inline function forward_model(d::AbstractVLBIPosterior, θ)
     vis = idealvisibilities(skymodel(d), θ)
     return apply_instrument(vis, instrumentmodel(d), θ)
 end
@@ -124,7 +125,7 @@ end
 
 Computes the log-likelihood of the posterior `d` with parameters `θ`.
 """
-function loglikelihood(d::AbstractVLBIPosterior, θ)
+@inline function loglikelihood(d::AbstractVLBIPosterior, θ)
     vis = forward_model(d, θ)
     # Convert because of conventions
     return logdensityofvis(d.lklhds, vis)
@@ -152,7 +153,7 @@ end
 
 
 
-function logdensityofvis(lklhds, vis::AbstractArray)
+@inline function logdensityofvis(lklhds, vis::AbstractArray)
     fl = Base.Fix2(logdensityof, vis)
     ls = map(fl, lklhds)
     return sum(ls)

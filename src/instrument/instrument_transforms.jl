@@ -40,17 +40,19 @@ end
 function _instrument_transform_with(flag::TV.LogJacFlag, m::MarkovInstrumentTransform, x, index)
     (;inner_transform, site_map) = m
     y, ℓ, index = TV.transform_with(flag, inner_transform, x, index)
-    site_sum!(y, site_map)
-    return y, ℓ, index
+    yout = site_sum(y, site_map)
+    return yout, ℓ, index
 end
 
-function site_sum!(y, site_map::SiteLookup)
-    map(site_map.lookup) do site
-        ys = @view y[site]
+@inline function site_sum(y, site_map::SiteLookup)
+    yout = similar(y)
+    for site in site_map.lookup
+        ys = @inbounds @view y[site]
         # y should never alias so we should be fine here.
-        cumsum!(ys, (ys))
+        youts = @inbounds @view yout[site]
+        cumsum!(youts, ys)
     end
-    return nothing
+    return yout
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_instrument_transform_with), flag, m::MarkovInstrumentTransform, x, index)

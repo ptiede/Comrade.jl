@@ -2,7 +2,7 @@ struct ConditionedLikelihood{F, O}
     kernel::F
     obs::O
 end
-DensityInterface.logdensityof(d::ConditionedLikelihood, μ) = logdensityof(d.kernel(μ), d.obs)
+@inline DensityInterface.logdensityof(d::ConditionedLikelihood, μ) = logdensityof(@inline(d.kernel(μ)), d.obs)
 
 
 """
