@@ -12,7 +12,7 @@ import Distributions as Dists
 using DocStringExtensions
 using ChainRulesCore
 using Enzyme
-Enzyme.API.runtimeActivity!(true)
+# Enzyme.API.runtimeActivity!(true)
 using FillArrays: Fill
 using ForwardDiff
 using IntervalSets

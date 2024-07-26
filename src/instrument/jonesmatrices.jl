@@ -56,7 +56,7 @@ end
 struct JonesG{F} <: AbstractJonesMatrix
     param_map::F
 end
-construct_jones(::JonesG, x::NTuple{2, T}, index, site) where {T} = Diagonal(SVector{2, T}(x))
+construct_jones(::JonesG, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(x[1], zero(T), zero(T), x[2])
 
 
 """
@@ -87,7 +87,7 @@ end
 struct JonesD{F} <: AbstractJonesMatrix
     param_map::F
 end
-construct_jones(::JonesD, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(1, x[2], x[1], 1)
+Base.@propagate_inbounds construct_jones(::JonesD, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(1, x[2], x[1], 1)
 
 
 """
@@ -112,7 +112,7 @@ end
 struct GenericJones{F} <: AbstractJonesMatrix
     param_map::F
 end
-construct_jones(::GenericJones, x::NTuple{4, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(x[1], x[2], x[3], x[4])
+Base.@propagate_inbounds construct_jones(::GenericJones, x::NTuple{4, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(x[1], x[2], x[3], x[4])
 
 """
     JonesF(;add_fr=true)
@@ -128,7 +128,7 @@ struct JonesF{M} <: AbstractJonesMatrix
     matrices::M
 end
 JonesF() = JonesF(nothing)
-construct_jones(J::JonesF, x, index, ::Val{M}) where {M} = J.matrices[index][M]
+Base.@propagate_inbounds construct_jones(J::JonesF, x, index, ::Val{M}) where {M} = J.matrices[index][M]
 param_map(::JonesF, x) = x
 function preallocate_jones(::JonesF, array::AbstractArrayConfiguration, ref)
     field_rotations = build_feedrotation(array)
@@ -149,7 +149,7 @@ Base.@kwdef struct JonesR{M} <: AbstractJonesMatrix
     matrices::M = nothing
     add_fr::Bool = true
 end
-construct_jones(J::JonesR, x, index, ::Val{M}) where {M} = J.matrices[M][index]
+Base.@propagate_inbounds construct_jones(J::JonesR, x, index, ::Val{M}) where {M} = @inbounds J.matrices[M][index]
 param_map(::JonesR, x) = x
 
 function preallocate_jones(J::JonesR, array::AbstractArrayConfiguration, ref)

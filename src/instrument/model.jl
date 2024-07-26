@@ -64,7 +64,11 @@ end
 # Site lookup is const so we add a method so we can signal
 # to Enzyme that it is not differentiable.
 sitelookup(x::ObservedInstrumentModel) = x.bsitelookup
+instrument(x::ObservedInstrumentModel) = x.instrument
+refbasis(x::ObservedInstrumentModel) = x.refbasis
 Enzyme.EnzymeRules.inactive(::typeof(sitelookup), args...) = nothing
+Enzyme.EnzymeRules.inactive(::typeof(instrument), args...) = nothing
+Enzyme.EnzymeRules.inactive(::typeof(refbasis), args...) = nothing
 
 function Base.show(io::IO, mime::MIME"text/plain", m::ObservedInstrumentModel)
     printstyled(io, "ObservedInstrumentModel"; bold=true, color=:light_cyan)
@@ -212,31 +216,46 @@ intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Complex} = similar(vis, 
 intout(vis::AbstractArray{T}) where {T<:Complex} = similar(vis, T)
 intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
 
+intout(vis::StructArray{<:StokesParams{T}}) where {T<:Complex} = StructArray{SMatrix{2,2, T, 4}}((vis.I, vis.Q, vis.U, vis.V))
 
-function apply_instrument(vis, J::ObservedInstrumentModel, x)
-    vout = vis#intout(vis)
-    _apply_instrument!(baseimage(vout), baseimage(vis), J, x.instrument)
+@inline function apply_instrument(vis, J::ObservedInstrumentModel, x)
+    # vout = intout(parent(vis))
+    vis .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(x.instrument))
+    vout = intout(parent(vis))
     return vout
 end
 
-function apply_instrument(vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
-    vout = vis#intout(vis)
+# function apply_instrument(vis, J::ObservedInstrumentModel, x)
+#     xint = x.instrument
+#     vout = map(Array(vis), eachindex(vis)) do v, i
+#         return apply_jones(v, i, J, xint)
+#     end
+#     # vout = apply_jones.(vis, eachindex(vis), Ref(J), Ref(x.instrument))
+#     return UnstructuredMap(StructArray(vout), axisdims(vis))
+# end
+
+
+@inline function apply_instrument(vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
+    vout = intout(parent(vis))
     _apply_instrument!(baseimage(vout), baseimage(vis), J, (;))
-    return vout
+    return UnstructuredMap(vout, axisdims(vis))
 end
 
+Enzyme.EnzymeRules.inactive(::typeof(Base.Ref), ::ObservedInstrumentModel) = nothing
 
-function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
-    # @inbounds for i in eachindex(vout, vis)
-    #     vout[i] = apply_jones(vis[i], i, J, xint)
-    # end
-    vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(xint))
-    return nothing
-end
+# @inline function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
+#     # @inbounds for i in eachindex(vout, vis)
+#     #     v = apply_jones(vis[i], i, J, xint)
+#     #     vout[i] = v
+#     # end
+#     vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(xint))
+#     return nothing
+# end
 
 @inline get_indices(bsitemaps, index, ::Val{1}) = map(x->getindex(x.indices_1, index), bsitemaps)
 @inline get_indices(bsitemaps, index, ::Val{2}) = map(x->getindex(x.indices_2, index), bsitemaps)
-@inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map((xx, ii)->getindex(xx, ii), x, indices))
+@inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map(getindex, values(x), values(indices)))
+# @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(ntuple(i->getindex(x[i], indices[i]), Val(length(N))))
 
 # We need this because Enzyme seems to crash when generating code for this
 # TODO try to find MWE and post to Enzyme.jl
@@ -245,14 +264,14 @@ Enzyme.EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 @inline function build_jones(index::Int, J::ObservedInstrumentModel, x, ::Val{N}) where N
     indices = get_indices(sitelookup(J), index, Val(N))
     params = get_params(x, indices)
-    return jonesmatrix(J.instrument, params, index, Val(N))
+    return jonesmatrix(instrument(J), params, index, Val(N))
 end
 
 
 @inline function apply_jones(v, index::Int, J::ObservedInstrumentModel, x)
     j1 = build_jones(index, J, x, Val(1))
     j2 = build_jones(index, J, x, Val(2))
-    vout =  _apply_jones(v, j1, j2, J.refbasis)
+    vout =  _apply_jones(v, j1, j2, refbasis(J))
     return vout
 end
 

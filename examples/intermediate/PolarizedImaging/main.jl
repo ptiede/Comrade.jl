@@ -152,7 +152,8 @@ function sky(θ, metadata)
     (;c, σ, p, p0, pσ, angparams) = θ
     (;ftot, grid) = metadata
     ## Build the stokes I model
-    rast = ftot*to_simplex(CenteredLR(), σ.*c.params)
+    rast = to_simplex(CenteredLR(), σ.*c.params)
+    rast .= ftot.*rast
     ## The total polarization fraction is modeled in logit space so we transform it back
     pim = logistic.(p0 .+ pσ.*p.params)
     ## Build our IntensityMap
@@ -232,11 +233,12 @@ skym = SkyModel(sky, skyprior, grid; metadata=skymeta)
 # the gain matrix is a diagonal 2x2 matrix the function must return a 2-element tuple.
 # The first element of the tuple is the gain for the first polarization feed (R) and the
 # second is the gain for the second polarization feed (L).
-G = JonesG() do x
+function fgain(x)
     gR = exp(x.lgR + 1im*x.gpR)
     gL = gR*exp(x.lgrat + 1im*x.gprat)
     return gR, gL
 end
+G = JonesG(fgain)
 # Note that we are using the Julia `do` syntax here to define an anonymous function. This
 # could've also been written as
 # ```julia
@@ -251,11 +253,13 @@ end
 # d2 1
 # Therefore, there are 2 free parameters for the JonesD our parameterization function
 # must return a 2-element tuple. For d-terms we will use a re-im parameterization.
-D = JonesD() do x
+function fdterms(x)
     dR = complex(x.dRx, x.dRy)
     dL = complex(x.dLx, x.dLy)
     return dR, dL
 end
+
+D = JonesD(fdterms)
 
 # Finally we define our response Jones matrix. This matrix is a basis transform matrix
 # plus the feed rotation angle for each station. These are typically set by the telescope
@@ -273,7 +277,7 @@ J = JonesSandwich(splat(*), G, D, R)
 intprior = (
     lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
     gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π  ^2))); refant=SEFDReference(0.0), phase=false),
-    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase=true),
+    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase=false),
     gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)); refant = SingleReference(:AA, 0.0)),
     dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
