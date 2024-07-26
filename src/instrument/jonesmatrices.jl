@@ -26,7 +26,7 @@ G = SingleStokesGain(x->exp(x.lg + xp.gp))
 struct SingleStokesGain{F} <: AbstractJonesMatrix
     param_map::F
 end
-construct_jones(::SingleStokesGain, x, index, site) = x
+@inline construct_jones(::SingleStokesGain, x, index, site) = x
 
 """
     JonesG(param_map)
@@ -56,7 +56,7 @@ end
 struct JonesG{F} <: AbstractJonesMatrix
     param_map::F
 end
-construct_jones(::JonesG, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(x[1], zero(T), zero(T), x[2])
+@inline construct_jones(::JonesG, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(x[1], zero(T), zero(T), x[2])
 
 
 """
@@ -203,7 +203,7 @@ function JonesSandwich(matrices::AbstractJonesMatrix...)
     return JonesSandwich(splat(*), matrices...)
 end
 
-function jonesmatrix(J::JonesSandwich, x, index, site)
+@inline function jonesmatrix(J::JonesSandwich, x, index, site)
     return J.jones_map(map(m->construct_jones(m, param_map(m, x), index, site), J.matrices))
 end
 
