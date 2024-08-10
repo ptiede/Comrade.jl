@@ -34,14 +34,14 @@ Our benchmark results are the following:
 
 | | Comrade (micro sec) | eht-imaging (micro sec) | Themis (micro sec)|
 |---|---|---|---|
-| posterior eval (min) | 31  | 445  | 55  |
-| posterior eval (mean) | 36  | 476  | 60  |
-| grad posterior eval (min) |  105 (ForwardDiff) | 1898  | 1809  |
-| grad posterior eval (mean) |  119 (ForwardDiff) | 1971 |  1866  |
+| posterior eval (min) | 31.1  | 445  | 55  |
+| posterior eval (mean) | 31.8  | 476  | 60  |
+| grad posterior eval (min) |  104 (Enzyme) | 1898  | 1809  |
+| grad posterior eval (mean) |  107 (Enzyme) | 1971 |  1866  |
 
 Therefore, for this test we found that `Comrade` was the fastest method in all tests. For the posterior evaluation we found that Comrade is > 10x faster than `eht-imaging`, and 2x faster then `Themis`. For gradient evaluations we have `Comrade` is > 15x faster than both `eht-imaging` and `Themis`.
 
-[^1]: Chael A, et al. *Inteferometric Imaging Directly with Closure Phases* 2018 ApJ 857 1 arXiv:1803/07088
+[^1]: Chael A, et al. *Interferometric Imaging Directly with Closure Phases* 2018 ApJ 857 1 arXiv:1803/07088
 
 ## Code
 
@@ -81,11 +81,12 @@ tpost = asflat(post)
 
 x0 = prior_sample(tpost)
 
-using Zygote
-@benchmark $(tpost)($x0)
-# 32 μs
-@benchmark Zygote.gradient($tpost, $x0)
-# 175 μs
+ℓ = logdensityof(tpost)
+@benchmark ℓ($x0)
+# 31.1 μs
+using Enzyme
+@benchmark Enzyme.gradient(Enzyme.Reverse, $(Const(ℓ)), $x0)
+# 104 μs
 ```
 
 ### eht-imaging Code
@@ -129,7 +130,7 @@ preh[1]["y0"] = {"prior_type": "flat", "min" : -eh.RADPERUAS*(40.0), "max" : eh.
 preh[1]["PA"] = {"prior_type": "flat", "min" : -np.pi, "max" : np.pi}
 
 # This is a hack to get the objective function and its gradient
-# we need to do this since the functions depend on some global variables
+# we need to do this since the functions depend on some global ehtim variables
 transform_param = eh.modeling.modeling_utils.transform_param
 def make_paraminit(param_map, meh, trial_model, model_prior):
     model_init = meh.copy()
