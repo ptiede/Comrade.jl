@@ -33,7 +33,7 @@ function _apply_fluctuations(f, mimg::AbstractArray, δ::AbstractArray)
 end
 
 function _apply_fluctuations(t::VLBIImagePriors.LogRatioTransform, mimg::AbstractArray, δ::AbstractArray)
-    @argcheck isapprox(sum(mimg), 1, atol=1e-6) "Mean image must have unit flux when using log-ratio transformations in apply_fluctuations"
+    @argcheck isapprox(sum(parent(mimg)), 1, atol=1e-6) "Mean image must have unit flux when using log-ratio transformations in apply_fluctuations"
     r = to_simplex(t, δ)
     r .= r.*parent(mimg)
     r .= r./sum(r)

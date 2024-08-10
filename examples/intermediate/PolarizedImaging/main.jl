@@ -152,10 +152,13 @@ function sky(θ, metadata)
     (;c, σ, p, p0, pσ, angparams) = θ
     (;ftot, grid) = metadata
     ## Build the stokes I model
-    rast = to_simplex(CenteredLR(), σ.*c.params)
+    cp = c.params
+    cp .= σ.*cp
+    rast = to_simplex(CenteredLR(), cp)
     rast .= ftot.*rast
     ## The total polarization fraction is modeled in logit space so we transform it back
-    pim = logistic.(p0 .+ pσ.*p.params)
+    pim = p.params
+    pim .= logistic.(p0 .+ pσ.*pim)
     ## Build our IntensityMap
     pmap = PoincareSphere2Map(rast, pim, angparams, grid)
     ## Construct the actual image model which uses a third order B-spline pulse
@@ -206,7 +209,7 @@ cprior = HierarchicalPrior(cmarkov, dρ)
 fwhmfac = 2.0*sqrt(2.0*log(2.0))
 skyprior = (
     c = cprior,
-    σ  = truncated(Normal(0.0, 1.0); lower=0.0),
+    σ  = truncated(Normal(0.0, 0.1); lower=0.0),
     p  = cprior,
     p0 = Normal(-2.0, 2.0),
     pσ =  truncated(Normal(0.0, 1.0); lower=0.01),
@@ -277,7 +280,7 @@ J = JonesSandwich(splat(*), G, D, R)
 intprior = (
     lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
     gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π  ^2))); refant=SEFDReference(0.0), phase=false),
-    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase=false),
+    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase=true),
     gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)); refant = SingleReference(:AA, 0.0)),
     dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
@@ -308,6 +311,15 @@ tpost = asflat(post)
 
 ndim = dimension(tpost)
 
+using Enzyme
+Enzyme.API.runtimeActivity!(true)
+x = prior_sample(rng, tpost)
+dx = zero(x)
+autodiff(Enzyme.Reverse, logdensityof, Active, Const(tpost), Duplicated(x, dx))
+
+using BenchmarkTools
+@benchmark autodiff($Enzyme.Reverse, $logdensityof,$Active, $(Const(tpost)), Duplicated($x, fill!($dx, 0)))
+
 
 # Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
 # due to the higher dimension of the space. In addition the only AD package that can currently
@@ -316,8 +328,8 @@ ndim = dimension(tpost)
 # through custom rules.
 using Optimization
 using OptimizationOptimisers
-using Zygote
-xopt, sol = comrade_opt(post, Optimisers.Adam(), Optimization.AutoZygote(); initial_params=prior_sample(rng, post), maxiters=20_000)
+using Enzyme
+xopt, sol = comrade_opt(post, Optimisers.Adam(), AutoEnzyme(;mode=Enzyme.Reverse); initial_params=prior_sample(rng, post), maxiters=20_000)
 
 
 # !!! warning

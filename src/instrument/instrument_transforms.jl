@@ -37,7 +37,7 @@ function _instrument_transform_with(flag::TV.LogJacFlag, m::InstrumentTransform,
     return TV.transform_with(flag, itrf, x, index)
 end
 
-function _instrument_transform_with(flag::TV.LogJacFlag, m::MarkovInstrumentTransform, x, index)
+@inline function _instrument_transform_with(flag::TV.LogJacFlag, m::MarkovInstrumentTransform, x, index)
     (;inner_transform, site_map) = m
     y, ℓ, index = TV.transform_with(flag, inner_transform, x, index)
     yout = site_sum(y, site_map)
@@ -50,7 +50,7 @@ end
         ys = @inbounds @view y[site]
         # y should never alias so we should be fine here.
         youts = @inbounds @view yout[site]
-        cumsum!(youts, ys)
+        @inline cumsum!(youts, ys)
     end
     return yout
 end
