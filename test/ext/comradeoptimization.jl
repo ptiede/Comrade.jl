@@ -1,6 +1,6 @@
 using Comrade, Optimization
 using Pyehtim, OptimizationOptimJL, Distributions, VLBIImagePriors
-using Zygote
+using Enzyme
 using Test
 
 
@@ -23,7 +23,7 @@ using Test
             2.0,
         ])
 
-    xopt2, sol = comrade_opt(post, LBFGS(), AutoZygote(); initial_params=x0, maxiters=10_000)
+    xopt2, sol = comrade_opt(post, LBFGS(), AutoEnzyme(Enzyme.Reverse); initial_params=x0, maxiters=10_000)
 
     xopt = xopt2.sky
     @test isapprox(xopt.f1/xopt.f2, 2.0, atol=1e-3)

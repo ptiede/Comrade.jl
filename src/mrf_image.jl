@@ -17,8 +17,7 @@ function apply_fluctuations(f, m::AbstractModel, g::AbstractRectiGrid, δ::Abstr
 end
 
 function apply_fluctuations(t::VLBIImagePriors.LogRatioTransform, m::AbstractModel, g::AbstractRectiGrid, δ::AbstractArray)
-    # Hack to prevent Zygote from trying to AD through IntensityMap constants
-    mimg = baseimage(intensitymap(m, g))
+    mimg = parent(intensitymap(m, g))
     return apply_fluctuations(t, IntensityMap(mimg./sum(mimg), g), δ)
 end
 

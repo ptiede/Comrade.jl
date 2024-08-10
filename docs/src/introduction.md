@@ -8,12 +8,16 @@ Comrade is a Bayesian differentiable modular modeling framework for use with ver
 The goal is to allow the user to easily combine and modify a set of primitive models
 to construct complicated source structures. The benefit of this approach is that it is straightforward to construct different source models out of these primitives. Namely, an end-user does
 not have to create a separate source "model" every time they
-change the model specification. Additionally, most models currently implemented are differentiable with at Zygote and sometimes ForwardDiff[^2]. This allows for gradient accelerated optimization and sampling (e.g., HMC) to be used with little
-effort by the end user. To sample from the posterior, we provide a somewhat barebones interface since, most of the time, and we don't require the additional features offered by most PPLs. Additionally, the overhead introduced by PPLs tends to be rather large. In the future, we may revisit this as
-Julia's PPL ecosystem matures.
+change the model specification. Additionally, most models currently implemented are differentiable with at Enzyme. This allows for gradient accelerated optimization and sampling (e.g., HMC) to be used with little
+effort by the end user. 
 
-!!! note
-    The primitives the Comrade defines, however, would allow for it to be easily included in PPLs like [`Turing`](https://github.com/TuringLang/Turing.jl).
+!!! warn
+    As of 0.11 Comrade is only tested with Enzyme. ForwardDiff may work for some
+    models, but it is not tested and there are known problems with e.g., closures
+    due to the use of a sparse cholesky factorization. Additionally essentially no
+    models will work with Zygote due to the heavy use of mutation in the codebase.
+    The use of mutation is necessary for performance reasons, and we have no plans
+    to change this in the future.
 
 
 ## Tutorials
@@ -28,7 +32,8 @@ the image and instrumental effects like gain ratios and leakage terms in [Polari
 
 This repository has recently moved to [ColPrac](https://github.com/SciML/ColPrac). If you would like to contribute please feel free to open a issue or pull-request.
 
-[^2]: As of 0.9 Comrade switched to using full covariance closures. As a result this requires a sparse cholesky solve in the likelihood evaluation which requires which isn't defined in ForwardDiff. As a result we recommend using Zygote which does work and often is similarly performant (reverse pass is 3-6x slower compared to the forward pass).
+
+```@meta
 
 ## Requirements
 

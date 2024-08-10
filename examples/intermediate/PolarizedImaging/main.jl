@@ -320,9 +320,7 @@ using BenchmarkTools
 
 # Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
 # due to the higher dimension of the space. In addition the only AD package that can currently
-# work with the polarized Comrade posterior is Zygote. Note that in the future we expect to
-# shift entirely to Enzyme, and in fact large portions of Comrade's AD already uses Enzyme
-# through custom rules.
+# work with the polarized Comrade posterior is Enzyme.
 using Optimization
 using OptimizationOptimisers
 using Enzyme

@@ -1,5 +1,5 @@
 using Pyehtim, Comrade, ComradeAHMC, Distributions, VLBIImagePriors
-using Zygote
+using Enzyme
 using Test
 
 include(joinpath(@__DIR__, "../../../test/test_util.jl"))
@@ -21,8 +21,8 @@ include(joinpath(@__DIR__, "../../../test/test_util.jl"))
           ξ2 = -0.5376269092893298,
           x = 1.451956089157719e-10,
           y = 1.455983181049137e-10),)
-    s1 = AHMC(autodiff=Val(:Zygote))
-    s2 = AHMC(autodiff=Val(:Zygote))
+    s1 = AHMC(autodiff=Val(:Enzyme))
+    s2 = AHMC(autodiff=Val(:Enzyme))
     s3 = AHMC()
     hchain = sample(post, s1, 1_000; n_adapts=500, progress=false)
     hchain = sample(post, s1, 1_000; n_adapts=500, progress=false, initial_params=x0)

@@ -178,8 +178,8 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # To use this we use the [`comrade_opt`](@ref) function
 using Optimization
 using OptimizationOptimJL
-using Zygote
-xopt, sol = comrade_opt(post, LBFGS(), Optimization.AutoZygote(); initial_params=prior_sample(rng, post), maxiters=1000, g_tol=1e0)
+using Enzyme
+xopt, sol = comrade_opt(post, LBFGS(), AutoEnzyme(Enzyme.Reverse); initial_params=prior_sample(rng, post), maxiters=1000, g_tol=1e0)
 
 
 # First we will evaluate our fit by plotting the residuals

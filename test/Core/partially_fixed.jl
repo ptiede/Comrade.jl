@@ -1,7 +1,7 @@
 using Distributions
 import TransformVariables as TV
 using FiniteDifferences
-using Zygote
+using Enzyme
 @testset "Partially fixed" begin
 
     d = MvLogNormal(randn(10), rand(10))
@@ -28,8 +28,8 @@ using Zygote
         gfdf, = grad(fdm, f, x)
         gfdlj, = grad(fdm, flj, x)
 
-        gzf,  = Zygote.gradient(f, x)
-        gzflj, = Zygote.gradient(flj, x)
+        gzf  = Enzyme.gradient(Enzyme.Reverse, Const(f), x)
+        gzflj = Enzyme.gradient(Enzyme.Reverse, Const(flj), x)
 
         @test gzf ≈ gfdf
         @test gzflj ≈ gfdlj

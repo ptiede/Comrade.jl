@@ -1,7 +1,7 @@
 using ChainRulesTestUtils
 using ChainRulesCore
 using FiniteDifferences
-using Zygote
+using Enzyme
 using PythonCall
 using FFTW
 using StructArrays
