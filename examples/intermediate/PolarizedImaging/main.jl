@@ -152,13 +152,10 @@ function sky(θ, metadata)
     (;c, σ, p, p0, pσ, angparams) = θ
     (;ftot, grid) = metadata
     ## Build the stokes I model
-    cp = c.params
-    cp .= σ.*cp
-    rast = to_simplex(CenteredLR(), cp)
+    rast = to_simplex(CenteredLR(), c.params*σ)
     rast .= ftot.*rast
     ## The total polarization fraction is modeled in logit space so we transform it back
-    pim = p.params
-    pim .= logistic.(p0 .+ pσ.*pim)
+    pim = logistic.(p0 .+ pσ.*p.params)
     ## Build our IntensityMap
     pmap = PoincareSphere2Map(rast, pim, angparams, grid)
     ## Construct the actual image model which uses a third order B-spline pulse
@@ -280,7 +277,7 @@ J = JonesSandwich(splat(*), G, D, R)
 intprior = (
     lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
     gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π  ^2))); refant=SEFDReference(0.0), phase=false),
-    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase=true),
+    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
     gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)); refant = SingleReference(:AA, 0.0)),
     dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
