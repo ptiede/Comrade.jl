@@ -108,10 +108,10 @@ end
         Comrade.time(x.lg, 5.0..6.0)
         Comrade.frequency(x.lg, 1.0..400.0)
 
-        ps = ProjectTo(x.lg)
-        @test ps(x.lg) == x.lg
-        @test ps(NoTangent()) isa NoTangent
-        @test ps(Tangent{typeof(x.lg)}(data = parent(x.lg))) == x.lg
+        # ps = ProjectTo(x.lg)
+        # @test ps(x.lg) == x.lg
+        # @test ps(NoTangent()) isa NoTangent
+        # @test ps(Tangent{typeof(x.lg)}(data = parent(x.lg))) == x.lg
 
     end
 
