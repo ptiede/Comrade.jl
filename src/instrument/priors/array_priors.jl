@@ -128,17 +128,17 @@ function TV.transform_with(flag::TV.LogJacFlag, t::PartiallyFixedTransform, x, i
     return yfv, ℓ, index
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(TV.transform_with), flag, t::PartiallyFixedTransform, x, index)
-    (y, ℓ, index), dt = rrule_via_ad(config, TV.transform_with, flag, t.transform, x, index)
-    yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
-    yfv[t.variate_index] .= y
-    yfv[t.fixed_index] .= t.fixed_values
-    function _partially_fixed_transform_pullback(Δ)
-        Δy = @view(Δ[1][t.variate_index])
-        return dt((Δy, Δ[2], Δ[3]))
-    end
-    return (yfv, ℓ, index), _partially_fixed_transform_pullback
-end
+# function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(TV.transform_with), flag, t::PartiallyFixedTransform, x, index)
+#     (y, ℓ, index), dt = rrule_via_ad(config, TV.transform_with, flag, t.transform, x, index)
+#     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
+#     yfv[t.variate_index] .= y
+#     yfv[t.fixed_index] .= t.fixed_values
+#     function _partially_fixed_transform_pullback(Δ)
+#         Δy = @view(Δ[1][t.variate_index])
+#         return dt((Δy, Δ[2], Δ[3]))
+#     end
+#     return (yfv, ℓ, index), _partially_fixed_transform_pullback
+# end
 
 function TV.inverse_at!(x::AbstractArray, index, t::PartiallyFixedTransform, y)
     return TV.inverse_at!(x, index, t.transform, y[t.variate_index])

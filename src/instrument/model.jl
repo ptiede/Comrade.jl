@@ -24,7 +24,7 @@ struct IdealInstrumentModel <: AbstractInstrumentModel end
 
 Base.show(io::IO, mime::MIME"text/plain", m::IdealInstrumentModel) = printstyled(io, "IdealInstrumentModel"; color=:light_cyan, bold=true)
 
-apply_instrument(vis, ::IdealInstrumentModel, x) = vis
+@inline apply_instrument(vis, ::IdealInstrumentModel, x) = vis
 
 
 struct InstrumentModel{J<:AbstractJonesMatrix, PI, P<:PolBasis} <: AbstractInstrumentModel
@@ -237,7 +237,7 @@ end
 
 @inline function apply_instrument(vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
     vout = intout(parent(vis))
-    vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(;))
+    vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref((;)))
     return vout
 end
 
@@ -283,31 +283,31 @@ end
 
 
 
-function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel, x)
-    out = apply_instrument(vis, J, x)
-    px = ProjectTo(x)
-    function _apply_instrument_pb(Δ)
-        bvis = baseimage(vis)
-        bout = baseimage(out)
-        Δout = similar(bout)
-        Δout .= unthunk(Δ)
-        xi = x.instrument
-        dx = ntzero(xi)
-        dvis = zero(bvis)
-        autodiff(Reverse, _apply_instrument!, Const, Duplicated(bout, Δout), Duplicated(bvis, dvis), Const(J), Duplicated(xi, dx))
-        return NoTangent(), UnstructuredMap(dvis, axisdims(vis)), NoTangent(), px((;instrument = dx))
-    end
-    return out, _apply_instrument_pb
-end
+# function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel, x)
+#     out = apply_instrument(vis, J, x)
+#     px = ProjectTo(x)
+#     function _apply_instrument_pb(Δ)
+#         bvis = baseimage(vis)
+#         bout = baseimage(out)
+#         Δout = similar(bout)
+#         Δout .= unthunk(Δ)
+#         xi = x.instrument
+#         dx = ntzero(xi)
+#         dvis = zero(bvis)
+#         autodiff(Reverse, _apply_instrument!, Const, Duplicated(bout, Δout), Duplicated(bvis, dvis), Const(J), Duplicated(xi, dx))
+#         return NoTangent(), UnstructuredMap(dvis, axisdims(vis)), NoTangent(), px((;instrument = dx))
+#     end
+#     return out, _apply_instrument_pb
+# end
 
-function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
-    out = apply_instrument(vis, J, x)
-    function _apply_instrument_pb(Δ)
-        Δout = similar(out)
-        Δout .= unthunk(Δ)
-        dvis = zero(vis)
-        autodiff(Reverse, _apply_instrument!, Duplicated(out, Δout), Duplicated(vis, dvis), Const(J), Const((;)))
-        return NoTangent(), dvis, NoTangent(), NoTangent()
-    end
-    return out, _apply_instrument_pb
-end
+# function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
+#     out = apply_instrument(vis, J, x)
+#     function _apply_instrument_pb(Δ)
+#         Δout = similar(out)
+#         Δout .= unthunk(Δ)
+#         dvis = zero(vis)
+#         autodiff(Reverse, _apply_instrument!, Duplicated(out, Δout), Duplicated(vis, dvis), Const(J), Const((;)))
+#         return NoTangent(), dvis, NoTangent(), NoTangent()
+#     end
+#     return out, _apply_instrument_pb
+# end

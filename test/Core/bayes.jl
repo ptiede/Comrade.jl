@@ -54,7 +54,7 @@ using Enzyme
     show(IOBuffer(), MIME"text/plain"(), tpostf)
 
 
-    f = OptimizationFunction(tpostf, Optimization.AutoEnzyme(Enzyme.Reverse))
+    f = OptimizationFunction(tpostf, Optimization.AutoEnzyme(;mode=Enzyme.Reverse))
     x0 = transform(tpostf, [ 0.1,
            0.4,
            0.5,
@@ -207,7 +207,7 @@ end
         x0 = prior_sample(tpostf)
 
         @inferred logdensityof(tpostf, x0)
-        gz, = Enzyme.gradient(Enzyme.Reverse, Const(tpostf), x0)
+        gz = Enzyme.gradient(Enzyme.Reverse, Const(tpostf), x0)
         gn, = FiniteDifferences.grad(mfd, tpostf, x0)
         @test gz ≈ gn
     end

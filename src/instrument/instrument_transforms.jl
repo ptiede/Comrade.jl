@@ -55,19 +55,19 @@ end
     return yout
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_instrument_transform_with), flag, m::MarkovInstrumentTransform, x, index)
-    (y, ℓ, index2), dt = rrule_via_ad(config, TV.transform_with, flag, m.inner_transform, x, index)
-    site_sum!(y, m.site_map)
-    py = ProjectTo(y)
-    function _markov_transform_pullback(Δ)
-        Δy  = similar(y)
-        Δy .= py(unthunk(Δ[1]))
-        autodiff(Reverse, site_sum!, Const, Duplicated(y, Δy), Const(m.site_map))
-        din = dt((Δy, Δ[2], NoTangent()))
-        return din
-    end
-    return (y, ℓ, index2), _markov_transform_pullback
-end
+# function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_instrument_transform_with), flag, m::MarkovInstrumentTransform, x, index)
+#     (y, ℓ, index2), dt = rrule_via_ad(config, TV.transform_with, flag, m.inner_transform, x, index)
+#     site_sum!(y, m.site_map)
+#     py = ProjectTo(y)
+#     function _markov_transform_pullback(Δ)
+#         Δy  = similar(y)
+#         Δy .= py(unthunk(Δ[1]))
+#         autodiff(Reverse, site_sum!, Const, Duplicated(y, Δy), Const(m.site_map))
+#         din = dt((Δy, Δ[2], NoTangent()))
+#         return din
+#     end
+#     return (y, ℓ, index2), _markov_transform_pullback
+# end
 
 
 function site_diff!(y, site_map::SiteLookup)

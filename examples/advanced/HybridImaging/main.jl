@@ -179,7 +179,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 using Optimization
 using OptimizationOptimJL
 using Enzyme
-xopt, sol = comrade_opt(post, LBFGS(), AutoEnzyme(Enzyme.Reverse); initial_params=prior_sample(rng, post), maxiters=1000, g_tol=1e0)
+xopt, sol = comrade_opt(post, LBFGS(), AutoEnzyme(;mode=Enzyme.Reverse); initial_params=prior_sample(rng, post), maxiters=1000, g_tol=1e0)
 
 
 # First we will evaluate our fit by plotting the residuals

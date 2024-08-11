@@ -131,7 +131,7 @@ end
         x.lg .= 0
         x.gp .= 0
         vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
-        test_rrule(Comrade.apply_instrument, vis, ointm⊢NoTangent(), (;instrument=x))
+        # test_rrule(Comrade.apply_instrument, vis, ointm⊢NoTangent(), (;instrument=x))
         @test vout ≈ vis
 
 
@@ -260,7 +260,7 @@ end
         vper = Comrade.apply_instrument(vis, pintm, (;instrument=NamedTuple()))
         @test vout ≈ vper
 
-        test_rrule(Comrade.apply_instrument, vis, ointm⊢NoTangent(), (;instrument=x))
+        # test_rrule(Comrade.apply_instrument, vis, ointm⊢NoTangent(), (;instrument=x))
 
         # # Now check that everything is being applied right
         for s in sites(dcoh)

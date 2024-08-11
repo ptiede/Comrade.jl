@@ -185,7 +185,7 @@ ndim = dimension(tpost)
 using Optimization
 using OptimizationOptimisers
 using Enzyme
-xopt, sol = comrade_opt(post, Optimisers.Adam(), AutoEnzyme(Enzyme.Reverse); initial_params=prior_sample(rng, post), maxiters=10_000, g_tol=1e-1)
+xopt, sol = comrade_opt(post, Optimisers.Adam(), AutoEnzyme(;mode=Enzyme.Reverse); initial_params=prior_sample(rng, post), maxiters=10_000, g_tol=1e-1)
 
 # !!! warning
 #     Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -231,7 +231,7 @@ plot(gt, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 # run
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 10_000; adtype=AutoEnzyme(Enzyme.Reverse), n_adapts=5000, progress=true, initial_params=xopt)
+chain = sample(rng, post, NUTS(0.8), 10_000; adtype=AutoEnzyme(;mode=Enzyme.Reverse), n_adapts=5000, progress=true, initial_params=xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this

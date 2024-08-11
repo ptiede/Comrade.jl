@@ -151,7 +151,7 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 using Optimization
 using OptimizationOptimJL
 using Enzyme
-xopt, sol = comrade_opt(post, LBFGS(), AutoEnzyme(Enzyme.Reverse); maxiters=1000)
+xopt, sol = comrade_opt(post, LBFGS(), AutoEnzyme(;mode=Enzyme.Reverse); maxiters=1000)
 
 
 # First we will evaluate our fit by plotting the residuals

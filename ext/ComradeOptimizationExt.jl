@@ -46,7 +46,7 @@ Optimize the posterior `post` using the `opt` optimizer.
  - `opt` : The optimizer to use. This can be any optimizer from `Optimization.jl`.
  - `adtype` : The automatic differentiation type to use. The default is `nothing` which means
     no automatic differentiation is used. To specify to use automatic differentiation
-    set `adtype`. For example if you wish to use `Enzyme` set `adtype=Optimization.AutoEnzyme(Enzyme.Reverse)`.
+    set `adtype`. For example if you wish to use `Enzyme` set `adtype=Optimization.AutoEnzyme(;mode=Enzyme.Reverse)`.
  - `args` : Additional arguments passed to the `Optimization`, `solve` method
 
 ## Keyword Arguments
