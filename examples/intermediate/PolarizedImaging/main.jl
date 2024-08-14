@@ -267,7 +267,7 @@ R = JonesR(;add_fr=true)
 # we are completely standard so we just need to multiply the different jones matrices.
 # Note that if no function is provided, the default is to multiply the Jones matrices,
 # so we could've removed the * argument in this case.
-J = JonesSandwich(splat(*), G, D, R)
+J = JonesSandwich(*, G, D, R)
 
 
 intprior = (

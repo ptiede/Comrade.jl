@@ -198,7 +198,11 @@ end
 
         R = JonesR(;add_fr=true)
 
-        J = JonesSandwich(splat(*), G, D, R)
+        J = JonesSandwich(*, G, D, R)
+        J2 = JonesSandwich(G, D, R) do g, d, r
+            return g*d*r
+        end
+
 
         F = JonesF()
 
@@ -218,9 +222,12 @@ end
 
 
         intm = InstrumentModel(J, intprior)
+        intm2 = InstrumentModel(J2, intprior)
         show(IOBuffer(), MIME"text/plain"(), intm)
 
+
         ointm, printm = Comrade.set_array(intm, arrayconfig(dcoh))
+        ointm2, printm2 = Comrade.set_array(intm2, arrayconfig(dcoh))
 
         Fpre = Comrade.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
         Rpre = Comrade.preallocate_jones(JonesR(;add_fr=true), arrayconfig(dcoh), CirBasis())
@@ -229,6 +236,9 @@ end
 
         @testset "ObservedArrayPrior" begin
             @inferred logpdf(printm, rand(printm))
+            @inferred logpdf(printm2, rand(printm2))
+            x = rand(printm)
+            @test logpdf(printm, x) ≈ logpdf(printm2, x)
             @test asflat(printm) isa TV.AbstractTransform
             p = rand(printm)
             t = asflat(printm)

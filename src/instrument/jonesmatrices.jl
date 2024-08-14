@@ -173,7 +173,7 @@ struct JonesSandwich{J, M} <: AbstractJonesMatrix
 end
 
 """
-    JonesSandwich([decomp_function=splat(*),] matrices::AbstractJonesMatrix...)
+    JonesSandwich([decomp_function=*,] matrices::AbstractJonesMatrix...)
 
 Constructs a Jones matrix that is the results combining multiple Jones matrices together.
 The specific composition is determined by the `decomp_function`. For example if the
@@ -187,20 +187,20 @@ G = JonesG(x->(x.gR, x.gL)) # Gain matrix
 D = JonesD(x->(x.dR, x.dL)) # leakage matrix
 F = JonesF()                # Feed rotation matrix
 
-J = JonesSandwich(splat(*), G, D, F) # Construct the full Jones matrix as G*D*F
+J = JonesSandwich(*, G, D, F) # Construct the full Jones matrix as G*D*F
 
 # Or if you want to include FR calibration
 J = JonesSandwich(G, D, F) do g, d, f
-    return adjoint(f)g*d*f
+    return adjoint(f)*g*d*f
 end
 ```
 """
 function JonesSandwich(map, matrices::AbstractJonesMatrix...)
-    return JonesSandwich(map, matrices)
+    return JonesSandwich(splat(map), matrices)
 end
 
 function JonesSandwich(matrices::AbstractJonesMatrix...)
-    return JonesSandwich(splat(*), matrices...)
+    return JonesSandwich(*, matrices...)
 end
 
 function jonesmatrix(J::JonesSandwich, x, index, site)
