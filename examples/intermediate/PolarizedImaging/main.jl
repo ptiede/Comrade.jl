@@ -340,7 +340,7 @@ residual(post, xopt)
 # These look reasonable, although there may be some minor overfitting.
 # Let's compare our results to the ground truth values we know in this example.
 # First, we will load the polarized truth
-imgtrue = Comrade.load(joinpath(__DIR, "..", "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams})
+imgtrue = load_fits(joinpath(__DIR, "..", "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams})
 # Select a reasonable zoom in of the image.
 imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx*4, ny*4))
 img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))

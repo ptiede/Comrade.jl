@@ -32,7 +32,6 @@ using StructArrays: StructVector, StructArray, append!!
 import StructArrays
 using Tables
 import TransformVariables as TV
-import ComradeBase: save
 using ComradeBase: AbstractDomain, AbstractSingleDomain, AbstractRectiGrid
 using VLBISkyModels: FourierTransform, FourierDualDomain
 
@@ -45,7 +44,6 @@ using VLBISkyModels: FourierTransform, FourierDualDomain
 export linearpol, mbreve, evpa
 using ComradeBase: AbstractRectiGrid, AbstractDomain, UnstructuredDomain,
                    AbstractModel, AbstractPolarizedModel, AbstractHeader
-using ComradeBase: load
 
 
 
