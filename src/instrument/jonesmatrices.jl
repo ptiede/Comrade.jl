@@ -149,7 +149,7 @@ Base.@kwdef struct JonesR{M} <: AbstractJonesMatrix
     matrices::M = nothing
     add_fr::Bool = true
 end
-Base.@propagate_inbounds construct_jones(J::JonesR, x, index, ::Val{M}) where {M} = @inbounds J.matrices[M][index]
+Base.@propagate_inbounds construct_jones(J::JonesR, x, index, ::Val{M}) where {M} = J.matrices[M][index]
 param_map(::JonesR, x) = x
 
 function preallocate_jones(J::JonesR, array::AbstractArrayConfiguration, ref)

@@ -17,7 +17,7 @@ function apply_fluctuations(f, m::AbstractModel, g::AbstractRectiGrid, δ::Abstr
 end
 
 function apply_fluctuations(t::VLBIImagePriors.LogRatioTransform, m::AbstractModel, g::AbstractRectiGrid, δ::AbstractArray)
-    mimg = parent(intensitymap(m, g))
+    mimg = baseimage(intensitymap(m, g))
     return apply_fluctuations(t, IntensityMap(mimg./sum(mimg), g), δ)
 end
 
@@ -37,7 +37,7 @@ Enzyme.EnzymeRules.inactive(::typeof(_checknorm), args...) = nothing
 function _apply_fluctuations(t::VLBIImagePriors.LogRatioTransform, mimg::AbstractArray, δ::AbstractArray)
     @argcheck _checknorm(mimg) "Mean image must have unit flux when using log-ratio transformations in apply_fluctuations"
     r = to_simplex(t, δ)
-    r .= r.*parent(mimg)
+    r .= r.*baseimage(mimg)
     r .= r./sum(r)
     return r
 end
