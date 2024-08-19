@@ -216,11 +216,16 @@ intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Complex} = similar(vis, 
 intout(vis::AbstractArray{T}) where {T<:Complex} = similar(vis, T)
 intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
 
-# intout(vis::StructArray{<:StokesParams{T}}) where {T<:Complex} = StructArray{SMatrix{2,2, T, 4}}((vis.I, vis.Q, vis.U, vis.V))
+intout(vis::StructArray{<:StokesParams{T}}) where {T<:Complex} = StructArray{SMatrix{2,2, T, 4}}((vis.I, vis.Q, vis.U, vis.V))
 
 @inline function apply_instrument(vis, J::ObservedInstrumentModel, x)
     vout = intout(parent(vis))
-    vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(x.instrument))
+    pvis = parent(vis)
+    xint = x.instrument
+    # for i in eachindex(vout, pvis)
+    #     vout[i] = apply_jones(pvis[i], i, J, xint)
+    vout .= apply_jones.(pvis, eachindex(pvis), Ref(J), Ref(xint))
+    # end
     # vout = intout(parent(vis))
     return vout
 end
@@ -241,7 +246,7 @@ end
     return vout
 end
 
-Enzyme.EnzymeRules.inactive(::typeof(Base.Ref), ::ObservedInstrumentModel) = nothing
+# Enzyme.EnzymeRules.inactive(::typeof(Base.Ref), ::ObservedInstrumentModel) = nothing
 
 # @inline function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
 #     # @inbounds for i in eachindex(vout, vis)
@@ -251,6 +256,14 @@ Enzyme.EnzymeRules.inactive(::typeof(Base.Ref), ::ObservedInstrumentModel) = not
 #     vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(xint))
 #     return nothing
 # end
+
+@inline function apply_jones(v, index::Int, J::ObservedInstrumentModel, x)
+    j1 = build_jones(index, J, x, Val(1))
+    j2 = build_jones(index, J, x, Val(2))
+    vout =  _apply_jones(v, j1, j2, refbasis(J))
+    return vout
+end
+
 
 @inline get_indices(bsitemaps, index, ::Val{1}) = map(x->getindex(x.indices_1, index), bsitemaps)
 @inline get_indices(bsitemaps, index, ::Val{2}) = map(x->getindex(x.indices_2, index), bsitemaps)
@@ -268,12 +281,6 @@ Enzyme.EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 end
 
 
-@inline function apply_jones(v, index::Int, J::ObservedInstrumentModel, x)
-    j1 = build_jones(index, J, x, Val(1))
-    j2 = build_jones(index, J, x, Val(2))
-    vout =  _apply_jones(v, j1, j2, refbasis(J))
-    return vout
-end
 
 
 @inline _apply_jones(v::Number, j1, j2, ::B) where {B} = j1*v*conj(j2)
