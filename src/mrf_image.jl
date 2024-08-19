@@ -31,8 +31,11 @@ function _apply_fluctuations(f, mimg::AbstractArray, δ::AbstractArray)
     return mimg.*f.(δ)
 end
 
+_checknorm(m::AbstractArray) = isapprox(sum(m), 1, atol=1e-6)
+Enzyme.EnzymeRules.inactive(::typeof(_checknorm), args...) = nothing
+
 function _apply_fluctuations(t::VLBIImagePriors.LogRatioTransform, mimg::AbstractArray, δ::AbstractArray)
-    @argcheck isapprox(sum(parent(mimg)), 1, atol=1e-6) "Mean image must have unit flux when using log-ratio transformations in apply_fluctuations"
+    @argcheck _checknorm(mimg) "Mean image must have unit flux when using log-ratio transformations in apply_fluctuations"
     r = to_simplex(t, δ)
     r .= r.*parent(mimg)
     r .= r./sum(r)

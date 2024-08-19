@@ -1,4 +1,4 @@
-struct ArrayPrior{D, A, R, C<:Union{NTuple{2, Symbol}, Nothing}}
+struct ArrayPrior{D, A, R, C}
     default_dist::D
     override_dist::A
     refant::R
@@ -30,8 +30,12 @@ means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM
 zero and unit std. dev. Finally the refant is using the [`SEFDReference`](@ref) scheme.
 """
 function ArrayPrior(dist; refant=NoReference(), phase=false, centroid_station=nothing, kwargs...)
+    if centroid_station isa Tuple{<:Symbol, <:Symbol}
+        centroid_station = NamedTuple{centroid_station}((0.0, 0.0))
+    end
     return ArrayPrior(dist, kwargs, refant, phase, centroid_station)
 end
+
 
 function site_priors(d::ArrayPrior, array)
     return site_tuple(array, d.default_dist; d.override_dist...)
@@ -183,13 +187,14 @@ function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroi
     # fs = smap.frequencies
     fixedinds, vals = reference_indices(array, smap, refants)
 
-
     if !(centroid_station isa Nothing)
-        centroid1 = findfirst(==(centroid_station[1]), ss)
-        centroid2 = findfirst(==(centroid_station[2]), ss)
+        centstat = keys(centroid_station)
+        vals = values(centroid_station)
+        centroid1 = findfirst(==(centstat[1]), ss)
+        centroid2 = findfirst(==(centstat[2]), ss)
         centroid === nothing && throw(ArgumentError("Centroid station not found in site list"))
         append!(fixedinds, [centroid1, centroid2])
-        vals = append!(collect(vals), fill(0.0, 2))
+        vals = append!(collect(vals), [vals[1], vals[2]])
     end
 
     variateinds = setdiff(eachindex(ts), fixedinds)

@@ -87,6 +87,11 @@ function combine_prior(skymodel, ::Tuple{})
     return NamedDist((sky=skymodel,))
 end
 
+function combine_prior(skymodel::NamedDist{()}, intmodel::Tuple{})
+    return NamedDist()
+end
+
+
 function combine_prior(skymodel, ::NamedDist{()})
     return NamedDist((sky=skymodel,))
 end
