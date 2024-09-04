@@ -208,21 +208,28 @@ function _construct_baselinemap(T, F, bl, x::SiteArray)
 end
 
 
-intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
-intout(vis::AbstractArray{T}) where {T<:Real} = similar(vis, Complex{T})
-intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
+@inline intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
+@inline intout(vis::AbstractArray{T}) where {T<:Real} = similar(vis, Complex{T})
+@inline intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
 
-intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
-intout(vis::AbstractArray{T}) where {T<:Complex} = similar(vis, T)
-intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
+@inline intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
+@inline intout(vis::AbstractArray{T}) where {T<:Complex} = similar(vis, T)
+@inline intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
 
 intout(vis::StructArray{<:StokesParams{T}}) where {T<:Complex} = StructArray{SMatrix{2,2, T, 4}}((vis.I, vis.Q, vis.U, vis.V))
 
 @inline function apply_instrument(vis, J::ObservedInstrumentModel, x)
     vout = intout(parent(vis))
-    xint = x.instrument
-    vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(xint))
-    # vout = intout(parent(vis))
+    # Grab parent arrary so that type inference works better for Enzyme Reverse pass
+    xint = map(parent, x.instrument)
+    for i in eachindex(vis, vout)
+        vout[i] = @inline apply_jones(vis[i], i, J, xint)
+    end
+    # TODO this randomly segfaults when hitting the GC if we figure out why
+    # we will revert to broadcast so it works on the GPU
+    # RJ = Ref(J)
+    # Rx = Ref(xint)
+    # vout .= apply_jones.(vis, eachindex(vis), RJ, Rx)
     return vout
 end
 
@@ -234,6 +241,8 @@ end
 #     # vout = apply_jones.(vis, eachindex(vis), Ref(J), Ref(x.instrument))
 #     return UnstructuredMap(StructArray(vout), axisdims(vis))
 # end
+
+Enzyme.EnzymeRules.inactive_type(::Type{<:ObservedInstrumentModel}) = true
 
 
 @inline function apply_instrument(vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
@@ -263,15 +272,20 @@ end
 Enzyme.EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 
 @inline function build_jones(index::Int, J::ObservedInstrumentModel, x, ::Val{N}) where N
-    indices = get_indices(sitelookup(J), index, Val(N))
-    params = get_params(x, indices)
-    return jonesmatrix(instrument(J), params, index, Val(N))
 end
 
 
-@inline function apply_jones(v, index::Int, J::ObservedInstrumentModel, x)
-    j1 = build_jones(index, J, x, Val(1))
-    j2 = build_jones(index, J, x, Val(2))
+@inline function apply_jones(v, index::Int, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
+    # First lhs station
+    indices1 = map(x->getindex(x.indices_1, index), sitelookup(J))#get_indices(sitelookup(J), index, Val(N))
+    params1 = NamedTuple{N}(map(getindex, values(x), values(indices1)))
+    j1 = jonesmatrix(instrument(J), params1, index, Val(1))
+
+    # Second RHS station
+    indices2 = map(x->getindex(x.indices_2, index), sitelookup(J))#get_indices(sitelookup(J), index, Val(N))
+    params2 = NamedTuple{N}(map(getindex, values(x), values(indices2)))
+    j2 = jonesmatrix(instrument(J), params2, index, Val(2))
+
     vout =  _apply_jones(v, j1, j2, refbasis(J))
     return vout
 end

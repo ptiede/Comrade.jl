@@ -32,7 +32,7 @@ end
 TV.dimension(m::AbstractInstrumentTransform) = TV.dimension(inner_transform(m))
 
 
-function _instrument_transform_with(flag::TV.LogJacFlag, m::InstrumentTransform, x, index)
+@inline function _instrument_transform_with(flag::TV.LogJacFlag, m::InstrumentTransform, x, index)
     itrf = inner_transform(m)
     return TV.transform_with(flag, itrf, x, index)
 end

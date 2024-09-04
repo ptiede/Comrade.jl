@@ -66,13 +66,13 @@ end
 # (project::ProjectTo{SiteArray})(s::Tangent) = SiteArray(s.data, project.times, project.frequencies, project.sites)
 
 
-# Enzyme.EnzymeRules.inactive(::typeof(times), ::SiteArray) = nothing
-# Enzyme.EnzymeRules.inactive(::typeof(frequencies), ::SiteArray) = nothing
-# Enzyme.EnzymeRules.inactive(::typeof(sites), ::SiteArray) = nothing
+Enzyme.EnzymeRules.inactive(::typeof(times), ::SiteArray) = nothing
+Enzyme.EnzymeRules.inactive(::typeof(frequencies), ::SiteArray) = nothing
+Enzyme.EnzymeRules.inactive(::typeof(sites), ::SiteArray) = nothing
 
-ntzero(x::NamedTuple) = map(ntzero, x)
-ntzero(x::Tuple) = map(ntzero, x)
-ntzero(x) = zero(x)
+# ntzero(x::NamedTuple) = map(ntzero, x)
+# ntzero(x::Tuple) = map(ntzero, x)
+# ntzero(x) = zero(x)
 
 
 function Base.similar(m::SiteArray, ::Type{S}) where {S}
