@@ -64,7 +64,12 @@ function timestamps(::IntegSeg, array)
     mjd    = array.mjd
 
     # TODO build in the dt into the data format
-    dt = minimum(diff(ts))
+    if length(ts) <= 1
+        # arbritrarily set the dt to 1
+        dt = 1/3600
+    else
+        dt = minimum(diff(ts))
+    end
     return IntegrationTime.(mjd, ts, dt)
 end
 
@@ -74,7 +79,9 @@ function timestamps(::TrackSeg, array)
 
     tstart, tend = extrema(array[:Ti])
     dt = tend - tstart
-
+    if iszero(dt)
+        dt = 1/3600
+    end
     # TODO build in the dt into the data format
     return (IntegrationTime(mjd, (tend-tstart)/2 + tstart, dt),)
 end
