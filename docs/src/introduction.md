@@ -32,10 +32,6 @@ the image and instrumental effects like gain ratios and leakage terms in [Polari
 
 This repository has recently moved to [ColPrac](https://github.com/SciML/ColPrac). If you would like to contribute please feel free to open a issue or pull-request.
 
-
-```@meta
-
 ## Requirements
 
-The minimum Julia version we require is 1.9. In the future we may increase this as Julia advances.
-```
+The minimum Julia version we require is 1.10.
