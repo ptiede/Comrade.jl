@@ -125,7 +125,7 @@ using FiniteDifferences
     tpost = asflat(post)
 
     x = prior_sample(tpost)
-    gz, = Enzyme.gradient(Enzyme.Reverse, Const(tpost), x)
+    gz = Enzyme.gradient(Enzyme.Reverse, Const(tpost), x)
     mfd = central_fdm(5,1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
@@ -141,7 +141,7 @@ using FiniteDifferences
     tpost = asflat(post)
     x = prior_sample(tpost)
     residual(post, Comrade.transform(tpost, x))
-    gz, = Enzyme.gradient(Enzyme.Reverse, Const(tpost), x)
+    gz = Enzyme.gradient(Enzyme.Reverse, Const(tpost), x)
     mfd = central_fdm(5,1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
