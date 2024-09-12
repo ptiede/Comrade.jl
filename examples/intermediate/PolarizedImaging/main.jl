@@ -187,23 +187,13 @@ grid = imagepixels(fovx, fovy, nx, ny)
 skymeta = (;ftot=1.0, grid)
 
 
-# For our image prior we will use a simpler prior than
-#   - We use again use a GMRF prior. For more information see the [Imaging a Black Hole using only Closure Quantities](@ref) tutorial.
-#   - For the total polarization fraction, `p`, we assume an uncorrelated uniform prior `ImageUniform` for each pixel.
-#   - To specify the orientation of the polarization, `angparams`, on the Poincare sphere,
-#     we use a uniform spherical distribution, `ImageSphericalUniform`.
-#-
-rat = beamsize(dvis)/step(grid.X)
-cmarkov = ConditionalMarkov(GMRF, grid; order=1)
-dρ = truncated(InverseGamma(1.0, -log(0.1)*rat); lower=2.0, upper=max(nx, ny))
-cprior = HierarchicalPrior(cmarkov, dρ)
-
-
-# For all the calibration parameters, we use a helper function `CalPrior` which builds the
-# prior given the named tuple of station priors and a `JonesCache`
-# that specifies the segmentation scheme. For the gain products, we use the `scancache`, while
-# for every other quantity, we use the `trackcache`.
-fwhmfac = 2.0*sqrt(2.0*log(2.0))
+# We use again use a GMRF prior similar to the [Imaging a Black Hole using only Closure Quantities](@ref) tutorial
+# for the log-ratio transformed image. We use the same correlated image prior for the inverse-logit transformed 
+# total polarization. The mean total polarization fraction `p0` is centered at -2.0 with a standard deviation of 2.0
+# which logit transformed puts most of the prior mass < 0.8 fractional polarization. The standard deviation of the
+# total polarization fraction `pσ` again uses a Half-normal process. The angular parameters of the polarizaton are 
+# given by a uniform prior on the sphere.
+cprior = corr_image_prior(grid, dvis)
 skyprior = (
     c = cprior,
     σ  = truncated(Normal(0.0, 0.1); lower=0.0),
@@ -239,12 +229,6 @@ function fgain(x)
     return gR, gL
 end
 G = JonesG(fgain)
-# Note that we are using the Julia `do` syntax here to define an anonymous function. This
-# could've also been written as
-# ```julia
-# fgain(x) = (exp(x.lgR + 1im*x.gpR), exp(x.lgR + x.lgrat + 1im*(x.gpR + x.gprat)))
-# G = JonesG(fgain)
-# ```
 
 
 # Similarly we provide a `JonesD` function for the leakage terms. Since we assume that we
@@ -258,7 +242,6 @@ function fdterms(x)
     dL = complex(x.dLx, x.dLy)
     return dR, dL
 end
-
 D = JonesD(fdterms)
 
 # Finally we define our response Jones matrix. This matrix is a basis transform matrix
@@ -273,10 +256,18 @@ R = JonesR(;add_fr=true)
 # so we could've removed the * argument in this case.
 J = JonesSandwich(*, G, D, R)
 
-
+# For the instrument prior, we will use a simple IID prior for the complex gains and d-terms.
+# The `IIDSitePrior` function specifies that each site has the same prior and each value is independent
+# on some time segment. The current time segments are 
+#  - `ScanSeg()` which specifies each scan has an independent value
+#  - `TrackSeg()` which says that the value is constant over the track.
+#  - `IntegSeg()` which says that the value changes each integration time
+# For the released EHT data, the calibration procedure makes gains stable over each scan
+# so we use `ScanSeg` for those quantities. The d-terms are typically stable over the track
+# so we use `TrackSeg` for those.
 intprior = (
     lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-    gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π  ^2))); refant=SEFDReference(0.0), phase=false),
+    gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π  ^2))); refant=SEFDReference(0.0)),
     lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
     gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)); refant = SingleReference(:AA, 0.0)),
     dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
@@ -285,6 +276,8 @@ intprior = (
     dLy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
 )
 
+# Finally, we can build our instrument model which takes a model for the Jones matrix `J`
+# and priors for each term in the Jones matrix.
 intmodel = InstrumentModel(J, intprior)
 
 
@@ -305,18 +298,6 @@ tpost = asflat(post)
 #     angular variables, where we often artificially increase the dimension
 #     of the parameter space to make sampling easier.
 #-
-
-ndim = dimension(tpost)
-
-using Enzyme
-Enzyme.API.runtimeActivity!(true)
-x = prior_sample(rng, tpost)
-dx = zero(x)
-autodiff(Enzyme.Reverse, logdensityof, Active, Const(tpost), Duplicated(x, dx))
-
-using BenchmarkTools
-@benchmark autodiff($Enzyme.Reverse, $logdensityof,$Active, $(Const(tpost)), Duplicated($x, fill!($dx, 0)))
-
 
 # Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
 # due to the higher dimension of the space. In addition the only AD package that can currently

@@ -93,7 +93,7 @@ grid = imagepixels(fovx, fovy, npix, npix)
 using VLBIImagePriors
 using Distributions, DistributionsAD
 fwhmfac = 2*sqrt(2*log(2))
-mpr  = modify(Gaussian(), Stretch(μas2rad(200.0)./fwhmfac))
+mpr  = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
 mimg = intensitymap(mpr, grid)
 
 
@@ -104,50 +104,24 @@ mimg = intensitymap(mpr, grid)
 skymeta = (;ftot = 1.1, mimg = mimg./flux(mimg))
 
 
-
-# In addition we want a reasonable guess for what the resolution of our image should be.
-# For radio astronomy this is given by roughly the longest baseline in the image. To put this
-# into pixel space we then divide by the pixel size.
-beam = beamsize(dvis)
-rat = (beam/(step(grid.X)))
-
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
 # that allow us to scale things linearly with the number of image pixels. The returns a
 # functional that accepts a single argument related to the correlation length of the field.
 # The second argument defines the underlying random field of the Markov process. Here
-# we are using a zero mean and unit variance Gaussian Markov random field. The keyword
-# argument specifies the order of the Gaussian field. Currently, we recommend using order
-#  - 1 which is identical to TSV variation and L₂ regularization
-#  - 2 which is identical to a Matern 1 process in 2D and is really the convolution of two
-#    order 1 processes
+# we are using a zero mean and unit variance Gaussian Markov random field. 
 # For this tutorial we will use the first order random field
-crcache = ConditionalMarkov(GMRF, grid; order=1)
-
-# To demonstrate the prior let create a few random realizations
+cprior = corr_image_prior(grid, dlcamp)
 
 
-
-# Now we can finally form our image prior. For this we use a heirarchical prior where the
-# inverse correlation length is given by a Half-Normal distribution whose peak is at zero and
-# standard deviation is `0.1/rat` where recall `rat` is the beam size per pixel.
-# For the variance of the random field we use another
-# half normal prior with standard deviation 0.1. The reason we use the half-normal priors is
-# to prefer "simple" structures. Gaussian Markov random fields are extremly flexible models,
-# and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
-# want to use priors that enforce similarity to our mean image. If the data wants more complexity
-# then it will drive us away from the prior.
-cprior = HierarchicalPrior(crcache, truncated(InverseGamma(1.0, -log(0.01)*rat); lower=1.0, upper=2*npix))
-
-
-# We can now form our model parameter priors. Like our other imaging examples, we use a
-# Dirichlet prior for our image pixels. For the log gain amplitudes, we use the `CalPrior`
-# which automatically constructs the prior for the given jones cache `gcache`.
+# Putting everything together the total prior is then our image prior, a prior on the
+# standard deviation of the MRF, and a prior on the fractional flux of the Gaussian component.
 prior = (
          c = cprior,
+         σimg = Exponential(0.1),
          fg = Uniform(0.0, 1.0),
-         σimg = truncated(Normal(0.0, 0.5), lower=0.0),
         )
 
+# Now we can construct our sky model.
 skym = SkyModel(sky, prior, grid; metadata=skymeta)
 
 # Unlike other imaging examples

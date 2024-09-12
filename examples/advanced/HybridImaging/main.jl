@@ -123,29 +123,30 @@ g      = imagepixels(fovxy, fovxy, npix, npix)
 
 # Part of hybrid imaging is to force a scale separation between
 # the different model components to make them identifiable.
-# To enforce this we will set the
-# length scale of the raster component equal to the beam size of the telescope in units of
-# pixel length, which is given by
+# To enforce this we will set the raster component to have a 
+# correlation length of 5 times the beam size.
 beam = beamsize(dvis)
 rat = (beam/(step(g.X)))
-cprior = GaussMarkovRandomField(rat, size(g); order=2)
-
-# additionlly we will fix the standard deviation of the field to unity and instead
-# use a pseudo non-centered parameterization for the field.
-# GaussMarkovRandomField(meanpr, 0.1*rat, 1.0, crcache)
+cprior = GaussMarkovRandomField(5*rat, size(g))
 
 
-# Finally we can put form the total model prior
+# For the other parameters we use a uniform priors for the ring fractional flux `f`
+# ring radius `r`, ring width `σ`, and the flux fraction of the Gaussian component `fg`
+# and the amplitude for the ring brightness modes. For the angular variables `ξτ` and `ξ`
+# we use the von Mises prior with concentration parameter `inv(π^2)` which is essentially
+# a uniform prior on the circle. Finally for the standard deviation of the MRF we use a
+# half-normal distribution. This is to ensure that the MRF has small differences from the 
+# mean image.
 skyprior = (
           c  = cprior,
-          σimg = truncated(Normal(0.0, 1.0); lower=0.01),
+          σimg = truncated(Normal(0.0, 0.1); lower=0.01),
           f  = Uniform(0.0, 1.0),
           r  = Uniform(μas2rad(10.0), μas2rad(30.0)),
           σ  = Uniform(μas2rad(0.1), μas2rad(10.0)),
           τ  = truncated(Normal(0.0, 0.1); lower=0.0, upper=1.0),
-          ξτ = Uniform(-π/2, π/2),
+          ξτ = DiagonalVonMises(0.0, inv(π^2)),
           ma = ntuple(_->Uniform(0.0, 0.5), 2),
-          mp = ntuple(_->Uniform(0.0, 2π), 2),
+          mp = ntuple(_->DiagonalVonMises(0.0, inv(π^2)), 2),
           fg = Uniform(0.0, 1.0),
         )
 
