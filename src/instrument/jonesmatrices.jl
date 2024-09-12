@@ -211,3 +211,22 @@ function preallocate_jones(J::JonesSandwich, array::AbstractArrayConfiguration, 
     m2 = map(x->preallocate_jones(x, array, refbasis), J.matrices)
     return JonesSandwich(J.jones_map, m2)
 end
+
+
+function forward_jones(v::AbstractJonesMatrix, xs::NamedTuple{N}) where {N}
+    sm = broadest_sitemap(xs)
+    bl = map(x->(x,x), sm.sites)
+    bmaps = map(x->_construct_baselinemap(getproperty.(sm.times, :t0), sm.frequencies, bl, x).indices_1, xs)
+    vs = map(eachindex(sm.times)) do index
+        indices = map(x->getindex(x, index), bmaps)
+        params = NamedTuple{N}(map(getindex, values(xs), values(indices)))
+        return jonesmatrix(v, params, indices, index)
+    end
+    return SiteArray(StructArray(vs), sm)
+end
+
+function broadest_sitemap(xs::NamedTuple)
+    v = values(xs)
+    return SiteLookup(argmax(x->length(x.times), v))
+end
+
