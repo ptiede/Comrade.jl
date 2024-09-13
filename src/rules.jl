@@ -37,6 +37,7 @@
 ## Temporary rule for sparse matmuls. Will be removed once Enzyme merges https://github.com/EnzymeAD/Enzyme.jl/pull/1792
 using SparseArrays: SparseMatrixCSCUnion
 using LinearAlgebra
+using EnzymeCore: Annotation
 
 function EnzymeRules.augmented_primal(config::EnzymeRules.ConfigWidth, 
                                       func::Const{typeof(LinearAlgebra.mul!)},

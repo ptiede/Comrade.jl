@@ -32,7 +32,7 @@ end
 end
 
 @noinline _checknorm(m::AbstractArray) = isapprox(sum(m), 1, atol=1e-6)
-Enzyme.EnzymeRules.inactive(::typeof(_checknorm), args...) = nothing
+EnzymeRules.inactive(::typeof(_checknorm), args...) = nothing
 
 function _fastsum(x)
     tot = zero(eltype(x))
