@@ -90,7 +90,7 @@ function corr_image_prior(grid::AbstractRectiGrid, corr_length::Real;
                         )
     rat = corr_length/step(grid.X)
     cmarkov = ConditionalMarkov(base, grid; order=order)
-    dρ = truncated(InverseGamma(1.0, -log(frac_below_beam)*rat); lower, upper)
+    dρ = Dists.truncated(Dists.InverseGamma(1.0, -log(frac_below_beam)*rat); lower, upper)
     cprior = HierarchicalPrior(cmarkov, dρ)
     return cprior
 end
