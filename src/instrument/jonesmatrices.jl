@@ -212,7 +212,16 @@ function preallocate_jones(J::JonesSandwich, array::AbstractArrayConfiguration, 
     return JonesSandwich(J.jones_map, m2)
 end
 
+"""
+    forward_jones(J::AbstractJonesMatrix, xs::NamedTuple{N})
 
+Construct the forward model for the jones matrix model `J` with the parameters `xs`.
+    
+The `xs` is a named tuple where the keys are the parameter names and the values are SiteArrays with
+the parameter values. The return value is a `SiteArray` whose dimension is the largest of the elements
+of `xs, and whose elements are the jones matrices for the specific parameters.
+
+"""
 function forward_jones(v::AbstractJonesMatrix, xs::NamedTuple{N}) where {N}
     sm = broadest_sitemap(xs)
     bl = map(x->(x,x), sm.sites)

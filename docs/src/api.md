@@ -114,6 +114,7 @@ Comrade.IdealInstrumentModel
 Comrade.InstrumentModel
 Comrade.SiteArray
 Comrade.SiteLookup
+Comrade.forward_jones
 ```
 
 

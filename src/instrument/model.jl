@@ -66,9 +66,9 @@ end
 sitelookup(x::ObservedInstrumentModel) = x.bsitelookup
 instrument(x::ObservedInstrumentModel) = x.instrument
 refbasis(x::ObservedInstrumentModel) = x.refbasis
-Enzyme.EnzymeRules.inactive(::typeof(sitelookup), args...) = nothing
-Enzyme.EnzymeRules.inactive(::typeof(instrument), args...) = nothing
-Enzyme.EnzymeRules.inactive(::typeof(refbasis), args...) = nothing
+EnzymeRules.inactive(::typeof(sitelookup), args...) = nothing
+EnzymeRules.inactive(::typeof(instrument), args...) = nothing
+EnzymeRules.inactive(::typeof(refbasis), args...) = nothing
 
 function Base.show(io::IO, mime::MIME"text/plain", m::ObservedInstrumentModel)
     printstyled(io, "ObservedInstrumentModel"; bold=true, color=:light_cyan)
@@ -242,7 +242,7 @@ end
 #     return UnstructuredMap(StructArray(vout), axisdims(vis))
 # end
 
-Enzyme.EnzymeRules.inactive_type(::Type{<:ObservedInstrumentModel}) = true
+EnzymeRules.inactive_type(::Type{<:ObservedInstrumentModel}) = true
 
 
 @inline function apply_instrument(vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
@@ -251,7 +251,7 @@ Enzyme.EnzymeRules.inactive_type(::Type{<:ObservedInstrumentModel}) = true
     return vout
 end
 
-# Enzyme.EnzymeRules.inactive(::typeof(Base.Ref), ::ObservedInstrumentModel) = nothing
+# EnzymeRules.inactive(::typeof(Base.Ref), ::ObservedInstrumentModel) = nothing
 
 # @inline function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
 #     # @inbounds for i in eachindex(vout, vis)
@@ -269,7 +269,7 @@ end
 
 # We need this because Enzyme seems to crash when generating code for this
 # TODO try to find MWE and post to Enzyme.jl
-Enzyme.EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
+EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 
 @inline function build_jones(index::Int, J::ObservedInstrumentModel, x, ::Val{N}) where N
 end

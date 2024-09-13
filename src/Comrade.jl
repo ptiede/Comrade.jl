@@ -11,8 +11,8 @@ using DensityInterface
 import Distributions as Dists
 using DocStringExtensions
 using ChainRulesCore
-using Enzyme
-# Enzyme.API.runtimeActivity!(true)
+using EnzymeCore
+using EnzymeCore: EnzymeRules
 using FillArrays: Fill
 using ForwardDiff
 using IntervalSets
@@ -73,7 +73,5 @@ include("visualizations/visualizations.jl")
 include("dirty_image.jl")
 include("mrf_image.jl")
 include("rules.jl")
-
-
 
 end

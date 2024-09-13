@@ -66,9 +66,9 @@ end
 # (project::ProjectTo{SiteArray})(s::Tangent) = SiteArray(s.data, project.times, project.frequencies, project.sites)
 
 
-Enzyme.EnzymeRules.inactive(::typeof(times), ::SiteArray) = nothing
-Enzyme.EnzymeRules.inactive(::typeof(frequencies), ::SiteArray) = nothing
-Enzyme.EnzymeRules.inactive(::typeof(sites), ::SiteArray) = nothing
+EnzymeRules.inactive(::typeof(times), ::SiteArray) = nothing
+EnzymeRules.inactive(::typeof(frequencies), ::SiteArray) = nothing
+EnzymeRules.inactive(::typeof(sites), ::SiteArray) = nothing
 
 # ntzero(x::NamedTuple) = map(ntzero, x)
 # ntzero(x::Tuple) = map(ntzero, x)

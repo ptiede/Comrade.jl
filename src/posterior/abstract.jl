@@ -50,7 +50,7 @@ Returns the instrument model of the posterior `d`.
 """
 instrumentmodel(d::AbstractVLBIPosterior) = getfield(d, :instrumentmodel)
 HypercubeTransform.dimension(d::AbstractVLBIPosterior) = length(d.prior)
-Enzyme.EnzymeRules.inactive(::typeof(instrumentmodel), args...) = nothing
+EnzymeRules.inactive(::typeof(instrumentmodel), args...) = nothing
 
 @noinline logprior_ref(d, x) = logprior(d, x[])
 

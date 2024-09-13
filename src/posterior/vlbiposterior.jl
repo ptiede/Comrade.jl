@@ -58,10 +58,6 @@ function VLBIPosterior(
         dataproducts::EHTObservationTable...;
         )
 
-    # This is needed because the prior is causing runtimeActivity
-    # warnings in Enzyme
-    Enzyme.API.runtimeActivity!(true)
-
 
     array = arrayconfig(dataproducts[begin])
     int, intprior = set_array(instrumentmodel, array)
