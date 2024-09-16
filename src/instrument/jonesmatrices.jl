@@ -1,5 +1,5 @@
 export SingleStokesGain, JonesG, JonesD, JonesF, JonesR, GenericJones,
-       JonesSandwich
+       JonesSandwich, forward_jones
 
 abstract type AbstractJonesMatrix end
 @inline jonesmatrix(mat::AbstractJonesMatrix, params, visindex, site) = construct_jones(mat, param_map(mat, params), visindex, site)

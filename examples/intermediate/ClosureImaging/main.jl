@@ -102,7 +102,7 @@ grid = imagepixels(fovxy, fovxy, npix, npix)
 
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
 # Random field prior
-using VLBIImagePriors, Distributions, DistributionsAD
+using VLBIImagePriors, Distributions
 
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 50 μas
@@ -145,7 +145,8 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 using Optimization
 using OptimizationOptimJL
 using Enzyme
-xopt, sol = comrade_opt(post, LBFGS(), AutoEnzyme(;mode=Enzyme.Reverse); maxiters=1000)
+xopt, sol = comrade_opt(post, LBFGS(), AutoEnzyme(;mode=Enzyme.Reverse); 
+                        maxiters=1000, initial_params=prior_sample(rng, post))
 
 
 # First we will evaluate our fit by plotting the residuals
@@ -176,7 +177,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 #     For our `metric` we use a diagonal matrix due to easier tuning.
 #-
 using AdvancedHMC
-chain = sample(post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=true, initial_params=xopt);
 
 
 # !!! warning

@@ -110,7 +110,7 @@ rng = StableRNG(42)
 
 # Now we will load some synthetic polarized data.
 obs = Pyehtim.load_uvfits_and_array(
-        joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits"),
+        joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_withgains_withdterms_withfr.uvfits"),
         joinpath(__DIR, "..", "..", "Data", "array.txt"), polrep="circ")
 
 
@@ -150,14 +150,13 @@ dvis = extract_table(obs, Coherencies())
 using StatsFuns: logistic
 function sky(θ, metadata)
     (;c, σ, p, p0, pσ, angparams) = θ
-    (;ftot, grid) = metadata
+    (;mimg) = metadata
     ## Build the stokes I model
-    rast = to_simplex(CenteredLR(), c.params*σ)
-    rast .= ftot.*rast
+    rast = apply_fluctuations(CenteredLR(), mimg, σ.*c.params)
     ## The total polarization fraction is modeled in logit space so we transform it back
     pim = logistic.(p0 .+ pσ.*p.params)
     ## Build our IntensityMap
-    pmap = PoincareSphere2Map(rast, pim, angparams, grid)
+    pmap = PoincareSphere2Map(rast, pim, angparams)
     ## Construct the actual image model which uses a third order B-spline pulse
     m = ContinuousImage(pmap, BSplinePulse{3}())
     ## Finally find the image centroid and shift it to be at the center
@@ -174,17 +173,21 @@ end
 # Now, we define the model metadata required to build the model.
 # We specify our image grid and cache model needed to define the polarimetric
 # image model. Our image will be a 10x10 raster with a 60μas FOV.
-using Distributions, DistributionsAD
+using Distributions
 using VLBIImagePriors
-fovx = μas2rad(60.0)
-fovy = μas2rad(60.0)
-nx = ny = 10
+fovx = μas2rad(80.0)
+fovy = μas2rad(80.0)
+nx = ny = 16
 grid = imagepixels(fovx, fovy, nx, ny)
+
+fwhmfac = 2*sqrt(2*log(2))
+mpr  = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
+mimg = intensitymap(mpr, grid)
 
 # For the image metadata we specify the grid and the total flux of the image, which is 1.0.
 # Note that we specify the total flux out front since it is degenerate with an overall shift
 # in the gain amplitudes.
-skymeta = (;ftot=1.0, grid)
+skymeta = (; mimg=mimg./flux(mimg))
 
 
 # We use again use a GMRF prior similar to the [Imaging a Black Hole using only Closure Quantities](@ref) tutorial
@@ -195,8 +198,9 @@ skymeta = (;ftot=1.0, grid)
 # given by a uniform prior on the sphere.
 cprior = corr_image_prior(grid, dvis)
 skyprior = (
+    # ftot = Uniform(0.1, 2.5),
     c = cprior,
-    σ  = truncated(Normal(0.0, 0.1); lower=0.0),
+    σ  = truncated(Normal(0.0, 0.5); lower=0.0),
     p  = cprior,
     p0 = Normal(-2.0, 2.0),
     pσ =  truncated(Normal(0.0, 1.0); lower=0.01),
@@ -266,10 +270,10 @@ J = JonesSandwich(*, G, D, R)
 # so we use `ScanSeg` for those quantities. The d-terms are typically stable over the track
 # so we use `TrackSeg` for those.
 intprior = (
-    lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-    gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π  ^2))); refant=SEFDReference(0.0)),
-    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-    gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)); refant = SingleReference(:AA, 0.0)),
+    lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2))),
+    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.01))),
+    gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0), phase=false),
+    gprat= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase=false),
     dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dLx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
@@ -280,7 +284,7 @@ intprior = (
 # and priors for each term in the Jones matrix.
 intmodel = InstrumentModel(J, intprior)
 
-
+# intmodel = InstrumentModel(JonesR(;add_fr=true))
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling.
 post = VLBIPosterior(skym, intmodel, dvis)
@@ -305,14 +309,13 @@ tpost = asflat(post)
 using Optimization
 using OptimizationOptimisers
 using Enzyme
-xopt, sol = comrade_opt(post, Optimisers.Adam(), AutoEnzyme(;mode=Enzyme.Reverse); initial_params=prior_sample(rng, post), maxiters=20_000)
+
+# @info Enzyme.API.runtimeActivity()
+
+xopt, sol = comrade_opt(post, Optimisers.Adam(), AutoEnzyme(;mode=Enzyme.Reverse); 
+                        initial_params=prior_sample(rng, post), maxiters=25_000)
 
 
-# !!! warning
-#     Fitting polarized images is generally much harder than Stokes I imaging. This difficulty means that
-#     optimization can take a long time, and starting from a good starting location
-#     is often required.
-#-
 
 # Now let's evaluate our fits by plotting the residuals
 using Plots
@@ -347,36 +350,7 @@ CM.hidedecorations!.(fig.content[1:2])
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
-# Let's compare some image statics, like the total linear polarization fraction
-ftrue = flux(imgtruesub);
-@info "Linear polarization true image: $(abs(linearpol(ftrue))/ftrue.I)"
-frecon = flux(img);
-@info "Linear polarization recon image: $(abs(linearpol(frecon))/frecon.I)"
 
-# And the Circular polarization fraction
-@info "Circular polarization true image: $(ftrue.V/ftrue.I)"
-@info "Circular polarization recon image: $(frecon.V/frecon.I)"
-
-# Because we also fit the instrument model, we can inspect their parameters.
-# To do this, `Comrade` provides a `caltable` function that converts the flattened gain parameters
-# to a tabular format based on the time and its segmentation.
-dR = caltable(complex.(xopt.instrument.dRx, xopt.instrument.dRy))
-
-# We can compare this to the ground truth d-terms
-#
-# |      time |            AA   |           AP   |         AZ   |        JC    |        LM    |       PV     |      SM |
-# |-----------|-----------------|----------------|--------------|--------------|--------------|--------------|---------|
-# | 0.0       | 0.01-0.02im      | -0.08+0.07im  |  0.09-0.10im | -0.04+0.05im |  0.03-0.02im | -0.01+0.02im | 0.08-0.07im |
-#
-
-# And same for the left-handed dterms
-#
-dL = caltable(complex.(xopt.instrument.dLx, xopt.instrument.dLy))
-#
-# |      time |            AA   |           AP   |         AZ   |        JC    |        LM    |       PV     |      SM |
-# |-----------|-----------------|----------------|--------------|--------------|--------------|--------------|---------|
-# | 0.0       | 0.03-0.04im      | -0.06+0.05im  |  0.09-0.08im | -0.06+0.07im |  0.01-0.00im | -0.03+0.04im | 0.06-0.05im |
-#
 
 
 # Looking at the gain phase ratio
@@ -401,6 +375,15 @@ p = Plots.plot(gampr, layout=(3,3), size=(650,500))
 Plots.plot!(p, gamp_ratio, layout=(3,3), size=(650,500))
 p |> DisplayAs.PNG |> DisplayAs.Text
 #-
+
+
+# To sample from the posterior, you can then just use the `sample` function from AdvancedHMC like in the 
+# other imaging examples. For example
+# ```julia
+# using AdvancedHMC
+# chain = sample(rng, post, NUTS(0.8), 10_000; adtype=AutoEnzyme(;mode=Enzyme.Reverse), n_adapts=5000, progress=true, initial_params=xopt)
+# ```
+
 
 # [^1]: Hamaker J.P, Bregman J.D., Sault R.J. (1996) [https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H]
 # [^2]: Pesce D. (2021) [https://ui.adsabs.harvard.edu/abs/2021AJ....161..178P/abstract]

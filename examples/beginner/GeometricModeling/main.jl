@@ -55,7 +55,7 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosureP
 # Comrade expects that any model function must accept a named tuple and returns  must always
 # return an object that implements the [VLBISkyModels Interface](https://ehtjulia.github.io/VLBISkyModels.jl/stable/interface/)
 #-
-function model(θ, p)
+function sky(θ, p)
     (;radius, width, ma, mp, τ, ξτ, f, σG, τG, ξG, xG, yG) = θ
     α = ma.*cos.(mp .- ξτ)
     β = ma.*sin.(mp .- ξτ)
@@ -87,21 +87,26 @@ prior = (
           yG = Uniform(-μas2rad(80.0), μas2rad(80.0))
         )
 
-skym = SkyModel(model, prior, imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128))
-
-
 # Note that for `α` and `β` we use a product distribution to signify that we want to use a
 # multivariate uniform for the mring components `α` and `β`. In general the structure of the
 # variables is specified by the prior. Note that this structure must be compatible with the
 # model definition `model(θ)`.
 
-# To form the posterior we now call
+# We can now construct our Sky model, which typically takes a model, prior and the
+# on sky grid. Note that since our model is analytic the grid is not directly used when
+# computing visibilities.
+skym = SkyModel(sky, prior, imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128))
+
+
+# In this tutorial we will be using closure products as our data. As such we do not need to specify a
+# instrument model, since for stokes I imaging, the likelihood is approximately invariant to the instrument
+# model. 
 post = VLBIPosterior(skym, dlcamp, dcphase)
 
-# !!!warn
-#    As of Comrade 0.9 we have switched to the proper covariant closure likelihood.
-#    This is slower than the naieve diagonal liklelihood, but takes into account the
-#    correlations between closures that share the same baselines.
+# !!! note
+#     When fitting visibilities a instrument is required, and a reader can refer to 
+#     [Stokes I Simultaneous Image and Instrument Modeling](@ref).
+
 
 # This constructs a posterior density that can be evaluated by calling `logdensityof`.
 # For example,
@@ -136,14 +141,15 @@ cpost = ascube(post)
 
 fpost = asflat(post)
 
-# These transformed posterior expect a vector of parameters. That is we can evaluate the
-# transformed log density by calling
+# These transformed posterior expect a vector of parameters. For example, we can draw from the 
+# prior in our usual parameter space
+p = prior_sample(rng, post)
 
-logdensityof(cpost, rand(rng, dimension(cpost)))
-logdensityof(fpost, randn(rng, dimension(fpost)))
+# and then transform it to transformed space using T
+logdensityof(cpost, Comrade.TV.inverse(cpost, p))
+logdensityof(fpost, Comrade.TV.inverse(fpost, p))
 
-# note that `cpost` logdensity vector expects that each element lives in `[0,1]`.
-
+# note that the log densit is not the same since the transformation has causes a jacobian to ensure volume is preserved.
 
 # ### Finding the Optimal Image
 

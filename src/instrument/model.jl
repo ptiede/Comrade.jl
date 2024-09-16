@@ -251,7 +251,7 @@ EnzymeRules.inactive_type(::Type{<:ObservedInstrumentModel}) = true
     return vout
 end
 
-# EnzymeRules.inactive(::typeof(Base.Ref), ::ObservedInstrumentModel) = nothing
+#EnzymeRules.inactive(::typeof(Base.Ref), ::ObservedInstrumentModel) = nothing
 
 # @inline function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
 #     # @inbounds for i in eachindex(vout, vis)
@@ -270,9 +270,6 @@ end
 # We need this because Enzyme seems to crash when generating code for this
 # TODO try to find MWE and post to Enzyme.jl
 EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
-
-@inline function build_jones(index::Int, J::ObservedInstrumentModel, x, ::Val{N}) where N
-end
 
 
 @inline function apply_jones(v, index::Int, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}

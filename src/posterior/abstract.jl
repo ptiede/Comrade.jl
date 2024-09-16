@@ -140,6 +140,19 @@ function skymodel(post::AbstractVLBIPosterior, θ)
     return skymodel(post.skymodel, θ.sky)
 end
 
+"""
+    instrumentmodel(post::AbstractVLBIPosterior, θ)
+
+Returns the instrument model of a posterior using the parameter values `θ`.
+The output will be a `SiteArray` of the Jones matrices for each site, time, and frequency.
+"""
+function instrumentmodel(post::AbstractVLBIPosterior, θ)
+    J = instrumentmodel(post)
+    return forward_jones(J.instrument, θ.instrument)
+end
+
+
+
 
 """
     dataproducts(d::AbstractVLBIPosterior)

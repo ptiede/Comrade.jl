@@ -9,7 +9,7 @@ using HypercubeTransform
 
 
 function Optimization.OptimizationFunction(post::Comrade.TransformedVLBIPosterior, args...; kwargs...)
-    ℓ(x,p) = -logdensityof(post, x)
+    ℓ(x,p) = -logdensityof(p, x)
     return SciMLBase.OptimizationFunction(ℓ, args...; kwargs...)
 end
 
@@ -80,7 +80,7 @@ function Comrade.comrade_opt(post::VLBIPosterior, opt, adtype=nothing, args...; 
         ub = fill(0.9999, dimension(tpost))
     end
 
-    prob = OptimizationProblem(f, initial_params, nothing; lb, ub)
+    prob = OptimizationProblem(f, initial_params, tpost; lb, ub)
     sol = solve(prob, opt, args...; kwargs...)
     return transform(tpost, sol), sol
 end

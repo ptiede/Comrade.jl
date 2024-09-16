@@ -29,11 +29,11 @@ p = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0, 0.1)); LM = IIDSitePrior(ScanSe
 means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM which is mean
 zero and unit std. dev. Finally the refant is using the [`SEFDReference`](@ref) scheme.
 """
-function ArrayPrior(dist; refant=NoReference(), phase=false, centroid_station=nothing, kwargs...)
-    if centroid_station isa Tuple{<:Symbol, <:Symbol}
-        centroid_station = NamedTuple{centroid_station}((0.0, 0.0))
-    end
-    return ArrayPrior(dist, kwargs, refant, phase, centroid_station)
+function ArrayPrior(dist; refant=NoReference(), phase=false, kwargs...)
+    # if centroid_station isa Tuple{<:Symbol, <:Symbol}
+    #     centroid_station = NamedTuple{centroid_station}((0.0, 0.0))
+    # end
+    return ArrayPrior(dist, kwargs, refant, phase, nothing)
 end
 
 
