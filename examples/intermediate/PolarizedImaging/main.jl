@@ -109,8 +109,11 @@ rng = StableRNG(42)
 
 
 # Now we will load some synthetic polarized data.
+fname = Base.download("https://de.cyverse.org/anon-files/iplant/home/shared/commons_repo/curated/EHTC_M87pol2017_Nov2023/hops_data/April11/SR2_M87_2017_101_lo_hops_ALMArot.uvfits",
+                      joinpath(__DIR, "m87polarized.uvfits")
+                    )
 obs = Pyehtim.load_uvfits_and_array(
-        joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_withgains_withdterms_withfr.uvfits"),
+        fname,
         joinpath(__DIR, "..", "..", "Data", "array.txt"), polrep="circ")
 
 
@@ -119,7 +122,7 @@ obs = Pyehtim.load_uvfits_and_array(
 # of the array.
 
 # Now we scan average the data since the data to boost the SNR and reduce the total data volume.
-obs = scan_average(obs)
+obs = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
 #-
 # Now we extract our observed/corrupted coherency matrices.
 dvis = extract_table(obs, Coherencies())
@@ -150,9 +153,11 @@ dvis = extract_table(obs, Coherencies())
 using StatsFuns: logistic
 function sky(θ, metadata)
     (;c, σ, p, p0, pσ, angparams) = θ
-    (;mimg) = metadata
+    (;mimg, ftot) = metadata
     ## Build the stokes I model
     rast = apply_fluctuations(CenteredLR(), mimg, σ.*c.params)
+    brast = baseimage(rast)
+    brast .= ftot.*brast
     ## The total polarization fraction is modeled in logit space so we transform it back
     pim = logistic.(p0 .+ pσ.*p.params)
     ## Build our IntensityMap
@@ -175,9 +180,9 @@ end
 # image model. Our image will be a 10x10 raster with a 60μas FOV.
 using Distributions
 using VLBIImagePriors
-fovx = μas2rad(80.0)
-fovy = μas2rad(80.0)
-nx = ny = 16
+fovx = μas2rad(150.0)
+fovy = μas2rad(150.0)
+nx = ny = 32
 grid = imagepixels(fovx, fovy, nx, ny)
 
 fwhmfac = 2*sqrt(2*log(2))
@@ -187,7 +192,7 @@ mimg = intensitymap(mpr, grid)
 # For the image metadata we specify the grid and the total flux of the image, which is 1.0.
 # Note that we specify the total flux out front since it is degenerate with an overall shift
 # in the gain amplitudes.
-skymeta = (; mimg=mimg./flux(mimg))
+skymeta = (; mimg=mimg./flux(mimg), ftot=0.6)
 
 
 # We use again use a GMRF prior similar to the [Imaging a Black Hole using only Closure Quantities](@ref) tutorial
@@ -258,7 +263,8 @@ R = JonesR(;add_fr=true)
 # we are completely standard so we just need to multiply the different jones matrices.
 # Note that if no function is provided, the default is to multiply the Jones matrices,
 # so we could've removed the * argument in this case.
-J = JonesSandwich(*, G, D, R)
+js(g,d,r) = adjoint(r)*g*d*r
+J = JonesSandwich(js, G, D, R)
 
 # For the instrument prior, we will use a simple IID prior for the complex gains and d-terms.
 # The `IIDSitePrior` function specifies that each site has the same prior and each value is independent
