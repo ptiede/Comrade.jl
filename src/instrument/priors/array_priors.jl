@@ -37,9 +37,9 @@ function ArrayPrior(dist; refant=NoReference(), phase=false, kwargs...)
 end
 
 
-function site_priors(d::ArrayPrior, array)
-    return site_tuple(array, d.default_dist; d.override_dist...)
-end
+# function site_priors(d::ArrayPrior, array)
+#     return site_tuple(array, d.default_dist; d.override_dist...)
+# end
 
 
 struct ObservedArrayPrior{D, S} <: Distributions.ContinuousMultivariateDistribution

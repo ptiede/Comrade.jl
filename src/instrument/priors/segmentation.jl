@@ -55,7 +55,7 @@ function timestamps(::ScanSeg, array)
     return IntegrationTime.(mjd, t0, dt)
 end
 
-getscan(scans, t) = findfirst(i->scans.start[i]≤t<scans.stop[i], 1:length(scans))
+# getscan(scans, t) = findfirst(i->scans.start[i]≤t<scans.stop[i], 1:length(scans))
 
 
 function timestamps(::IntegSeg, array)
