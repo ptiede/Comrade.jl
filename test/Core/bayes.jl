@@ -108,6 +108,16 @@ using Enzyme
         @test LogDensityProblems.capabilities(typeof(tpostc)) === LogDensityProblems.LogDensityOrder{0}()
     end
 
+    @testset "corr image prior" begin
+        cprior1 = corr_image_prior(g, 10.0; base=EMRF, order=1)
+        cprior2 = corr_image_prior(g, 10.0; base=EMRF, order=2)
+
+        @test cprior1 isa VLBIImagePriors.HierarchicalPrior
+        @test cprior2 isa VLBIImagePriors.HierarchicalPrior
+
+        bs = beamsize(dcoh)
+        @test corr_image_prior(g, bs).hyperprior == corr_image_prior(g, dcoh).hyperprior
+    end
 
 
 end
@@ -140,6 +150,7 @@ using FiniteDifferences
     post = VLBIPosterior(skym, intm_coh, coh)
     tpost = asflat(post)
     x = prior_sample(tpost)
+    fj = instrumentmodel(post, x)
     residual(post, Comrade.transform(tpost, x))
     gz = Enzyme.gradient(Enzyme.Reverse, Const(tpost), x)
     mfd = central_fdm(5,1)

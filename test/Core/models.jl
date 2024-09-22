@@ -223,11 +223,19 @@ end
 
         intm = InstrumentModel(J, intprior)
         intm2 = InstrumentModel(J2, intprior)
+        intjg = InstrumentModel(JG, (;lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)))))
         show(IOBuffer(), MIME"text/plain"(), intm)
+
 
 
         ointm, printm = Comrade.set_array(intm, arrayconfig(dcoh))
         ointm2, printm2 = Comrade.set_array(intm2, arrayconfig(dcoh))
+        ointjg, printjg = Comrade.set_array(intjg, arrayconfig(dcoh))
+
+        x = rand(printjg)
+        fj = forward_jones(JG, x)
+        @test fj[1][1] == x.lg[1]
+
 
         Fpre = Comrade.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
         Rpre = Comrade.preallocate_jones(JonesR(;add_fr=true), arrayconfig(dcoh), CirBasis())

@@ -52,7 +52,7 @@ instrumentmodel(d::AbstractVLBIPosterior) = getfield(d, :instrumentmodel)
 HypercubeTransform.dimension(d::AbstractVLBIPosterior) = length(d.prior)
 EnzymeRules.inactive(::typeof(instrumentmodel), args...) = nothing
 
-@noinline logprior_ref(d, x) = logprior(d, x[])
+# @noinline logprior_ref(d, x) = logprior(d, x[])
 
 # function ChainRulesCore.rrule(::typeof(logprior), d::AbstractVLBIPosterior, x)
 #     p = logprior(d, x)
@@ -68,18 +68,18 @@ EnzymeRules.inactive(::typeof(instrumentmodel), args...) = nothing
 #     return p, _logprior_pullback
 # end
 
-function _perturb(Δ, x::Union{NamedTuple, Tuple})
-    return map(x->_perturb(Δ, x), x)
-end
+# function _perturb(Δ, x::Union{NamedTuple, Tuple})
+#     return map(x->_perturb(Δ, x), x)
+# end
 
-function _perturb(Δ, x)
-    return Δ*x
-end
+# function _perturb(Δ, x)
+#     return Δ*x
+# end
 
-function _perturb(Δ, x::AbstractArray)
-    x .= Δ*x
-    return x
-end
+# function _perturb(Δ, x::AbstractArray)
+#     x .= Δ*x
+#     return x
+# end
 
 
 

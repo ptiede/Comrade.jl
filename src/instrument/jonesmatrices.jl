@@ -229,7 +229,7 @@ function forward_jones(v::AbstractJonesMatrix, xs::NamedTuple{N}) where {N}
     vs = map(eachindex(sm.times)) do index
         indices = map(x->getindex(x, index), bmaps)
         params = NamedTuple{N}(map(getindex, values(xs), values(indices)))
-        return jonesmatrix(v, params, indices, index)
+        return jonesmatrix(v, params, index, Val(1))
     end
     return SiteArray(vs, sm)
 end
