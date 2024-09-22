@@ -203,7 +203,6 @@ skymeta = (; mimg=mimg./flux(mimg), ftot=0.6)
 # given by a uniform prior on the sphere.
 cprior = corr_image_prior(grid, dvis)
 skyprior = (
-    # ftot = Uniform(0.1, 2.5),
     c = cprior,
     σ  = truncated(Normal(0.0, 0.5); lower=0.0),
     p  = cprior,
@@ -315,8 +314,6 @@ tpost = asflat(post)
 using Optimization
 using OptimizationOptimisers
 using Enzyme
-
-# @info Enzyme.API.runtimeActivity()
 
 xopt, sol = comrade_opt(post, Optimisers.Adam(), AutoEnzyme(;mode=Enzyme.Reverse); 
                         initial_params=prior_sample(rng, post), maxiters=25_000)

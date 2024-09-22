@@ -84,7 +84,7 @@ function EnzymeRules.augmented_primal(config::EnzymeRules.ConfigWidth,
     return EnzymeRules.AugmentedReturn(primal, shadow, cache)
 end
 
-function EnzymeRules.reverse(config,
+function EnzymeRules.reverse(config::EnzymeRules.ConfigWidth,
                              func::Const{typeof(LinearAlgebra.mul!)},
                              ::Type{RT}, cache,
                              C::Annotation{<:StridedVecOrMat},

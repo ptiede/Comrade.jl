@@ -231,7 +231,7 @@ function forward_jones(v::AbstractJonesMatrix, xs::NamedTuple{N}) where {N}
         params = NamedTuple{N}(map(getindex, values(xs), values(indices)))
         return jonesmatrix(v, params, indices, index)
     end
-    return SiteArray(StructArray(vs), sm)
+    return SiteArray(vs, sm)
 end
 
 function broadest_sitemap(xs::NamedTuple)
