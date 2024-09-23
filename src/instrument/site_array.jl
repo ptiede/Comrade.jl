@@ -46,10 +46,10 @@ Base.@propagate_inbounds Base.getindex(a::SiteArray, I::Vararg{Integer, N}) wher
 Base.@propagate_inbounds Base.setindex!(m::SiteArray, v, i::Integer) = setindex!(parent(m), v, i)
 Base.@propagate_inbounds Base.setindex!(m::SiteArray, v, i::Vararg{Integer, N}) where {N} = setindex!(parent(m), v, i...)
 Base.@propagate_inbounds function Base.getindex(m::SiteArray, I...)
-    return SiteArray(getindex(parent(m), I...), getindex(m.times, I...), getindex(m.frequencies, I...), getiBase.@propogate_inbounds ndex(m.sites, I...))
+    return SiteArray(getindex(parent(m), I...), getindex(m.times, I...), getindex(m.frequencies, I...), getindex(m.sites, I...))
 end
 
-Base.@propogate_inbounds function Base.view(A::SiteArray, I...)
+Base.@propagate_inbounds function Base.view(A::SiteArray, I...)
     return SiteArray(view(A.data, I...), view(times(A), I...), view(frequencies(A), I...), view(sites(A), I...))
 end
 
