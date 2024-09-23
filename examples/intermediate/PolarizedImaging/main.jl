@@ -333,6 +333,7 @@ img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
 
 #Plotting the results gives
 import CairoMakie as CM
+using DisplayAs #hide
 fig = imageviz(img, adjust_length=true, colormap=:bone, pcolormap=:RdBu)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
