@@ -117,7 +117,7 @@ skymeta = (;mimg = imgpr./flux(imgpr));
 # of the GMRF is a hyperparameter that is fit during imaging. We pass the data to the prior
 # to estimate what the maximumal resolutoin of the array is and prevent the prior from allowing
 # correlation lengths that are much small than the telescope beam size. Note that this GMRF prior
-# has unit variance. For more information on the GMRF prior see the [corr_image_prior](@ref) doc string.
+# has unit variance. For more information on the GMRF prior see the [`corr_image_prior`](@ref) doc string.
 cprior = corr_image_prior(grid, dlcamp)
 
 # Putting everything together the total prior is then our image prior, a prior on the

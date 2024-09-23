@@ -127,6 +127,7 @@ Comrade.loglikelihood
 Comrade.dataproducts
 Comrade.skymodel
 Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior)
+Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior, ::Any)
 Comrade.forward_model
 Comrade.prior_sample
 Comrade.likelihood
