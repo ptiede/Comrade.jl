@@ -43,13 +43,13 @@ Base.size(a::SiteArray) = size(parent(a))
 Base.IndexStyle(::Type{<:SiteArray{T, N, A}}) where {T, N, A} = Base.IndexStyle(A)
 Base.@propagate_inbounds Base.getindex(a::SiteArray{T}, i::Integer) where {T} = getindex(parent(a), i)
 Base.@propagate_inbounds Base.getindex(a::SiteArray, I::Vararg{Integer, N}) where {N} = getindex(parent(a), I...)
-Base.setindex!(m::SiteArray, v, i::Integer) = setindex!(parent(m), v, i)
-Base.setindex!(m::SiteArray, v, i::Vararg{Integer, N}) where {N} = setindex!(parent(m), v, i...)
+Base.@propogate_inbounds Base.setindex!(m::SiteArray, v, i::Integer) = setindex!(parent(m), v, i)
+Base.@propogate_inbounds Base.setindex!(m::SiteArray, v, i::Vararg{Integer, N}) where {N} = setindex!(parent(m), v, i...)
 Base.@propagate_inbounds function Base.getindex(m::SiteArray, I...)
-    return SiteArray(getindex(parent(m), I...), getindex(m.times, I...), getindex(m.frequencies, I...), getindex(m.sites, I...))
+    return SiteArray(getindex(parent(m), I...), getindex(m.times, I...), getindex(m.frequencies, I...), getiBase.@propogate_inbounds ndex(m.sites, I...))
 end
 
-function Base.view(A::SiteArray, I...)
+Base.@propogate_inbounds function Base.view(A::SiteArray, I...)
     return SiteArray(view(A.data, I...), view(times(A), I...), view(frequencies(A), I...), view(sites(A), I...))
 end
 
