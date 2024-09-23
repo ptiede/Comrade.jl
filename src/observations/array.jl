@@ -250,7 +250,7 @@ function Base.getproperty(c::ClosureConfig, p::Symbol)
     getproperty(arrayconfig(c), p)
 end
 designmat(c::ClosureConfig) = getfield(c, :designmat)
-ChainRulesCore.@non_differentiable designmat(c::ClosureConfig)
+# ChainRulesCore.@non_differentiable designmat(c::ClosureConfig)
 
 function build_datum(arr::ClosureConfig{F, A, <:DesignMatrix{T, N}}, i::Int) where {F, A, T, N}
     arrvis = arrayconfig(arr)

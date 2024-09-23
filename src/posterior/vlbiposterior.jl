@@ -53,14 +53,10 @@ post = VLBIPosterior(skym, intmodel, dlcamp, dcphase)
 ```
 """
 function VLBIPosterior(
-        skymodel::SkyModel,
+        skymodel::AbstractSkyModel,
         instrumentmodel::AbstractInstrumentModel,
         dataproducts::EHTObservationTable...;
         )
-
-    # This is needed because the prior is causing runtimeActivity
-    # warnings in Enzyme
-    Enzyme.API.runtimeActivity!(true)
 
 
     array = arrayconfig(dataproducts[begin])
@@ -76,7 +72,7 @@ function VLBIPosterior(
                 typeof(sky), typeof(int)}(dataproducts, ls, total_prior, sky, int)
 end
 
-VLBIPosterior(skymodel::SkyModel, dataproducts::EHTObservationTable...) =
+VLBIPosterior(skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...) =
     VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...)
 
 function combine_prior(skyprior, instrumentmodelprior)
@@ -87,14 +83,24 @@ function combine_prior(skymodel, ::Tuple{})
     return NamedDist((sky=skymodel,))
 end
 
+function combine_prior(skymodel::NamedDist{()}, intmodel::Tuple{})
+    return NamedDist()
+end
+
+
 function combine_prior(skymodel, ::NamedDist{()})
     return NamedDist((sky=skymodel,))
 end
 
 
 function combine_prior(::Tuple{}, instrumentmodel)
-    return NamedDist((instrument=skymodel.instrument,))
+    return NamedDist((; instrument=instrumentmodel,))
 end
+
+function combine_prior(::NamedTuple{()}, instrumentmodel)
+    return NamedDist((; instrument=instrumentmodel,))
+end
+
 
 function Base.show(io::IO, mime::MIME"text/plain", post::VLBIPosterior)
     printstyled(io, "VLBIPosterior"; bold=true, color=:light_magenta)

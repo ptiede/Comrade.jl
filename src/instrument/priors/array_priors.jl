@@ -1,8 +1,9 @@
-struct ArrayPrior{D, A, R}
+struct ArrayPrior{D, A, R, C}
     default_dist::D
     override_dist::A
     refant::R
     phase::Bool
+    centroid_station::C
 end
 
 
@@ -29,12 +30,16 @@ means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM
 zero and unit std. dev. Finally the refant is using the [`SEFDReference`](@ref) scheme.
 """
 function ArrayPrior(dist; refant=NoReference(), phase=false, kwargs...)
-    return ArrayPrior(dist, kwargs, refant, phase)
+    # if centroid_station isa Tuple{<:Symbol, <:Symbol}
+    #     centroid_station = NamedTuple{centroid_station}((0.0, 0.0))
+    # end
+    return ArrayPrior(dist, kwargs, refant, phase, nothing)
 end
 
-function site_priors(d::ArrayPrior, array)
-    return site_tuple(array, d.default_dist; d.override_dist...)
-end
+
+# function site_priors(d::ArrayPrior, array)
+#     return site_tuple(array, d.default_dist; d.override_dist...)
+# end
 
 
 struct ObservedArrayPrior{D, S} <: Distributions.ContinuousMultivariateDistribution
@@ -105,7 +110,7 @@ end
 function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
     smap = build_sitemap(d, array)
     site_dists = site_tuple(array, d.default_dist; d.override_dist...)
-    dists = build_dist(site_dists, smap, array, d.refant)
+    dists = build_dist(site_dists, smap, array, d.refant, d.centroid_station)
     return ObservedArrayPrior(dists, smap, d.phase)
 end
 
@@ -127,17 +132,17 @@ function TV.transform_with(flag::TV.LogJacFlag, t::PartiallyFixedTransform, x, i
     return yfv, ℓ, index
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(TV.transform_with), flag, t::PartiallyFixedTransform, x, index)
-    (y, ℓ, index), dt = rrule_via_ad(config, TV.transform_with, flag, t.transform, x, index)
-    yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
-    yfv[t.variate_index] .= y
-    yfv[t.fixed_index] .= t.fixed_values
-    function _partially_fixed_transform_pullback(Δ)
-        Δy = @view(Δ[1][t.variate_index])
-        return dt((Δy, Δ[2], Δ[3]))
-    end
-    return (yfv, ℓ, index), _partially_fixed_transform_pullback
-end
+# function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(TV.transform_with), flag, t::PartiallyFixedTransform, x, index)
+#     (y, ℓ, index), dt = rrule_via_ad(config, TV.transform_with, flag, t.transform, x, index)
+#     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
+#     yfv[t.variate_index] .= y
+#     yfv[t.fixed_index] .= t.fixed_values
+#     function _partially_fixed_transform_pullback(Δ)
+#         Δy = @view(Δ[1][t.variate_index])
+#         return dt((Δy, Δ[2], Δ[3]))
+#     end
+#     return (yfv, ℓ, index), _partially_fixed_transform_pullback
+# end
 
 function TV.inverse_at!(x::AbstractArray, index, t::PartiallyFixedTransform, y)
     return TV.inverse_at!(x, index, t.transform, y[t.variate_index])
@@ -176,11 +181,21 @@ HypercubeTransform.asflat(t::PartiallyConditionedDist) = PartiallyFixedTransform
 
 
 
-function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants)
+function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroid_station)
     ts = smap.times
     ss = smap.sites
     # fs = smap.frequencies
     fixedinds, vals = reference_indices(array, smap, refants)
+
+    if !(centroid_station isa Nothing)
+        centstat = keys(centroid_station)
+        vals = values(centroid_station)
+        centroid1 = findfirst(==(centstat[1]), ss)
+        centroid2 = findfirst(==(centstat[2]), ss)
+        centroid === nothing && throw(ArgumentError("Centroid station not found in site list"))
+        append!(fixedinds, [centroid1, centroid2])
+        vals = append!(collect(vals), [vals[1], vals[2]])
+    end
 
     variateinds = setdiff(eachindex(ts), fixedinds)
     dist = map(variateinds) do i

@@ -88,8 +88,6 @@ ComradeBase.UnstructuredMap
 ComradeBase.baseimage
 ComradeBase.centroid
 ComradeBase.second_moment
-ComradeBase.load
-ComradeBase.save
 ComradeBase.stokes
 ```
 

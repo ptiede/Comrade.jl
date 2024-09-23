@@ -95,7 +95,7 @@ function selfcal_submission(results::String, obs, outdir::String, nsamples::Int,
         obscal, _ = selfcal(obs, model)
 
         outim = @sprintf "image_%04d.fits" i
-        Comrade.save(joinpath(outdir, outim), img, damp)
+        save_fits(joinpath(outdir, outim), img, damp)
 
         outcal = @sprintf "selfcal_data_comrade_%04d.uvfits" i
         obscal.save_uvfits(joinpath(outdir, outcal))

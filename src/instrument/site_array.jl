@@ -23,15 +23,15 @@ struct SiteArray{T, N, A<:AbstractArray{T,N}, Ti<:AbstractArray{<:IntegrationTim
     sites::Sy
 end
 
-function ChainRulesCore.rrule(::Type{SiteArray}, data::AbstractArray, args...)
-    s = SiteArray(data, args...)
-    pd = ProjectTo(data)
-    function _SiteArrayPB(Δ)
-        # @info typeof(Δ)
-        (NoTangent(), @thunk(pd(Δ)), map(i->NoTangent(), args)...)
-    end
-    return s, _SiteArrayPB
-end
+# function ChainRulesCore.rrule(::Type{SiteArray}, data::AbstractArray, args...)
+#     s = SiteArray(data, args...)
+#     pd = ProjectTo(data)
+#     function _SiteArrayPB(Δ)
+#         # @info typeof(Δ)
+#         (NoTangent(), @thunk(pd(Δ)), map(i->NoTangent(), args)...)
+#     end
+#     return s, _SiteArrayPB
+# end
 
 times(a::SiteArray) = a.times
 sites(a::SiteArray) = a.sites
@@ -41,38 +41,38 @@ EnzymeRules.inactive(::(typeof(Base.size)), ::SiteArray) = nothing
 Base.parent(a::SiteArray) = getfield(a, :data)
 Base.size(a::SiteArray) = size(parent(a))
 Base.IndexStyle(::Type{<:SiteArray{T, N, A}}) where {T, N, A} = Base.IndexStyle(A)
-Base.@propagate_inbounds Base.getindex(a::SiteArray, i::Integer) = getindex(parent(a), i)
-Base.@propagate_inbounds Base.getindex(a::SiteArray, I::Vararg{Int, N}) where {N} = getindex(parent(a), I...)
-Base.setindex!(m::SiteArray, v, i::Int) = setindex!(parent(m), v, i)
-Base.setindex!(m::SiteArray, v, i::Vararg{Int, N}) where {N} = setindex!(parent(m), v, i...)
+Base.@propagate_inbounds Base.getindex(a::SiteArray{T}, i::Integer) where {T} = getindex(parent(a), i)
+Base.@propagate_inbounds Base.getindex(a::SiteArray, I::Vararg{Integer, N}) where {N} = getindex(parent(a), I...)
+Base.@propagate_inbounds Base.setindex!(m::SiteArray, v, i::Integer) = setindex!(parent(m), v, i)
+Base.@propagate_inbounds Base.setindex!(m::SiteArray, v, i::Vararg{Integer, N}) where {N} = setindex!(parent(m), v, i...)
 Base.@propagate_inbounds function Base.getindex(m::SiteArray, I...)
     return SiteArray(getindex(parent(m), I...), getindex(m.times, I...), getindex(m.frequencies, I...), getindex(m.sites, I...))
 end
 
-function Base.view(A::SiteArray, I...)
+Base.@propagate_inbounds function Base.view(A::SiteArray, I...)
     return SiteArray(view(A.data, I...), view(times(A), I...), view(frequencies(A), I...), view(sites(A), I...))
 end
 
-function ChainRulesCore.ProjectTo(s::SiteArray)
-    return ProjectTo{SiteArray}(; data=parent(s),
-                                  times=times(s),
-                                  frequencies=frequencies(s),
-                                  sites=sites(s))
-end
+# function ChainRulesCore.ProjectTo(s::SiteArray)
+#     return ProjectTo{SiteArray}(; data=parent(s),
+#                                   times=times(s),
+#                                   frequencies=frequencies(s),
+#                                   sites=sites(s))
+# end
 
-(project::ProjectTo{SiteArray})(s) = SiteArray(s, project.times, project.frequencies, project.sites)
-(project::ProjectTo{SiteArray})(s::SiteArray) = s
-(project::ProjectTo{SiteArray})(s::AbstractZero) = s
-(project::ProjectTo{SiteArray})(s::Tangent) = SiteArray(s.data, project.times, project.frequencies, project.sites)
+# (project::ProjectTo{SiteArray})(s) = SiteArray(s, project.times, project.frequencies, project.sites)
+# (project::ProjectTo{SiteArray})(s::SiteArray) = s
+# (project::ProjectTo{SiteArray})(s::AbstractZero) = s
+# (project::ProjectTo{SiteArray})(s::Tangent) = SiteArray(s.data, project.times, project.frequencies, project.sites)
 
 
-# Enzyme.EnzymeRules.inactive(::typeof(times), ::SiteArray) = nothing
-# Enzyme.EnzymeRules.inactive(::typeof(frequencies), ::SiteArray) = nothing
-# Enzyme.EnzymeRules.inactive(::typeof(sites), ::SiteArray) = nothing
+EnzymeRules.inactive(::typeof(times), ::SiteArray) = nothing
+EnzymeRules.inactive(::typeof(frequencies), ::SiteArray) = nothing
+EnzymeRules.inactive(::typeof(sites), ::SiteArray) = nothing
 
-ntzero(x::NamedTuple) = map(ntzero, x)
-ntzero(x::Tuple) = map(ntzero, x)
-ntzero(x) = zero(x)
+# ntzero(x::NamedTuple) = map(ntzero, x)
+# ntzero(x::Tuple) = map(ntzero, x)
+# ntzero(x) = zero(x)
 
 
 function Base.similar(m::SiteArray, ::Type{S}) where {S}

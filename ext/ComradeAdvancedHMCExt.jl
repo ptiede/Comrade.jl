@@ -36,7 +36,7 @@ end
 
 function AbstractMCMC.Sample(
             rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior,
-            sampler::AbstractHMCSampler; adtype=Val(:Zygote), initial_params=nothiing, kwargs...)
+            sampler::AbstractHMCSampler; adtype=Val(:Enzyme), initial_params=nothiing, kwargs...)
     ∇ℓ = ADgradient(adtype, tpost)
     θ0 = initialize_params(tpost, initial_params)
     model, smplr = make_sampler(rng, ∇ℓ, sampler, θ0)
@@ -44,7 +44,7 @@ function AbstractMCMC.Sample(
 end
 
 """
-    sample(rng, post::VLBIPosterior, sampler::AbstractHMCSampler, nsamples, args...;saveto=MemoryStore(), adtype=Val(:Zygote), initial_params=nothing, kwargs...)
+    sample(rng, post::VLBIPosterior, sampler::AbstractHMCSampler, nsamples, args...;saveto=MemoryStore(), adtype=Val(:Enzyme), initial_params=nothing, kwargs...)
 
 Sample from the posterior `post` using the sampler `sampler` for `nsamples` samples. Additional
 arguments are forwarded to AbstractMCMC.sample. If `saveto` is a DiskStore, the samples will be
@@ -59,7 +59,7 @@ saved to disk. If `initial_params` is not `nothing` then the sampler will start 
 ## Keyword Arguments
 
  - `saveto`: If a DiskStore, the samples will be saved to disk, if [`MemoryStore`](@ref) the samples will be stored in memory/ram.
- - `adtype`: The automatic differentiation type to use. The default if Zygote which is the recommended choice for Comrade currently.
+ - `adtype`: The automatic differentiation type to use. The default if Enzyme which is the recommended choice for Comrade currently.
  - `initial_params`: The initial parameters to start the sampler from. If `nothing` then the sampler will start from a random point in the prior.
  - `kwargs`: Additional keyword arguments to pass to the sampler. Examples include `n_adapts` which is the total number of samples to use for adaptation.
     To see the others see the AdvancedHMC documentation.
@@ -67,7 +67,7 @@ saved to disk. If `initial_params` is not `nothing` then the sampler will start 
 function AbstractMCMC.sample(
         rng::Random.AbstractRNG, post::Comrade.VLBIPosterior,
         sampler::AbstractHMCSampler, nsamples, args...;
-        saveto=MemoryStore(), adtype=Val(:Zygote), initial_params=nothing, kwargs...)
+        saveto=MemoryStore(), adtype=Val(:Enzyme), initial_params=nothing, kwargs...)
 
     saveto isa DiskStore && return sample_to_disk(rng, post, sampler, nsamples, args...; outdir=saveto.name, output_stride=min(saveto.stride, nsamples), adtype, initial_params, kwargs...)
 
@@ -90,7 +90,7 @@ end
 function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior,
     sampler::AbstractHMCSampler, nsamples, outbase, args...;
     n_adapts = min(nsamples÷2, 1000),
-    adtype = Val(:Zygote),
+    adtype = Val(:Enzyme),
     initial_params=nothing, outdir = "Results",
     output_stride=min(100, nsamples),
     restart = false,
@@ -158,7 +158,7 @@ end
 
 function sample_to_disk(rng::Random.AbstractRNG, post::Comrade.VLBIPosterior,
                         sampler::AbstractHMCSampler, nsamples, args...;
-                        adtype = Val(:Zygote),
+                        adtype = Val(:Enzyme),
                         n_adapts = min(nsamples÷2, 1000),
                         initial_params=nothing, outdir = "Results",
                         restart=false,

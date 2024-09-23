@@ -15,7 +15,7 @@ chain = sample(post, NUTS(0.8), 10_000; n_adapts=5_000)
 
 In addition our sample call has a few additional keyword arguments:
 
- - `adtype = Val(:Zygote)`: The autodiff package to use. Currently the default is `Zygote` and we recommend using this. Note that you must load Zygote before calling `sample`.
+ - `adtype = Val(:Enzyme)`: The autodiff package to use. Currently the only options is `Enzyme`. Note that you must load Enzyme before calling `sample`.
  - `saveto = MemoryStore()`: Specifies how to store the samples. The default is `MemoryStore` which stores the samples directly in RAM. For large models this is not a good idea. To save samples periodically to disk use [`DiskStore`](@ref), and then load the results with `load_samples`.
 
 Note that like most `AbstractMCMC` samplers the initial location can be specified with the `initial_params` argument.
@@ -26,7 +26,7 @@ Note that like most `AbstractMCMC` samplers the initial location can be specifie
 ```julia
 using Comrade
 using AdvancedHMC
-using Zygote
+using Enzyme
 
 # Some stuff to create a posterior object
 post # of type Comrade.Posterior

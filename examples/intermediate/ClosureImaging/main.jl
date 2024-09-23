@@ -102,7 +102,7 @@ grid = imagepixels(fovxy, fovxy, npix, npix)
 
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
 # Random field prior
-using VLBIImagePriors, Distributions, DistributionsAD
+using VLBIImagePriors, Distributions
 
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 50 μas
@@ -111,26 +111,20 @@ mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
 imgpr = intensitymap(mpr, grid)
 skymeta = (;mimg = imgpr./flux(imgpr));
 
-# In addition we want a reasonable guess for what the resolution of our image should be.
-# For radio astronomy this is given by roughly the longest baseline in the image. To put this
-# into pixel space we then divide by the pixel size.
-beam = beamsize(dlcamp)
-rat = (beam/(step(grid.X)))
-
-# To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
-# that allow us to scale things linearly with the number of image pixels. This drastically improves
-# the usual N^3 scaling you get from usual Gaussian Processes.
-crcache = ConditionalMarkov(GMRF, grid; order=1)
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
-# correlation length is given by a inverse gamma prior to prevent overfitting.
-# Gaussian Markov random fields are extremly flexible models.
-# To prevent overfitting it is common to use priors that penalize complexity. Therefore, we
-# want to use priors that enforce similarity to our mean image, and prefer smoothness.
-cprior = HierarchicalPrior(crcache, truncated(InverseGamma(1.0, -log(0.1)*rat); upper=2*npix))
-prior = (c = cprior, σimg = Exponential(0.5), fg=Uniform(0.0, 1.0))
+# direct log-ratio image prior is a Gaussian Markov Random Field. The correlation length
+# of the GMRF is a hyperparameter that is fit during imaging. We pass the data to the prior
+# to estimate what the maximumal resolutoin of the array is and prevent the prior from allowing
+# correlation lengths that are much small than the telescope beam size. Note that this GMRF prior
+# has unit variance. For more information on the GMRF prior see the [`corr_image_prior`](@ref) doc string.
+cprior = corr_image_prior(grid, dlcamp)
 
-# Putting this all together we can define our sky model.
+# Putting everything together the total prior is then our image prior, a prior on the
+# standard deviation of the MRF, and a prior on the fractional flux of the Gaussian component.
+prior = (c = cprior, σimg = Exponential(0.1), fg=Uniform(0.0, 1.0))
+
+# We can then define our sky model.
 skym = SkyModel(sky, prior, grid; metadata=skymeta)
 
 # Since we are fitting closures we do not need to include an instrument model, since
@@ -147,11 +141,12 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 # To optimize our posterior `Comrade` provides the `comrade_opt` function. To use this
 # functionality a user first needs to import `Optimization.jl` and the optimizer of choice.
 # In this tutorial we will use Optim.jl's L-BFGS optimizer, which is defined in the sub-package
-# OptimizationOptimJL. We also need to import Zygote to allow for automatic differentiation.
+# OptimizationOptimJL. We also need to import Enzyme to allow for automatic differentiation.
 using Optimization
 using OptimizationOptimJL
-using Zygote
-xopt, sol = comrade_opt(post, LBFGS(), Optimization.AutoZygote(); maxiters=1000)
+using Enzyme
+xopt, sol = comrade_opt(post, LBFGS(), AutoEnzyme(;mode=Enzyme.Reverse); 
+                        maxiters=1000, initial_params=prior_sample(rng, post))
 
 
 # First we will evaluate our fit by plotting the residuals
@@ -182,7 +177,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 #     For our `metric` we use a diagonal matrix due to easier tuning.
 #-
 using AdvancedHMC
-chain = sample(post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=true, initial_params=xopt);
 
 
 # !!! warning
