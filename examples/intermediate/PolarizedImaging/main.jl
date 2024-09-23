@@ -314,7 +314,6 @@ tpost = asflat(post)
 using Optimization
 using OptimizationOptimisers
 using Enzyme
-
 xopt, sol = comrade_opt(post, Optimisers.Adam(), AutoEnzyme(;mode=Enzyme.Reverse); 
                         initial_params=prior_sample(rng, post), maxiters=25_000)
 
@@ -334,22 +333,7 @@ img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
 
 #Plotting the results gives
 import CairoMakie as CM
-using DisplayAs
-CM.activate!(type = "png", px_per_unit=3) #hide
-fig = CM.Figure(;size=(450, 350));
-axs = [CM.Axis(fig[1, i], xreversed=true, aspect=1) for i in 1:2]
-polimage!(axs[1], imgtruesub,
-                   nvec = 8,
-                   length_norm=1/2, plot_total=true, pcolormap=:RdBu,
-                   pcolorrange=(-0.25, 0.25),); axs[1].title="True"
-polimage!(axs[2], img,
-                   nvec = 8,
-                   length_norm=1/2, plot_total=true, pcolormap=:RdBu,
-                   pcolorrange=(-0.25, 0.25),);axs[2].title="Recon."
-CM.Colorbar(fig[2,:], colormap=:RdBu, vertical=false, colorrange=(-0.25, 0.25), label="Signed Polarization Fraction sign(V)*|p|", flipaxis=false)
-CM.colgap!(fig.layout, 3)
-CM.rowgap!(fig.layout, 3)
-CM.hidedecorations!.(fig.content[1:2])
+fig = imageviz(img, adjust_length=true, colormap=:bone, pcolormap=:RdBu)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
