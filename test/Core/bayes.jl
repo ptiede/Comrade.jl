@@ -115,8 +115,8 @@ using Enzyme
         @test cprior1 isa VLBIImagePriors.HierarchicalPrior
         @test cprior2 isa VLBIImagePriors.HierarchicalPrior
 
-        bs = beamsize(dcoh)
-        @test corr_image_prior(g, bs).hyperprior == corr_image_prior(g, dcoh).hyperprior
+        bs = beamsize(vis)
+        @test corr_image_prior(g, bs).hyperprior == corr_image_prior(g, vis).hyperprior
     end
 
 
@@ -150,7 +150,7 @@ using FiniteDifferences
     post = VLBIPosterior(skym, intm_coh, coh)
     tpost = asflat(post)
     x = prior_sample(tpost)
-    fj = instrumentmodel(post, x)
+    fj = instrumentmodel(post, prior_sample(post))
     residual(post, Comrade.transform(tpost, x))
     gz = Enzyme.gradient(Enzyme.Reverse, Const(tpost), x)
     mfd = central_fdm(5,1)
