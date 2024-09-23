@@ -221,7 +221,7 @@ chain = sample(rng, post, NUTS(0.8), 1_000; adtype=AutoEnzyme(;mode=Enzyme.Rever
 
 
 # Now we prune the adaptation phase
-chain = chain[1_001:end]
+chain = chain[501:end]
 
 #-
 # !!! warning
