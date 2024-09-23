@@ -177,7 +177,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 #     For our `metric` we use a diagonal matrix due to easier tuning.
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=true, initial_params=xopt);
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
 
 
 # !!! warning
