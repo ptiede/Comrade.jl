@@ -40,7 +40,7 @@ using Pyehtim
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(42)
+rng = StableRNG(44)
 
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
