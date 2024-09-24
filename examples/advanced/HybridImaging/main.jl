@@ -40,7 +40,7 @@ using Pyehtim
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(44)
+rng = StableRNG(49)
 
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
@@ -246,6 +246,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # Finally, let's take a look at some of the ring parameters
+
 figd = CM.Figure(;resolution=(650, 400));
 p1 = CM.density(figd[1,1], rad2μas(chain.sky.r)*2, axis=(xlabel="Ring Diameter (μas)",))
 p2 = CM.density(figd[1,2], rad2μas(chain.sky.σ)*2*sqrt(2*log(2)), axis=(xlabel="Ring FWHM (μas)",))

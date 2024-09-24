@@ -44,7 +44,7 @@ end
 
 
 function _apply_fluctuations(t::VLBIImagePriors.LogRatioTransform, mimg::AbstractArray, δ::AbstractArray)
-    @argcheck _checknorm(mimg) "Mean image must have unit flux when using log-ratio transformations in apply_fluctuations"
+    @argcheck _checknorm(mimg) "Mean image must have unit flux when using log-ratio transformations in apply_fluctuations while it seems to be $(sum(mimg))"
     r = to_simplex(t, baseimage(δ))
     r .= r.*baseimage(mimg)
     r .= r./_fastsum(r)
