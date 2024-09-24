@@ -82,8 +82,8 @@
 # ```
 #-
 #
-#  In the rest of the tutorial, we are going to solve for all of these instrument model terms on
-#  in addition to our image structure to reconstruct a polarized image of a synthetic dataset.
+#  In the rest of the tutorial, we are going to solve for all of these instrument model terms in
+#  while re-creating the polarized image from the first [`EHT results on M87`](https://iopscience.iop.org/article/10.3847/2041-8213/abe71d).
 
 import Pkg #hide
 __DIR = @__DIR__ #hide
@@ -258,12 +258,22 @@ D = JonesD(fdterms)
 R = JonesR(;add_fr=true)
 
 # Finally, we build our total Jones matrix by using the `JonesSandwich` function. The
-# first argument is a function that specifies how to combine each Jones matrix. In this case,
-# we are completely standard so we just need to multiply the different jones matrices.
-# Note that if no function is provided, the default is to multiply the Jones matrices,
-# so we could've removed the * argument in this case.
+# first argument is a function that specifies how to combine each Jones matrix. In this case
+# we will use the standard decomposition J = adjoint(R)*G*D*R, where we need to apply the adjoint
+# of the feed rotaion matrix `R` because the data has feed rotation calibration. 
 js(g,d,r) = adjoint(r)*g*d*r
 J = JonesSandwich(js, G, D, R)
+
+# !!! note
+#     This is a general note that for arrays with non-zero leakage, feed rotation calibration
+#     does not remove the impact of feed rotations on the instrument model. That is,
+#     when modeling feed rotation must be taken into account. This is because 
+#     the R and D matrices are not commutative. Therefore, to recover the correct instrumental
+#     terms we must include the feed rotation calibration in the instrument model. This is not
+#     ideal when doing polarized modeling, especially for interferometers using a mixture of linear 
+#     and circular feeds. For linear feeds R does not commute with G or D and applying feed rotation 
+#     calibration before solving for gains can mix gains and leakage with feed rotation calibration terms
+#     breaking many of the typical assumptions about the stabilty of different instrument effects.
 
 # For the instrument prior, we will use a simple IID prior for the complex gains and d-terms.
 # The `IIDSitePrior` function specifies that each site has the same prior and each value is independent
@@ -338,26 +348,31 @@ fig = imageviz(img, adjust_length=true, colormap=:bone, pcolormap=:RdBu)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
+# !!! note
+#     The image looks a little noisy. This is an artifact of the MAP image. To get a publication quality image
+#     we recommend sampling from the posterior and averaging the samples. The results will be essentially
+#     identical to the results from [EHTC VII](https://iopscience.iop.org/article/10.3847/2041-8213/abe71d).
 
-
-
-# Looking at the gain phase ratio
+# We can also analyze the instrument model. For example, we can look at the gain ratios and products.
+# To grab the ratios and products we can use the `caltable` function which will return analyze the gprat array
+# and convert it to a uniform table. We can then plot the gain phases and amplitudes.
 gphase_ratio = caltable(xopt.instrument.gprat)
-#-
-# we see that they are all very small. Which should be the case since this data doesn't have gain corruptions!
-# Similarly our gain ratio amplitudes are also very close to unity as expected.
 gamp_ratio   = caltable(exp.(xopt.instrument.lgrat))
+
 #-
-# Plotting the gain phases, we see some offsets from zero. This is because the prior on the gain product
-# phases is very broad, so we can't phase center the image. For realistic data
-# this is always the case since the atmosphere effectively scrambles the phases.
+# Plotting the phases first, we see large trends in the righ circular polarization phase. This is expected
+# due to a lack of image centroid and the absense of absolute phase information in VLBI. However, the gain 
+# phase difference between the left and right circular polarization is stable and close to zero. This is 
+# expected since gain ratios are typically stable over the course of an observation and the constant
+# offset was removed in the EHT calibration process.
 gphaseR = caltable(xopt.instrument.gpR)
 p = Plots.plot(gphaseR, layout=(3,3), size=(650,500));
 Plots.plot!(p, gphase_ratio, layout=(3,3), size=(650,500));
 p |> DisplayAs.PNG |> DisplayAs.Text
 #-
-# Finally, the product gain amplitudes are all very close to unity as well, as expected since gain corruptions
-# have not been added to the data.
+# Moving to the amplitudes we see largely stable gain amplitudes on the right circular polarization except for LMT which is
+# known and due to pointing issues during the 2017 observation. Again the gain ratios are stable and close to unity. Typically
+# we expect that apriori calibration should make the gain ratios close to unity.
 gampr = caltable(exp.(xopt.instrument.lgR))
 p = Plots.plot(gampr, layout=(3,3), size=(650,500))
 Plots.plot!(p, gamp_ratio, layout=(3,3), size=(650,500))
