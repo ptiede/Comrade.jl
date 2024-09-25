@@ -17,7 +17,6 @@ Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
 
 
-ENV["GKSwstype"] = "nul" #hide
 using Comrade
 
 
@@ -37,12 +36,12 @@ rng = StableRNG(12)
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
 obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-
+# obs = ehtim.obsdata.load_uvfits("~/Dropbox (Smithsonian External)/M872021Project/Data/2021/CASA/e21e18/V4/M87_calibrated_b3.uvf+EVPA_rotation+netcal_10savg+flag.uvfits")
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
 #   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs).add_fractional_noise(0.01)
+obs = scan_average(obs).add_fractional_noise(0.02)
 
 # Now we extract our complex visibilities.
 dvis = extract_table(obs, Visibilities())
@@ -63,10 +62,12 @@ function sky(θ, metadata)
     (;ftot, mimg) = metadata
     ## Apply the GMRF fluctuations to the image
     rast = apply_fluctuations(CenteredLR(), mimg, σimg.*c.params)
-    m = ContinuousImage((ftot*(1-fg)).*rast, BSplinePulse{3}())
+    pimg = parent(rast)
+    @. pimg = (ftot*(1-fg))*pimg
+    m = ContinuousImage(rast, BSplinePulse{3}())
     x0, y0 = centroid(m)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
-    g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(ftot*fg))
+    g = modify(Gaussian(), Stretch(μas2rad(500.0), μas2rad(500.0)), Renormalize(ftot*fg))
     return shifted(m, -x0, -y0) + g
 end
 
@@ -76,8 +77,8 @@ end
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
 npix = 32
-fovx = μas2rad(150.0)
-fovy = μas2rad(150.0)
+fovx = μas2rad(200.0)
+fovy = μas2rad(200.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -90,7 +91,7 @@ grid = imagepixels(fovx, fovy, npix, npix)
 # start with an initial guess for the image structure. For this tutorial we will use a
 # a symmetric Gaussian with a FWHM of 50 μas
 using VLBIImagePriors
-using Distributions, DistributionsAD
+using Distributions
 fwhmfac = 2*sqrt(2*log(2))
 mpr  = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
 mimg = intensitymap(mpr, grid)
@@ -103,50 +104,24 @@ mimg = intensitymap(mpr, grid)
 skymeta = (;ftot = 1.1, mimg = mimg./flux(mimg))
 
 
-
-# In addition we want a reasonable guess for what the resolution of our image should be.
-# For radio astronomy this is given by roughly the longest baseline in the image. To put this
-# into pixel space we then divide by the pixel size.
-beam = beamsize(dvis)
-rat = (beam/(step(grid.X)))
-
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
 # that allow us to scale things linearly with the number of image pixels. The returns a
 # functional that accepts a single argument related to the correlation length of the field.
 # The second argument defines the underlying random field of the Markov process. Here
-# we are using a zero mean and unit variance Gaussian Markov random field. The keyword
-# argument specifies the order of the Gaussian field. Currently, we recommend using order
-#  - 1 which is identical to TSV variation and L₂ regularization
-#  - 2 which is identical to a Matern 1 process in 2D and is really the convolution of two
-#    order 1 processes
+# we are using a zero mean and unit variance Gaussian Markov random field. 
 # For this tutorial we will use the first order random field
-crcache = ConditionalMarkov(GMRF, grid; order=1)
-
-# To demonstrate the prior let create a few random realizations
+cprior = corr_image_prior(grid, dvis)
 
 
-
-# Now we can finally form our image prior. For this we use a heirarchical prior where the
-# inverse correlation length is given by a Half-Normal distribution whose peak is at zero and
-# standard deviation is `0.1/rat` where recall `rat` is the beam size per pixel.
-# For the variance of the random field we use another
-# half normal prior with standard deviation 0.1. The reason we use the half-normal priors is
-# to prefer "simple" structures. Gaussian Markov random fields are extremly flexible models,
-# and to prevent overfitting it is common to use priors that penalize complexity. Therefore, we
-# want to use priors that enforce similarity to our mean image. If the data wants more complexity
-# then it will drive us away from the prior.
-cprior = HierarchicalPrior(crcache, truncated(InverseGamma(1.0, -log(0.1)*rat); upper=2*npix))
-
-
-# We can now form our model parameter priors. Like our other imaging examples, we use a
-# Dirichlet prior for our image pixels. For the log gain amplitudes, we use the `CalPrior`
-# which automatically constructs the prior for the given jones cache `gcache`.
+# Putting everything together the total prior is then our image prior, a prior on the
+# standard deviation of the MRF, and a prior on the fractional flux of the Gaussian component.
 prior = (
          c = cprior,
+         σimg = truncated(Normal(0.0, 0.5); lower=0.0),
          fg = Uniform(0.0, 1.0),
-         σimg = truncated(Normal(0.0, 0.1), lower=0.0)
         )
 
+# Now we can construct our sky model.
 skym = SkyModel(sky, prior, grid; metadata=skymeta)
 
 # Unlike other imaging examples
@@ -156,13 +131,15 @@ skym = SkyModel(sky, prior, grid; metadata=skymeta)
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
 G = SingleStokesGain() do x
-    lg = x.lg
+    lg = x.lgμ + x.lgσ*x.lgz
     gp = x.gp
     return exp(lg + 1im*gp)
 end
 
 intpr = (
-    lg= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+    lgμ = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(TrackSeg(), Normal(0.0, 1.0))),
+    lgσ = ArrayPrior(IIDSitePrior(TrackSeg(), Exponential(0.1))),
+    lgz = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
     gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0), phase=true)
         )
 intmodel = InstrumentModel(G, intpr)
@@ -183,8 +160,8 @@ ndim = dimension(tpost)
 # To initialize our sampler we will use optimize using Adam
 using Optimization
 using OptimizationOptimisers
-using Zygote
-xopt, sol = comrade_opt(post, Optimisers.Adam(), Optimization.AutoZygote(); initial_params=prior_sample(rng, post), maxiters=15_000, g_tol=1e-1)
+using Enzyme
+xopt, sol = comrade_opt(post, Optimisers.Adam(), AutoEnzyme(;mode=Enzyme.Reverse); initial_params=prior_sample(rng, post), maxiters=20_000, g_tol=1e-1)
 
 # !!! warning
 #     Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -210,7 +187,8 @@ imageviz(img, size=(500, 400))|> DisplayAs.PNG |> DisplayAs.Text
 # Because we also fit the instrument model, we can inspect their parameters.
 # To do this, `Comrade` provides a `caltable` function that converts the flattened gain parameters
 # to a tabular format based on the time and its segmentation.
-gt = Comrade.caltable(xopt.instrument.gp)
+intopt = instrumentmodel(post, xopt)
+gt = Comrade.caltable(angle.(intopt))
 plot(gt, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 
 # The gain phases are pretty random, although much of this is due to us picking a random
@@ -218,7 +196,7 @@ plot(gt, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Moving onto the gain amplitudes, we see that most of the gain variation is within 10% as expected
 # except LMT, which has massive variations.
-gt = Comrade.caltable(exp.(xopt.instrument.lg))
+gt = Comrade.caltable(abs.(intopt))
 plot(gt, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 
 
@@ -230,7 +208,7 @@ plot(gt, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 # run
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt)
+chain = sample(rng, post, NUTS(0.8), 1_000; adtype=AutoEnzyme(;mode=Enzyme.Reverse), n_adapts=500, progress=false, initial_params=xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -259,19 +237,18 @@ schain = Comrade.rmap(std, chain)
 # First we create a `caltable` the same way but making sure all of our variables have errors
 # attached to them.
 using Measurements
-gmeas_am = Measurements.measurement.(mchain.instrument.lg, schain.instrument.lg)
-ctable_am = caltable(exp.(gmeas_am)) # caltable expects gmeas_am to be a Vector
-gmeas_ph = Measurements.measurement.(mchain.instrument.gp, schain.instrument.gp)
-ctable_ph = caltable(gmeas_ph)
+gmeas = instrumentmodel(post, (;instrument= map((x,y)->Measurements.measurement.(x,y), mchain.instrument, schain.instrument)))
+ctable_am = caltable(abs.(gmeas))
+ctable_ph = caltable(angle.(gmeas))
 
 # Now let's plot the phase curves
-plot(ctable_ph, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
+plot(ctable_ph, layout=(4,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 #-
 # and now the amplitude curves
-plot(ctable_am, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
+plot(ctable_am, layout=(4,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Finally let's construct some representative image reconstructions.
-samples = skymodel.(Ref(post), chain[begin:2:end])
+samples = skymodel.(Ref(post), chain[begin:5:end])
 imgs = intensitymap.(samples, Ref(g))
 
 mimg = mean(imgs)

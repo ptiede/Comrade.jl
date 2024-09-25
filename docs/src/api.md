@@ -114,6 +114,7 @@ Comrade.IdealInstrumentModel
 Comrade.InstrumentModel
 Comrade.SiteArray
 Comrade.SiteLookup
+Comrade.forward_jones
 ```
 
 
@@ -126,6 +127,7 @@ Comrade.loglikelihood
 Comrade.dataproducts
 Comrade.skymodel
 Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior)
+Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior, ::Any)
 Comrade.forward_model
 Comrade.prior_sample
 Comrade.likelihood
@@ -163,6 +165,7 @@ Comrade.dirty_image
 Comrade.dirty_beam
 Comrade.beamsize
 Comrade.apply_fluctuations
+Comrade.corr_image_prior
 Comrade.rmap
 ```
 

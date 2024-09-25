@@ -1,5 +1,5 @@
 export SingleStokesGain, JonesG, JonesD, JonesF, JonesR, GenericJones,
-       JonesSandwich
+       JonesSandwich, forward_jones
 
 abstract type AbstractJonesMatrix end
 @inline jonesmatrix(mat::AbstractJonesMatrix, params, visindex, site) = construct_jones(mat, param_map(mat, params), visindex, site)
@@ -26,7 +26,7 @@ G = SingleStokesGain(x->exp(x.lg + xp.gp))
 struct SingleStokesGain{F} <: AbstractJonesMatrix
     param_map::F
 end
-construct_jones(::SingleStokesGain, x, index, site) = x
+@inline construct_jones(::SingleStokesGain, x, index, site) = x
 
 """
     JonesG(param_map)
@@ -56,7 +56,7 @@ end
 struct JonesG{F} <: AbstractJonesMatrix
     param_map::F
 end
-construct_jones(::JonesG, x::NTuple{2, T}, index, site) where {T} = Diagonal(SVector{2, T}(x))
+@inline construct_jones(::JonesG, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(x[1], zero(T), zero(T), x[2])
 
 
 """
@@ -87,7 +87,7 @@ end
 struct JonesD{F} <: AbstractJonesMatrix
     param_map::F
 end
-construct_jones(::JonesD, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(1, x[2], x[1], 1)
+Base.@propagate_inbounds construct_jones(::JonesD, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(1, x[2], x[1], 1)
 
 
 """
@@ -112,7 +112,7 @@ end
 struct GenericJones{F} <: AbstractJonesMatrix
     param_map::F
 end
-construct_jones(::GenericJones, x::NTuple{4, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(x[1], x[2], x[3], x[4])
+Base.@propagate_inbounds construct_jones(::GenericJones, x::NTuple{4, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(x[1], x[2], x[3], x[4])
 
 """
     JonesF(;add_fr=true)
@@ -128,7 +128,7 @@ struct JonesF{M} <: AbstractJonesMatrix
     matrices::M
 end
 JonesF() = JonesF(nothing)
-construct_jones(J::JonesF, x, index, ::Val{M}) where {M} = J.matrices[index][M]
+Base.@propagate_inbounds construct_jones(J::JonesF, x, index, ::Val{M}) where {M} = J.matrices[index][M]
 param_map(::JonesF, x) = x
 function preallocate_jones(::JonesF, array::AbstractArrayConfiguration, ref)
     field_rotations = build_feedrotation(array)
@@ -149,7 +149,7 @@ Base.@kwdef struct JonesR{M} <: AbstractJonesMatrix
     matrices::M = nothing
     add_fr::Bool = true
 end
-construct_jones(J::JonesR, x, index, ::Val{M}) where {M} = J.matrices[M][index]
+Base.@propagate_inbounds construct_jones(J::JonesR, x, index, ::Val{M}) where {M} = J.matrices[M][index]
 param_map(::JonesR, x) = x
 
 function preallocate_jones(J::JonesR, array::AbstractArrayConfiguration, ref)
@@ -173,7 +173,7 @@ struct JonesSandwich{J, M} <: AbstractJonesMatrix
 end
 
 """
-    JonesSandwich([decomp_function=splat(*),] matrices::AbstractJonesMatrix...)
+    JonesSandwich([decomp_function=*,] matrices::AbstractJonesMatrix...)
 
 Constructs a Jones matrix that is the results combining multiple Jones matrices together.
 The specific composition is determined by the `decomp_function`. For example if the
@@ -187,23 +187,23 @@ G = JonesG(x->(x.gR, x.gL)) # Gain matrix
 D = JonesD(x->(x.dR, x.dL)) # leakage matrix
 F = JonesF()                # Feed rotation matrix
 
-J = JonesSandwich(splat(*), G, D, F) # Construct the full Jones matrix as G*D*F
+J = JonesSandwich(*, G, D, F) # Construct the full Jones matrix as G*D*F
 
 # Or if you want to include FR calibration
 J = JonesSandwich(G, D, F) do g, d, f
-    return adjoint(f)g*d*f
+    return adjoint(f)*g*d*f
 end
 ```
 """
 function JonesSandwich(map, matrices::AbstractJonesMatrix...)
-    return JonesSandwich(map, matrices)
+    return JonesSandwich(splat(map), matrices)
 end
 
 function JonesSandwich(matrices::AbstractJonesMatrix...)
-    return JonesSandwich(splat(*), matrices...)
+    return JonesSandwich(*, matrices...)
 end
 
-function jonesmatrix(J::JonesSandwich, x, index, site)
+@inline function jonesmatrix(J::JonesSandwich, x, index, site)
     return J.jones_map(map(m->construct_jones(m, param_map(m, x), index, site), J.matrices))
 end
 
@@ -211,3 +211,31 @@ function preallocate_jones(J::JonesSandwich, array::AbstractArrayConfiguration, 
     m2 = map(x->preallocate_jones(x, array, refbasis), J.matrices)
     return JonesSandwich(J.jones_map, m2)
 end
+
+"""
+    forward_jones(J::AbstractJonesMatrix, xs::NamedTuple{N})
+
+Construct the forward model for the jones matrix model `J` with the parameters `xs`.
+    
+The `xs` is a named tuple where the keys are the parameter names and the values are SiteArrays with
+the parameter values. The return value is a `SiteArray` whose dimension is the largest of the elements
+of `xs, and whose elements are the jones matrices for the specific parameters.
+
+"""
+function forward_jones(v::AbstractJonesMatrix, xs::NamedTuple{N}) where {N}
+    sm = broadest_sitemap(xs)
+    bl = map(x->(x,x), sm.sites)
+    bmaps = map(x->_construct_baselinemap(getproperty.(sm.times, :t0), sm.frequencies, bl, x).indices_1, xs)
+    vs = map(eachindex(sm.times)) do index
+        indices = map(x->getindex(x, index), bmaps)
+        params = NamedTuple{N}(map(getindex, values(xs), values(indices)))
+        return jonesmatrix(v, params, index, Val(1))
+    end
+    return SiteArray(vs, sm)
+end
+
+function broadest_sitemap(xs::NamedTuple)
+    v = values(xs)
+    return SiteLookup(argmax(x->length(x.times), v))
+end
+

@@ -38,12 +38,9 @@ x0 = prior_sample(tpost)
 
 ℓ = logdensityof(tpost)
 @benchmark ℓ($x0)
-
-using Zygote
-using LogDensityProblemsAD
-@benchmark $(tpost)($x0)
-# 32 μs
-@benchmark Zygote.gradient($tpost, $x0)
-# 175 μs
+# 38.1 μs
+using Enzyme
+@benchmark Enzyme.gradient(Enzyme.Reverse, $(Const(tpost)), $x0)
+#107.3 μs
 
 # Now we do the eht-imaging benchmarks

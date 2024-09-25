@@ -36,7 +36,7 @@ Returns a tabular representation of the data. Note that for closures this ignore
 between quantities, which is otherwise included in the full `EHTObservationTable`.
 """
 function datatable(obs::AbstractObservationTable{F}) where {F}
-    StructArray((build_datum(obs, i) for i in 1:length(obs)), unwrap=(T->(T<:Tuple || T<:AbstractBaselineDatum)))
+    StructArray((build_datum(obs, i) for i in 1:length(obs)), unwrap=(T->(T<:Tuple || T<:AbstractBaselineDatum || T<:SArray || T<:NamedTuple)))
 end
 
 """

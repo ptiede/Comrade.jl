@@ -50,35 +50,36 @@ Returns the instrument model of the posterior `d`.
 """
 instrumentmodel(d::AbstractVLBIPosterior) = getfield(d, :instrumentmodel)
 HypercubeTransform.dimension(d::AbstractVLBIPosterior) = length(d.prior)
+EnzymeRules.inactive(::typeof(instrumentmodel), args...) = nothing
 
-@noinline logprior_ref(d, x) = logprior(d, x[])
+# @noinline logprior_ref(d, x) = logprior(d, x[])
 
-function ChainRulesCore.rrule(::typeof(logprior), d::AbstractVLBIPosterior, x)
-    p = logprior(d, x)
-    # We need this
-    px = ProjectTo(x)
-    function _logprior_pullback(Δ)
-        # @info "HERE"
-        xr = Ref(x)
-        dxr = Ref(ntzero(x))
-        autodiff(Reverse, logprior_ref, Active, Const(d), Duplicated(xr, dxr))
-        return NoTangent(), NoTangent(), (_perturb(Δ, dxr[]))
-    end
-    return p, _logprior_pullback
-end
+# function ChainRulesCore.rrule(::typeof(logprior), d::AbstractVLBIPosterior, x)
+#     p = logprior(d, x)
+#     # We need this
+#     px = ProjectTo(x)
+#     function _logprior_pullback(Δ)
+#         # @info "HERE"
+#         xr = Ref(x)
+#         dxr = Ref(ntzero(x))
+#         autodiff(Reverse, logprior_ref, Active, Const(d), Duplicated(xr, dxr))
+#         return NoTangent(), NoTangent(), (_perturb(Δ, dxr[]))
+#     end
+#     return p, _logprior_pullback
+# end
 
-function _perturb(Δ, x::Union{NamedTuple, Tuple})
-    return map(x->_perturb(Δ, x), x)
-end
+# function _perturb(Δ, x::Union{NamedTuple, Tuple})
+#     return map(x->_perturb(Δ, x), x)
+# end
 
-function _perturb(Δ, x)
-    return Δ*x
-end
+# function _perturb(Δ, x)
+#     return Δ*x
+# end
 
-function _perturb(Δ, x::AbstractArray)
-    x .= Δ*x
-    return x
-end
+# function _perturb(Δ, x::AbstractArray)
+#     x .= Δ*x
+#     return x
+# end
 
 
 
@@ -114,7 +115,7 @@ Computes the forward model visibilities of the posterior `d` with parameters `θ
 Note these are the complex visiblities or the coherency matrices, not the actual
 data products observed.
 """
-function forward_model(d::AbstractVLBIPosterior, θ)
+@inline function forward_model(d::AbstractVLBIPosterior, θ)
     vis = idealvisibilities(skymodel(d), θ)
     return apply_instrument(vis, instrumentmodel(d), θ)
 end
@@ -124,7 +125,7 @@ end
 
 Computes the log-likelihood of the posterior `d` with parameters `θ`.
 """
-function loglikelihood(d::AbstractVLBIPosterior, θ)
+@inline function loglikelihood(d::AbstractVLBIPosterior, θ)
     vis = forward_model(d, θ)
     # Convert because of conventions
     return logdensityofvis(d.lklhds, vis)
@@ -139,6 +140,19 @@ function skymodel(post::AbstractVLBIPosterior, θ)
     return skymodel(post.skymodel, θ.sky)
 end
 
+"""
+    instrumentmodel(post::AbstractVLBIPosterior, θ)
+
+Returns the instrument model of a posterior using the parameter values `θ`.
+The output will be a `SiteArray` of the Jones matrices for each site, time, and frequency.
+"""
+function instrumentmodel(post::AbstractVLBIPosterior, θ)
+    J = instrumentmodel(post)
+    return forward_jones(J.instrument, θ.instrument)
+end
+
+
+
 
 """
     dataproducts(d::AbstractVLBIPosterior)
@@ -152,7 +166,7 @@ end
 
 
 
-function logdensityofvis(lklhds, vis::AbstractArray)
+@inline function logdensityofvis(lklhds, vis::AbstractArray)
     fl = Base.Fix2(logdensityof, vis)
     ls = map(fl, lklhds)
     return sum(ls)

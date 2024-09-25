@@ -4,7 +4,7 @@
 
 using Documenter, Pkg
 using DocumenterVitepress
-using Comrade, ComradeBase, AdvancedHMC, Dynesty, NestedSamplers, Optimization,
+using Comrade, ComradeBase, AdvancedHMC, Dynesty, Optimization,
       PolarizedTypes
 using Pyehtim, VLBISkyModels, InteractiveUtils
 using AbstractMCMC, Random, HypercubeTransform
@@ -48,8 +48,8 @@ makedocs(;
         "Extensions" => [
                         "ext/optimization.md",
                         "ext/ahmc.md",
-                        "ext/nested.md",
                         "ext/dynesty.md",
+                        "ext/pigeons.md"
                        ],
         "base_api.md",
         "api.md"

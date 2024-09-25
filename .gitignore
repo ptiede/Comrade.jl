@@ -26,3 +26,4 @@ lib/ComradePigeons/Manifest.toml
 imaging_pol.md
 .CondaPkg
 test/CMAES.bson
+examples/intermediate/PolarizedImaging/m87polarized.uvfits

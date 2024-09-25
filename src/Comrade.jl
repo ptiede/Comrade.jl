@@ -11,8 +11,8 @@ using DensityInterface
 import Distributions as Dists
 using DocStringExtensions
 using ChainRulesCore
-using Enzyme
-Enzyme.API.runtimeActivity!(true)
+using EnzymeCore
+using EnzymeCore: EnzymeRules
 using FillArrays: Fill
 using ForwardDiff
 using IntervalSets
@@ -32,7 +32,6 @@ using StructArrays: StructVector, StructArray, append!!
 import StructArrays
 using Tables
 import TransformVariables as TV
-import ComradeBase: save
 using ComradeBase: AbstractDomain, AbstractSingleDomain, AbstractRectiGrid
 using VLBISkyModels: FourierTransform, FourierDualDomain
 
@@ -45,7 +44,6 @@ using VLBISkyModels: FourierTransform, FourierDualDomain
 export linearpol, mbreve, evpa
 using ComradeBase: AbstractRectiGrid, AbstractDomain, UnstructuredDomain,
                    AbstractModel, AbstractPolarizedModel, AbstractHeader
-using ComradeBase: load
 
 
 
@@ -76,7 +74,5 @@ include("dirty_image.jl")
 include("mrf_image.jl")
 include("rules.jl")
 include("network_cal.jl")
-
-
 
 end

@@ -33,7 +33,7 @@ Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P,<:HypercubeTransfo
     SliceSampler()
 
 Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P,<:TransformVariables.AbstractTransform}) where {P} =
-    Pigeons.AutoMALA(;default_autodiff_backend = :Zygote)
+    Pigeons.AutoMALA(;default_autodiff_backend = :Enzyme)
 
 function Pigeons.default_reference(tpost::Comrade.TransformedVLBIPosterior)
     t = tpost.transform

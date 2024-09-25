@@ -1,5 +1,5 @@
 using AdvancedHMC
-using Zygote
+using Enzyme
 
 
 @testset "ComradeAdvancedHMCExt" begin
@@ -20,7 +20,7 @@ using Zygote
           x = 1.451956089157719e-10,
           y = 1.455983181049137e-10),)
     s1 = NUTS(0.65)
-    hchain = sample(post, s1, 1_000; n_adapts=500, progress=false, adtype=Val(:Zygote))
+    hchain = sample(post, s1, 1_000; n_adapts=500, progress=false, adtype=Val(:Enzyme))
     hchain = sample(post, s1, 1_000; n_adapts=500, progress=false, initial_params=x0)
     out = sample(post, s1, 1_000; n_adapts=500, saveto=DiskStore(name=joinpath(@__DIR__, "Test")), initial_params=x0)
     out = sample(post, s1, 1_200; n_adapts=500, saveto=DiskStore(name=joinpath(@__DIR__, "Test")), initial_params=x0, restart=true)

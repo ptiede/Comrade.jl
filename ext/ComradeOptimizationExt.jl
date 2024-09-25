@@ -9,7 +9,7 @@ using HypercubeTransform
 
 
 function Optimization.OptimizationFunction(post::Comrade.TransformedVLBIPosterior, args...; kwargs...)
-    ℓ(x,p) = -logdensityof(post, x)
+    ℓ(x,p) = -logdensityof(p, x)
     return SciMLBase.OptimizationFunction(ℓ, args...; kwargs...)
 end
 
@@ -46,7 +46,7 @@ Optimize the posterior `post` using the `opt` optimizer.
  - `opt` : The optimizer to use. This can be any optimizer from `Optimization.jl`.
  - `adtype` : The automatic differentiation type to use. The default is `nothing` which means
     no automatic differentiation is used. To specify to use automatic differentiation
-    set `adtype`. For example if you wish to use `Zygote` set `adtype=Optimization.AutoZygote()`.
+    set `adtype`. For example if you wish to use `Enzyme` set `adtype=Optimization.AutoEnzyme(;mode=Enzyme.Reverse)`.
  - `args` : Additional arguments passed to the `Optimization`, `solve` method
 
 ## Keyword Arguments
@@ -80,7 +80,7 @@ function Comrade.comrade_opt(post::VLBIPosterior, opt, adtype=nothing, args...; 
         ub = fill(0.9999, dimension(tpost))
     end
 
-    prob = OptimizationProblem(f, initial_params, nothing; lb, ub)
+    prob = OptimizationProblem(f, initial_params, tpost; lb, ub)
     sol = solve(prob, opt, args...; kwargs...)
     return transform(tpost, sol), sol
 end

@@ -6,7 +6,7 @@ using Plots
 using LogDensityProblems
 using LogDensityProblemsAD
 using Pyehtim
-using Zygote
+using Enzyme
 
 
 
@@ -54,7 +54,7 @@ using Zygote
     show(IOBuffer(), MIME"text/plain"(), tpostf)
 
 
-    f = OptimizationFunction(tpostf, Optimization.AutoZygote())
+    f = OptimizationFunction(tpostf, Optimization.AutoEnzyme(;mode=Enzyme.Reverse))
     x0 = transform(tpostf, [ 0.1,
            0.4,
            0.5,
@@ -108,11 +108,21 @@ using Zygote
         @test LogDensityProblems.capabilities(typeof(tpostc)) === LogDensityProblems.LogDensityOrder{0}()
     end
 
+    @testset "corr image prior" begin
+        cprior1 = corr_image_prior(g, 10.0; base=EMRF, order=1)
+        cprior2 = corr_image_prior(g, 10.0; base=EMRF, order=2)
+
+        @test cprior1 isa VLBIImagePriors.HierarchicalPrior
+        @test cprior2 isa VLBIImagePriors.HierarchicalPrior
+
+        bs = beamsize(vis)
+        @test corr_image_prior(g, bs).hyperprior == corr_image_prior(g, vis).hyperprior
+    end
 
 
 end
 
-using Zygote
+using Enzyme
 using FiniteDifferences
 @testset "Polarized" begin
     _,vis, amp, lcamp, cphase, coh = load_data()
@@ -125,7 +135,7 @@ using FiniteDifferences
     tpost = asflat(post)
 
     x = prior_sample(tpost)
-    gz, = Zygote.gradient(tpost, x)
+    gz = Enzyme.gradient(Enzyme.Reverse, Const(tpost), x)
     mfd = central_fdm(5,1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
@@ -140,8 +150,9 @@ using FiniteDifferences
     post = VLBIPosterior(skym, intm_coh, coh)
     tpost = asflat(post)
     x = prior_sample(tpost)
+    fj = instrumentmodel(post, prior_sample(post))
     residual(post, Comrade.transform(tpost, x))
-    gz, = Zygote.gradient(tpost, x)
+    gz = Enzyme.gradient(Enzyme.Reverse, Const(tpost), x)
     mfd = central_fdm(5,1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
@@ -190,7 +201,7 @@ end
 end
 
 
-@testset "Bayes Non-analytic Zygote" begin
+@testset "Bayes Non-analytic AD" begin
     _,vis, amp, lcamp, cphase = load_data()
 
     mfd = central_fdm(5,1)
@@ -207,7 +218,7 @@ end
         x0 = prior_sample(tpostf)
 
         @inferred logdensityof(tpostf, x0)
-        gz, = Zygote.gradient(tpostf, x0)
+        gz = Enzyme.gradient(Enzyme.Reverse, Const(tpostf), x0)
         gn, = FiniteDifferences.grad(mfd, tpostf, x0)
         @test gz ≈ gn
     end

@@ -24,7 +24,7 @@ struct IdealInstrumentModel <: AbstractInstrumentModel end
 
 Base.show(io::IO, mime::MIME"text/plain", m::IdealInstrumentModel) = printstyled(io, "IdealInstrumentModel"; color=:light_cyan, bold=true)
 
-apply_instrument(vis, ::IdealInstrumentModel, x) = vis
+@inline apply_instrument(vis, ::IdealInstrumentModel, x) = vis
 
 
 struct InstrumentModel{J<:AbstractJonesMatrix, PI, P<:PolBasis} <: AbstractInstrumentModel
@@ -64,7 +64,11 @@ end
 # Site lookup is const so we add a method so we can signal
 # to Enzyme that it is not differentiable.
 sitelookup(x::ObservedInstrumentModel) = x.bsitelookup
-Enzyme.EnzymeRules.inactive(::typeof(sitelookup), args...) = nothing
+instrument(x::ObservedInstrumentModel) = x.instrument
+refbasis(x::ObservedInstrumentModel) = x.refbasis
+EnzymeRules.inactive(::typeof(sitelookup), args...) = nothing
+EnzymeRules.inactive(::typeof(instrument), args...) = nothing
+EnzymeRules.inactive(::typeof(refbasis), args...) = nothing
 
 function Base.show(io::IO, mime::MIME"text/plain", m::ObservedInstrumentModel)
     printstyled(io, "ObservedInstrumentModel"; bold=true, color=:light_cyan)
@@ -195,8 +199,8 @@ function _construct_baselinemap(T, F, bl, x::SiteArray)
         i2 = findall(x->(t∈x[1])&&(x[2]==s2), tsf)
         length(i1) > 1 && throw(AssertionError("Multiple indices found for $t, $((s1)) in SiteArray"))
         length(i2) > 1 && throw(AssertionError("Multiple indices found for $t, $((s2)) in SiteArray"))
-        isnothing(i1) && throw(AssertionError("$t, $f, $((s1)) not found in SiteArray"))
-        isnothing(i2) && throw(AssertionError("$t, $f, $((s2)) not found in SiteArray"))
+        (isnothing(i1) | isempty(i1)) && throw(AssertionError("$t, $f, $((s1)) not found in SiteArray"))
+        (isnothing(i2) | isempty(i2)) && throw(AssertionError("$t, $f, $((s2)) not found in SiteArray"))
         ind1[i] = i1[begin]
         ind2[i] = i2[begin]
     end
@@ -204,55 +208,82 @@ function _construct_baselinemap(T, F, bl, x::SiteArray)
 end
 
 
-intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
-intout(vis::AbstractArray{T}) where {T<:Real} = similar(vis, Complex{T})
-intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
+@inline intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
+@inline intout(vis::AbstractArray{T}) where {T<:Real} = similar(vis, Complex{T})
+@inline intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
 
-intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
-intout(vis::AbstractArray{T}) where {T<:Complex} = similar(vis, T)
-intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
+@inline intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
+@inline intout(vis::AbstractArray{T}) where {T<:Complex} = similar(vis, T)
+@inline intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
 
+intout(vis::StructArray{<:StokesParams{T}}) where {T<:Complex} = StructArray{SMatrix{2,2, T, 4}}((vis.I, vis.Q, vis.U, vis.V))
 
-function apply_instrument(vis, J::ObservedInstrumentModel, x)
-    vout = intout(vis)
-    _apply_instrument!(parent(vout), parent(vis), J, x.instrument)
+@inline function apply_instrument(vis, J::ObservedInstrumentModel, x)
+    vout = intout(parent(vis))
+    # Grab parent arrary so that type inference works better for Enzyme Reverse pass
+    xint = map(parent, x.instrument)
+    for i in eachindex(vis, vout)
+        vout[i] = @inline apply_jones(vis[i], i, J, xint)
+    end
+    # TODO this randomly segfaults when hitting the GC if we figure out why
+    # we will revert to broadcast so it works on the GPU
+    # RJ = Ref(J)
+    # Rx = Ref(xint)
+    # vout .= apply_jones.(vis, eachindex(vis), RJ, Rx)
     return vout
 end
 
-function apply_instrument(vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
-    vout = intout(vis)
-    _apply_instrument!(vout, vis, J, (;))
+# function apply_instrument(vis, J::ObservedInstrumentModel, x)
+#     xint = x.instrument
+#     vout = map(Array(vis), eachindex(vis)) do v, i
+#         return apply_jones(v, i, J, xint)
+#     end
+#     # vout = apply_jones.(vis, eachindex(vis), Ref(J), Ref(x.instrument))
+#     return UnstructuredMap(StructArray(vout), axisdims(vis))
+# end
+
+EnzymeRules.inactive_type(::Type{<:ObservedInstrumentModel}) = true
+
+
+@inline function apply_instrument(vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
+    vout = intout(parent(vis))
+    vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref((;)))
     return vout
 end
 
+#EnzymeRules.inactive(::typeof(Base.Ref), ::ObservedInstrumentModel) = nothing
 
-function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
-    # for i in eachindex(vout, vis)
-    #     vout[i] = apply_jones(vis[i], i, J, xint)
-    # end
-    vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(xint))
-    return nothing
-end
+# @inline function _apply_instrument!(vout, vis, J::ObservedInstrumentModel, xint)
+#     # @inbounds for i in eachindex(vout, vis)
+#     #     v = apply_jones(vis[i], i, J, xint)
+#     #     vout[i] = v
+#     # end
+#     vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref(xint))
+#     return nothing
+# end
 
 @inline get_indices(bsitemaps, index, ::Val{1}) = map(x->getindex(x.indices_1, index), bsitemaps)
 @inline get_indices(bsitemaps, index, ::Val{2}) = map(x->getindex(x.indices_2, index), bsitemaps)
-@inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map((xx, ii)->getindex(xx, ii), x, indices))
+@inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map(getindex, values(x), values(indices)))
+# @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(ntuple(i->getindex(x[i], indices[i]), Val(length(N))))
 
 # We need this because Enzyme seems to crash when generating code for this
 # TODO try to find MWE and post to Enzyme.jl
-Enzyme.EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
-
-@inline function build_jones(index::Int, J::ObservedInstrumentModel, x, ::Val{N}) where N
-    indices = get_indices(sitelookup(J), index, Val(N))
-    params = get_params(x, indices)
-    return jonesmatrix(J.instrument, params, index, Val(N))
-end
+EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 
 
-@inline function apply_jones(v, index::Int, J::ObservedInstrumentModel, x)
-    j1 = build_jones(index, J, x, Val(1))
-    j2 = build_jones(index, J, x, Val(2))
-    vout =  _apply_jones(v, j1, j2, J.refbasis)
+@inline function apply_jones(v, index::Int, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
+    # First lhs station
+    indices1 = map(x->getindex(x.indices_1, index), sitelookup(J))#get_indices(sitelookup(J), index, Val(N))
+    params1 = NamedTuple{N}(map(getindex, values(x), values(indices1)))
+    j1 = jonesmatrix(instrument(J), params1, index, Val(1))
+
+    # Second RHS station
+    indices2 = map(x->getindex(x.indices_2, index), sitelookup(J))#get_indices(sitelookup(J), index, Val(N))
+    params2 = NamedTuple{N}(map(getindex, values(x), values(indices2)))
+    j2 = jonesmatrix(instrument(J), params2, index, Val(2))
+
+    vout =  _apply_jones(v, j1, j2, refbasis(J))
     return vout
 end
 
@@ -264,29 +295,31 @@ end
 
 
 
-function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel, x)
-    out = apply_instrument(vis, J, x)
-    px = ProjectTo(x)
-    function _apply_instrument_pb(Δ)
-        Δout = similar(out)
-        Δout .= unthunk(Δ)
-        xi = x.instrument
-        dx = ntzero(xi)
-        dvis = zero(vis)
-        autodiff(Reverse, _apply_instrument!, Duplicated(out, Δout), Duplicated(vis, dvis), Const(J), Duplicated(xi, dx))
-        return NoTangent(), dvis, NoTangent(), px((;instrument = dx))
-    end
-    return out, _apply_instrument_pb
-end
+# function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel, x)
+#     out = apply_instrument(vis, J, x)
+#     px = ProjectTo(x)
+#     function _apply_instrument_pb(Δ)
+#         bvis = baseimage(vis)
+#         bout = baseimage(out)
+#         Δout = similar(bout)
+#         Δout .= unthunk(Δ)
+#         xi = x.instrument
+#         dx = ntzero(xi)
+#         dvis = zero(bvis)
+#         autodiff(Reverse, _apply_instrument!, Const, Duplicated(bout, Δout), Duplicated(bvis, dvis), Const(J), Duplicated(xi, dx))
+#         return NoTangent(), UnstructuredMap(dvis, axisdims(vis)), NoTangent(), px((;instrument = dx))
+#     end
+#     return out, _apply_instrument_pb
+# end
 
-function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
-    out = apply_instrument(vis, J, x)
-    function _apply_instrument_pb(Δ)
-        Δout = similar(out)
-        Δout .= unthunk(Δ)
-        dvis = zero(vis)
-        autodiff(Reverse, _apply_instrument!, Duplicated(out, Δout), Duplicated(vis, dvis), Const(J), Const((;)))
-        return NoTangent(), dvis, NoTangent(), NoTangent()
-    end
-    return out, _apply_instrument_pb
-end
+# function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
+#     out = apply_instrument(vis, J, x)
+#     function _apply_instrument_pb(Δ)
+#         Δout = similar(out)
+#         Δout .= unthunk(Δ)
+#         dvis = zero(vis)
+#         autodiff(Reverse, _apply_instrument!, Duplicated(out, Δout), Duplicated(vis, dvis), Const(J), Const((;)))
+#         return NoTangent(), dvis, NoTangent(), NoTangent()
+#     end
+#     return out, _apply_instrument_pb
+# end

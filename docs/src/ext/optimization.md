@@ -13,9 +13,10 @@ To see what optimizers are available and what options are available, please see 
 using Comrade
 using Optimization
 using OptimizationOptimJL
+using Enzyme
 
 # Some stuff to create a posterior object
 post # of type Comrade.Posterior
 
-xopt, sol = comrade_opt(post, LBFGS(); adtype=Val(:Zygote))
+xopt, sol = comrade_opt(post, LBFGS(); adtype=Val(:Enzyme))
 ```

@@ -58,10 +58,6 @@ function VLBIPosterior(
         dataproducts::EHTObservationTable...;
         )
 
-    # This is needed because the prior is causing runtimeActivity
-    # warnings in Enzyme
-    Enzyme.API.runtimeActivity!(true)
-
 
     array = arrayconfig(dataproducts[begin])
     int, intprior = set_array(instrumentmodel, array)
@@ -87,17 +83,22 @@ function combine_prior(skymodel, ::Tuple{})
     return NamedDist((sky=skymodel,))
 end
 
+function combine_prior(skymodel::NamedDist{()}, intmodel::Tuple{})
+    return NamedDist()
+end
+
+
 function combine_prior(skymodel, ::NamedDist{()})
     return NamedDist((sky=skymodel,))
 end
 
 
 function combine_prior(::Tuple{}, instrumentmodel)
-    return NamedDist((;instrument=instrumentmodel,))
+    return NamedDist((; instrument=instrumentmodel,))
 end
 
-function combine_prior(::NamedTuple{}, instrumentmodel)
-    return NamedDist((;instrument=instrumentmodel,))
+function combine_prior(::NamedTuple{()}, instrumentmodel)
+    return NamedDist((; instrument=instrumentmodel,))
 end
 
 
