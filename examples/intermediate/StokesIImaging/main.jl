@@ -145,7 +145,12 @@ intpr = (
 intmodel = InstrumentModel(G, intpr)
 
 
-post = VLBIPosterior(skym, intmodel, dvis)
+# To form the posterior we just combine the skymodel, instrument model and the data. Additionally,
+# since we want to use gradients we need to specify the AD mode. Essentially for all modes we recommend
+# using `Enzyme.set_runtime_activity(Enzyme.Reverse)`. Eventually as Comrade and Enzyme matures we will 
+# no need `set_runtime_activity`.
+using Enzyme
+post = VLBIPosterior(skym, intmodel, dvis; admode=set_runtime_activity(Enzyme.Reverse))
 # done using the `asflat` function.
 tpost = asflat(post)
 ndim = dimension(tpost)
@@ -160,8 +165,7 @@ ndim = dimension(tpost)
 # To initialize our sampler we will use optimize using Adam
 using Optimization
 using OptimizationOptimisers
-using Enzyme
-xopt, sol = comrade_opt(post, Optimisers.Adam(), AutoEnzyme(;mode=Enzyme.Reverse); initial_params=prior_sample(rng, post), maxiters=20_000, g_tol=1e-1)
+xopt, sol = comrade_opt(post, Optimisers.Adam(); initial_params=prior_sample(rng, post), maxiters=20_000, g_tol=1e-1)
 
 # !!! warning
 #     Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -208,7 +212,7 @@ plot(gt, layout=(3,3), size=(600,500)) |> DisplayAs.PNG |> DisplayAs.Text
 # run
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 1_000; adtype=AutoEnzyme(;mode=Enzyme.Reverse), n_adapts=500, progress=false, initial_params=xopt)
+chain = sample(rng, post, NUTS(0.8), 1_000; n_adapts=500, progress=false, initial_params=xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this

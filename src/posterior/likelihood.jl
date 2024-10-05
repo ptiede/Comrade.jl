@@ -15,37 +15,65 @@ are simulated data.
 likelihood(d::ConditionedLikelihood, μ) = d.kernel(μ)
 
 
+struct _Visibility{S,L}
+    S::S
+    L::L
+end
+
+function (v::_Visibility)(μ)
+    return ComplexVisLikelihood(baseimage(μ), v.S, v.L)
+end
 
 # internal function that creates the likelihood for a set of complex visibilities
 function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTVisibilityDatum})
     Σ = noise(data).^2
     vis = measurement(data)
     lnorm = VLBILikelihoods.lognorm(ComplexVisLikelihood(vis, Σ))
-    ℓ = ConditionedLikelihood(vis) do μ
-        ComplexVisLikelihood(μ, Σ, lnorm)
-    end
+    ℓ = ConditionedLikelihood(_Visibility(Σ, lnorm), vis)
     return ℓ
+end
+
+struct _Coherency{S,L}
+    S::S
+    L::L
+end
+
+function (c::_Coherency)(μ)
+    return CoherencyLikelihood(baseimage(μ), c.S, c.L)
 end
 
 function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTCoherencyDatum})
     Σ = map(x->x.^2, noise(data))
     vis = measurement(data)
-    # lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, Σ))
-    ℓ = ConditionedLikelihood(vis) do μ
-        # @info typeof(μ)
-        CoherencyLikelihood(baseimage(μ), Σ, 0.0)
-    end
+    lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, Σ))
+    ℓ = ConditionedLikelihood(_Coherency(Σ, lnorm), vis)
     return ℓ
+end
+
+struct _VisAmp{S}
+    S::S
+end
+
+function (v::_VisAmp)(μ)
+    return RiceAmplitudeLikelihood(abs.(baseimage(μ)), v.S)
 end
 
 # internal function that creates the likelihood for a set of visibility amplitudes
 function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTVisibilityAmplitudeDatum})
     Σ = noise(data).^2
     amp = measurement(data)
-    ℓ = ConditionedLikelihood(amp) do μ
-        RiceAmplitudeLikelihood(abs.(μ), Σ)
-    end
+    ℓ = ConditionedLikelihood(_VisAmp(Σ), amp)
     return ℓ
+end
+
+struct _LCamp{F,S,L}
+    f::F
+    S::S
+    L::L
+end
+
+function (c::_LCamp)(μ)
+    return AmplitudeLikelihood(c.f(baseimage(μ)), c.S, c.L)
 end
 
 # internal function that creates the likelihood for a set of log closure amplitudes
@@ -54,12 +82,19 @@ function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTLogClosur
     f = Base.Fix2(logclosure_amplitudes, designmat(arrayconfig(data)))
     amp = measurement(data)
     lnorm = VLBILikelihoods.lognorm(AmplitudeLikelihood(amp, Σlca))
-    ℓ = ConditionedLikelihood(amp) do μ
-        AmplitudeLikelihood(f(μ), Σlca, lnorm)
-    end
+    ℓ = ConditionedLikelihood(_LCamp(f, Σlca, lnorm), amp)
     return ℓ
 end
 
+struct _CPhase{F,S,L}
+    f::F
+    S::S
+    L::L
+end
+
+function (c::_CPhase)(μ)
+    return ClosurePhaseLikelihood(c.f(baseimage(μ)), c.S, c.L)
+end
 
 # internal function that creates the likelihood for a set of closure phase datum
 function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTClosurePhaseDatum})
@@ -67,9 +102,6 @@ function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTClosurePh
     f = Base.Fix2(closure_phases, designmat(arrayconfig(data)))
     phase = measurement(data)
     lnorm = VLBILikelihoods.lognorm(ClosurePhaseLikelihood(phase, Σcp))
-    ℓ = ConditionedLikelihood(phase) do μ
-        ClosurePhaseLikelihood(f(μ), Σcp, lnorm)
-    end
-
+    ℓ = ConditionedLikelihood(_CPhase(f, Σcp, lnorm), phase)
     return ℓ
 end

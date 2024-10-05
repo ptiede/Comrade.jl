@@ -28,8 +28,8 @@ using Enzyme
         gfdf, = grad(fdm, f, x)
         gfdlj, = grad(fdm, flj, x)
 
-        gzf  = Enzyme.gradient(Enzyme.Reverse, Const(f), x)
-        gzflj = Enzyme.gradient(Enzyme.Reverse, Const(flj), x)
+        gzf,  = Enzyme.gradient(Enzyme.Reverse, Const(f), x)
+        gzflj, = Enzyme.gradient(Enzyme.Reverse, Const(flj), x)
 
         @test gzf ≈ gfdf
         @test gzflj ≈ gfdlj

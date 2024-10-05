@@ -129,7 +129,8 @@ skym = SkyModel(sky, prior, grid; metadata=skymeta)
 
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
-post = VLBIPosterior(skym, dlcamp, dcphase)
+using Enzyme
+post = VLBIPosterior(skym, dlcamp, dcphase; admode=set_runtime_activity(Enzyme.Reverse))
 
 # ## Reconstructing the Image
 
@@ -144,8 +145,7 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 # OptimizationOptimJL. We also need to import Enzyme to allow for automatic differentiation.
 using Optimization
 using OptimizationOptimJL
-using Enzyme
-xopt, sol = comrade_opt(post, LBFGS(), AutoEnzyme(;mode=Enzyme.Reverse); 
+xopt, sol = comrade_opt(post, LBFGS(); 
                         maxiters=1000, initial_params=prior_sample(rng, post))
 
 

@@ -6,11 +6,21 @@ using Optimization
 using Distributions
 using LinearAlgebra
 using HypercubeTransform
-
+using LogDensityProblems
 
 function Optimization.OptimizationFunction(post::Comrade.TransformedVLBIPosterior, args...; kwargs...)
-    ℓ(x,p) = -logdensityof(p, x)
-    return SciMLBase.OptimizationFunction(ℓ, args...; kwargs...)
+    ℓ(x,p=post) = -logdensityof(p, x)
+    if isnothing(Comrade.admode(post))
+        return SciMLBase.OptimizationFunction(ℓ, args...; kwargs...)
+    else
+        function grad(G, x, p)
+            (_, dx) = LogDensityProblems.logdensity_and_gradient(post, x)
+            dx .*= -1
+            G .= dx
+            return G
+        end
+        return SciMLBase.OptimizationFunction(ℓ, args...; grad=grad, kwargs...)
+    end
 end
 
 # """
@@ -36,17 +46,20 @@ end
 
 
 """
-    comrade_opt(post::VLBIPosterior, opt, adtype=nothing, args...; initial_params=nothing, kwargs...)
+    comrade_opt(post::VLBIPosterior, opt, args...; initial_params=nothing, kwargs...)
 
 Optimize the posterior `post` using the `opt` optimizer.
+
+!!! warning
+    To use use a gradient optimizer with AD, `VLBIPosterior` must be created with a specific `admode` specified.
+    The `admode` can be a union of `Nothing` and `<:EnzymeCore.Mode` types. We recommend
+    using `Enzyme.set_runtime_activity(Enzyme.Reverse)`.
+
 
 ## Arguments
 
  - `post` : The posterior to optimize.
  - `opt` : The optimizer to use. This can be any optimizer from `Optimization.jl`.
- - `adtype` : The automatic differentiation type to use. The default is `nothing` which means
-    no automatic differentiation is used. To specify to use automatic differentiation
-    set `adtype`. For example if you wish to use `Enzyme` set `adtype=Optimization.AutoEnzyme(;mode=Enzyme.Reverse)`.
  - `args` : Additional arguments passed to the `Optimization`, `solve` method
 
 ## Keyword Arguments
@@ -57,15 +70,14 @@ Optimize the posterior `post` using the `opt` optimizer.
  - `kwargs` : Additional keyword arguments passed `Optimization.jl` `solve` method.
 
 """
-function Comrade.comrade_opt(post::VLBIPosterior, opt, adtype=nothing, args...; initial_params=nothing, kwargs...)
-    if isnothing(adtype)
-        adtype = Optimization.SciMLBase.NoAD()
+function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params=nothing, lb=nothing, ub=nothing, cube=false, kwargs...)
+    if isnothing(Comrade.admode(post)) || cube
         tpost = ascube(post)
     else
         tpost = asflat(post)
     end
 
-    f = OptimizationFunction(tpost, adtype)
+    f = OptimizationFunction(tpost)
 
     if isnothing(initial_params)
         initial_params = prior_sample(tpost)
@@ -73,11 +85,9 @@ function Comrade.comrade_opt(post::VLBIPosterior, opt, adtype=nothing, args...; 
         initial_params = Comrade.inverse(tpost, initial_params)
     end
 
-    lb = nothing
-    ub = nothing
     if tpost.transform isa HypercubeTransform.AbstractHypercubeTransform
         lb=fill(0.0001, dimension(tpost))
-        ub = fill(0.9999, dimension(tpost))
+        ub=fill(0.9999, dimension(tpost))
     end
 
     prob = OptimizationProblem(f, initial_params, tpost; lb, ub)

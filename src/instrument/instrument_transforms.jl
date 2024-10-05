@@ -46,11 +46,11 @@ end
 
 @inline function site_sum(y, site_map::SiteLookup)
     yout = similar(y)
-    for site in site_map.lookup
-        ys = @inbounds @view y[site]
+    @inbounds for site in site_map.lookup
+        ys = @view y[site]
         # y should never alias so we should be fine here.
-        youts = @inbounds @view yout[site]
-        @inline cumsum!(youts, ys)
+        youts = @view yout[site]
+        cumsum!(youts, ys)
     end
     return yout
 end
