@@ -70,8 +70,8 @@ Optimize the posterior `post` using the `opt` optimizer.
  - `kwargs` : Additional keyword arguments passed `Optimization.jl` `solve` method.
 
 """
-function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params=nothing, kwargs...)
-    if isnothing(Comrade.admode(post))
+function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params=nothing, lb=nothing, ub=nothing, cube=false, kwargs...)
+    if isnothing(Comrade.admode(post)) || cube
         tpost = ascube(post)
     else
         tpost = asflat(post)
@@ -85,11 +85,9 @@ function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params=n
         initial_params = Comrade.inverse(tpost, initial_params)
     end
 
-    lb = nothing
-    ub = nothing
     if tpost.transform isa HypercubeTransform.AbstractHypercubeTransform
         lb=fill(0.0001, dimension(tpost))
-        ub = fill(0.9999, dimension(tpost))
+        ub=fill(0.9999, dimension(tpost))
     end
 
     prob = OptimizationProblem(f, initial_params, tpost; lb, ub)
