@@ -156,6 +156,7 @@ skym = SkyModel(sky, skyprior, g; metadata=skymetadata)
 
 # This is everything we need to specify our posterior distribution, which our is the main
 # object of interest in image reconstructions when using Bayesian inference.
+using Enzyme
 post = VLBIPosterior(skym, intmodel, dvis; admode=set_runtime_activity(Enzyme.Reverse))
 
 # To sample from our prior we can do
@@ -179,7 +180,6 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # To use this we use the [`comrade_opt`](@ref) function
 using Optimization
 using OptimizationOptimJL
-using Enzyme
 xopt, sol = comrade_opt(post, LBFGS(); 
                         initial_params=prior_sample(rng, post), maxiters=1000, g_tol=1e0)
 
