@@ -104,8 +104,8 @@ using Enzyme
         @test LogDensityProblems.dimension(tpostc) == length(c0)
 
         @test LogDensityProblems.capabilities(typeof(post)) === LogDensityProblems.LogDensityOrder{0}()
-        @test LogDensityProblems.capabilities(typeof(tpostf)) === LogDensityProblems.LogDensityOrder{0}()
-        @test LogDensityProblems.capabilities(typeof(tpostc)) === LogDensityProblems.LogDensityOrder{0}()
+        @test LogDensityProblems.capabilities(typeof(tpostf)) === LogDensityProblems.LogDensityOrder{1}()
+        @test LogDensityProblems.capabilities(typeof(tpostc)) === LogDensityProblems.LogDensityOrder{1}()
     end
 
     @testset "corr image prior" begin
@@ -135,7 +135,7 @@ using FiniteDifferences
     tpost = asflat(post)
 
     x = prior_sample(tpost)
-    gz = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpost), x)
+    gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpost), x)
     mfd = central_fdm(5,1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
@@ -152,7 +152,7 @@ using FiniteDifferences
     x = prior_sample(tpost)
     fj = instrumentmodel(post, prior_sample(post))
     residual(post, Comrade.transform(tpost, x))
-    gz = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpost), x)
+    gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpost), x)
     mfd = central_fdm(5,1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
@@ -218,7 +218,7 @@ end
         x0 = prior_sample(tpostf)
 
         @inferred logdensityof(tpostf, x0)
-        gz = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpostf), x0)
+        gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpostf), x0)
         gn, = FiniteDifferences.grad(mfd, tpostf, x0)
         @test gz ≈ gn
     end
