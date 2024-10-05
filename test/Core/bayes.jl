@@ -15,7 +15,7 @@ using Enzyme
     g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
     post_cl = VLBIPosterior(skym, lcamp, cphase; admode=set_runtime_activity(Enzyme.Reverse))
-    post    = VLBIPosterior(skym, vis; admode=set_runtime_activity(Enzyme.Reverse))
+    post    = VLBIPosterior(skym, vis)
 
     prior = test_prior()
 
@@ -135,7 +135,7 @@ using FiniteDifferences
     tpost = asflat(post)
 
     x = prior_sample(tpost)
-    gz = Enzyme.gradient(Enzyme.Reverse, Const(tpost), x)
+    gz = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpost), x)
     mfd = central_fdm(5,1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
@@ -152,7 +152,7 @@ using FiniteDifferences
     x = prior_sample(tpost)
     fj = instrumentmodel(post, prior_sample(post))
     residual(post, Comrade.transform(tpost, x))
-    gz = Enzyme.gradient(Enzyme.Reverse, Const(tpost), x)
+    gz = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpost), x)
     mfd = central_fdm(5,1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
@@ -218,7 +218,7 @@ end
         x0 = prior_sample(tpostf)
 
         @inferred logdensityof(tpostf, x0)
-        gz = Enzyme.gradient(Enzyme.Reverse, Const(tpostf), x0)
+        gz = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpostf), x0)
         gn, = FiniteDifferences.grad(mfd, tpostf, x0)
         @test gz ≈ gn
     end
