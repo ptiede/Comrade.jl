@@ -11,7 +11,7 @@ struct TransformedVLBIPosterior{P<:VLBIPosterior,T} <: AbstractVLBIPosterior
     transform::T
 end
 (post::TransformedVLBIPosterior)(θ) = logdensityof(post, θ)
-
+admode(post::TransformedVLBIPosterior) = admode(post.lpost)
 
 function prior_sample(rng, tpost::TransformedVLBIPosterior, args...)
     inv = Base.Fix1(HypercubeTransform.inverse, tpost)

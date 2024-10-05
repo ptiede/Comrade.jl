@@ -14,8 +14,8 @@ using Enzyme
     _,vis, amp, lcamp, cphase = load_data()
     g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
-    post_cl = VLBIPosterior(skym, lcamp, cphase)
-    post    = VLBIPosterior(skym, vis)
+    post_cl = VLBIPosterior(skym, lcamp, cphase; admode=set_runtime_activity(Enzyme.Reverse))
+    post    = VLBIPosterior(skym, vis; admode=set_runtime_activity(Enzyme.Reverse))
 
     prior = test_prior()
 
@@ -54,7 +54,7 @@ using Enzyme
     show(IOBuffer(), MIME"text/plain"(), tpostf)
 
 
-    f = OptimizationFunction(tpostf, Optimization.AutoEnzyme(;mode=Enzyme.Reverse))
+    f = OptimizationFunction(tpostf)
     x0 = transform(tpostf, [ 0.1,
            0.4,
            0.5,

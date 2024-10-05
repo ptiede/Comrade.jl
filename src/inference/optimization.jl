@@ -1,7 +1,7 @@
 export comrade_opt, comrade_laplace
 
 """
-    comrade_opt(post::VLBIPosterior, opt, adtype=Optimization.NoAD(), args...; initial_params=nothing, kwargs...)
+    comrade_opt(post::VLBIPosterior, opt, adtype=nothing, args...; initial_params=nothing, kwargs...)
 
 Optimize the posterior `post` using the `opt` optimizer. The `adtype` specifies the automatic differentiation.
 The `args/kwargs` are forwarded to `the specific optimization package.

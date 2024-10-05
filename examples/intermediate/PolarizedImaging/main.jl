@@ -180,8 +180,8 @@ end
 # image model. Our image will be a 10x10 raster with a 60μas FOV.
 using Distributions
 using VLBIImagePriors
-fovx = μas2rad(150.0)
-fovy = μas2rad(150.0)
+fovx = μas2rad(200.0)
+fovy = μas2rad(200.0)
 nx = ny = 32
 grid = imagepixels(fovx, fovy, nx, ny)
 
@@ -204,7 +204,7 @@ skymeta = (; mimg=mimg./flux(mimg), ftot=0.6)
 cprior = corr_image_prior(grid, dvis)
 skyprior = (
     c = cprior,
-    σ  = truncated(Normal(0.0, 0.5); lower=0.0),
+    σ  = Exponential(0.1),
     p  = cprior,
     p0 = Normal(-2.0, 2.0),
     pσ =  truncated(Normal(0.0, 1.0); lower=0.01),
@@ -287,7 +287,7 @@ J = JonesSandwich(js, G, D, R)
 intprior = (
     lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2))),
     lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.01))),
-    gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0), phase=false),
+    gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0), phase=true),
     gprat= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase=false),
     dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
@@ -301,8 +301,9 @@ intmodel = InstrumentModel(J, intprior)
 
 # intmodel = InstrumentModel(JonesR(;add_fr=true))
 # Putting it all together, we form our likelihood and posterior objects for optimization and
-# sampling.
-post = VLBIPosterior(skym, intmodel, dvis)
+# sampling, and specifying to use Enzyme.Reverse with runtime activity for AD.
+using Enzyme
+post = VLBIPosterior(skym, intmodel, dvis; admode=set_runtime_activity(Enzyme.Reverse))
 
 # ## Reconstructing the Image and Instrument Effects
 
@@ -323,8 +324,7 @@ tpost = asflat(post)
 # work with the polarized Comrade posterior is Enzyme.
 using Optimization
 using OptimizationOptimisers
-using Enzyme
-xopt, sol = comrade_opt(post, Optimisers.Adam(), AutoEnzyme(;mode=Enzyme.Reverse); 
+xopt, sol = comrade_opt(post, Optimisers.Adam(); 
                         initial_params=prior_sample(rng, post), maxiters=25_000)
 
 
@@ -384,7 +384,7 @@ p |> DisplayAs.PNG |> DisplayAs.Text
 # other imaging examples. For example
 # ```julia
 # using AdvancedHMC
-# chain = sample(rng, post, NUTS(0.8), 10_000; adtype=AutoEnzyme(;mode=Enzyme.Reverse), n_adapts=5000, progress=true, initial_params=xopt)
+# chain = sample(rng, post, NUTS(0.8), 10_000, n_adapts=5000, progress=true, initial_params=xopt)
 # ```
 
 

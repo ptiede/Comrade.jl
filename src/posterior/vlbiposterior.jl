@@ -1,25 +1,30 @@
-struct VLBIPosterior{D, T, P, MS<:ObservedSkyModel, MI<:AbstractInstrumentModel} <: AbstractVLBIPosterior
+struct VLBIPosterior{D, T, P, MS<:ObservedSkyModel, MI<:AbstractInstrumentModel, ADMode<:Union{Nothing,EnzymeCore.Mode}} <: AbstractVLBIPosterior
     data::D
     lklhds::T
     prior::P
     skymodel::MS
     instrumentmodel::MI
+    admode::ADMode
 end
 
 (post::VLBIPosterior)(θ) = logdensityof(post, θ)
-
+admode(post::VLBIPosterior) = post.admode
 
 
 
 """
-    VLBIPosterior(skymodel::SkyModel, instumentmodel::InstrumentModel, dataproducts::EHTObservationTable...)
+    VLBIPosterior(skymodel::SkyModel, instumentmodel::InstrumentModel, dataproducts::EHTObservationTable...; admode=nothing)
 
 Creates a VLBILikelihood using the `skymodel` its related metadata `skymeta`
-and the `instrumentmodel` and its metadata `instumentmeta`.
-. The `model`
-is a function that converts from parameters `θ` to a Comrade
+and the `instrumentmodel` and its metadata `instumentmeta`. The `model` is a 
+function that converts from parameters `θ` to a Comrade
 AbstractModel which can be used to compute [`visibilitymap`](@ref) and a set of
 `metadata` that is used by `model` to compute the model.
+
+To enable automatic differentiation, the `admode` keyword argument can be set to any `EnzymeCore.Mode` type 
+of if no AD is desired then `nothing`. We recommend using `Enzyme.set_runtime_activity(Enzyme.Reverse)` 
+for essentially every problem. Note that runtime activity does have a perfomance cost, and as Enzyme and 
+Comrade matures we expect this to not need runtime activity.
 
 # Warning
 
@@ -56,6 +61,7 @@ function VLBIPosterior(
         skymodel::AbstractSkyModel,
         instrumentmodel::AbstractInstrumentModel,
         dataproducts::EHTObservationTable...;
+        admode = nothing
         )
 
 
@@ -69,11 +75,11 @@ function VLBIPosterior(
 
     return VLBIPosterior{
                 typeof(dataproducts),typeof(ls),typeof(total_prior),
-                typeof(sky), typeof(int)}(dataproducts, ls, total_prior, sky, int)
+                typeof(sky), typeof(int), typeof(admode)}(dataproducts, ls, total_prior, sky, int, admode)
 end
 
-VLBIPosterior(skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...) =
-    VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...)
+VLBIPosterior(skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...; admode=nothing) =
+    VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...; admode)
 
 function combine_prior(skyprior, instrumentmodelprior)
     return NamedDist((sky=skyprior, instrument=instrumentmodelprior))
