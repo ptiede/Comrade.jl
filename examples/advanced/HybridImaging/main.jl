@@ -40,7 +40,7 @@ using Pyehtim
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(5)
+rng = StableRNG(11)
 
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
@@ -65,16 +65,16 @@ dvis  = extract_table(obs, Visibilities())
 # and a large asymmetric Gaussian component to model the unresolved short-baseline flux.
 
 function sky(θ, metadata)
-    (;c, σimg, f, r, σ, τ, ξτ, ma, mp, fg) = θ
+    (;c, σimg, f, r, σ, ma, mp, fg) = θ
     (;ftot, grid) = metadata
     ## Form the image model
     ## First transform to simplex space first applying the non-centered transform
     rast = (ftot*f*(1-fg)).*to_simplex(CenteredLR(), σimg.*c)
     mimg = ContinuousImage(rast, grid, BSplinePulse{3}())
     ## Form the ring model
-    α = ma.*cos.(mp .- ξτ)
-    β = ma.*sin.(mp .- ξτ)
-    ring = smoothed(modify(MRing(α, β), Stretch(r, r*(1+τ)), Rotate(ξτ), Renormalize((ftot*(1-f)*(1-fg)))), σ)
+    α = ma.*cos.(mp)
+    β = ma.*sin.(mp)
+    ring = smoothed(modify(MRing(α, β), Stretch(r), Renormalize((ftot*(1-f)*(1-fg)))), σ)
     gauss = modify(Gaussian(), Stretch(μas2rad(250.0)), Renormalize(ftot*f*fg))
     ## We group the geometric models together for improved efficiency. This will be
     ## automated in future versions.
@@ -89,11 +89,8 @@ end
 
 using VLBIImagePriors
 using Distributions
-G = SingleStokesGain() do x
-    lg = x.lg
-    gp = x.gp
-    return exp(lg + 1im*gp)
-end
+fgain(x) = exp(x.lg + 1im*x.gp)
+G = SingleStokesGain(fgain)
 
 intpr = (
     lg= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
@@ -143,8 +140,6 @@ skyprior = (
           f  = Uniform(0.0, 1.0),
           r  = Uniform(μas2rad(10.0), μas2rad(30.0)),
           σ  = Uniform(μas2rad(0.1), μas2rad(10.0)),
-          τ  = truncated(Normal(0.0, 0.1); lower=0.0, upper=1.0),
-          ξτ = DiagonalVonMises(0.0, inv(π^2)),
           ma = ntuple(_->Uniform(0.0, 0.5), 2),
           mp = ntuple(_->DiagonalVonMises(0.0, inv(π^2)), 2),
           fg = Uniform(0.0, 1.0),
@@ -181,7 +176,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 using Optimization
 using OptimizationOptimJL
 xopt, sol = comrade_opt(post, LBFGS(); 
-                        initial_params=prior_sample(rng, post), maxiters=1000, g_tol=1e0)
+                        initial_params=xrand, maxiters=2000, g_tol=1e0)
 
 
 # First we will evaluate our fit by plotting the residuals
