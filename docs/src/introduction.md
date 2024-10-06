@@ -11,13 +11,9 @@ not have to create a separate source "model" every time they
 change the model specification. Additionally, most models currently implemented are differentiable with at Enzyme. This allows for gradient accelerated optimization and sampling (e.g., HMC) to be used with little
 effort by the end user. 
 
-!!! warn
-    As of 0.11 Comrade is only tested with Enzyme. ForwardDiff may work for some
-    models, but it is not tested and there are known problems with e.g., closures
-    due to the use of a sparse cholesky factorization. Additionally essentially no
-    models will work with Zygote due to the heavy use of mutation in the codebase.
-    The use of mutation is necessary for performance reasons, and we have no plans
-    to change this in the future.
+!!! warning
+    As of 0.11 Comrade will only support AD with Enzyme. We have removed support for Zygote and ForwardDiff
+    due to performance issues.
 
 
 ## Tutorials
