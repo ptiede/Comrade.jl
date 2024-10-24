@@ -19,6 +19,7 @@ jobs:
           - Core 
         version:
           - '1.10'
+          - '1'
         os:
           - ubuntu-latest
         arch:
