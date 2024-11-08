@@ -1,6 +1,6 @@
 abstract type ReferencingScheme end
 
-export NoReference, SingleReference, SEFDReference
+export NoReference, SingleReference, SEFDReference, MultiReference
 
 struct NoReference <: ReferencingScheme end
 
@@ -13,6 +13,12 @@ struct SingleReference{T} <: ReferencingScheme
     site::Symbol
     value::T
 end
+
+struct MultiReference{S,T} <: ReferencingScheme
+    site::S
+    value::T
+end
+
 
 
 
@@ -39,6 +45,12 @@ function reference_indices(::AbstractArrayConfiguration, st::SiteLookup, p::Sing
     inds = findall(==(p.site), st.sites)
     return inds, Fill(p.value, length(inds))
 end
+
+function reference_indices(::AbstractArrayConfiguration, st::SiteLookup, p::MultiReference)
+    inds = findall(∈(p.site), st.sites)
+    return inds, Fill(p.value, length(inds))
+end
+
 
 function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r::SEFDReference)
     tarr = array.tarr
