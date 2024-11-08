@@ -363,7 +363,10 @@ end
 
 function _chi2(res::EHTObservationTable)
     return sum(datatable(res)) do d
-            return @. abs2(d.measurement/d.noise)
+            r2 = @. abs2(d.measurement/d.noise)
+            # Check if residual is NaN which means that the data is missing
+            isnan(r2) && return zero(r2)
+            return r2
     end
 end
 
