@@ -71,6 +71,6 @@ function build_prior(metadata, body)
     names = []
     dists = []
     postwalk(x->@capture(x, T_ ~ D_) ? (push!(names, T);push!(dists, D)) : x, ex)
-    return Expr(:call, :(HypercubeTransform.NamedDist), Expr(:parameters, )
+    return Expr(:call, :(HypercubeTransform.NamedDist), Expr(:parameters, ))
     return :(NamedDist(NamedTuple{Tuple($names)}($dists)))
 end
