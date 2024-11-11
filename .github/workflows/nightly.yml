@@ -30,7 +30,7 @@ jobs:
           architecture: ${{ matrix.arch }}
       - uses: julia-actions/setup-julia@v2
         with:
-          version: nightly
+          version: '1.11'
           arch: x64
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@latest

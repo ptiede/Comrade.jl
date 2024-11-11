@@ -11,6 +11,9 @@ Composable Modeling of Radio Emission
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.04457/status.svg)](https://doi.org/10.21105/joss.04457)
 
 
+# Julia support
+
+Currently we only support Julia 1.10. We are working on updating to Julia 1.11 but this is not yet complete.
 
 # Installation
 To install Comrade.jl you must use Julia's package manager. For example you can launch your Julia session with then type `]` to move into Pkg mode. Once in pkg mode type
