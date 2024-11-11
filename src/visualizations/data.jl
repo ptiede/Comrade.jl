@@ -373,10 +373,10 @@ end
 function _chi2(res::EHTObservationTable{<:EHTCoherencyDatum})
     return sum(datatable(res)) do d
             r2 = @. abs2(d.measurement/d.noise)
-            r11 = isnan(r1[1,1]) ? zero(r1[1,1]) : r1[1,1]
-            r12 = isnan(r1[1,2]) ? zero(r1[1,2]) : r1[1,2]
-            r21 = isnan(r1[2,1]) ? zero(r1[2,1]) : r1[2,1]
-            r22 = isnan(r1[2,2]) ? zero(r1[2,2]) : r1[2,2]
+            r11 = isnan(r2[1,1]) ? zero(r2[1,1]) : r2[1,1]
+            r12 = isnan(r2[1,2]) ? zero(r2[1,2]) : r2[1,2]
+            r21 = isnan(r2[2,1]) ? zero(r2[2,1]) : r2[2,1]
+            r22 = isnan(r2[2,2]) ? zero(r2[2,2]) : r2[2,2]
             return typeof(r2)(r11, r21, r12, r22)
     end
 end
