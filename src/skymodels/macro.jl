@@ -1,5 +1,6 @@
 using MacroTools
 using NamedTupleTools
+using HypercubeTransform
 
 
 # Idea
@@ -9,7 +10,7 @@ using NamedTupleTools
 
 
 # What I want to do
-# @sky function gauss(g; a, b, c)
+# @sky function gauss(g; a=1.0, b=1.0, c=2.0)
 #      ax ~ Uniform (0.0, a)
 #      bx ~ Uniform (0.0, b)
 #      cx ~ Uniform (0.0, c)
@@ -18,21 +19,24 @@ using NamedTupleTools
 #end 
 # 
 # Parses into
-# function __gaussskymod__(θ, metadata)
+# function __gaussskymod__(θ, (; a = 1.0, b = 1.0, c = 2.0, grid=g))
 #        (; ax, bx, cx) = θ
 #        (; a, b, c, g) = metadata
 #        m = modify(Gaussian(), Stretch(ax, bx), Renormlize(cx))
 #        return m
 # end
+# 
+# function __gaussskyprior__(;a = 1.0, b = 1.0, c = 2.0, grid=g)
+#     ax = Uniform(0.0, a)
+#     bx = Uniform(0.0, b)
+#     cx = Uniform(0.0, c)
+#     return HypercubeTransform.NamedDist((;ax, bx, cx))
+#end
+
+
 # gauss = function(g; a, b, c)
-#     metadata = (; a, b, c, g=g)
-#     prior = (
-#            ax = Uniform(0.0, a),
-#            bx = Uniform(0.0, b),
-#            cx = Uniform(0.0, c)
-#           )
-#    
-#    return SkyModel(__gaussskymod__, prior, g; metadata=metadata)
+#     metadata = (; a, b, c, grid=g)
+#    return SkyModel(__gaussskymod__, __gaussskyprior__(;metadata...), g; metadata=metadata)
 #end
 
 macro sky(expr)
@@ -50,15 +54,19 @@ macro sky(expr)
     kwdef = NamedTuple{Tuple(kwvar)}(Tuple(kwval))
     gexpr = Expr(:kw, :g, esc(g))
     metadata = build_metadata([kwargs...,gexpr])
-    prior    = build_prior(metadata, body)
-    # skym     = build_sky(args, kwargs, body)
+    prior     = build_prior(name, metadata, body)
+    skymodel  = build_sky(name, args, kwargs, body)
+    @info metadata
+    @info prior
+    return prior
+
+    skyprf = Symbol("__", name, "skyprior__")
 
     model_def = MacroTools.combinedef(skymodel)
 
     return quote
-        $name = function($g; $kwdef...)
-            metadata = (; kwargs..., g=$g)
-        end
+        $skyprf
+        $skym
     end
 end
 
@@ -70,7 +78,8 @@ end
 function build_prior(metadata, body)
     names = []
     dists = []
-    postwalk(x->@capture(x, T_ ~ D_) ? (push!(names, T);push!(dists, D)) : x, ex)
-    return Expr(:call, :(HypercubeTransform.NamedDist), Expr(:parameters, ))
-    return :(NamedDist(NamedTuple{Tuple($names)}($dists)))
+    MacroTools.postwalk(x->@capture(x, T_ ~ D_) ? (push!(names, T);push!(dists, D)) : x, body)
+    body = 
+    return Expr(:call, :(HypercubeTransform.NamedDist), Expr(:parameters, names, dists))
+    # return :(HypercubeTransform.NamedDist(NamedTuple{Tuple($names)}($dists)))
 end
