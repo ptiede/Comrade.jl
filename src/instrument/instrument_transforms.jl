@@ -37,10 +37,16 @@ TV.dimension(m::AbstractInstrumentTransform) = TV.dimension(inner_transform(m))
     return TV.transform_with(flag, itrf, x, index)
 end
 
+function branchcut(x::T) where {T} 
+    xmod = mod2pi(x)
+    return xmod > π ? xmod - convert(T, 2π) : xmod
+end
+
 @inline function _instrument_transform_with(flag::TV.LogJacFlag, m::MarkovInstrumentTransform, x, index)
     (;inner_transform, site_map) = m
     y, ℓ, index = TV.transform_with(flag, inner_transform, x, index)
     yout = site_sum(y, site_map)
+    yout .= branchcut.(yout)
     return yout, ℓ, index
 end
 
