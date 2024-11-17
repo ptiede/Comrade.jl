@@ -10,7 +10,7 @@ using Pyehtim, VLBISkyModels, InteractiveUtils
 using AbstractMCMC, Random, HypercubeTransform
 
 
-Documenter.DocMeta.setdocmeta!(Krang, :DocTestSetup, :(using Comrade); recursive=true)
+Documenter.DocMeta.setdocmeta!(Comrade, :DocTestSetup, :(using Comrade); recursive=true)
 
 
 TUTORIALS = [
