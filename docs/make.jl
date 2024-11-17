@@ -55,7 +55,6 @@ makedocs(;
     draft  = false,
     source = "src",
     build  = "build",
-    clean  = true
 )
 
 deploydocs(;
