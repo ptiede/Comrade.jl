@@ -9,11 +9,6 @@ on:
   
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-  statuses: write
 
   
 concurrency:
@@ -24,6 +19,11 @@ concurrency:
 
 jobs:
   build:
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+      statuses: write
     runs-on: ubuntu-latest
     steps:
       - name: Install Libs
