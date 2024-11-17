@@ -86,6 +86,8 @@ EnzymeRules.inactive(::typeof(instrumentmodel), args...) = nothing
 function DensityInterface.logdensityof(post::AbstractVLBIPosterior, x)
     pr = logprior(post, x)
     !isfinite(pr) && return -Inf
+    l = loglikelihood(post, x)
+    isnan(l) && throw(ArgumentError("NaN in loglikelihood at $x"))
     return loglikelihood(post, x) + pr
 end
 

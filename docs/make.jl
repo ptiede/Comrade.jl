@@ -12,6 +12,8 @@ using AbstractMCMC, Random, HypercubeTransform
 
 deployconfig = Documenter.auto_detect_deploy_system()
 Documenter.post_status(deployconfig; type="pending", repo="github.com/ptiede/Comrade.jl.git")
+Documenter.DocMeta.setdocmeta!(Krang, :DocTestSetup, :(using Comrade); recursive=true)
+
 
 TUTORIALS = [
         "Overview" => "tutorials/index.md",
@@ -35,8 +37,8 @@ makedocs(;
     sitename="Comrade.jl",
     format = MarkdownVitepress(
         repo="https://github.com/ptiede/Comrade.jl",
-        devurl = "dev",
         devbranch = "main",
+        devurl = "dev",
     ),
     pages=Any[
         "Home" => "index.md",
