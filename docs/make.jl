@@ -10,8 +10,6 @@ using Pyehtim, VLBISkyModels, InteractiveUtils
 using AbstractMCMC, Random, HypercubeTransform
 
 
-deployconfig = Documenter.auto_detect_deploy_system()
-Documenter.post_status(deployconfig; type="pending", repo="github.com/ptiede/Comrade.jl.git")
 
 TUTORIALS = [
         "Overview" => "tutorials/index.md",
