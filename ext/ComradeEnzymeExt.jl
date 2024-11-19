@@ -11,7 +11,12 @@ LogDensityProblems.capabilities(::Type{<:Comrade.TransformedVLBIPosterior}) = Lo
 function LogDensityProblems.logdensity_and_gradient(d::Comrade.TransformedVLBIPosterior, x::AbstractArray)
     mode = Enzyme.EnzymeCore.WithPrimal(Comrade.admode(d))
     dx = zero(x)
-    (_, y) = autodiff(mode, Comrade.logdensityof, Active, Const(d), Duplicated(x, dx))
+    y = fetch(schedule(
+        Task(32*1024*2014) do
+            (_, y) = autodiff(mode, Comrade.logdensityof, Active, Const(d), Duplicated(x, dx))
+            return y
+        end
+    ))
     return y, dx
 end
 
