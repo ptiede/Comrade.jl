@@ -22,7 +22,7 @@ To create equally weighted samples the user can use
 ```julia
 using StatsBase
 chain = sample(post, NestedSampler(dimension(post), 1000))
-equal_weighted_chain = sample(chain, Weights(stats.weights), 10_000)
+equal_weighted_chain = sample(chain, Weights(samplerstats(chain).weights), 10_000)
 ```
 """
 function Dynesty.dysample(post::Comrade.VLBIPosterior,
