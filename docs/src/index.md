@@ -6,7 +6,7 @@ layout: home
 hero:
   name: "Comrade.jl"
   text: "Composable Modeling of Radio Emission"
-  tagline: A Bayesian differentiable modular modeling framework for very long baseline interferometry.
+  tagline: A Bayesian differentiable modular modeling package for very long baseline interferometry.
   actions:
     - theme: brand
       text: Introduction
