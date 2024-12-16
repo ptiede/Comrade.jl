@@ -71,29 +71,38 @@ function build_sitemap(d::ArrayPrior, array)
     # Ok to so this we are going to construct the schema first over sites.
     # At the end we may re-order depending on the schema ordering we want
     # to use.
-    tlists = map(keys(sites_prior)) do s
+    lists = map(keys(sites_prior)) do s
         seg = segmentation(sites_prior[s])
         # get all the indices where this site is present
         inds_s = findall(x->((x[1]==s)||x[2]==s), array[:sites])
         # Get all the unique times
         ts = unique(T[inds_s])
+        fs = unique(F[inds_s])
         # Now makes the acceptable time stamps given the segmentation
         tstamp = timestamps(seg, array)
+        fchan  = freqchannels(SpectralWindow(), array)
         # Now we find commonalities
         times = eltype(tstamp)[]
-        for t in tstamp
-            if any(x->x∈t, ts) && (!(t.t0 ∈ times))
+        freqs = eltype(fchan)[]
+        for t in tstamp, f in fchan
+            if any(x->x∈t, ts) && any(x->x∈f, fs) && ((!(t.t0 ∈ times)) || (!(f.central ∈ freqs)))
                 push!(times, t)
+                push!(freqs, f)
             end
         end
-        return times
+        return times, freqs
     end
+    tlists = first.(lists)
+    flists = last.(lists)
     # construct the schema
     slist = mapreduce((t,s)->fill(s, length(t)), vcat, tlists, keys(sites_prior))
     tlist = reduce(vcat, tlists)
+    flist = reduce(vcat, flists)
+
 
     tlistre = similar(tlist)
     slistre = similar(slist)
+    flistre = similar(flist)
     # Now rearrange so we have time site ordering (sites are the fastest changing)
     tuni = sort(unique(getproperty.(tlist, :t0)))
     ind0 = 1
@@ -101,10 +110,10 @@ function build_sitemap(d::ArrayPrior, array)
         ind = findall(x->x.t0==t, tlist)
         tlistre[ind0:ind0+length(ind)-1] .= tlist[ind]
         slistre[ind0:ind0+length(ind)-1] .= slist[ind]
+        flistre[ind0:ind0+length(ind)-1] .= flist[ind]
         ind0 += length(ind)
     end
-    freqs = Fill(F[1], length(tlistre))
-    return SiteLookup(tlistre, freqs, slistre)
+    return SiteLookup(tlistre, flistre, slistre)
 end
 
 function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)

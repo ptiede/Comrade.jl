@@ -16,7 +16,7 @@ which will grab the first 10 time and frequency points for the ALMA site.
 Otherwise indexing into the array will return an element whose time, frequency, and site are
 the element of the `times`, `frequencies`, and `sites` arrays respectively.
 """
-struct SiteArray{T, N, A<:AbstractArray{T,N}, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:Number, N}, Sy<:AbstractArray{<:Any, N}} <: AbstractArray{T, N}
+struct SiteArray{T, N, A<:AbstractArray{T,N}, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:FrequencyChannel, N}, Sy<:AbstractArray{<:Any, N}} <: AbstractArray{T, N}
     data::A
     times::Ti
     frequencies::Fr
@@ -111,47 +111,36 @@ function site(arr::SiteArray, p)
 end
 
 
-function time(arr::SiteArray, a::Union{AbstractInterval, IntegrationTime})
+function time(arr::SiteArray, a::Union{AbstractInterval, Real})
     inds = findall(in(a), times(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
-function frequency(arr::SiteArray, a::Union{AbstractInterval, FrequencyChannel})
+function frequency(arr::SiteArray, a::Union{AbstractInterval, Real})
     inds = findall(in(a), times(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
+_equalorin(x::T, y::T) where {T} = x == y 
+_equalorin(x::Real, y) = x ∈ y
+_equalorin(x, y::Real) = y ∈ x
+_equalorin(x, y) = y ∈ x
+_equalorin(x, ::typeof(Base.Colon())) = true
+const Indexable = Union{Integer, AbstractArray{<:Integer}, BitArray}
 
-@inline function _maybe_all(arr, X)
-    if X isa Base.Colon
-        ext = extrema(arr)
-        return ClosedInterval(ext[1], ext[2])
-    else
-        return X
-    end
-end
-
-function Base.getindex(arr::SiteArray; F=Base.Colon(), S=Base.Colon(), T=Base.Colon())
-    T2 = _maybe_all(times(arr), T)
-    F2 = _maybe_all(frequencies(arr), F)
-    S2 = S isa Base.Colon ? unique(sites(arr)) : S
-    return select_region(arr, S2, T2, F2)
-end
-
-function select_region(arr::SiteArray, S::Symbol, T::Union{Real, AbstractInterval}, F::Union{Real, AbstractInterval})
-    select_region(arr, (S,), T, F)
-end
-
-
-function select_region(arr::SiteArray, site, Ti::Union{Real, AbstractInterval}, Fr::Union{Real, AbstractInterval})
-    inds = findall(i->((Comrade.sites(arr)[i] ∈ site)&&(Ti ∈ Comrade.times(arr)[i])&&(Fr ∈ Comrade.frequencies(arr)[i])), eachindex(arr))
+function Base.getindex(arr::SiteArray; Fr=Base.Colon(), S=Base.Colon(), Ti=Base.Colon())
+    Fr2 = isa(Fr, Indexable) ? unique(arr.frequencies)[Fr] : Fr
+    S2 = isa(S, Indexable) ? unique(arr.sites)[S] : S
+    Ti2 = isa(Ti, Indexable) ? unique(arr.times)[Ti] : Ti
+    inds = findall(i->(_equalorin(S2, Comrade.sites(arr)[i])&&_equalorin(Ti2, Comrade.times(arr)[i])&&_equalorin(Fr2, Comrade.frequencies(arr)[i])), eachindex(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
-struct SiteLookup{L<:NamedTuple, N, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:Number, N}, Sy<:AbstractArray{<:Any, N}}
+
+struct SiteLookup{L<:NamedTuple, N, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:FrequencyChannel, N}, Sy<:AbstractArray{<:Any, N}}
     lookup::L
     times::Ti
     frequencies::Fr
@@ -204,7 +193,10 @@ function SiteArray(a::AbstractArray, map::SiteLookup)
     return SiteArray(a, map.times, map.frequencies, map.sites)
 end
 
-function SiteArray(data::SiteArray{T, N}, times::AbstractArray{<:IntegrationTime, N}, frequencies::AbstractArray{<:Number, N}, sites::AbstractArray{<:Number, N}) where {T, N}
+function SiteArray(data::SiteArray{T, N},
+                   times::AbstractArray{<:IntegrationTime, N}, 
+                   frequencies::AbstractArray{<:FrequencyChannel, N}, 
+                   sites::AbstractArray{<:Number, N}) where {T, N}
     return data
 end
 
