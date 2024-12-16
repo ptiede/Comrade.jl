@@ -136,17 +136,17 @@ end
 function Base.getindex(arr::SiteArray; F=Base.Colon(), S=Base.Colon(), T=Base.Colon())
     T2 = _maybe_all(times(arr), T)
     F2 = _maybe_all(frequencies(arr), F)
-    S2 = S isa Base.Colon ? unique(S) : S
+    S2 = S isa Base.Colon ? unique(sites(arr)) : S
     return select_region(arr, S2, T2, F2)
 end
 
-function select_region(arr::SiteArray, S::Symbol, T::Union{IntegrationTime, AbstractInterval}, F::Union{FrequencyChannel, AbstractInterval})
+function select_region(arr::SiteArray, S::Symbol, T::Union{Real, AbstractInterval}, F::Union{Real, AbstractInterval})
     select_region(arr, (S,), T, F)
 end
 
 
-function select_region(arr::SiteArray, site, T::Union{IntegrationTime, AbstractInterval}, F::Union{FrequencyChannel, AbstractInterval})
-    inds = findall(i->((Comrade.sites(arr)[i] ∈ site)&&(Comrade.times(arr)[i] ∈ T)), eachindex(arr))
+function select_region(arr::SiteArray, site, Ti::Union{Real, AbstractInterval}, Fr::Union{Real, AbstractInterval})
+    inds = findall(i->((Comrade.sites(arr)[i] ∈ site)&&(Ti ∈ Comrade.times(arr)[i])&&(Fr ∈ Comrade.frequencies(arr)[i])), eachindex(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
