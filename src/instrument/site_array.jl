@@ -128,6 +128,7 @@ _equalorin(x::Real, y) = x ∈ y
 _equalorin(x, y::Real) = y ∈ x
 _equalorin(x, y) = y ∈ x
 _equalorin(x, ::typeof(Base.Colon())) = true
+_equalorin(::typeof(Base.Colon()), x) = true
 const Indexable = Union{Integer, AbstractArray{<:Integer}, BitArray}
 
 function Base.getindex(arr::SiteArray; Fr=Base.Colon(), S=Base.Colon(), Ti=Base.Colon())
