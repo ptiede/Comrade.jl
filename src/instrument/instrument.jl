@@ -11,6 +11,7 @@ struct IntegrationTime{T}
 end
 
 mjd(ts::IntegrationTime) = ts.mjd
+interval(ts::IntegrationTime) = (ts.t0 - ts.dt/2)..(ts.t0 + ts.dt/2)
 Base.in(t::Number, ts::IntegrationTime) = (ts.t0 - ts.dt/2) ≤ t < (ts.t0 + ts.dt/2)
 Base.isless(t::IntegrationTime, ts::IntegrationTime) = t.t0 < ts.t0
 Base.isless(s::Number, t::IntegrationTime) = s < (t.t0 - t.dt/2)
@@ -25,6 +26,7 @@ struct FrequencyChannel{T, I<:Integer}
     channel::I
 end
 channel(fs::FrequencyChannel) = fs.channel
+interval(fs::FrequencyChannel) = (fs.central - fs.bandwidth/2)..(fs.central + fs.bandwidth/2)
 Base.in(f::Number, fs::FrequencyChannel) = (fs.central-fs.bandwidth/2) ≤ f < (fs.central+fs.bandwidth/2)
 Base.isless(t::FrequencyChannel, ts::FrequencyChannel) = _center(t) < _center(ts)
 Base.isless(s::Number, t::FrequencyChannel) = s < (_center(t) - _region(t)/2)
