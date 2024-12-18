@@ -409,11 +409,9 @@ end
     end
 
 
-    @testset "Multifrequency" begin
-        dcoh2 = deepcopy(dcoh)
-        dcoh2.config[:Fr][200:end] .= 345e9
-        vis = CoherencyMatrix.(Comrade.measurement(dcoh2), Ref(CirBasis()))
-
+    @testset "Coherencies Multifrequency" begin
+        dcoh.config[:Fr][200:end] .= 345e9
+        vis = CoherencyMatrix.(Comrade.measurement(dcoh), Ref(CirBasis()))
         G = JonesG() do x
             gR = exp(x.lgR + 1im*x.gpR)
             gL = gR*exp(x.lgrat + 1im*x.gprat)
@@ -427,22 +425,54 @@ end
         end
 
         R = JonesR(;add_fr=true)
+
         J = JonesSandwich(*, G, D, R)
+        J2 = JonesSandwich(G, D, R) do g, d, r
+            return g*d*r
+        end
+
+
+        F = JonesF()
+
+        JG = GenericJones(x->(x.lg, x.lg, x.lg, x.lg))
+
+
         intprior = (
-            lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-            gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π  ^2))); phase=true, refant=SEFDReference(0.0)),
-            lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase=false),
-            gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-            dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-            dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-            dLx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-            dLy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-            )
+        lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+        gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π  ^2))); phase=true, refant=SEFDReference(0.0)),
+        lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase=false),
+        gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+        dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+        dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+        dLx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+        dLy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+        )
+
+
         intm = InstrumentModel(J, intprior)
+        intm2 = InstrumentModel(J2, intprior)
+        intjg = InstrumentModel(JG, (;lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)))))
+        show(IOBuffer(), MIME"text/plain"(), intm)
+
+
+
         ointm, printm = Comrade.set_array(intm, arrayconfig(dcoh))
+        ointm2, printm2 = Comrade.set_array(intm2, arrayconfig(dcoh))
+        ointjg, printjg = Comrade.set_array(intjg, arrayconfig(dcoh))
+
+        x = rand(printjg)
+        fj = forward_jones(JG, x)
+        @test fj[1][1] == x.lg[1]
+
+
+        Fpre = Comrade.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
+        Rpre = Comrade.preallocate_jones(JonesR(;add_fr=true), arrayconfig(dcoh), CirBasis())
+        @test Fpre.matrices[1] ≈ Rpre.matrices[1]
+        @test Fpre.matrices[2] ≈ Rpre.matrices[2]
 
         @testset "ObservedArrayPrior" begin
             @inferred logpdf(printm, rand(printm))
+            @inferred logpdf(printm2, rand(printm2))
             x = rand(printm)
             @test logpdf(printm, x) ≈ logpdf(printm2, x)
             @test asflat(printm) isa TV.AbstractTransform
@@ -458,6 +488,154 @@ end
             @test dp.dLx
             @test dp.dLy
         end
+
+        pintm, _ = Comrade.set_array(InstrumentModel(JonesR(;add_fr=true)), arrayconfig(dcoh))
+
+
+        x = rand(printm)
+        x.lgR .= 0
+        x.lgrat .= 0
+        x.gpR .= 0
+        x.gprat .= 0
+        x.dRx .= 0
+        x.dRy .= 0
+        x.dLx .= 0
+        x.dLy .= 0
+
+        vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
+        vper = Comrade.apply_instrument(vis, pintm, (;instrument=NamedTuple()))
+        @test vout ≈ vper
+
+        # test_rrule(Comrade.apply_instrument, vis, ointm⊢NoTangent(), (;instrument=x))
+
+        # # Now check that everything is being applied right
+        for s in sites(dcoh)
+            x.lgR .= 0
+            x.lgrat .= 0
+            x.gpR .= 0
+            x.gprat .= 0
+            x.dRx .= 0
+            x.dRy .= 0
+            x.dLx .= 0
+            x.dLy .= 0
+
+
+            inds1 = findall(x->(x[1]==s), dcoh[:baseline].sites)
+            inds2 = findall(x->(x[2]==s), dcoh[:baseline].sites)
+            ninds = findall(x->(x[1]!=s && x[2]!=s), dcoh[:baseline].sites)
+
+            # Now amp-offsets
+            x.lgR .= 0
+            x.lgrat .= 0
+            x.gpR .= 0
+            x.gprat .= 0
+            x.dRx .= 0
+            x.dRy .= 0
+            x.dLx .= 0
+            x.dLy .= 0
+
+            xlgRs = x.lgR[S=s]
+            xlgRs .= log(2)
+            xlgrat = x.lgrat[S=s]
+            xlgrat .= -log(2)
+            vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
+            G = SMatrix{2,2}(2.0, 0.0, 0.0, 1.0)
+            @test vout[inds1] ≈ Ref(G) .*vper[inds1]
+            @test vout[inds2] ≈ vper[inds2] .* Ref(G)
+            @test vout[ninds] ≈ vper[ninds]
+
+            # Now phases
+            x.lgR .= 0
+            x.lgrat .= 0
+            x.gpR .= 0
+            x.gprat .= 0
+            x.dRx .= 0
+            x.dRy .= 0
+            x.dLx .= 0
+            x.dLy .= 0
+
+            xgpRs = x.gpR[S=s]
+            xgpRs .= π/3
+            xgprat = x.gprat[S=s]
+            xgprat .= -π/3
+            vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
+            G = SMatrix{2,2}(exp(1im*π/3), 0.0, 0.0, exp(1im*0.0))
+            @test vout[inds1] ≈ Ref(G) .*vper[inds1]
+            @test vout[inds2] ≈ vper[inds2] .* Ref(adjoint(G))
+            @test vout[ninds] ≈ vper[ninds]
+
+
+            # Now dterms
+            x.lgR .= 0
+            x.lgrat .= 0
+            x.gpR .= 0
+            x.gprat .= 0
+            x.dRx .= 0
+            x.dRy .= 0
+            x.dLx .= 0
+            x.dLy .= 0
+
+            xdRxs = x.dRx[S=s]
+            xdRxs .= 0.1
+            xdRys = x.dRy[S=s]
+            xdRys .= 0.2
+            xdLxs = x.dLx[S=s]
+            xdLxs .= 0.3
+            xdLys = x.dLy[S=s]
+            xdLys .= 0.4
+
+            vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
+            D = SMatrix{2,2}(1.0, 0.3 + 0.4im, 0.1 + 0.2im, 1.0)
+            @test vout[inds1] ≈ Ref(D) .*vper[inds1]
+            @test vout[inds2] ≈ vper[inds2] .* Ref(adjoint(D))
+            @test vout[ninds] ≈ vper[ninds]
+        end
+
+        @testset "caltable test" begin
+            c1 = caltable(x.lgR)
+            @test Tables.istable(typeof(c1))
+            @test Tables.rowaccess(typeof(c1))
+            @test Tables.rows(c1) === c1
+            @test Tables.columnaccess(c1)
+            clmns = Tables.columns(c1)
+            @test clmns[1] == Comrade.scantimes(c1)
+            @test Bool(prod(skipmissing(Tables.matrix(clmns)[:,begin+1:end]) .== skipmissing(Comrade.gmat(c1))))
+            @test c1.time == Comrade.scantimes(c1)
+            @test c1.time == Tables.getcolumn(c1, 1)
+            @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, :AA))) ≈ 0
+            @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, 2))) ≈ 0
+            @test Tables.columnnames(c1) == [:time, sort(sites(amp))...]
+
+            c1row = Tables.getrow(c1, 30)
+            @test eltype(c1) == typeof(c1row)
+            @test c1row.time == c1.time[30]
+            @test c1row.AA == c1.AA[30]
+            @test Tables.getcolumn(c1row, :AA) == c1.AA[30]
+            @test Tables.getcolumn(c1row, :time) == c1.time[30]
+            @test Tables.getcolumn(c1row, 2) == c1.AA[30]
+            @test Tables.getcolumn(c1row, 1) == c1.time[30]
+            @test propertynames(c1) == propertynames(c1row) == [:time, sort(sites(amp))...]
+
+            Tables.schema(c1) isa Tables.Schema
+            Tables.getcolumn(c1, Float64, 1, :test)
+            Tables.getcolumn(c1, Float64, 2, :test)
+
+            c1[1, :AA]
+            c1[!, :AA]
+            c1[:, :AA]
+            @test length(c1) == length(c1.AA)
+            @test c1[1 ,:] isa Comrade.CalTableRow
+            @test length(Tables.getrow(c1, 1:5)) == 5
+
+            plot(c1)
+            plot(c1, datagains=true)
+            plot(c1, sites=(:AA,))
+
+            show(c1)
+        end
+
+    end
+
 
 
     end
