@@ -4,13 +4,14 @@ export caltable
     $(TYPEDEF)
 
 A Tabes of calibration quantities. The columns of the table are the telescope sites codes.
-The rows are the calibration quantities at a specific time stamp. This user should not
+The rows are the calibration quantities at a specific time and frequency. This user should not
 use this struct directly. Instead that should call [`caltable`](@ref).
 """
-struct CalTable{T,G<:AbstractVecOrMat}
+struct CalTable{T,F,G<:AbstractVecOrMat}
     names::Vector{Symbol}
     lookup::Dict{Symbol,Int}
     times::T
+    freqs::F
     gmat::G
 end
 
@@ -25,40 +26,45 @@ Tables.columnaccess(::Type{<:CalTable}) = true
 Return the sites in the calibration table
 """
 sites(g::CalTable) = getfield(g, :names)
-scantimes(g::CalTable) = getfield(g, :times)
+times(g::CalTable) = getfield(g, :Tis)
+frequencies(g::CalTable) = getfield(g, :freqs)
 lookup(g::CalTable) = getfield(g, :lookup)
 gmat(g::CalTable) = getfield(g, :gmat)
-function Tables.schema(g::CalTable{T,G}) where {T,G}
-    nms = [:time]
+function Tables.schema(g::CalTable{T,F,G}) where {T,F,G}
+    nms = [:Ti, :Fr]
     append!(nms, sites(g))
-    types = Type[eltype(T)]
+    types = Type[eltype(T), eltype(F)]
     append!(types, fill(eltype(G), size(gmat(g),2)))
     return Tables.Schema(nms, types)
 end
 
 
-Tables.columns(g::CalTable) = Tables.table([scantimes(g) gmat(g)]; header=Tables.columnnames(g))
+Tables.columns(g::CalTable) = Tables.table([times(g), frequencies(g), gmat(g)]; header=Tables.columnnames(g))
 function Tables.getcolumn(g::CalTable, ::Type{T}, col::Int, nm::Symbol) where {T}
-    (col == 1 || nm == :time) && return scantimes(g)
-    gmat(g)[:, col-1]
+    (col == 1 || nm == :Ti) && return times(g)
+    (col == 2 || nm == :Fr) && return frequencies(g)
+    gmat(g)[:, col-2]
 end
 
 function Tables.getcolumn(g::CalTable, nm::Symbol)
-    nm == :time && return scantimes(g)
+    nm == :Ti && return times(g)
+    nm == :Fr && return frequencies(g)
     return gmat(g)[:, lookup(g)[nm]]
 end
 
 function Tables.getcolumn(g::CalTable, i::Int)
-    i==1 && return scantimes(g)
-    return gmat(g)[:, i-1]
+    i==1 && return times(g)
+    i==2 && return frequencies(g)
+    return gmat(g)[:, i-2]
 end
 
 function viewcolumn(gt::CalTable, nm::Symbol)
-    nm == :time && return scantimes(gt)
+    nm == :Ti && return times(gt)
+    nm == :Fr && return frequencies(gt)
     return @view gmat(gt)[:, lookup(gt)[nm]]
 end
 
-Tables.columnnames(g::CalTable) = [:time, sites(g)...]
+Tables.columnnames(g::CalTable) = [:Ti, :Fr, sites(g)...]
 
 Tables.rowaccess(::Type{<:CalTable}) = true
 Tables.rows(g::CalTable) = g
@@ -77,7 +83,8 @@ function Base.getproperty(g::CalTable, nm::Symbol)
 end
 
 function Base.getindex(gt::CalTable, i::Int, nm::Symbol)
-    nm == :time && return gt.times[i]
+    nm == :Ti && return times(gt)[i]
+    nm == :Fr && return frequencies(gt)[i]
     return Tables.getcolumn(gt, nm)[i]
 end
 
@@ -117,18 +124,21 @@ end
 
 
 function Tables.getcolumn(g::CalTableRow, ::Type, col::Int, nm::Symbol)
-    (col == 1 || nm == :time) && return scantimes(getfield(g, :source))[getfield(g, :row)]
+    (col == 1 || nm == :Ti) && return times(getfield(g, :source))[getfield(g, :row)]
+    (col == 2 || nm == :Fr) && return frequencies(getfield(g, :source))[getfield(g, :row)]
     gmat(getfield(g, :source))[getfield(g, :row), col-1]
 end
 
 function Tables.getcolumn(g::CalTableRow, i::Int)
-    (i==1) && return scantimes(getfield(g, :source))[getfield(g, :row)]
+    (i==1) && return times(getfield(g, :source))[getfield(g, :row)]
+    (i==2) && return frequencies(getfield(g, :source))[getfield(g, :row)]
     gmat(getfield(g, :source))[getfield(g, :row), i-1]
 end
 
 function Tables.getcolumn(g::CalTableRow, nm::Symbol)
     src = getfield(g, :source)
-    nm == :time && return scantimes(src)[getfield(g, :row)]
+    nm == :Ti && return times(src)[getfield(g, :row)]
+    nm == :Fr && return frequencies(src)[getfield(g, :row)]
     return gmat(src)[getfield(g, :row), lookup(src)[nm]]
 end
 
@@ -152,9 +162,9 @@ end
     #else
     #    ylims --> inv.(lims)[end:-1:begin]
     #end
-    t = getproperty.(gt[:time], :t0)
+    t = getproperty.(gt[:Ti], :t0)
     xlims --> (t[begin], t[end] + 0.01*abs(t[end]))
-    for (i,s) in enumerate(sites)
+    for (i,s) in enumerate(sites), f in unique(gt[:Fr])
         @series begin
             seriestype := :scatter
             subplot := i
@@ -166,7 +176,7 @@ end
 
             T = nonmissingtype(eltype(gt[s]))
             ind = Base.:!.(ismissing.(gt[s]))
-            #x := gt[:time][ind]
+            #x := gt[:Ti][ind]
             if !datagains
                 yy = gt[s][ind]
             else
@@ -179,7 +189,7 @@ end
     end
 end
 
-Tables.columnnames(g::CalTableRow) = [:time, sites(getfield(g, :source))...]
+Tables.columnnames(g::CalTableRow) = [:Ti, sites(getfield(g, :source))...]
 
 using PrettyTables
 
