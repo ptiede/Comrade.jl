@@ -408,6 +408,60 @@ end
 
     end
 
+
+    @testset "Multifrequency" begin
+        dcoh2 = deepcopy(dcoh)
+        dcoh2.config[:Fr][200:end] .= 345e9
+        vis = CoherencyMatrix.(Comrade.measurement(dcoh2), Ref(CirBasis()))
+
+        G = JonesG() do x
+            gR = exp(x.lgR + 1im*x.gpR)
+            gL = gR*exp(x.lgrat + 1im*x.gprat)
+            return gR, gL
+        end
+
+        D = JonesD() do x
+            dR = complex(x.dRx, x.dRy)
+            dL = complex(x.dLx, x.dLy)
+            return dR, dL
+        end
+
+        R = JonesR(;add_fr=true)
+        J = JonesSandwich(*, G, D, R)
+        intprior = (
+            lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+            gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π  ^2))); phase=true, refant=SEFDReference(0.0)),
+            lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase=false),
+            gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+            dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+            dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+            dLx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+            dLy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+            )
+        intm = InstrumentModel(J, intprior)
+        ointm, printm = Comrade.set_array(intm, arrayconfig(dcoh))
+
+        @testset "ObservedArrayPrior" begin
+            @inferred logpdf(printm, rand(printm))
+            x = rand(printm)
+            @test logpdf(printm, x) ≈ logpdf(printm2, x)
+            @test asflat(printm) isa TV.AbstractTransform
+            p = rand(printm)
+            t = asflat(printm)
+            pout =  TV.transform(t, TV.inverse(t, p))
+            dp = ntequal(p, pout)
+            @test dp.lgR
+            @test dp.lgrat
+            @test dp.gprat
+            @test dp.dRx
+            @test dp.dRy
+            @test dp.dLx
+            @test dp.dLy
+        end
+
+
+    end
+
     @testset "Integration" begin
         _,dvis, amp, lcamp, cphase, dcoh = load_data()
         ts = Comrade.timestamps(ScanSeg(),  arrayconfig(dvis))

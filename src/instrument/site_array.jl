@@ -148,8 +148,18 @@ struct SiteLookup{L<:NamedTuple, N, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<
     sites::Sy
 end
 
+times(s::SiteLookup) = s.times
+sites(s::SiteLookup) = s.sites
+frequencies(s::SiteLookup) = s.frequencies
+lookup(s::SiteLookup) = s.lookup
+
+EnzymeRules.inactive(::typeof(times), ::SiteLookup) = nothing
+EnzymeRules.inactive(::typeof(frequencies), ::SiteLookup) = nothing
+EnzymeRules.inactive(::typeof(sites), ::SiteLookup) = nothing
+EnzymeRules.inactive(::typeof(lookup), ::SiteLookup) = nothing
+
 function sitemap!(f, out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
-    map(slook.lookup) do site
+    map(lookup(slook)) do site
         ysite = @view gains[site]
         outsite = @view out[site]
         outsite .= f.(ysite)
@@ -163,9 +173,10 @@ function sitemap(f, gains::AbstractArray{T}, slook::SiteLookup) where {T}
 end
 
 function sitemap!(::typeof(cumsum), out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
-    map(slook.lookup) do site
+    map(lookup(slook)) do site
         ys = @view gains[site]
         cumsum!(ys, ys)
+        nothing
     end
     return out
 end
@@ -180,8 +191,28 @@ function SiteLookup(s::SiteArray)
 end
 
 function SiteLookup(times::AbstractVector, frequencies::AbstractArray, sites::AbstractArray)
-    slist = Tuple(sort(unique(sites)))
-    return SiteLookup(NamedTuple{slist}(map(p->findall(==(p), sites), slist)), times, frequencies, sites)
+    slist = sort(unique(sites))
+    flist = sort(unique(frequencies))
+    if length(flist) == 1
+        return SiteLookup(NamedTuple{Tuple(slist)}(map(p->findall(==(p), sites), slist)), times, frequencies, sites)
+    else
+        # Find sites first
+        sflist = Symbol[]
+        inds = Vector{Int}[]
+        for s in slist
+            sinds = findall(==(s), sites)
+            for (i,f) in enumerate(flist)
+                finds = findall(==(f), @view(frequencies[sinds]))
+                if !isempty(finds)
+                    ss = Symbol(s, i)
+                    push!(sflist, ss)
+                    push!(inds, finds)
+                end
+            end
+        end
+        lookup = NamedTuple{Tuple(sflist)}(Tuple(inds))
+        return SiteLookup(lookup, times, frequencies, sites)
+    end
 end
 
 """
@@ -191,7 +222,7 @@ Construct a site array with the entries `arr` and the site ordering implied by
 `sitelookup`.
 """
 function SiteArray(a::AbstractArray, map::SiteLookup)
-    return SiteArray(a, map.times, map.frequencies, map.sites)
+    return SiteArray(a, times(map), frequencies(map), sites(map))
 end
 
 function SiteArray(data::SiteArray{T, N},

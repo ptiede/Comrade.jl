@@ -76,21 +76,20 @@ function build_sitemap(d::ArrayPrior, array)
         # get all the indices where this site is present
         inds_s = findall(x->((x[1]==s)||x[2]==s), array[:sites])
         # Get all the unique times
-        ts = unique(T[inds_s])
-        fs = unique(F[inds_s])
+        ts = T[inds_s]
+        fs = F[inds_s]
+        tfs = zip(ts, fs)
         # Now makes the acceptable time stamps given the segmentation
         tstamp = timestamps(seg, array)
         fchan  = freqchannels(SpectralWindow(), array)
         # Now we find commonalities
-        times = eltype(tstamp)[]
-        freqs = eltype(fchan)[]
+        tf = Tuple{eltype(tstamp), eltype(fchan)}[]
         for t in tstamp, f in fchan
-            if any(x->x∈t, ts) && any(x->x∈f, fs) && ((!(t.t0 ∈ times)) || (!(f.central ∈ freqs)))
-                push!(times, t)
-                push!(freqs, f)
+            if any(x->(x[1]∈t && x[2]∈f), tfs) && ((!((t.t0, f.central) ∈ tf)))
+                push!(tf, (t, f))
             end
         end
-        return times, freqs
+        return first.(tf), last.(tf)
     end
     tlists = first.(lists)
     flists = last.(lists)
