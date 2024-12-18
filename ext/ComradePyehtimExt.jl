@@ -15,6 +15,12 @@ function build_arrayconfig(obs)
     bw = get_bw(obsc)
     angles = get_fr_angles(obsc)
     tarr = StructArray(Pyehtim.get_arraytable(obsc))
+
+    # This is because sometimes eht-imaging sets the scans to nothing
+    # and sometimes it fills it with junk
+    if length(obsc.scans) <= 1
+        obsc.add_scans()
+    end
     scans = StructArray(get_scantable(obsc))
     bw  = get_bw(obsc)
     elevation = StructArray(angles[1])
