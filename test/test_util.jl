@@ -8,6 +8,7 @@ function load_data()
             joinpath(@__DIR__, "../examples/Data/array.txt"),
             polrep="circ"
             )
+    obspol.add_scans()
 
     m = ehtim.model.Model()
     m = m.add_gauss(1.0, μas2rad(40.0), μas2rad(20.0), π/3, 0.0, 0.0)
