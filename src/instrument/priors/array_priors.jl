@@ -84,8 +84,8 @@ function build_sitemap(d::ArrayPrior, array)
         fchan  = freqchannels(SpectralWindow(), array)
         # Now we find commonalities
         tf = Tuple{eltype(tstamp), eltype(fchan)}[]
-        for t in tstamp, f in fchan
-            if any(x->(x[1]∈t && x[2]∈f), tfs) && ((!((t.t0, f.central) ∈ tf)))
+        for f in fchan, t in tstamp
+            if any(x->(x[1]∈t && x[2]∈f), tfs) && ((!((t, f) ∈ tf)))
                 push!(tf, (t, f))
             end
         end
@@ -102,15 +102,19 @@ function build_sitemap(d::ArrayPrior, array)
     tlistre = similar(tlist)
     slistre = similar(slist)
     flistre = similar(flist)
-    # Now rearrange so we have time site ordering (sites are the fastest changing)
-    tuni = sort(unique(getproperty.(tlist, :t0)))
+    # Now rearrange so we have frquency, time, site ordering (sites are the fastest changing)
+    tuni = sort(unique((tlist)))
+    funi = sort(unique((flist)))
     ind0 = 1
-    for t in tuni
-        ind = findall(x->x.t0==t, tlist)
-        tlistre[ind0:ind0+length(ind)-1] .= tlist[ind]
-        slistre[ind0:ind0+length(ind)-1] .= slist[ind]
-        flistre[ind0:ind0+length(ind)-1] .= flist[ind]
-        ind0 += length(ind)
+    for f in funi, t in tuni
+        ind = (f .== flist) .& (t .== tlist)
+        vtlist = @view tlist[ind]
+        vslist = @view slist[ind]
+        vflist = @view flist[ind]
+        tlistre[ind0:ind0+length(vtlist)-1] .= vtlist
+        slistre[ind0:ind0+length(vtlist)-1] .= vslist
+        flistre[ind0:ind0+length(vtlist)-1] .= vflist
+        ind0 += length(vtlist)
     end
     return SiteLookup(tlistre, flistre, slistre)
 end

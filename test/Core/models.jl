@@ -20,6 +20,31 @@ _ntequal(x::T, y::T) where {T<:NamedTuple} = ntequal(values(x), values(y))
 _ntequal(x::T, y::T) where {T<:Tuple} = map(_ntequal, x, y)
 _ntequal(x, y) = x ≈ y
 
+function build_mfvis(vistuple...)
+    configs = arrayconfig.(vistuple)
+    vis = vistuple[1]
+    newdatatables = Comrade.StructArray(reduce(vcat, Comrade.datatable.(configs)))
+    newscans = reduce(vcat, getfield.(configs,:scans))
+    newconfig = Comrade.EHTArrayConfiguration(vis.config.bandwidth,
+                                              vis.config.tarr,
+                                              newscans,
+                                              vis.config.mjd,
+                                              vis.config.ra,
+                                              vis.config.dec,
+                                              vis.config.source,
+                                              :UTC,
+                                              newdatatables)
+    newmeasurement = reduce(vcat, Comrade.measurement.(vistuple))
+    newnoise = reduce(vcat, Comrade.noise.(vistuple))
+
+    return Comrade.EHTObservationTable{Comrade.datumtype(vis)}(newmeasurement,newnoise,newconfig)
+end
+
+vistuple = (vis8,vis12)
+mfvis = build_mfvis(vistuple)
+νlist = [ν8, ν12]
+mfgrid = mfimagepixels(fovx, fovy, npix, npix, νlist)
+
 
 function test_caltable(c1, sites)
     @test Tables.istable(typeof(c1))
@@ -421,8 +446,10 @@ end
 
 
     @testset "Coherencies Multifrequency" begin
-        dcoh.config[:Fr][200:end] .= 345e9
-        vis = CoherencyMatrix.(Comrade.measurement(dcoh), Ref(CirBasis()))
+        dcoh2 = deepcopy(dcoh)
+        dcoh2.config[:Fr] .= 345e9
+        dcohmf = build_mfvis(dcoh, dcoh2)
+        vis = CoherencyMatrix.(Comrade.measurement(dcohmf), Ref(CirBasis()))
         G = JonesG() do x
             gR = exp(x.lgR + 1im*x.gpR)
             gL = gR*exp(x.lgrat + 1im*x.gprat)
@@ -467,17 +494,17 @@ end
 
 
 
-        ointm, printm = Comrade.set_array(intm, arrayconfig(dcoh))
-        ointm2, printm2 = Comrade.set_array(intm2, arrayconfig(dcoh))
-        ointjg, printjg = Comrade.set_array(intjg, arrayconfig(dcoh))
+        ointm, printm = Comrade.set_array(intm, arrayconfig(dcohmf))
+        ointm2, printm2 = Comrade.set_array(intm2, arrayconfig(dcohmf))
+        ointjg, printjg = Comrade.set_array(intjg, arrayconfig(dcohmf))
 
         x = rand(printjg)
         fj = forward_jones(JG, x)
         @test fj[1][1] == x.lg[1]
 
 
-        Fpre = Comrade.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
-        Rpre = Comrade.preallocate_jones(JonesR(;add_fr=true), arrayconfig(dcoh), CirBasis())
+        Fpre = Comrade.preallocate_jones(F, arrayconfig(dcohmf), CirBasis())
+        Rpre = Comrade.preallocate_jones(JonesR(;add_fr=true), arrayconfig(dcohmf), CirBasis())
         @test Fpre.matrices[1] ≈ Rpre.matrices[1]
         @test Fpre.matrices[2] ≈ Rpre.matrices[2]
 
@@ -500,7 +527,7 @@ end
             @test dp.dLy
         end
 
-        pintm, _ = Comrade.set_array(InstrumentModel(JonesR(;add_fr=true)), arrayconfig(dcoh))
+        pintm, _ = Comrade.set_array(InstrumentModel(JonesR(;add_fr=true)), arrayconfig(dcohmf))
 
 
         x = rand(printm)
@@ -520,7 +547,7 @@ end
         # test_rrule(Comrade.apply_instrument, vis, ointm⊢NoTangent(), (;instrument=x))
 
         # # Now check that everything is being applied right
-        for s in sites(dcoh)
+        for s in sites(dcohmf)
             x.lgR .= 0
             x.lgrat .= 0
             x.gpR .= 0
@@ -531,9 +558,9 @@ end
             x.dLy .= 0
 
 
-            inds1 = findall(x->(x[1]==s), dcoh[:baseline].sites)
-            inds2 = findall(x->(x[2]==s), dcoh[:baseline].sites)
-            ninds = findall(x->(x[1]!=s && x[2]!=s), dcoh[:baseline].sites)
+            inds1 = findall(x->(x[1]==s), dcohmf[:baseline].sites)
+            inds2 = findall(x->(x[2]==s), dcohmf[:baseline].sites)
+            ninds = findall(x->(x[1]!=s && x[2]!=s), dcohmf[:baseline].sites)
 
             # Now amp-offsets
             x.lgR .= 0

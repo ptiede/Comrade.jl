@@ -54,7 +54,6 @@ function timestamps(::ScanSeg, array)
     mjd    = array.mjd
     # Shift the central time to the middle of the scan
     dt = (st.stop .- st.start)
-    dt[end] = dt[end]+0.5
     t0 = st.start .+ dt./2
 
     return IntegrationTime.(mjd, t0, dt)
