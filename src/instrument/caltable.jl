@@ -177,7 +177,6 @@ end
     for (i,s) in enumerate(sites)
         @series begin
             T = nonmissingtype(eltype(gt[s]))
-            @info T
             tt = Vector{eltype(t)}[]
             yy = Vector{T}[]    
             seriestype := :scatter
@@ -190,7 +189,7 @@ end
             if i == length(sites)
                 label --> reshape(labels, 1, :)
             else
-                label --> nothing
+                label := nothing
             end
             for f in unique(gt[:Fr])
                 ind = Base.:!.(ismissing.(gt[s]))

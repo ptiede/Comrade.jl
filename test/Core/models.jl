@@ -636,10 +636,6 @@ end
 
     end
 
-
-
-    end
-
     @testset "Integration" begin
         _,dvis, amp, lcamp, cphase, dcoh = load_data()
         ts = Comrade.timestamps(ScanSeg(),  arrayconfig(dvis))
