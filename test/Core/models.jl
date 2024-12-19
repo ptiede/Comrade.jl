@@ -24,7 +24,7 @@ function build_mfvis(vistuple...)
     configs = arrayconfig.(vistuple)
     vis = vistuple[1]
     newdatatables = Comrade.StructArray(reduce(vcat, Comrade.datatable.(configs)))
-    newscans = reduce(vcat, getfield.(configs,:scans))
+    newscans = reduce(vcat, configs.scans)
     newconfig = Comrade.EHTArrayConfiguration(vis.config.bandwidth,
                                               vis.config.tarr,
                                               newscans,
