@@ -40,11 +40,6 @@ function build_mfvis(vistuple...)
     return Comrade.EHTObservationTable{Comrade.datumtype(vis)}(newmeasurement,newnoise,newconfig)
 end
 
-vistuple = (vis8,vis12)
-mfvis = build_mfvis(vistuple)
-νlist = [ν8, ν12]
-mfgrid = mfimagepixels(fovx, fovy, npix, npix, νlist)
-
 
 function test_caltable(c1, sites)
     @test Tables.istable(typeof(c1))
