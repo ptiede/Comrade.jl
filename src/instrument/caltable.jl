@@ -26,7 +26,7 @@ Tables.columnaccess(::Type{<:CalTable}) = true
 Return the sites in the calibration table
 """
 sites(g::CalTable) = getfield(g, :names)
-times(g::CalTable) = getfield(g, :Tis)
+times(g::CalTable) = getfield(g, :times)
 frequencies(g::CalTable) = getfield(g, :freqs)
 lookup(g::CalTable) = getfield(g, :lookup)
 gmat(g::CalTable) = getfield(g, :gmat)
@@ -39,7 +39,7 @@ function Tables.schema(g::CalTable{T,F,G}) where {T,F,G}
 end
 
 
-Tables.columns(g::CalTable) = Tables.table([times(g), frequencies(g), gmat(g)]; header=Tables.columnnames(g))
+Tables.columns(g::CalTable) = Tables.table(hcat(times(g), frequencies(g), gmat(g)); header=Tables.columnnames(g))
 function Tables.getcolumn(g::CalTable, ::Type{T}, col::Int, nm::Symbol) where {T}
     (col == 1 || nm == :Ti) && return times(g)
     (col == 2 || nm == :Fr) && return frequencies(g)
@@ -95,10 +95,20 @@ end
 function Base.getindex(gt::CalTable, I::AbstractUnitRange, nm::Symbol)
     getproperty(gt, nm)[I]
 end
+function Base.getindex(gt::CalTable, I::AbstractVector{Int}, nm::Symbol)
+    getproperty(gt, nm)[I]
+end
+
 
 function Base.view(gt::CalTable, I::AbstractUnitRange, nm::Symbol)
     @view getproperty(gt, nm)[I]
 end
+
+function Base.view(gt::CalTable, I::AbstractVector{Int}, nm::Symbol)
+    @view getproperty(gt, nm)[I]
+end
+
+
 
 function Base.getindex(gt::CalTable, ::Colon, nm::Symbol)
     Tables.getcolumn(gt, nm)
@@ -164,27 +174,36 @@ end
     #end
     t = getproperty.(gt[:Ti], :t0)
     xlims --> (t[begin], t[end] + 0.01*abs(t[end]))
-    for (i,s) in enumerate(sites), f in unique(gt[:Fr])
+    for (i,s) in enumerate(sites)
         @series begin
+            T = nonmissingtype(eltype(gt[s]))
+            @info T
+            tt = Vector{eltype(t)}[]
+            yy = Vector{T}[]    
             seriestype := :scatter
             subplot := i
-            label --> :none
-
+            title := String(s)
             if i == length(sites)
                 xguide --> "Time (UTC)"
             end
-
-            T = nonmissingtype(eltype(gt[s]))
-            ind = Base.:!.(ismissing.(gt[s]))
-            #x := gt[:Ti][ind]
-            if !datagains
-                yy = gt[s][ind]
+            labels = ["$(f.central/1e9) GHz" for f in unique(gt[:Fr])]
+            if i == length(sites)
+                label --> reshape(labels, 1, :)
             else
-                yy = inv.(gt[s])[ind]
+                label --> nothing
             end
-
-            title --> string(s)
-            t[ind], T.(yy)
+            for f in unique(gt[:Fr])
+                ind = Base.:!.(ismissing.(gt[s]))
+                find = findall(==(f), gt[:Fr][ind])
+                #x := gt[:Ti][ind]
+                push!(tt, t[ind][find])
+                if !datagains
+                    push!(yy, T.(gt[s][ind][find]))
+                else
+                    push!(yy, T.(inv.(gt[s][ind][find])))
+                end
+            end
+            tt, yy
         end
     end
 end
@@ -196,9 +215,15 @@ using PrettyTables
 function Base.show(io::IO, ct::CalTable, )
     pretty_table(io, Tables.columns(ct);
                      header=Tables.columnnames(ct),
-                     vlines=[1],
-                    #  formatters = (v,i,j)->round(v, digits=3)
+                     vlines=[1,2],
+                    formatters = _ctab_formatter
                 )
+end
+
+function _ctab_formatter(v, i, j)
+    j == 1 && return "$(round(v.t0, digits=2)) hr"
+    j == 2 && return "$(round(v.central, digits=2)/1e9) GHz"
+    return round(v, digits=3)
 end
 
 
@@ -209,18 +234,22 @@ Creates a calibration table from a site array
 """
 function caltable(sarr::SiteArray)
     sites = sort(unique(Comrade.sites(sarr)))
-    time = unique(times(sarr))
+    tf = collect(Iterators.product(unique(times(sarr))|>sort, unique(frequencies(sarr))|>sort))
+    time = vec(first.(tf))
+    freq = vec(last.(tf))
     gmat = Matrix{Union{eltype(sarr), Missing}}(missing, length(time), length(sites))
     gmat .= missing
     lookup = Dict(sites[i]=>i for i in eachindex(sites))
     for (j, s) in enumerate(sites)
         cterms = site(sarr, s)
-        for (i, t) in enumerate(time)
-            ind = findfirst(==(t), times(cterms))
+        for (i, (t,f)) in enumerate(tf)
+            ti = times(cterms)
+            fi = frequencies(cterms)
+            ind = findfirst(i->((ti[i]==t)&&fi[i]==f), eachindex(ti, fi))
             if !isnothing(ind)
                 gmat[i, j] = cterms[ind]
             end
         end
     end
-    return CalTable(sites, lookup, time, gmat)
+    return CalTable(sites, lookup, time, freq, gmat)
 end
