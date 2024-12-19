@@ -21,7 +21,7 @@ _ntequal(x::T, y::T) where {T<:Tuple} = map(_ntequal, x, y)
 _ntequal(x, y) = x ≈ y
 
 
-function test_caltable(c1)
+function test_caltable(c1, sites)
     @test Tables.istable(typeof(c1))
     @test Tables.rowaccess(typeof(c1))
     @test Tables.rows(c1) === c1
@@ -37,7 +37,7 @@ function test_caltable(c1)
 
     @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, :AA))) ≈ 0
     @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, 3))) ≈ 0
-    @test Tables.columnnames(c1) == [:Ti, :Fr, sort(sites(amp))...]
+    @test Tables.columnnames(c1) == [:Ti, :Fr, sites...]
 
     c1row = Tables.getrow(c1, 30)
     @test eltype(c1) == typeof(c1row)
@@ -50,7 +50,7 @@ function test_caltable(c1)
     @test Tables.getcolumn(c1row, 3) == c1.AA[30]
     @test Tables.getcolumn(c1row, 2) == c1.Fr[30]
     @test Tables.getcolumn(c1row, 1) == c1.Ti[30]
-    @test propertynames(c1) == propertynames(c1row) == [:Ti, :Fr, sort(sites(amp))...]
+    @test propertynames(c1) == propertynames(c1row) == [:Ti, :Fr, sites...]
 
     Tables.schema(c1) isa Tables.Schema
     Tables.getcolumn(c1, Float64, 1, :test)
@@ -414,7 +414,7 @@ end
 
         @testset "caltable test" begin
             c1 = caltable(x.lgR)
-            test_caltable(c1)
+            test_caltable(c1, sort(sites(amp)))
         end
 
     end
@@ -604,7 +604,7 @@ end
 
         @testset "caltable test" begin
             c1 = caltable(x.lgR)
-            test_caltable(c1)
+            test_caltable(c1, sort(sites(amp)))
         end
 
     end
