@@ -225,7 +225,7 @@ of `xs, and whose elements are the jones matrices for the specific parameters.
 function forward_jones(v::AbstractJonesMatrix, xs::NamedTuple{N}) where {N}
     sm = broadest_sitemap(xs)
     bl = map(x->(x,x), sm.sites)
-    bmaps = map(x->_construct_baselinemap(getproperty.(sm.times, :t0), sm.frequencies, bl, x).indices_1, xs)
+    bmaps = map(x->_construct_baselinemap(getproperty.(sm.times, :t0), getproperty.(sm.frequencies, :central), bl, x).indices_1, xs)
     vs = map(eachindex(sm.times)) do index
         indices = map(x->getindex(x, index), bmaps)
         params = NamedTuple{N}(map(getindex, values(xs), values(indices)))
