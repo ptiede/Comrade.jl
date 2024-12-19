@@ -21,6 +21,55 @@ _ntequal(x::T, y::T) where {T<:Tuple} = map(_ntequal, x, y)
 _ntequal(x, y) = x ≈ y
 
 
+function test_caltable(c1)
+    @test Tables.istable(typeof(c1))
+    @test Tables.rowaccess(typeof(c1))
+    @test Tables.rows(c1) === c1
+    @test Tables.columnaccess(c1)
+    clmns = Tables.columns(c1)
+    @test clmns[1] == Comrade.times(c1)
+    @test clmns[2] == Comrade.frequencies(c1)
+    @test Bool(prod(skipmissing(Tables.matrix(clmns)[:,begin+2:end]) .== skipmissing(Comrade.gmat(c1))))
+    @test c1.Ti == Comrade.times(c1)
+    @test c1.Ti == Tables.getcolumn(c1, 1)
+    @test c1.Fr == Comrade.frequencies(c1)
+    @test c1.Fr == Tables.getcolumn(c1, 2)
+
+    @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, :AA))) ≈ 0
+    @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, 3))) ≈ 0
+    @test Tables.columnnames(c1) == [:Ti, :Fr, sort(sites(amp))...]
+
+    c1row = Tables.getrow(c1, 30)
+    @test eltype(c1) == typeof(c1row)
+    @test c1row.Ti == c1.Ti[30]
+    @test c1row.AA == c1.AA[30]
+    @test c1row.Fr == c1.Fr[30]
+    @test Tables.getcolumn(c1row, :AA) == c1.AA[30]
+    @test Tables.getcolumn(c1row, :Ti) == c1.Ti[30]
+    @test Tables.getcolumn(c1row, :Fr) == c1.Fr[30]
+    @test Tables.getcolumn(c1row, 3) == c1.AA[30]
+    @test Tables.getcolumn(c1row, 2) == c1.Fr[30]
+    @test Tables.getcolumn(c1row, 1) == c1.Ti[30]
+    @test propertynames(c1) == propertynames(c1row) == [:Ti, :Fr, sort(sites(amp))...]
+
+    Tables.schema(c1) isa Tables.Schema
+    Tables.getcolumn(c1, Float64, 1, :test)
+    Tables.getcolumn(c1, Float64, 2, :test)
+
+    c1[1, :AA]
+    c1[!, :AA]
+    c1[:, :AA]
+    @test length(c1) == length(c1.AA)
+    @test c1[1 ,:] isa Comrade.CalTableRow
+    @test length(Tables.getrow(c1, 1:5)) == 5
+
+    plot(c1)
+    plot(c1, datagains=true)
+    plot(c1, sites=(:AA,))
+
+    show(c1)
+end
+
 @testset "SkyModel" begin
 
     f = test_model
@@ -365,45 +414,7 @@ end
 
         @testset "caltable test" begin
             c1 = caltable(x.lgR)
-            @test Tables.istable(typeof(c1))
-            @test Tables.rowaccess(typeof(c1))
-            @test Tables.rows(c1) === c1
-            @test Tables.columnaccess(c1)
-            clmns = Tables.columns(c1)
-            @test clmns[1] == Comrade.scantimes(c1)
-            @test Bool(prod(skipmissing(Tables.matrix(clmns)[:,begin+1:end]) .== skipmissing(Comrade.gmat(c1))))
-            @test c1.time == Comrade.scantimes(c1)
-            @test c1.time == Tables.getcolumn(c1, 1)
-            @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, :AA))) ≈ 0
-            @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, 2))) ≈ 0
-            @test Tables.columnnames(c1) == [:time, sort(sites(amp))...]
-
-            c1row = Tables.getrow(c1, 30)
-            @test eltype(c1) == typeof(c1row)
-            @test c1row.time == c1.time[30]
-            @test c1row.AA == c1.AA[30]
-            @test Tables.getcolumn(c1row, :AA) == c1.AA[30]
-            @test Tables.getcolumn(c1row, :time) == c1.time[30]
-            @test Tables.getcolumn(c1row, 2) == c1.AA[30]
-            @test Tables.getcolumn(c1row, 1) == c1.time[30]
-            @test propertynames(c1) == propertynames(c1row) == [:time, sort(sites(amp))...]
-
-            Tables.schema(c1) isa Tables.Schema
-            Tables.getcolumn(c1, Float64, 1, :test)
-            Tables.getcolumn(c1, Float64, 2, :test)
-
-            c1[1, :AA]
-            c1[!, :AA]
-            c1[:, :AA]
-            @test length(c1) == length(c1.AA)
-            @test c1[1 ,:] isa Comrade.CalTableRow
-            @test length(Tables.getrow(c1, 1:5)) == 5
-
-            plot(c1)
-            plot(c1, datagains=true)
-            plot(c1, sites=(:AA,))
-
-            show(c1)
+            test_caltable(c1)
         end
 
     end
@@ -593,45 +604,7 @@ end
 
         @testset "caltable test" begin
             c1 = caltable(x.lgR)
-            @test Tables.istable(typeof(c1))
-            @test Tables.rowaccess(typeof(c1))
-            @test Tables.rows(c1) === c1
-            @test Tables.columnaccess(c1)
-            clmns = Tables.columns(c1)
-            @test clmns[1] == Comrade.scantimes(c1)
-            @test Bool(prod(skipmissing(Tables.matrix(clmns)[:,begin+1:end]) .== skipmissing(Comrade.gmat(c1))))
-            @test c1.time == Comrade.scantimes(c1)
-            @test c1.time == Tables.getcolumn(c1, 1)
-            @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, :AA))) ≈ 0
-            @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, 2))) ≈ 0
-            @test Tables.columnnames(c1) == [:time, sort(sites(amp))...]
-
-            c1row = Tables.getrow(c1, 30)
-            @test eltype(c1) == typeof(c1row)
-            @test c1row.time == c1.time[30]
-            @test c1row.AA == c1.AA[30]
-            @test Tables.getcolumn(c1row, :AA) == c1.AA[30]
-            @test Tables.getcolumn(c1row, :time) == c1.time[30]
-            @test Tables.getcolumn(c1row, 2) == c1.AA[30]
-            @test Tables.getcolumn(c1row, 1) == c1.time[30]
-            @test propertynames(c1) == propertynames(c1row) == [:time, sort(sites(amp))...]
-
-            Tables.schema(c1) isa Tables.Schema
-            Tables.getcolumn(c1, Float64, 1, :test)
-            Tables.getcolumn(c1, Float64, 2, :test)
-
-            c1[1, :AA]
-            c1[!, :AA]
-            c1[:, :AA]
-            @test length(c1) == length(c1.AA)
-            @test c1[1 ,:] isa Comrade.CalTableRow
-            @test length(Tables.getrow(c1, 1:5)) == 5
-
-            plot(c1)
-            plot(c1, datagains=true)
-            plot(c1, sites=(:AA,))
-
-            show(c1)
+            test_caltable(c1)
         end
 
     end

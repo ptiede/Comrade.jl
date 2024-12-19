@@ -74,6 +74,8 @@ struct CalTableRow{T,G} <: Tables.AbstractRow
     source::CalTable{T,G}
 end
 
+Tables.columnnames(g::CalTableRow) = [:Ti, :Fr, sites(getfield(g, :source))...]
+
 function Base.propertynames(g::CalTable)
     return Tables.columnnames(g)
 end
@@ -207,7 +209,6 @@ end
     end
 end
 
-Tables.columnnames(g::CalTableRow) = [:Ti, sites(getfield(g, :source))...]
 
 using PrettyTables
 
