@@ -81,7 +81,7 @@ prior = (
           ξτ= Uniform(0.0, π),
           f = Uniform(0.0, 1.0),
           σG = Uniform(μas2rad(1.0), μas2rad(100.0)),
-          τG = Uniform(0.0, 1.0),
+          τG = Exponential(1.0),
           ξG = Uniform(0.0, 1π),
           xG = Uniform(-μas2rad(80.0), μas2rad(80.0)),
           yG = Uniform(-μas2rad(80.0), μas2rad(80.0))
@@ -146,8 +146,8 @@ fpost = asflat(post)
 p = prior_sample(rng, post)
 
 # and then transform it to transformed space using T
-logdensityof(cpost, Comrade.TV.inverse(cpost, p))
-logdensityof(fpost, Comrade.TV.inverse(fpost, p))
+logdensityof(cpost, Comrade.inverse(cpost, p))
+logdensityof(fpost, Comrade.inverse(fpost, p))
 
 # note that the log densit is not the same since the transformation has causes a jacobian to ensure volume is preserved.
 
@@ -185,7 +185,7 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # parallel tempering sampler that enables global exploration of the posterior. For smaller dimension
 # problems (< 100) we recommend using this sampler, especially if you have access to > 1 core.
 using Pigeons
-pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=16, n_rounds=8)
+pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=16, n_rounds=10)
 
 
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.
