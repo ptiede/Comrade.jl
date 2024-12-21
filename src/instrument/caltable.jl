@@ -138,13 +138,13 @@ end
 function Tables.getcolumn(g::CalTableRow, ::Type, col::Int, nm::Symbol)
     (col == 1 || nm == :Ti) && return times(getfield(g, :source))[getfield(g, :row)]
     (col == 2 || nm == :Fr) && return frequencies(getfield(g, :source))[getfield(g, :row)]
-    gmat(getfield(g, :source))[getfield(g, :row), col-1]
+    gmat(getfield(g, :source))[getfield(g, :row), col-2]
 end
 
 function Tables.getcolumn(g::CalTableRow, i::Int)
     (i==1) && return times(getfield(g, :source))[getfield(g, :row)]
     (i==2) && return frequencies(getfield(g, :source))[getfield(g, :row)]
-    gmat(getfield(g, :source))[getfield(g, :row), i-1]
+    gmat(getfield(g, :source))[getfield(g, :row), i-2]
 end
 
 function Tables.getcolumn(g::CalTableRow, nm::Symbol)

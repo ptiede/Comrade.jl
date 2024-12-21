@@ -524,42 +524,42 @@ end
             xsilgrat .= -log(2)
             xmflgrat = xmf.lgrat[S=s]
             xmflgrat[1:length(xsilgrat)] .= xsilgrat
-            xmflgrat[length(xsilgrat)+1:end] .= 2 .* xsilgrat
+            xmflgrat[length(xsilgrat)+1:end] .= xsilgrat
             vmf = Comrade.apply_instrument(vismf, ointmf, (;instrument=xmf))
             vsi = Comrade.apply_instrument(vissi, ointsi, (;instrument=xsi))
-            Gmf = SMatrix{2,2}(2.0, 0.0, 0.0, 1.0)
+            Gmf = SMatrix{2,2}(2.0, 0.0, 0.0, 2.0)
             @test vsi[inds1si] ≈ vmf[inds1si]
-            @test vsi[inds1si] ≈ vmf[inds1mf[length(inds1si)+1:end]] .* Ref(Gmf)
+            @test vsi[inds1si] .* Ref(Gmf) ≈ vmf[inds1mf[length(inds1si)+1:end]] 
 
             # Now phases
             map(x->fill!(x, 0.0), xsi)
             map(x->fill!(x, 0.0), xmf)
 
-            xgpRs = x.gpR[S=s]
-            xgpRs .= π/3
-            xgprat = x.gprat[S=s]
-            xgprat .= -π/3
-            vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
-            G = SMatrix{2,2}(exp(1im*π/3), 0.0, 0.0, exp(1im*0.0))
-            @test vout[inds1] ≈ Ref(G) .*vper[inds1]
-            @test vout[inds2] ≈ vper[inds2] .* Ref(adjoint(G))
-            @test vout[ninds] ≈ vper[ninds]
+            xsigpR = xsi.gpR[S=s]
+            xsigpR .= π/3
+            xmfgpR = xmf.gpR[S=s]
+            xmfgpR[1:length(xsigpR)] .= xsigpR
+            xmfgpR[length(xsilgR)+1:end] .= 2 .* xsigpR
+
+            xsigprat = xsi.gprat[S=s]
+            xsigprat .= -π/6
+            xmfgprat = xmf.gprat[S=s]
+            xmfgprat[1:length(xsigprat)] .= xsigprat
+            xmfgprat[length(xsigprat)+1:end] .= xsigprat
+
+            vmf = Comrade.apply_instrument(vismf, ointmf, (;instrument=xmf))
+            vsi = Comrade.apply_instrument(vissi, ointsi, (;instrument=xsi))
+            Gmf = SMatrix{2,2}(exp(1im*π/3), 0.0, 0.0, exp(1im*π/3))
+            @test vsi[inds1si] ≈ vmf[inds1si]
+            @test vsi[inds1si] .* Ref(Gmf) ≈ vmf[inds1mf[length(inds1si)+1:end]] 
 
 
         end
-
-
-        voutsi = Comrade.apply_instrument(vissi, ointsi, (;instrument=xsi))
-        voutmf = Comrade.apply_instrument(vismf, ointmf, (;instrument=xmf))
-        voutmf[1:length(voutsi)] ≈ voutsi
-        voutmf[length(voutsi)+1:end] ≈ voutsi.*exp(1 + 2*1im)
-
-        # # Now check that everything is being applied right
-
         
 
         @testset "caltable test" begin
-            c1 = caltable(x.lgR)
+            xmf = rand(printmf)
+            c1 = caltable(xmf.lgR)
             test_caltable(c1, sort(sites(amp)))
         end
 
