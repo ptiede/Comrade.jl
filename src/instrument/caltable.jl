@@ -177,34 +177,33 @@ end
     t = getproperty.(gt[:Ti], :t0)
     xlims --> (t[begin], t[end] + 0.01*abs(t[end]))
     for (i,s) in enumerate(sites)
-        @series begin
-            T = nonmissingtype(eltype(gt[s]))
-            tt = Vector{eltype(t)}[]
-            yy = Vector{T}[]    
-            seriestype := :scatter
-            subplot := i
-            title := String(s)
-            if i == length(sites)
-                xguide --> "Time (UTC)"
-            end
-            labels = ["$(f.central/1e9) GHz" for f in unique(gt[:Fr])]
-            if i == length(sites)
-                label --> reshape(labels, 1, :)
-            else
-                label := nothing
-            end
-            for f in unique(gt[:Fr])
+        T = nonmissingtype(eltype(gt[s]))
+        for (j,f) in enumerate(unique(gt[:Fr]))
+            @series begin
+                seriestype := :scatter
+                subplot := i
+                title := String(s)
+                if i == length(sites)
+                    xguide --> "Time (UTC)"
+                end
+                label = "$(round(f.central/1e9, digits=1)) GHz"
+                if i == length(sites)
+                    label --> label
+                else
+                    label := nothing
+                end
                 ind = Base.:!.(ismissing.(gt[s]))
                 find = findall(==(f), gt[:Fr][ind])
                 #x := gt[:Ti][ind]
-                push!(tt, t[ind][find])
+                x = t[ind][find]
+
                 if !datagains
-                    push!(yy, T.(gt[s][ind][find]))
+                    y = T.(gt[s][ind][find])
                 else
-                    push!(yy, T.(inv.(gt[s][ind][find])))
+                    y = T.(inv.((gt[s][ind][find])))
                 end
+                x, y
             end
-            tt, yy
         end
     end
 end

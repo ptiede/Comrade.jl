@@ -366,16 +366,16 @@ gamp_ratio   = caltable(exp.(xopt.instrument.lgrat))
 # expected since gain ratios are typically stable over the course of an observation and the constant
 # offset was removed in the EHT calibration process.
 gphaseR = caltable(xopt.instrument.gpR)
-p = Plots.plot(gphaseR, layout=(3,3), size=(650,500));
-Plots.plot!(p, gphase_ratio, layout=(3,3), size=(650,500));
+p = Plots.plot(gphaseR, layout=(3,3), size=(650,500), label="R Gain Phase");
+Plots.plot!(p, gphase_ratio, layout=(3,3), size=(650,500), label="Gain Phase Ratio");
 p |> DisplayAs.PNG |> DisplayAs.Text
 #-
 # Moving to the amplitudes we see largely stable gain amplitudes on the right circular polarization except for LMT which is
 # known and due to pointing issues during the 2017 observation. Again the gain ratios are stable and close to unity. Typically
 # we expect that apriori calibration should make the gain ratios close to unity.
 gampr = caltable(exp.(xopt.instrument.lgR))
-p = Plots.plot(gampr, layout=(3,3), size=(650,500))
-Plots.plot!(p, gamp_ratio, layout=(3,3), size=(650,500))
+p = Plots.plot(gampr, layout=(3,3), size=(650,500), label="R Gain Amp.");
+Plots.plot!(p, gamp_ratio, layout=(3,3), size=(650,500), label="Gain Amp. Ratio")
 p |> DisplayAs.PNG |> DisplayAs.Text
 #-
 

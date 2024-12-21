@@ -131,15 +131,13 @@ skym = SkyModel(sky, prior, grid; metadata=skymeta)
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
 G = SingleStokesGain() do x
-    lg = x.lgμ + x.lgσ*x.lgz
+    lg = x.lg
     gp = x.gp
     return exp(lg + 1im*gp)
 end
 
 intpr = (
-    lgμ = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(TrackSeg(), Normal(0.0, 1.0))),
-    lgσ = ArrayPrior(IIDSitePrior(TrackSeg(), Exponential(0.1))),
-    lgz = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+    lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
     gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0), phase=true)
         )
 intmodel = InstrumentModel(G, intpr)
