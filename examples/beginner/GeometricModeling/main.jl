@@ -242,3 +242,8 @@ DisplayAs.Text(DisplayAs.PNG(p))
 # and the model, divided by the data's error:
 p = residual(post, chain[end]);
 DisplayAs.Text(DisplayAs.PNG(p))
+
+post = nothing #hide
+tpost = nothing #hide
+cpost = nothing #hide
+GC.gc() #hide

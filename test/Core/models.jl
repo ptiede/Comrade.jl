@@ -302,7 +302,7 @@ end
         lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
         gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π  ^2))); phase=true, refant=SEFDReference(0.0)),
         lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase=false),
-        gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+        gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), refant=SingleReference(:AA, 0.0)),
         dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
         dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
         dLx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),

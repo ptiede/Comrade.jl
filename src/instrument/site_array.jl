@@ -228,7 +228,7 @@ end
 function SiteArray(data::SiteArray{T, N},
                    times::AbstractArray{<:IntegrationTime, N}, 
                    frequencies::AbstractArray{<:FrequencyChannel, N}, 
-                   sites::AbstractArray{<:Number, N}) where {T, N}
+                   sites::AbstractArray{<:Any, N}) where {T, N}
     return data
 end
 
