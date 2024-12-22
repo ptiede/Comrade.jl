@@ -1,3 +1,13 @@
+import Pkg; #hide
+__DIR = @__DIR__; #hide
+pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
+Pkg.activate(__DIR; io=pkg_io) #hide
+## Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
+Pkg.instantiate(; io=pkg_io) #hide
+Pkg.precompile(; io=pkg_io) #hide
+close(pkg_io) #hide
+
+
 # # Geometric Modeling of EHT Data
 
 # `Comrade` has been designed to work with the EHT and ngEHT.
@@ -9,22 +19,15 @@
 # In this tutorial, we will construct a similar model and fit it to the data in under
 # 50 lines of code (sans comments). To start, we load Comrade and some other packages we need.
 
-import Pkg #hide
-__DIR = @__DIR__ #hide
-pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
-close(pkg_io) #hide
-ENV["GKSwstype"] = "nul" #hide
-
+# To get started we load Comrade.
+#-
 
 using Comrade
 
 
+# Currently we use eht-imaging for data management, however this will soon be replaced
+# by a pure Julia solution.
 using Pyehtim
-
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(42)

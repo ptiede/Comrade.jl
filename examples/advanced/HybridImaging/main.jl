@@ -1,3 +1,15 @@
+import Pkg #hide
+__DIR = @__DIR__ #hide
+pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
+Pkg.activate(__DIR; io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
+Pkg.instantiate(; io=pkg_io) #hide
+Pkg.precompile(; io=pkg_io) #hide
+close(pkg_io) #hide
+
+ENV["GKSwstype"] = "nul" #hide
+
+
 # # Hybrid Imaging of a Black Hole
 
 # In this tutorial, we will use **hybrid imaging** to analyze the 2017 EHT data.
@@ -15,18 +27,6 @@
 # a raster to soak up the additional degrees of freedom.
 # This is the approach we will take in this tutorial to analyze the April 6 2017 EHT data
 # of M87.
-
-import Pkg #hide
-__DIR = @__DIR__ #hide
-pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
-close(pkg_io) #hide
-
-ENV["GKSwstype"] = "nul" #hide
-
 
 # ## Loading the Data
 

@@ -1,12 +1,3 @@
-# # Stokes I Simultaneous Image and Instrument Modeling
-
-# In this tutorial, we will create a preliminary reconstruction of the 2017 M87 data on April 6
-# by simultaneously creating an image and model for the instrument. By instrument model, we
-# mean something akin to self-calibration in traditional VLBI imaging terminology. However,
-# unlike traditional self-cal, we will solve for the gains each time we update the image
-# self-consistently. This allows us to model the correlations between gains and the image.
-
-# To get started we load Comrade.
 import Pkg #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
@@ -17,6 +8,15 @@ Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
 
 
+# # Stokes I Simultaneous Image and Instrument Modeling
+
+# In this tutorial, we will create a preliminary reconstruction of the 2017 M87 data on April 6
+# by simultaneously creating an image and model for the instrument. By instrument model, we
+# mean something akin to self-calibration in traditional VLBI imaging terminology. However,
+# unlike traditional self-cal, we will solve for the gains each time we update the image
+# self-consistently. This allows us to model the correlations between gains and the image.
+
+# To get started we load Comrade.
 using Comrade
 
 

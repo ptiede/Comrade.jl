@@ -1,3 +1,13 @@
+import Pkg #hide
+__DIR = @__DIR__ #hide
+pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
+Pkg.activate(__DIR; io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
+Pkg.instantiate(; io=pkg_io) #hide
+Pkg.precompile(; io=pkg_io) #hide
+close(pkg_io) #hide
+ENV["GKSwstype"] = "nul"; #hide
+
 # # Imaging a Black Hole using only Closure Quantities
 
 # In this tutorial, we will create a preliminary reconstruction of the 2017 M87 data on April 6
@@ -20,17 +30,6 @@
 # data. The types of closure quantities are briefly described in [Introduction to the VLBI Imaging Problem](@ref).
 #
 # In this tutorial, we will do closure-only modeling of M87 to produce a posterior of images of M87.
-
-import Pkg #hide
-__DIR = @__DIR__ #hide
-pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
-close(pkg_io) #hide
-ENV["GKSwstype"] = "nul"; #hide
-
 
 
 # To get started, we will load Comrade
