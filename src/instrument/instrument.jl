@@ -4,8 +4,8 @@ import Distributions
 using Statistics
 using PrettyTables
 
-struct IntegrationTime{T}
-    mjd::Int
+struct IntegrationTime{I<:Integer, T}
+    mjd::I
     t0::T
     dt::T
 end

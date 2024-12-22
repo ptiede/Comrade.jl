@@ -1,10 +1,11 @@
 abstract type AbstractInstrumentTransform <: TV.VectorTransform end
-site_map(t::AbstractInstrumentTransform) = t.site_map
+site_map(t::AbstractInstrumentTransform) = t
+EnzymeRules.inactive(::typeof(site_map), args...) = nothing
 inner_transform(t::AbstractInstrumentTransform) = t.inner_transform
 
 function TV.transform_with(flag::TV.LogJacFlag, m::AbstractInstrumentTransform, x, index)
     y, ℓ, index = _instrument_transform_with(flag, m, x, index)
-    sm = m.site_map
+    sm = site_map(m)
     return SiteArray(y, sm), ℓ, index
 end
 
@@ -97,11 +98,11 @@ function site_diff!(y, site_map::SiteLookup)
     return nothing
 end
 
-function simplediff(x::AbstractVector)
-    y = zero(x)
-    simplediff!(y, x)
-    return y
-end
+# function simplediff(x::AbstractVector)
+#     y = zero(x)
+#     simplediff!(y, x)
+#     return y
+# end
 
 function simplediff!(y::AbstractVector, x::AbstractVector)
     y[begin] = x[begin]

@@ -41,6 +41,13 @@ function build_mfvis(vistuple...)
 end
 
 
+function isequalmissing(x, y)
+    xm = x |> ismissing |> collect
+    ym = y |> ismissing |> collect
+    return xm == ym
+end
+
+
 function test_caltable(c1, sites)
     @test Tables.istable(typeof(c1))
     @test Tables.rowaccess(typeof(c1))
@@ -54,6 +61,7 @@ function test_caltable(c1, sites)
     @test c1.Ti == Tables.getcolumn(c1, 1)
     @test c1.Fr == Comrade.frequencies(c1)
     @test c1.Fr == Tables.getcolumn(c1, 2)
+    @test isequalmissing(c1.AA, Tables.getcolumn(c1, 3))
 
     @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, :AA))) ≈ 0
     @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, 3))) ≈ 0
@@ -71,6 +79,13 @@ function test_caltable(c1, sites)
     @test Tables.getcolumn(c1row, 2) == c1.Fr[30]
     @test Tables.getcolumn(c1row, 1) == c1.Ti[30]
     @test propertynames(c1) == propertynames(c1row) == [:Ti, :Fr, sites...]
+    @test Tables.getcolumn(c1row, Float64, 1, :Ti) == c1.Ti[30]
+    @test Tables.getcolumn(c1row, Float64, 2, :Fr) == c1.Fr[30]
+    @test Tables.getcolumn(c1row, Float64, 3, :AA) == c1.AA[30]
+    @test isequalmissing(c1[1:10, :AA], c1.AA[1:10])
+    @test isequalmissing(c1[[1,2], :AA], c1.AA[[1,2]])
+    @test isequalmissing(@view(c1[1:10, :AA]), @view(c1.AA[1:10]))
+    @test isequalmissing(@view(c1[[1,2], :AA]), @view(c1.AA[[1,2]]))
 
     Tables.schema(c1) isa Tables.Schema
     Tables.getcolumn(c1, Float64, 1, :test)
@@ -176,6 +191,11 @@ end
 
         @inferred Comrade.time(x.lg, 5.0..6.0)
         @inferred Comrade.frequency(x.lg, 1.0..400.0)
+
+        @test x.lg ≈ SiteArray(x.lg, x.lg.times, x.lg.frequencies, x.lg.sites)
+        @inferred x.lg[1,1,1]
+        x.lg[1,1,1,1] = 1.0
+        @test x.lg[1] ≈ 1.0
 
         # ps = ProjectTo(x.lg)
         # @test ps(x.lg) == x.lg
@@ -572,6 +592,25 @@ end
         ti = Comrade.timestamps(IntegSeg(), arrayconfig(dvis))
         @test length(tt) < length(ts) ≤ length(ti)
     end
+
+    @testset "IntegrationTime" begin
+        ti = Comrade.IntegrationTime(10, 5.0, 0.1)
+        @test Comrade.mjd(ti) == ti.mjd
+        @test ti.t0 ∈ Comrade.interval(ti)
+        @test Comrade._center(ti) == ti.t0
+        @test Comrade._region(ti) == 0.1
+    end
+
+    @testset "FrequencyChannel" begin
+        fc = Comrade.FrequencyChannel(230e9, 8e9, 1)
+        @test Comrade.channel(fc) == 1
+        @test fc.central ∈ Comrade.interval(fc)
+        @test Comrade._center(fc) == fc.central
+        @test Comrade._region(fc) == 8e9
+        @test 86e9 < fc
+        @test fc < 345e9
+    end
+
 
 
 end
