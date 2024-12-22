@@ -29,7 +29,11 @@ withenv("JULIA_DEBUG"=>"Literate") do
                   "name=\"$name\", execute=true, flavor=Literate.DocumenterFlavor(),"*
                   "preprocess=Base.Fix1(preprocess, \"$(p_)\"))"
         cm = `julia --project=$(@__DIR__) -e $(jl_expr)`
-        run(cm)
+        try
+            run(cm)
+        catch e
+            @warn "there was an issues with $cm\n $e"
+        end
 
     end
 end

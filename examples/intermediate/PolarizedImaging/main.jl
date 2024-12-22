@@ -193,7 +193,7 @@ mimg = intensitymap(mpr, grid)
 # For the image metadata we specify the grid and the total flux of the image, which is 1.0.
 # Note that we specify the total flux out front since it is degenerate with an overall shift
 # in the gain amplitudes.
-skymeta = (; mimg=mimg./flux(mimg), ftot=0.6)
+skymeta = (; mimg=mimg./flux(mimg), ftot=0.6);
 
 
 # We use again use a GMRF prior similar to the [Imaging a Black Hole using only Closure Quantities](@ref) tutorial
@@ -332,12 +332,13 @@ xopt, sol = comrade_opt(post, Optimisers.Adam();
 
 # Now let's evaluate our fits by plotting the residuals
 using Plots
+Plots.default(fmt = :png) 
 residual(post, xopt)
 
 # These look reasonable, although there may be some minor overfitting.
 # Let's compare our results to the ground truth values we know in this example.
 # First, we will load the polarized truth
-imgtrue = load_fits(joinpath(__DIR, "..", "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams})
+imgtrue = load_fits(joinpath(__DIR, "..", "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams});
 # Select a reasonable zoom in of the image.
 imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx*4, ny*4))
 img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))

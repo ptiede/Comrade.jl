@@ -163,7 +163,7 @@ ndim = dimension(tpost)
 # To initialize our sampler we will use optimize using Adam
 using Optimization
 using OptimizationOptimisers
-xopt, sol = comrade_opt(post, Optimisers.Adam(); initial_params=prior_sample(rng, post), maxiters=20_000, g_tol=1e-1)
+xopt, sol = comrade_opt(post, Optimisers.Adam(); initial_params=prior_sample(rng, post), maxiters=20_000, g_tol=1e-1);
 
 # !!! warning
 #     Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -233,8 +233,8 @@ chain = chain[501:end]
 
 # Now that we have our posterior, we can put error bars on all of our plots above.
 # Let's start by finding the mean and standard deviation of the gain phases
-mchain = Comrade.rmap(mean, chain)
-schain = Comrade.rmap(std, chain)
+mchain = Comrade.rmap(mean, chain);
+schain = Comrade.rmap(std, chain);
 # Now we can use the measurements package to automatically plot everything with error bars.
 # First we create a `caltable` the same way but making sure all of our variables have errors
 # attached to them.

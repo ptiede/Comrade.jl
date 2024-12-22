@@ -7,7 +7,6 @@ Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
 
-ENV["GKSwstype"] = "nul" #hide
 
 
 # # Hybrid Imaging of a Black Hole
@@ -154,12 +153,10 @@ skym = SkyModel(sky, skyprior, g; metadata=skymetadata)
 using Enzyme
 post = VLBIPosterior(skym, intmodel, dvis; admode=set_runtime_activity(Enzyme.Reverse))
 
-# To sample from our prior we can do
-xrand = prior_sample(rng, post)
-
-# and then plot the results
+# We can sample from the prior to see what the model looks like
 using DisplayAs #hide
 import CairoMakie as CM
+xrand = prior_sample(rng, post)
 CM.activate!(type = "png", px_per_unit=1) #hide
 gpl = imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128)
 fig = imageviz(intensitymap(skymodel(post, xrand), gpl));
@@ -176,7 +173,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 using Optimization
 using OptimizationOptimJL
 xopt, sol = comrade_opt(post, LBFGS(); 
-                        initial_params=xrand, maxiters=2000, g_tol=1e0)
+                        initial_params=xrand, maxiters=2000, g_tol=1e0);
 
 
 # First we will evaluate our fit by plotting the residuals
@@ -187,7 +184,8 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # These residuals suggest that we are substantially overfitting the data. This is a common
 # side effect of MAP imaging. As a result if we plot the image we see that there
 # is substantial high-frequency structure in the image that isn't supported by the data.
-imageviz(intensitymap(skymodel(post, xopt), gpl), figure=(;resolution=(500, 400),))
+fig = imageviz(intensitymap(skymodel(post, xopt), gpl), figure=(;resolution=(500, 400),));
+fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 
 # To improve our results we will now move to Posterior sampling. This is the main method

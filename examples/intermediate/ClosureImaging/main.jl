@@ -145,7 +145,7 @@ post = VLBIPosterior(skym, dlcamp, dcphase; admode=set_runtime_activity(Enzyme.R
 using Optimization
 using OptimizationOptimJL
 xopt, sol = comrade_opt(post, LBFGS(); 
-                        maxiters=1000, initial_params=prior_sample(rng, post))
+                        maxiters=1000, initial_params=prior_sample(rng, post));
 
 
 # First we will evaluate our fit by plotting the residuals
