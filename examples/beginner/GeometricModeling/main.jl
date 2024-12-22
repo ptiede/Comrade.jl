@@ -2,9 +2,9 @@ import Pkg; #hide
 __DIR = @__DIR__; #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
 Pkg.activate(__DIR; io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
 Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
 
@@ -189,7 +189,7 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # parallel tempering sampler that enables global exploration of the posterior. For smaller dimension
 # problems (< 100) we recommend using this sampler, especially if you have access to > 1 core.
 using Pigeons
-pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=16, n_rounds=10)
+pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=16, n_rounds=8)
 
 
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.

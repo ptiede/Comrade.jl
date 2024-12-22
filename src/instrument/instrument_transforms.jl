@@ -1,5 +1,5 @@
 abstract type AbstractInstrumentTransform <: TV.VectorTransform end
-site_map(t::AbstractInstrumentTransform) = t
+site_map(t::AbstractInstrumentTransform) = t.site_map
 EnzymeRules.inactive(::typeof(site_map), args...) = nothing
 inner_transform(t::AbstractInstrumentTransform) = t.inner_transform
 

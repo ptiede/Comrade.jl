@@ -26,7 +26,7 @@ withenv("JULIA_DEBUG"=>"Literate") do
         jl_expr = "using Literate;"*
                   "preprocess(path, str) = replace(str, \"__DIR = @__DIR__\" => \"__DIR = \\\"\$(dirname(path))\\\"\");"*
                   "Literate.markdown(\"$(p_)\", \"$(joinpath(OUTPUT, d))\";"*
-                  "name=\"$name\", execute=false, flavor=Literate.DocumenterFlavor(),"*
+                  "name=\"$name\", execute=true, flavor=Literate.DocumenterFlavor(),"*
                   "preprocess=Base.Fix1(preprocess, \"$(p_)\"))"
         cm = `julia --project=$(@__DIR__) -e $(jl_expr)`
         run(cm)
