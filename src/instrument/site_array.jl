@@ -16,7 +16,7 @@ which will grab the first 10 time and frequency points for the ALMA site.
 Otherwise indexing into the array will return an element whose time, frequency, and site are
 the element of the `times`, `frequencies`, and `sites` arrays respectively.
 """
-struct SiteArray{T, N, A<:AbstractArray{T,N}, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:Number, N}, Sy<:AbstractArray{<:Any, N}} <: AbstractArray{T, N}
+struct SiteArray{T, N, A<:AbstractArray{T,N}, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:FrequencyChannel, N}, Sy<:AbstractArray{<:Any, N}} <: AbstractArray{T, N}
     data::A
     times::Ti
     frequencies::Fr
@@ -111,55 +111,55 @@ function site(arr::SiteArray, p)
 end
 
 
-function time(arr::SiteArray, a::Union{AbstractInterval, IntegrationTime})
+function time(arr::SiteArray, a::Union{AbstractInterval, Real})
     inds = findall(in(a), times(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
-function frequency(arr::SiteArray, a::Union{AbstractInterval, FrequencyChannel})
+function frequency(arr::SiteArray, a::Union{AbstractInterval, Real})
     inds = findall(in(a), times(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
+_equalorin(x::T, y::T) where {T} = x == y 
+_equalorin(x::Real, y) = x ∈ y
+_equalorin(x, y::Real) = y ∈ x
+_equalorin(x, y) = y ∈ x
+_equalorin(x, ::typeof(Base.Colon())) = true
+_equalorin(::typeof(Base.Colon()), x) = true
+const Indexable = Union{Integer, AbstractArray{<:Integer}, BitArray}
 
-@inline function _maybe_all(arr, X)
-    if X isa Base.Colon
-        ext = extrema(arr)
-        return ClosedInterval(ext[1], ext[2])
-    else
-        return X
-    end
-end
-
-function Base.getindex(arr::SiteArray; F=Base.Colon(), S=Base.Colon(), T=Base.Colon())
-    T2 = _maybe_all(times(arr), T)
-    F2 = _maybe_all(frequencies(arr), F)
-    S2 = S isa Base.Colon ? unique(S) : S
-    return select_region(arr, S2, T2, F2)
-end
-
-function select_region(arr::SiteArray, S::Symbol, T::Union{IntegrationTime, AbstractInterval}, F::Union{FrequencyChannel, AbstractInterval})
-    select_region(arr, (S,), T, F)
-end
-
-
-function select_region(arr::SiteArray, site, T::Union{IntegrationTime, AbstractInterval}, F::Union{FrequencyChannel, AbstractInterval})
-    inds = findall(i->((Comrade.sites(arr)[i] ∈ site)&&(Comrade.times(arr)[i] ∈ T)), eachindex(arr))
+function Base.getindex(arr::SiteArray; Fr=Base.Colon(), S=Base.Colon(), Ti=Base.Colon())
+    Fr2 = isa(Fr, Indexable) ? unique(arr.frequencies)[Fr] : Fr
+    S2 = isa(S, Indexable) ? unique(arr.sites)[S] : S
+    Ti2 = isa(Ti, Indexable) ? unique(arr.times)[Ti] : Ti
+    inds = findall(i->(_equalorin(S2, Comrade.sites(arr)[i])&&_equalorin(Ti2, Comrade.times(arr)[i])&&_equalorin(Fr2, Comrade.frequencies(arr)[i])), eachindex(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
-struct SiteLookup{L<:NamedTuple, N, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:Number, N}, Sy<:AbstractArray{<:Any, N}}
+
+struct SiteLookup{L<:NamedTuple, N, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:FrequencyChannel, N}, Sy<:AbstractArray{<:Any, N}}
     lookup::L
     times::Ti
     frequencies::Fr
     sites::Sy
 end
 
+times(s::SiteLookup) = s.times
+sites(s::SiteLookup) = s.sites
+frequencies(s::SiteLookup) = s.frequencies
+lookup(s::SiteLookup) = s.lookup
+
+EnzymeRules.inactive(::typeof(times), ::SiteLookup) = nothing
+EnzymeRules.inactive(::typeof(frequencies), ::SiteLookup) = nothing
+EnzymeRules.inactive(::typeof(sites), ::SiteLookup) = nothing
+EnzymeRules.inactive(::typeof(lookup), ::SiteLookup) = nothing
+
 function sitemap!(f, out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
-    map(slook.lookup) do site
+    map(lookup(slook)) do site
         ysite = @view gains[site]
         outsite = @view out[site]
         outsite .= f.(ysite)
@@ -173,9 +173,10 @@ function sitemap(f, gains::AbstractArray{T}, slook::SiteLookup) where {T}
 end
 
 function sitemap!(::typeof(cumsum), out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
-    map(slook.lookup) do site
+    map(lookup(slook)) do site
         ys = @view gains[site]
         cumsum!(ys, ys)
+        nothing
     end
     return out
 end
@@ -190,8 +191,28 @@ function SiteLookup(s::SiteArray)
 end
 
 function SiteLookup(times::AbstractVector, frequencies::AbstractArray, sites::AbstractArray)
-    slist = Tuple(sort(unique(sites)))
-    return SiteLookup(NamedTuple{slist}(map(p->findall(==(p), sites), slist)), times, frequencies, sites)
+    slist = sort(unique(sites))
+    flist = sort(unique(frequencies))
+    if length(flist) == 1
+        return SiteLookup(NamedTuple{Tuple(slist)}(map(p->findall(==(p), sites), slist)), times, frequencies, sites)
+    else
+        # Find sites first
+        sflist = Symbol[]
+        inds = Vector{Int}[]
+        for s in slist
+            sinds = findall(==(s), sites)
+            for (i,f) in enumerate(flist)
+                finds = findall(==(f), @view(frequencies[sinds]))
+                if !isempty(finds)
+                    ss = Symbol(s, i)
+                    push!(sflist, ss)
+                    push!(inds, finds)
+                end
+            end
+        end
+        lookup = NamedTuple{Tuple(sflist)}(Tuple(inds))
+        return SiteLookup(lookup, times, frequencies, sites)
+    end
 end
 
 """
@@ -201,10 +222,13 @@ Construct a site array with the entries `arr` and the site ordering implied by
 `sitelookup`.
 """
 function SiteArray(a::AbstractArray, map::SiteLookup)
-    return SiteArray(a, map.times, map.frequencies, map.sites)
+    return SiteArray(a, times(map), frequencies(map), sites(map))
 end
 
-function SiteArray(data::SiteArray{T, N}, times::AbstractArray{<:IntegrationTime, N}, frequencies::AbstractArray{<:Number, N}, sites::AbstractArray{<:Number, N}) where {T, N}
+function SiteArray(data::SiteArray{T, N},
+                   times::AbstractArray{<:IntegrationTime, N}, 
+                   frequencies::AbstractArray{<:FrequencyChannel, N}, 
+                   sites::AbstractArray{<:Any, N}) where {T, N}
     return data
 end
 

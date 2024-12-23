@@ -72,7 +72,7 @@ function VLBISkyModels.FourierDualDomain(grid::AbstractRectiGrid, array::Abstrac
     return FourierDualDomain(grid, domain(array; executor), alg)
 end
 
-struct ObservedSkyModel{F, G<:VLBISkyModels.AbstractFourierDualDomain, M} <: AbstractSkyModel
+struct ObservedSkyModel{F, G<:VLBISkyModels.AbstractDomain, M} <: AbstractSkyModel
     f::F
     grid::G
     metadata::M
@@ -81,6 +81,14 @@ end
 function domain(m::AbstractSkyModel; kwargs...)
     return getfield(m, :grid)
 end
+
+# If we are using a analytic model then we don't need to plan the FT and we
+# can save some memory by not storing the plans.
+struct AnalyticAlg <: FourierTransform end
+struct AnalyticPlan <: VLBISkyModels.AbstractPlan end
+VLBISkyModels.getplan(::AnalyticPlan) = nothing
+VLBISkyModels.getphases(::AnalyticPlan) = nothing
+VLBISkyModels.create_plans(::AnalyticAlg, imgdomain, visdomain) = (AnalyticPlan(), AnalyticPlan())
 
 """
     ObservedSkyModel(sky::AbstractSkyModel, array::AbstractArrayConfiguration)
@@ -92,8 +100,17 @@ pass that to a [`VLBIPosterior`](@ref) object instead.
 
 """
 function ObservedSkyModel(m::SkyModel, arr::AbstractArrayConfiguration)
-    return ObservedSkyModel(m.f, FourierDualDomain(m.grid, arr, m.algorithm), m.metadata)
+    x = rand(NamedDist(m.prior))
+    ms = m.f(x, m.metadata)
+    # if analytic don't bother planning the FT
+    if ComradeBase.visanalytic(typeof(ms)) === ComradeBase.IsAnalytic()
+        g = FourierDualDomain(m.grid, arr, AnalyticAlg())
+    else
+        g = FourierDualDomain(m.grid, arr, m.algorithm)
+    end
+    return ObservedSkyModel(m.f, g, m.metadata)
 end
+
 
 function set_array(m::AbstractSkyModel, array::AbstractArrayConfiguration)
     return ObservedSkyModel(m, array), m.prior

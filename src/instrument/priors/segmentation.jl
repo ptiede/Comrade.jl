@@ -11,13 +11,17 @@ the following functions:
 """
 abstract type Segmentation end
 
+abstract type TimeSegmentation <: Segmentation end
+
+abstract type FrequencySegmentation <: Segmentation end
+
 # Track is for quantities that remain static across an entire observation
 """
     $(TYPEDEF)
 
 Data segmentation such that the quantity is constant over a `track`, i.e., the observation "night".
 """
-struct TrackSeg <: Segmentation end
+struct TrackSeg <: TimeSegmentation end
 
 # Scan is for quantities that are constant across a scan
 """
@@ -25,7 +29,7 @@ struct TrackSeg <: Segmentation end
 
 Data segmentation such that the quantity is constant over a `scan`.
 """
-struct ScanSeg <: Segmentation end
+struct ScanSeg <: TimeSegmentation end
 
 
 # Integration is for quantities that change every integration time
@@ -35,10 +39,10 @@ struct ScanSeg <: Segmentation end
 Data segmentation such that the quantity is constant over the time stamps in the data.
 If the data is scan-averaged before then `IntegSeg` will be identical to `ScanSeg`.
 """
-struct IntegSeg <: Segmentation end
+struct IntegSeg <: TimeSegmentation end
 
 """
-    timestamps(seg::Segmentation, array::AbstractArrayConfiguration)
+    timestamps(seg::TimeSegmentation, array::AbstractArrayConfiguration)
 
 Return the time stamps or really a vector of integration time regions for a
 given segmentation scheme `seg` and array configuration `array`.
@@ -48,10 +52,10 @@ function timestamps end
 function timestamps(::ScanSeg, array)
     st     = array.scans
     mjd    = array.mjd
-
     # Shift the central time to the middle of the scan
     dt = (st.stop .- st.start)
     t0 = st.start .+ dt./2
+
     return IntegrationTime.(mjd, t0, dt)
 end
 
@@ -60,7 +64,6 @@ end
 
 function timestamps(::IntegSeg, array)
     ts = unique(array[:Ti])
-    st     = array.scans
     mjd    = array.mjd
 
     # TODO build in the dt into the data format
@@ -74,14 +77,26 @@ function timestamps(::IntegSeg, array)
 end
 
 function timestamps(::TrackSeg, array)
-    st     = array.scans
     mjd    = array.mjd
 
     tstart, tend = extrema(array[:Ti])
+    tend = tend + 1
     dt = tend - tstart
     if iszero(dt)
         dt = 1/3600
     end
     # TODO build in the dt into the data format
     return (IntegrationTime(mjd, (tend-tstart)/2 + tstart, dt),)
+end
+
+
+struct SpectralWindow <: FrequencySegmentation end
+
+
+function freqchannels(::SpectralWindow, array)
+    Fr = unique(array[:Fr])
+    if length(Fr) > 1
+        Fr[end] = nextfloat(Fr[end])
+    end
+    return FrequencyChannel.(Fr, array.bandwidth, 1:length(Fr))
 end

@@ -20,6 +20,90 @@ _ntequal(x::T, y::T) where {T<:NamedTuple} = ntequal(values(x), values(y))
 _ntequal(x::T, y::T) where {T<:Tuple} = map(_ntequal, x, y)
 _ntequal(x, y) = x ≈ y
 
+function build_mfvis(vistuple...)
+    configs = arrayconfig.(vistuple)
+    vis = vistuple[1]
+    newdatatables = Comrade.StructArray(reduce(vcat, Comrade.datatable.(configs)))
+    newscans = reduce(vcat, getproperty.(configs, :scans))
+    newconfig = Comrade.EHTArrayConfiguration(vis.config.bandwidth,
+                                              vis.config.tarr,
+                                              newscans,
+                                              vis.config.mjd,
+                                              vis.config.ra,
+                                              vis.config.dec,
+                                              vis.config.source,
+                                              :UTC,
+                                              newdatatables)
+    newmeasurement = reduce(vcat, Comrade.measurement.(vistuple))
+    newnoise = reduce(vcat, Comrade.noise.(vistuple))
+
+    return Comrade.EHTObservationTable{Comrade.datumtype(vis)}(newmeasurement,newnoise,newconfig)
+end
+
+
+function isequalmissing(x, y)
+    xm = x |> ismissing |> collect
+    ym = y |> ismissing |> collect
+    return xm == ym
+end
+
+
+function test_caltable(c1, sites)
+    @test Tables.istable(typeof(c1))
+    @test Tables.rowaccess(typeof(c1))
+    @test Tables.rows(c1) === c1
+    @test Tables.columnaccess(c1)
+    clmns = Tables.columns(c1)
+    @test clmns[1] == Comrade.times(c1)
+    @test clmns[2] == Comrade.frequencies(c1)
+    @test Bool(prod(skipmissing(Tables.matrix(clmns)[:,begin+2:end]) .== skipmissing(Comrade.gmat(c1))))
+    @test c1.Ti == Comrade.times(c1)
+    @test c1.Ti == Tables.getcolumn(c1, 1)
+    @test c1.Fr == Comrade.frequencies(c1)
+    @test c1.Fr == Tables.getcolumn(c1, 2)
+    @test isequalmissing(c1.AA, Tables.getcolumn(c1, 3))
+
+    @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, :AA))) ≈ 0
+    @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, 3))) ≈ 0
+    @test Tables.columnnames(c1) == [:Ti, :Fr, sites...]
+
+    c1row = Tables.getrow(c1, 30)
+    @test eltype(c1) == typeof(c1row)
+    @test c1row.Ti == c1.Ti[30]
+    @test c1row.AA == c1.AA[30]
+    @test c1row.Fr == c1.Fr[30]
+    @test Tables.getcolumn(c1row, :AA) == c1.AA[30]
+    @test Tables.getcolumn(c1row, :Ti) == c1.Ti[30]
+    @test Tables.getcolumn(c1row, :Fr) == c1.Fr[30]
+    @test Tables.getcolumn(c1row, 3) == c1.AA[30]
+    @test Tables.getcolumn(c1row, 2) == c1.Fr[30]
+    @test Tables.getcolumn(c1row, 1) == c1.Ti[30]
+    @test propertynames(c1) == propertynames(c1row) == [:Ti, :Fr, sites...]
+    @test Tables.getcolumn(c1row, Float64, 1, :Ti) == c1.Ti[30]
+    @test Tables.getcolumn(c1row, Float64, 2, :Fr) == c1.Fr[30]
+    @test Tables.getcolumn(c1row, Float64, 3, :AA) == c1.AA[30]
+    @test isequalmissing(c1[1:10, :AA], c1.AA[1:10])
+    @test isequalmissing(c1[[1,2], :AA], c1.AA[[1,2]])
+    @test isequalmissing(@view(c1[1:10, :AA]), @view(c1.AA[1:10]))
+    @test isequalmissing(@view(c1[[1,2], :AA]), @view(c1.AA[[1,2]]))
+
+    Tables.schema(c1) isa Tables.Schema
+    Tables.getcolumn(c1, Float64, 1, :test)
+    Tables.getcolumn(c1, Float64, 2, :test)
+
+    c1[1, :AA]
+    c1[!, :AA]
+    c1[:, :AA]
+    @test length(c1) == length(c1.AA)
+    @test c1[1 ,:] isa Comrade.CalTableRow
+    @test length(Tables.getrow(c1, 1:5)) == 5
+
+    plot(c1)
+    plot(c1, datagains=true)
+    plot(c1, sites=(:AA,))
+
+    show(c1)
+end
 
 @testset "SkyModel" begin
 
@@ -105,8 +189,13 @@ end
 
         @test Comrade.SiteArray(x.lg, sl) == x.lg
 
-        Comrade.time(x.lg, 5.0..6.0)
-        Comrade.frequency(x.lg, 1.0..400.0)
+        @inferred Comrade.time(x.lg, 5.0..6.0)
+        @inferred Comrade.frequency(x.lg, 1.0..400.0)
+
+        @test x.lg ≈ SiteArray(x.lg, x.lg.times, x.lg.frequencies, x.lg.sites)
+        @inferred x.lg[1,1,1]
+        x.lg[1,1,1,1] = 1.0
+        @test x.lg[1] ≈ 1.0
 
         # ps = ProjectTo(x.lg)
         # @test ps(x.lg) == x.lg
@@ -213,7 +302,7 @@ end
         lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
         gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π  ^2))); phase=true, refant=SEFDReference(0.0)),
         lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase=false),
-        gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+        gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), refant=SingleReference(:AA, 0.0)),
         dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
         dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
         dLx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
@@ -365,45 +454,133 @@ end
 
         @testset "caltable test" begin
             c1 = caltable(x.lgR)
-            @test Tables.istable(typeof(c1))
-            @test Tables.rowaccess(typeof(c1))
-            @test Tables.rows(c1) === c1
-            @test Tables.columnaccess(c1)
-            clmns = Tables.columns(c1)
-            @test clmns[1] == Comrade.scantimes(c1)
-            @test Bool(prod(skipmissing(Tables.matrix(clmns)[:,begin+1:end]) .== skipmissing(Comrade.gmat(c1))))
-            @test c1.time == Comrade.scantimes(c1)
-            @test c1.time == Tables.getcolumn(c1, 1)
-            @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, :AA))) ≈ 0
-            @test maximum(abs, skipmissing(c1.AA) .- skipmissing(Tables.getcolumn(c1, 2))) ≈ 0
-            @test Tables.columnnames(c1) == [:time, sort(sites(amp))...]
+            test_caltable(c1, sort(sites(amp)))
+        end
 
-            c1row = Tables.getrow(c1, 30)
-            @test eltype(c1) == typeof(c1row)
-            @test c1row.time == c1.time[30]
-            @test c1row.AA == c1.AA[30]
-            @test Tables.getcolumn(c1row, :AA) == c1.AA[30]
-            @test Tables.getcolumn(c1row, :time) == c1.time[30]
-            @test Tables.getcolumn(c1row, 2) == c1.AA[30]
-            @test Tables.getcolumn(c1row, 1) == c1.time[30]
-            @test propertynames(c1) == propertynames(c1row) == [:time, sort(sites(amp))...]
+    end
 
-            Tables.schema(c1) isa Tables.Schema
-            Tables.getcolumn(c1, Float64, 1, :test)
-            Tables.getcolumn(c1, Float64, 2, :test)
 
-            c1[1, :AA]
-            c1[!, :AA]
-            c1[:, :AA]
-            @test length(c1) == length(c1.AA)
-            @test c1[1 ,:] isa Comrade.CalTableRow
-            @test length(Tables.getrow(c1, 1:5)) == 5
+    @testset "Coherencies Multifrequency" begin
+        dcoh2 = deepcopy(dcoh)
+        dcoh2.config[:Fr] .= 345e9
+        dcohmf = build_mfvis(dcoh, dcoh2)
+        vissi = CoherencyMatrix.(Comrade.measurement(dcoh), Ref(CirBasis()))
+        vismf = CoherencyMatrix.(Comrade.measurement(dcohmf), Ref(CirBasis()))
+        G = JonesG() do x
+            gR = exp(x.lgR + 1im*x.gpR)
+            gL = gR*exp(x.lgrat + 1im*x.gprat)
+            return gR, gL
+        end
 
-            plot(c1)
-            plot(c1, datagains=true)
-            plot(c1, sites=(:AA,))
+        D = JonesD() do x
+            dR = complex(x.dRx, x.dRy)
+            dL = complex(x.dLx, x.dLy)
+            return dR, dL
+        end
 
-            show(c1)
+        R = JonesR(;add_fr=true)
+
+        J = JonesSandwich(*, G, D, R)
+        F = JonesF()
+
+        intprior = (
+            lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+            gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π  ^2))); phase=true, refant=SEFDReference(0.0)),
+            lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase=false),
+            gprat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+            dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+            dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+            dLx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+            dLy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+        )
+
+
+        intm = InstrumentModel(J, intprior)
+        show(IOBuffer(), MIME"text/plain"(), intm)
+
+        ointsi, printsi = Comrade.set_array(intm, arrayconfig(dcoh))
+        ointmf, printmf = Comrade.set_array(intm, arrayconfig(dcohmf))
+
+
+        Rsi = Comrade.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
+        Rmf = Comrade.preallocate_jones(R, arrayconfig(dcohmf), CirBasis())
+        # Check that the copied matrices are identical
+        @test Rsi.matrices[1] ≈ Rmf.matrices[1][1:length(Rsi.matrices[1])]
+        @test Rsi.matrices[1] ≈ Rmf.matrices[1][length(Rsi.matrices[1])+1:end]
+        @test Rsi.matrices[2] ≈ Rmf.matrices[2][1:length(Rsi.matrices[1])]
+        @test Rsi.matrices[2] ≈ Rmf.matrices[2][length(Rsi.matrices[1])+1:end]
+
+        for p in propertynames(ointsi.bsitelookup)
+            L = length(ointsi.bsitelookup[p].indices_1)
+            @test ointsi.bsitelookup[p].indices_1 == ointmf.bsitelookup[p].indices_1[1:L]
+            @test ointsi.bsitelookup[p].indices_2 == ointmf.bsitelookup[p].indices_2[1:L]
+            @test 2*L == length(ointmf.bsitelookup[p].indices_1)
+        end
+
+        pintmf, _ = Comrade.set_array(InstrumentModel(R), arrayconfig(dcohmf))
+
+        xsi = rand(printsi)
+        xmf = rand(printmf)
+
+        for s in sites(dcoh)
+            map(x->fill!(x, 0.0), xsi)
+            map(x->fill!(x, 0.0), xmf)
+
+            inds1si = findall(x->(x[1]==s), dcoh[:baseline].sites)
+            inds2si = findall(x->(x[2]==s), dcoh[:baseline].sites)
+            nindssi = findall(x->(x[1]!=s && x[2]!=s), dcoh[:baseline].sites)
+
+            inds1mf = findall(x->(x[1]==s), dcohmf[:baseline].sites)
+            inds2mf = findall(x->(x[2]==s), dcohmf[:baseline].sites)
+            nindsmf = findall(x->(x[1]!=s && x[2]!=s), dcohmf[:baseline].sites)
+
+            xsilgR = xsi.lgR[S=s]
+            xsilgR .= log(2)
+            xmflgR = xmf.lgR[S=s]
+            xmflgR[1:length(xsilgR)] .= xsilgR
+            xmflgR[length(xsilgR)+1:end] .= 2 .* xsilgR
+
+            xsilgrat = xsi.lgrat[S=s]
+            xsilgrat .= -log(2)
+            xmflgrat = xmf.lgrat[S=s]
+            xmflgrat[1:length(xsilgrat)] .= xsilgrat
+            xmflgrat[length(xsilgrat)+1:end] .= xsilgrat
+            vmf = Comrade.apply_instrument(vismf, ointmf, (;instrument=xmf))
+            vsi = Comrade.apply_instrument(vissi, ointsi, (;instrument=xsi))
+            Gmf = SMatrix{2,2}(2.0, 0.0, 0.0, 2.0)
+            @test vsi[inds1si] ≈ vmf[inds1si]
+            @test vsi[inds1si] .* Ref(Gmf) ≈ vmf[inds1mf[length(inds1si)+1:end]] 
+
+            # Now phases
+            map(x->fill!(x, 0.0), xsi)
+            map(x->fill!(x, 0.0), xmf)
+
+            xsigpR = xsi.gpR[S=s]
+            xsigpR .= π/3
+            xmfgpR = xmf.gpR[S=s]
+            xmfgpR[1:length(xsigpR)] .= xsigpR
+            xmfgpR[length(xsilgR)+1:end] .= 2 .* xsigpR
+
+            xsigprat = xsi.gprat[S=s]
+            xsigprat .= -π/6
+            xmfgprat = xmf.gprat[S=s]
+            xmfgprat[1:length(xsigprat)] .= xsigprat
+            xmfgprat[length(xsigprat)+1:end] .= xsigprat
+
+            vmf = Comrade.apply_instrument(vismf, ointmf, (;instrument=xmf))
+            vsi = Comrade.apply_instrument(vissi, ointsi, (;instrument=xsi))
+            Gmf = SMatrix{2,2}(exp(1im*π/3), 0.0, 0.0, exp(1im*π/3))
+            @test vsi[inds1si] ≈ vmf[inds1si]
+            @test vsi[inds1si] .* Ref(Gmf) ≈ vmf[inds1mf[length(inds1si)+1:end]] 
+
+
+        end
+        
+
+        @testset "caltable test" begin
+            xmf = rand(printmf)
+            c1 = caltable(xmf.lgR)
+            test_caltable(c1, sort(sites(amp)))
         end
 
     end
@@ -415,6 +592,25 @@ end
         ti = Comrade.timestamps(IntegSeg(), arrayconfig(dvis))
         @test length(tt) < length(ts) ≤ length(ti)
     end
+
+    @testset "IntegrationTime" begin
+        ti = Comrade.IntegrationTime(10, 5.0, 0.1)
+        @test Comrade.mjd(ti) == ti.mjd
+        @test ti.t0 ∈ Comrade.interval(ti)
+        @test Comrade._center(ti) == ti.t0
+        @test Comrade._region(ti) == 0.1
+    end
+
+    @testset "FrequencyChannel" begin
+        fc = Comrade.FrequencyChannel(230e9, 8e9, 1)
+        @test Comrade.channel(fc) == 1
+        @test fc.central ∈ Comrade.interval(fc)
+        @test Comrade._center(fc) == fc.central
+        @test Comrade._region(fc) == 8e9
+        @test 86e9 < fc
+        @test fc < 345e9
+    end
+
 
 
 end

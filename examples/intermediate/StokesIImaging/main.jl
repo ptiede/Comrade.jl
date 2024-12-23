@@ -1,12 +1,3 @@
-# # Stokes I Simultaneous Image and Instrument Modeling
-
-# In this tutorial, we will create a preliminary reconstruction of the 2017 M87 data on April 6
-# by simultaneously creating an image and model for the instrument. By instrument model, we
-# mean something akin to self-calibration in traditional VLBI imaging terminology. However,
-# unlike traditional self-cal, we will solve for the gains each time we update the image
-# self-consistently. This allows us to model the correlations between gains and the image.
-
-# To get started we load Comrade.
 import Pkg #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
@@ -17,6 +8,15 @@ Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
 
 
+# # Stokes I Simultaneous Image and Instrument Modeling
+
+# In this tutorial, we will create a preliminary reconstruction of the 2017 M87 data on April 6
+# by simultaneously creating an image and model for the instrument. By instrument model, we
+# mean something akin to self-calibration in traditional VLBI imaging terminology. However,
+# unlike traditional self-cal, we will solve for the gains each time we update the image
+# self-consistently. This allows us to model the correlations between gains and the image.
+
+# To get started we load Comrade.
 using Comrade
 
 
@@ -131,15 +131,13 @@ skym = SkyModel(sky, prior, grid; metadata=skymeta)
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
 G = SingleStokesGain() do x
-    lg = x.lgμ + x.lgσ*x.lgz
+    lg = x.lg
     gp = x.gp
     return exp(lg + 1im*gp)
 end
 
 intpr = (
-    lgμ = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(TrackSeg(), Normal(0.0, 1.0))),
-    lgσ = ArrayPrior(IIDSitePrior(TrackSeg(), Exponential(0.1))),
-    lgz = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+    lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
     gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0), phase=true)
         )
 intmodel = InstrumentModel(G, intpr)
@@ -165,7 +163,7 @@ ndim = dimension(tpost)
 # To initialize our sampler we will use optimize using Adam
 using Optimization
 using OptimizationOptimisers
-xopt, sol = comrade_opt(post, Optimisers.Adam(); initial_params=prior_sample(rng, post), maxiters=20_000, g_tol=1e-1)
+xopt, sol = comrade_opt(post, Optimisers.Adam(); initial_params=prior_sample(rng, post), maxiters=20_000, g_tol=1e-1);
 
 # !!! warning
 #     Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -235,8 +233,8 @@ chain = chain[501:end]
 
 # Now that we have our posterior, we can put error bars on all of our plots above.
 # Let's start by finding the mean and standard deviation of the gain phases
-mchain = Comrade.rmap(mean, chain)
-schain = Comrade.rmap(std, chain)
+mchain = Comrade.rmap(mean, chain);
+schain = Comrade.rmap(std, chain);
 # Now we can use the measurements package to automatically plot everything with error bars.
 # First we create a `caltable` the same way but making sure all of our variables have errors
 # attached to them.

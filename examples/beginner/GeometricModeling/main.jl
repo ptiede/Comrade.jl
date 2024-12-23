@@ -1,3 +1,13 @@
+import Pkg; #hide
+__DIR = @__DIR__ #hide
+pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
+Pkg.activate(__DIR; io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
+Pkg.instantiate(; io=pkg_io) #hide
+Pkg.precompile(; io=pkg_io) #hide
+close(pkg_io) #hide
+
+
 # # Geometric Modeling of EHT Data
 
 # `Comrade` has been designed to work with the EHT and ngEHT.
@@ -9,22 +19,15 @@
 # In this tutorial, we will construct a similar model and fit it to the data in under
 # 50 lines of code (sans comments). To start, we load Comrade and some other packages we need.
 
-import Pkg #hide
-__DIR = @__DIR__ #hide
-pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
-close(pkg_io) #hide
-ENV["GKSwstype"] = "nul" #hide
-
+# To get started we load Comrade.
+#-
 
 using Comrade
 
 
+# Currently we use eht-imaging for data management, however this will soon be replaced
+# by a pure Julia solution.
 using Pyehtim
-
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(42)
@@ -81,7 +84,7 @@ prior = (
           ξτ= Uniform(0.0, π),
           f = Uniform(0.0, 1.0),
           σG = Uniform(μas2rad(1.0), μas2rad(100.0)),
-          τG = Uniform(0.0, 1.0),
+          τG = Exponential(1.0),
           ξG = Uniform(0.0, 1π),
           xG = Uniform(-μas2rad(80.0), μas2rad(80.0)),
           yG = Uniform(-μas2rad(80.0), μas2rad(80.0))
@@ -146,8 +149,8 @@ fpost = asflat(post)
 p = prior_sample(rng, post)
 
 # and then transform it to transformed space using T
-logdensityof(cpost, Comrade.TV.inverse(cpost, p))
-logdensityof(fpost, Comrade.TV.inverse(fpost, p))
+logdensityof(cpost, Comrade.inverse(cpost, p))
+logdensityof(fpost, Comrade.inverse(fpost, p))
 
 # note that the log densit is not the same since the transformation has causes a jacobian to ensure volume is preserved.
 
@@ -238,3 +241,4 @@ DisplayAs.Text(DisplayAs.PNG(p))
 # and the model, divided by the data's error:
 p = residual(post, chain[end]);
 DisplayAs.Text(DisplayAs.PNG(p))
+
