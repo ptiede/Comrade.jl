@@ -1,7 +1,7 @@
 module ComradeCairoMakieExt
 
 using CairoMakie
-using Measurements
+import Measurements: value, uncertainty
 
 
 """
@@ -272,8 +272,8 @@ function plotcaltable(gt::Comrade.CalTable; width=150, height=125, layout=Nothin
                     else
                         missingind = findall(x -> typeof(x) == Missing, y)
                         y[missingind] .= NaN
-                        yval = Measurements.value.(y)
-                        yerr = Measurements.uncertainty.(y)
+                        yval = value.(y)
+                        yerr = uncertainty.(y)
 
                         errorbars!(x,yval,yerr, scatter_kwargs...)
                         scatter!(x,yval, label = frequencylabel(round(ν.central,digits=2)), scatter_kwargs...)
