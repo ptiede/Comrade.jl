@@ -1,3 +1,12 @@
+import Pkg #hide
+__DIR = @__DIR__ #hide
+pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
+Pkg.activate(__DIR; io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
+Pkg.instantiate(; io=pkg_io) #hide
+Pkg.precompile(; io=pkg_io) #hide
+close(pkg_io) #hide
+
 # # Polarized Image and Instrumental Modeling
 
 # In this tutorial, we will analyze a simulated simple polarized dataset to demonstrate
@@ -85,14 +94,6 @@
 #  In the rest of the tutorial, we are going to solve for all of these instrument model terms in
 #  while re-creating the polarized image from the first [`EHT results on M87`](https://iopscience.iop.org/article/10.3847/2041-8213/abe71d).
 
-import Pkg #hide
-__DIR = @__DIR__ #hide
-pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
-close(pkg_io) #hide
 
 
 # ## Load the Data
@@ -192,7 +193,7 @@ mimg = intensitymap(mpr, grid)
 # For the image metadata we specify the grid and the total flux of the image, which is 1.0.
 # Note that we specify the total flux out front since it is degenerate with an overall shift
 # in the gain amplitudes.
-skymeta = (; mimg=mimg./flux(mimg), ftot=0.6)
+skymeta = (; mimg=mimg./flux(mimg), ftot=0.6);
 
 
 # We use again use a GMRF prior similar to the [Imaging a Black Hole using only Closure Quantities](@ref) tutorial
@@ -331,12 +332,13 @@ xopt, sol = comrade_opt(post, Optimisers.Adam();
 
 # Now let's evaluate our fits by plotting the residuals
 using Plots
+Plots.default(fmt = :png) 
 residual(post, xopt)
 
 # These look reasonable, although there may be some minor overfitting.
 # Let's compare our results to the ground truth values we know in this example.
 # First, we will load the polarized truth
-imgtrue = load_fits(joinpath(__DIR, "..", "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams})
+imgtrue = load_fits(joinpath(__DIR, "..", "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams});
 # Select a reasonable zoom in of the image.
 imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx*4, ny*4))
 img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
@@ -366,16 +368,16 @@ gamp_ratio   = caltable(exp.(xopt.instrument.lgrat))
 # expected since gain ratios are typically stable over the course of an observation and the constant
 # offset was removed in the EHT calibration process.
 gphaseR = caltable(xopt.instrument.gpR)
-p = Plots.plot(gphaseR, layout=(3,3), size=(650,500));
-Plots.plot!(p, gphase_ratio, layout=(3,3), size=(650,500));
+p = Plots.plot(gphaseR, layout=(3,3), size=(650,500), label="R Gain Phase");
+Plots.plot!(p, gphase_ratio, layout=(3,3), size=(650,500), label="Gain Phase Ratio");
 p |> DisplayAs.PNG |> DisplayAs.Text
 #-
 # Moving to the amplitudes we see largely stable gain amplitudes on the right circular polarization except for LMT which is
 # known and due to pointing issues during the 2017 observation. Again the gain ratios are stable and close to unity. Typically
 # we expect that apriori calibration should make the gain ratios close to unity.
 gampr = caltable(exp.(xopt.instrument.lgR))
-p = Plots.plot(gampr, layout=(3,3), size=(650,500))
-Plots.plot!(p, gamp_ratio, layout=(3,3), size=(650,500))
+p = Plots.plot(gampr, layout=(3,3), size=(650,500), label="R Gain Amp.");
+Plots.plot!(p, gamp_ratio, layout=(3,3), size=(650,500), label="Gain Amp. Ratio")
 p |> DisplayAs.PNG |> DisplayAs.Text
 #-
 

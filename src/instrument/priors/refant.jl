@@ -43,14 +43,19 @@ end
 function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r::SEFDReference)
     tarr = array.tarr
     t = unique(st.times)
+    f = unique(st.frequencies)
     sefd = NamedTuple{Tuple(tarr.sites)}(Tuple(tarr.SEFD1 .+ tarr.SEFD2))
-    fixedinds = map(eachindex(t)) do i
-        inds = findall(==(t[i]), st.times)
+    fixedinds = Int[]
+    for i in eachindex(t), j in eachindex(f)
+        inds = findall(x->((st.times[x]==t[i])&&(st.frequencies[x]==f[j])), eachindex(st.times))
+        if isempty(inds)
+            continue
+        end
         sites = Tuple(st.sites[inds])
         @assert length(sites) <= length(sefd) "Error in reference site generation. Too many sites"
         sp = select(sefd, sites)
         _, ind = findmin(values(sp))
-        return inds[ind]
+        push!(fixedinds, inds[ind])
     end
     return fixedinds, Fill(r.value, length(fixedinds))
 end

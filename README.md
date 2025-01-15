@@ -2,7 +2,7 @@
 Composable Modeling of Radio Emission
 
 ## Documentation
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://ptiede.github.io/Comrade.jl/dev/)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://ptiede.github.io/Comrade.jl/v0.11.4/)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://ptiede.github.io/Comrade.jl/dev/)
 ## Repo Status
 [![Build Status](https://github.com/ptiede/Comrade.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/ptiede/Comrade.jl/actions/)

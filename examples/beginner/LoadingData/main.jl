@@ -1,3 +1,12 @@
+import Pkg #hide
+__DIR = @__DIR__ #hide
+pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
+Pkg.activate(__DIR; io=pkg_io) #hide
+Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
+Pkg.instantiate(; io=pkg_io) #hide
+Pkg.precompile(; io=pkg_io) #hide
+close(pkg_io) #hide
+
 # # Loading Data into Comrade
 
 # The VLBI field does not have a standardized data format, and the EHT uses a
@@ -9,20 +18,7 @@
 # astronomy group grows.
 
 # To get started, we will load `Comrade` and `Plots` to enable visualizations of the data
-import Pkg #hide
-__DIR = @__DIR__ #hide
-pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
-close(pkg_io) #hide
-
-ENV["GKSwstype"] = "nul" #hide
-
-
 using Comrade
-
 using Plots
 
 # We also load Pyehtim since it loads eht-imaging into Julia using PythonCall and exports

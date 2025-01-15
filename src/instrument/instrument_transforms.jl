@@ -1,12 +1,16 @@
 abstract type AbstractInstrumentTransform <: TV.VectorTransform end
 site_map(t::AbstractInstrumentTransform) = t.site_map
+EnzymeRules.inactive(::typeof(site_map), args...) = nothing
 inner_transform(t::AbstractInstrumentTransform) = t.inner_transform
 
 function TV.transform_with(flag::TV.LogJacFlag, m::AbstractInstrumentTransform, x, index)
     y, ℓ, index = _instrument_transform_with(flag, m, x, index)
-    sm = m.site_map
-    return SiteArray(y, sm.times, sm.frequencies, sm.sites), ℓ, index
+    sm = site_map(m)
+    return SiteArray(y, sm), ℓ, index
 end
+
+EnzymeRules.inactive_type(::Type{AbstractArray{<:IntegrationTime}}) = true
+EnzymeRules.inactive_type(::Type{AbstractArray{<:FrequencyChannel}}) = true
 
 function TV.inverse_at!(x::AbstractArray, index, t::AbstractInstrumentTransform, y::SiteArray)
     itrf = inner_transform(t)
@@ -50,15 +54,25 @@ end
     return yout, ℓ, index
 end
 
+EnzymeRules.inactive_type(::Type{<:SiteLookup}) = true
+
 @inline function site_sum(y, site_map::SiteLookup)
-    yout = similar(y)
-    @inbounds for site in site_map.lookup
+    # yout = similar(y)
+    vals = values(lookup(site_map))
+    @inbounds for site in vals
+        # i0 = site[begin]
+        # yout[i0] = y[i0]
+        # acc = zero(eltype(y))
+        # for idx in site
+        #     acc += y[idx]
+        #     yout[idx] = acc
+        # end
         ys = @view y[site]
         # y should never alias so we should be fine here.
-        youts = @view yout[site]
-        cumsum!(youts, ys)
+        # youts = @view yout[site]
+        cumsum!(ys, ys)
     end
-    return yout
+    return y
 end
 
 # function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_instrument_transform_with), flag, m::MarkovInstrumentTransform, x, index)
@@ -84,11 +98,11 @@ function site_diff!(y, site_map::SiteLookup)
     return nothing
 end
 
-function simplediff(x::AbstractVector)
-    y = zero(x)
-    simplediff!(y, x)
-    return y
-end
+# function simplediff(x::AbstractVector)
+#     y = zero(x)
+#     simplediff!(y, x)
+#     return y
+# end
 
 function simplediff!(y::AbstractVector, x::AbstractVector)
     y[begin] = x[begin]

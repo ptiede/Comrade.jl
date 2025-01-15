@@ -6,4 +6,4 @@ Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 
 [compat]
 Plots = "1"
-Pyehtim = "0.1"
+Pyehtim = "0.2"

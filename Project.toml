@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.11.3"
+version = "0.11.5"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -89,7 +89,7 @@ ParameterHandling = "0.4, 0.5"
 Pigeons = "0.3, 0.4"
 PolarizedTypes = "0.1"
 PrettyTables = "1, 2"
-Pyehtim = "0.1"
+Pyehtim = "0.2"
 RecipesBase = "1"
 Reexport = "1"
 SpecialFunctions = "0.10, 1, 2"
