@@ -46,6 +46,7 @@ VLBISkyModels = "d6343c73-7174-4e0f-bb64-562643efbeca"
 
 [weakdeps]
 AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 Dynesty = "eb527566-0f3e-4aab-bb5f-9d2e403dba70"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
@@ -54,6 +55,7 @@ Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 
 [extensions]
 ComradeAdvancedHMCExt = "AdvancedHMC"
+ComradeCairoMakieExt = "CairoMakie"
 ComradeDynestyExt = "Dynesty"
 ComradeEnzymeExt = "Enzyme"
 ComradeOptimizationExt = "Optimization"
@@ -66,6 +68,7 @@ Accessors = "0.1"
 AdvancedHMC = "0.6"
 ArgCheck = "2"
 AstroTime = "0.6,0.7"
+CairoMakie = "0.12"
 ChainRulesCore = "1"
 ComradeBase = "0.8"
 DelimitedFiles = "1"
@@ -106,6 +109,7 @@ julia = "1.10"
 
 [extras]
 AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 CPUSummary = "2a0fbf3d-bb9c-48f3-b0a9-814d99fd7ab9"
 Dynesty = "eb527566-0f3e-4aab-bb5f-9d2e403dba70"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
@@ -116,4 +120,4 @@ Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "AdvancedHMC", "Dynesty", "Enzyme", "Makie", "Optimization", "Pigeons", "Pyehtim"]
+test = ["Test", "AdvancedHMC", "CairoMakie", "Dynesty", "Enzyme", "Makie", "Optimization", "Pigeons", "Pyehtim"]
