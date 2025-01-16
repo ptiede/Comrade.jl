@@ -6,7 +6,7 @@ using CairoMakie
 """
 Returns the indices of an EHTObservationTable associated with a given baseline.
 """
-function getbaselineind(obsdata::EHTObservationTable, site1::Symbol, site2::Symbol)
+function getbaselineind(obsdata::Comrade.EHTObservationTable, site1::Symbol, site2::Symbol)
     sitedata = datatable(obsdata).baseline.sites
     if site1 != site2
         baselineind = findall(x -> (site1 in x) && (site2 in x), sitedata)
@@ -34,7 +34,7 @@ Gets the observation data associated with a field. General purpose function.
     :snr - signal to noise ratio
     :res - normalized residual visibilities (only if obsdata contains the residuals)
 """
-function getobsdatafield(obsdata::EHTObservationTable, field::Symbol)
+function getobsdatafield(obsdata::Comrade.EHTObservationTable, field::Symbol)
     if field in (:amp, :phase, :uvdist, :snr, :res)
         if field == :amp # calculate visibility amplitudes
             vis = Comrade.measurement(obsdata)
@@ -83,7 +83,7 @@ function frequencylabel(ν::Number)
 end
 
 function plotfields(
-    obsdata::EHTObservationTable,
+    obsdata::Comrade.EHTObservationTable,
     field1::Symbol,
     field2::Symbol;
     legend = true,
@@ -142,7 +142,7 @@ function plotfields(
 end
 
 function plotfields(
-    obsdata::EHTObservationTable,
+    obsdata::Comrade.EHTObservationTable,
     field1::Symbol,
     field2::Symbol,
     site1::Symbol,
@@ -165,7 +165,7 @@ end
 
 function axisfields(
     fig::GridPosition,
-    obsdata::EHTObservationTable,
+    obsdata::Comrade.EHTObservationTable,
     field1::Symbol,
     field2::Symbol;
     legend = true,
@@ -222,7 +222,7 @@ end
 
 function axisfields(
     fig::GridPosition,
-    obsdata::EHTObservationTable,
+    obsdata::Comrade.EHTObservationTable,
     field1::Symbol,
     field2::Symbol,
     site1::Symbol,
