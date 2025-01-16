@@ -1,4 +1,4 @@
-export plotfields
+export plotfields, axisfields, plotcaltable
 
 """
 Plots two data fields against each other.
@@ -71,3 +71,11 @@ Each subplot corresponds to a different station in the array.
  - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
 function plotcaltable end
+
+function getbaselineind end
+
+function getobsdatafield end
+
+function frequencylabel end
+
+function plotaxis end

@@ -1,6 +1,9 @@
 module ComradeCairoMakieExt
 
 using CairoMakie
+using Comrade
+
+import Comrade: plotfields, axisfields, plotcaltable, plotaxis, getbaselineind, getobsdatafield, frequencylabel
 
 
 """
