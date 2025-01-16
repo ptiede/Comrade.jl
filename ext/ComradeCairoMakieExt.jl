@@ -1,7 +1,6 @@
 module ComradeCairoMakieExt
 
 using CairoMakie
-import Measurements: value, uncertainty
 
 
 """
@@ -21,7 +20,7 @@ end
 """
 Gets the observation data associated with a field. General purpose function.
 
-## Arguments
+# Arguments
 
  - `field` : The field for which data is retrieved. 
     Current fields supported
@@ -53,7 +52,7 @@ function getobsdatafield(obsdata::EHTObservationTable, field::Symbol)
         elseif field == :uvdist # calculate uv Distance
             dt = datatable(obsdata)
             return uvdist.(dt)
-        elseif field == :res 
+        elseif field == :res
             vis = Comrade.measurement(obsdata)
             sigma = Comrade.noise(obsdata)
             res = vis .* inv.(sigma)
@@ -71,14 +70,14 @@ end
 function frequencylabel(ν::Number)
     if ν > 1e6
         if ν > 1e12
-            label = label=string(ν/1e12) * " THz"
+            label = label = string(ν / 1e12) * " THz"
         elseif ν > 1e9
-            label = label=string(ν/1e9) * " GHz"
+            label = label = string(ν / 1e9) * " GHz"
         else
-            label = label=string(ν/1e6) * " MHz"
+            label = label = string(ν / 1e6) * " MHz"
         end
     else
-        label = label=string(ν) * " Hz"
+        label = label = string(ν) * " Hz"
     end
     return label
 end
@@ -107,39 +106,85 @@ Plots two data fields against each other, returns a Makie Axis which can be used
  - `legend_kwargs` : Keyword arguments passed to the figure legend.
  - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
-function plotfields(obsdata::EHTObservationTable, field1::Symbol, field2::Symbol; legend=true, conjugate=true,axis_kwargs=(;), legend_kwargs=(;), scatter_kwargs=(;))
+function plotfields(
+    obsdata::EHTObservationTable,
+    field1::Symbol,
+    field2::Symbol;
+    legend = true,
+    conjugate = true,
+    axis_kwargs = (;),
+    legend_kwargs = (;),
+    scatter_kwargs = (;),
+)
 
-    labels = (; U=L"v $(\lambda)$", V=L"v $(\lambda)$", 
-              Ti="Time (UTC)", Fr ="Frequency (Hz)", 
-              amp="Visibility Amplitude (Jy)", phase="Visibility Phase (rad)", 
-              uvdist=L"Projected Baseline Distance $(\lambda)$", snr="SNR", res="Normalized Residual Visibility")
+    labels = (;
+        U = L"v $(\lambda)$",
+        V = L"v $(\lambda)$",
+        Ti = "Time (UTC)",
+        Fr = "Frequency (Hz)",
+        amp = "Visibility Amplitude (Jy)",
+        phase = "Visibility Phase (rad)",
+        uvdist = L"Projected Baseline Distance $(\lambda)$",
+        snr = "SNR",
+        res = "Normalized Residual Visibility",
+    )
 
-    axis_kwargs = (; axis_kwargs..., xlabel=getproperty(labels,field1), ylabel=getproperty(labels,field2))
+    axis_kwargs = (;
+        axis_kwargs...,
+        xlabel = getproperty(labels, field1),
+        ylabel = getproperty(labels, field2),
+    )
 
     x = getobsdatafield(obsdata, field1)
     y = getobsdatafield(obsdata, field2)
     Fr = domain(obsdata).Fr
 
     if conjugate == true # conjugating for (u,v) plotting
-        if field1 in (:U,:V) && field2 in (:U,:V) # conjugating for (u,v) plotting 
-            x = [x;-x]
-            y = [y;-y]
-            Fr = [Fr;Fr]
-            axis_kwargs = (;axis_kwargs..., aspect=1)
+        if field1 in (:U, :V) && field2 in (:U, :V) # conjugating for (u,v) plotting 
+            x = [x; -x]
+            y = [y; -y]
+            Fr = [Fr; Fr]
+            axis_kwargs = (; axis_kwargs..., aspect = 1)
         end
     end
 
     νlist = unique(Fr) # multifrequency support
 
     fig = Figure()
-    plotaxis(fig[1,1], x, y, Fr, νlist; legend=legend, axis_kwargs=(;axis_kwargs...), scatter_kwargs=(;scatter_kwargs...), legend_kwargs=(;legend_kwargs...))
+    plotaxis(
+        fig[1, 1],
+        x,
+        y,
+        Fr,
+        νlist;
+        legend = legend,
+        axis_kwargs = (; axis_kwargs...),
+        scatter_kwargs = (; scatter_kwargs...),
+        legend_kwargs = (; legend_kwargs...),
+    )
     return fig
 end
 
-function plotfields(obsdata::EHTObservationTable, field1::Symbol, field2::Symbol, site1::Symbol, site2::Symbol; axis_kwargs=(;), legend_kwargs=(;), scatter_kwargs=(;))
+function plotfields(
+    obsdata::EHTObservationTable,
+    field1::Symbol,
+    field2::Symbol,
+    site1::Symbol,
+    site2::Symbol;
+    axis_kwargs = (;),
+    legend_kwargs = (;),
+    scatter_kwargs = (;),
+)
     title = string(site1) * " - " * string(site2)
     siteind = getbaselineind(obsdata, site1, site2)
-    return plotfields(obsdata[siteind], field1::Symbol, field2::Symbol; axis_kwargs=(;axis_kwargs..., title=title), legend_kwargs=legend_kwargs, scatter_kwargs=scatter_kwargs)
+    return plotfields(
+        obsdata[siteind],
+        field1::Symbol,
+        field2::Symbol;
+        axis_kwargs = (; axis_kwargs..., title = title),
+        legend_kwargs = legend_kwargs,
+        scatter_kwargs = scatter_kwargs,
+    )
 end
 
 """
@@ -168,52 +213,137 @@ Plots two data fields against each other, returns a Makie Axis which can be used
  - `legend_kwargs` : Keyword arguments passed to the figure legend.
  - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
-function axisfields(fig::GridPosition, obsdata::EHTObservationTable, field1::Symbol, field2::Symbol; legend=true, conjugate=true, axis_kwargs=(;), legend_kwargs=(;), scatter_kwargs=(;))
-    labels = (; U=L"v $(\lambda)$", V=L"v $(\lambda)$", 
-              Ti="Time (UTC)", Fr ="Frequency (Hz)", 
-              amp="Visibility Amplitude (Jy)", phase="Visibility Phase (rad)", 
-              uvdist=L"Projected Baseline Distance $(\lambda)$", snr="SNR", res="Normalized Residual Visibility")
+function axisfields(
+    fig::GridPosition,
+    obsdata::EHTObservationTable,
+    field1::Symbol,
+    field2::Symbol;
+    legend = true,
+    conjugate = true,
+    axis_kwargs = (;),
+    legend_kwargs = (;),
+    scatter_kwargs = (;),
+)
+    labels = (;
+        U = L"v $(\lambda)$",
+        V = L"v $(\lambda)$",
+        Ti = "Time (UTC)",
+        Fr = "Frequency (Hz)",
+        amp = "Visibility Amplitude (Jy)",
+        phase = "Visibility Phase (rad)",
+        uvdist = L"Projected Baseline Distance $(\lambda)$",
+        snr = "SNR",
+        res = "Normalized Residual Visibility",
+    )
 
-    axis_kwargs = (; axis_kwargs..., xlabel=getproperty(labels,field1), ylabel=getproperty(labels,field2))
+    axis_kwargs = (;
+        axis_kwargs...,
+        xlabel = getproperty(labels, field1),
+        ylabel = getproperty(labels, field2),
+    )
 
     x = getobsdatafield(obsdata, field1)
     y = getobsdatafield(obsdata, field2)
     Fr = domain(obsdata).Fr
 
     if conjugate == true # conjugating for (u,v) plotting
-        if field1 in (:U,:V) && field2 in (:U,:V) # conjugating for (u,v) plotting 
-            x = [x;-x]
-            y = [y;-y]
-            Fr = [Fr;Fr]
-            axis_kwargs = (;axis_kwargs..., aspect=1)
+        if field1 in (:U, :V) && field2 in (:U, :V) # conjugating for (u,v) plotting 
+            x = [x; -x]
+            y = [y; -y]
+            Fr = [Fr; Fr]
+            axis_kwargs = (; axis_kwargs..., aspect = 1)
         end
     end
 
     νlist = unique(Fr) # multifrequency support
-    ax = plotaxis(fig, x, y, Fr, νlist; legend=legend, axis_kwargs=(;axis_kwargs...), scatter_kwargs=(;scatter_kwargs...), legend_kwargs=(;legend_kwargs...))
+    ax = plotaxis(
+        fig,
+        x,
+        y,
+        Fr,
+        νlist;
+        legend = legend,
+        axis_kwargs = (; axis_kwargs...),
+        scatter_kwargs = (; scatter_kwargs...),
+        legend_kwargs = (; legend_kwargs...),
+    )
     return ax
 end
 
-function axisfields(fig::GridPosition, obsdata::EHTObservationTable, field1::Symbol, field2::Symbol, site1::Symbol, site2::Symbol; legend=true, axis_kwargs=(;), legend_kwargs=(;), scatter_kwargs=(;))
+function axisfields(
+    fig::GridPosition,
+    obsdata::EHTObservationTable,
+    field1::Symbol,
+    field2::Symbol,
+    site1::Symbol,
+    site2::Symbol;
+    legend = true,
+    axis_kwargs = (;),
+    legend_kwargs = (;),
+    scatter_kwargs = (;),
+)
     title = string(site1) * " - " * string(site2)
     siteind = getbaselineind(obsdata, site1, site2)
-    return axisfields(fig, obsdata[siteind], field1::Symbol, field2::Symbol; legend=legend, axis_kwargs=(;axis_kwargs..., title=title), legend_kwargs=legend_kwargs, scatter_kwargs=scatter_kwargs)
+    return axisfields(
+        fig,
+        obsdata[siteind],
+        field1::Symbol,
+        field2::Symbol;
+        legend = legend,
+        axis_kwargs = (; axis_kwargs..., title = title),
+        legend_kwargs = legend_kwargs,
+        scatter_kwargs = scatter_kwargs,
+    )
 end
 
-function plotaxis(fig::GridPosition, x::AbstractArray, y::AbstractArray, Fr::AbstractArray, νlist::AbstractArray; legend=true, axis_kwargs=(;), scatter_kwargs=(;), legend_kwargs=(;))
+function plotaxis(
+    fig::GridPosition,
+    x::AbstractArray,
+    y::AbstractArray,
+    Fr::AbstractArray,
+    νlist::AbstractArray;
+    legend = true,
+    axis_kwargs = (;),
+    scatter_kwargs = (;),
+    legend_kwargs = (;),
+)
     ax = Axis(fig; axis_kwargs...)
     for ν in νlist
         νind = findall(x -> x == ν, Fr)
         label = frequencylabel(ν)
 
         if eltype(x) <: Complex
-            scatter!(ax, real.(x[νind]), y[νind], label=label*" Real"; scatter_kwargs...)
-            scatter!(ax, imag.(x[νind]), y[νind], label=label*" Imag"; scatter_kwargs...)
+            scatter!(
+                ax,
+                real.(x[νind]),
+                y[νind],
+                label = label * " Real";
+                scatter_kwargs...,
+            )
+            scatter!(
+                ax,
+                imag.(x[νind]),
+                y[νind],
+                label = label * " Imag";
+                scatter_kwargs...,
+            )
         elseif eltype(y) <: Complex
-            scatter!(ax, x[νind], real.(y[νind]), label=label*" Real"; scatter_kwargs...)
-            scatter!(ax, x[νind], imag.(y[νind]), label=label*" Imag"; scatter_kwargs...)
+            scatter!(
+                ax,
+                x[νind],
+                real.(y[νind]),
+                label = label * " Real";
+                scatter_kwargs...,
+            )
+            scatter!(
+                ax,
+                x[νind],
+                imag.(y[νind]),
+                label = label * " Imag";
+                scatter_kwargs...,
+            )
         else
-            scatter!(ax, x[νind], y[νind], label=label; scatter_kwargs...)
+            scatter!(ax, x[νind], y[νind], label = label; scatter_kwargs...)
         end
     end
 
@@ -239,49 +369,75 @@ Each subplot corresponds to a different station in the array.
  - `figure_kwargs` : Keyword arguments passed to Figure().
  - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
-function plotcaltable(gt::Comrade.CalTable; width=150, height=125, layout=Nothing, axis_kwargs=(;), legend_kwargs=(;), figure_kwargs=(;), scatter_kwargs=(;))
+function plotcaltable(
+    gt::Comrade.CalTable;
+    width = 150,
+    height = 125,
+    layout = Nothing,
+    axis_kwargs = (;),
+    legend_kwargs = (;),
+    figure_kwargs = (;),
+    scatter_kwargs = (;),
+)
     sitelist = sites(gt)
 
     if layout == Nothing
         collen = 4
-        rowlen = ceil(length(sitelist)/collen)
+        rowlen = ceil(length(sitelist) / collen)
     else
-        (rowlen,collen) = layout
+        (rowlen, collen) = layout
     end
 
-    size = (width*(collen),height*(rowlen)+50) # height + 50 is for the UTC label
+    size = (width * (collen), height * (rowlen) + 50) # height + 50 is for the UTC label
 
-    fig = Figure(;size, figure_kwargs...)
-    for n in range(1,rowlen) # loop over every station
-        for m in range(1,collen)
-            ind = Int64(collen*(n-1)+m)
+    fig = Figure(; size, figure_kwargs...)
+    for n in range(1, rowlen) # loop over every station
+        for m in range(1, collen)
+            ind = Int64(collen * (n - 1) + m)
 
             if ind <= length(sitelist)
                 site = sites(gt)[ind]
 
-                ax = Axis(fig[Int64(n),Int64(m)],title=string(site),width=width,height=height, axis_kwargs...)
-                
+                ax = Axis(
+                    fig[Int64(n), Int64(m)],
+                    title = string(site),
+                    width = width,
+                    height = height,
+                    axis_kwargs...,
+                )
+
                 νlist = unique(gt.Fr)
                 for ν in νlist
                     νind = findall(x -> x == ν, gt.Fr)
-                    x = getproperty.(gt.Ti,:t0)[νind]
+                    x = getproperty.(gt.Ti, :t0)[νind]
                     y = getproperty(gt, site)[νind]
 
                     if eltype(y) >: Float64
-                        scatter!(ax,x,y, label = frequencylabel(round(ν.central,digits=2)), scatter_kwargs...)
+                        scatter!(
+                            ax,
+                            x,
+                            y,
+                            label = frequencylabel(round(ν.central, digits = 2)),
+                            scatter_kwargs...,
+                        )
                     else
                         missingind = findall(x -> typeof(x) == Missing, y)
                         y[missingind] .= NaN
-                        yval = value.(y)
-                        yerr = uncertainty.(y)
+                        yval = getproperty.(y, :val)
+                        yerr = getproperty.(y, :err)
 
-                        errorbars!(x,yval,yerr, scatter_kwargs...)
-                        scatter!(x,yval, label = frequencylabel(round(ν.central,digits=2)), scatter_kwargs...)
+                        errorbars!(x, yval, yerr, scatter_kwargs...)
+                        scatter!(
+                            x,
+                            yval,
+                            label = frequencylabel(round(ν.central, digits = 2)),
+                            scatter_kwargs...,
+                        )
                     end
                 end
 
                 if n == 1 && m == 1
-                    Legend(fig[1,Int64(collen+1)], ax, legend_kwargs...)
+                    Legend(fig[1, Int64(collen + 1)], ax, legend_kwargs...)
                 end
 
                 if n == rowlen && m == 1
