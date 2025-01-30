@@ -501,6 +501,26 @@ end
         ointsi, printsi = Comrade.set_array(intm, arrayconfig(dcoh))
         ointmf, printmf = Comrade.set_array(intm, arrayconfig(dcohmf))
 
+        @testset "Site lookup" begin
+            trsi = asflat(printsi)
+            trmf = asflat(printmf)
+
+            lsi = trsi.transformations.lgR.site_map.lookup
+            lmf = trmf.transformations.lgR.site_map.lookup
+            l = length(trsi.transformations.lgR.site_map.frequencies)
+            for s in keys(lsi)
+                s1 = Symbol(string(s, 1))
+                s2 = Symbol(string(s, 2))
+                @test lsi[s] == lmf[s1]# make sure these match
+                @test lsi[s] == lmf[s2] .- l # should be a mirror but offset by the total length
+            end
+
+            # Check that both have complete coverage
+            @test reduce(vcat, lsi) |> sort == 1:l 
+            @test reduce(vcat, lmf) |> sort == 1:2l
+
+        end
+
 
         Rsi = Comrade.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
         Rmf = Comrade.preallocate_jones(R, arrayconfig(dcohmf), CirBasis())

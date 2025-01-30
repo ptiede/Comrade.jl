@@ -175,7 +175,8 @@ end
 function sitemap!(::typeof(cumsum), out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
     map(lookup(slook)) do site
         ys = @view gains[site]
-        cumsum!(ys, ys)
+        outs = @view out[site]
+        cumsum!(outs, ys)
         nothing
     end
     return out
@@ -206,7 +207,7 @@ function SiteLookup(times::AbstractVector, frequencies::AbstractArray, sites::Ab
                 if !isempty(finds)
                     ss = Symbol(s, i)
                     push!(sflist, ss)
-                    push!(inds, finds)
+                    push!(inds, sinds[finds])
                 end
             end
         end
