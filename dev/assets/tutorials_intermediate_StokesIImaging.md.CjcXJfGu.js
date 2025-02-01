@@ -3,7 +3,7 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">using</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> Pyehtim</span></span>
-<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">using</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> LinearAlgebra</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>    CondaPkg Found dependencies: /home/runner/.julia/packages/DimensionalData/bwTLK/CondaPkg.toml</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">using</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> LinearAlgebra</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>    CondaPkg Found dependencies: /home/runner/.julia/packages/DimensionalData/M9vEC/CondaPkg.toml</span></span>
 <span class="line"><span>    CondaPkg Found dependencies: /home/runner/.julia/packages/PythonCall/WMWY0/CondaPkg.toml</span></span>
 <span class="line"><span>    CondaPkg Found dependencies: /home/runner/.julia/packages/Pyehtim/Fm109/CondaPkg.toml</span></span>
 <span class="line"><span>    CondaPkg Resolving changes</span></span>
@@ -26,8 +26,8 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"><span>             │ --override-channels</span></span>
 <span class="line"><span>             │ --no-channel-priority</span></span>
 <span class="line"><span>             │ libstdcxx-ng[version=&#39;&gt;=3.4,&lt;13.0&#39;]</span></span>
-<span class="line"><span>             │ numpy[version=&#39;*&#39;]</span></span>
 <span class="line"><span>             │ numpy[version=&#39;&gt;=1.24, &lt;2.0&#39;]</span></span>
+<span class="line"><span>             │ numpy[version=&#39;*&#39;]</span></span>
 <span class="line"><span>             │ openssl[version=&#39;&gt;=3, &lt;3.1&#39;]</span></span>
 <span class="line"><span>             │ pandas[version=&#39;&lt;2&#39;]</span></span>
 <span class="line"><span>             │ python[version=&#39;&gt;=3.8,&lt;4&#39;,channel=&#39;conda-forge&#39;,build=&#39;*cpython*&#39;]</span></span>
@@ -35,8 +35,6 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"><span>             │ uv[version=&#39;&gt;=0.4&#39;]</span></span>
 <span class="line"><span>             │ xarray[version=&#39;*&#39;]</span></span>
 <span class="line"><span>             └ -c conda-forge</span></span>
-<span class="line"><span>conda-forge/linux-64                                        Using cache</span></span>
-<span class="line"><span>conda-forge/noarch                                          Using cache</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>Transaction</span></span>
 <span class="line"><span></span></span>
@@ -45,8 +43,8 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"><span>  Updating specs:</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>   - libstdcxx-ng[version=&#39;&gt;=3.4,&lt;13.0&#39;]</span></span>
-<span class="line"><span>   - numpy=*</span></span>
 <span class="line"><span>   - numpy[version=&#39;&gt;=1.24, &lt;2.0&#39;]</span></span>
+<span class="line"><span>   - numpy=*</span></span>
 <span class="line"><span>   - openssl[version=&#39;&gt;=3, &lt;3.1&#39;]</span></span>
 <span class="line"><span>   - pandas[version=&#39;&lt;2&#39;]</span></span>
 <span class="line"><span>   - conda-forge::python[version=&#39;&gt;=3.8,&lt;4&#39;,build=*cpython*]</span></span>
@@ -63,7 +61,7 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"><span>  + libstdcxx-ng           12.3.0  hc0a3c3a_7            conda-forge     Cached</span></span>
 <span class="line"><span>  + _libgcc_mutex             0.1  conda_forge           conda-forge     Cached</span></span>
 <span class="line"><span>  + python_abi               3.10  5_cp310               conda-forge     Cached</span></span>
-<span class="line"><span>  + ca-certificates    2024.12.14  hbcca054_0            conda-forge     Cached</span></span>
+<span class="line"><span>  + ca-certificates     2025.1.31  hbcca054_0            conda-forge     Cached</span></span>
 <span class="line"><span>  + ld_impl_linux-64         2.43  h712a8e2_2            conda-forge     Cached</span></span>
 <span class="line"><span>  + libgomp                14.2.0  h77fa898_1            conda-forge     Cached</span></span>
 <span class="line"><span>  + _openmp_mutex             4.5  2_gnu                 conda-forge     Cached</span></span>
@@ -79,7 +77,7 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"><span>  + liblzma-devel           5.6.3  hb9d3cd8_1            conda-forge     Cached</span></span>
 <span class="line"><span>  + libsqlite              3.48.0  hee588c1_1            conda-forge     Cached</span></span>
 <span class="line"><span>  + libgfortran            14.2.0  h69a702a_1            conda-forge     Cached</span></span>
-<span class="line"><span>  + uv                     0.5.25  h0f3a69f_0            conda-forge     Cached</span></span>
+<span class="line"><span>  + uv                     0.5.26  h0f3a69f_0            conda-forge     Cached</span></span>
 <span class="line"><span>  + tk                     8.6.13  noxft_h4845f30_101    conda-forge     Cached</span></span>
 <span class="line"><span>  + readline                  8.2  h8228510_1            conda-forge     Cached</span></span>
 <span class="line"><span>  + libuuid                2.38.1  h0b41bf4_0            conda-forge     Cached</span></span>
@@ -99,7 +97,7 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"><span>  + setuptools             75.8.0  pyhff2d567_0          conda-forge     Cached</span></span>
 <span class="line"><span>  + pip                      25.0  pyh8b19718_0          conda-forge     Cached</span></span>
 <span class="line"><span>  + six                    1.17.0  pyhd8ed1ab_0          conda-forge     Cached</span></span>
-<span class="line"><span>  + pytz                   2024.2  pyhd8ed1ab_1          conda-forge     Cached</span></span>
+<span class="line"><span>  + pytz                   2025.1  pyhd8ed1ab_0          conda-forge     Cached</span></span>
 <span class="line"><span>  + packaging                24.2  pyhd8ed1ab_2          conda-forge     Cached</span></span>
 <span class="line"><span>  + python-dateutil   2.9.0.post0  pyhff2d567_1          conda-forge     Cached</span></span>
 <span class="line"><span>  + numpy                  1.26.4  py310hb13e2d6_0       conda-forge     Cached</span></span>
@@ -120,7 +118,7 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"><span>Linking libstdcxx-ng-12.3.0-hc0a3c3a_7</span></span>
 <span class="line"><span>Linking _libgcc_mutex-0.1-conda_forge</span></span>
 <span class="line"><span>Linking python_abi-3.10-5_cp310</span></span>
-<span class="line"><span>Linking ca-certificates-2024.12.14-hbcca054_0</span></span>
+<span class="line"><span>Linking ca-certificates-2025.1.31-hbcca054_0</span></span>
 <span class="line"><span>Linking ld_impl_linux-64-2.43-h712a8e2_2</span></span>
 <span class="line"><span>Linking libgomp-14.2.0-h77fa898_1</span></span>
 <span class="line"><span>Linking _openmp_mutex-4.5-2_gnu</span></span>
@@ -140,7 +138,7 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"><span>Linking liblzma-devel-5.6.3-hb9d3cd8_1</span></span>
 <span class="line"><span>Linking libsqlite-3.48.0-hee588c1_1</span></span>
 <span class="line"><span>Linking libgfortran-14.2.0-h69a702a_1</span></span>
-<span class="line"><span>Linking uv-0.5.25-h0f3a69f_0</span></span>
+<span class="line"><span>Linking uv-0.5.26-h0f3a69f_0</span></span>
 <span class="line"><span>Linking tk-8.6.13-noxft_h4845f30_101</span></span>
 <span class="line"><span>Linking readline-8.2-h8228510_1</span></span>
 <span class="line"><span>Linking libuuid-2.38.1-h0b41bf4_0</span></span>
@@ -160,7 +158,7 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"><span>Linking setuptools-75.8.0-pyhff2d567_0</span></span>
 <span class="line"><span>Linking pip-25.0-pyh8b19718_0</span></span>
 <span class="line"><span>Linking six-1.17.0-pyhd8ed1ab_0</span></span>
-<span class="line"><span>Linking pytz-2024.2-pyhd8ed1ab_1</span></span>
+<span class="line"><span>Linking pytz-2025.1-pyhd8ed1ab_0</span></span>
 <span class="line"><span>Linking packaging-24.2-pyhd8ed1ab_2</span></span>
 <span class="line"><span>Linking python-dateutil-2.9.0.post0-pyhff2d567_1</span></span>
 <span class="line"><span>Linking numpy-1.26.4-py310hb13e2d6_0</span></span>
@@ -185,11 +183,11 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"><span>             │ numpy &gt;=1.24, &lt;2.0</span></span>
 <span class="line"><span>             └ setuptools</span></span>
 <span class="line"><span>Using Python 3.10.0 environment at: /home/runner/work/Comrade.jl/Comrade.jl/examples/intermediate/StokesIImaging/.CondaPkg/env</span></span>
-<span class="line"><span>Resolved 35 packages in 101ms</span></span>
-<span class="line"><span>Installed 29 packages in 59ms</span></span>
+<span class="line"><span>Resolved 35 packages in 139ms</span></span>
+<span class="line"><span>Installed 29 packages in 72ms</span></span>
 <span class="line"><span> + astropy==6.1.7</span></span>
-<span class="line"><span> + astropy-iers-data==0.2025.1.27.0.32.44</span></span>
-<span class="line"><span> + certifi==2024.12.14</span></span>
+<span class="line"><span> + astropy-iers-data==0.2025.1.31.12.41.4</span></span>
+<span class="line"><span> + certifi==2025.1.31</span></span>
 <span class="line"><span> + charset-normalizer==3.4.1</span></span>
 <span class="line"><span> + contourpy==1.3.1</span></span>
 <span class="line"><span> + cycler==0.12.1</span></span>
@@ -216,7 +214,7 @@ import{_ as a,c as n,ai as i,o as e}from"./chunks/framework.C0fR7CH6.js";const p
 <span class="line"><span> + sgp4==2.23</span></span>
 <span class="line"><span> + skyfield==1.49</span></span>
 <span class="line"><span> + urllib3==2.3.0</span></span></code></pre></div><p>For reproducibility we use a stable random number genreator</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">using</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> StableRNGs</span></span>
-<span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">rng </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> StableRNG</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">12</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">)</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>StableRNGs.LehmerRNG(state=0x00000000000000000000000000000019)</span></span></code></pre></div><h2 id="Load-the-Data" tabindex="-1">Load the Data <a class="header-anchor" href="#Load-the-Data" aria-label="Permalink to &quot;Load the Data {#Load-the-Data}&quot;">​</a></h2><p>To download the data visit <a href="https://doi.org/10.25739/g85n-f134" target="_blank" rel="noreferrer">https://doi.org/10.25739/g85n-f134</a> First we will load our data:</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">obs </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> ehtim</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">obsdata</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">load_uvfits</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">joinpath</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(__DIR, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;..&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;..&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;Data&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">))</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>Python: &lt;ehtim.obsdata.Obsdata object at 0x7f4fa9bcaad0&gt;</span></span></code></pre></div><p>obs = ehtim.obsdata.load_uvfits(&quot;~/Dropbox (Smithsonian External)/M872021Project/Data/2021/CASA/e21e18/V4/M87_calibrated_b3.uvf+EVPA_rotation+netcal_10savg+flag.uvfits&quot;) Now we do some minor preprocessing:</p><ul><li><p>Scan average the data since the data have been preprocessed so that the gain phases coherent.</p></li><li><p>Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.</p></li></ul><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">obs </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> scan_average</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(obs)</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">add_fractional_noise</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">0.02</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">)</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>Python: &lt;ehtim.obsdata.Obsdata object at 0x7f4ff572d270&gt;</span></span></code></pre></div><p>Now we extract our complex visibilities.</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">dvis </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> extract_table</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(obs, </span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">Visibilities</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">())</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>EHTObservationTable{Comrade.EHTVisibilityDatum{:I}}</span></span>
+<span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">rng </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> StableRNG</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">12</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">)</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>StableRNGs.LehmerRNG(state=0x00000000000000000000000000000019)</span></span></code></pre></div><h2 id="Load-the-Data" tabindex="-1">Load the Data <a class="header-anchor" href="#Load-the-Data" aria-label="Permalink to &quot;Load the Data {#Load-the-Data}&quot;">​</a></h2><p>To download the data visit <a href="https://doi.org/10.25739/g85n-f134" target="_blank" rel="noreferrer">https://doi.org/10.25739/g85n-f134</a> First we will load our data:</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">obs </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> ehtim</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">obsdata</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">load_uvfits</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">joinpath</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(__DIR, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;..&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;..&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;Data&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">))</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>Python: &lt;ehtim.obsdata.Obsdata object at 0x7feb8cddead0&gt;</span></span></code></pre></div><p>obs = ehtim.obsdata.load_uvfits(&quot;~/Dropbox (Smithsonian External)/M872021Project/Data/2021/CASA/e21e18/V4/M87_calibrated_b3.uvf+EVPA_rotation+netcal_10savg+flag.uvfits&quot;) Now we do some minor preprocessing:</p><ul><li><p>Scan average the data since the data have been preprocessed so that the gain phases coherent.</p></li><li><p>Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.</p></li></ul><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">obs </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> scan_average</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(obs)</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">add_fractional_noise</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">0.02</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">)</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>Python: &lt;ehtim.obsdata.Obsdata object at 0x7feb8cc54670&gt;</span></span></code></pre></div><p>Now we extract our complex visibilities.</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">dvis </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> extract_table</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(obs, </span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">Visibilities</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">())</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>EHTObservationTable{Comrade.EHTVisibilityDatum{:I}}</span></span>
 <span class="line"><span>  source:      M87</span></span>
 <span class="line"><span>  mjd:         57849</span></span>
 <span class="line"><span>  bandwidth:   1.856e9</span></span>
