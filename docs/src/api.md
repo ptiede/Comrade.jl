@@ -186,4 +186,13 @@ Comrade.extract_vis
 Comrade.extract_coherency
 ```
 
+## Plotting
 
+!!! warning
+    A user must first load `Makie` or a `Makie` backend, e.g., `CairoMakie` to use this functionality
+
+```@docs
+Comrade.plotfields
+Comrade.axisfields
+Comrade.plotcaltable
+```
