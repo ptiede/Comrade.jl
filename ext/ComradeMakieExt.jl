@@ -2,8 +2,109 @@ module ComradeMakieExt
 
 using Makie
 using Comrade
+using Printf
+using Measurements
 
 import Comrade: plotfields, axisfields, plotcaltable, plotaxis, getbaselineind, getobsdatafield, frequencylabel
+import Comrade: baselineplot, baselineplot!
+
+"""
+    baselineplot(data, bl, fieldx, fieldy; kwargs...)
+
+Plots the baseline `bl` with `fieldx` on the x axis and 
+`fieldy` on the y axis.
+
+If `bl` is a `Colon`, all baselines are plotted.
+
+`field` is expected to be a function of a datum with properties
+    - `baseline` : The baseline data, e.g., Ti, U, V, Fr, sites, etc
+    - `measurement` : The measurement data, i.e. what is `measure`
+    - `noise` : The noise data, i.e. what is `noise`
+"""
+Makie.@recipe(BaselinePlot, data, bl, fieldx, fieldy) do scene
+    Makie.Attributes(;
+        color = Makie.wong_colors()[1],
+        colorim= Makie.wong_colors()[2],
+        marker = :x,
+        modelmarker = :circle,
+        markersize = 10.0,
+        alpha = 1.0,
+        error = false,
+    )
+end
+
+# This is convienence function to conver the field to a function
+# if the field is a symbol, we see if it is an option and return that
+convert_field(f) = f
+
+function convert_field(field::Symbol)
+    field == :U && return x->x.baseline.U
+    field == :V && return x->x.baseline.V
+    field == :Ti && return x->x.baseline.Ti
+    field == :Fr && return x->x.baseline.Fr
+    field == :snr && return x->abs.(measurement(x)) ./ noise(x)
+    field == :uvdist && return uvdist
+    field == :amp && return x->abs.(measurement(x))
+    field == :phase && return x->angle.(measurement(x))
+
+    throw(ArgumentError("$field not supported please use one of (:U, :V, :Ti, :Fr, :snr, :uvdist)"))
+end
+
+
+function Makie.plot!(plot::BaselinePlot{<:Tuple{<:Comrade.EHTObservationTable, 
+                                                <:Union{Tuple{Symbol, Symbol}, Colon}, 
+                                                <:Any, <:Any}})
+    @extract plot (data, bl, fieldx, fieldy)
+    obl = @lift begin
+        if $bl isa Colon
+            return datatable($data)
+        else
+            datatable(select_baseline($data, $bl))
+        end
+    end
+    @lift begin
+        if isempty($obl)
+            throw(ArgumentError("Baseline $($bl) does not exist"))
+        end
+    end
+
+    fx = @lift(convert_field($fieldx))
+    fy = @lift(convert_field($fieldy))
+
+    x  = @lift($(fx).($obl))
+    y  = @lift($(fy).($obl))
+
+    lift(x, y, plot.error) do x, y, berr
+        if eltype(y) <: Complex
+            Makie.scatter!(plot, x, real.(y); 
+                            color=plot.color, 
+                            marker=plot.marker, 
+                            markersize=plot.markersize, 
+                            alpha=plot.alpha)
+            Makie.scatter!(plot, x, imag.(y); 
+                            color=plot.colorim, 
+                            marker=plot.marker, 
+                            markersize=plot.markersize, 
+                            alpha=plot.alpha)
+
+        else
+            Makie.scatter!(plot, x, y; 
+                            color=plot.color, 
+                            marker=plot.marker, 
+                            markersize=plot.markersize, 
+                            alpha=plot.alpha)
+            if berr
+                eltype(y) <: Measurements.Measurement || throw(ArgumentError("Field does not have error, did use measwnoise?"))
+                Makie.errorbars!(plot, x, y, 
+                                 color = plot.color,
+                                 alpha = plot.alpha
+                                )
+            end
+                            
+        end
+    end
+    return plot
+end
 
 
 """
@@ -11,12 +112,12 @@ Returns the indices of an EHTObservationTable associated with a given baseline.
 """
 function getbaselineind(obsdata::Comrade.EHTObservationTable, site1::Symbol, site2::Symbol)
     sitedata = datatable(obsdata).baseline.sites
-    if site1 != site2
-        baselineind = findall(x -> (site1 in x) && (site2 in x), sitedata)
-        return baselineind
-    else
-        return println("site1 and site2 must be different to form a baseline.")
-    end
+    site1 == site2 && throw(ArgumentError("$site1 and $site2 must be different"))
+
+    baselineind = findall(x -> (site1 in x) && (site2 in x), sitedata)
+    isempty(baselineind) && throw(ArgumentError("$site1 and $site2 are not a detected baseline"))
+
+    return baselineind
 end
 
 
@@ -31,41 +132,61 @@ Gets the observation data associated with a field. General purpose function.
     :V - baseline v coordinate
     :Ti - time
     :Fr - frequency
+    :measure - measurement
+    :noise - noise
     :amp - visibility amplitude
     :phase - visibility phase
     :uvdist - projected baseline length
     :snr - signal to noise ratio
     :res - normalized residual visibilities (only if obsdata contains the residuals)
 """
-function getobsdatafield(obsdata::Comrade.EHTObservationTable, field::Symbol)
-    if field in (:amp, :phase, :uvdist, :snr, :res)
+function getobsdatafield(obsdata::Comrade.EHTObservationTable{T}, field::Symbol) where {T}
+    field == :measurement && return Comrade.measurement(obsdata)
+    field == :noise && return Comrade.noise(obsdata)
+
+    dt = datatable(obsdata)
+
+    field == :amp    && return abs.(dt.measurement)
+    field == :phase  && return angle.(dt.measurement)
+    field == :uvdist && return uvdist.(dt)
+
+    
+    if field in (:amp, :phase, :uvdist, :snr, :res, :measurement, :noise)
         if field == :amp # calculate visibility amplitudes
-            vis = Comrade.measurement(obsdata)
+            vis = dt.measurement
             amps = abs.(vis)
             return amps
+        elseif field == :measurement
+            return dt.measurement
+        elseif field == :noise
+            return dt.noise
         elseif field == :phase # calculate visibility phases
-            vis = Comrade.measurement(obsdata)
+            vis = dt.measurement
             phases = angle.(vis)
             return phases
         elseif field == :snr
-            vis = Comrade.measurement(obsdata)
-            sigma = Comrade.noise(obsdata)
+            vis = dt.measurement
+            sigma = dt.noise
             snr = abs.(vis) .* inv.(sigma)
             return snr
         elseif field == :uvdist # calculate uv Distance
             dt = datatable(obsdata)
             return uvdist.(dt)
         elseif field == :res
-            vis = Comrade.measurement(obsdata)
-            sigma = Comrade.noise(obsdata)
+            vis = dt.measurement
+            sigma = dt.noise
             res = vis .* inv.(sigma)
+            @show typeof(res)
             return res
         end
     elseif field in (:U, :V, :Ti, :Fr)
         bls = datatable(obsdata).baseline
+        if T<: Comrade.ClosureProducts
+            return getproperty(bls.:(1), field)
+        end
         return getproperty(bls, field)
     else
-        println("field not supported")
+        throw(ArgumentError("$field not supported"))
     end
 end
 
@@ -73,17 +194,25 @@ end
 function frequencylabel(ν::Number)
     if ν > 1e6
         if ν > 1e12
-            label = label = string(ν / 1e12) * " THz"
+            label = @sprintf("%.2f", ν / 1e12) * " THz"
         elseif ν > 1e9
-            label = label = string(ν / 1e9) * " GHz"
+            label = @sprintf("%.2f", ν / 1e9) * " GHz"
         else
-            label = label = string(ν / 1e6) * " MHz"
+            label = @sprintf("%.2f", ν / 1e6) * " MHz"
         end
     else
-        label = label = string(ν) * " Hz"
+        label = @sprintf("%.2f", ν) * " Hz"
     end
     return label
 end
+
+_frequency(d::EHTObservationTable) = domain(d).Fr
+_frequency(d::EHTObservationTable{<:Comrade.ClosureProducts}) = datatable(d).baseline.:(1).Fr
+measname(d::EHTObservationTable{<:Comrade.EHTVisibilityDatum}) = "Visibility (Jy)"
+measname(d::EHTObservationTable{<:Comrade.EHTClosurePhaseDatum}) = "Closure Phase (rad)"
+measname(d::EHTObservationTable{<:Comrade.EHTLogClosureAmplitudeDatum}) = "Log Closure Amplitude"
+measname(d::EHTObservationTable{<:Comrade.EHTCoherencyDatum}) = "Coherency (Jy)"
+measname(d::EHTObservationTable{<:Comrade.EHTVisibilityAmplitudeDatum}) = "Visibility Amplitude (Jy)"
 
 """
 Plots two data fields against each other.
@@ -97,6 +226,8 @@ Plots two data fields against each other.
     :V - baseline v coordinate
     :Ti - time
     :Fr - frequency
+    :measure - measurement
+    :noise - noise
     :amp - visibility amplitude
     :phase - visibility phase
     :uvdist - projected baseline length
@@ -124,9 +255,10 @@ function plotfields(
         V = L"v $(\lambda)$",
         Ti = "Time (UTC)",
         Fr = "Frequency (Hz)",
+        measurement = measname(obsdata),
         amp = "Visibility Amplitude (Jy)",
         phase = "Visibility Phase (rad)",
-        uvdist = L"Projected Baseline Distance $(\lambda)$",
+        uvdist = "Projected Baseline Distance λ",
         snr = "SNR",
         res = "Normalized Residual Visibility",
     )
@@ -139,8 +271,8 @@ function plotfields(
 
     x = getobsdatafield(obsdata, field1)
     y = getobsdatafield(obsdata, field2)
-    Fr = domain(obsdata).Fr
-
+    Fr = _frequency(obsdata)
+    @info obsdata
     if conjugate == true # conjugating for (u,v) plotting
         if field1 in (:U, :V) && field2 in (:U, :V) # conjugating for (u,v) plotting 
             x = [x; -x]
@@ -201,6 +333,8 @@ Plots two data fields against each other, returns a Makie Axis which can be used
     :V - baseline v coordinate
     :Ti - time
     :Fr - frequency
+    :measurment - measurement
+    :noise - noise
     :amp - visibility amplitude
     :phase - visibility phase
     :uvdist - projected baseline length
@@ -246,7 +380,7 @@ function axisfields(
 
     x = getobsdatafield(obsdata, field1)
     y = getobsdatafield(obsdata, field2)
-    Fr = domain(obsdata).Fr
+    Fr = _frequency(obsdata)
 
     if conjugate == true # conjugating for (u,v) plotting
         if field1 in (:U, :V) && field2 in (:U, :V) # conjugating for (u,v) plotting 
@@ -310,10 +444,10 @@ function plotaxis(
     legend_kwargs = (;),
 )
     ax = Axis(fig; axis_kwargs...)
+    @info νlist
     for ν in νlist
-        νind = findall(x -> x == ν, Fr)
+        νind = findall(==(ν), Fr)
         label = frequencylabel(ν)
-
         if eltype(x) <: Complex
             scatter!(
                 ax,
@@ -375,7 +509,7 @@ function plotcaltable(
     gt::Comrade.CalTable;
     width = 150,
     height = 125,
-    layout = Nothing,
+    layout = nothing,
     axis_kwargs = (;),
     legend_kwargs = (;),
     figure_kwargs = (;),
@@ -383,7 +517,7 @@ function plotcaltable(
 )
     sitelist = sites(gt)
 
-    if layout == Nothing
+    if isnothing(layout)
         collen = 4
         rowlen = ceil(length(sitelist) / collen)
     else
@@ -395,13 +529,13 @@ function plotcaltable(
     fig = Figure(; size, figure_kwargs...)
     for n in range(1, rowlen) # loop over every station
         for m in range(1, collen)
-            ind = Int64(collen * (n - 1) + m)
+            ind = Int(collen * (n - 1) + m)
 
             if ind <= length(sitelist)
                 site = sites(gt)[ind]
 
                 ax = Axis(
-                    fig[Int64(n), Int64(m)],
+                    fig[Int(n), Int(m)],
                     title = string(site),
                     width = width,
                     height = height,
@@ -439,7 +573,7 @@ function plotcaltable(
                 end
 
                 if n == 1 && m == 1
-                    Legend(fig[1, Int64(collen + 1)], ax, legend_kwargs...)
+                    Legend(fig[1, Int(collen + 1)], ax, legend_kwargs...)
                 end
 
                 if n == rowlen && m == 1

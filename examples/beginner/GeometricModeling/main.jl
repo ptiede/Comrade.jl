@@ -211,34 +211,41 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
 # model is fitting the data we can plot the model and data products
-using Plots
-p1 = Plots.plot(simulate_observation(post, xopt; add_thermal_noise=false)[1], label="MAP")
-Plots.plot!(p1, dlcamp)
-p2 = Plots.plot(simulate_observation(post, xopt; add_thermal_noise=false)[2], label="MAP")
-Plots.plot!(p2, dcphase)
-DisplayAs.Text(DisplayAs.PNG(Plots.plot(p1, p2, layout=(2,1))))
+lcsim, cpsim = simulate_observation(post, xopt; add_thermal_noise=false)
+fig = CM.Figure(;size=(800, 300))
+ax1 = CM.Axis(fig[1,1], xlabel="√Quadrangle Area", ylabel="Log Closure Amplitude")
+baselineplot!(ax1, lcsim,  :, uvdist, measwnoise, marker=:circle, label="MAP", error=true)
+baselineplot!(ax1, dlcamp, :, uvdist, Comrade.measurement, marker=:+, color=:black, label="Data")
+ax2 = CM.Axis(fig[1,2], xlabel="√Triangle Area", ylabel="Closure Phase")
+baselineplot!(ax2, cpsim,  :, uvdist, mod2pi∘measwnoise, marker=:circle, label="MAP", error=true)
+baselineplot!(ax2, dcphase, :, uvdist, mod2pi∘measurement, marker=:+, color=:black, label="Data")
+CM.axislegend(ax1, framevisible=false)
+DisplayAs.Text(DisplayAs.PNG(fig))
 
 # We can also plot random draws from the posterior predictive distribution.
 # The posterior predictive distribution create a number of synthetic observations that
 # are marginalized over the posterior.
-p1 = Plots.plot(dlcamp);
-p2 = Plots.plot(dcphase);
-uva = uvdist.(datatable(dlcamp))
-uvp = uvdist.(datatable(dcphase))
+fig = CM.Figure(;size=(800, 300))
+ax1 = CM.Axis(fig[1,1], xlabel="√Quadrangle Area", ylabel="Log Closure Amplitude")
+baselineplot!(ax1, dlcamp, :, uvdist, measurement, marker=:circle,)
+baselineplot!(ax2, dcphase, :, uvdist, mod2pi∘measurement, marker=:circle,)
+ax2 = CM.Axis(fig[1,2], xlabel="√Triangle Area", ylabel="Closure Phase")
 for i in 1:10
     mobs = simulate_observation(post, sample(chain, 1)[1])
     mlca = mobs[1]
     mcp  = mobs[2]
-    Plots.scatter!(p1, uva, mlca[:measurement], color=:grey, label=:none, alpha=0.2)
-    Plots.scatter!(p2, uvp, atan.(sin.(mcp[:measurement]), cos.(mcp[:measurement])), color=:grey, label=:none, alpha=0.2)
+    baselineplot!(ax1, mlca, :, uvdist, measurement, color=:grey, alpha=0.2)
+    baselineplot!(ax2, mcp, :, uvdist, mod2pi∘measurement, color=:grey, alpha=0.2)
 end
-p = Plots.plot(p1, p2, layout=(2,1));
-DisplayAs.Text(DisplayAs.PNG(p))
+DisplayAs.Text(DisplayAs.PNG(fig))
 
 
 # Finally, we can also put everything onto a common scale and plot the normalized residuals.
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
-p = residual(post, chain[end]);
-DisplayAs.Text(DisplayAs.PNG(p))
+rd = residuals(post, chain[end])
+fig = CM.Figure(;size=(800, 300))
+axisfields(fig[1,1], rd[1], :uvdist, :res)
+axisfields(fig[1,2], rd[2], :uvdist, :res)
+DisplayAs.Text(DisplayAs.PNG(fig))
 

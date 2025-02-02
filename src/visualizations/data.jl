@@ -1,4 +1,3 @@
-export residuals, chi2
 
 @recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTVisibilityDatum}
     xguide --> "uv-distance (Gλ)"
@@ -193,34 +192,6 @@ end
 end
 
 
-export uvdist
-uvdist(d) = hypot(d.baseline.U, d.baseline.V)
-
-function uvdist(d::EHTClosurePhaseDatum)
-    u = map(x->x.U, d.baseline)
-    v = map(x->x.V, d.baseline)
-    a = hypot(u[1]-u[2], v[1]-v[2])
-    b = hypot(u[2]-u[3], v[2]-v[3])
-    c = hypot(u[3]-u[1], v[3]-v[1])
-    sqrt(heron(a,b,c))
-end
-
-function heron(a,b,c)
-    s = 0.5*(a+b+c)
-    return sqrt(s*(s-a)*(s-b)*(s-c))
-end
-
-function uvdist(d::EHTLogClosureAmplitudeDatum)
-    u = map(x->x.U, d.baseline)
-    v = map(x->x.V, d.baseline)
-    a = hypot(u[1]-u[2], v[1]-v[2])
-    b = hypot(u[2]-u[3], v[2]-v[3])
-    c = hypot(u[3]-u[4], v[3]-v[4])
-    d = hypot(u[4]-u[1], v[4]-v[1])
-    h = hypot(u[1]-u[3], v[1]-v[3])
-    return sqrt(heron(a,b,h)+heron(c,d,h))
-end
-
 @recipe function f(dlca::EHTObservationTable{A}) where {A<:EHTLogClosureAmplitudeDatum}
     xguide --> "√(convex quadrangle area) (λ)"
     yguide --> "Log Clos. Amp."
@@ -350,79 +321,6 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
     end
 end
 
-"""
-    chi2(post::AbstractVLBIPosterior, p)
-
-Returns a tuple of the chi-squared values for each data product in the posterior `post` given the parameters `p`.
-Note that the chi-square is not reduced.
-"""
-function chi2(post::AbstractVLBIPosterior, p)
-    res = residuals(post, p)
-    return map(_chi2, res)
-end
-
-function _chi2(res::EHTObservationTable)
-    return sum(datatable(res)) do d
-            r2 = @. abs2(d.measurement/d.noise)
-            # Check if residual is NaN which means that the data is missing
-            isnan(r2) && return zero(r2)
-            return r2
-    end
-end
-
-function _chi2(res::EHTObservationTable{<:EHTCoherencyDatum})
-    return sum(datatable(res)) do d
-            r2 = @. abs2(d.measurement/d.noise)
-            r11 = isnan(r2[1,1]) ? zero(r2[1,1]) : r2[1,1]
-            r12 = isnan(r2[1,2]) ? zero(r2[1,2]) : r2[1,2]
-            r21 = isnan(r2[2,1]) ? zero(r2[2,1]) : r2[2,1]
-            r22 = isnan(r2[2,2]) ? zero(r2[2,2]) : r2[2,2]
-            return typeof(r2)(r11, r21, r12, r22)
-    end
-end
 
 
 
-
-"""
-    residual_data(vis, data::EHTObservationTable)
-
-Compute the residuals for the model visibilities `vis` and the data `data`.
-The residuals are not normalized and the returned object is an `EHTObservationTable`.
-"""
-function residual_data(vis, data::EHTObservationTable{A}) where {A<:EHTClosurePhaseDatum}
-    phase = measurement(data)
-    err = noise(data)
-
-    mphase = closure_phases(vis, designmat(arrayconfig(data)))
-    res = @. atan(sin(phase - mphase), cos(phase - mphase))
-    return EHTObservationTable{A}(res, err, arrayconfig(data))
-end
-
-
-function residual_data(vis, dlca::EHTObservationTable{A}) where {A<:EHTLogClosureAmplitudeDatum}
-    phase = measurement(dlca)
-    err = noise(dlca)
-    mphase = logclosure_amplitudes(vis, designmat(arrayconfig(dlca)))
-    res = (phase .- mphase)
-    return EHTObservationTable{A}(res, err, arrayconfig(dlca))
-end
-
-function residual_data(vis, damp::EHTObservationTable{A}) where {A<:EHTVisibilityAmplitudeDatum}
-    mamp = abs.(vis)
-    amp = measurement(damp)
-    res = (amp - mamp)
-    return EHTObservationTable{A}(res, noise(damp), arrayconfig(damp))
-end
-
-function residual_data(vis, dvis::EHTObservationTable{A}) where {A<:EHTCoherencyDatum}
-    coh = measurement(dvis)
-    res = coh .- vis
-    return EHTObservationTable{A}(res, noise(dvis), arrayconfig(dvis))
-end
-
-function residual_data(mvis, dvis::EHTObservationTable{A}) where {A<:EHTVisibilityDatum}
-    vis = measurement(dvis)
-    res = (vis - mvis)
-    return EHTObservationTable{A}(res, noise(dvis), arrayconfig(dvis))
-end

@@ -1,4 +1,5 @@
-export domain, datatable, arrayconfig, sites, beamsize, EHTObservationTable
+export domain, datatable, arrayconfig, sites, beamsize, EHTObservationTable, snr, uvdist,
+       measwnoise
 
 """
     $(TYPEDEF)
@@ -9,6 +10,37 @@ abstract type AbstractObservationTable{F<:AbstractVisibilityDatum} <: AbstractVL
 measurement(t::AbstractObservationTable) = getfield(t, :measurement)
 noise(t::AbstractObservationTable) = getfield(t, :noise)
 baseline(t::AbstractObservationTable) = datatable(arrayconfig(t))
+snr(t::AbstractObservationTable) = measurement(t) ./ noise(t)
+
+
+
+uvdist(d) = hypot(d.baseline.U, d.baseline.V)
+
+function uvdist(d::EHTClosurePhaseDatum)
+    u = map(x->x.U, d.baseline)
+    v = map(x->x.V, d.baseline)
+    a = hypot(u[1]-u[2], v[1]-v[2])
+    b = hypot(u[2]-u[3], v[2]-v[3])
+    c = hypot(u[3]-u[1], v[3]-v[1])
+    sqrt(heron(a,b,c))
+end
+
+function heron(a,b,c)
+    s = 0.5*(a+b+c)
+    return sqrt(s*(s-a)*(s-b)*(s-c))
+end
+
+function uvdist(d::EHTLogClosureAmplitudeDatum)
+    u = map(x->x.U, d.baseline)
+    v = map(x->x.V, d.baseline)
+    a = hypot(u[1]-u[2], v[1]-v[2])
+    b = hypot(u[2]-u[3], v[2]-v[3])
+    c = hypot(u[3]-u[4], v[3]-v[4])
+    d = hypot(u[4]-u[1], v[4]-v[1])
+    h = hypot(u[1]-u[3], v[1]-v[3])
+    return sqrt(heron(a,b,h)+heron(c,d,h))
+end
+
 
 
 arrayconfig(c::AbstractObservationTable, p::Symbol) = getindex(arrayconfig(c), p)
