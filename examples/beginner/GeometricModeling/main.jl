@@ -210,7 +210,12 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
-# model is fitting the data we can plot the model and data products
+# model is fitting the data we can plot the model and data products. As of Comrade 0.11.7 Makie
+# is the preferred plotting tool. For plotting data there are two classes of functions
+#  - `baselineplot` which gives complete control of plotting
+#  - `plotfields, axisfields` which are more automated and limited but will automatically add
+#     labels, legends, titles etc. 
+# We will demonstrate both below.
 lcsim, cpsim = simulate_observation(post, xopt; add_thermal_noise=false)
 fig = CM.Figure(;size=(800, 300))
 ax1 = CM.Axis(fig[1,1], xlabel="√Quadrangle Area", ylabel="Log Closure Amplitude")
@@ -227,8 +232,6 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # are marginalized over the posterior.
 fig = CM.Figure(;size=(800, 300))
 ax1 = CM.Axis(fig[1,1], xlabel="√Quadrangle Area", ylabel="Log Closure Amplitude")
-baselineplot!(ax1, dlcamp, :, uvdist, measurement, marker=:circle,)
-baselineplot!(ax2, dcphase, :, uvdist, mod2pi∘measurement, marker=:circle,)
 ax2 = CM.Axis(fig[1,2], xlabel="√Triangle Area", ylabel="Closure Phase")
 for i in 1:10
     mobs = simulate_observation(post, sample(chain, 1)[1])
@@ -237,6 +240,8 @@ for i in 1:10
     baselineplot!(ax1, mlca, :, uvdist, measurement, color=:grey, alpha=0.2)
     baselineplot!(ax2, mcp, :, uvdist, mod2pi∘measurement, color=:grey, alpha=0.2)
 end
+baselineplot!(ax1, dlcamp, :, uvdist, measurement, marker=:circle,)
+baselineplot!(ax2, dcphase, :, uvdist, mod2pi∘measurement, marker=:circle,)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
@@ -245,7 +250,7 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # and the model, divided by the data's error:
 rd = residuals(post, chain[end])
 fig = CM.Figure(;size=(800, 300))
-axisfields(fig[1,1], rd[1], :uvdist, :res)
-axisfields(fig[1,2], rd[2], :uvdist, :res)
+axisfields(fig[1,1], rd[1], uvdist, :res)
+axisfields(fig[1,2], rd[2], uvdist, :res)
 DisplayAs.Text(DisplayAs.PNG(fig))
 

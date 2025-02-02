@@ -46,8 +46,14 @@ function convert_field(field::Symbol)
     field == :uvdist && return uvdist
     field == :amp && return x->abs.(measurement(x))
     field == :phase && return x->angle.(measurement(x))
+    field == :res && return x->measurement(x) ./ noise(x)
+    field == :measurement && return x->measurement(x)
+    field == :noise && return x->noise(x)
+    field == :measwnoise && return x->measwnoise(x)
 
-    throw(ArgumentError("$field not supported please use one of (:U, :V, :Ti, :Fr, :snr, :uvdist)"))
+    throw(ArgumentError("$field not supported please use one of"* 
+                        "(:U, :V, :Ti, :Fr, :snr, :uvdist, :amp, :phase,"*
+                        " :res, :measurement, :noise, :measwnoise)"))
 end
 
 
@@ -87,6 +93,20 @@ function Makie.plot!(plot::BaselinePlot{<:Tuple{<:Comrade.EHTObservationTable,
                             markersize=plot.markersize, 
                             alpha=plot.alpha)
 
+            if berr
+                eltype(y) <: Complex{<:Measurements.Measurement} || throw(ArgumentError("Field does not have error, did use measwnoise?"))
+                Makie.errorbars!(plot, x, real.(y), 
+                                 color = plot.color,
+                                 alpha = plot.alpha
+                                )
+                Makie.errorbars!(plot, x, imag.(y), 
+                                 color = plot.colorim,
+                                 alpha = plot.alpha
+                                )
+
+            end
+
+
         else
             Makie.scatter!(plot, x, y; 
                             color=plot.color, 
@@ -121,74 +141,6 @@ function getbaselineind(obsdata::Comrade.EHTObservationTable, site1::Symbol, sit
 end
 
 
-"""
-Gets the observation data associated with a field. General purpose function.
-
-# Arguments
-
- - `field` : The field for which data is retrieved. 
-    Current fields supported
-    :U - baseline u coordinate
-    :V - baseline v coordinate
-    :Ti - time
-    :Fr - frequency
-    :measure - measurement
-    :noise - noise
-    :amp - visibility amplitude
-    :phase - visibility phase
-    :uvdist - projected baseline length
-    :snr - signal to noise ratio
-    :res - normalized residual visibilities (only if obsdata contains the residuals)
-"""
-function getobsdatafield(obsdata::Comrade.EHTObservationTable{T}, field::Symbol) where {T}
-    field == :measurement && return Comrade.measurement(obsdata)
-    field == :noise && return Comrade.noise(obsdata)
-
-    dt = datatable(obsdata)
-
-    field == :amp    && return abs.(dt.measurement)
-    field == :phase  && return angle.(dt.measurement)
-    field == :uvdist && return uvdist.(dt)
-
-    
-    if field in (:amp, :phase, :uvdist, :snr, :res, :measurement, :noise)
-        if field == :amp # calculate visibility amplitudes
-            vis = dt.measurement
-            amps = abs.(vis)
-            return amps
-        elseif field == :measurement
-            return dt.measurement
-        elseif field == :noise
-            return dt.noise
-        elseif field == :phase # calculate visibility phases
-            vis = dt.measurement
-            phases = angle.(vis)
-            return phases
-        elseif field == :snr
-            vis = dt.measurement
-            sigma = dt.noise
-            snr = abs.(vis) .* inv.(sigma)
-            return snr
-        elseif field == :uvdist # calculate uv Distance
-            dt = datatable(obsdata)
-            return uvdist.(dt)
-        elseif field == :res
-            vis = dt.measurement
-            sigma = dt.noise
-            res = vis .* inv.(sigma)
-            @show typeof(res)
-            return res
-        end
-    elseif field in (:U, :V, :Ti, :Fr)
-        bls = datatable(obsdata).baseline
-        if T<: Comrade.ClosureProducts
-            return getproperty(bls.:(1), field)
-        end
-        return getproperty(bls, field)
-    else
-        throw(ArgumentError("$field not supported"))
-    end
-end
 
 
 function frequencylabel(ν::Number)
@@ -214,6 +166,19 @@ measname(d::EHTObservationTable{<:Comrade.EHTLogClosureAmplitudeDatum}) = "Log C
 measname(d::EHTObservationTable{<:Comrade.EHTCoherencyDatum}) = "Coherency (Jy)"
 measname(d::EHTObservationTable{<:Comrade.EHTVisibilityAmplitudeDatum}) = "Visibility Amplitude (Jy)"
 
+_defaultlabel(f::Symbol) = _defaultlabel(Val(f))
+_defaultlabel(::Val{:U}) = "u (λ)"
+_defaultlabel(::Val{:V}) = "v (λ)"
+_defaultlabel(::Val{:Ti}) = "Time (UTC)"
+_defaultlabel(::Val{:Fr}) = "Frequency (Hz)"
+_defaultlabel(::Val{:amp}) = "Visibility Amplitude (Jy)"
+_defaultlabel(::Val{:phase}) = "Visibility Phase (rad)"
+_defaultlabel(::Val{:uvdist}) = "Projected Baseline Distance λ"
+_defaultlabel(::Val{:snr}) = "SNR"
+_defaultlabel(::Val{:res}) = "Normalized Residual Visibility"
+_defaultlabel(::typeof(Comrade.uvdist)) = _defaultlabel(:uvdist)
+_defaultlabel(f) = string(f)
+
 """
 Plots two data fields against each other.
 
@@ -221,18 +186,19 @@ Plots two data fields against each other.
  - `obsdata` : EHTObservationTable containing the data to plot (closure quantities not supported yet)
 
  - `field1` and `field2` : The fields to plot. field1 - x axis, field2 - y axis 
-    Current fields supported:
-    :U - baseline u coordinate
-    :V - baseline v coordinate
-    :Ti - time
-    :Fr - frequency
-    :measure - measurement
-    :noise - noise
-    :amp - visibility amplitude
-    :phase - visibility phase
-    :uvdist - projected baseline length
-    :snr - signal to noise ratio
-    :res - normalized residual visibilities (only if obsdata contains the residuals)
+    If field1 or field2 is a function it will apply to `datatable(obsdata)` to get the value
+    If field1 or field2 is a symbol, it will look for a predefined function:
+        - :U - baseline u coordinate
+        - :V - baseline v coordinate
+        - :Ti - time
+        - :Fr - frequency
+        - :measure - measurement
+        - :noise - noise
+        - :amp - visibility amplitude
+        - :phase - visibility phase
+        - :uvdist - projected baseline length
+        - :snr - signal to noise ratio
+        - :res - normalized residual visibilities (only if obsdata contains the residuals)
 
  - `site1` and `site2` : Keywords for the sites forming the baseline being plotted, e.g. :ALMA, :APEX.
  - `axis_kwargs` : Keyword arguments for each subplot's Axis.
@@ -241,8 +207,8 @@ Plots two data fields against each other.
 """
 function plotfields(
     obsdata::Comrade.EHTObservationTable,
-    field1::Symbol,
-    field2::Symbol;
+    field1,
+    field2;
     legend = true,
     conjugate = true,
     axis_kwargs = (;),
@@ -250,29 +216,30 @@ function plotfields(
     scatter_kwargs = (;),
 )
 
-    labels = (;
-        U = L"v $(\lambda)$",
-        V = L"v $(\lambda)$",
-        Ti = "Time (UTC)",
-        Fr = "Frequency (Hz)",
-        measurement = measname(obsdata),
-        amp = "Visibility Amplitude (Jy)",
-        phase = "Visibility Phase (rad)",
-        uvdist = "Projected Baseline Distance λ",
-        snr = "SNR",
-        res = "Normalized Residual Visibility",
-    )
+    if field1 == :measurement
+        xlabel = measname(obsdata)
+    else 
+        xlabel = _defaultlabel(field1)
+    end
 
+    if field2 == :measurement
+        ylabel = measname(obsdata)
+    else 
+        ylabel = _defaultlabel(field2)
+    end
+    
     axis_kwargs = (;
         axis_kwargs...,
-        xlabel = getproperty(labels, field1),
-        ylabel = getproperty(labels, field2),
+        xlabel = xlabel,
+        ylabel = ylabel,
     )
 
-    x = getobsdatafield(obsdata, field1)
-    y = getobsdatafield(obsdata, field2)
+    fx = convert_field(field1)
+    fy = convert_field(field2)
+    dt = datatable(obsdata)
+    x = fx.(dt)
+    y = fy.(dt)
     Fr = _frequency(obsdata)
-    @info obsdata
     if conjugate == true # conjugating for (u,v) plotting
         if field1 in (:U, :V) && field2 in (:U, :V) # conjugating for (u,v) plotting 
             x = [x; -x]
@@ -301,8 +268,8 @@ end
 
 function plotfields(
     obsdata::Comrade.EHTObservationTable,
-    field1::Symbol,
-    field2::Symbol,
+    field1,
+    field2,
     site1::Symbol,
     site2::Symbol;
     axis_kwargs = (;),
@@ -310,11 +277,11 @@ function plotfields(
     scatter_kwargs = (;),
 )
     title = string(site1) * " - " * string(site2)
-    siteind = getbaselineind(obsdata, site1, site2)
+    blobs = select_baseline(obsdata, (site1, site2))
     return plotfields(
-        obsdata[siteind],
-        field1::Symbol,
-        field2::Symbol;
+        blobs,
+        field1,
+        field2;
         axis_kwargs = (; axis_kwargs..., title = title),
         legend_kwargs = legend_kwargs,
         scatter_kwargs = scatter_kwargs,
@@ -352,34 +319,37 @@ Plots two data fields against each other, returns a Makie Axis which can be used
 function axisfields(
     fig::GridPosition,
     obsdata::Comrade.EHTObservationTable,
-    field1::Symbol,
-    field2::Symbol;
+    field1,
+    field2;
     legend = true,
     conjugate = true,
     axis_kwargs = (;),
     legend_kwargs = (;),
     scatter_kwargs = (;),
 )
-    labels = (;
-        U = L"v $(\lambda)$",
-        V = L"v $(\lambda)$",
-        Ti = "Time (UTC)",
-        Fr = "Frequency (Hz)",
-        amp = "Visibility Amplitude (Jy)",
-        phase = "Visibility Phase (rad)",
-        uvdist = L"Projected Baseline Distance $(\lambda)$",
-        snr = "SNR",
-        res = "Normalized Residual Visibility",
-    )
+    if field1 == :measurement
+        xlabel = measname(obsdata)
+    else 
+        xlabel = _defaultlabel(field1)
+    end
+
+    if field2 == :measurement
+        ylabel = measname(obsdata)
+    else 
+        ylabel = _defaultlabel(field2)
+    end
 
     axis_kwargs = (;
         axis_kwargs...,
-        xlabel = getproperty(labels, field1),
-        ylabel = getproperty(labels, field2),
+        xlabel = xlabel,
+        ylabel = ylabel,
     )
 
-    x = getobsdatafield(obsdata, field1)
-    y = getobsdatafield(obsdata, field2)
+    fx = convert_field(field1)
+    fy = convert_field(field2)
+    dt = datatable(obsdata)
+    x = fx.(dt)
+    y = fy.(dt)
     Fr = _frequency(obsdata)
 
     if conjugate == true # conjugating for (u,v) plotting
@@ -409,8 +379,8 @@ end
 function axisfields(
     fig::GridPosition,
     obsdata::Comrade.EHTObservationTable,
-    field1::Symbol,
-    field2::Symbol,
+    field1,
+    field2,
     site1::Symbol,
     site2::Symbol;
     legend = true,
@@ -419,12 +389,12 @@ function axisfields(
     scatter_kwargs = (;),
 )
     title = string(site1) * " - " * string(site2)
-    siteind = getbaselineind(obsdata, site1, site2)
+    blobs = select_baseline(obsdata, (site1, site2))
     return axisfields(
         fig,
-        obsdata[siteind],
-        field1::Symbol,
-        field2::Symbol;
+        blobs,
+        field1,
+        field2;
         legend = legend,
         axis_kwargs = (; axis_kwargs..., title = title),
         legend_kwargs = legend_kwargs,
@@ -444,7 +414,6 @@ function plotaxis(
     legend_kwargs = (;),
 )
     ax = Axis(fig; axis_kwargs...)
-    @info νlist
     for ν in νlist
         νind = findall(==(ν), Fr)
         label = frequencylabel(ν)

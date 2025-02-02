@@ -19,7 +19,7 @@ close(pkg_io) #hide
 
 # To get started, we will load `Comrade` and `Plots` to enable visualizations of the data
 using Comrade
-using Plots
+using CairoMakie
 
 # We also load Pyehtim since it loads eht-imaging into Julia using PythonCall and exports
 # the variable ehtim
@@ -58,17 +58,24 @@ coh = extract_table(obs, Coherencies())
 #-
 # We can also recover the array used in the observation using
 using DisplayAs
-ac = arrayconfig(vis)
-plot(ac) |> DisplayAs.PNG |> DisplayAs.Text # Plot the baseline coverage
+plotfields(coh, :U, :V, axis_kwargs=(xreversed=true,)) |> DisplayAs.PNG |> DisplayAs.Text # Plot the baseline coverage
 
-# To plot the data we just call
+# As of Comrade 0.11.7 Makie is the preferred plotting tool. For plotting data there are two 
+# classes of functions:
+#  - `baselineplot` which gives complete control of plotting
+#  - `plotfields, axisfields` which are more automated and limited but will automatically add
+#     labels, legends, titles etc. 
+fig = Figure(;size=(800, 600))
+axisfields(fig[1,1], vis, :uvdist, :measurement)
+axisfields(fig[1,2], amp, :uvdist, :measurement)
+axisfields(fig[2,1], cphase, :uvdist, :measurement)
+axisfields(fig[2,2], lcamp, :uvdist, :measurement)
+fig |> DisplayAs.PNG |> DisplayAs.Text
 
-l = @layout [a b; c d]
-pv = plot(vis);
-pa = plot(amp);
-pcp = plot(cphase);
-plc = plot(lcamp);
-plot(pv, pa, pcp, plc; layout=l) |> DisplayAs.PNG |> DisplayAs.Text
-
-# And also the coherency matrices
-plot(coh) |> DisplayAs.PNG |> DisplayAs.Text
+# And also the coherency matrices. Here we show how to use `baselineplot` to plot the data
+fig = Figure(;size=(800, 600))
+baselineplot(fig[1,1], coh, :, x->uvdist(x)/1e9, x->abs(measwnoise(x)[1,1]), error=true, axis=(ylabel="RR", xlabel="uv distance (Gλ)"))
+baselineplot(fig[2,1], coh, :, x->uvdist(x)/1e9, x->abs(measwnoise(x)[2,1]), error=true, axis=(ylabel="LR", xlabel="uv distance (Gλ)"))
+baselineplot(fig[1,2], coh, :, x->uvdist(x)/1e9, x->abs(measwnoise(x)[1,2]), error=true, axis=(ylabel="RL", xlabel="uv distance (Gλ)"))
+baselineplot(fig[2,2], coh, :, x->uvdist(x)/1e9, x->abs(measwnoise(x)[2,2]), error=true, axis=(ylabel="LL", xlabel="uv distance (Gλ)"))
+fig
