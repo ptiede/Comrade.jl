@@ -249,9 +249,9 @@ figd |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # Now let's check the residuals using draws from the posterior
 fig = Figure(;size=(600, 400))
-ax, = baselineplot(fig[1,1], res[1], :, :uvdist, :res, label="MAP", color=:blue, colorim=:red, marker=:circle)
+ax, = baselineplot(fig[1,1], res[1], :uvdist, :res, label="MAP", color=:blue, colorim=:red, marker=:circle)
 for s in sample(chain, 10)
-    baselineplot!(ax, residuals(post, s)[1], :, :uvdist, :res, alpha=0.2, label="Draw")
+    baselineplot!(ax, residuals(post, s)[1], :uvdist, :res, alpha=0.2, label="Draw")
 end
 ax.xlabel = "uv-distance (λ)"
 ax.ylabel = "Normalized Residuals"

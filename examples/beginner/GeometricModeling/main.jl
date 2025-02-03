@@ -168,8 +168,8 @@ xopt, sol = comrade_opt(post, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxite
 # Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 
 using DisplayAs
-import CairoMakie as CM
-CM.activate!(type = "png", px_per_unit=1) #hide
+using CairoMakie
+activate!(type = "png", px_per_unit=1) #hide
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
 fig = imageviz(intensitymap(skymodel(post, xopt), g), colormap=:afmhot, size=(500, 400));
 DisplayAs.Text(DisplayAs.PNG(fig))
@@ -217,31 +217,31 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 #     labels, legends, titles etc. 
 # We will demonstrate both below.
 lcsim, cpsim = simulate_observation(post, xopt; add_thermal_noise=false)
-fig = CM.Figure(;size=(800, 300))
-ax1 = CM.Axis(fig[1,1], xlabel="√Quadrangle Area", ylabel="Log Closure Amplitude")
-baselineplot!(ax1, lcsim,  :, uvdist, measwnoise, marker=:circle, label="MAP", error=true)
-baselineplot!(ax1, dlcamp, :, uvdist, Comrade.measurement, marker=:+, color=:black, label="Data")
-ax2 = CM.Axis(fig[1,2], xlabel="√Triangle Area", ylabel="Closure Phase")
-baselineplot!(ax2, cpsim,  :, uvdist, mod2pi∘measwnoise, marker=:circle, label="MAP", error=true)
-baselineplot!(ax2, dcphase, :, uvdist, mod2pi∘measurement, marker=:+, color=:black, label="Data")
-CM.axislegend(ax1, framevisible=false)
+fig = Figure(;size=(800, 300))
+ax1 = Axis(fig[1,1], xlabel="√Quadrangle Area", ylabel="Log Closure Amplitude")
+baselineplot!(ax1, lcsim,  uvdist, measwnoise, marker=:circle, label="MAP", error=true)
+baselineplot!(ax1, dlcamp, uvdist, Comrade.measurement, marker=:+, color=:black, label="Data")
+ax2 = Axis(fig[1,2], xlabel="√Triangle Area", ylabel="Closure Phase")
+baselineplot!(ax2, cpsim,  uvdist, mod2pi∘measwnoise, marker=:circle, label="MAP", error=true)
+baselineplot!(ax2, dcphase, uvdist, mod2pi∘measurement, marker=:+, color=:black, label="Data")
+axislegend(ax1, framevisible=false)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 # We can also plot random draws from the posterior predictive distribution.
 # The posterior predictive distribution create a number of synthetic observations that
 # are marginalized over the posterior.
-fig = CM.Figure(;size=(800, 300))
-ax1 = CM.Axis(fig[1,1], xlabel="√Quadrangle Area", ylabel="Log Closure Amplitude")
-ax2 = CM.Axis(fig[1,2], xlabel="√Triangle Area", ylabel="Closure Phase")
+fig = Figure(;size=(800, 300))
+ax1 = Axis(fig[1,1], xlabel="√Quadrangle Area", ylabel="Log Closure Amplitude")
+ax2 = Axis(fig[1,2], xlabel="√Triangle Area", ylabel="Closure Phase")
 for i in 1:10
     mobs = simulate_observation(post, sample(chain, 1)[1])
     mlca = mobs[1]
     mcp  = mobs[2]
-    baselineplot!(ax1, mlca, :, uvdist, measurement, color=:grey, alpha=0.2)
-    baselineplot!(ax2, mcp, :, uvdist, mod2pi∘measurement, color=:grey, alpha=0.2)
+    baselineplot!(ax1, mlca, uvdist, measurement, color=:grey, alpha=0.2)
+    baselineplot!(ax2, mcp, uvdist, mod2pi∘measurement, color=:grey, alpha=0.2)
 end
-baselineplot!(ax1, dlcamp, :, uvdist, measurement, marker=:circle,)
-baselineplot!(ax2, dcphase, :, uvdist, mod2pi∘measurement, marker=:circle,)
+baselineplot!(ax1, dlcamp, uvdist, measurement, marker=:x,)
+baselineplot!(ax2, dcphase, uvdist, mod2pi∘measurement, marker=:x,)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
@@ -249,7 +249,7 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
 rd = residuals(post, chain[end])
-fig = CM.Figure(;size=(800, 300))
+fig = Figure(;size=(800, 300))
 axisfields(fig[1,1], rd[1], uvdist, :res)
 axisfields(fig[1,2], rd[2], uvdist, :res)
 DisplayAs.Text(DisplayAs.PNG(fig))

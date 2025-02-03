@@ -48,7 +48,7 @@ Makie.@recipe(BaselinePlot, data, bl, fieldx, fieldy) do scene
     Makie.Attributes(;
         color = Makie.wong_colors()[1],
         colorim= Makie.wong_colors()[2],
-        marker = :x,
+        marker = :circle,
         markersize = 10.0,
         alpha = 1.0,
         error = false,
