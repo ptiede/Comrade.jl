@@ -253,7 +253,7 @@ ax, = baselineplot(fig[1,1], res[1], :, :uvdist, :res, label="MAP", color=:blue,
 for s in sample(chain, 10)
     baselineplot!(ax, residuals(post, s)[1], :, :uvdist, :res, alpha=0.2, label="Draw")
 end
-ax.xlabel = "uv-distance (Gλ)"
+ax.xlabel = "uv-distance (λ)"
 ax.ylabel = "Normalized Residuals"
 axislegend(ax, merge=true)
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide

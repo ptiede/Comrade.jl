@@ -62,6 +62,10 @@ end
 # This is convienence function to conver the field to a function
 # if the field is a symbol, we see if it is an option and return that
 convert_field(f) = f
+convert_field(::Type{<:U}) = x->x.baseline.U
+convert_field(::Type{<:V}) = x->x.baseline.V
+convert_field(::Type{<:Ti}) = x->x.baseline.Ti
+convert_field(::Type{<:Fr}) = x->x.baseline.Fr
 
 function convert_field(field::Symbol)
     field == :U && return x->x.baseline.U
