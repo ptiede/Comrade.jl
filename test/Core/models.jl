@@ -98,9 +98,10 @@ function test_caltable(c1, sites)
     @test c1[1 ,:] isa Comrade.CalTableRow
     @test length(Tables.getrow(c1, 1:5)) == 5
 
-    plot(c1)
-    plot(c1, datagains=true)
-    plot(c1, sites=(:AA,))
+    Plots.plot(c1)
+    Plots.plot(c1, datagains=true)
+    Plots.plot(c1, sites=(:AA,))
+    plotcaltable(c1)
 
     show(c1)
 end
