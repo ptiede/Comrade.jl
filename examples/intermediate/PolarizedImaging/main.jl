@@ -331,6 +331,7 @@ xopt, sol = comrade_opt(post, Optimisers.Adam();
 
 # Now let's evaluate our fits by plotting the residuals
 using CairoMakie
+using DisplayAs #hide
 res = residuals(post, xopt)
 fig = Figure(;size=(800, 600))
 baselineplot(fig[1,1], res[1], :, :uvdist, x->Comrade.measurement(x)[1,1]/noise(x)[1,1], axis=(ylabel="RR Residual", xlabel="uv distance (λ)"))
@@ -348,7 +349,6 @@ imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx*4, ny*4))
 img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
 
 #Plotting the results gives
-using DisplayAs #hide
 fig = imageviz(img, adjust_length=true, colormap=:bone, pcolormap=:RdBu)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
