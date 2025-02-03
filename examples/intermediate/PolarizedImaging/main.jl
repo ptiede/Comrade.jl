@@ -334,10 +334,10 @@ using CairoMakie
 using DisplayAs #hide
 res = residuals(post, xopt)
 fig = Figure(;size=(800, 600))
-baselineplot(fig[1,1], res[1], :, :uvdist, x->Comrade.measurement(x)[1,1]/noise(x)[1,1], axis=(ylabel="RR Residual", xlabel="uv distance (λ)"))
-baselineplot(fig[2,1], res[1], :, :uvdist, x->Comrade.measurement(x)[2,1]/noise(x)[1,1], axis=(ylabel="LR Residual", xlabel="uv distance (λ)"))
-baselineplot(fig[1,2], res[1], :, :uvdist, x->Comrade.measurement(x)[1,2]/noise(x)[1,1], axis=(ylabel="RL Residual", xlabel="uv distance (λ)"))
-baselineplot(fig[2,2], res[1], :, :uvdist, x->Comrade.measurement(x)[2,2]/noise(x)[1,1], axis=(ylabel="LL Residual", xlabel="uv distance (λ)"))
+baselineplot(fig[1,1], res[1], :uvdist, x->Comrade.measurement(x)[1,1]/noise(x)[1,1], axis=(ylabel="RR Residual", xlabel="uv distance (λ)"))
+baselineplot(fig[2,1], res[1], :uvdist, x->Comrade.measurement(x)[2,1]/noise(x)[1,1], axis=(ylabel="LR Residual", xlabel="uv distance (λ)"))
+baselineplot(fig[1,2], res[1], :uvdist, x->Comrade.measurement(x)[1,2]/noise(x)[1,1], axis=(ylabel="RL Residual", xlabel="uv distance (λ)"))
+baselineplot(fig[2,2], res[1], :uvdist, x->Comrade.measurement(x)[2,2]/noise(x)[1,1], axis=(ylabel="LL Residual", xlabel="uv distance (λ)"))
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting.

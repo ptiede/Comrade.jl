@@ -8,6 +8,7 @@ using Comrade, ComradeBase, AdvancedHMC, Dynesty, Optimization,
       PolarizedTypes
 using Pyehtim, VLBISkyModels, InteractiveUtils
 using AbstractMCMC, Random, HypercubeTransform
+using CairoMakie
 
 
 Documenter.DocMeta.setdocmeta!(Comrade, :DocTestSetup, :(using Comrade); recursive=true)
@@ -37,7 +38,7 @@ format = MarkdownVitepress(
 
 
 makedocs(;
-    modules=[ComradeBase, Comrade],
+    modules=[ComradeBase, Comrade, Base.get_extension(Comrade, :ComradeMakieExt)],
     repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
     sitename="Comrade.jl",
     format = format,

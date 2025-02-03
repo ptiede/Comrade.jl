@@ -5,16 +5,17 @@ using Comrade
 using Printf
 import Measurements
 
-import Comrade: plotfields, axisfields, plotcaltable, plotaxis, getbaselineind, getobsdatafield, frequencylabel
+import Comrade: plotfields, axisfields, plotcaltable, plotaxis
 import Comrade: baselineplot, baselineplot!
 
-"""
+@doc"""
     baselineplot(data, bl, fieldx, fieldy; kwargs...)
+    baselineplot(data, fieldx, fieldy; kwargs...)
 
 Plots the baseline `bl` with `fieldx` on the x axis and 
 `fieldy` on the y axis.
 
-If `bl` is a `Colon`, all baselines are plotted.
+If `bl` is a `Colon` or bl is not specified all baselines are plotted.
 
 `field` is expected to be a function of a datum with properties
     - `baseline` : The baseline data, e.g., Ti, U, V, Fr, sites, etc
@@ -40,6 +41,10 @@ Makie.@recipe(BaselinePlot, data, bl, fieldx, fieldy) do scene
     )
 end
 
+function Makie.convert_arguments(::Type{<:BaselinePlot}, data::Comrade.EHTObservationTable, fieldx, fieldy)
+    return data, Colon(), fieldx, fieldy
+end
+
 # This is convienence function to conver the field to a function
 # if the field is a symbol, we see if it is an option and return that
 convert_field(f) = f
@@ -62,7 +67,6 @@ function convert_field(field::Symbol)
                         "(:U, :V, :Ti, :Fr, :snr, :uvdist, :amp, :phase,"*
                         " :res, :measurement, :noise, :measwnoise)"))
 end
-
 
 function Makie.plot!(plot::BaselinePlot{<:Tuple{<:Comrade.EHTObservationTable, 
                                                 <:Union{Tuple{Symbol, Symbol}, Colon}, 
@@ -134,21 +138,6 @@ function Makie.plot!(plot::BaselinePlot{<:Tuple{<:Comrade.EHTObservationTable,
 end
 
 
-"""
-Returns the indices of an EHTObservationTable associated with a given baseline.
-"""
-function getbaselineind(obsdata::Comrade.EHTObservationTable, site1::Symbol, site2::Symbol)
-    sitedata = datatable(obsdata).baseline.sites
-    site1 == site2 && throw(ArgumentError("$site1 and $site2 must be different"))
-
-    baselineind = findall(x -> (site1 in x) && (site2 in x), sitedata)
-    isempty(baselineind) && throw(ArgumentError("$site1 and $site2 are not a detected baseline"))
-
-    return baselineind
-end
-
-
-
 
 function frequencylabel(ν::Number)
     if ν > 1e6
@@ -186,7 +175,7 @@ _defaultlabel(::Val{:res}) = "Normalized Residual Visibility"
 _defaultlabel(::typeof(Comrade.uvdist)) = _defaultlabel(:uvdist)
 _defaultlabel(f) = string(f)
 
-"""
+@doc"""
 
     plotfields(obsdata::EHTObservationTable, field1, field2; 
                 site1=nothing, site2=nothing, axis_kwargs=(;), legend_kwargs=(;), scatter_kwargs=(;))
@@ -299,7 +288,7 @@ function plotfields(
     )
 end
 
-"""
+@doc"""
 
     axisfields(fig, obsdata::EHTObservationField, field1, field2;
                 legend=true, conjugate=true, axis_kwargs=(;), legend_kwargs=(;), scatter_kwargs=(;))
@@ -475,7 +464,7 @@ function plotaxis(
     end
 end
 
-"""
+@doc"""
     plotcaltable(gt...; width=150, height=125, layout=nothing, markers=nothing, labels=nothing, 
                         axis_kwargs=(;), legend_kwargs=(;), figure_kwargs=(;), scatter_kwargs=(;))
 

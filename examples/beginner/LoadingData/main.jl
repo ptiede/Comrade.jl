@@ -74,8 +74,8 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # And also the coherency matrices. Here we show how to use `baselineplot` to plot the data
 fig = Figure(;size=(800, 600))
-baselineplot(fig[1,1], coh, :, x->uvdist(x)/1e9, x->abs(measwnoise(x)[1,1]), error=true, axis=(ylabel="RR", xlabel="uv distance (Gλ)"))
-baselineplot(fig[2,1], coh, :, x->uvdist(x)/1e9, x->abs(measwnoise(x)[2,1]), error=true, axis=(ylabel="LR", xlabel="uv distance (Gλ)"))
-baselineplot(fig[1,2], coh, :, x->uvdist(x)/1e9, x->abs(measwnoise(x)[1,2]), error=true, axis=(ylabel="RL", xlabel="uv distance (Gλ)"))
-baselineplot(fig[2,2], coh, :, x->uvdist(x)/1e9, x->abs(measwnoise(x)[2,2]), error=true, axis=(ylabel="LL", xlabel="uv distance (Gλ)"))
+baselineplot(fig[1,1], coh, x->uvdist(x)/1e9, x->abs(measwnoise(x)[1,1]), error=true, axis=(ylabel="RR", xlabel="uv distance (Gλ)"))
+baselineplot(fig[2,1], coh, x->uvdist(x)/1e9, x->abs(measwnoise(x)[2,1]), error=true, axis=(ylabel="LR", xlabel="uv distance (Gλ)"))
+baselineplot(fig[1,2], coh, x->uvdist(x)/1e9, x->abs(measwnoise(x)[1,2]), error=true, axis=(ylabel="RL", xlabel="uv distance (Gλ)"))
+baselineplot(fig[2,2], coh, x->uvdist(x)/1e9, x->abs(measwnoise(x)[2,2]), error=true, axis=(ylabel="LL", xlabel="uv distance (Gλ)"))
 fig

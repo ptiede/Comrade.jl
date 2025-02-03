@@ -29,7 +29,9 @@ using Tables
     @test vis[:noise] ≈ getproperty.(real.(mwn), :err)
     @test vis[:noise] ≈ getproperty.(imag.(mwn), :err)
     plotfields(vis, :U, :V)
-    baselineplot(vis, :, uvdist, measwnoise; error=true)
+    baselineplot(vis, uvdist, measwnoise; error=true)
+    baselineplot(vis, : , uvdist, measwnoise; error=true)
+    baselineplot(vis, (:LM, :AA), uvdist, measwnoise; error=true)
     Plots.plot(vis)
     show(vis)
 

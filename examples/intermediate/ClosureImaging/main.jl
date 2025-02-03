@@ -205,12 +205,12 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # Now let's see whether our residuals look better.
 fig = Figure(;size=(800, 300))
-ax1, = baselineplot(fig[1, 1], res[1], :, :uvdist, :res, label="MAP residuals", axis=(ylabel="LCA Normalized Residuals", xlabel="uvdist (Gλ)"))
-ax2, = baselineplot(fig[1, 2], res[2], :, :uvdist, :res, label="MAP residuals", axis=(ylabel="CP Normalized Residuals", xlabel="uvdist (Gλ)"))
+ax1, = baselineplot(fig[1, 1], res[1], :uvdist, :res, label="MAP residuals", axis=(ylabel="LCA Normalized Residuals", xlabel="uvdist (Gλ)"))
+ax2, = baselineplot(fig[1, 2], res[2], :uvdist, :res, label="MAP residuals", axis=(ylabel="CP Normalized Residuals", xlabel="uvdist (Gλ)"))
 for s in sample(chain[501:end], 10)
     rs = residuals(post, s)
-    baselineplot!(ax1, rs[1], :, :uvdist, :res, color=:grey, alpha=0.2, label="Posterior Draw")
-    baselineplot!(ax2, rs[2], :, :uvdist, :res, color=:grey, alpha=0.2, label="Posterior Draw")
+    baselineplot!(ax1, rs[1], :uvdist, :res, color=:grey, alpha=0.2, label="Posterior Draw")
+    baselineplot!(ax2, rs[2], :uvdist, :res, color=:grey, alpha=0.2, label="Posterior Draw")
 end
 axislegend(ax1, merge=true)
 fig |> DisplayAs.PNG |> DisplayAs.Text
