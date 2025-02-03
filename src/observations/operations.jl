@@ -8,15 +8,8 @@ function add_fractional_noise!(dvis::EHTObservationTable{<:EHTCoherencyDatum}, f
     return dvis
 end
 
-function add_fractional_noise!(dvis::EHTObservationTable{<:EHTVisibilityDatum}, ferr)
-    map!(dvis[:noise], dvis[:noise], dvis[:measurement]) do e, m
-        fe =  sqrt.(e.^2 .+ ferr.^2*abs2(m))
-        return fe
-    end
-    return dvis
-end
-
-function add_fractional_noise!(dvis::EHTObservationTable{<:EHTVisibilityAmplitudeDatum}, ferr)
+function add_fractional_noise!(dvis::EHTObservationTable{<:Union{EHTVisibilityDatum, EHTVisibilityAmplitudeDatum}}, 
+                               ferr)
     map!(dvis[:noise], dvis[:noise], dvis[:measurement]) do e, m
         fe =  sqrt.(e.^2 .+ ferr.^2*abs2(m))
         return fe
