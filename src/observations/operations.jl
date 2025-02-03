@@ -25,14 +25,27 @@ function add_fractional_noise!(dvis::EHTObservationTable{<:EHTVisibilityAmplitud
 end
 
 
+"""
+    add_fractional_noise(dvis::AbstractObservationTable, ferr)
 
+Adds fractional noise to the data in `dvis` with the fractional error `ferr`, i.e. the returned
+data is identical except the noise is replaced with
+
+   √(σ² + ferr² * |V|²)
+
+where `σ` is dvis[:noise] and `V` is dvis[:measurement].
+
+!!! warning
+    We do not implement this function for closures since the error should be added directly to the 
+    visibilities.
+"""
 function add_fractional_noise(dvis, ferr)
     dvis = deepcopy(dvis)
     return add_fractional_noise!(dvis, ferr)
 end
 
 """
-    flag(condition, data)
+    flag(condition, data::AbstractObservationTable)
 
 Flags the data in `vis` that satisfy the condition `condition`.
 For the opposite effect call `filter(condition, data)`
@@ -47,19 +60,32 @@ cond(x) = uvdist(x) < 0.1e9
 flag_data(vis, cond)
 ```
 """
-function flag(condition, dvis)
+function flag(condition, dvis::AbstractObservationTable)
     inds = findall(x->!condition(x), datatable(dvis))
     return dvis[inds]
 end
 
-function Base.filter(f, dvis::EHTObservationTable)
+"""
+    filter(condition, data::AbstractObservationTable)
+
+Filters all the data in `data` that satisfy the condition `condition`, i.e.
+if condition returns true for a given datum, it is kept in the returned object.
+
+This is the converse of `flag`.
+"""
+function Base.filter(f, dvis::AbstractObservationTable)
     return flag(x->!f(x), dvis)
 end
 
 
+"""
+    select_baseline(data::AbstractObservationTable, bl::Tuple{Symbol, Symbol})
 
+Selects the baseline `bl` from the `data` object. The baseline is a tuple of symbols,
+but the order of the symbols does not matter.
+"""
 function select_baseline(dvis, bl::Tuple{Symbol, Symbol})
-    cond(x) = !((x.baseline.sites == bl) || (x.baseline.sites == reverse(bl)))
+    cond(x) = ((x.baseline.sites == bl) || (x.baseline.sites == reverse(bl)))
     return filter(cond, dvis) 
 end
 

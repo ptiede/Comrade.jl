@@ -46,6 +46,10 @@ Comrade.sites(::Comrade.AbstractObservationTable)
 Comrade.TimeTable
 Comrade.Scan
 Comrade.timetable
+Comrade.flag
+Base.filter(::Any, ::Comrade.EHTObservationTable)
+Comrade.select_baseline
+Comrade.add_fractional_noise
 ```
 
 ### Datums

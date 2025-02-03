@@ -8,6 +8,8 @@ using Optimization
 using Comrade
 using Test
 using LinearAlgebra
+using CairoMakie
+import Plots
 
 #using PyCall
 

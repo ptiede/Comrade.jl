@@ -20,13 +20,20 @@ If `bl` is a `Colon`, all baselines are plotted.
     - `baseline` : The baseline data, e.g., Ti, U, V, Fr, sites, etc
     - `measurement` : The measurement data, i.e. what is `measure`
     - `noise` : The noise data, i.e. what is `noise`
+
+# Specific Attributes
+  - `error` : If true, error bars are plotted. **This assumes that the data is a `Measurement` type.**
+  - `color` : The color of the markers
+  - `colorim` : The color of the imaginary part of the data if it exists
+  - `marker` : The marker type
+  - `markersize` : The size of the markers
+  - `alpha` : The transparency of the markers
 """
 Makie.@recipe(BaselinePlot, data, bl, fieldx, fieldy) do scene
     Makie.Attributes(;
         color = Makie.wong_colors()[1],
         colorim= Makie.wong_colors()[2],
         marker = :x,
-        modelmarker = :circle,
         markersize = 10.0,
         alpha = 1.0,
         error = false,
@@ -180,6 +187,10 @@ _defaultlabel(::typeof(Comrade.uvdist)) = _defaultlabel(:uvdist)
 _defaultlabel(f) = string(f)
 
 """
+
+    plotfields(obsdata::EHTObservationTable, field1, field2; 
+                site1=nothing, site2=nothing, axis_kwargs=(;), legend_kwargs=(;), scatter_kwargs=(;))
+
 Plots two data fields against each other.
 
 # Arguments
@@ -289,24 +300,31 @@ function plotfields(
 end
 
 """
-Plots two data fields against each other, returns a Makie Axis which can be used to configure subplots.
+
+    axisfields(fig, obsdata::EHTObservationField, field1, field2;
+                legend=true, conjugate=true, axis_kwargs=(;), legend_kwargs=(;), scatter_kwargs=(;))
+
+Plots two data fields from `obsdata` against each other on `fig`, returns a Makie Axis which can 
+be used to configure subplots.
 
 # Arguments
+- `fig`: The GridPosition i.e. `fig[i,j]` to plot the data on.
 - `obsdata` : EHTObservationTable containing the data to plot (closure quantities not supported yet)
 
 - `field1` and `field2` : The fields to plot. field1 - x axis, field2 - y axis 
-    Current fields supported:
-    :U - baseline u coordinate
-    :V - baseline v coordinate
-    :Ti - time
-    :Fr - frequency
-    :measurment - measurement
-    :noise - noise
-    :amp - visibility amplitude
-    :phase - visibility phase
-    :uvdist - projected baseline length
-    :snr - signal to noise ratio
-    :res - normalized residual visibilities (only if obsdata contains the residuals)
+    If field1 or field2 is a function it will apply to `datatable(obsdata)` to get the value
+    If field1 or field2 is a symbol, it will look for a predefined function:
+        - :U - baseline u coordinate
+        - :V - baseline v coordinate
+        - :Ti - time
+        - :Fr - frequency
+        - :measure - measurement
+        - :noise - noise
+        - :amp - visibility amplitude
+        - :phase - visibility phase
+        - :uvdist - projected baseline length
+        - :snr - signal to noise ratio
+        - :res - normalized residual visibilities (only if obsdata contains the residuals)
 
 # Keyword Arguments
  - `legend` : If true, legend is shown. If false, legend is hidden.
@@ -458,12 +476,15 @@ function plotaxis(
 end
 
 """
+    plotcaltable(gt...; width=150, height=125, layout=nothing, markers=nothing, labels=nothing, 
+                        axis_kwargs=(;), legend_kwargs=(;), figure_kwargs=(;), scatter_kwargs=(;))
+
 Automatically generate a grid of subplots plotting the Comrade.CalTable information.
 Each subplot corresponds to a different station in the array.
 
 ## Argments
 
- - `gt` : The CalTable to plot.
+ - `gt` : The CalTables to plot.
 
 ## Keyword Arguments
  - `width` : Subplot width
