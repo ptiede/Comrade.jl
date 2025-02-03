@@ -1,4 +1,4 @@
-export plotfields, axisfields, plotcaltable
+export plotfields, axisfields, plotcaltable, baselineplot, baselineplot!
 
 """
 Plots two data fields against each other.
@@ -79,3 +79,6 @@ function getobsdatafield end
 function frequencylabel end
 
 function plotaxis end
+
+function baselineplot end
+function baselineplot! end

@@ -8,6 +8,9 @@ abstract type AbstractVisibilityDatum{T} end
 baseline(p::AbstractVisibilityDatum) = getfield(p, :baseline)
 measurement(p::AbstractVisibilityDatum) = getfield(p, :measurement)
 noise(p::AbstractVisibilityDatum) = getfield(p, :noise)
+measwnoise(t::AbstractVisibilityDatum) = Measurements.measurement(measurement(t), noise(t))
+
+
 
 # function Base.propertynames(p::AbstractVisibilityDatum)
 #     return (propertynames(baseline(p))..., :measurement, :noise)
@@ -53,6 +56,25 @@ Base.@kwdef struct EHTCoherencyDatum{S, B<:AbstractBaselineDatum, M<:SMatrix{2,2
 end
 VLBISkyModels.polarization(b::EHTCoherencyDatum) = b.baseline.polbasis
 
+function measwnoise(t::EHTCoherencyDatum)
+    m = measurement(t)
+    n = noise(t)
+    c11 = _measurement_complex(m[1,1], n[1,1])
+    c21 = _measurement_complex(m[2,1], n[2,1])
+    c12 = _measurement_complex(m[1,2], n[1,2])
+    c22 = _measurement_complex(m[2,2], n[2,2])
+    return SMatrix{2, 2, typeof(c11), 4}(c11, c21, c12, c22)
+end
+
+function _measurement_complex(m, n)
+    # we assume that the noise on the real and complex is identical and 
+    # is a real number
+    return complex(
+                   Measurements.measurement(real(m), real(n)),
+                   Measurements.measurement(imag(m), real(n))
+                   )
+end
+
 
 """
     $(TYPEDEF)
@@ -79,6 +101,12 @@ Base.@kwdef struct EHTVisibilityDatum{Pol, S<:Number, B<:AbstractBaselineDatum} 
 end
 EHTVisibilityDatum(m::Complex{S}, n, b) where {S} = EHTVisibilityDatum{:I, S, typeof(b)}(m, n, b)
 
+function measwnoise(t::EHTVisibilityDatum)
+    m = measurement(t)
+    n = noise(t)
+    meas = _measurement_complex(m, n)
+    return meas
+end
 
 
 

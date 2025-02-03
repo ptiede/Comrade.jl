@@ -21,6 +21,7 @@ using LinearAlgebra
 import HypercubeTransform: ascube, asflat, NamedDist, NamedDist, transform, inverse
 using HypercubeTransform
 #using MappedArrays: mappedarray
+using Measurements
 using NamedTupleTools
 using Printf
 using Random

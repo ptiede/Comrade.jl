@@ -3,7 +3,7 @@ using VLBILikelihoods
 
 export vlbimodel, logdensityof, dimension, skymodel, instrumentmodel, dataproducts,
        forward_model, prior_sample, simulate_observation,
-       VLBIPosterior, logdensityof, loglikelihood
+       VLBIPosterior, logdensityof, loglikelihood, chi2, residuals
 
 
 """

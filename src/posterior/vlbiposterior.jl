@@ -159,3 +159,36 @@ function residuals(post::VLBIPosterior, p)
     res = map(x->residual_data(vis, x), post.data)
     return res
 end
+
+"""
+    chi2(post::AbstractVLBIPosterior, p)
+
+Returns a tuple of the chi-squared values for each data product in the posterior `post` given the parameters `p`.
+Note that the chi-square is not reduced.
+"""
+function chi2(post::AbstractVLBIPosterior, p)
+    res = residuals(post, p)
+    return map(_chi2, res)
+end
+
+function _chi2(res::EHTObservationTable)
+    return sum(datatable(res)) do d
+            r2 = @. abs2(d.measurement/d.noise)
+            # Check if residual is NaN which means that the data is missing
+            isnan(r2) && return zero(r2)
+            return r2
+    end
+end
+
+function _chi2(res::EHTObservationTable{<:EHTCoherencyDatum})
+    return sum(datatable(res)) do d
+            r2 = @. abs2(d.measurement/d.noise)
+            r11 = isnan(r2[1,1]) ? zero(r2[1,1]) : r2[1,1]
+            r12 = isnan(r2[1,2]) ? zero(r2[1,2]) : r2[1,2]
+            r21 = isnan(r2[2,1]) ? zero(r2[2,1]) : r2[2,1]
+            r22 = isnan(r2[2,2]) ? zero(r2[2,2]) : r2[2,2]
+            return typeof(r2)(r11, r21, r12, r22)
+    end
+end
+
+

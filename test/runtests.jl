@@ -7,6 +7,7 @@ using Pyehtim
 using Optimization
 using Comrade
 using Test
+using LinearAlgebra
 
 #using PyCall
 

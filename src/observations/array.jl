@@ -254,11 +254,10 @@ designmat(c::ClosureConfig) = getfield(c, :designmat)
 
 function build_datum(arr::ClosureConfig{F, A, <:DesignMatrix{T, N}}, i::Int) where {F, A, T, N}
     arrvis = arrayconfig(arr)
-
-    nz = designmat(arr).nz
-    inds = range(firstindex(nz[2])+N*(i-1); length=N)
-    J = @view(nz[2][inds])
-    V = @view(nz[3][inds])
+    dmat = designmat(arr)
+    inds = dmat[i, :]
+    J = inds.nzind
+    V = inds.nzval
     bls = ntuple(Val(N)) do i
         return V[i] == 1.0 ? arrvis[J[i]] : flipbaseline(arrvis[J[i]])
     end
