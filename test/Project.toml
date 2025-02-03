@@ -1,5 +1,6 @@
 [deps]
 AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 ChainRulesTestUtils = "cdddcdb0-9152-4a09-a978-84456f9df70a"
 DimensionalData = "0703355e-b756-11e9-17c0-8b28908087d0"
