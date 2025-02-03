@@ -6,7 +6,6 @@ Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
 Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
-ENV["GKSwstype"] = "nul"; #hide
 
 # # Imaging a Black Hole using only Closure Quantities
 
@@ -149,14 +148,15 @@ xopt, sol = comrade_opt(post, LBFGS();
 
 
 # First we will evaluate our fit by plotting the residuals
+using CairoMakie
 using DisplayAs #hide
-using Plots
-p = residual(post, xopt)
-DisplayAs.Text(DisplayAs.PNG(p)) #hide
+res = residuals(post, xopt)
+fig = Figure(;size=(800, 300))
+axisfields(fig[1,1], res[1], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
+axisfields(fig[1,2], res[2], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
+fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # Now let's plot the MAP estimate.
-import CairoMakie as CM
-CM.activate!(type = "png", px_per_unit=1) #hide
 g = imagepixels(μas2rad(150.0), μas2rad(150.0), 100, 100)
 img = intensitymap(skymodel(post, xopt), g)
 fig = imageviz(img, size=(600, 500));
@@ -194,21 +194,26 @@ using StatsBase
 imgs = intensitymap.(msamples, Ref(g))
 mimg = mean(imgs)
 simg = std(imgs)
-fig = CM.Figure(;resolution=(700, 700));
-axs = [CM.Axis(fig[i, j], xreversed=true, aspect=1) for i in 1:2, j in 1:2]
-CM.image!(axs[1,1], mimg, colormap=:afmhot); axs[1, 1].title="Mean"
-CM.image!(axs[1,2], simg./(max.(mimg, 1e-8)), colorrange=(0.0, 2.0), colormap=:afmhot);axs[1,2].title = "Std"
-CM.image!(axs[2,1], imgs[1],   colormap=:afmhot);
-CM.image!(axs[2,2], imgs[end], colormap=:afmhot);
-CM.hidedecorations!.(axs)
+fig = Figure(;resolution=(700, 700));
+axs = [Axis(fig[i, j], xreversed=true, aspect=1) for i in 1:2, j in 1:2]
+image!(axs[1,1], mimg, colormap=:afmhot); axs[1, 1].title="Mean"
+image!(axs[1,2], simg./(max.(mimg, 1e-8)), colorrange=(0.0, 2.0), colormap=:afmhot);axs[1,2].title = "Std"
+image!(axs[2,1], imgs[1],   colormap=:afmhot);
+image!(axs[2,2], imgs[end], colormap=:afmhot);
+hidedecorations!.(axs)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # Now let's see whether our residuals look better.
-p = Plots.plot(layout=(2,1));
+fig = Figure(;size=(800, 300))
+ax1, = baselineplot(fig[1, 1], res[1], :, :uvdist, :res, label="MAP residuals", axis=(ylabel="LCA Normalized Residuals", xlabel="uvdist (Gλ)"))
+ax2, = baselineplot(fig[1, 2], res[2], :, :uvdist, :res, label="MAP residuals", axis=(ylabel="CP Normalized Residuals", xlabel="uvdist (Gλ)"))
 for s in sample(chain[501:end], 10)
-    residual!(post, s)
+    rs = residuals(post, s)
+    baselineplot!(ax1, rs[1], :, :uvdist, :res, color=:grey, alpha=0.2, label="Posterior Draw")
+    baselineplot!(ax2, rs[2], :, :uvdist, :res, color=:grey, alpha=0.2, label="Posterior Draw")
 end
-p |> DisplayAs.PNG |> DisplayAs.Text
+axislegend(ax1, merge=true)
+fig |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # And viola, you have a quick and preliminary image of M87 fitting only closure products.

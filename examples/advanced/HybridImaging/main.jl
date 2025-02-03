@@ -155,9 +155,8 @@ post = VLBIPosterior(skym, intmodel, dvis; admode=set_runtime_activity(Enzyme.Re
 
 # We can sample from the prior to see what the model looks like
 using DisplayAs #hide
-import CairoMakie as CM
+using CairoMakie
 xrand = prior_sample(rng, post)
-CM.activate!(type = "png", px_per_unit=1) #hide
 gpl = imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128)
 fig = imageviz(intensitymap(skymodel(post, xrand), gpl));
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
@@ -177,8 +176,8 @@ xopt, sol = comrade_opt(post, LBFGS();
 
 
 # First we will evaluate our fit by plotting the residuals
-using Plots
-fig = residual(post, xopt);
+res = residuals(post, xopt);
+fig = plotfields(res[1], :uvdist, :res);
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # These residuals suggest that we are substantially overfitting the data. This is a common
@@ -228,31 +227,35 @@ rast_imgs = intensitymap.(rast_samples, Ref(gpl));
 ring_mean, ring_std = mean_and_std(ring_imgs);
 rast_mean, rast_std = mean_and_std(rast_imgs);
 
-fig = CM.Figure(; resolution=(400, 400));
-axes = [CM.Axis(fig[i, j], xreversed=true, aspect=CM.DataAspect()) for i in 1:2, j in 1:2]
-CM.image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
-CM.image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
-CM.image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"
-CM.image!(axes[2,2], rast_std./rast_mean, colormap=:afmhot); axes[2,2].title = "Rast std/mean"
-CM.hidedecorations!.(axes)
+fig = Figure(; resolution=(400, 400));
+axes = [Axis(fig[i, j], xreversed=true, aspect=DataAspect()) for i in 1:2, j in 1:2]
+image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
+image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
+image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"
+image!(axes[2,2], rast_std./rast_mean, colormap=:afmhot); axes[2,2].title = "Rast std/mean"
+hidedecorations!.(axes)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # Finally, let's take a look at some of the ring parameters
 
-figd = CM.Figure(;resolution=(650, 400));
-p1 = CM.density(figd[1,1], rad2μas(chain.sky.r)*2, axis=(xlabel="Ring Diameter (μas)",))
-p2 = CM.density(figd[1,2], rad2μas(chain.sky.σ)*2*sqrt(2*log(2)), axis=(xlabel="Ring FWHM (μas)",))
-p3 = CM.density(figd[1,3], -rad2deg.(chain.sky.mp.:1) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))
-p4 = CM.density(figd[2,1], 2*chain.sky.ma.:2, axis=(xlabel="Brightness asymmetry",))
-p5 = CM.density(figd[2,2], 1 .- chain.sky.f, axis=(xlabel="Ring flux fraction",))
+figd = Figure(;resolution=(650, 400));
+p1 = density(figd[1,1], rad2μas(chain.sky.r)*2, axis=(xlabel="Ring Diameter (μas)",))
+p2 = density(figd[1,2], rad2μas(chain.sky.σ)*2*sqrt(2*log(2)), axis=(xlabel="Ring FWHM (μas)",))
+p3 = density(figd[1,3], -rad2deg.(chain.sky.mp.:1) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))
+p4 = density(figd[2,1], 2*chain.sky.ma.:2, axis=(xlabel="Brightness asymmetry",))
+p5 = density(figd[2,2], 1 .- chain.sky.f, axis=(xlabel="Ring flux fraction",))
 figd |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # Now let's check the residuals using draws from the posterior
-p = Plots.plot();
+fig = Figure(;size=(600, 400))
+ax, = baselineplot(fig[1,1], res[1], :, :uvdist, :res, label="MAP", color=:blue, colorim=:red, marker=:circle)
 for s in sample(chain, 10)
-    residual!(p, post, s, legend=false)
+    baselineplot!(ax, residuals(post, s)[1], :, :uvdist, :res, alpha=0.2, label="Draw")
 end
-p |> DisplayAs.PNG |> DisplayAs.Text #hide
+ax.xlabel = "uv-distance (Gλ)"
+ax.ylabel = "Normalized Residuals"
+axislegend(ax, merge=true)
+fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # And everything looks pretty good! Now comes the hard part: interpreting the results...

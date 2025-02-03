@@ -98,7 +98,6 @@ close(pkg_io) #hide
 
 # ## Load the Data
 # To get started we will load Comrade
-ENV["GKSwstype"] = "nul" #hide
 using Comrade
 
 # ## Load the Data
@@ -331,9 +330,14 @@ xopt, sol = comrade_opt(post, Optimisers.Adam();
 
 
 # Now let's evaluate our fits by plotting the residuals
-using Plots
-Plots.default(fmt = :png) 
-residual(post, xopt)
+using CairoMakie
+res = residuals(post, xopt)
+fig = Figure(;size=(800, 600))
+baselineplot(fig[1,1], res[1], :, :uvdist, x->Comrade.measurement(x)[1,1]/noise(x)[1,1], axis=(ylabel="RR Residual", xlabel="uv distance (λ)"))
+baselineplot(fig[2,1], res[1], :, :uvdist, x->Comrade.measurement(x)[2,1]/noise(x)[1,1], axis=(ylabel="LR Residual", xlabel="uv distance (λ)"))
+baselineplot(fig[1,2], res[1], :, :uvdist, x->Comrade.measurement(x)[1,2]/noise(x)[1,1], axis=(ylabel="RL Residual", xlabel="uv distance (λ)"))
+baselineplot(fig[2,2], res[1], :, :uvdist, x->Comrade.measurement(x)[2,2]/noise(x)[1,1], axis=(ylabel="LL Residual", xlabel="uv distance (λ)"))
+fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting.
 # Let's compare our results to the ground truth values we know in this example.
@@ -344,7 +348,6 @@ imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx*4, ny*4))
 img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
 
 #Plotting the results gives
-import CairoMakie as CM
 using DisplayAs #hide
 fig = imageviz(img, adjust_length=true, colormap=:bone, pcolormap=:RdBu)
 fig |> DisplayAs.PNG |> DisplayAs.Text
@@ -368,17 +371,15 @@ gamp_ratio   = caltable(exp.(xopt.instrument.lgrat))
 # expected since gain ratios are typically stable over the course of an observation and the constant
 # offset was removed in the EHT calibration process.
 gphaseR = caltable(xopt.instrument.gpR)
-p = Plots.plot(gphaseR, layout=(3,3), size=(650,500), label="R Gain Phase");
-Plots.plot!(p, gphase_ratio, layout=(3,3), size=(650,500), label="Gain Phase Ratio");
-p |> DisplayAs.PNG |> DisplayAs.Text
+fig = plotcaltable(gphaseR, gphase_ratio, labels=["R Phase", "L/R Phase"]);
+fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 # Moving to the amplitudes we see largely stable gain amplitudes on the right circular polarization except for LMT which is
 # known and due to pointing issues during the 2017 observation. Again the gain ratios are stable and close to unity. Typically
 # we expect that apriori calibration should make the gain ratios close to unity.
 gampr = caltable(exp.(xopt.instrument.lgR))
-p = Plots.plot(gampr, layout=(3,3), size=(650,500), label="R Gain Amp.");
-Plots.plot!(p, gamp_ratio, layout=(3,3), size=(650,500), label="Gain Amp. Ratio")
-p |> DisplayAs.PNG |> DisplayAs.Text
+fig = plotcaltable(gampr, gamp_ratio, labels=["R Amp", "L/R Amp"], axis_kwargs=(;limits=(nothing, (0.6, 1.3))));
+fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
 

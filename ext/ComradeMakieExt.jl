@@ -3,7 +3,7 @@ module ComradeMakieExt
 using Makie
 using Comrade
 using Printf
-using Measurements
+import Measurements
 
 import Comrade: plotfields, axisfields, plotcaltable, plotaxis, getbaselineind, getobsdatafield, frequencylabel
 import Comrade: baselineplot, baselineplot!
@@ -42,12 +42,12 @@ function convert_field(field::Symbol)
     field == :V && return x->x.baseline.V
     field == :Ti && return x->x.baseline.Ti
     field == :Fr && return x->x.baseline.Fr
-    field == :snr && return x->abs.(measurement(x)) ./ noise(x)
+    field == :snr && return x->abs.(Comrade.measurement(x)) ./ noise(x)
     field == :uvdist && return uvdist
     field == :amp && return x->abs.(measurement(x))
     field == :phase && return x->angle.(measurement(x))
-    field == :res && return x->measurement(x) ./ noise(x)
-    field == :measurement && return x->measurement(x)
+    field == :res && return x->Comrade.measurement(x) ./ noise(x)
+    field == :measurement && return x->Comrade.measurement(x)
     field == :noise && return x->noise(x)
     field == :measwnoise && return x->measwnoise(x)
 
@@ -475,84 +475,98 @@ Each subplot corresponds to a different station in the array.
  - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
 function plotcaltable(
-    gt::Comrade.CalTable;
+    gt::Comrade.CalTable...;
     width = 150,
     height = 125,
     layout = nothing,
+    markers = nothing,
+    labels = nothing,
     axis_kwargs = (;),
     legend_kwargs = (;),
     figure_kwargs = (;),
     scatter_kwargs = (;),
 )
-    sitelist = sites(gt)
+    if gt isa Comrade.CalTable
+        gt = (gt,)
+    end
+    sitelist = sites(argmax(x->length(sites(x)), gt))
+    tup = maximum(maximum.(x->x[:Ti].t0, gt))
+    tlo = minimum(minimum.(x->x[:Ti].t0, gt))
+
+    lims = get(axis_kwargs, :limits, ((tlo, tup), nothing))
+    lims = isnothing(lims[1]) ? ((tlo, tup), lims[2]) : lims
+    ylabel = get(axis_kwargs, :ylabel, nothing)
+
+    axis_kwargs = Base.structdiff(axis_kwargs, NamedTuple{(:limits, :ylabel)})
 
     if isnothing(layout)
         collen = 4
-        rowlen = ceil(length(sitelist) / collen)
+        rowlen = ceil(Int, length(sitelist) / collen)
     else
         (rowlen, collen) = layout
     end
 
     size = (width * (collen), height * (rowlen) + 50) # height + 50 is for the UTC label
-
     fig = Figure(; size, figure_kwargs...)
-    for n in range(1, rowlen) # loop over every station
-        for m in range(1, collen)
-            ind = Int(collen * (n - 1) + m)
+    axs = map(Iterators.Filter(x->collen*(x[1]-1) + x[2] <= length(sitelist), Iterators.product(1:rowlen, 1:collen))) do (i,j)
+        n = collen*(i-1) + j
+        sitelist[n] => Axis(fig[i, j];
+             title=string(sitelist[n]),
+             width=width,
+             height=height,
+             limits = lims,
+             axis_kwargs...)
+    end
 
-            if ind <= length(sitelist)
-                site = sites(gt)[ind]
+    markers = isnothing(markers) ? collect(keys(Makie.default_marker_map())) : markers
+    labels = isnothing(labels) ? repeat(" ", length(sitelist)) : labels
 
-                ax = Axis(
-                    fig[Int(n), Int(m)],
-                    title = string(site),
-                    width = width,
-                    height = height,
-                    axis_kwargs...,
-                )
+    for (i, (site, ax)) in pairs(axs)
+        for (k, gi) in pairs(gt)
+            νlist = unique(gi.Fr)
+            for (j, ν) in pairs(νlist)
+                νind = findall(==(ν), gi.Fr)
+                x = getproperty.(gi.Ti, :t0)[νind]
+                y = getproperty(gi, site)[νind]
 
-                νlist = unique(gt.Fr)
-                for ν in νlist
-                    νind = findall(x -> x == ν, gt.Fr)
-                    x = getproperty.(gt.Ti, :t0)[νind]
-                    y = getproperty(gt, site)[νind]
+                if eltype(y) >: Float64
+                    scatter!(
+                        ax,
+                        x,
+                        y,
+                        label = string(labels[k], " ", frequencylabel(round(ν.central, digits = 2))),
+                        marker = markers[j],
+                        scatter_kwargs...,
+                    )
+                else
+                    missingind = findall(x -> typeof(x) == Missing, y)
+                    y[missingind] .= NaN
+                    yval = getproperty.(y, :val)
+                    yerr = getproperty.(y, :err)
 
-                    if eltype(y) >: Float64
-                        scatter!(
-                            ax,
-                            x,
-                            y,
-                            label = frequencylabel(round(ν.central, digits = 2)),
-                            scatter_kwargs...,
-                        )
-                    else
-                        missingind = findall(x -> typeof(x) == Missing, y)
-                        y[missingind] .= NaN
-                        yval = getproperty.(y, :val)
-                        yerr = getproperty.(y, :err)
-
-                        errorbars!(x, yval, yerr, scatter_kwargs...)
-                        scatter!(
-                            x,
-                            yval,
-                            label = frequencylabel(round(ν.central, digits = 2)),
-                            scatter_kwargs...,
-                        )
-                    end
-                end
-
-                if n == 1 && m == 1
-                    Legend(fig[1, Int(collen + 1)], ax, legend_kwargs...)
-                end
-
-                if n == rowlen && m == 1
-                    ax.xlabel = "Time (UTC)"
+                    errorbars!(ax, x, yval, yerr, scatter_kwargs...)
+                    scatter!(
+                        ax,
+                        x,
+                        yval,
+                        label = string(labels[i], " ", frequencylabel(round(ν.central, digits = 2))),
+                        marker = markers[j],
+                        scatter_kwargs...,
+                    )
                 end
             end
         end
+
+
+    end
+
+    Legend(fig[1, collen+1], axs[end][2], legend_kwargs...)
+    axs[rowlen][2].xlabel = "Time (UTC)"
+    if !isnothing(ylabel)
+        axs[rowlen][2].ylabel = ylabel
     end
     resize_to_layout!(fig)
-    fig
+    return fig
 end
 
 end
