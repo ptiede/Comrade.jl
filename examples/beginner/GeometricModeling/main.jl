@@ -169,7 +169,6 @@ xopt, sol = comrade_opt(post, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxite
 
 using DisplayAs
 using CairoMakie
-activate!(type = "png", px_per_unit=1) #hide
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
 fig = imageviz(intensitymap(skymodel(post, xopt), g), colormap=:afmhot, size=(500, 400));
 DisplayAs.Text(DisplayAs.PNG(fig))
