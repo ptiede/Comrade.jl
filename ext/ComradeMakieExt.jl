@@ -15,12 +15,26 @@ import Comrade: baselineplot, baselineplot!
 Plots the baseline `bl` with `fieldx` on the x axis and 
 `fieldy` on the y axis.
 
+
 If `bl` is a `Colon` or bl is not specified all baselines are plotted.
 
-`field` is expected to be a function of a datum with properties
-    - `baseline` : The baseline data, e.g., Ti, U, V, Fr, sites, etc
-    - `measurement` : The measurement data, i.e. what is `measure`
-    - `noise` : The noise data, i.e. what is `noise`
+# Arguments
+ - `data` : The data to plot
+
+ - `field1` and `field2` : The fields to plot. field1 - x axis, field2 - y axis 
+    If `field1` or `field2` is a function it will apply to `datatable(obsdata)` to get the value.
+    If field1 or field2 is a symbol, it will look for a predefined function:
+     - :U - baseline u coordinate
+     - :V - baseline v coordinate
+     - :Ti - time
+     - :Fr - frequency
+     - :measure - measurement
+     - :noise - noise
+     - :amp - visibility amplitude
+     - :phase - visibility phase
+     - :uvdist - projected baseline length
+     - :snr - signal to noise ratio
+     - :res - normalized residual visibilities (only if obsdata contains the residuals)
 
 # Specific Attributes
   - `error` : If true, error bars are plotted. **This assumes that the data is a `Measurement` type.**
@@ -64,7 +78,7 @@ function convert_field(field::Symbol)
     field == :measwnoise && return x->measwnoise(x)
 
     throw(ArgumentError("$field not supported please use one of"* 
-                        "(:U, :V, :Ti, :Fr, :snr, :uvdist, :amp, :phase,"*
+                        "(:U, :V, :Ti, :Fr, :snr, :uvdist, :amp, :phase,\n"*
                         " :res, :measurement, :noise, :measwnoise)"))
 end
 
@@ -188,17 +202,17 @@ Plots two data fields against each other.
  - `field1` and `field2` : The fields to plot. field1 - x axis, field2 - y axis 
     If field1 or field2 is a function it will apply to `datatable(obsdata)` to get the value
     If field1 or field2 is a symbol, it will look for a predefined function:
-        - :U - baseline u coordinate
-        - :V - baseline v coordinate
-        - :Ti - time
-        - :Fr - frequency
-        - :measure - measurement
-        - :noise - noise
-        - :amp - visibility amplitude
-        - :phase - visibility phase
-        - :uvdist - projected baseline length
-        - :snr - signal to noise ratio
-        - :res - normalized residual visibilities (only if obsdata contains the residuals)
+     - :U - baseline u coordinate
+     - :V - baseline v coordinate
+     - :Ti - time
+     - :Fr - frequency
+     - :measure - measurement
+     - :noise - noise
+     - :amp - visibility amplitude
+     - :phase - visibility phase
+     - :uvdist - projected baseline length
+     - :snr - signal to noise ratio
+     - :res - normalized residual visibilities (only if obsdata contains the residuals)
 
  - `site1` and `site2` : Keywords for the sites forming the baseline being plotted, e.g. :ALMA, :APEX.
  - `axis_kwargs` : Keyword arguments for each subplot's Axis.
@@ -303,17 +317,17 @@ be used to configure subplots.
 - `field1` and `field2` : The fields to plot. field1 - x axis, field2 - y axis 
     If field1 or field2 is a function it will apply to `datatable(obsdata)` to get the value
     If field1 or field2 is a symbol, it will look for a predefined function:
-        - :U - baseline u coordinate
-        - :V - baseline v coordinate
-        - :Ti - time
-        - :Fr - frequency
-        - :measure - measurement
-        - :noise - noise
-        - :amp - visibility amplitude
-        - :phase - visibility phase
-        - :uvdist - projected baseline length
-        - :snr - signal to noise ratio
-        - :res - normalized residual visibilities (only if obsdata contains the residuals)
+     - :U - baseline u coordinate
+     - :V - baseline v coordinate
+     - :Ti - time
+     - :Fr - frequency
+     - :measure - measurement
+     - :noise - noise
+     - :amp - visibility amplitude
+     - :phase - visibility phase
+     - :uvdist - projected baseline length
+     - :snr - signal to noise ratio
+     - :res - normalized residual visibilities (only if obsdata contains the residuals)
 
 # Keyword Arguments
  - `legend` : If true, legend is shown. If false, legend is hidden.
