@@ -1,12 +1,30 @@
 export flag, select_baseline, add_fractional_noise!, add_fractional_noise
 
-function add_fractional_noise!(dvis, ferr)
+function add_fractional_noise!(dvis::EHTObservationTable{<:EHTCoherencyDatum}, ferr)
     map!(dvis[:noise], dvis[:noise], dvis[:measurement]) do e, m
-        fe =  sqrt.(e.^2 .+ ferr.^2*abs2(tr(m))/2)
+        fe =  sqrt.(e.^2 .+ ferr.^2*abs2(tr(m))/4)
         return fe
     end
     return dvis
 end
+
+function add_fractional_noise!(dvis::EHTObservationTable{<:EHTVisibilityDatum}, ferr)
+    map!(dvis[:noise], dvis[:noise], dvis[:measurement]) do e, m
+        fe =  sqrt.(e.^2 .+ ferr.^2*abs2(m))
+        return fe
+    end
+    return dvis
+end
+
+function add_fractional_noise!(dvis::EHTObservationTable{<:EHTVisibilityAmplitudeDatum}, ferr)
+    map!(dvis[:noise], dvis[:noise], dvis[:measurement]) do e, m
+        fe =  sqrt.(e.^2 .+ ferr.^2*abs2(m))
+        return fe
+    end
+    return dvis
+end
+
+
 
 function add_fractional_noise(dvis, ferr)
     dvis = deepcopy(dvis)
@@ -29,8 +47,8 @@ cond(x) = uvdist(x) < 0.1e9
 flag_data(vis, cond)
 ```
 """
-function flag(condition, dvis; negate=false)
-    inds = findall(x->condition(x), datatable(dvis))
+function flag(condition, dvis)
+    inds = findall(x->!condition(x), datatable(dvis))
     return dvis[inds]
 end
 

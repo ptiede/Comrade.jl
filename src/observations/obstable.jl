@@ -10,7 +10,6 @@ abstract type AbstractObservationTable{F<:AbstractVisibilityDatum} <: AbstractVL
 measurement(t::AbstractObservationTable) = getfield(t, :measurement)
 noise(t::AbstractObservationTable) = getfield(t, :noise)
 baseline(t::AbstractObservationTable) = datatable(arrayconfig(t))
-snr(t::AbstractObservationTable) = measurement(t) ./ noise(t)
 
 
 
