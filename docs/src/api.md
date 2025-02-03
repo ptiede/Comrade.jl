@@ -199,4 +199,5 @@ Comrade.extract_coherency
 Comrade.plotfields
 Comrade.axisfields
 Comrade.plotcaltable
+Comrade.baselineplot
 ```
