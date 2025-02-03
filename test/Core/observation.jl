@@ -199,7 +199,8 @@ end
     #Test amplitude which is already debiased for very very dumb reasons
     @test sqrt.(abs2.(vis.measurement)) ≈ amp.measurement
     ac = arrayconfig(vis)
-    plot(ac)
+    Plots.plot(ac)
+    plotfields(vis, :U, :V)
 
     d = Comrade.domain(ac)
     m = modify(Gaussian(), Stretch(μas2rad(40.0)))
