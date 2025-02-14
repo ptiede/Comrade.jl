@@ -10,7 +10,7 @@ close(pkg_io) #hide
 # # Polarized Image and Instrumental Modeling
 
 # In this tutorial, we will analyze a simulated simple polarized dataset to demonstrate
-# Comrade's polarized imaging capabilities.
+# Stoked's polarized imaging capabilities.
 
 # ## Introduction to Polarized Imaging
 # The EHT is a polarized interferometer. However, like all VLBI interferometers, it does not
@@ -20,7 +20,7 @@ close(pkg_io) #hide
 # electric field, and linear feeds, which measure $X/Y$ components of the electric field.
 # Most sites in the EHT use circular feeds, meaning they measure the right (R) and left
 # electric field (L) at each telescope. Although note that ALMA actually uses linear feeds.
-# Currently Comrade has the ability to fit natively mixed polarization data however, the
+# Currently Stoked has the ability to fit natively mixed polarization data however, the
 # publically released EHT data has been converted to circular polarization.
 # For a VLBI array whose feeds are purely circluar the **coherency matrices** are given by,
 #
@@ -49,19 +49,19 @@ close(pkg_io) #hide
 # ```
 #-
 # !!! note
-#     In this tutorial, we stick to circular feeds but Comrade has the capabilities
+#     In this tutorial, we stick to circular feeds but Stoked has the capabilities
 #     to model linear (XX,XY, ...) and mixed basis coherencies (e.g., RX, RY, ...).
 #-
 #
 # In reality, the measure coherencies are corrupted by both the atmosphere and the
-# telescope itself. In `Comrade` we use the RIME formalism [^1] to represent these corruptions,
+# telescope itself. In `Stoked` we use the RIME formalism [^1] to represent these corruptions,
 # namely our measured coherency matrices $V_{ij}$ are given by
 # ```math
 #    V_{ij} = J_iC_{ij}J_j^\dagger
 # ```
 # where $J$ is known as a *Jones matrix* and $ij$ denotes the baseline $ij$ with sites $i$ and $j$.
 #-
-# `Comrade` is highly flexible with how the Jones matrices are formed and provides several
+# `Stoked` is highly flexible with how the Jones matrices are formed and provides several
 # convenience functions that parameterize standard Jones matrices. These matrices include:
 #   - [`JonesG`](@ref) which builds the set of complex gain Jones matrices
 # ```math
@@ -97,8 +97,8 @@ close(pkg_io) #hide
 
 
 # ## Load the Data
-# To get started we will load Comrade
-using Comrade
+# To get started we will load Stoked
+using Stoked
 
 # ## Load the Data
 using Pyehtim
@@ -131,7 +131,7 @@ dvis = extract_table(obs, Coherencies())
 
 
 # To build the model, we first break it down into two parts:
-#    1. **The image or sky model**. In Comrade, all polarized image models are written in terms of the Stokes parameters.
+#    1. **The image or sky model**. In Stoked, all polarized image models are written in terms of the Stokes parameters.
 #       In this tutorial, we will use a polarized image model based on Pesce (2021)[^2], and
 #       parameterizes each pixel in terms of the [`Poincare sphere`](https://en.wikipedia.org/wiki/Unpolarized_light#Poincar%C3%A9_sphere).
 #       This parameterization ensures that we have all the physical properties of stokes parameters.
@@ -147,7 +147,7 @@ dvis = extract_table(obs, Coherencies())
 #       the total number of parameters we need to model.
 
 
-# First we specify our sky model. As always `Comrade` requires this to be a two argument
+# First we specify our sky model. As always `Stoked` requires this to be a two argument
 # function where the first argument is typically a NamedTuple of parameters we will fit
 # and the second are additional metadata required to build the model.
 using StatsFuns: logistic
@@ -321,7 +321,7 @@ tpost = asflat(post)
 
 # Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
 # due to the higher dimension of the space. In addition the only AD package that can currently
-# work with the polarized Comrade posterior is Enzyme.
+# work with the polarized Stoked posterior is Enzyme.
 using Optimization
 using OptimizationOptimisers
 xopt, sol = comrade_opt(post, Optimisers.Adam(); 
@@ -334,10 +334,10 @@ using CairoMakie
 using DisplayAs #hide
 res = residuals(post, xopt)
 fig = Figure(;size=(800, 600))
-baselineplot(fig[1,1], res[1], :uvdist, x->Comrade.measurement(x)[1,1]/noise(x)[1,1], axis=(ylabel="RR Residual", xlabel="uv distance (λ)"))
-baselineplot(fig[2,1], res[1], :uvdist, x->Comrade.measurement(x)[2,1]/noise(x)[1,1], axis=(ylabel="LR Residual", xlabel="uv distance (λ)"))
-baselineplot(fig[1,2], res[1], :uvdist, x->Comrade.measurement(x)[1,2]/noise(x)[1,1], axis=(ylabel="RL Residual", xlabel="uv distance (λ)"))
-baselineplot(fig[2,2], res[1], :uvdist, x->Comrade.measurement(x)[2,2]/noise(x)[1,1], axis=(ylabel="LL Residual", xlabel="uv distance (λ)"))
+baselineplot(fig[1,1], res[1], :uvdist, x->Stoked.measurement(x)[1,1]/noise(x)[1,1], axis=(ylabel="RR Residual", xlabel="uv distance (λ)"))
+baselineplot(fig[2,1], res[1], :uvdist, x->Stoked.measurement(x)[2,1]/noise(x)[1,1], axis=(ylabel="LR Residual", xlabel="uv distance (λ)"))
+baselineplot(fig[1,2], res[1], :uvdist, x->Stoked.measurement(x)[1,2]/noise(x)[1,1], axis=(ylabel="RL Residual", xlabel="uv distance (λ)"))
+baselineplot(fig[2,2], res[1], :uvdist, x->Stoked.measurement(x)[2,2]/noise(x)[1,1], axis=(ylabel="LL Residual", xlabel="uv distance (λ)"))
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting.
@@ -346,7 +346,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 imgtrue = load_fits(joinpath(__DIR, "..", "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams});
 # Select a reasonable zoom in of the image.
 imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx*4, ny*4))
-img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
+img = intensitymap(Stoked.skymodel(post, xopt), axisdims(imgtruesub))
 
 #Plotting the results gives
 fig = imageviz(img, adjust_length=true, colormap=:bone, pcolormap=:RdBu)

@@ -135,7 +135,7 @@ function Base.getindex(arr::SiteArray; Fr=Base.Colon(), S=Base.Colon(), Ti=Base.
     Fr2 = isa(Fr, Indexable) ? unique(arr.frequencies)[Fr] : Fr
     S2 = isa(S, Indexable) ? unique(arr.sites)[S] : S
     Ti2 = isa(Ti, Indexable) ? unique(arr.times)[Ti] : Ti
-    inds = findall(i->(_equalorin(S2, Comrade.sites(arr)[i])&&_equalorin(Ti2, Comrade.times(arr)[i])&&_equalorin(Fr2, Comrade.frequencies(arr)[i])), eachindex(arr))
+    inds = findall(i->(_equalorin(S2, Stoked.sites(arr)[i])&&_equalorin(Ti2, Stoked.times(arr)[i])&&_equalorin(Fr2, Stoked.frequencies(arr)[i])), eachindex(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end

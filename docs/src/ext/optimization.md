@@ -16,13 +16,13 @@ To see what optimizers are available and what options are available, please see 
 ## Example
 
 ```julia
-using Comrade
+using Stoked
 using Optimization
 using OptimizationOptimJL
 using Enzyme
 
 # Some stuff to create a posterior object
-post # of type Comrade.Posterior
+post # of type Stoked.Posterior
 
 xopt, sol = comrade_opt(post, LBFGS())
 ```

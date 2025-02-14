@@ -54,7 +54,7 @@ const advanced = [
 
 # Tutorials
 
-This page contains a collection of tutorials that cover a range of topics from beginner to advanced. These demonstrate how to use Comrade in a variety of scenarios. While most of them consider the EHT, they should work more generally for any VLBI arrays.
+This page contains a collection of tutorials that cover a range of topics from beginner to advanced. These demonstrate how to use Stoked in a variety of scenarios. While most of them consider the EHT, they should work more generally for any VLBI arrays.
 
 !!! warning
     All plots in this tutorial are shown using `DisplayAs` to 

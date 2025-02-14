@@ -25,7 +25,7 @@ function (v::_Visibility)(μ)
 end
 
 # internal function that creates the likelihood for a set of complex visibilities
-function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTVisibilityDatum})
+function makelikelihood(data::Stoked.EHTObservationTable{<:Stoked.EHTVisibilityDatum})
     Σ = noise(data).^2
     vis = measurement(data)
     lnorm = VLBILikelihoods.lognorm(ComplexVisLikelihood(vis, Σ))
@@ -42,7 +42,7 @@ function (c::_Coherency)(μ)
     return CoherencyLikelihood(baseimage(μ), c.S, c.L)
 end
 
-function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTCoherencyDatum})
+function makelikelihood(data::Stoked.EHTObservationTable{<:Stoked.EHTCoherencyDatum})
     Σ = map(x->x.^2, noise(data))
     vis = measurement(data)
     lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, Σ))
@@ -59,7 +59,7 @@ function (v::_VisAmp)(μ)
 end
 
 # internal function that creates the likelihood for a set of visibility amplitudes
-function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTVisibilityAmplitudeDatum})
+function makelikelihood(data::Stoked.EHTObservationTable{<:Stoked.EHTVisibilityAmplitudeDatum})
     Σ = noise(data).^2
     amp = measurement(data)
     ℓ = ConditionedLikelihood(_VisAmp(Σ), amp)
@@ -77,7 +77,7 @@ function (c::_LCamp)(μ)
 end
 
 # internal function that creates the likelihood for a set of log closure amplitudes
-function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTLogClosureAmplitudeDatum})
+function makelikelihood(data::Stoked.EHTObservationTable{<:Stoked.EHTLogClosureAmplitudeDatum})
     Σlca = factornoisecovariance(arrayconfig(data))
     f = Base.Fix2(logclosure_amplitudes, designmat(arrayconfig(data)))
     amp = measurement(data)
@@ -97,7 +97,7 @@ function (c::_CPhase)(μ)
 end
 
 # internal function that creates the likelihood for a set of closure phase datum
-function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTClosurePhaseDatum})
+function makelikelihood(data::Stoked.EHTObservationTable{<:Stoked.EHTClosurePhaseDatum})
     Σcp = factornoisecovariance(arrayconfig(data))
     f = Base.Fix2(closure_phases, designmat(arrayconfig(data)))
     phase = measurement(data)

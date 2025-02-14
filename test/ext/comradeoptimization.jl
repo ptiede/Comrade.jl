@@ -1,10 +1,10 @@
-using Comrade, Optimization
+using Stoked, Optimization
 using Pyehtim, OptimizationOptimJL, Distributions, VLBIImagePriors
 using Enzyme
 using Test
 
 
-@testset "ComradeOptimizationExt" begin
+@testset "StokedOptimizationExt" begin
     _, _, _, lcamp, cphase = load_data()
     g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)

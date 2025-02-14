@@ -256,7 +256,7 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
             d.measurement./d.noise
         end
         c2 = c2s[i]
-        uvdist = Comrade.uvdist.(datatable(rest))
+        uvdist = Stoked.uvdist.(datatable(rest))
 
         if rest isa EHTObservationTable{<:EHTCoherencyDatum}
             layout := (2,2)

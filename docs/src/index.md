@@ -4,7 +4,7 @@
 layout: home
 
 hero:
-  name: "Comrade.jl"
+  name: "Stoked.jl"
   text: "Composable Modeling of Radio Emission"
   tagline: A Bayesian differentiable modular modeling package for very long baseline interferometry.
   actions:
@@ -14,7 +14,7 @@ hero:
     - theme: alt
       icon: github
       text: View on Github
-      link: https://github.com/ptiede/Comrade.jl
+      link: https://github.com/ptiede/Stoked.jl
     - theme: alt
       text: Tutorials
       link: /tutorials

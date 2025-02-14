@@ -1,12 +1,12 @@
-module ComradeMakieExt
+module StokedMakieExt
 
 using Makie
-using Comrade
+using Stoked
 using Printf
 import Measurements
 
-import Comrade: plotfields, axisfields, plotcaltable, plotaxis
-import Comrade: baselineplot, baselineplot!
+import Stoked: plotfields, axisfields, plotcaltable, plotaxis
+import Stoked: baselineplot, baselineplot!
 
 @doc"""
     baselineplot(data, bl, fieldx, fieldy; kwargs...)
@@ -55,7 +55,7 @@ Makie.@recipe(BaselinePlot, data, bl, fieldx, fieldy) do scene
     )
 end
 
-function Makie.convert_arguments(::Type{<:BaselinePlot}, data::Comrade.EHTObservationTable, fieldx, fieldy)
+function Makie.convert_arguments(::Type{<:BaselinePlot}, data::Stoked.EHTObservationTable, fieldx, fieldy)
     return data, Colon(), fieldx, fieldy
 end
 
@@ -72,12 +72,12 @@ function convert_field(field::Symbol)
     field == :V && return x->x.baseline.V
     field == :Ti && return x->x.baseline.Ti
     field == :Fr && return x->x.baseline.Fr
-    field == :snr && return x->abs.(Comrade.measurement(x)) ./ noise(x)
+    field == :snr && return x->abs.(Stoked.measurement(x)) ./ noise(x)
     field == :uvdist && return uvdist
     field == :amp && return x->abs.(measurement(x))
     field == :phase && return x->angle.(measurement(x))
-    field == :res && return x->Comrade.measurement(x) ./ noise(x)
-    field == :measurement && return x->Comrade.measurement(x)
+    field == :res && return x->Stoked.measurement(x) ./ noise(x)
+    field == :measurement && return x->Stoked.measurement(x)
     field == :noise && return x->noise(x)
     field == :measwnoise && return x->measwnoise(x)
 
@@ -86,7 +86,7 @@ function convert_field(field::Symbol)
                         " :res, :measurement, :noise, :measwnoise)"))
 end
 
-function Makie.plot!(plot::BaselinePlot{<:Tuple{<:Comrade.EHTObservationTable, 
+function Makie.plot!(plot::BaselinePlot{<:Tuple{<:Stoked.EHTObservationTable, 
                                                 <:Union{Tuple{Symbol, Symbol}, Colon}, 
                                                 <:Any, <:Any}})
     @extract plot (data, bl, fieldx, fieldy)
@@ -173,12 +173,12 @@ function frequencylabel(ν::Number)
 end
 
 _frequency(d::EHTObservationTable) = domain(d).Fr
-_frequency(d::EHTObservationTable{<:Comrade.ClosureProducts}) = datatable(d).baseline.:(1).Fr
-measname(d::EHTObservationTable{<:Comrade.EHTVisibilityDatum}) = "Visibility (Jy)"
-measname(d::EHTObservationTable{<:Comrade.EHTClosurePhaseDatum}) = "Closure Phase (rad)"
-measname(d::EHTObservationTable{<:Comrade.EHTLogClosureAmplitudeDatum}) = "Log Closure Amplitude"
-measname(d::EHTObservationTable{<:Comrade.EHTCoherencyDatum}) = "Coherency (Jy)"
-measname(d::EHTObservationTable{<:Comrade.EHTVisibilityAmplitudeDatum}) = "Visibility Amplitude (Jy)"
+_frequency(d::EHTObservationTable{<:Stoked.ClosureProducts}) = datatable(d).baseline.:(1).Fr
+measname(d::EHTObservationTable{<:Stoked.EHTVisibilityDatum}) = "Visibility (Jy)"
+measname(d::EHTObservationTable{<:Stoked.EHTClosurePhaseDatum}) = "Closure Phase (rad)"
+measname(d::EHTObservationTable{<:Stoked.EHTLogClosureAmplitudeDatum}) = "Log Closure Amplitude"
+measname(d::EHTObservationTable{<:Stoked.EHTCoherencyDatum}) = "Coherency (Jy)"
+measname(d::EHTObservationTable{<:Stoked.EHTVisibilityAmplitudeDatum}) = "Visibility Amplitude (Jy)"
 
 _defaultlabel(f::Symbol) = _defaultlabel(Val(f))
 _defaultlabel(::Val{:U}) = "u (λ)"
@@ -190,7 +190,7 @@ _defaultlabel(::Val{:phase}) = "Visibility Phase (rad)"
 _defaultlabel(::Val{:uvdist}) = "Projected Baseline Distance λ"
 _defaultlabel(::Val{:snr}) = "SNR"
 _defaultlabel(::Val{:res}) = "Normalized Residual Visibility"
-_defaultlabel(::typeof(Comrade.uvdist)) = _defaultlabel(:uvdist)
+_defaultlabel(::typeof(Stoked.uvdist)) = _defaultlabel(:uvdist)
 _defaultlabel(f) = string(f)
 
 @doc"""
@@ -224,7 +224,7 @@ Plots two data fields against each other.
  - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
 function plotfields(
-    obsdata::Comrade.EHTObservationTable,
+    obsdata::Stoked.EHTObservationTable,
     field1,
     field2;
     legend = true,
@@ -285,7 +285,7 @@ function plotfields(
 end
 
 function plotfields(
-    obsdata::Comrade.EHTObservationTable,
+    obsdata::Stoked.EHTObservationTable,
     field1,
     field2,
     site1::Symbol,
@@ -343,7 +343,7 @@ be used to configure subplots.
 """
 function axisfields(
     fig::GridPosition,
-    obsdata::Comrade.EHTObservationTable,
+    obsdata::Stoked.EHTObservationTable,
     field1,
     field2;
     legend = true,
@@ -403,7 +403,7 @@ end
 
 function axisfields(
     fig::GridPosition,
-    obsdata::Comrade.EHTObservationTable,
+    obsdata::Stoked.EHTObservationTable,
     field1,
     field2,
     site1::Symbol,
@@ -486,7 +486,7 @@ end
     plotcaltable(gt...; width=150, height=125, layout=nothing, markers=nothing, labels=nothing, 
                         axis_kwargs=(;), legend_kwargs=(;), figure_kwargs=(;), scatter_kwargs=(;))
 
-Automatically generate a grid of subplots plotting the Comrade.CalTable information.
+Automatically generate a grid of subplots plotting the Stoked.CalTable information.
 Each subplot corresponds to a different station in the array.
 
 ## Argments
@@ -503,7 +503,7 @@ Each subplot corresponds to a different station in the array.
  - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
 function plotcaltable(
-    gt::Comrade.CalTable...;
+    gt::Stoked.CalTable...;
     width = 150,
     height = 125,
     layout = nothing,
@@ -514,7 +514,7 @@ function plotcaltable(
     figure_kwargs = (;),
     scatter_kwargs = (;),
 )
-    if gt isa Comrade.CalTable
+    if gt isa Stoked.CalTable
         gt = (gt,)
     end
     sitelist = sites(argmax(x->length(sites(x)), gt))

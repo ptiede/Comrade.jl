@@ -1,6 +1,6 @@
-module ComradeOptimizationExt
+module StokedOptimizationExt
 
-using Comrade
+using Stoked
 
 using Optimization
 using Distributions
@@ -8,13 +8,13 @@ using LinearAlgebra
 using HypercubeTransform
 using LogDensityProblems
 
-function Optimization.OptimizationFunction(post::Comrade.TransformedVLBIPosterior, args...; kwargs...)
+function Optimization.OptimizationFunction(post::Stoked.TransformedVLBIPosterior, args...; kwargs...)
     ℓ(x,p=post) = -logdensityof(p, x)
-    if isnothing(Comrade.admode(post))
+    if isnothing(Stoked.admode(post))
         return SciMLBase.OptimizationFunction(ℓ, args...; kwargs...)
     else
         function grad(G, x, p)
-            (_, dx) = Comrade.LogDensityProblems.logdensity_and_gradient(post, x)
+            (_, dx) = Stoked.LogDensityProblems.logdensity_and_gradient(post, x)
             dx .*= -1
             G .= dx
             return G
@@ -35,7 +35,7 @@ end
 # not the usual parameter space. This is better for constrained problems where
 # we may run up against a boundary.
 # """
-# function Comrade.comrade_laplace(post::VLBIPosterior, opt, adtype=Val(:ForwardDiff))
+# function Stoked.comrade_laplace(post::VLBIPosterior, opt, adtype=Val(:ForwardDiff))
 #     sol = solve(prob, opt, args...; kwargs...)
 #     f = Base.Fix2(prob.f, nothing)
 #     J = ForwardDiff.hessian(f, sol)
@@ -70,8 +70,8 @@ Optimize the posterior `post` using the `opt` optimizer.
  - `kwargs` : Additional keyword arguments passed `Optimization.jl` `solve` method.
 
 """
-function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params=nothing, lb=nothing, ub=nothing, cube=false, kwargs...)
-    if isnothing(Comrade.admode(post)) || cube
+function Stoked.comrade_opt(post::VLBIPosterior, opt, args...; initial_params=nothing, lb=nothing, ub=nothing, cube=false, kwargs...)
+    if isnothing(Stoked.admode(post)) || cube
         tpost = ascube(post)
     else
         tpost = asflat(post)
@@ -82,7 +82,7 @@ function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params=n
     if isnothing(initial_params)
         initial_params = prior_sample(tpost)
     else
-        initial_params = Comrade.inverse(tpost, initial_params)
+        initial_params = Stoked.inverse(tpost, initial_params)
     end
 
     if tpost.transform isa HypercubeTransform.AbstractHypercubeTransform

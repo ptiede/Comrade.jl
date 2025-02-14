@@ -2,7 +2,7 @@ using AdvancedHMC
 using Enzyme
 
 
-@testset "ComradeAdvancedHMCExt" begin
+@testset "StokedAdvancedHMCExt" begin
 
     _, _, _, lcamp, cphase = load_data()
     g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)

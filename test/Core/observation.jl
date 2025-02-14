@@ -18,7 +18,7 @@ using Tables
     obspolavg = scan_average(obspol)
 
 
-    vis1 = Comrade.extract_vis(obsavg)
+    vis1 = Stoked.extract_vis(obsavg)
     vis  = extract_table(obsavg, Visibilities())
     @test vis[:measurement] ≈ vis1[:measurement]
     @test vis[:noise] ≈ vis1[:noise]
@@ -35,7 +35,7 @@ using Tables
     Plots.plot(vis)
     show(vis)
 
-    amp1 = Comrade.extract_amp(obsavg)
+    amp1 = Stoked.extract_amp(obsavg)
     amp = extract_table(obsavg, VisibilityAmplitudes())
     @test amp[:measurement] ≈ amp1[:measurement]
     @test amp[:noise] ≈ amp1[:noise]
@@ -48,7 +48,7 @@ using Tables
     Plots.plot(amp)
     show(amp)
 
-    cphase1 = Comrade.extract_cphase(obsavg; snrcut=3.0)
+    cphase1 = Stoked.extract_cphase(obsavg; snrcut=3.0)
     cphase = extract_table(obsavg, ClosurePhases(;snrcut=3.0))
     @test cphase[:measurement] ≈ cphase1[:measurement]
     @test cphase[:noise] ≈ cphase1[:noise]
@@ -62,7 +62,7 @@ using Tables
     show(cphase)
 
 
-    lcamp1 = Comrade.extract_lcamp(obsavg; snrcut=3.0)
+    lcamp1 = Stoked.extract_lcamp(obsavg; snrcut=3.0)
     lcamp  = extract_table(obsavg, LogClosureAmplitudes(;snrcut=3.0))
     @test lcamp[:measurement] ≈ lcamp1[:measurement]
     @test lcamp[:noise] ≈ lcamp1[:noise]
@@ -75,7 +75,7 @@ using Tables
     Plots.plot(lcamp)
     show(lcamp)
 
-    dcoh1 = Comrade.extract_coherency(obspolavg)
+    dcoh1 = Stoked.extract_coherency(obspolavg)
     dcoh  = extract_table(obspolavg, Coherencies())
     @test dcoh[:measurement].:1 ≈ dcoh1[:measurement].:1
     @test dcoh[:noise].:1 ≈ dcoh1[:noise].:1
@@ -145,20 +145,20 @@ end
         dimg = dirty_image(μas2rad(150.0), 256, vis)
     end
 
-    @test vis[:measurement] == Comrade.measurement(vis)
-    @test vis[:noise] == Comrade.noise(vis)
+    @test vis[:measurement] == Stoked.measurement(vis)
+    @test vis[:noise] == Stoked.noise(vis)
     @test firstindex(vis) == 1
     @test lastindex(vis) == length(vis)
-    @test vis[1] isa Comrade.datumtype(vis)
-    @test vis[1:10] isa Comrade.EHTObservationTable
-    @test @view(vis[1:10]) isa Comrade.EHTObservationTable
+    @test vis[1] isa Stoked.datumtype(vis)
+    @test vis[1:10] isa Stoked.EHTObservationTable
+    @test @view(vis[1:10]) isa Stoked.EHTObservationTable
 
-    @test vis[1] isa Comrade.EHTVisibilityDatum
+    @test vis[1] isa Stoked.EHTVisibilityDatum
     @test Tables.istable(typeof(vis))
     @test Tables.columnaccess(typeof(vis))
     @test Tables.columns(vis) == datatable(vis)
-    @test Tables.getcolumn(vis, 1) == Comrade.measurement(vis)
-    @test lastindex(vis) == length(Comrade.measurement(vis))
+    @test Tables.getcolumn(vis, 1) == Stoked.measurement(vis)
+    @test lastindex(vis) == length(Stoked.measurement(vis))
     @test firstindex(vis) == 1
 
     @test beamsize(vis) == beamsize(arrayconfig(vis))
@@ -166,13 +166,13 @@ end
     show(IOBuffer(), arrayconfig(vis))
 
 
-    @test amp[:measurement] == Comrade.measurement(amp)
-    @test amp[:noise] == Comrade.noise(amp)
+    @test amp[:measurement] == Stoked.measurement(amp)
+    @test amp[:noise] == Stoked.noise(amp)
     @test firstindex(amp) == 1
     @test lastindex(amp) == length(amp)
-    @test amp[1] isa Comrade.datumtype(amp)
-    @test Comrade.measurement(amp[1]) == Comrade.measurement(amp)[1]
-    @test Comrade.noise(amp[1]) == Comrade.noise(amp)[1]
+    @test amp[1] isa Stoked.datumtype(amp)
+    @test Stoked.measurement(amp[1]) == Stoked.measurement(amp)[1]
+    @test Stoked.noise(amp[1]) == Stoked.noise(amp)[1]
     @test VLBISkyModels.polarization(amp[1]) == :I
 
 
@@ -184,7 +184,7 @@ end
 
     @test length(vis) == length(obsavg.data)
     @test length(amp) == length(obsavg.amp)
-    @test Comrade.amplitudes(vis.measurement, arrayconfig(amp)) ≈ amp.measurement
+    @test Stoked.amplitudes(vis.measurement, arrayconfig(amp)) ≈ amp.measurement
 
     println("observation: ")
     @test domain(vis) == domain(arrayconfig(vis))
@@ -204,47 +204,47 @@ end
     Plots.plot(ac)
     plotfields(vis, :U, :V)
 
-    d = Comrade.domain(ac)
+    d = Stoked.domain(ac)
     m = modify(Gaussian(), Stretch(μas2rad(40.0)))
     @test length(visibilitymap(m, d)) == length(ac)
 
     @testset "Closures" begin
         show(arrayconfig(cphase))
         @test propertynames(arrayconfig(cphase)) == propertynames(arrayconfig(vis))
-        @test size(Comrade.designmat(arrayconfig(cphase)), 2) == length(vis)
-        @test size(Comrade.designmat(arrayconfig(cphase)), 1) == length(cphase)
+        @test size(Stoked.designmat(arrayconfig(cphase)), 2) == length(vis)
+        @test size(Stoked.designmat(arrayconfig(cphase)), 1) == length(cphase)
         @test sites(cphase) == sites(arrayconfig(cphase))
         @test sites(cphase) == sites(vis)
-        @test Comrade.closure_phases(vis.measurement, Comrade.designmat(arrayconfig(cphase))) ≈ cphase.measurement
-        @test Comrade.factornoisecovariance(arrayconfig(cphase)) ≈ Comrade.VLBILikelihoods.CholeskyFactor(cphase[:noise])
+        @test Stoked.closure_phases(vis.measurement, Stoked.designmat(arrayconfig(cphase))) ≈ cphase.measurement
+        @test Stoked.factornoisecovariance(arrayconfig(cphase)) ≈ Stoked.VLBILikelihoods.CholeskyFactor(cphase[:noise])
         @test firstindex(cphase) == 1
         @test lastindex(cphase) == length(cphase)
-        @test cphase[1] isa Comrade.datumtype(cphase)
-        @test length(Comrade.triangle(cphase[1])) == 3
-        @test cphase[1:10] isa Comrade.EHTObservationTable
-        @test @view(cphase[1:10]) isa Comrade.EHTObservationTable
+        @test cphase[1] isa Stoked.datumtype(cphase)
+        @test length(Stoked.triangle(cphase[1])) == 3
+        @test cphase[1:10] isa Stoked.EHTObservationTable
+        @test @view(cphase[1:10]) isa Stoked.EHTObservationTable
 
 
 
         @test propertynames(arrayconfig(lcamp)) == propertynames(arrayconfig(vis))
-        @test size(Comrade.designmat(arrayconfig(lcamp)), 2) == length(vis)
-        @test size(Comrade.designmat(arrayconfig(lcamp)), 1) == length(lcamp)
+        @test size(Stoked.designmat(arrayconfig(lcamp)), 2) == length(vis)
+        @test size(Stoked.designmat(arrayconfig(lcamp)), 1) == length(lcamp)
         @test sites(lcamp) == sites(arrayconfig(lcamp))
         @test sites(lcamp) == sites(vis)
-        @test Comrade.logclosure_amplitudes(vis.measurement, Comrade.designmat(arrayconfig(lcamp))) ≈ lcamp.measurement
-        @test Comrade.factornoisecovariance(arrayconfig(lcamp)) ≈ Comrade.VLBILikelihoods.CholeskyFactor(lcamp[:noise])
+        @test Stoked.logclosure_amplitudes(vis.measurement, Stoked.designmat(arrayconfig(lcamp))) ≈ lcamp.measurement
+        @test Stoked.factornoisecovariance(arrayconfig(lcamp)) ≈ Stoked.VLBILikelihoods.CholeskyFactor(lcamp[:noise])
         @test firstindex(lcamp) == 1
         @test lastindex(lcamp) == length(lcamp)
-        @test lcamp[1] isa Comrade.datumtype(lcamp)
-        @test length(Comrade.quadrangle(lcamp[1])) == 4
+        @test lcamp[1] isa Stoked.datumtype(lcamp)
+        @test length(Stoked.quadrangle(lcamp[1])) == 4
 
         ac = arrayconfig(cphase)
-        @test ac[1] isa NTuple{3, Comrade.EHTArrayBaselineDatum}
+        @test ac[1] isa NTuple{3, Stoked.EHTArrayBaselineDatum}
         @test firstindex(ac) == 1
         @test lastindex(ac) == length(cphase)
         @test beamsize(ac) == beamsize(cphase)
-        @test @view(ac[1:10]) isa Comrade.ClosureConfig
-        @test (ac[1:10]) isa Comrade.ClosureConfig
+        @test @view(ac[1:10]) isa Stoked.ClosureConfig
+        @test (ac[1:10]) isa Stoked.ClosureConfig
 
 
     end
@@ -254,12 +254,12 @@ end
         obsavg = scan_average(obs)
 
         coh = extract_table(obsavg, Coherencies())
-        @test coh[:measurement].:1 == Comrade.measurement(coh).:1
+        @test coh[:measurement].:1 == Stoked.measurement(coh).:1
 
-        @test coh[:noise].:1 == Comrade.noise(coh).:1
+        @test coh[:noise].:1 == Stoked.noise(coh).:1
         @test firstindex(coh) == 1
         @test lastindex(coh) == length(coh)
-        @test coh[1] isa Comrade.datumtype(coh)
+        @test coh[1] isa Stoked.datumtype(coh)
         @test VLBISkyModels.polarization(coh[1]) == (CirBasis(), CirBasis())
 
     end
@@ -279,13 +279,13 @@ end
         @test firstindex(ttab) == 1
         @test lastindex(ttab) == length(ttab)
         eachindex(ttab)
-        @test ttab[1] isa Comrade.Scan
+        @test ttab[1] isa Stoked.Scan
         @test length(ttab[1:2]) == 2
-        @test eltype(ttab[1:2]) <: Comrade.Scan
+        @test eltype(ttab[1:2]) <: Stoked.Scan
 
 
         scan = ttab[10]
-        @test scan[1] isa Comrade.EHTVisibilityDatum
+        @test scan[1] isa Stoked.EHTVisibilityDatum
         first(ttab)
         last(ttab)
         bl = baseline(scan)
@@ -308,9 +308,9 @@ end
         @test firstindex(ttab) == 1
         @test lastindex(ttab) == length(ttab)
         eachindex(ttab)
-        @test ttab[1] isa Comrade.Scan
+        @test ttab[1] isa Stoked.Scan
         @test length(ttab[1:2]) == 2
-        @test eltype(ttab[1:2]) <: Comrade.Scan
+        @test eltype(ttab[1:2]) <: Stoked.Scan
 
 
         scan = ttab[10]

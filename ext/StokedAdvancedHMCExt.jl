@@ -1,6 +1,6 @@
-module ComradeAdvancedHMCExt
+module StokedAdvancedHMCExt
 
-using Comrade
+using Stoked
 using AdvancedHMC
 using AdvancedHMC: AbstractHMCSampler
 
@@ -35,7 +35,7 @@ end
 
 
 function AbstractMCMC.Sample(
-            rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior,
+            rng::Random.AbstractRNG, tpost::Stoked.TransformedVLBIPosterior,
             sampler::AbstractHMCSampler; initial_params=nothiing, kwargs...)
     θ0 = initialize_params(tpost, initial_params)
     model, smplr = make_sampler(rng, tpost, sampler, θ0)
@@ -63,13 +63,13 @@ saved to disk. If `initial_params` is not `nothing` then the sampler will start 
     To see the others see the AdvancedHMC documentation.
 """
 function AbstractMCMC.sample(
-        rng::Random.AbstractRNG, post::Comrade.VLBIPosterior,
+        rng::Random.AbstractRNG, post::Stoked.VLBIPosterior,
         sampler::AbstractHMCSampler, nsamples, args...;
         saveto=MemoryStore(), initial_params=nothing, kwargs...)
 
     saveto isa DiskStore && return sample_to_disk(rng, post, sampler, nsamples, args...; outdir=saveto.name, output_stride=min(saveto.stride, nsamples), initial_params, kwargs...)
 
-    if isnothing(Comrade.admode(post))
+    if isnothing(Stoked.admode(post))
         throw(ArgumentError("You must specify an automatic differentiation type in VLBIPosterior with admode kwarg"))
     else
         tpost = asflat(post)
@@ -89,7 +89,7 @@ function AbstractMCMC.sample(
 end
 
 # Disk sampling stuff goes here
-function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior,
+function initialize(rng::Random.AbstractRNG, tpost::Stoked.TransformedVLBIPosterior,
     sampler::AbstractHMCSampler, nsamples, outbase, args...;
     n_adapts = min(nsamples÷2, 1000),
     initial_params=nothing, outdir = "Results",
@@ -125,7 +125,7 @@ function initialize(rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPoste
     nscans = nsamples÷output_stride + (nsamples%output_stride!=0 ? 1 : 0)
 
     # Now save the output
-    out = Comrade.DiskOutput(abspath(outdir), nscans, output_stride, nsamples)
+    out = Stoked.DiskOutput(abspath(outdir), nscans, output_stride, nsamples)
     serialize(joinpath(outdir, "parameters.jls"), (;params=out))
 
     tmp = @timed iterate(pt)
@@ -147,7 +147,7 @@ function _process_samples(pt, tpost, next, time, nscans, out, outbase, outdir, i
           "  n-divergences:   $(sum(samplerstats(s).numerical_error))/$(length(stats))\n"*
           "  Avg log-post:    $(mean(samplerstats(s).log_density))\n")
 
-    serialize(outbase*(@sprintf "%05d.jls" iter), (samples=Comrade.postsamples(s), stats=Comrade.samplerstats(s)))
+    serialize(outbase*(@sprintf "%05d.jls" iter), (samples=Stoked.postsamples(s), stats=Stoked.samplerstats(s)))
     chain = nothing
     samples = nothing
     stats = nothing
@@ -157,7 +157,7 @@ function _process_samples(pt, tpost, next, time, nscans, out, outbase, outdir, i
     return state, iter
 end
 
-function sample_to_disk(rng::Random.AbstractRNG, post::Comrade.VLBIPosterior,
+function sample_to_disk(rng::Random.AbstractRNG, post::Stoked.VLBIPosterior,
                         sampler::AbstractHMCSampler, nsamples, args...;
                         n_adapts = min(nsamples÷2, 1000),
                         initial_params=nothing, outdir = "Results",

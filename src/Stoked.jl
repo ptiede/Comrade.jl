@@ -1,8 +1,8 @@
 """
-    Comrade
+    Stoked
 Composable Modeling of Radio Emission
 """
-module Comrade
+module Stoked
 
 using AbstractMCMC
 using Accessors: @set
@@ -33,17 +33,17 @@ using StructArrays: StructVector, StructArray, append!!
 import StructArrays
 using Tables
 import TransformVariables as TV
-using ComradeBase: AbstractDomain, AbstractSingleDomain, AbstractRectiGrid
+using StokedBase: AbstractDomain, AbstractSingleDomain, AbstractRectiGrid
 using VLBISkyModels: FourierTransform, FourierDualDomain
 
-# Reexport the core libraries for Comrade
+# Reexport the core libraries for Stoked
 @reexport using VLBISkyModels
-@reexport using ComradeBase
+@reexport using StokedBase
 @reexport using PolarizedTypes
 @reexport using VLBIImagePriors
 
 export linearpol, mbreve, evpa
-using ComradeBase: AbstractRectiGrid, AbstractDomain, UnstructuredDomain,
+using StokedBase: AbstractRectiGrid, AbstractDomain, UnstructuredDomain,
                    AbstractModel, AbstractPolarizedModel, AbstractHeader
 
 
@@ -51,7 +51,7 @@ using ComradeBase: AbstractRectiGrid, AbstractDomain, UnstructuredDomain,
 export rad2μas, μas2rad, logdensity_def, logdensityof
 
 
-import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
+import StokedBase: flux, radialextent, intensitymap, intensitymap!,
                     intensitymap_analytic, intensitymap_analytic!,
                     intensitymap_numeric, intensitymap_numeric!,
                     visibilitymap, visibilitymap!,

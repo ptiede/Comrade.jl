@@ -1,7 +1,7 @@
 using Dynesty
 
 
-@testset "ComradeDynestyExt" begin
+@testset "StokedDynestyExt" begin
     m, vis, amp, lcamp, cphase = load_data()
     prior = test_prior()
     g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)

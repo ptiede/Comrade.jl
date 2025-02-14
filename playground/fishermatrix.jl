@@ -9,7 +9,7 @@ Compute the Fisher information matrix of a `model` transformed by `t` using the 
 backend to `AbstractDifferentiation` you want to use to compute derivatives.
 
 `model` is assumed to be a function that takes the `NamedTuple`, `θ` and returns
-a `<:Comrade.AbstractModel` that coincides with the visibility model you want to consider.
+a `<:Stoked.AbstractModel` that coincides with the visibility model you want to consider.
 
 This returns a `Tuple` where the first entry is Fisher information metric and the second
 is distribution assuming that the mean is the transformed `θ` and the covariance matrix

@@ -52,11 +52,11 @@ datumtype(::AbstractObservationTable{T}) where {T} = T
 
 
 """
-    domain(obs::AbstractObservationTable; executor=Serial(), header=ComradeBase.NoHeader()
+    domain(obs::AbstractObservationTable; executor=Serial(), header=StokedBase.NoHeader()
 
 Returns the u, v, time, frequency domain of the observation.
 """
-function domain(obs::AbstractObservationTable; executor=Serial(), header=ComradeBase.NoHeader())
+function domain(obs::AbstractObservationTable; executor=Serial(), header=StokedBase.NoHeader())
     return domain(arrayconfig(obs); executor, header)
 end
 
@@ -123,7 +123,7 @@ end
 """
     $(TYPEDEF)
 
-The main data product type in `Comrade` this stores the `data` which can be a StructArray
+The main data product type in `Stoked` this stores the `data` which can be a StructArray
 of any `AbstractInterferometryDatum` type. Note that the underlying structure is not part
 of the public API. Users should typically construct tables from the [`extract_table`](@ref)
 function.

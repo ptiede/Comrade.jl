@@ -29,8 +29,8 @@ close(pkg_io) #hide
 
 # ## Loading the Data
 
-# To get started we will load Comrade
-using Comrade
+# To get started we will load Stoked
+using Stoked
 
 # ## Load the Data
 
@@ -106,7 +106,7 @@ intmodel = InstrumentModel(G, intpr)
 # the visibilities given the image model. This is required since `ContinuousImage` is most easily
 # computed using number Fourier transforms like the [`NFFT`](https://github.com/JuliaMath/NFFT.jl)
 # or [FFT](https://github.com/JuliaMath/FFTW.jl).
-# To combine the models, we use `Comrade`'s overloaded `+` operators, which will combine the
+# To combine the models, we use `Stoked`'s overloaded `+` operators, which will combine the
 # images such that their intensities and visibilities are added pointwise.
 
 # Now let's define our metadata. First we will define the cache for the image. This is
@@ -188,7 +188,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 
 # To improve our results we will now move to Posterior sampling. This is the main method
-# we recommend for all inference problems in `Comrade`. While it is slower the results are
+# we recommend for all inference problems in `Stoked`. While it is slower the results are
 # often substantially better. To sample we will use the `AdvancedHMC` package.
 using AdvancedHMC
 chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
@@ -218,7 +218,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 #-
 #
 # We can also split up the model into its components and analyze each separately
-comp = Comrade.components.(msamples)
+comp = Stoked.components.(msamples)
 ring_samples = getindex.(comp, 2)
 rast_samples = first.(comp)
 ring_imgs = intensitymap.(ring_samples, Ref(gpl));

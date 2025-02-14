@@ -4,7 +4,7 @@ export SkyModel, FixedSkyModel
 """
     AbstractSkyModel
 
-The abstract type for Comrade Sky Models. For a concrete implementation see [`SkyModel`](@ref).
+The abstract type for Stoked Sky Models. For a concrete implementation see [`SkyModel`](@ref).
 
 Any subtype must implement the following methods
 
@@ -103,7 +103,7 @@ function ObservedSkyModel(m::SkyModel, arr::AbstractArrayConfiguration)
     x = rand(NamedDist(m.prior))
     ms = m.f(x, m.metadata)
     # if analytic don't bother planning the FT
-    if ComradeBase.visanalytic(typeof(ms)) === ComradeBase.IsAnalytic()
+    if StokedBase.visanalytic(typeof(ms)) === StokedBase.IsAnalytic()
         g = FourierDualDomain(m.grid, arr, AnalyticAlg())
     else
         g = FourierDualDomain(m.grid, arr, m.algorithm)

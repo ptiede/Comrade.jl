@@ -154,9 +154,9 @@ function Tables.getcolumn(g::CalTableRow, nm::Symbol)
     return gmat(src)[getfield(g, :row), lookup(src)[nm]]
 end
 
-@recipe function f(gt::CalTable; sites=Comrade.sites(gt), datagains=false)
+@recipe function f(gt::CalTable; sites=Stoked.sites(gt), datagains=false)
 
-    @argcheck prod(sites .∈ Ref(Comrade.sites(gt))) "passed site isn't in array\n"*
+    @argcheck prod(sites .∈ Ref(Stoked.sites(gt))) "passed site isn't in array\n"*
                                                 "sites:     $(sites)\n"*
                                                 "telescope: $(sites(gt))"
     #if !datagains
@@ -232,7 +232,7 @@ end
 Creates a calibration table from a site array
 """
 function caltable(sarr::SiteArray)
-    sites = sort(unique(Comrade.sites(sarr)))
+    sites = sort(unique(Stoked.sites(sarr)))
     tf = collect(Iterators.product(unique(times(sarr))|>sort, unique(frequencies(sarr))|>sort))
     time = vec(first.(tf))
     freq = vec(last.(tf))

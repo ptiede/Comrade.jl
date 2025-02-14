@@ -1,8 +1,8 @@
 using Pkg;Pkg.activate(@__DIR__)
-using Comrade
+using Stoked
 using Plots
-using ComradeAHMC
-using ComradeOptimization
+using StokedAHMC
+using StokedOptimization
 using OptimizationBBO
 using Distributions
 using DistributionsAD
@@ -37,15 +37,15 @@ dcphase = extract_cphase(obsim)
 damp = extract_amp(obsim)
 st = timetable(damp)
 
-gcache = Comrade.GainCache(st)
+gcache = Stoked.GainCache(st)
 
-# Now create the Comrade Gain model
+# Now create the Stoked Gain model
 struct Model{G}
     gcache::G
 end
 
-function Model(st::Comrade.TimeTable)
-    gcache = Comrade.GainCache(st)
+function Model(st::Stoked.TimeTable)
+    gcache = Stoked.GainCache(st)
     return Model{typeof(gcache)}(gcache)
 end
 
@@ -70,7 +70,7 @@ prior = (
           σ = Uniform(μas2rad(10.0), μas2rad(30.0)),
           τ = Uniform(0.1, 1.0),
           ξ = Uniform(-π/2, π/2),
-          gamp = Comrade.GainPrior(distamp, st),
+          gamp = Stoked.GainPrior(distamp, st),
         )
 # Now form the posterior
 
@@ -85,7 +85,7 @@ tpost = asflat(post)
 
 ndim = dimension(tpost)
 f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
-x0 = Comrade.HypercubeTransform.inverse(tpost, rand(post.prior))
+x0 = Stoked.HypercubeTransform.inverse(tpost, rand(post.prior))
 
 using OptimizationOptimJL
 prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)
@@ -93,7 +93,7 @@ sol = solve(prob, LBFGS(); g_tol=1e-5, maxiters=2_000)
 
 @info sol.minimum
 
-xopt = Comrade.transform(tpost, sol)
+xopt = Stoked.transform(tpost, sol)
 
 residual(mms(xopt), damp)
 
@@ -102,7 +102,7 @@ plot(caltable(mms(xopt)), layout=(3,3), size=(600,500))
 # Compare the results for LMT
 ctab = caltable(mms(xopt))
 scatter(ctab[:time], inv.(ctab[:LM]),
-        label="Comrade", size=(400,300),
+        label="Stoked", size=(400,300),
         xlabel="Time (hr)",
         ylabel="LMT Gain Amp.",
         )

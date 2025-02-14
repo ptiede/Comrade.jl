@@ -1,4 +1,4 @@
-using Comrade
+using Stoked
 using Distributions
 using BenchmarkTools
 using Pyehtim

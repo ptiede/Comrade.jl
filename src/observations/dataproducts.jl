@@ -19,7 +19,7 @@ In addition note we have changed the following:
 
 ## Warning
 
-The `count` keyword argument is treated specially in `Comrade`. The default option
+The `count` keyword argument is treated specially in `Stoked`. The default option
 is "min-correct" and should almost always be used.
 This option construct a minimal set of closure phases that is valid even when
 the array isn't fully connected. For testing and legacy reasons we `ehtim` other count
@@ -45,7 +45,7 @@ In addition note we have changed the following:
 Returns an EHTObservation with log-closure amp. datums
 
 ## Warning
-The `count` keyword argument is treated specially in `Comrade`. The default option
+The `count` keyword argument is treated specially in `Stoked`. The default option
 is "min-correct" and should almost always be used.
 This option construct a minimal set of closure phases that is valid even when
 the array isn't fully connected. For testing and legacy reasons we `ehtim` other count
@@ -105,9 +105,9 @@ end
 """
     extract_table(obs, dataproducts::VLBIDataProducts)
 
-Extract an [`Comrade.EHTObservationTable`](@ref) table of data products `dataproducts`.
+Extract an [`Stoked.EHTObservationTable`](@ref) table of data products `dataproducts`.
 To pass additional keyword for the data products you can pass them as keyword arguments
-to the data product type. For a list of potential data products see `subtypes(Comrade.VLBIDataProducts)`.
+to the data product type. For a list of potential data products see `subtypes(Stoked.VLBIDataProducts)`.
 
 # Example
 ```julia-repl
@@ -147,7 +147,7 @@ end
 
 Extracts the closure phases from an `obs`.
 This is an internal method for dispatch. Only use this if
-interfacing Comrade with a new data type.
+interfacing Stoked with a new data type.
 """
 function extract_cphase    end
 """
@@ -155,7 +155,7 @@ function extract_cphase    end
 
 Extracts the log-closure amplitudes from an `obs`.
 This is an internal method for dispatch. Only use this if
-interfacing Comrade with a new data type.
+interfacing Stoked with a new data type.
 """
 function extract_lcamp     end
 """
@@ -163,7 +163,7 @@ function extract_lcamp     end
 
 Extracts the visibility amplitudes from an `obs`.
 This is an internal method for dispatch. Only use this if
-interfacing Comrade with a new data type.
+interfacing Stoked with a new data type.
 """
 function extract_amp       end
 """
@@ -171,7 +171,7 @@ function extract_amp       end
 
 Extracts the stokes I complex visibilities from an obs.
 This is an internal method for dispatch. Only use this if
-interfacing Comrade with a new data type.
+interfacing Stoked with a new data type.
 """
 function extract_vis       end
 """
@@ -179,6 +179,6 @@ function extract_vis       end
 
 Extracts the full coherency matrix from an observation.
 This is an internal method for dispatch. Only use this if
-interfacing Comrade with a new data type.
+interfacing Stoked with a new data type.
 """
 function extract_coherency end

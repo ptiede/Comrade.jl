@@ -1,4 +1,4 @@
-# Comrade API
+# Stoked API
 
 ## Index
 
@@ -7,7 +7,7 @@ Pages = ["api.md"]
 ```
 
 ```@docs
-Comrade.Comrade
+Stoked.Stoked
 ```
 
 ## Model Definitions
@@ -26,55 +26,55 @@ For the description of the model API see [VLBISkyModels](https://ehtjulia.github
 ### Data Tables
 
 ```@docs
-Comrade.AbstractVLBITable
-Comrade.datatable
-Comrade.AbstractArrayConfiguration
-Comrade.EHTArrayBaselineDatum
-Comrade.EHTArrayConfiguration
-Comrade.ClosureConfig
-Comrade.sites(::Comrade.AbstractArrayConfiguration)
-Comrade.domain(::Comrade.AbstractArrayConfiguration)
-Comrade.beamsize(::Comrade.AbstractArrayConfiguration)
-Comrade.logclosure_amplitudes
-Comrade.closure_phases
-Comrade.AbstractObservationTable
-Comrade.EHTObservationTable
-Comrade.domain(::Comrade.AbstractObservationTable)
-Comrade.arrayconfig(::Comrade.AbstractObservationTable)
-Comrade.beamsize(::Comrade.AbstractObservationTable)
-Comrade.sites(::Comrade.AbstractObservationTable)
-Comrade.TimeTable
-Comrade.Scan
-Comrade.timetable
-Comrade.flag
-Base.filter(::Any, ::Comrade.EHTObservationTable)
-Comrade.select_baseline
-Comrade.add_fractional_noise
+Stoked.AbstractVLBITable
+Stoked.datatable
+Stoked.AbstractArrayConfiguration
+Stoked.EHTArrayBaselineDatum
+Stoked.EHTArrayConfiguration
+Stoked.ClosureConfig
+Stoked.sites(::Stoked.AbstractArrayConfiguration)
+Stoked.domain(::Stoked.AbstractArrayConfiguration)
+Stoked.beamsize(::Stoked.AbstractArrayConfiguration)
+Stoked.logclosure_amplitudes
+Stoked.closure_phases
+Stoked.AbstractObservationTable
+Stoked.EHTObservationTable
+Stoked.domain(::Stoked.AbstractObservationTable)
+Stoked.arrayconfig(::Stoked.AbstractObservationTable)
+Stoked.beamsize(::Stoked.AbstractObservationTable)
+Stoked.sites(::Stoked.AbstractObservationTable)
+Stoked.TimeTable
+Stoked.Scan
+Stoked.timetable
+Stoked.flag
+Base.filter(::Any, ::Stoked.EHTObservationTable)
+Stoked.select_baseline
+Stoked.add_fractional_noise
 ```
 
 ### Datums
 
 ```@docs
-Comrade.AbstractVisibilityDatum
-Comrade.EHTCoherencyDatum
-Comrade.EHTVisibilityDatum
-Comrade.EHTVisibilityAmplitudeDatum
-Comrade.EHTLogClosureAmplitudeDatum
-Comrade.EHTClosurePhaseDatum
-Comrade.triangle
-Comrade.baseline
-Comrade.quadrangle
+Stoked.AbstractVisibilityDatum
+Stoked.EHTCoherencyDatum
+Stoked.EHTVisibilityDatum
+Stoked.EHTVisibilityAmplitudeDatum
+Stoked.EHTLogClosureAmplitudeDatum
+Stoked.EHTClosurePhaseDatum
+Stoked.triangle
+Stoked.baseline
+Stoked.quadrangle
 ```
 
 ### Data Products
 
 ```@docs
-Comrade.extract_table
-Comrade.Visibilities
-Comrade.VisibilityAmplitudes
-Comrade.ClosurePhases
-Comrade.LogClosureAmplitudes
-Comrade.Coherencies
+Stoked.extract_table
+Stoked.Visibilities
+Stoked.VisibilityAmplitudes
+Stoked.ClosurePhases
+Stoked.LogClosureAmplitudes
+Stoked.Coherencies
 ```
 
 
@@ -84,110 +84,110 @@ Comrade.Coherencies
 ### Sky Models
 
 ```@docs
-Comrade.AbstractSkyModel
-Comrade.SkyModel
-Comrade.FixedSkyModel
-Comrade.idealvisibilities
-Comrade.skymodel(::Comrade.AbstractVLBIPosterior, ::Any)
+Stoked.AbstractSkyModel
+Stoked.SkyModel
+Stoked.FixedSkyModel
+Stoked.idealvisibilities
+Stoked.skymodel(::Stoked.AbstractVLBIPosterior, ::Any)
 ```
 
 ### Instrument Models
 
 ```@docs
-Comrade.CalTable
-Comrade.caltable(::Comrade.SiteArray)
-Comrade.sites(::Comrade.CalTable)
-Comrade.IIDSitePrior
-Comrade.ArrayPrior
-Comrade.Segmentation
-Comrade.IntegSeg
-Comrade.ScanSeg
-Comrade.TrackSeg
-Comrade.timestamps
-Comrade.SingleReference
-Comrade.SEFDReference
-Comrade.SingleStokesGain
-Comrade.JonesG
-Comrade.JonesD
-Comrade.JonesR
-Comrade.JonesF
-Comrade.GenericJones
-Comrade.JonesSandwich
-Comrade.AbstractInstrumentModel
-Comrade.IdealInstrumentModel
-Comrade.InstrumentModel
-Comrade.SiteArray
-Comrade.SiteLookup
-Comrade.forward_jones
+Stoked.CalTable
+Stoked.caltable(::Stoked.SiteArray)
+Stoked.sites(::Stoked.CalTable)
+Stoked.IIDSitePrior
+Stoked.ArrayPrior
+Stoked.Segmentation
+Stoked.IntegSeg
+Stoked.ScanSeg
+Stoked.TrackSeg
+Stoked.timestamps
+Stoked.SingleReference
+Stoked.SEFDReference
+Stoked.SingleStokesGain
+Stoked.JonesG
+Stoked.JonesD
+Stoked.JonesR
+Stoked.JonesF
+Stoked.GenericJones
+Stoked.JonesSandwich
+Stoked.AbstractInstrumentModel
+Stoked.IdealInstrumentModel
+Stoked.InstrumentModel
+Stoked.SiteArray
+Stoked.SiteLookup
+Stoked.forward_jones
 ```
 
 
 ### Posterior Constructions
 
 ```@docs
-Comrade.AbstractVLBIPosterior
-Comrade.logprior
-Comrade.loglikelihood
-Comrade.dataproducts
-Comrade.skymodel
-Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior)
-Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior, ::Any)
-Comrade.forward_model
-Comrade.prior_sample
-Comrade.likelihood
-Comrade.VLBIPosterior
-Comrade.simulate_observation
-Comrade.residuals
-Comrade.TransformedVLBIPosterior
-HypercubeTransform.transform(::Comrade.TransformedVLBIPosterior, ::Any)
-HypercubeTransform.inverse(::Comrade.TransformedVLBIPosterior, ::Any)
-HypercubeTransform.ascube(::Comrade.VLBIPosterior)
-HypercubeTransform.asflat(::Comrade.VLBIPosterior)
+Stoked.AbstractVLBIPosterior
+Stoked.logprior
+Stoked.loglikelihood
+Stoked.dataproducts
+Stoked.skymodel
+Stoked.instrumentmodel(::Stoked.AbstractVLBIPosterior)
+Stoked.instrumentmodel(::Stoked.AbstractVLBIPosterior, ::Any)
+Stoked.forward_model
+Stoked.prior_sample
+Stoked.likelihood
+Stoked.VLBIPosterior
+Stoked.simulate_observation
+Stoked.residuals
+Stoked.TransformedVLBIPosterior
+HypercubeTransform.transform(::Stoked.TransformedVLBIPosterior, ::Any)
+HypercubeTransform.inverse(::Stoked.TransformedVLBIPosterior, ::Any)
+HypercubeTransform.ascube(::Stoked.VLBIPosterior)
+HypercubeTransform.asflat(::Stoked.VLBIPosterior)
 ```
 
 ### Inference
 ```@docs
-Comrade.comrade_opt
-Comrade.MemoryStore
-Comrade.DiskStore
-Comrade.load_samples
-Comrade.PosteriorSamples
-Comrade.postsamples
-Comrade.samplerstats
-Comrade.samplerinfo
-Comrade.resample_equal
-Comrade.residual
-Comrade.residual_data
-Comrade.chi2
+Stoked.comrade_opt
+Stoked.MemoryStore
+Stoked.DiskStore
+Stoked.load_samples
+Stoked.PosteriorSamples
+Stoked.postsamples
+Stoked.samplerstats
+Stoked.samplerinfo
+Stoked.resample_equal
+Stoked.residual
+Stoked.residual_data
+Stoked.chi2
 ```
 
 ## Misc
 
 ```@docs
-Comrade.site_tuple
-Comrade.dirty_image
-Comrade.dirty_beam
-Comrade.beamsize
-Comrade.apply_fluctuations
-Comrade.corr_image_prior
-Comrade.rmap
+Stoked.site_tuple
+Stoked.dirty_image
+Stoked.dirty_beam
+Stoked.beamsize
+Stoked.apply_fluctuations
+Stoked.corr_image_prior
+Stoked.rmap
 ```
 
 ## Internal (Not Public API)
 
 ```@docs
-Comrade.build_datum
-Comrade.ObservedSkyModel
+Stoked.build_datum
+Stoked.ObservedSkyModel
 ```
 
 ### eht-imaging interface (Internal)
 
 ```@docs
-Comrade.extract_amp
-Comrade.extract_cphase
-Comrade.extract_lcamp
-Comrade.extract_vis
-Comrade.extract_coherency
+Stoked.extract_amp
+Stoked.extract_cphase
+Stoked.extract_lcamp
+Stoked.extract_vis
+Stoked.extract_coherency
 ```
 
 ## Plotting
@@ -197,8 +197,8 @@ Comrade.extract_coherency
 A user must first load `Makie` or a `Makie` backend, e.g., `CairoMakie` to use this functionality
 
 ```@docs
-Comrade.plotfields
-Comrade.axisfields
-Comrade.plotcaltable
-Comrade.baselineplot
+Stoked.plotfields
+Stoked.axisfields
+Stoked.plotcaltable
+Stoked.baselineplot
 ```

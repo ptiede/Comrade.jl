@@ -1,17 +1,17 @@
 # Benchmarks
 
-`Comrade` was partially designed with performance in mind. Solving imaging inverse problems is traditionally very computationally expensive, especially since Comrade uses Bayesian inference. To benchmark `Comrade` we will compare it to two of the most common modeling or imaging packages within the EHT:
+`Stoked` was partially designed with performance in mind. Solving imaging inverse problems is traditionally very computationally expensive, especially since Stoked uses Bayesian inference. To benchmark `Stoked` we will compare it to two of the most common modeling or imaging packages within the EHT:
 
 - [eht-imaging](https://github.com/achael/eht-imaging/)
 - [Themis](https://iopscience.iop.org/article/10.3847/1538-4357/ab91a4)
 
 `eht-imaging`[^1] or `ehtim` is a Python package that is widely used within the EHT for its imaging and modeling interfaces. It is easy to use and is commonly used in the EHT. However, to specify the model, the user must specify how to calculate the model's complex visibilities **and** its gradients, allowing eht-imaging's modeling package to achieve acceptable speeds.
 
-Themis is a C++ package focused on providing Bayesian estimates of the image structure. In fact, `Comrade` took some design cues from `Themis`. Themis has been used in various EHT publications and is the standard Bayesian modeling tool used in the EHT. However, `Themis` is quite challenging to use and requires a high level of knowledge from its users, requiring them to understand makefile, C++, and the MPI standard. Additionally, Themis provides no infrastructure to compute gradients, instead relying on finite differencing, which scales poorly for large numbers of model parameters. 
+Themis is a C++ package focused on providing Bayesian estimates of the image structure. In fact, `Stoked` took some design cues from `Themis`. Themis has been used in various EHT publications and is the standard Bayesian modeling tool used in the EHT. However, `Themis` is quite challenging to use and requires a high level of knowledge from its users, requiring them to understand makefile, C++, and the MPI standard. Additionally, Themis provides no infrastructure to compute gradients, instead relying on finite differencing, which scales poorly for large numbers of model parameters. 
 
 ## Benchmarking Problem
 
-For our benchmarking problem, we analyze a situation very similar to the one explained in  Namely, we will consider fitting 2017 M87 April 6 data using an m-ring and a single Gaussian component. Please see the end of this page to see the code we used for `Comrade` and `eht-imaging`.
+For our benchmarking problem, we analyze a situation very similar to the one explained in  Namely, we will consider fitting 2017 M87 April 6 data using an m-ring and a single Gaussian component. Please see the end of this page to see the code we used for `Stoked` and `eht-imaging`.
 
 ## Results
 
@@ -20,7 +20,7 @@ All tests were run using the following system
 ```julia
 Julia Version 1.10.3
 Python Version 3.10.12
-Comrade Version 0.10.0
+Stoked Version 0.10.0
 eht-imaging Version 1.2.7
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
@@ -32,14 +32,14 @@ Platform Info:
 
 Our benchmark results are the following:
 
-| | Comrade (micro sec) | eht-imaging (micro sec) | Themis (micro sec)|
+| | Stoked (micro sec) | eht-imaging (micro sec) | Themis (micro sec)|
 |---|---|---|---|
 | posterior eval (min) | 31.1  | 445  | 55  |
 | posterior eval (mean) | 31.8  | 476  | 60  |
 | grad posterior eval (min) |  104 (Enzyme) | 1898  | 1809  |
 | grad posterior eval (mean) |  107 (Enzyme) | 1971 |  1866  |
 
-Therefore, for this test we found that `Comrade` was the fastest method in all tests. For the posterior evaluation we found that Comrade is > 10x faster than `eht-imaging`, and 2x faster then `Themis`. For gradient evaluations we have `Comrade` is > 15x faster than both `eht-imaging` and `Themis`.
+Therefore, for this test we found that `Stoked` was the fastest method in all tests. For the posterior evaluation we found that Stoked is > 10x faster than `eht-imaging`, and 2x faster then `Themis`. For gradient evaluations we have `Stoked` is > 15x faster than both `eht-imaging` and `Themis`.
 
 [^1]: Chael A, et al. *Interferometric Imaging Directly with Closure Phases* 2018 ApJ 857 1 arXiv:1803/07088
 

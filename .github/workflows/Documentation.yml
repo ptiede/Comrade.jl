@@ -43,7 +43,7 @@ jobs:
           version: '1.10'
       - uses: julia-actions/cache@v2
       - name: Install docs dependencies
-        run: julia --project=docs -e 'using Pkg; Pkg.develop([PackageSpec(path=pwd()), PackageSpec(url="https://github.com/ptiede/ComradeBase.jl")]); Pkg.instantiate()'
+        run: julia --project=docs -e 'using Pkg; Pkg.develop([PackageSpec(path=pwd()), PackageSpec(url="https://github.com/ptiede/StokedBase.jl")]); Pkg.instantiate()'
       - name: Build Tutorials
         run: julia --project=docs -e 'include(joinpath(pwd(), "docs", "tutorials.jl"))'
       - name: Build and deploy docs

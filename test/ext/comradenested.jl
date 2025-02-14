@@ -2,7 +2,7 @@
 using Random
 
 
-# @testset "ComradeNestedExt" begin
+# @testset "StokedNestedExt" begin
 #     _, _, _, lcamp, cphase = load_data()
 #     g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
 #     skym = SkyModel(test_model, test_prior(), g)
@@ -10,7 +10,7 @@ using Random
 #     a1 = Nested(dimension(ascube(post)), 1000)
 
 #     chain = sample(Random.default_rng(), post, a1; dlogz=0.01, progress=false)
-#     echain = Comrade.resample_equal(chain, 1000)
+#     echain = Stoked.resample_equal(chain, 1000)
 
 
 #     #cpost = ascube(post)

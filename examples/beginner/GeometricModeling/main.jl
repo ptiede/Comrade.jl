@@ -10,19 +10,19 @@ close(pkg_io) #hide
 
 # # Geometric Modeling of EHT Data
 
-# `Comrade` has been designed to work with the EHT and ngEHT.
+# `Stoked` has been designed to work with the EHT and ngEHT.
 # In this tutorial, we will show how to reproduce some of the results
 # from [EHTC VI 2019](https://iopscience.iop.org/article/10.3847/2041-8213/ab1141).
 
 # In EHTC VI, they considered fitting simple geometric models to the data
 # to estimate the black hole's image size, shape, brightness profile, etc.
 # In this tutorial, we will construct a similar model and fit it to the data in under
-# 50 lines of code (sans comments). To start, we load Comrade and some other packages we need.
+# 50 lines of code (sans comments). To start, we load Stoked and some other packages we need.
 
-# To get started we load Comrade.
+# To get started we load Stoked.
 #-
 
-using Comrade
+using Stoked
 
 
 # Currently we use eht-imaging for data management, however this will soon be replaced
@@ -35,7 +35,7 @@ rng = StableRNG(42)
 # The next step is to load the data. We will use the publically
 # available M 87 data which can be downloaded
 # from [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019).
-# For an introduction to data loading, see [Loading Data into Comrade](@ref).
+# For an introduction to data loading, see [Loading Data into Stoked](@ref).
 obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # Now we will kill 0-baselines since we don't care about large-scale flux and
@@ -55,7 +55,7 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosureP
 # infinitely thin delta ring with an azimuthal structure given by a Fourier expansion.
 # To give the MRing some width, we will convolve the ring with a Gaussian and add an
 # additional gaussian to the image to model any non-ring flux.
-# Comrade expects that any model function must accept a named tuple and returns  must always
+# Stoked expects that any model function must accept a named tuple and returns  must always
 # return an object that implements the [VLBISkyModels Interface](https://ehtjulia.github.io/VLBISkyModels.jl/stable/interface/)
 #-
 function sky(θ, p)
@@ -68,7 +68,7 @@ function sky(θ, p)
 end
 
 # To construct our likelihood `p(V|M)` where `V` is our data and `M` is our model, we use the `RadioLikelihood` function.
-# The first argument of `RadioLikelihood` is always a function that constructs our Comrade
+# The first argument of `RadioLikelihood` is always a function that constructs our Stoked
 # model from the set of parameters `θ`.
 
 # We now need to specify the priors for our model. The easiest way to do this is to
@@ -149,8 +149,8 @@ fpost = asflat(post)
 p = prior_sample(rng, post)
 
 # and then transform it to transformed space using T
-logdensityof(cpost, Comrade.inverse(cpost, p))
-logdensityof(fpost, Comrade.inverse(fpost, p))
+logdensityof(cpost, Stoked.inverse(cpost, p))
+logdensityof(fpost, Stoked.inverse(fpost, p))
 
 # note that the log densit is not the same since the transformation has causes a jacobian to ensure volume is preserved.
 
@@ -158,7 +158,7 @@ logdensityof(fpost, Comrade.inverse(fpost, p))
 
 # Typically, most VLBI modeling codes only care about finding the optimal or best guess
 # image of our posterior `post` To do this, we will use [`Optimization.jl`](https://docs.sciml.ai/Optimization/stable/) and
-# specifically the [`BlackBoxOptim.jl`](https://github.com/robertfeldt/BlackBoxOptim.jl) package. For Comrade, this workflow is
+# specifically the [`BlackBoxOptim.jl`](https://github.com/robertfeldt/BlackBoxOptim.jl) package. For Stoked, this workflow is
 # we use the [`comrade_opt`](@ref) function.
 
 using Optimization
@@ -177,11 +177,11 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # ### Quantifying the Uncertainty of the Reconstruction
 
 # While finding the optimal image is often helpful, in science, the most important thing is to
-# quantify the certainty of our inferences. This is the goal of Comrade. In the language
+# quantify the certainty of our inferences. This is the goal of Stoked. In the language
 # of Bayesian statistics, we want to find a representation of the posterior of possible image
 # reconstructions given our choice of model and the data.
 #
-# Comrade provides several sampling and other posterior approximation tools. To see the
+# Stoked provides several sampling and other posterior approximation tools. To see the
 # list, please see the Libraries section of the docs. For this example, we will be using
 # [Pigeons.jl](https://github.com/Julia-Tempering/Pigeons.jl) which is a state-of-the-art
 # parallel tempering sampler that enables global exploration of the posterior. For smaller dimension
@@ -209,7 +209,7 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
-# model is fitting the data we can plot the model and data products. As of Comrade 0.11.7 Makie
+# model is fitting the data we can plot the model and data products. As of Stoked 0.11.7 Makie
 # is the preferred plotting tool. For plotting data there are two classes of functions
 #  - `baselineplot` which gives complete control of plotting
 #  - `plotfields, axisfields` which are more automated and limited but will automatically add
@@ -219,7 +219,7 @@ lcsim, cpsim = simulate_observation(post, xopt; add_thermal_noise=false)
 fig = Figure(;size=(800, 300))
 ax1 = Axis(fig[1,1], xlabel="√Quadrangle Area", ylabel="Log Closure Amplitude")
 baselineplot!(ax1, lcsim,  uvdist, measwnoise, marker=:circle, label="MAP", error=true)
-baselineplot!(ax1, dlcamp, uvdist, Comrade.measurement, marker=:+, color=:black, label="Data")
+baselineplot!(ax1, dlcamp, uvdist, Stoked.measurement, marker=:+, color=:black, label="Data")
 ax2 = Axis(fig[1,2], xlabel="√Triangle Area", ylabel="Closure Phase")
 baselineplot!(ax2, cpsim,  uvdist, mod2pi∘measwnoise, marker=:circle, label="MAP", error=true)
 baselineplot!(ax2, dcphase, uvdist, mod2pi∘measurement, marker=:+, color=:black, label="Data")

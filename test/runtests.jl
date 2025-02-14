@@ -5,7 +5,7 @@ using Pkg, Distributions
 using ChainRulesTestUtils
 using Pyehtim
 using Optimization
-using Comrade
+using Stoked
 using Test
 using LinearAlgebra
 using CairoMakie
@@ -15,8 +15,8 @@ import Plots
 
 include(joinpath(@__DIR__, "test_util.jl"))
 
-Pkg.develop(PackageSpec(url="https://github.com/ptiede/ComradeBase.jl"))
-@testset "Comrade.jl" begin
+Pkg.develop(PackageSpec(url="https://github.com/ptiede/StokedBase.jl"))
+@testset "Stoked.jl" begin
     include(joinpath(@__DIR__, "Core/core.jl"))
     include(joinpath(@__DIR__, "ext/comradeahmc.jl"))
     include(joinpath(@__DIR__, "ext/comradeoptimization.jl"))

@@ -1,10 +1,10 @@
 # Introduction to the VLBI Imaging Problem
 
-Very-long baseline interferometry (VLBI) is capable of taking the highest resolution images in the world, achieving angular resolutions of ~20 μas. In 2019, the first-ever image of a black hole was produced by the Event Horizon Telescope (EHT). However, while the EHT has unprecedented resolution, it is also a sparse interferometer. As a result, the sampling in the uv or Fourier space of the image is incomplete. This incompleteness makes the imaging problem uncertain. Namely, infinitely many images are possible, given the data. `Comrade` is a
+Very-long baseline interferometry (VLBI) is capable of taking the highest resolution images in the world, achieving angular resolutions of ~20 μas. In 2019, the first-ever image of a black hole was produced by the Event Horizon Telescope (EHT). However, while the EHT has unprecedented resolution, it is also a sparse interferometer. As a result, the sampling in the uv or Fourier space of the image is incomplete. This incompleteness makes the imaging problem uncertain. Namely, infinitely many images are possible, given the data. `Stoked` is a
 imaging/modeling package that aims to quantify this uncertainty using
 Bayesian inference.
 
-If we denote visibilities by `V` and the image structure/model by `I`, `Comrade` will then compute the posterior or the probability of an image given the visibility data or in an equation
+If we denote visibilities by `V` and the image structure/model by `I`, `Stoked` will then compute the posterior or the probability of an image given the visibility data or in an equation
 
 ```math
 p(I|V) = \frac{p(V|I)p(I)}{p(V)}.
@@ -12,7 +12,7 @@ p(I|V) = \frac{p(V|I)p(I)}{p(V)}.
 
 Here ``p(V|I)`` is known as the likelihood and describes the probability distribution of the data given some image `I`. The prior ``p(I)`` encodes prior knowledge of the image structure. This prior includes distributions of model parameters and even the model itself. Finally, the denominator ``p(V)`` is a normalization term and is known as the marginal likelihood or evidence and can be used to assess how well particular models fit the data.
 
-Therefore, we must specify the likelihood and prior to construct our posterior. Below we provide a brief description of the likelihoods and models/priors that `Comrade` uses. However, if the user wants to see how everything works first, they should check out the 
+Therefore, we must specify the likelihood and prior to construct our posterior. Below we provide a brief description of the likelihoods and models/priors that `Stoked` uses. However, if the user wants to see how everything works first, they should check out the 
 
 ## Likelihood
 
@@ -22,9 +22,9 @@ Following TMS[^TMS], we note that the likelihood for a single complex visibility
 p(V_{ij} | I) = (2\pi \sigma^2_{ij})^{-1/2}\exp\left(-\frac{| V_{ij} - g_ig_j^*\tilde{I}_{ij}(I)|^2}{2\sigma^2_{ij}}\right).
 ```
 
-In this equation, ``\tilde{I}`` is the Fourier transform of the image ``I``, and ``g_{i,j}`` are complex numbers known as gains. The gains arise due to atmospheric and telescope effects and corrupt the incoming signal. Therefore, if a user attempts to model the complex visibilities, they must also model the complex gains. An example showing how to model gains in `Comrade` can be found in 
+In this equation, ``\tilde{I}`` is the Fourier transform of the image ``I``, and ``g_{i,j}`` are complex numbers known as gains. The gains arise due to atmospheric and telescope effects and corrupt the incoming signal. Therefore, if a user attempts to model the complex visibilities, they must also model the complex gains. An example showing how to model gains in `Stoked` can be found in 
 
-Modeling the gains can be computationally expensive, especially if our image model is simple. For instance, in `Comrade`, we have a wide variety of geometric models. These models tend to have a small number of parameters and are simple to evaluate. Solving for gains then drastically increases the amount of time it takes to sample the posterior. As a result, part of the typical EHT analysis[^M87P6][^SgrAP4] instead uses closure products as its data. The two forms of closure products are:
+Modeling the gains can be computationally expensive, especially if our image model is simple. For instance, in `Stoked`, we have a wide variety of geometric models. These models tend to have a small number of parameters and are simple to evaluate. Solving for gains then drastically increases the amount of time it takes to sample the posterior. As a result, part of the typical EHT analysis[^M87P6][^SgrAP4] instead uses closure products as its data. The two forms of closure products are:
 
   - Closure Phases,
   - Log-Closure Amplitudes.
@@ -44,16 +44,16 @@ Similar log-closure amplitudes are found by selecting four baselines ``(i,j,k,l)
 Instead of directly fitting closure amplitudes, it turns out that the statistically better-behaved data product is the log-closure amplitude. 
 
 The benefit of fitting closure products is that they are independent of complex gains, so we can leave them out when modeling the data. However, the downside is that they effectively put uniform improper priors on the gains[^Blackburn], meaning that we often throw away information about the telescope's performance. On the other hand, we can then view closure fitting as a very conservative estimate
-about what image structures are consistent with the data. Another downside of using closure products is that their likelihoods are complex. In the high-signal-to-noise limit, however, they do reduce to Gaussian likelihoods, and this is the limit we are usually in for the EHT. For the explicit likelihood `Comrade` uses, we refer the reader to [appendix F](https://iopscience.iop.org/article/10.3847/2041-8213/ac6736#apjlac6736app6) in paper IV of the first Sgr A* EHT publications[^SgrAP4]. The computational implementation of these likelihoods can be found in [VLBILikelihoods.jl](https://github.com/ptiede/VLBILikelihoods.jl).
+about what image structures are consistent with the data. Another downside of using closure products is that their likelihoods are complex. In the high-signal-to-noise limit, however, they do reduce to Gaussian likelihoods, and this is the limit we are usually in for the EHT. For the explicit likelihood `Stoked` uses, we refer the reader to [appendix F](https://iopscience.iop.org/article/10.3847/2041-8213/ac6736#apjlac6736app6) in paper IV of the first Sgr A* EHT publications[^SgrAP4]. The computational implementation of these likelihoods can be found in [VLBILikelihoods.jl](https://github.com/ptiede/VLBILikelihoods.jl).
 
 ## Prior Model
 
-`Comrade` has included a large number of possible models (see [Comrade API](@ref) for a list). These can be broken down into two categories:
+`Stoked` has included a large number of possible models (see [Stoked API](@ref) for a list). These can be broken down into two categories:
 
   1. Parametric or *geometric models*
   2. Non-parametric or *image models*
 
-`Comrade`'s geometric model interface is built using [VLBISkyModels](https://github.com/EHTJulia/VLBISkyModels.jl) and is different from other EHT modeling packages because we don't directly provide fully formed models. Instead, we offer simple geometric models, which we call **primitives**. These primitive models can then be **modified** and combined to form complicated 
+`Stoked`'s geometric model interface is built using [VLBISkyModels](https://github.com/EHTJulia/VLBISkyModels.jl) and is different from other EHT modeling packages because we don't directly provide fully formed models. Instead, we offer simple geometric models, which we call **primitives**. These primitive models can then be **modified** and combined to form complicated 
 image structures. For more information, we refer the reader to the 
 [VLBISkyModels docs](https://ehtjulia.github.io/VLBISkyModels.jl/stable/).
 

@@ -1,5 +1,5 @@
 ```@meta
-CurrentModule = ComradeBase
+CurrentModule = StokedBase
 ```
 
 # Base API
@@ -17,83 +17,83 @@ Pages = ["base_api.md"]
 ## Model API
 
 ```@docs
-ComradeBase.flux
-ComradeBase.visibility
-ComradeBase.visibilitymap
-ComradeBase.visibilitymap!
-ComradeBase.intensitymap
-ComradeBase.intensitymap!
-ComradeBase.allocate_vismap
-ComradeBase.allocate_imgmap
-ComradeBase.create_imgmap
-ComradeBase.create_vismap
-ComradeBase.amplitude(::Any, ::Any)
-ComradeBase.amplitudemap
-ComradeBase.bispectrum
-ComradeBase.bispectrummap
-ComradeBase.closure_phase
-ComradeBase.closure_phasemap
-ComradeBase.logclosure_amplitude
-ComradeBase.logclosure_amplitudemap
+StokedBase.flux
+StokedBase.visibility
+StokedBase.visibilitymap
+StokedBase.visibilitymap!
+StokedBase.intensitymap
+StokedBase.intensitymap!
+StokedBase.allocate_vismap
+StokedBase.allocate_imgmap
+StokedBase.create_imgmap
+StokedBase.create_vismap
+StokedBase.amplitude(::Any, ::Any)
+StokedBase.amplitudemap
+StokedBase.bispectrum
+StokedBase.bispectrummap
+StokedBase.closure_phase
+StokedBase.closure_phasemap
+StokedBase.logclosure_amplitude
+StokedBase.logclosure_amplitudemap
 ```
 
 ### Model Interface
 ```@docs
-ComradeBase.AbstractModel
-ComradeBase.AbstractPolarizedModel
-ComradeBase.visanalytic
-ComradeBase.imanalytic
-ComradeBase.ispolarized
-ComradeBase.radialextent
-ComradeBase.DensityAnalytic
-ComradeBase.IsAnalytic
-ComradeBase.NotAnalytic
-ComradeBase.visibility_point
-ComradeBase.visibilitymap_analytic
-ComradeBase.visibilitymap_analytic!
-ComradeBase.visibilitymap_numeric
-ComradeBase.visibilitymap_numeric!
-ComradeBase.intensity_point
-ComradeBase.intensitymap_analytic
-ComradeBase.intensitymap_analytic!
-ComradeBase.intensitymap_numeric
-ComradeBase.intensitymap_numeric!
+StokedBase.AbstractModel
+StokedBase.AbstractPolarizedModel
+StokedBase.visanalytic
+StokedBase.imanalytic
+StokedBase.ispolarized
+StokedBase.radialextent
+StokedBase.DensityAnalytic
+StokedBase.IsAnalytic
+StokedBase.NotAnalytic
+StokedBase.visibility_point
+StokedBase.visibilitymap_analytic
+StokedBase.visibilitymap_analytic!
+StokedBase.visibilitymap_numeric
+StokedBase.visibilitymap_numeric!
+StokedBase.intensity_point
+StokedBase.intensitymap_analytic
+StokedBase.intensitymap_analytic!
+StokedBase.intensitymap_numeric
+StokedBase.intensitymap_numeric!
 ```
 
 ### Image Domain
 ```@docs
-ComradeBase.imagepixels
-ComradeBase.RectiGrid
-ComradeBase.UnstructuredDomain
-ComradeBase.dims
-ComradeBase.named_dims
-ComradeBase.axisdims
-ComradeBase.domainpoints
-ComradeBase.fieldofview
-ComradeBase.pixelsizes
-ComradeBase.phasecenter
-ComradeBase.executor
-ComradeBase.Serial
-ComradeBase.ThreadsEx
-ComradeBase.header
-ComradeBase.NoHeader
-ComradeBase.MinimalHeader
+StokedBase.imagepixels
+StokedBase.RectiGrid
+StokedBase.UnstructuredDomain
+StokedBase.dims
+StokedBase.named_dims
+StokedBase.axisdims
+StokedBase.domainpoints
+StokedBase.fieldofview
+StokedBase.pixelsizes
+StokedBase.phasecenter
+StokedBase.executor
+StokedBase.Serial
+StokedBase.ThreadsEx
+StokedBase.header
+StokedBase.NoHeader
+StokedBase.MinimalHeader
 ```
 
 ### Image Types
 ```@docs
-ComradeBase.IntensityMap
-ComradeBase.IntensityMap(::AbstractArray, ::AbstractRectiGrid)
-ComradeBase.UnstructuredMap
-ComradeBase.baseimage
-ComradeBase.centroid
-ComradeBase.second_moment
-ComradeBase.stokes
+StokedBase.IntensityMap
+StokedBase.IntensityMap(::AbstractArray, ::AbstractRectiGrid)
+StokedBase.UnstructuredMap
+StokedBase.baseimage
+StokedBase.centroid
+StokedBase.second_moment
+StokedBase.stokes
 ```
 
 ## Internal Methods not part of public API
 ```@docs
-ComradeBase._visibilitymap
-ComradeBase._visibilitymap!
-ComradeBase.create_map
+StokedBase._visibilitymap
+StokedBase._visibilitymap!
+StokedBase.create_map
 ```

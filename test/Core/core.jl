@@ -1,6 +1,6 @@
 #println(PyCall.libpython)
 using Pyehtim
-using Comrade
+using Stoked
 using FFTW
 using Statistics
 using Test

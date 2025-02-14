@@ -1,6 +1,6 @@
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
-Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+Stoked = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 DisplayAs = "0b91fe84-8a4c-11e9-3e1d-67c38462b6d6"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"

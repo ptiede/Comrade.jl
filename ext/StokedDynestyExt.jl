@@ -1,13 +1,13 @@
-module ComradeDynestyExt
+module StokedDynestyExt
 
 using AbstractMCMC
-using Comrade
+using Stoked
 using Dynesty
 using Random
 
 """
-    dysample(post::Comrade.VLBIPosterior, smplr::Dynesty.NestedSampler, args...; kwargs...)
-    dysample(post::Comrade.VLBIPosterior, smplr::Dynesty.DynamicNestedSampler, args...; kwargs...)
+    dysample(post::Stoked.VLBIPosterior, smplr::Dynesty.NestedSampler, args...; kwargs...)
+    dysample(post::Stoked.VLBIPosterior, smplr::Dynesty.DynamicNestedSampler, args...; kwargs...)
 
 Sample the posterior `post` using `Dynesty.jl` `NestedSampler/DynamicNestedSampler` sampler.
 The `args/kwargs`
@@ -25,13 +25,13 @@ chain = sample(post, NestedSampler(dimension(post), 1000))
 equal_weighted_chain = sample(chain, Weights(samplerstats(chain).weights), 10_000)
 ```
 """
-function Dynesty.dysample(post::Comrade.VLBIPosterior,
+function Dynesty.dysample(post::Stoked.VLBIPosterior,
                           sampler::Union{Dynesty.NestedSampler, DynamicNestedSampler};
                           kwargs...)
 
     tpost = ascube(post)
     ℓ = logdensityof(tpost)
-    res = dysample(ℓ, identity, Comrade.dimension(tpost), sampler; kwargs...)
+    res = dysample(ℓ, identity, Stoked.dimension(tpost), sampler; kwargs...)
     # Make sure that res["sample"] is an array and use transpose
     samples, weights = transpose(Dynesty.PythonCall.pyconvert(Array, res["samples"])),
                        exp.(Dynesty.PythonCall.pyconvert(Vector, res["logwt"] - res["logz"][-1]))

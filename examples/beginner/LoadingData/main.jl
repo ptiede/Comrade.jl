@@ -7,18 +7,18 @@ Pkg.instantiate(; io=pkg_io) #hide
 Pkg.precompile(; io=pkg_io) #hide
 close(pkg_io) #hide
 
-# # Loading Data into Comrade
+# # Loading Data into Stoked
 
 # The VLBI field does not have a standardized data format, and the EHT uses a
 # particular uvfits format similar to the optical interferometry oifits format.
-# As a result, we reuse the excellent `eht-imaging` package to load data into `Comrade`.
+# As a result, we reuse the excellent `eht-imaging` package to load data into `Stoked`.
 
-# Once the data is loaded, we then convert the data into the tabular format `Comrade`
+# Once the data is loaded, we then convert the data into the tabular format `Stoked`
 # expects. Note that this may change to a Julia package as the Julia radio
 # astronomy group grows.
 
-# To get started, we will load `Comrade` and `Plots` to enable visualizations of the data
-using Comrade
+# To get started, we will load `Stoked` and `Plots` to enable visualizations of the data
+using Stoked
 using CairoMakie
 
 # We also load Pyehtim since it loads eht-imaging into Julia using PythonCall and exports
@@ -35,7 +35,7 @@ obs = Pyehtim.scan_average(obseht)
 # !!! warning
 #     We use a custom scan-averaging function to ensure that the scan-times are homogenized.
 #-
-# We can now extract data products that `Comrade` can use
+# We can now extract data products that `Stoked` can use
 vis    = extract_table(obs, Visibilities()) ## complex visibilites
 amp    = extract_table(obs, VisibilityAmplitudes()) ## visibility amplitudes
 cphase = extract_table(obs, ClosurePhases(; snrcut=3.0)) ## extract minimal set of closure phases
@@ -60,7 +60,7 @@ coh = extract_table(obs, Coherencies())
 using DisplayAs
 plotfields(coh, :U, :V, axis_kwargs=(xreversed=true,)) |> DisplayAs.PNG |> DisplayAs.Text # Plot the baseline coverage
 
-# As of Comrade 0.11.7 Makie is the preferred plotting tool. For plotting data there are two 
+# As of Stoked 0.11.7 Makie is the preferred plotting tool. For plotting data there are two 
 # classes of functions:
 #  - `baselineplot` which gives complete control of plotting
 #  - `plotfields, axisfields` which are more automated and limited but will automatically add

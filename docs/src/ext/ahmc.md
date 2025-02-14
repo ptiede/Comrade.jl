@@ -3,7 +3,7 @@
 The first choice when sampling from the model/image posterior,  is [`AdvancedHMC`](https://github.com/TuringLang/AdvancedHMC.jl), which uses Hamiltonian Monte Carlo to sample from the posterior. Specifically, we usually use the `NUTS` algorithm.
 
 The interface to `AdvancedHMC` is very powerful and general. To simplify 
-the procedure for `Comrade` users, we have provided a thin interface. 
+the procedure for `Stoked` users, we have provided a thin interface. 
 A user needs to specify a `sampler` and then call 
 the `sample` function.
 
@@ -29,12 +29,12 @@ Note that like most `AbstractMCMC` samplers the initial location can be specifie
 ## Example 
 
 ```julia
-using Comrade
+using Stoked
 using AdvancedHMC
 using Enzyme
 
 # Some stuff to create a posterior object
-post # of type Comrade.Posterior
+post # of type Stoked.Posterior
 
 out = sample(post, NUTS(0.9), 2_000; n_adapts=1_000, saveto=DiskStore())
 chain = load_samples(out)

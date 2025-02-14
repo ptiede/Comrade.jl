@@ -17,14 +17,14 @@ admode(post::VLBIPosterior) = post.admode
 
 Creates a VLBILikelihood using the `skymodel` its related metadata `skymeta`
 and the `instrumentmodel` and its metadata `instumentmeta`. The `model` is a 
-function that converts from parameters `θ` to a Comrade
+function that converts from parameters `θ` to a Stoked
 AbstractModel which can be used to compute [`visibilitymap`](@ref) and a set of
 `metadata` that is used by `model` to compute the model.
 
 To enable automatic differentiation, the `admode` keyword argument can be set to any `EnzymeCore.Mode` type 
 of if no AD is desired then `nothing`. We recommend using `Enzyme.set_runtime_activity(Enzyme.Reverse)` 
 for essentially every problem. Note that runtime activity does have a perfomance cost, and as Enzyme and 
-Comrade matures we expect this to not need runtime activity.
+Stoked matures we expect this to not need runtime activity.
 
 # Warning
 

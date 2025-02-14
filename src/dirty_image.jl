@@ -9,7 +9,7 @@ function reflect_vis(obs::EHTObservationTable{<:EHTVisibilityDatum})
     con2 = vcat(con, conn)
 
     meas  = measurement(obs)
-    noise = Comrade.noise(obs)
+    noise = Stoked.noise(obs)
     measn = conj.(copy(meas))
 
     meas2 = vcat(meas, measn)

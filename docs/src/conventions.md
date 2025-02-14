@@ -2,7 +2,7 @@
 
 VLBI and radio astronomy has many non-standard conventions when coming from physics. Additionally, these conventions change from telescope to telescope, often making it difficult 
 to know what assumptions different data sets and codes are making. We will detail the 
-specific conventions that Comrade adheres to.
+specific conventions that Stoked adheres to.
 
 
 ## Rotation Convention

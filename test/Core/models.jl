@@ -23,9 +23,9 @@ _ntequal(x, y) = x ≈ y
 function build_mfvis(vistuple...)
     configs = arrayconfig.(vistuple)
     vis = vistuple[1]
-    newdatatables = Comrade.StructArray(reduce(vcat, Comrade.datatable.(configs)))
+    newdatatables = Stoked.StructArray(reduce(vcat, Stoked.datatable.(configs)))
     newscans = reduce(vcat, getproperty.(configs, :scans))
-    newconfig = Comrade.EHTArrayConfiguration(vis.config.bandwidth,
+    newconfig = Stoked.EHTArrayConfiguration(vis.config.bandwidth,
                                               vis.config.tarr,
                                               newscans,
                                               vis.config.mjd,
@@ -34,10 +34,10 @@ function build_mfvis(vistuple...)
                                               vis.config.source,
                                               :UTC,
                                               newdatatables)
-    newmeasurement = reduce(vcat, Comrade.measurement.(vistuple))
-    newnoise = reduce(vcat, Comrade.noise.(vistuple))
+    newmeasurement = reduce(vcat, Stoked.measurement.(vistuple))
+    newnoise = reduce(vcat, Stoked.noise.(vistuple))
 
-    return Comrade.EHTObservationTable{Comrade.datumtype(vis)}(newmeasurement,newnoise,newconfig)
+    return Stoked.EHTObservationTable{Stoked.datumtype(vis)}(newmeasurement,newnoise,newconfig)
 end
 
 
@@ -54,12 +54,12 @@ function test_caltable(c1, sites)
     @test Tables.rows(c1) === c1
     @test Tables.columnaccess(c1)
     clmns = Tables.columns(c1)
-    @test clmns[1] == Comrade.times(c1)
-    @test clmns[2] == Comrade.frequencies(c1)
-    @test Bool(prod(skipmissing(Tables.matrix(clmns)[:,begin+2:end]) .== skipmissing(Comrade.gmat(c1))))
-    @test c1.Ti == Comrade.times(c1)
+    @test clmns[1] == Stoked.times(c1)
+    @test clmns[2] == Stoked.frequencies(c1)
+    @test Bool(prod(skipmissing(Tables.matrix(clmns)[:,begin+2:end]) .== skipmissing(Stoked.gmat(c1))))
+    @test c1.Ti == Stoked.times(c1)
     @test c1.Ti == Tables.getcolumn(c1, 1)
-    @test c1.Fr == Comrade.frequencies(c1)
+    @test c1.Fr == Stoked.frequencies(c1)
     @test c1.Fr == Tables.getcolumn(c1, 2)
     @test isequalmissing(c1.AA, Tables.getcolumn(c1, 3))
 
@@ -95,7 +95,7 @@ function test_caltable(c1, sites)
     c1[!, :AA]
     c1[:, :AA]
     @test length(c1) == length(c1.AA)
-    @test c1[1 ,:] isa Comrade.CalTableRow
+    @test c1[1 ,:] isa Stoked.CalTableRow
     @test length(Tables.getrow(c1, 1:5)) == 5
 
     Plots.plot(c1)
@@ -113,18 +113,18 @@ end
     skym = SkyModel(f, test_prior(), g)
     show(IOBuffer(), MIME"text/plain"(), skym)
 
-    x = rand(Comrade.NamedDist(test_prior()))
-    m = Comrade.skymodel(skym, x)
+    x = rand(Stoked.NamedDist(test_prior()))
+    m = Stoked.skymodel(skym, x)
     skyf = FixedSkyModel(m, g)
 
     @testset "ObservedSkyModel" begin
         _,vis, amp, lcamp, cphase = load_data()
 
-        oskym, = Comrade.set_array(skym, arrayconfig(vis))
-        oskyf, = Comrade.set_array(skyf, arrayconfig(vis))
+        oskym, = Stoked.set_array(skym, arrayconfig(vis))
+        oskyf, = Stoked.set_array(skyf, arrayconfig(vis))
 
-        @test Comrade.skymodel(oskym, x) == m
-        @test Comrade.idealvisibilities(oskym, (;sky=x)) ≈ Comrade.idealvisibilities(oskyf, (;sky=x))
+        @test Stoked.skymodel(oskym, x) == m
+        @test Stoked.idealvisibilities(oskym, (;sky=x)) ≈ Stoked.idealvisibilities(oskyf, (;sky=x))
     end
 end
 
@@ -166,32 +166,32 @@ end
                     )
 
         intm = InstrumentModel(G, intprior)
-        ointm, printm = Comrade.set_array(intm, arrayconfig(dvis))
+        ointm, printm = Stoked.set_array(intm, arrayconfig(dvis))
         show(IOBuffer(), MIME"text/plain"(), ointm)
         x = rand(printm)
-        sl = Comrade.SiteLookup(x.lg)
+        sl = Stoked.SiteLookup(x.lg)
 
-        @test sl isa Comrade.SiteLookup
+        @test sl isa Stoked.SiteLookup
         s2 =  SiteArray(parent(x.lg), sl)
         @test s2 == x.lg
-        @test Comrade.times(s2) == Comrade.times(x.lg)
-        @test Comrade.frequencies(s2) == Comrade.frequencies(x.lg)
-        @test Comrade.sites(s2) == Comrade.sites(x.lg)
+        @test Stoked.times(s2) == Stoked.times(x.lg)
+        @test Stoked.frequencies(s2) == Stoked.frequencies(x.lg)
+        @test Stoked.sites(s2) == Stoked.sites(x.lg)
 
-        @test Comrade.sitemap(exp, parent(x.lg), sl) ≈ exp.(x.lg)
-        Comrade.sitemap(cumsum, parent(x.lg), sl)
+        @test Stoked.sitemap(exp, parent(x.lg), sl) ≈ exp.(x.lg)
+        Stoked.sitemap(cumsum, parent(x.lg), sl)
 
         @test x.lg[1] == parent(x.lg)[1]
         x.lg[1] = 1.0
         @test x.lg[1] == 1.0
 
         sarr = x.lg[1:16]
-        @test_throws DimensionMismatch similar(sarr, Float64, (4,4)) isa Comrade.SiteArray
+        @test_throws DimensionMismatch similar(sarr, Float64, (4,4)) isa Stoked.SiteArray
 
-        @test Comrade.SiteArray(x.lg, sl) == x.lg
+        @test Stoked.SiteArray(x.lg, sl) == x.lg
 
-        @inferred Comrade.time(x.lg, 5.0..6.0)
-        @inferred Comrade.frequency(x.lg, 1.0..400.0)
+        @inferred Stoked.time(x.lg, 5.0..6.0)
+        @inferred Stoked.frequency(x.lg, 1.0..400.0)
 
         @test x.lg ≈ SiteArray(x.lg, x.lg.times, x.lg.frequencies, x.lg.sites)
         @inferred x.lg[1,1,1]
@@ -206,7 +206,7 @@ end
     end
 
     @testset "StokesI" begin
-        vis = Comrade.measurement(dvis)
+        vis = Stoked.measurement(dvis)
 
         G = SingleStokesGain(x->exp(x.lg + 1im*x.gp))
         intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
@@ -216,17 +216,17 @@ end
         intm = InstrumentModel(G, intprior)
         show(IOBuffer(), MIME"text/plain"(), intm)
 
-        ointm, printm = Comrade.set_array(intm, arrayconfig(dvis))
+        ointm, printm = Stoked.set_array(intm, arrayconfig(dvis))
         x = rand(printm)
         x.lg .= 0
         x.gp .= 0
-        vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
-        # test_rrule(Comrade.apply_instrument, vis, ointm⊢NoTangent(), (;instrument=x))
+        vout = Stoked.apply_instrument(vis, ointm, (;instrument=x))
+        # test_rrule(Stoked.apply_instrument, vis, ointm⊢NoTangent(), (;instrument=x))
         @test vout ≈ vis
 
 
-        ointid, pr = Comrade.set_array(Comrade.IdealInstrumentModel(), arrayconfig(dvis))
-        vout = Comrade.apply_instrument(vis, ointid, (;))
+        ointid, pr = Stoked.set_array(Stoked.IdealInstrumentModel(), arrayconfig(dvis))
+        vout = Stoked.apply_instrument(vis, ointid, (;))
         @test vout ≈ vis
 
         # Now check that everything is being applied right
@@ -242,7 +242,7 @@ end
             x.lg .= 0
             xlgs = x.lg[S=s]
             xlgs .= log(2)
-            vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
+            vout = Stoked.apply_instrument(vis, ointm, (;instrument=x))
             @test vout[inds1] ≈ 2 .*vis[inds1]
             @test vout[inds2] ≈ 2 .*vis[inds2]
             @test vout[ninds] ≈ vis[ninds]
@@ -251,7 +251,7 @@ end
             x.lg .= 0
             xgps = x.gp[S=s]
             xgps .= π/4
-            vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
+            vout = Stoked.apply_instrument(vis, ointm, (;instrument=x))
             @test vout[inds1] ≈ vis[inds1] .* exp(1im*π/4)
             @test vout[inds2] ≈ vis[inds2] .* exp(-1im*π/4)
             @test vout[ninds] ≈ vis[ninds]
@@ -263,7 +263,7 @@ end
             xlgs .= log(2)
             xgps = x.gp[S=s]
             xgps .= π/4
-            vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
+            vout = Stoked.apply_instrument(vis, ointm, (;instrument=x))
             @test vout[inds1] ≈ vis[inds1] .* exp(log(2) + 1im*π/4)
             @test vout[inds2] ≈ vis[inds2] .* exp(log(2) -1im*π/4)
             @test vout[ninds] ≈ vis[ninds]
@@ -273,7 +273,7 @@ end
 
 
     @testset "Coherencies" begin
-        vis = CoherencyMatrix.(Comrade.measurement(dcoh), Ref(CirBasis()))
+        vis = CoherencyMatrix.(Stoked.measurement(dcoh), Ref(CirBasis()))
         G = JonesG() do x
             gR = exp(x.lgR + 1im*x.gpR)
             gL = gR*exp(x.lgrat + 1im*x.gprat)
@@ -318,17 +318,17 @@ end
 
 
 
-        ointm, printm = Comrade.set_array(intm, arrayconfig(dcoh))
-        ointm2, printm2 = Comrade.set_array(intm2, arrayconfig(dcoh))
-        ointjg, printjg = Comrade.set_array(intjg, arrayconfig(dcoh))
+        ointm, printm = Stoked.set_array(intm, arrayconfig(dcoh))
+        ointm2, printm2 = Stoked.set_array(intm2, arrayconfig(dcoh))
+        ointjg, printjg = Stoked.set_array(intjg, arrayconfig(dcoh))
 
         x = rand(printjg)
         fj = forward_jones(JG, x)
         @test fj[1][1] == x.lg[1]
 
 
-        Fpre = Comrade.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
-        Rpre = Comrade.preallocate_jones(JonesR(;add_fr=true), arrayconfig(dcoh), CirBasis())
+        Fpre = Stoked.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
+        Rpre = Stoked.preallocate_jones(JonesR(;add_fr=true), arrayconfig(dcoh), CirBasis())
         @test Fpre.matrices[1] ≈ Rpre.matrices[1]
         @test Fpre.matrices[2] ≈ Rpre.matrices[2]
 
@@ -351,7 +351,7 @@ end
             @test dp.dLy
         end
 
-        pintm, _ = Comrade.set_array(InstrumentModel(JonesR(;add_fr=true)), arrayconfig(dcoh))
+        pintm, _ = Stoked.set_array(InstrumentModel(JonesR(;add_fr=true)), arrayconfig(dcoh))
 
 
         x = rand(printm)
@@ -364,11 +364,11 @@ end
         x.dLx .= 0
         x.dLy .= 0
 
-        vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
-        vper = Comrade.apply_instrument(vis, pintm, (;instrument=NamedTuple()))
+        vout = Stoked.apply_instrument(vis, ointm, (;instrument=x))
+        vper = Stoked.apply_instrument(vis, pintm, (;instrument=NamedTuple()))
         @test vout ≈ vper
 
-        # test_rrule(Comrade.apply_instrument, vis, ointm⊢NoTangent(), (;instrument=x))
+        # test_rrule(Stoked.apply_instrument, vis, ointm⊢NoTangent(), (;instrument=x))
 
         # # Now check that everything is being applied right
         for s in sites(dcoh)
@@ -400,7 +400,7 @@ end
             xlgRs .= log(2)
             xlgrat = x.lgrat[S=s]
             xlgrat .= -log(2)
-            vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
+            vout = Stoked.apply_instrument(vis, ointm, (;instrument=x))
             G = SMatrix{2,2}(2.0, 0.0, 0.0, 1.0)
             @test vout[inds1] ≈ Ref(G) .*vper[inds1]
             @test vout[inds2] ≈ vper[inds2] .* Ref(G)
@@ -420,7 +420,7 @@ end
             xgpRs .= π/3
             xgprat = x.gprat[S=s]
             xgprat .= -π/3
-            vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
+            vout = Stoked.apply_instrument(vis, ointm, (;instrument=x))
             G = SMatrix{2,2}(exp(1im*π/3), 0.0, 0.0, exp(1im*0.0))
             @test vout[inds1] ≈ Ref(G) .*vper[inds1]
             @test vout[inds2] ≈ vper[inds2] .* Ref(adjoint(G))
@@ -446,7 +446,7 @@ end
             xdLys = x.dLy[S=s]
             xdLys .= 0.4
 
-            vout = Comrade.apply_instrument(vis, ointm, (;instrument=x))
+            vout = Stoked.apply_instrument(vis, ointm, (;instrument=x))
             D = SMatrix{2,2}(1.0, 0.3 + 0.4im, 0.1 + 0.2im, 1.0)
             @test vout[inds1] ≈ Ref(D) .*vper[inds1]
             @test vout[inds2] ≈ vper[inds2] .* Ref(adjoint(D))
@@ -465,8 +465,8 @@ end
         dcoh2 = deepcopy(dcoh)
         dcoh2.config[:Fr] .= 345e9
         dcohmf = build_mfvis(dcoh, dcoh2)
-        vissi = CoherencyMatrix.(Comrade.measurement(dcoh), Ref(CirBasis()))
-        vismf = CoherencyMatrix.(Comrade.measurement(dcohmf), Ref(CirBasis()))
+        vissi = CoherencyMatrix.(Stoked.measurement(dcoh), Ref(CirBasis()))
+        vismf = CoherencyMatrix.(Stoked.measurement(dcohmf), Ref(CirBasis()))
         G = JonesG() do x
             gR = exp(x.lgR + 1im*x.gpR)
             gL = gR*exp(x.lgrat + 1im*x.gprat)
@@ -499,8 +499,8 @@ end
         intm = InstrumentModel(J, intprior)
         show(IOBuffer(), MIME"text/plain"(), intm)
 
-        ointsi, printsi = Comrade.set_array(intm, arrayconfig(dcoh))
-        ointmf, printmf = Comrade.set_array(intm, arrayconfig(dcohmf))
+        ointsi, printsi = Stoked.set_array(intm, arrayconfig(dcoh))
+        ointmf, printmf = Stoked.set_array(intm, arrayconfig(dcohmf))
 
         @testset "Site lookup" begin
             trsi = asflat(printsi)
@@ -523,8 +523,8 @@ end
         end
 
 
-        Rsi = Comrade.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
-        Rmf = Comrade.preallocate_jones(R, arrayconfig(dcohmf), CirBasis())
+        Rsi = Stoked.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
+        Rmf = Stoked.preallocate_jones(R, arrayconfig(dcohmf), CirBasis())
         # Check that the copied matrices are identical
         @test Rsi.matrices[1] ≈ Rmf.matrices[1][1:length(Rsi.matrices[1])]
         @test Rsi.matrices[1] ≈ Rmf.matrices[1][length(Rsi.matrices[1])+1:end]
@@ -538,7 +538,7 @@ end
             @test 2*L == length(ointmf.bsitelookup[p].indices_1)
         end
 
-        pintmf, _ = Comrade.set_array(InstrumentModel(R), arrayconfig(dcohmf))
+        pintmf, _ = Stoked.set_array(InstrumentModel(R), arrayconfig(dcohmf))
 
         xsi = rand(printsi)
         xmf = rand(printmf)
@@ -566,8 +566,8 @@ end
             xmflgrat = xmf.lgrat[S=s]
             xmflgrat[1:length(xsilgrat)] .= xsilgrat
             xmflgrat[length(xsilgrat)+1:end] .= xsilgrat
-            vmf = Comrade.apply_instrument(vismf, ointmf, (;instrument=xmf))
-            vsi = Comrade.apply_instrument(vissi, ointsi, (;instrument=xsi))
+            vmf = Stoked.apply_instrument(vismf, ointmf, (;instrument=xmf))
+            vsi = Stoked.apply_instrument(vissi, ointsi, (;instrument=xsi))
             Gmf = SMatrix{2,2}(2.0, 0.0, 0.0, 2.0)
             @test vsi[inds1si] ≈ vmf[inds1si]
             @test vsi[inds1si] .* Ref(Gmf) ≈ vmf[inds1mf[length(inds1si)+1:end]] 
@@ -588,8 +588,8 @@ end
             xmfgprat[1:length(xsigprat)] .= xsigprat
             xmfgprat[length(xsigprat)+1:end] .= xsigprat
 
-            vmf = Comrade.apply_instrument(vismf, ointmf, (;instrument=xmf))
-            vsi = Comrade.apply_instrument(vissi, ointsi, (;instrument=xsi))
+            vmf = Stoked.apply_instrument(vismf, ointmf, (;instrument=xmf))
+            vsi = Stoked.apply_instrument(vissi, ointsi, (;instrument=xsi))
             Gmf = SMatrix{2,2}(exp(1im*π/3), 0.0, 0.0, exp(1im*π/3))
             @test vsi[inds1si] ≈ vmf[inds1si]
             @test vsi[inds1si] .* Ref(Gmf) ≈ vmf[inds1mf[length(inds1si)+1:end]] 
@@ -608,26 +608,26 @@ end
 
     @testset "Integration" begin
         _,dvis, amp, lcamp, cphase, dcoh = load_data()
-        ts = Comrade.timestamps(ScanSeg(),  arrayconfig(dvis))
-        tt = Comrade.timestamps(TrackSeg(), arrayconfig(dvis))
-        ti = Comrade.timestamps(IntegSeg(), arrayconfig(dvis))
+        ts = Stoked.timestamps(ScanSeg(),  arrayconfig(dvis))
+        tt = Stoked.timestamps(TrackSeg(), arrayconfig(dvis))
+        ti = Stoked.timestamps(IntegSeg(), arrayconfig(dvis))
         @test length(tt) < length(ts) ≤ length(ti)
     end
 
     @testset "IntegrationTime" begin
-        ti = Comrade.IntegrationTime(10, 5.0, 0.1)
-        @test Comrade.mjd(ti) == ti.mjd
-        @test ti.t0 ∈ Comrade.interval(ti)
-        @test Comrade._center(ti) == ti.t0
-        @test Comrade._region(ti) == 0.1
+        ti = Stoked.IntegrationTime(10, 5.0, 0.1)
+        @test Stoked.mjd(ti) == ti.mjd
+        @test ti.t0 ∈ Stoked.interval(ti)
+        @test Stoked._center(ti) == ti.t0
+        @test Stoked._region(ti) == 0.1
     end
 
     @testset "FrequencyChannel" begin
-        fc = Comrade.FrequencyChannel(230e9, 8e9, 1)
-        @test Comrade.channel(fc) == 1
-        @test fc.central ∈ Comrade.interval(fc)
-        @test Comrade._center(fc) == fc.central
-        @test Comrade._region(fc) == 8e9
+        fc = Stoked.FrequencyChannel(230e9, 8e9, 1)
+        @test Stoked.channel(fc) == 1
+        @test fc.central ∈ Stoked.interval(fc)
+        @test Stoked._center(fc) == fc.central
+        @test Stoked._region(fc) == 8e9
         @test 86e9 < fc
         @test fc < 345e9
     end

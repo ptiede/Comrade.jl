@@ -155,7 +155,7 @@ julia> logdensityof(tpost, x0)
 
 # Notes
 This is the transform that should be used if using typical NestedSampling methods,
-i.e. `ComradeNested`. For the transformation to unconstrained space see [`asflat`](@ref asflat)
+i.e. `StokedNested`. For the transformation to unconstrained space see [`asflat`](@ref asflat)
 """
 function HypercubeTransform.ascube(post::VLBIPosterior)
     pr = post.prior

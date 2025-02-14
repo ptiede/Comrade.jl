@@ -46,7 +46,7 @@ end
 """
 PosteriorSamples(chain, stats; metadata=Dict(:sampler=>:unknown))
 
-This is the default sampler output from Comrade MCMC extensions. The object contains the
+This is the default sampler output from Stoked MCMC extensions. The object contains the
 posterior samples, the sampler statistics, and metadata about the sampler used.
 
 Indexing this array behaves like indexing the samples organized as a StructArray. By
@@ -55,7 +55,7 @@ default all NamedTuples and Tuples are unwrapped.
 To access the samples use [`postsamples`](@ref) and to access the sampler statistics use [`samplerstats`](@ref),
 or the acesss sampler specific information use [`samplerinfo`](@ref).
 
-To recursively map a function over the samples the unexported [`Comrade.rmap`](@ref).
+To recursively map a function over the samples the unexported [`Stoked.rmap`](@ref).
 """
 function PosteriorSamples(chain::StructArray{T,N}, stats::StructArray; metadata=Dict(:sampler=>:unknown)) where {T,N}
     length(chain) != length(stats) && throw(ArgumentError("chain and stats must have the same length"))
@@ -104,7 +104,7 @@ rmap(f, x) = f(x)
     rmap(f, x::PosteriorSamples)
 
 Recursively map a function `f` over the elements of `x`. For instance to compute the mean
-of all fields you can do `Comrade.rmap(mean, chain)`
+of all fields you can do `Stoked.rmap(mean, chain)`
 """
 rmap(f, x::PosteriorSamples) = rmap(f, postsamples(x))
 

@@ -2,7 +2,7 @@ export measurement, noise, baseline
 
 """
     AbstractVisibilityDatum
-An abstract type for all VLBI data types. See [`Comrade.EHTVisibilityDatum`](@ref) for an example.
+An abstract type for all VLBI data types. See [`Stoked.EHTVisibilityDatum`](@ref) for an example.
 """
 abstract type AbstractVisibilityDatum{T} end
 baseline(p::AbstractVisibilityDatum) = getfield(p, :baseline)
@@ -40,7 +40,7 @@ A Datum for a single coherency matrix
 $(FIELDS)
 
 """
-Base.@kwdef struct EHTCoherencyDatum{S, B<:AbstractBaselineDatum, M<:SMatrix{2,2,Complex{S}}, E<:SMatrix{2,2,S}} <: Comrade.AbstractVisibilityDatum{S}
+Base.@kwdef struct EHTCoherencyDatum{S, B<:AbstractBaselineDatum, M<:SMatrix{2,2,Complex{S}}, E<:SMatrix{2,2,S}} <: Stoked.AbstractVisibilityDatum{S}
     """
     coherency matrix, with entries in Jy
     """

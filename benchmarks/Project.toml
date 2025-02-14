@@ -1,6 +1,6 @@
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
-Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+Stoked = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 LogDensityProblemsAD = "996a588d-648d-4e1f-a8f0-a84b347e47b1"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"

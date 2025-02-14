@@ -1,6 +1,6 @@
-module ComradePyehtimExt
+module StokedPyehtimExt
 
-using Comrade
+using Stoked
 using Pyehtim
 using StructArrays: StructVector, StructArray, append!!
 using LinearAlgebra
@@ -35,10 +35,10 @@ function build_arrayconfig(obs)
     sites = tuple.(t1, t2)
     single_polbasis = (CirBasis(), CirBasis())
     polbasis = fill(single_polbasis,length(U))
-    data = StructArray{Comrade.EHTArrayBaselineDatum{eltype(U), eltype(polbasis), eltype(elevation[1][1])}}(
+    data = StructArray{Stoked.EHTArrayBaselineDatum{eltype(U), eltype(polbasis), eltype(elevation[1][1])}}(
                 (;U, V, Ti, Fr, sites, polbasis, elevation, parallactic)
     )
-    return Comrade.EHTArrayConfiguration(bw, tarr, scans, mjd, ra, dec, source, :UTC, data)
+    return Stoked.EHTArrayConfiguration(bw, tarr, scans, mjd, ra, dec, source, :UTC, data)
 end
 
 
@@ -144,14 +144,14 @@ Any valid keyword arguments to `add_amp` in ehtim can be passed through extract_
 
 Returns an EHTObservationTable with visibility amplitude data
 """
-function Comrade.extract_amp(obsc; pol=:I, debias=false, kwargs...)
+function Stoked.extract_amp(obsc; pol=:I, debias=false, kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
     obs.add_amp(;debias, kwargs...)
     config = build_arrayconfig(obs)
     amp, amperr = getampfield(obs)
-    T = Comrade.EHTVisibilityAmplitudeDatum{pol, eltype(amp), typeof(config[1])}
-    return Comrade.EHTObservationTable{T}(amp, amperr, config)
+    T = Stoked.EHTVisibilityAmplitudeDatum{pol, eltype(amp), typeof(config[1])}
+    return Stoked.EHTObservationTable{T}(amp, amperr, config)
 end
 
 
@@ -166,13 +166,13 @@ This grabs the raw `data` object from the obs object. Any keyword arguments are 
 
 Returns an EHTObservationTable with complex visibility data
 """
-function Comrade.extract_vis(obsc; pol=:I, kwargs...)
+function Stoked.extract_vis(obsc; pol=:I, kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
     config = build_arrayconfig(obs)
     vis, viserr = getvisfield(obs)
-    T = Comrade.EHTVisibilityDatum{pol, eltype(viserr), typeof(config[1])}
-    return Comrade.EHTObservationTable{T}(vis, viserr, config)
+    T = Stoked.EHTVisibilityDatum{pol, eltype(viserr), typeof(config[1])}
+    return Stoked.EHTObservationTable{T}(vis, viserr, config)
 end
 
 """
@@ -183,13 +183,13 @@ This grabs the raw `data` object from the obs object. Any keyword arguments are 
 
 Returns an EHTObservationTable with coherency matrices
 """
-function Comrade.extract_coherency(obsc; kwargs...)
+function Stoked.extract_coherency(obsc; kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
     config = build_arrayconfig(obs)
     vis, viserr = getcoherency(obs)
-    T = Comrade.EHTCoherencyDatum{eltype(real(vis[1])), typeof(config[1]), eltype(vis), eltype(viserr)}
-    return Comrade.EHTObservationTable{T}(vis, viserr, config)
+    T = Stoked.EHTCoherencyDatum{eltype(real(vis[1])), typeof(config[1]), eltype(vis), eltype(viserr)}
+    return Stoked.EHTObservationTable{T}(vis, viserr, config)
 end
 
 function closure_designmat(type, closures, scanvis)
@@ -298,7 +298,7 @@ function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs
 
     obs.add_cphase(;count=count, kwargs...)
     cphase = getcpfield(obs)
-    return cphase, Comrade.extract_vis(obs)
+    return cphase, Stoked.extract_vis(obs)
 end
 
 function _make_lcamp(obsc, count="max"; kwargs...)
@@ -312,7 +312,7 @@ function _make_lcamp(obsc, count="max"; kwargs...)
     source = get_source(obs)
     bw = get_bw(obs)
 
-    return Comrade.EHTObservation(data = data, mjd = mjd,
+    return Stoked.EHTObservation(data = data, mjd = mjd,
                    config=nothing,
                    ra = ra, dec= dec,
                    bandwidth=bw,
@@ -328,7 +328,7 @@ function _ehtim_lcamp(obsc; count="max", kwargs...)
 
     obs.add_logcamp(;count=count, kwargs...)
     lcamp = getlcampfield(obs)
-    return lcamp, Comrade.extract_vis(obs)
+    return lcamp, Stoked.extract_vis(obs)
 end
 
 
@@ -463,7 +463,7 @@ Returns an EHTObservation with closure phases datums
 
 # Warning
 
-The `count` keyword argument is treated specially in `Comrade`. The default option
+The `count` keyword argument is treated specially in `Stoked`. The default option
 is "min-correct" and should almost always be used.
 This option construct a minimal set of closure phases that is valid even when
 the array isn't fully connected. For testing and legacy reasons we `ehtim` other count
@@ -471,7 +471,7 @@ options are also included. However, the current `ehtim` count="min" option is br
 and does construct proper minimal sets of closure quantities if the array isn't fully connected.
 
 """
-function Comrade.extract_cphase(obs; pol=:I, count="min", kwargs...)
+function Stoked.extract_cphase(obs; pol=:I, count="min", kwargs...)
     # compute a maximum set of closure phases
     obsc = obs.copy()
     # reorder to maximize the snr
@@ -489,12 +489,12 @@ function Comrade.extract_cphase(obs; pol=:I, count="min", kwargs...)
     else
         throw(ArgumentError("$(count) is not valid use 'min' or 'max'"))
     end
-    clac = Comrade.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
-    T = Comrade.EHTClosurePhaseDatum{pol, eltype(cphase.T), typeof(arrayconfig(dvis)[1])}
-    cp = Comrade.closure_phases(measurement(dvis), Comrade.designmat(clac))
-    cp_sig = abs2.(Comrade.noise(dvis)./Comrade.measurement(dvis))
-    cp_cov = Comrade.designmat(clac)*Diagonal(cp_sig)*transpose(Comrade.designmat(clac))
-    return Comrade.EHTObservationTable{T}(cp, cp_cov, clac)
+    clac = Stoked.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
+    T = Stoked.EHTClosurePhaseDatum{pol, eltype(cphase.T), typeof(arrayconfig(dvis)[1])}
+    cp = Stoked.closure_phases(measurement(dvis), Stoked.designmat(clac))
+    cp_sig = abs2.(Stoked.noise(dvis)./Stoked.measurement(dvis))
+    cp_cov = Stoked.designmat(clac)*Diagonal(cp_sig)*transpose(Stoked.designmat(clac))
+    return Stoked.EHTObservationTable{T}(cp, cp_cov, clac)
 end
 
 
@@ -512,7 +512,7 @@ Any valid keyword arguments to `add_logcamp` in ehtim can be passed through extr
 Returns an EHTObservation with log-closure amp. datums
 
 # Warning
-The `count` keyword argument is treated specially in `Comrade`. The default option
+The `count` keyword argument is treated specially in `Stoked`. The default option
 is "min-correct" and should almost always be used.
 This option construct a minimal set of closure phases that is valid even when
 the array isn't fully connected. For testing and legacy reasons we `ehtim` other count
@@ -520,7 +520,7 @@ options are also included. However, the current `ehtim` count="min" option is br
 and does construct proper minimal sets of closure quantities if the array isn't fully connected.
 
 """
-function Comrade.extract_lcamp(obs; pol=:I, count="min", kwargs...)
+function Stoked.extract_lcamp(obs; pol=:I, count="min", kwargs...)
     # compute a maximum set of closure phases
     obsc = obs.copy()
     # reorder to maximize the snr
@@ -538,13 +538,13 @@ function Comrade.extract_lcamp(obs; pol=:I, count="min", kwargs...)
     else
         throw(ArgumentError("$(count) is not valid use 'min' or 'max'"))
     end
-    clac = Comrade.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
-    cldmat = Comrade.designmat(clac)
-    T = Comrade.EHTLogClosureAmplitudeDatum{pol, eltype(lcamp.T), typeof(arrayconfig(dvis)[1])}
-    lcamp = Comrade.logclosure_amplitudes(measurement(dvis), Comrade.designmat(clac))
-    lcamp_sig = abs2.(Comrade.noise(dvis)./Comrade.measurement(dvis))
+    clac = Stoked.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
+    cldmat = Stoked.designmat(clac)
+    T = Stoked.EHTLogClosureAmplitudeDatum{pol, eltype(lcamp.T), typeof(arrayconfig(dvis)[1])}
+    lcamp = Stoked.logclosure_amplitudes(measurement(dvis), Stoked.designmat(clac))
+    lcamp_sig = abs2.(Stoked.noise(dvis)./Stoked.measurement(dvis))
     lcamp_cov = cldmat*Diagonal(lcamp_sig)*transpose(cldmat)
-    return Comrade.EHTObservationTable{T}(lcamp, lcamp_cov, clac)
+    return Stoked.EHTObservationTable{T}(lcamp, lcamp_cov, clac)
 end
 
 

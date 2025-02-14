@@ -1,14 +1,14 @@
-# # Self-calibrating data with Comrade
+# # Self-calibrating data with Stoked
 
-# Here we will self-cal the data with Comrade. This means we take the results of a
-# Comrade run, and the use eht-imaging to self-calibrate the fitted data and save the
+# Here we will self-cal the data with Stoked. This means we take the results of a
+# Stoked run, and the use eht-imaging to self-calibrate the fitted data and save the
 # new observation object.
 
 # This script assumes that you have the eht-imaging Obsdata object, the
-# Comrade MCMC chain, and the model you fit to the data.
+# Stoked MCMC chain, and the model you fit to the data.
 
 using Pkg;Pkg.activate(@__DIR__)
-using Comrade
+using Stoked
 using Tables
 using DataFrames
 using CSV
@@ -23,7 +23,7 @@ using Serialization
     selfcal(obs, model::GainModel)
 
 Takes in a `eht-imaging` observation object that you fit the data to, and
-a `Comrade` gain model and returns the `self-calibrated` data and the calibration table
+a `Stoked` gain model and returns the `self-calibrated` data and the calibration table
 object from eht-imaging.
 """
 function selfcal(obs::PyCall.PyObject, model::GainModel)

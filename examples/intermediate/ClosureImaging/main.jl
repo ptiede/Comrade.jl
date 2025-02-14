@@ -10,7 +10,7 @@ close(pkg_io) #hide
 # # Imaging a Black Hole using only Closure Quantities
 
 # In this tutorial, we will create a preliminary reconstruction of the 2017 M87 data on April 6
-# using closure-only imaging. This tutorial is a general introduction to closure-only imaging in Comrade.
+# using closure-only imaging. This tutorial is a general introduction to closure-only imaging in Stoked.
 # For an introduction to simultaneous
 # image and instrument modeling, see [Stokes I Simultaneous Image and Instrument Modeling](@ref)
 
@@ -31,8 +31,8 @@ close(pkg_io) #hide
 # In this tutorial, we will do closure-only modeling of M87 to produce a posterior of images of M87.
 
 
-# To get started, we will load Comrade
-using Comrade
+# To get started, we will load Stoked
+using Stoked
 
 # Pyehtim loads eht-imaging using PythonCall this is necessary to load uvfits files
 # currently.
@@ -137,7 +137,7 @@ post = VLBIPosterior(skym, dlcamp, dcphase; admode=set_runtime_activity(Enzyme.R
 # RML imaging we also fit the regularizer hyperparameters, thanks to our interpretation of
 # as our imaging prior as a hierarchical model.
 
-# To optimize our posterior `Comrade` provides the `comrade_opt` function. To use this
+# To optimize our posterior `Stoked` provides the `comrade_opt` function. To use this
 # functionality a user first needs to import `Optimization.jl` and the optimizer of choice.
 # In this tutorial we will use Optim.jl's L-BFGS optimizer, which is defined in the sub-package
 # OptimizationOptimJL. We also need to import Enzyme to allow for automatic differentiation.
@@ -183,7 +183,7 @@ chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_
 #     This should be run for longer!
 #-
 # Now that we have our posterior, we can assess which parts of the image are strongly inferred by the
-# data. This is rather unique to `Comrade` where more traditional imaging algorithms like CLEAN and RML are inherently
+# data. This is rather unique to `Stoked` where more traditional imaging algorithms like CLEAN and RML are inherently
 # unable to assess uncertainty in their reconstructions.
 #
 # To explore our posterior let's first create images from a bunch of draws from the posterior

@@ -72,7 +72,7 @@ function load_samples(
     if table == :both
         chain = load_samples(out, indices; table=:samples)
         stats = load_samples(out, indices; table=:stats)
-        return PosteriorSamples(Comrade.postsamples(chain), stats,
+        return PosteriorSamples(Stoked.postsamples(chain), stats,
                 ; metadata=Dict(:sampler=>:AHMC))
     end
 
@@ -87,7 +87,7 @@ function load_samples(
         if table == :samples
             return PosteriorSamples(reduce(vcat, tload.(d, :samples)), nothing; metadata=Dict(:sampler=>:AHMC))
         else
-            return Comrade.StructArray(reduce(vcat, tload.(d, :stats)))
+            return Stoked.StructArray(reduce(vcat, tload.(d, :stats)))
         end
     end
 
@@ -119,7 +119,7 @@ function load_samples(
     if table == :samples
         return PosteriorSamples(out, nothing; metadata=Dict(:sampler=>:AHMC))
     else
-        return Comrade.StructArray(out)
+        return Stoked.StructArray(out)
     end
 end
 

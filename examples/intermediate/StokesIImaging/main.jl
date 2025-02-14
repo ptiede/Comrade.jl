@@ -16,8 +16,8 @@ close(pkg_io) #hide
 # unlike traditional self-cal, we will solve for the gains each time we update the image
 # self-consistently. This allows us to model the correlations between gains and the image.
 
-# To get started we load Comrade.
-using Comrade
+# To get started we load Stoked.
+using Stoked
 
 
 
@@ -145,7 +145,7 @@ intmodel = InstrumentModel(G, intpr)
 
 # To form the posterior we just combine the skymodel, instrument model and the data. Additionally,
 # since we want to use gradients we need to specify the AD mode. Essentially for all modes we recommend
-# using `Enzyme.set_runtime_activity(Enzyme.Reverse)`. Eventually as Comrade and Enzyme matures we will 
+# using `Enzyme.set_runtime_activity(Enzyme.Reverse)`. Eventually as Stoked and Enzyme matures we will 
 # no need `set_runtime_activity`.
 using Enzyme
 post = VLBIPosterior(skym, intmodel, dvis; admode=set_runtime_activity(Enzyme.Reverse))
@@ -186,10 +186,10 @@ imageviz(img, size=(500, 400))|> DisplayAs.PNG |> DisplayAs.Text
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
-# To do this, `Comrade` provides a `caltable` function that converts the flattened gain parameters
+# To do this, `Stoked` provides a `caltable` function that converts the flattened gain parameters
 # to a tabular format based on the time and its segmentation.
 intopt = instrumentmodel(post, xopt)
-gt = Comrade.caltable(angle.(intopt))
+gt = Stoked.caltable(angle.(intopt))
 plotcaltable(gt)|> DisplayAs.PNG |> DisplayAs.Text
 
 # The gain phases are pretty random, although much of this is due to us picking a random
@@ -197,7 +197,7 @@ plotcaltable(gt)|> DisplayAs.PNG |> DisplayAs.Text
 
 # Moving onto the gain amplitudes, we see that most of the gain variation is within 10% as expected
 # except LMT, which has massive variations.
-gt = Comrade.caltable(abs.(intopt))
+gt = Stoked.caltable(abs.(intopt))
 plotcaltable(gt)|> DisplayAs.PNG |> DisplayAs.Text
 
 
@@ -232,8 +232,8 @@ chain = chain[501:end]
 
 # Now that we have our posterior, we can put error bars on all of our plots above.
 # Let's start by finding the mean and standard deviation of the gain phases
-mchain = Comrade.rmap(mean, chain);
-schain = Comrade.rmap(std, chain);
+mchain = Stoked.rmap(mean, chain);
+schain = Stoked.rmap(std, chain);
 # Now we can use the measurements package to automatically plot everything with error bars.
 # First we create a `caltable` the same way but making sure all of our variables have errors
 # attached to them.

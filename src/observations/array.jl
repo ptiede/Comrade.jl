@@ -31,7 +31,7 @@ end
 
 Get the u, v, time, freq domain of the array.
 """
-function domain(ac::AbstractArrayConfiguration; executor=Serial(), header=ComradeBase.NoHeader())
+function domain(ac::AbstractArrayConfiguration; executor=Serial(), header=StokedBase.NoHeader())
     u = ac[:U]
     v = ac[:V]
     t = ac[:Ti]
@@ -280,7 +280,7 @@ function factornoisecovariance(c::ClosureConfig)
 end
 
 
-function domain(ac::ClosureConfig; executor=Serial(), header=ComradeBase.NoHeader())
+function domain(ac::ClosureConfig; executor=Serial(), header=StokedBase.NoHeader())
     return domain(arrayconfig(ac); executor, header)
 end
 
