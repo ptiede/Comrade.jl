@@ -148,7 +148,7 @@ Returns an EHTObservationTable with visibility amplitude data
 """
 function Comrade.extract_amp(obsc; pol=:I, debias=false, kwargs...)
     obs = obsc.copy()
-    obs.reorder_tarr_snr()
+    # obs.reorder_tarr_snr()
     obs.add_amp(;debias, kwargs...)
     config = build_arrayconfig(obs)
     amp, amperr = getampfield(obs)
@@ -170,7 +170,7 @@ Returns an EHTObservationTable with complex visibility data
 """
 function Comrade.extract_vis(obsc; pol=:I, kwargs...)
     obs = obsc.copy()
-    obs.reorder_tarr_snr()
+    # obs.reorder_tarr_snr()
     config = build_arrayconfig(obs)
     vis, viserr = getvisfield(obs)
     T = Comrade.EHTVisibilityDatum{pol, eltype(viserr), typeof(config[1])}
@@ -187,6 +187,7 @@ Returns an EHTObservationTable with coherency matrices
 """
 function Comrade.extract_coherency(obsc; kwargs...)
     obs = obsc.copy()
+    # obs.reorder_tarr_snr()
     config = build_arrayconfig(obs)
     vis, viserr = getcoherency(obs)
     T = Comrade.EHTCoherencyDatum{eltype(real(vis[1])), typeof(config[1]), eltype(vis), eltype(viserr)}
