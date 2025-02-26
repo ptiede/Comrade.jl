@@ -6,9 +6,8 @@ using StructArrays: StructVector, StructArray, append!!
 using LinearAlgebra
 using StaticArraysCore
 
-function build_arrayconfig(obs)
-    obsd = obs.data
-    obsc = obs.copy()
+function build_arrayconfig(obsc)
+    obsd = obsc.data
     ra, dec = get_radec(obsc)
     mjd = get_mjd(obsc)
     source = get_source(obsc)
@@ -18,9 +17,12 @@ function build_arrayconfig(obs)
 
     # This is because sometimes eht-imaging sets the scans to nothing
     # and sometimes it fills it with junk
+    PythonCall.Core.pyisnone(obsc.scans) && obsc.add_scans()
     if length(obsc.scans) <= 1
         obsc.add_scans()
     end
+
+
     scans = StructArray(get_scantable(obsc))
     bw  = get_bw(obsc)
     elevation = StructArray(angles[1])

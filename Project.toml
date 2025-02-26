@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.11.7"
+version = "0.11.8"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -70,10 +70,10 @@ AdvancedHMC = "0.6"
 ArgCheck = "2"
 AstroTime = "0.6,0.7"
 ChainRulesCore = "1"
-ComradeBase = "0.8"
+ComradeBase = "0.9"
 DelimitedFiles = "1"
 DensityInterface = "0.4"
-DimensionalData = "0.27, 0.28, 0.29"
+DimensionalData = "0.29"
 Distributions = "0.25"
 DocStringExtensions = "0.8, 0.9"
 Dynesty = "0.4"
