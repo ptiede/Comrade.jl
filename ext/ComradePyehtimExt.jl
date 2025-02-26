@@ -185,7 +185,6 @@ Returns an EHTObservationTable with coherency matrices
 """
 function Comrade.extract_coherency(obsc; kwargs...)
     obs = obsc.copy()
-    obs.reorder_tarr_snr()
     config = build_arrayconfig(obs)
     vis, viserr = getcoherency(obs)
     T = Comrade.EHTCoherencyDatum{eltype(real(vis[1])), typeof(config[1]), eltype(vis), eltype(viserr)}
