@@ -62,15 +62,16 @@ EnzymeRules.inactive_type(::Type{<:SiteLookup}) = true
     @inbounds for site in vals
         # i0 = site[begin]
         # yout[i0] = y[i0]
-        # acc = zero(eltype(y))
-        # for idx in site
-        #     acc += y[idx]
-        #     yout[idx] = acc
-        # end
-        ys = @view y[site]
+        acc = zero(eltype(y))
+        @inbounds ys = @view y[site]
+        for i in eachindex(ys)
+            acc += ys[i]
+            ys[i] = acc
+        end
+        # ys = @view y[site]
         # y should never alias so we should be fine here.
         # youts = @view yout[site]
-        cumsum!(ys, ys)
+        # cumsum!(ys, ys)
     end
     return y
 end
