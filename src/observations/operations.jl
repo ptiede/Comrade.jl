@@ -17,6 +17,21 @@ function add_fractional_noise!(dvis::EHTObservationTable{<:Union{EHTVisibilityDa
     return dvis
 end
 
+function add_fractional_noise!(dcl::EHTObservationTable{<:ClosureProducts}, ferr)
+    conf = arrayconfig(dcl)
+    nois = noise(dcl)
+    vis = getfield(conf, :vis)
+    nvi = getfield(conf, :noise)
+    dmat = designmat(conf)
+    map!(nvi, nvi, vis) do e, m
+        fe =  sqrt.(e.^2 .+ ferr.^2*abs2(m))
+        return fe
+    end
+    # update the noise covariance matrix
+    nois .= dmat*Diagonal(abs2.(nvi./vis))*transpose(dmat)
+    return dcl
+end
+
 
 """
     add_fractional_noise(dvis::AbstractObservationTable, ferr)
@@ -29,8 +44,8 @@ data is identical except the noise is replaced with
 where `σ` is dvis[:noise] and `V` is dvis[:measurement].
 
 !!! warning
-    We do not implement this function for closures since the error should be added directly to the 
-    visibilities.
+    When the datum type <: ClosureProducts, we do not update the noise covariance matrix.
+    This means that cross-correlation may be slightly incorrect.
 """
 function add_fractional_noise(dvis, ferr)
     dvis = deepcopy(dvis)

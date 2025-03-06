@@ -120,6 +120,11 @@ end
         @test visn[:measurement] ≈ vis[:measurement]
         @test visn[:noise] ≈ hypot.(vis[:noise], 0.01 .* abs.(vis[:measurement]))
 
+        cpn = add_fractional_noise(cphase, 0.01)
+        @test cpn[:measurement] ≈ cphase[:measurement]
+        @test getfield(arrayconfig(cpn), :noise) ≈ hypot.(vis[:noise], 0.01 .* abs.(vis[:measurement]))
+        @test cpn.noise ≈ parent(Comrade.factornoisecovariance(arrayconfig(cpn)))
+
         cohn = add_fractional_noise(dcoh, 0.01)
         @test cohn[:measurement] ≈ dcoh[:measurement]
         @test cohn[:noise].:1 ≈ hypot.(dcoh[:noise].:1, 0.01 .* abs.(tr.(dcoh[:measurement]))/2)
