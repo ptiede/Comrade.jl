@@ -44,8 +44,8 @@ data is identical except the noise is replaced with
 where `σ` is dvis[:noise] and `V` is dvis[:measurement].
 
 !!! warning
-    We do not implement this function for closures since the error should be added directly to the 
-    visibilities.
+    When the datum type <: ClosureProducts, we do not update the noise covariance matrix.
+    This means that cross-correlation may be slightly incorrect.
 """
 function add_fractional_noise(dvis, ferr)
     dvis = deepcopy(dvis)
