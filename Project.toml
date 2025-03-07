@@ -66,7 +66,7 @@ ComradePyehtimExt = "Pyehtim"
 [compat]
 AbstractMCMC = "3, 4, 5"
 Accessors = "0.1"
-AdvancedHMC = "0.6"
+AdvancedHMC = "0.6, 0.7"
 ArgCheck = "2"
 AstroTime = "0.6,0.7"
 ChainRulesCore = "1"
