@@ -122,6 +122,7 @@ end
 Computes the ideal non-corrupted visibilities of the sky model `m` given the model parameters `x`.
 """
 function idealvisibilities(m::AbstractSkyModel, x)
+    @info typeof(x)
     skym = skymodel(m, x.sky)
     return visibilitymap(skym, domain(m))
 end
