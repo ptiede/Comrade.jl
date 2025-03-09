@@ -3,10 +3,15 @@ export flag, select_baseline, add_fractional_noise!, add_fractional_noise
 function add_fractional_noise!(dvis::EHTObservationTable{<:EHTCoherencyDatum}, ferr)
     map!(dvis[:noise], dvis[:noise], dvis[:measurement]) do e, m
         # we do it like this so I don't NaN everything
-        fe[1,1] = sqrt(e[1,1]^2 .+ ferr^2*abs2(m[1,1]))
-        fe[1,2] = sqrt(e[1,2]^2 .+ ferr^2*abs2(m[1,1]))
-        fe[2,1] = sqrt(e[2,1]^2 .+ ferr^2*abs2(m[2,2]))
-        fe[2,2] = sqrt(e[2,2]^2 .+ ferr^2*abs2(m[2,2]))
+        # if a feed is missing
+        if isnan(m[1,1])
+            err = m[2,2]
+        elseif isnan(m[2,2])
+            err = m[1,1]
+        else
+            err = tr(m)/2
+        end
+        fe = sqrt.(e.^2 .+ ferr.^2*abs2(err))
         return fe
     end
     return dvis
