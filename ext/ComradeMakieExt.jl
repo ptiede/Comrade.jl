@@ -482,7 +482,7 @@ function plotaxis(
     end
 end
 
-@doc"""
+"""
     plotcaltable(gt...; width=150, height=125, layout=nothing, markers=nothing, labels=nothing, 
                         axis_kwargs=(;), legend_kwargs=(;), figure_kwargs=(;), scatter_kwargs=(;))
 
@@ -556,7 +556,7 @@ function plotcaltable(
                 νind = findall(==(ν), gi.Fr)
                 x = getproperty.(gi.Ti, :t0)[νind]
                 y = getproperty(gi, site)[νind]
-                label = string(labels[k], " ", frequencylabel(round(ν.central, digits = 2))),
+                label = string(labels[k], " ", frequencylabel(round(ν.central, digits = 2)))
                 marker = markers[j]
                 if eltype(y) >: Float64
                     scatter!(
