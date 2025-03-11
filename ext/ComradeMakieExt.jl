@@ -556,14 +556,15 @@ function plotcaltable(
                 νind = findall(==(ν), gi.Fr)
                 x = getproperty.(gi.Ti, :t0)[νind]
                 y = getproperty(gi, site)[νind]
-
+                label = string(labels[k], " ", frequencylabel(round(ν.central, digits = 2))),
+                marker = markers[j]
                 if eltype(y) >: Float64
                     scatter!(
                         ax,
                         x,
                         y,
-                        label = string(labels[k], " ", frequencylabel(round(ν.central, digits = 2))),
-                        marker = markers[j],
+                        marker = marker,
+                        label = label,
                         scatter_kwargs...,
                     )
                 else
@@ -577,8 +578,8 @@ function plotcaltable(
                         ax,
                         x,
                         yval,
-                        label = string(labels[i], " ", frequencylabel(round(ν.central, digits = 2))),
-                        marker = markers[j],
+                        label = label,
+                        marker = marker,
                         scatter_kwargs...,
                     )
                 end
