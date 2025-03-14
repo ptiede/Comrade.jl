@@ -151,7 +151,7 @@ function _process_samples(pt, tpost, next, time, nscans, out, outbase, outdir, i
     chain = nothing
     samples = nothing
     stats = nothing
-    GC.gc(true)
+    s = nothing
     iter += 1
     serialize(joinpath(outdir, "checkpoint.jls"), (;pt, state, out, iter))
     return state, iter
