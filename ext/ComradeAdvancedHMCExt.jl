@@ -148,10 +148,11 @@ function _process_samples(pt, tpost, next, time, nscans, out, outbase, outdir, i
           "  Avg log-post:    $(mean(samplerstats(s).log_density))\n")
 
     serialize(outbase*(@sprintf "%05d.jls" iter), (samples=Comrade.postsamples(s), stats=Comrade.samplerstats(s)))
-    chain = nothing
-    samples = nothing
-    stats = nothing
-    s = nothing
+    # chain = nothing
+    # samples = nothing
+    # stats = nothing
+    # s = nothing
+    # GC.gc()
     iter += 1
     serialize(joinpath(outdir, "checkpoint.jls"), (;pt, state, out, iter))
     return state, iter

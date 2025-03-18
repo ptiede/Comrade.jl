@@ -62,14 +62,17 @@ end
 # This is convienence function to conver the field to a function
 # if the field is a symbol, we see if it is an option and return that
 convert_field(f) = f
-convert_field(::Type{<:U}) = x->x.baseline.U
-convert_field(::Type{<:V}) = x->x.baseline.V
+convert_field(::Type{<:U}) = _U
+convert_field(::Type{<:V}) = _V
 convert_field(::Type{<:Ti}) = x->x.baseline.Ti
 convert_field(::Type{<:Fr}) = x->x.baseline.Fr
 
+_U(x) = x.baseline.U
+_V(x) = x.baseline.V
+
 function convert_field(field::Symbol)
-    field == :U && return x->x.baseline.U
-    field == :V && return x->x.baseline.V
+    field == :U && return _U
+    field == :V && return _V
     field == :Ti && return x->x.baseline.Ti
     field == :Fr && return x->x.baseline.Fr
     field == :snr && return x->abs.(Comrade.measurement(x)) ./ noise(x)
@@ -183,6 +186,8 @@ measname(d::EHTObservationTable{<:Comrade.EHTVisibilityAmplitudeDatum}) = "Visib
 _defaultlabel(f::Symbol) = _defaultlabel(Val(f))
 _defaultlabel(::Val{:U}) = "u (λ)"
 _defaultlabel(::Val{:V}) = "v (λ)"
+_defaultlabel(::typeof(_U)) = "u (λ)"
+_defaultlabel(::typeof(_V)) = "v (λ)"
 _defaultlabel(::Val{:Ti}) = "Time (UTC)"
 _defaultlabel(::Val{:Fr}) = "Frequency (Hz)"
 _defaultlabel(::Val{:amp}) = "Visibility Amplitude (Jy)"
@@ -259,7 +264,7 @@ function plotfields(
     y = fy.(dt)
     Fr = _frequency(obsdata)
     if conjugate == true # conjugating for (u,v) plotting
-        if field1 in (:U, :V) && field2 in (:U, :V) # conjugating for (u,v) plotting 
+        if fx in (_U, _V) && fy in (_U, _V) # conjugating for (u,v) plotting 
             x = [x; -x]
             y = [y; -y]
             Fr = [Fr; Fr]
@@ -378,7 +383,7 @@ function axisfields(
     Fr = _frequency(obsdata)
 
     if conjugate == true # conjugating for (u,v) plotting
-        if field1 in (:U, :V) && field2 in (:U, :V) # conjugating for (u,v) plotting 
+        if fx in (_U, _V) && fy in (_U, _V) # conjugating for (u,v) plotting 
             x = [x; -x]
             y = [y; -y]
             Fr = [Fr; Fr]
@@ -518,8 +523,8 @@ function plotcaltable(
         gt = (gt,)
     end
     sitelist = sites(argmax(x->length(sites(x)), gt))
-    tup = maximum(maximum.(x->x[:Ti].t0, gt))
-    tlo = minimum(minimum.(x->x[:Ti].t0, gt))
+    tup = maximum(maximum.(x->x[:Ti].t0+x[:Ti].dt/2, gt))
+    tlo = minimum(minimum.(x->x[:Ti].t0-x[:Ti].dt/2, gt))
 
     lims = get(axis_kwargs, :limits, ((tlo, tup), nothing))
     lims = isnothing(lims[1]) ? ((tlo, tup), lims[2]) : lims
