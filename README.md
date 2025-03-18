@@ -13,7 +13,8 @@ Composable Modeling of Radio Emission
 
 # Julia support
 
-Currently we only support Julia 1.10. We are working on updating to Julia 1.11 but this is not yet complete.
+We support verions 1.10 and newer. However, due to changes in Julia's array type in 1.11 and later, we recommend using the 1.10 version
+for optimal performance with Enzyme.
 
 # Installation
 To install Comrade.jl you must use Julia's package manager. For example you can launch your Julia session with then type `]` to move into Pkg mode. Once in pkg mode type
