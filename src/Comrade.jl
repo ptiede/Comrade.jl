@@ -14,7 +14,6 @@ using ChainRulesCore
 using EnzymeCore
 using EnzymeCore: EnzymeRules
 using FillArrays: Fill
-using ForwardDiff
 using IntervalSets
 using LogDensityProblems
 using LinearAlgebra
