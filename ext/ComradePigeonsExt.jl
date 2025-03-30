@@ -72,11 +72,15 @@ LogDensityProblems.dimension(t::PriorRef) = Comrade.dimension(t.transform)
 LogDensityProblems.logdensity(t::PriorRef, x) = t(x)
 LogDensityProblems.capabilities(::Type{<:PriorRef}) = LogDensityProblems.LogDensityOrder{0}()
 
+Pigeons.LogDensityProblemsAD.ADgradient(kind::Val, log_potential::Comrade.AbstractVLBIPosterior, replica::Pigeons.Replica) =
+    Pigeons.BufferedAD(log_potential, replica.recorders.buffers, Ref(0.0), Ref{Cstring}())
+
+
 function LogDensityProblems.logdensity_and_gradient(log_potential::Pigeons.BufferedAD{<:Comrade.AbstractVLBIPosterior}, x)
     m = log_potential.enclosed
     b = log_potential.buffer
-    ∂ℓ_∂x = fill!(b, zero(eltype(b.buffer))) # NB: Enzyme gives erroneous answer if buffer is not zeroed first
-    mode = EnzymeCore.WithPrimal(Comrade.admode(d))
+    ∂ℓ_∂x = fill!(b, zero(eltype(b))) # NB: Enzyme gives erroneous answer if buffer is not zeroed first
+    mode = EnzymeCore.WithPrimal(Comrade.admode(m))
     _, y = EnzymeCore.autodiff(
                 mode, LogDensityProblems.logdensity, EnzymeCore.Active,
                 EnzymeCore.Const(m), EnzymeCore.Duplicated(x, ∂ℓ_∂x)
