@@ -9,6 +9,7 @@ Composable Modeling of Radio Emission
 [![Coverage](https://codecov.io/gh/ptiede/Comrade.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/ptiede/Comrade.jl)
 [![ColPrac: Contributor's Guide on Collaborative Practices for Community Packages](https://img.shields.io/badge/ColPrac-Contributor's%20Guide-blueviolet)](https://github.com/SciML/ColPrac)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.04457/status.svg)](https://doi.org/10.21105/joss.04457)
+[![code style: runic](https://img.shields.io/badge/code_style-%E1%9A%B1%E1%9A%A2%E1%9A%BE%E1%9B%81%E1%9A%B2-black)](https://github.com/fredrikekre/Runic.jl)
 
 
 # Julia support
