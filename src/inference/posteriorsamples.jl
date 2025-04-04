@@ -1,44 +1,44 @@
 export PosteriorSamples, postsamples, samplerstats, samplerinfo, resample_equal
 
 
-struct PosteriorSamples{T, N, C<:AbstractArray{T,N}, S, M} <: AbstractArray{T,N}
+struct PosteriorSamples{T, N, C <: AbstractArray{T, N}, S, M} <: AbstractArray{T, N}
     chain::C
     stats::S
     metadata::M
-    function PosteriorSamples(chain, stats::S, metadata::M) where {S,M}
+    function PosteriorSamples(chain, stats::S, metadata::M) where {S, M}
         c = _convert2structarr(chain)
         N = ndims(c)
         T = eltype(c)
         C = typeof(c)
-        new{T,N,C,S, M}(c, stats, metadata)
+        return new{T, N, C, S, M}(c, stats, metadata)
     end
 
-    function PosteriorSamples(chain::StructArray{T,N}, stats::StructArray, metadata) where {T,N}
+    function PosteriorSamples(chain::StructArray{T, N}, stats::StructArray, metadata) where {T, N}
         length(chain) != length(stats) && throw(ArgumentError("chain and stats must have the same length"))
-        new{T, N, typeof(chain), typeof(stats), typeof(metadata)}(chain, stats, metadata)
+        return new{T, N, typeof(chain), typeof(stats), typeof(metadata)}(chain, stats, metadata)
     end
 
 end
 
 
-_convert2structarr(x::Union{<:NamedTuple, <:AbstractArray}) = StructArray(x, unwrap=(T->(T<:Union{NamedTuple, Tuple})))
+_convert2structarr(x::Union{<:NamedTuple, <:AbstractArray}) = StructArray(x, unwrap = (T -> (T <: Union{NamedTuple, Tuple})))
 _convert2structarr(x::StructArray) = x
 
 
-function PosteriorSamples(chain, stats::AbstractArray; metadata=Dict(:sampler=>:unknown))
+function PosteriorSamples(chain, stats::AbstractArray; metadata = Dict(:sampler => :unknown))
     ch = _convert2structarr(chain)
     st = StructArray(stats)
     return PosteriorSamples(ch, st; metadata)
 end
 
 
-function PosteriorSamples(chain, stats::NamedTuple; metadata=Dict(:sampler=>:unknown))
+function PosteriorSamples(chain, stats::NamedTuple; metadata = Dict(:sampler => :unknown))
     ch = _convert2structarr(chain)
     st = StructArray(stats)
     return PosteriorSamples(ch, st; metadata)
 end
 
-function PosteriorSamples(chain, stats; metadata=Dict(:sampler=>:unknown))
+function PosteriorSamples(chain, stats; metadata = Dict(:sampler => :unknown))
     ch = _convert2structarr(chain)
     return PosteriorSamples(ch, stats, metadata)
 end
@@ -57,12 +57,10 @@ or the acesss sampler specific information use [`samplerinfo`](@ref).
 
 To recursively map a function over the samples the unexported [`Comrade.rmap`](@ref).
 """
-function PosteriorSamples(chain::StructArray{T,N}, stats::StructArray; metadata=Dict(:sampler=>:unknown)) where {T,N}
+function PosteriorSamples(chain::StructArray{T, N}, stats::StructArray; metadata = Dict(:sampler => :unknown)) where {T, N}
     length(chain) != length(stats) && throw(ArgumentError("chain and stats must have the same length"))
     return PosteriorSamples(chain, stats, metadata)
 end
-
-
 
 
 function Base.parent(s::PosteriorSamples)
@@ -92,11 +90,11 @@ end
 
 
 function Base.similar(s::PosteriorSamples, ::Type{S}, dims::Dims) where {S}
-    isnothing(samplerstats(s)) && return PosteriorSamples(similar(postsamples(s), S, dims), nothing; metadata= samplerinfo(s))
-    return PosteriorSamples(similar(postsamples(s), S, dims), similar(samplerstats(s), dims); metadata=samplerinfo(s))
+    isnothing(samplerstats(s)) && return PosteriorSamples(similar(postsamples(s), S, dims), nothing; metadata = samplerinfo(s))
+    return PosteriorSamples(similar(postsamples(s), S, dims), similar(samplerstats(s), dims); metadata = samplerinfo(s))
 end
 
-Base.IndexStyle(::Type{<:PosteriorSamples{T,N,C}}) where {T,N,C} = Base.IndexStyle(C)
+Base.IndexStyle(::Type{<:PosteriorSamples{T, N, C}}) where {T, N, C} = Base.IndexStyle(C)
 
 rmap(f, x) = f(x)
 
@@ -109,19 +107,19 @@ of all fields you can do `Comrade.rmap(mean, chain)`
 rmap(f, x::PosteriorSamples) = rmap(f, postsamples(x))
 
 function rmap(f, t::Tuple)
-    map(x -> rmap(f,x), t)
+    return map(x -> rmap(f, x), t)
 end
 
-function rmap(f, nt::NamedTuple{N,T}) where {N,T}
-    NamedTuple{N}(map(x -> rmap(f,x), values(nt)))
+function rmap(f, nt::NamedTuple{N, T}) where {N, T}
+    return NamedTuple{N}(map(x -> rmap(f, x), values(nt)))
 end
 
 function rmap(f, x::StructArray)
-    return NamedTuple{propertynames(x)}(map(x->rmap(f, x), StructArrays.components(x)))
+    return NamedTuple{propertynames(x)}(map(x -> rmap(f, x), StructArrays.components(x)))
 end
 
 function rmap(f, x::StructArray{<:Tuple})
-    return map(x->rmap(f, x), StructArrays.components(x))
+    return map(x -> rmap(f, x), StructArrays.components(x))
 end
 
 
@@ -130,10 +128,12 @@ function Base.show(io::IO, ::MIME"text/plain", s::PosteriorSamples)
     println(io, "  Samples size: $(size(s))")
     println(io, "  sampler used: ", get(samplerinfo(s), :sampler, "unknown"))
     ct = postsamples(s)
-    pretty_table(io, [rmap(mean, ct)]; title="Mean", alignment=:l
-                )
-    pretty_table(io, [rmap(std, ct)]; title="Std. Dev.", alignment=:l
-                )
+    pretty_table(
+        io, [rmap(mean, ct)]; title = "Mean", alignment = :l
+    )
+    return pretty_table(
+        io, [rmap(std, ct)]; title = "Std. Dev.", alignment = :l
+    )
 
 end
 

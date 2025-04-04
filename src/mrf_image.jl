@@ -18,9 +18,8 @@ end
 
 @inline function apply_fluctuations(t::VLBIImagePriors.LogRatioTransform, m::AbstractModel, g::AbstractRectiGrid, δ::AbstractArray)
     mimg = baseimage(intensitymap(m, g))
-    return apply_fluctuations(t, IntensityMap(mimg./sum(mimg), g), δ)
+    return apply_fluctuations(t, IntensityMap(mimg ./ sum(mimg), g), δ)
 end
-
 
 
 @inline function apply_fluctuations(mimg::IntensityMap, δ::AbstractArray)
@@ -28,10 +27,10 @@ end
 end
 
 @inline function _apply_fluctuations(f, mimg::AbstractArray, δ::AbstractArray)
-    return mimg.*f.(δ)
+    return mimg .* f.(δ)
 end
 
-@noinline _checknorm(m::AbstractArray) = isapprox(sum(m), 1, atol=1e-6)
+@noinline _checknorm(m::AbstractArray) = isapprox(sum(m), 1, atol = 1.0e-6)
 EnzymeRules.inactive(::typeof(_checknorm), args...) = nothing
 
 function _fastsum(x)
@@ -46,8 +45,8 @@ end
 function _apply_fluctuations(t::VLBIImagePriors.LogRatioTransform, mimg::AbstractArray, δ::AbstractArray)
     @argcheck _checknorm(mimg) "Mean image must have unit flux when using log-ratio transformations in apply_fluctuations while it seems to be $(sum(mimg))"
     r = to_simplex(t, baseimage(δ))
-    r .= r.*baseimage(mimg)
-    r .= r./_fastsum(r)
+    r .= r .* baseimage(mimg)
+    r .= r ./ _fastsum(r)
     return r
 end
 
@@ -83,14 +82,15 @@ and upper bounds of the correlation length, we don't let the correlation length 
 !!! warn
     An order > 2 will be slow since we switch to a sparse matrix representation of the MRF.
 """
-function corr_image_prior(grid::AbstractRectiGrid, corr_length::Real; 
-                         base=GMRF, order=1,
-                         frac_below_beam=0.01, 
-                         lower=1.0, upper=2*max(size(grid)...)
-                        )
-    rat = corr_length/step(grid.X)
-    cmarkov = ConditionalMarkov(base, grid; order=order)
-    dρ = Dists.truncated(Dists.InverseGamma(1.0, -log(frac_below_beam)*rat); lower, upper)
+function corr_image_prior(
+        grid::AbstractRectiGrid, corr_length::Real;
+        base = GMRF, order = 1,
+        frac_below_beam = 0.01,
+        lower = 1.0, upper = 2 * max(size(grid)...)
+    )
+    rat = corr_length / step(grid.X)
+    cmarkov = ConditionalMarkov(base, grid; order = order)
+    dρ = Dists.truncated(Dists.InverseGamma(1.0, -log(frac_below_beam) * rat); lower, upper)
     cprior = HierarchicalPrior(cmarkov, dρ)
     return cprior
 end

@@ -20,13 +20,13 @@ function fishermatrix(model, t, θ::NamedTuple, ac::ArrayConfiguration)
     tr = Base.Fix1(transform, t)
 
     # split into real and imaginary since ForwardDiff struggles with complex functions
-    fr = real∘v∘model∘tr
-    fi = imag∘v∘model∘tr
+    fr = real ∘ v ∘ model ∘ tr
+    fi = imag ∘ v ∘ model ∘ tr
     x0 = inverse(t, θ)
     vr = first(AD.jacobian(ad_type, fr, x0))
     vi = first(AD.jacobian(ad_type, fi, x0))
     v1 = complex.(vr, vi)
-    M = Symmetric(real.(v1'*v1) .+ eps())
-    h = M*x0
+    M = Symmetric(real.(v1' * v1) .+ eps())
+    h = M * x0
     return M, Dists.MvNormalCanon(h, M)
 end

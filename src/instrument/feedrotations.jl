@@ -11,11 +11,11 @@ function build_feedrotation(obs::EHTArrayConfiguration)
 
 
     # get ehtobservation array info
-    tarr  = config.tarr
-    ants  = tarr.sites
+    tarr = config.tarr
+    ants = tarr.sites
     elevs = tarr.fr_elevation
-    pars  = tarr.fr_parallactic
-    offs  = tarr.fr_offset
+    pars = tarr.fr_parallactic
+    offs = tarr.fr_offset
 
 
     # get station names
@@ -24,18 +24,18 @@ function build_feedrotation(obs::EHTArrayConfiguration)
     ant2 = last.(bls)
 
     # get multiplicative prefactors
-    f_el1  = zero(el1)
+    f_el1 = zero(el1)
     f_par1 = zero(par1)
     f_off1 = zero(el1)
-    f_el2  = zero(el2)
+    f_el2 = zero(el2)
     f_par2 = zero(par2)
     f_off2 = zero(el2)
     for i in eachindex(ant1)
         ind1 = findall(==(ant1[i]), ants) |> first
         ind2 = findall(==(ant2[i]), ants) |> first
 
-        f_el1[i]  = elevs[ind1]
-        f_el2[i]  = elevs[ind2]
+        f_el1[i] = elevs[ind1]
+        f_el2[i] = elevs[ind2]
 
         f_par1[i] = pars[ind1]
         f_par2[i] = pars[ind2]
@@ -49,8 +49,8 @@ function build_feedrotation(obs::EHTArrayConfiguration)
 
     S = Complex{eltype(FR1)}
     offdiag = fill(zero(eltype(FR1)), length(FR1))
-    jF1 = StructArray{SMatrix{2,2,S,4}}((cis.(-FR1), offdiag, offdiag, cis.(FR1)))
-    jF2 = StructArray{SMatrix{2,2,S,4}}((cis.(-FR2), offdiag, offdiag, cis.(FR2)))
+    jF1 = StructArray{SMatrix{2, 2, S, 4}}((cis.(-FR1), offdiag, offdiag, cis.(FR1)))
+    jF2 = StructArray{SMatrix{2, 2, S, 4}}((cis.(-FR2), offdiag, offdiag, cis.(FR2)))
 
     return jF1, jF2
 end

@@ -16,12 +16,12 @@ Construct a table from the observation `obs`. The table is usually a StructArray
 datatable(obs::AbstractVLBITable) = getfield(obs, :datatable)
 
 
-function Base.getindex(config::F, i::AbstractVector) where {F<:AbstractVLBITable}
+function Base.getindex(config::F, i::AbstractVector) where {F <: AbstractVLBITable}
     newconf = datatable(config)[i]
     return rebuild(config, newconf)
 end
 
-function Base.view(config::F, i::AbstractVector) where {F<:AbstractVLBITable}
+function Base.view(config::F, i::AbstractVector) where {F <: AbstractVLBITable}
     newconf = @view(datatable(config)[i])
     return rebuild(config, newconf)
 end

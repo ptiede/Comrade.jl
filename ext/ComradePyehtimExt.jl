@@ -24,21 +24,21 @@ function build_arrayconfig(obsc)
 
 
     scans = StructArray(get_scantable(obsc))
-    bw  = get_bw(obsc)
+    bw = get_bw(obsc)
     elevation = StructArray(angles[1])
-    parallactic  = StructArray(angles[2])
+    parallactic = StructArray(angles[2])
 
-    U   = pyconvert(Vector,         obsd["u"])
-    V   = pyconvert(Vector,         obsd["v"])
-    t1  = pyconvert(Vector{Symbol}, obsd["t1"])
-    t2  = pyconvert(Vector{Symbol}, obsd["t2"])
-    Ti= pyconvert(Vector,         obsd["time"])
-    Fr= fill(pyconvert(eltype(U), obsc.rf), length(U))
+    U = pyconvert(Vector, obsd["u"])
+    V = pyconvert(Vector, obsd["v"])
+    t1 = pyconvert(Vector{Symbol}, obsd["t1"])
+    t2 = pyconvert(Vector{Symbol}, obsd["t2"])
+    Ti = pyconvert(Vector, obsd["time"])
+    Fr = fill(pyconvert(eltype(U), obsc.rf), length(U))
     sites = tuple.(t1, t2)
     single_polbasis = (CirBasis(), CirBasis())
-    polbasis = fill(single_polbasis,length(U))
+    polbasis = fill(single_polbasis, length(U))
     data = StructArray{Comrade.EHTArrayBaselineDatum{eltype(U), eltype(polbasis), eltype(elevation[1][1])}}(
-                (;U, V, Ti, Fr, sites, polbasis, elevation, parallactic)
+        (; U, V, Ti, Fr, sites, polbasis, elevation, parallactic)
     )
     return Comrade.EHTArrayConfiguration(bw, tarr, scans, mjd, ra, dec, source, :UTC, data)
 end
@@ -46,8 +46,8 @@ end
 
 function getvisfield(obs)
     obsd = obs.data
-    vis  = pyconvert(Vector{ComplexF64}, obsd["vis"])
-    err  = pyconvert(Vector{Float64}, obsd["sigma"])
+    vis = pyconvert(Vector{ComplexF64}, obsd["vis"])
+    err = pyconvert(Vector{Float64}, obsd["sigma"])
     return vis, err
 end
 
@@ -55,19 +55,20 @@ end
 function getampfield(obs)
     obsamps = obs.amp
     erramp = pyconvert(Vector, obsamps["sigma"])
-    amps   = pyconvert(Vector, obsamps["amp"])
+    amps = pyconvert(Vector, obsamps["amp"])
     return amps, erramp
 end
 
 function getcoherency(obs)
 
     # check if the obs is in circular basis otherwise noise out
-    @assert((pyconvert(String, obs.polrep) == "circ"),
-            "obs is not in circular polarization.\n"*
-            "To fix read in the data using\n"*
-            "  Pyehtim.load_uvfits_and_array(obsname, arrayname, polrep=\"circ\")\n"*
+    @assert(
+        (pyconvert(String, obs.polrep) == "circ"),
+        "obs is not in circular polarization.\n" *
+            "To fix read in the data using\n" *
+            "  Pyehtim.load_uvfits_and_array(obsname, arrayname, polrep=\"circ\")\n" *
             "Do not use\n  obs.switch_polrep(\"circ\")\nsince missing hands will not be handled correctly."
-        )
+    )
 
 
     c11 = pyconvert(Vector, obs.data["rrvis"])
@@ -75,7 +76,7 @@ function getcoherency(obs)
     c21 = pyconvert(Vector, obs.data["lrvis"])
     c22 = pyconvert(Vector, obs.data["llvis"])
 
-    cohmat = StructArray{SMatrix{2,2,eltype(c11), 4}}((c11, c21, c12, c22))
+    cohmat = StructArray{SMatrix{2, 2, eltype(c11), 4}}((c11, c21, c12, c22))
 
     # get uncertainties
     e11 = copy(pyconvert(Vector, obs.data["rrsigma"]))
@@ -83,7 +84,7 @@ function getcoherency(obs)
     e21 = copy(pyconvert(Vector, obs.data["lrsigma"]))
     e22 = copy(pyconvert(Vector, obs.data["llsigma"]))
 
-    errmat = StructArray{SMatrix{2,2,eltype(e11), 4}}((e11, e21, e12, e22))
+    errmat = StructArray{SMatrix{2, 2, eltype(e11), 4}}((e11, e21, e12, e22))
 
     return cohmat, errmat
 
@@ -101,7 +102,7 @@ function getcpfield(obs)
     t3 = pyconvert(Vector{Symbol}, obscp["t3"])
     noise = pyconvert(Vector, obscp["sigmacp"])
     baseline = tuple.(t1, t2, t3)
-    return StructArray((;T=time, F=freq, noise, baseline))
+    return StructArray((; T = time, F = freq, noise, baseline))
 end
 
 function getlcampfield(obs)
@@ -116,26 +117,23 @@ function getlcampfield(obs)
     baseline = tuple.(t1, t2, t3, t4)
     noise = pyconvert(Vector, obslcamp["sigmaca"])
     freq = fill(get_rf(obs), length(time))
-    return StructArray((;T=time, F=freq, baseline, noise))
+    return StructArray((; T = time, F = freq, baseline, noise))
 end
 
 
 function get_arraytable(obs)
     return StructArray(
         sites = pyconvert(Vector{Symbol}, obs.tarr["site"]),
-        X     = pyconvert(Vector, obs.tarr["x"]),
-        Y     = pyconvert(Vector, obs.tarr["y"]),
-        Z     = pyconvert(Vector, obs.tarr["z"]),
+        X = pyconvert(Vector, obs.tarr["x"]),
+        Y = pyconvert(Vector, obs.tarr["y"]),
+        Z = pyconvert(Vector, obs.tarr["z"]),
         SEFD1 = pyconvert(Vector, obs.tarr["sefdr"]),
         SEFD2 = pyconvert(Vector, obs.tarr["sefdl"]),
         fr_parallactic = pyconvert(Vector, obs.tarr["fr_par"]),
-        fr_elevation   = pyconvert(Vector, obs.tarr["fr_elev"]),
-        fr_offset      = deg2rad.(pyconvert(Vector, obs.tarr["fr_off"])),
+        fr_elevation = pyconvert(Vector, obs.tarr["fr_elev"]),
+        fr_offset = deg2rad.(pyconvert(Vector, obs.tarr["fr_off"])),
     )
 end
-
-
-
 
 
 """
@@ -146,18 +144,15 @@ Any valid keyword arguments to `add_amp` in ehtim can be passed through extract_
 
 Returns an EHTObservationTable with visibility amplitude data
 """
-function Comrade.extract_amp(obsc; pol=:I, debias=false, kwargs...)
+function Comrade.extract_amp(obsc; pol = :I, debias = false, kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
-    obs.add_amp(;debias, kwargs...)
+    obs.add_amp(; debias, kwargs...)
     config = build_arrayconfig(obs)
     amp, amperr = getampfield(obs)
     T = Comrade.EHTVisibilityAmplitudeDatum{pol, eltype(amp), typeof(config[1])}
     return Comrade.EHTObservationTable{T}(amp, amperr, config)
 end
-
-
-
 
 
 """
@@ -168,7 +163,7 @@ This grabs the raw `data` object from the obs object. Any keyword arguments are 
 
 Returns an EHTObservationTable with complex visibility data
 """
-function Comrade.extract_vis(obsc; pol=:I, kwargs...)
+function Comrade.extract_vis(obsc; pol = :I, kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
     config = build_arrayconfig(obs)
@@ -194,7 +189,7 @@ function Comrade.extract_coherency(obsc; kwargs...)
 end
 
 function closure_designmat(type, closures, scanvis)
-    if type == :cphase
+    return if type == :cphase
         design_mat = closurephase_designmat(closures, scanvis)
     elseif type == :lcamp
         design_mat = closureamp_designmat(closures, scanvis)
@@ -209,19 +204,19 @@ function closurephase_designmat(cphase, scanvis)
     design_mat = zeros(length(cphase), length(scanvis))
     #throw("here")
     # fill in each row of the design matrix
-    for i in axes(design_mat, 2), j in axes(design_mat,1)
+    for i in axes(design_mat, 2), j in axes(design_mat, 1)
         a1, a2, a3 = cphase[j].baseline
         # check leg 1
-        ((antvis1[i] == a1) & (antvis2[i] == a2)) && (design_mat[j,i] = 1.0)
-        ((antvis1[i] == a2) & (antvis2[i] == a1)) && (design_mat[j,i] = -1.0)
+        ((antvis1[i] == a1) & (antvis2[i] == a2)) && (design_mat[j, i] = 1.0)
+        ((antvis1[i] == a2) & (antvis2[i] == a1)) && (design_mat[j, i] = -1.0)
 
         #check leg 2
-        ((antvis1[i] == a2) & (antvis2[i] == a3)) && (design_mat[j,i] = 1.0)
-        ((antvis1[i] == a3) & (antvis2[i] == a2)) && (design_mat[j,i] = -1.0)
+        ((antvis1[i] == a2) & (antvis2[i] == a3)) && (design_mat[j, i] = 1.0)
+        ((antvis1[i] == a3) & (antvis2[i] == a2)) && (design_mat[j, i] = -1.0)
 
         #check leg 3
-        ((antvis1[i] == a3) & (antvis2[i] == a1)) && (design_mat[j,i] = 1.0)
-        ((antvis1[i] == a1) & (antvis2[i] == a3)) && (design_mat[j,i] = -1.0)
+        ((antvis1[i] == a3) & (antvis2[i] == a1)) && (design_mat[j, i] = 1.0)
+        ((antvis1[i] == a1) & (antvis2[i] == a3)) && (design_mat[j, i] = -1.0)
     end
     return design_mat
 end
@@ -230,22 +225,22 @@ function closureamp_designmat(lcamp, scanvis)
     antvis1, antvis2 = baseline(scanvis)
     design_mat = zeros(length(lcamp), length(scanvis))
     # fill in each row of the design matrix
-    for i in axes(design_mat, 2), j in axes(design_mat,1)
+    for i in axes(design_mat, 2), j in axes(design_mat, 1)
         a1, a2, a3, a4 = lcamp[j].baseline
 
         av1 = antvis1[i]
         av2 = antvis2[i]
         # check leg 1
-        (((av1 == a1)&(av2 == a2)) || (av1 == a2)&(av2 == a1))&& (design_mat[j,i] = 1.0)
+        (((av1 == a1) & (av2 == a2)) || (av1 == a2) & (av2 == a1))&& (design_mat[j, i] = 1.0)
 
         #check leg 2
-        (((av1 == a3)&(av2 == a4)) || (av1 == a4)&(av2 == a3))&& (design_mat[j,i] = 1.0)
+        (((av1 == a3) & (av2 == a4)) || (av1 == a4) & (av2 == a3))&& (design_mat[j, i] = 1.0)
 
         #check leg 3
-        (((av1 == a1)&(av2 == a4)) || (av1 == a4)&(av2 == a1))&& (design_mat[j,i] = -1.0)
+        (((av1 == a1) & (av2 == a4)) || (av1 == a4) & (av2 == a1))&& (design_mat[j, i] = -1.0)
 
         #check leg 4
-        (((av1 == a2)&(av2 == a3)) || (av1 == a3)&(av2 == a2))&& (design_mat[j,i] = -1.0)
+        (((av1 == a2) & (av2 == a3)) || (av1 == a3) & (av2 == a2))&& (design_mat[j, i] = -1.0)
 
     end
     return design_mat
@@ -263,7 +258,7 @@ function build_dmats(type::Symbol, closure, st)
             # to be careful with scan that can't form closures. This hack moves these
             # scans into the preceding scan but fills it with zeros
             if i > 1
-                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow],1), length(scanvis.scan)))
+                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow], 1), length(scanvis.scan)))
             else
                 push!(dmat, zeros(S, 1, length(scanvis.scan)))
             end
@@ -281,57 +276,57 @@ function build_dmats(type::Symbol, closure, st)
     end
 
     if iszero(dmat[1])
-        dmat[2] = hcat(zeros(S, size(dmat[2],1), size(dmat[1],2)), dmat[2])
+        dmat[2] = hcat(zeros(S, size(dmat[2], 1), size(dmat[1], 2)), dmat[2])
         dmat = dmat[2:end]
     end
     return dmat
 end
 
-function _ehtim_cphase(obsc; count="max", cut_trivial=false, uvmin=0.1e9, kwargs...)
+function _ehtim_cphase(obsc; count = "max", cut_trivial = false, uvmin = 0.1e9, kwargs...)
     obs = obsc.copy()
 
     # cut 0 baselines since these are trivial triangles
     if cut_trivial
-        obs = obs.flag_uvdist(uv_min=uvmin)
+        obs = obs.flag_uvdist(uv_min = uvmin)
     end
 
     obs.reorder_tarr_snr()
 
-    obs.add_cphase(;count=count, kwargs...)
+    obs.add_cphase(; count = count, kwargs...)
     cphase = getcpfield(obs)
     return cphase, Comrade.extract_vis(obs)
 end
 
-function _make_lcamp(obsc, count="max"; kwargs...)
+function _make_lcamp(obsc, count = "max"; kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
 
-    obs.add_logcamp(;count=count, kwargs...)
+    obs.add_logcamp(; count = count, kwargs...)
     data = getlcampfield(obs)
     ra, dec = get_radec(obs)
     mjd = get_mjd(obs)
     source = get_source(obs)
     bw = get_bw(obs)
 
-    return Comrade.EHTObservation(data = data, mjd = mjd,
-                   config=nothing,
-                   ra = ra, dec= dec,
-                   bandwidth=bw,
-                   source = source,
+    return Comrade.EHTObservation(
+        data = data, mjd = mjd,
+        config = nothing,
+        ra = ra, dec = dec,
+        bandwidth = bw,
+        source = source,
     )
 
 end
 
 
-function _ehtim_lcamp(obsc; count="max", kwargs...)
+function _ehtim_lcamp(obsc; count = "max", kwargs...)
     obs = obsc.copy()
     obs.reorder_tarr_snr()
 
-    obs.add_logcamp(;count=count, kwargs...)
+    obs.add_logcamp(; count = count, kwargs...)
     lcamp = getlcampfield(obs)
     return lcamp, Comrade.extract_vis(obs)
 end
-
 
 
 function _minimal_closure(type, closures, st)
@@ -349,7 +344,7 @@ function _minimal_closure(type, closures, st)
             # to be careful with scan that can't form closures. This hack moves these
             # scans into the preceding scan but fills it with zeros
             if i > 1
-                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow],1), length(scanvis.scan)))
+                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow], 1), length(scanvis.scan)))
             else
                 push!(dmat, zeros(S, 1, length(scanvis.scan)))
             end
@@ -392,7 +387,7 @@ function _minimal_closure(type, closures, st)
     # Now if the first scan can't form a closure we will have an extra row of zeros
     # kill this
     if iszero(dmat[1])
-        dmat[2] = hcat(zeros(S, size(dmat[2],1), size(dmat[1],2)), dmat[2])
+        dmat[2] = hcat(zeros(S, size(dmat[2], 1), size(dmat[1], 2)), dmat[2])
         dmat = dmat[2:end]
     end
     return dmat
@@ -428,13 +423,13 @@ function minimal_closure_scan(type, closures, scanvis, nmin::Int)
             if nmin == nmin0
                 keep[count] = false
             else
-                keep[count-1] = true
+                keep[count - 1] = true
                 count -= 1
             end
             #(nmin == nmin0) && (keep[count] = false)
         end
         count += 1
-        count+1 > length(scancl) && break
+        count + 1 > length(scancl) && break
     end
 
     # print out the size of the recovered set for double-checking
@@ -472,13 +467,13 @@ options are also included. However, the current `ehtim` count="min" option is br
 and does construct proper minimal sets of closure quantities if the array isn't fully connected.
 
 """
-function Comrade.extract_cphase(obs; pol=:I, count="min", kwargs...)
+function Comrade.extract_cphase(obs; pol = :I, count = "min", kwargs...)
     # compute a maximum set of closure phases
     obsc = obs.copy()
     # reorder to maximize the snr
     obsc.reorder_tarr_snr()
 
-    cphase, dvis = _ehtim_cphase(obsc; count="max", kwargs...)
+    cphase, dvis = _ehtim_cphase(obsc; count = "max", kwargs...)
 
     #Now make the vis obs
     st = timetable(dvis)
@@ -493,11 +488,10 @@ function Comrade.extract_cphase(obs; pol=:I, count="min", kwargs...)
     clac = Comrade.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
     T = Comrade.EHTClosurePhaseDatum{pol, eltype(cphase.T), typeof(arrayconfig(dvis)[1])}
     cp = Comrade.closure_phases(measurement(dvis), Comrade.designmat(clac))
-    cp_sig = abs2.(Comrade.noise(dvis)./Comrade.measurement(dvis))
-    cp_cov = Comrade.designmat(clac)*Diagonal(cp_sig)*transpose(Comrade.designmat(clac))
+    cp_sig = abs2.(Comrade.noise(dvis) ./ Comrade.measurement(dvis))
+    cp_cov = Comrade.designmat(clac) * Diagonal(cp_sig) * transpose(Comrade.designmat(clac))
     return Comrade.EHTObservationTable{T}(cp, cp_cov, clac)
 end
-
 
 
 """
@@ -521,13 +515,13 @@ options are also included. However, the current `ehtim` count="min" option is br
 and does construct proper minimal sets of closure quantities if the array isn't fully connected.
 
 """
-function Comrade.extract_lcamp(obs; pol=:I, count="min", kwargs...)
+function Comrade.extract_lcamp(obs; pol = :I, count = "min", kwargs...)
     # compute a maximum set of closure phases
     obsc = obs.copy()
     # reorder to maximize the snr
     obsc.reorder_tarr_snr()
 
-    lcamp, dvis = _ehtim_lcamp(obsc; count="max", kwargs...)
+    lcamp, dvis = _ehtim_lcamp(obsc; count = "max", kwargs...)
 
     #Now make the vis obs
     st = timetable(dvis)
@@ -543,8 +537,8 @@ function Comrade.extract_lcamp(obs; pol=:I, count="min", kwargs...)
     cldmat = Comrade.designmat(clac)
     T = Comrade.EHTLogClosureAmplitudeDatum{pol, eltype(lcamp.T), typeof(arrayconfig(dvis)[1])}
     lcamp = Comrade.logclosure_amplitudes(measurement(dvis), Comrade.designmat(clac))
-    lcamp_sig = abs2.(Comrade.noise(dvis)./Comrade.measurement(dvis))
-    lcamp_cov = cldmat*Diagonal(lcamp_sig)*transpose(cldmat)
+    lcamp_sig = abs2.(Comrade.noise(dvis) ./ Comrade.measurement(dvis))
+    lcamp_cov = cldmat * Diagonal(lcamp_sig) * transpose(cldmat)
     return Comrade.EHTObservationTable{T}(lcamp, lcamp_cov, clac)
 end
 

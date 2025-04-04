@@ -10,16 +10,16 @@ using Tables
     obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../test_data.uvfits"))
 
     obsavg = scan_average(obs)
-    obsavg.add_cphase(snrcut=3, count="min")
+    obsavg.add_cphase(snrcut = 3, count = "min")
     obsavg.add_amp()
-    obsavg.add_logcamp(snrcut=3, count="min")
+    obsavg.add_logcamp(snrcut = 3, count = "min")
 
-    obspol = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../../examples/Data/polarized_gaussian_withgains_withdterms_withfr.uvfits"); polrep="circ")
+    obspol = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../../examples/Data/polarized_gaussian_withgains_withdterms_withfr.uvfits"); polrep = "circ")
     obspolavg = scan_average(obspol)
 
 
     vis1 = Comrade.extract_vis(obsavg)
-    vis  = extract_table(obsavg, Visibilities())
+    vis = extract_table(obsavg, Visibilities())
     @test vis[:measurement] ≈ vis1[:measurement]
     @test vis[:noise] ≈ vis1[:noise]
     @test vis[:baseline] == vis1[:baseline]
@@ -29,9 +29,9 @@ using Tables
     @test vis[:noise] ≈ getproperty.(real.(mwn), :err)
     @test vis[:noise] ≈ getproperty.(imag.(mwn), :err)
     plotfields(vis, :U, :V)
-    baselineplot(vis, uvdist, measwnoise; error=true)
-    baselineplot(vis, : , uvdist, measwnoise; error=true)
-    baselineplot(vis, (:LM, :AA), uvdist, measwnoise; error=true)
+    baselineplot(vis, uvdist, measwnoise; error = true)
+    baselineplot(vis, :, uvdist, measwnoise; error = true)
+    baselineplot(vis, (:LM, :AA), uvdist, measwnoise; error = true)
     Plots.plot(vis)
     show(vis)
 
@@ -43,40 +43,40 @@ using Tables
     mwn = measwnoise.(datatable(amp))
     @test amp[:measurement] ≈ getproperty.((mwn), :val)
     @test amp[:noise] ≈ getproperty.((mwn), :err)
-    baselineplot(amp, :, uvdist, measwnoise, error=true)
+    baselineplot(amp, :, uvdist, measwnoise, error = true)
     plotfields(amp, :U, :V)
     Plots.plot(amp)
     show(amp)
 
-    cphase1 = Comrade.extract_cphase(obsavg; snrcut=3.0)
-    cphase = extract_table(obsavg, ClosurePhases(;snrcut=3.0))
+    cphase1 = Comrade.extract_cphase(obsavg; snrcut = 3.0)
+    cphase = extract_table(obsavg, ClosurePhases(; snrcut = 3.0))
     @test cphase[:measurement] ≈ cphase1[:measurement]
     @test cphase[:noise] ≈ cphase1[:noise]
     @test cphase[:baseline] == cphase1[:baseline]
     mwn = measwnoise.(datatable(cphase))
     @test cphase[:measurement] ≈ getproperty.((mwn), :val)
     @test sqrt.(Array(diag(cphase[:noise]))) ≈ getproperty.((mwn), :err)
-    baselineplot(cphase, :, uvdist, measwnoise, error=true)
+    baselineplot(cphase, :, uvdist, measwnoise, error = true)
     plotfields(cphase, :uvdist, :measurement)
     Plots.plot(cphase)
     show(cphase)
 
 
-    lcamp1 = Comrade.extract_lcamp(obsavg; snrcut=3.0)
-    lcamp  = extract_table(obsavg, LogClosureAmplitudes(;snrcut=3.0))
+    lcamp1 = Comrade.extract_lcamp(obsavg; snrcut = 3.0)
+    lcamp = extract_table(obsavg, LogClosureAmplitudes(; snrcut = 3.0))
     @test lcamp[:measurement] ≈ lcamp1[:measurement]
     @test lcamp[:noise] ≈ lcamp1[:noise]
     @test lcamp[:baseline] == lcamp1[:baseline]
     mwn = measwnoise.(datatable(lcamp))
     @test lcamp[:measurement] ≈ getproperty.((mwn), :val)
     @test sqrt.(Array(diag(lcamp[:noise]))) ≈ getproperty.((mwn), :err)
-    baselineplot(lcamp, :, uvdist, measwnoise, error=true)
+    baselineplot(lcamp, :, uvdist, measwnoise, error = true)
     plotfields(lcamp, :uvdist, :measurement)
     Plots.plot(lcamp)
     show(lcamp)
 
     dcoh1 = Comrade.extract_coherency(obspolavg)
-    dcoh  = extract_table(obspolavg, Coherencies())
+    dcoh = extract_table(obspolavg, Coherencies())
     @test dcoh[:measurement].:1 ≈ dcoh1[:measurement].:1
     @test dcoh[:noise].:1 ≈ dcoh1[:noise].:1
     @test dcoh[:baseline] == dcoh1[:baseline]
@@ -98,7 +98,7 @@ using Tables
     @test dcoh[:noise].:4 ≈ getproperty.(real.(mwn.:4), :err)
     @test dcoh[:noise].:4 ≈ getproperty.(imag.(mwn.:4), :err)
 
-    baselineplot(dcoh, :, uvdist, x->measwnoise(x)[1,1], error=true)
+    baselineplot(dcoh, :, uvdist, x -> measwnoise(x)[1, 1], error = true)
     Plots.plot(dcoh)
     show(dcoh)
 end
@@ -107,11 +107,11 @@ end
 
     obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../test_data.uvfits"))
     obsavg = scan_average(obs)
-    obsavg.add_amp(;debias=false)
+    obsavg.add_amp(; debias = false)
 
     vis, amp, cphase, lcamp = extract_table(obsavg, Visibilities(), VisibilityAmplitudes(), ClosurePhases(), LogClosureAmplitudes())
 
-    obspol = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../../examples/Data/polarized_gaussian_withgains_withdterms_withfr.uvfits"); polrep="circ")
+    obspol = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../../examples/Data/polarized_gaussian_withgains_withdterms_withfr.uvfits"); polrep = "circ")
     obspolavg = scan_average(obspol)
     dcoh = extract_table(obspolavg, Coherencies())
 
@@ -127,13 +127,13 @@ end
 
         cohn = add_fractional_noise(dcoh, 0.01)
         @test cohn[:measurement] ≈ dcoh[:measurement]
-        @test cohn[:noise].:1 ≈ hypot.(dcoh[:noise].:1, 0.01 .* abs.(tr.(dcoh[:measurement]))/2)
-        @test cohn[:noise].:2 ≈ hypot.(dcoh[:noise].:2, 0.01 .* abs.(tr.(dcoh[:measurement]))/2)
-        @test cohn[:noise].:3 ≈ hypot.(dcoh[:noise].:3, 0.01 .* abs.(tr.(dcoh[:measurement]))/2)
-        @test cohn[:noise].:4 ≈ hypot.(dcoh[:noise].:4, 0.01 .* abs.(tr.(dcoh[:measurement]))/2)
+        @test cohn[:noise].:1 ≈ hypot.(dcoh[:noise].:1, 0.01 .* abs.(tr.(dcoh[:measurement])) / 2)
+        @test cohn[:noise].:2 ≈ hypot.(dcoh[:noise].:2, 0.01 .* abs.(tr.(dcoh[:measurement])) / 2)
+        @test cohn[:noise].:3 ≈ hypot.(dcoh[:noise].:3, 0.01 .* abs.(tr.(dcoh[:measurement])) / 2)
+        @test cohn[:noise].:4 ≈ hypot.(dcoh[:noise].:4, 0.01 .* abs.(tr.(dcoh[:measurement])) / 2)
 
-        visflg = flag(x->uvdist(x) < 0.1e9, vis)
-        visfil = filter(x->uvdist(x) < 0.1e9, vis)
+        visflg = flag(x -> uvdist(x) < 0.1e9, vis)
+        visfil = filter(x -> uvdist(x) < 0.1e9, vis)
         @test visflg.config.bandwidth == vis.config.bandwidth
         @test visflg.config.dec == vis.config.dec
         @test visflg.config.ra == vis.config.ra
@@ -181,10 +181,9 @@ end
     @test VLBISkyModels.polarization(amp[1]) == :I
 
 
-
-    @test arrayconfig(cphase)|>arrayconfig|>datatable == arrayconfig(lcamp)|>arrayconfig|>datatable
-    @test arrayconfig(vis)|>datatable == arrayconfig(lcamp)|>arrayconfig|>datatable
-    @test arrayconfig(amp)|>datatable == arrayconfig(lcamp)|>arrayconfig|>datatable
+    @test arrayconfig(cphase) |> arrayconfig |> datatable == arrayconfig(lcamp) |> arrayconfig |> datatable
+    @test arrayconfig(vis) |> datatable == arrayconfig(lcamp) |> arrayconfig |> datatable
+    @test arrayconfig(amp) |> datatable == arrayconfig(lcamp) |> arrayconfig |> datatable
 
 
     @test length(vis) == length(obsavg.data)
@@ -196,12 +195,12 @@ end
     @test domain(amp) == domain(arrayconfig(amp))
     @test domain(cphase) == domain(arrayconfig(cphase))
     @test domain(lcamp) == domain(arrayconfig(lcamp))
-    @test domain(lcamp; executor=ThreadsEx()) == domain(arrayconfig(lcamp); executor=ThreadsEx())
+    @test domain(lcamp; executor = ThreadsEx()) == domain(arrayconfig(lcamp); executor = ThreadsEx())
 
     @test baseline(vis[1]) == baseline(vis)[1]
     @test baseline(amp[1]) == baseline(amp)[1]
     @test baseline(cphase[1]) == baseline(cphase)[1]
-    @test baseline(lcamp[1])  == baseline(lcamp)[1]
+    @test baseline(lcamp[1]) == baseline(lcamp)[1]
 
     #Test amplitude which is already debiased for very very dumb reasons
     @test sqrt.(abs2.(vis.measurement)) ≈ amp.measurement
@@ -230,7 +229,6 @@ end
         @test @view(cphase[1:10]) isa Comrade.EHTObservationTable
 
 
-
         @test propertynames(arrayconfig(lcamp)) == propertynames(arrayconfig(vis))
         @test size(Comrade.designmat(arrayconfig(lcamp)), 2) == length(vis)
         @test size(Comrade.designmat(arrayconfig(lcamp)), 1) == length(lcamp)
@@ -255,7 +253,7 @@ end
     end
 
     @testset "Coherencies" begin
-        obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../test_data.uvfits"), polrep="circ")
+        obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../test_data.uvfits"), polrep = "circ")
         obsavg = scan_average(obs)
 
         coh = extract_table(obsavg, Coherencies())
@@ -303,7 +301,7 @@ end
     end
 
     @testset "coherencies" begin
-        obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../test_data.uvfits"), polrep="circ")
+        obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "../test_data.uvfits"), polrep = "circ")
 
         obsavg = scan_average(obs)
 

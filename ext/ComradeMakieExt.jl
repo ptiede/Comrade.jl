@@ -47,7 +47,7 @@ If `bl` is a `Colon` or bl is not specified all baselines are plotted.
 Makie.@recipe(BaselinePlot, data, bl, fieldx, fieldy) do scene
     Makie.Attributes(;
         color = Makie.wong_colors()[1],
-        colorim= Makie.wong_colors()[2],
+        colorim = Makie.wong_colors()[2],
         marker = :circle,
         markersize = 10.0,
         alpha = 1.0,
@@ -64,8 +64,8 @@ end
 convert_field(f) = f
 convert_field(::Type{<:U}) = _U
 convert_field(::Type{<:V}) = _V
-convert_field(::Type{<:Ti}) = x->x.baseline.Ti
-convert_field(::Type{<:Fr}) = x->x.baseline.Fr
+convert_field(::Type{<:Ti}) = x -> x.baseline.Ti
+convert_field(::Type{<:Fr}) = x -> x.baseline.Fr
 
 _U(x) = x.baseline.U
 _V(x) = x.baseline.V
@@ -73,25 +73,35 @@ _V(x) = x.baseline.V
 function convert_field(field::Symbol)
     field == :U && return _U
     field == :V && return _V
-    field == :Ti && return x->x.baseline.Ti
-    field == :Fr && return x->x.baseline.Fr
-    field == :snr && return x->abs.(Comrade.measurement(x)) ./ noise(x)
+    field == :Ti && return x -> x.baseline.Ti
+    field == :Fr && return x -> x.baseline.Fr
+    field == :snr && return x -> abs.(Comrade.measurement(x)) ./ noise(x)
     field == :uvdist && return uvdist
-    field == :amp && return x->abs.(measurement(x))
-    field == :phase && return x->angle.(measurement(x))
-    field == :res && return x->Comrade.measurement(x) ./ noise(x)
-    field == :measurement && return x->Comrade.measurement(x)
-    field == :noise && return x->noise(x)
-    field == :measwnoise && return x->measwnoise(x)
+    field == :amp && return x -> abs.(measurement(x))
+    field == :phase && return x -> angle.(measurement(x))
+    field == :res && return x -> Comrade.measurement(x) ./ noise(x)
+    field == :measurement && return x -> Comrade.measurement(x)
+    field == :noise && return x -> noise(x)
+    field == :measwnoise && return x -> measwnoise(x)
 
-    throw(ArgumentError("$field not supported please use one of"* 
-                        "(:U, :V, :Ti, :Fr, :snr, :uvdist, :amp, :phase,\n"*
-                        " :res, :measurement, :noise, :measwnoise)"))
+    throw(
+        ArgumentError(
+            "$field not supported please use one of" *
+                "(:U, :V, :Ti, :Fr, :snr, :uvdist, :amp, :phase,\n" *
+                " :res, :measurement, :noise, :measwnoise)"
+        )
+    )
 end
 
-function Makie.plot!(plot::BaselinePlot{<:Tuple{<:Comrade.EHTObservationTable, 
-                                                <:Union{Tuple{Symbol, Symbol}, Colon}, 
-                                                <:Any, <:Any}})
+function Makie.plot!(
+        plot::BaselinePlot{
+            <:Tuple{
+                <:Comrade.EHTObservationTable,
+                <:Union{Tuple{Symbol, Symbol}, Colon},
+                <:Any, <:Any,
+            },
+        }
+    )
     @extract plot (data, bl, fieldx, fieldy)
     obl = @lift begin
         if $bl isa Colon
@@ -109,65 +119,73 @@ function Makie.plot!(plot::BaselinePlot{<:Tuple{<:Comrade.EHTObservationTable,
     fx = @lift(convert_field($fieldx))
     fy = @lift(convert_field($fieldy))
 
-    x  = @lift($(fx).($obl))
-    y  = @lift($(fy).($obl))
+    x = @lift($(fx).($obl))
+    y = @lift($(fy).($obl))
 
     lift(x, y, plot.error) do x, y, berr
         if eltype(y) <: Complex
-            Makie.scatter!(plot, x, real.(y); 
-                            color=plot.color, 
-                            marker=plot.marker, 
-                            markersize=plot.markersize, 
-                            alpha=plot.alpha)
-            Makie.scatter!(plot, x, imag.(y); 
-                            color=plot.colorim, 
-                            marker=plot.marker, 
-                            markersize=plot.markersize, 
-                            alpha=plot.alpha)
+            Makie.scatter!(
+                plot, x, real.(y);
+                color = plot.color,
+                marker = plot.marker,
+                markersize = plot.markersize,
+                alpha = plot.alpha
+            )
+            Makie.scatter!(
+                plot, x, imag.(y);
+                color = plot.colorim,
+                marker = plot.marker,
+                markersize = plot.markersize,
+                alpha = plot.alpha
+            )
 
             if berr
                 eltype(y) <: Complex{<:Measurements.Measurement} || throw(ArgumentError("Field does not have error, did use measwnoise?"))
-                Makie.errorbars!(plot, x, real.(y), 
-                                 color = plot.color,
-                                 alpha = plot.alpha
-                                )
-                Makie.errorbars!(plot, x, imag.(y), 
-                                 color = plot.colorim,
-                                 alpha = plot.alpha
-                                )
+                Makie.errorbars!(
+                    plot, x, real.(y),
+                    color = plot.color,
+                    alpha = plot.alpha
+                )
+                Makie.errorbars!(
+                    plot, x, imag.(y),
+                    color = plot.colorim,
+                    alpha = plot.alpha
+                )
 
             end
 
 
         else
-            Makie.scatter!(plot, x, y; 
-                            color=plot.color, 
-                            marker=plot.marker, 
-                            markersize=plot.markersize, 
-                            alpha=plot.alpha)
+            Makie.scatter!(
+                plot, x, y;
+                color = plot.color,
+                marker = plot.marker,
+                markersize = plot.markersize,
+                alpha = plot.alpha
+            )
             if berr
                 eltype(y) <: Measurements.Measurement || throw(ArgumentError("Field does not have error, did use measwnoise?"))
-                Makie.errorbars!(plot, x, y, 
-                                 color = plot.color,
-                                 alpha = plot.alpha
-                                )
+                Makie.errorbars!(
+                    plot, x, y,
+                    color = plot.color,
+                    alpha = plot.alpha
+                )
             end
-                            
+
         end
     end
     return plot
 end
 
 
-
 function frequencylabel(ν::Number)
-    if ν > 1e6
-        if ν > 1e12
-            label = @sprintf("%.2f", ν / 1e12) * " THz"
-        elseif ν > 1e9
-            label = @sprintf("%.2f", ν / 1e9) * " GHz"
+    if ν > 1.0e6
+        if ν > 1.0e12
+            label = @sprintf("%.2f", ν / 1.0e12) * " THz"
+        elseif ν > 1.0e9
+            label = @sprintf("%.2f", ν / 1.0e9) * " GHz"
         else
-            label = @sprintf("%.2f", ν / 1e6) * " MHz"
+            label = @sprintf("%.2f", ν / 1.0e6) * " MHz"
         end
     else
         label = @sprintf("%.2f", ν) * " Hz"
@@ -229,28 +247,28 @@ Plots two data fields against each other.
  - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
 function plotfields(
-    obsdata::Comrade.EHTObservationTable,
-    field1,
-    field2;
-    legend = true,
-    conjugate = true,
-    axis_kwargs = (;),
-    legend_kwargs = (;),
-    scatter_kwargs = (;),
-)
+        obsdata::Comrade.EHTObservationTable,
+        field1,
+        field2;
+        legend = true,
+        conjugate = true,
+        axis_kwargs = (;),
+        legend_kwargs = (;),
+        scatter_kwargs = (;),
+    )
 
     if field1 == :measurement
         xlabel = measname(obsdata)
-    else 
+    else
         xlabel = _defaultlabel(field1)
     end
 
     if field2 == :measurement
         ylabel = measname(obsdata)
-    else 
+    else
         ylabel = _defaultlabel(field2)
     end
-    
+
     axis_kwargs = (;
         axis_kwargs...,
         xlabel = xlabel,
@@ -264,7 +282,7 @@ function plotfields(
     y = fy.(dt)
     Fr = _frequency(obsdata)
     if conjugate == true # conjugating for (u,v) plotting
-        if fx in (_U, _V) && fy in (_U, _V) # conjugating for (u,v) plotting 
+        if fx in (_U, _V) && fy in (_U, _V) # conjugating for (u,v) plotting
             x = [x; -x]
             y = [y; -y]
             Fr = [Fr; Fr]
@@ -290,15 +308,15 @@ function plotfields(
 end
 
 function plotfields(
-    obsdata::Comrade.EHTObservationTable,
-    field1,
-    field2,
-    site1::Symbol,
-    site2::Symbol;
-    axis_kwargs = (;),
-    legend_kwargs = (;),
-    scatter_kwargs = (;),
-)
+        obsdata::Comrade.EHTObservationTable,
+        field1,
+        field2,
+        site1::Symbol,
+        site2::Symbol;
+        axis_kwargs = (;),
+        legend_kwargs = (;),
+        scatter_kwargs = (;),
+    )
     title = string(site1) * " - " * string(site2)
     blobs = select_baseline(obsdata, (site1, site2))
     return plotfields(
@@ -347,25 +365,25 @@ be used to configure subplots.
  - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
 function axisfields(
-    fig::GridPosition,
-    obsdata::Comrade.EHTObservationTable,
-    field1,
-    field2;
-    legend = true,
-    conjugate = true,
-    axis_kwargs = (;),
-    legend_kwargs = (;),
-    scatter_kwargs = (;),
-)
+        fig::GridPosition,
+        obsdata::Comrade.EHTObservationTable,
+        field1,
+        field2;
+        legend = true,
+        conjugate = true,
+        axis_kwargs = (;),
+        legend_kwargs = (;),
+        scatter_kwargs = (;),
+    )
     if field1 == :measurement
         xlabel = measname(obsdata)
-    else 
+    else
         xlabel = _defaultlabel(field1)
     end
 
     if field2 == :measurement
         ylabel = measname(obsdata)
-    else 
+    else
         ylabel = _defaultlabel(field2)
     end
 
@@ -383,7 +401,7 @@ function axisfields(
     Fr = _frequency(obsdata)
 
     if conjugate == true # conjugating for (u,v) plotting
-        if fx in (_U, _V) && fy in (_U, _V) # conjugating for (u,v) plotting 
+        if fx in (_U, _V) && fy in (_U, _V) # conjugating for (u,v) plotting
             x = [x; -x]
             y = [y; -y]
             Fr = [Fr; Fr]
@@ -407,17 +425,17 @@ function axisfields(
 end
 
 function axisfields(
-    fig::GridPosition,
-    obsdata::Comrade.EHTObservationTable,
-    field1,
-    field2,
-    site1::Symbol,
-    site2::Symbol;
-    legend = true,
-    axis_kwargs = (;),
-    legend_kwargs = (;),
-    scatter_kwargs = (;),
-)
+        fig::GridPosition,
+        obsdata::Comrade.EHTObservationTable,
+        field1,
+        field2,
+        site1::Symbol,
+        site2::Symbol;
+        legend = true,
+        axis_kwargs = (;),
+        legend_kwargs = (;),
+        scatter_kwargs = (;),
+    )
     title = string(site1) * " - " * string(site2)
     blobs = select_baseline(obsdata, (site1, site2))
     return axisfields(
@@ -433,16 +451,16 @@ function axisfields(
 end
 
 function plotaxis(
-    fig::GridPosition,
-    x::AbstractArray,
-    y::AbstractArray,
-    Fr::AbstractArray,
-    νlist::AbstractArray;
-    legend = true,
-    axis_kwargs = (;),
-    scatter_kwargs = (;),
-    legend_kwargs = (;),
-)
+        fig::GridPosition,
+        x::AbstractArray,
+        y::AbstractArray,
+        Fr::AbstractArray,
+        νlist::AbstractArray;
+        legend = true,
+        axis_kwargs = (;),
+        scatter_kwargs = (;),
+        legend_kwargs = (;),
+    )
     ax = Axis(fig; axis_kwargs...)
     for ν in νlist
         νind = findall(==(ν), Fr)
@@ -482,7 +500,7 @@ function plotaxis(
         end
     end
 
-    if legend == true
+    return if legend == true
         axislegend(ax; legend_kwargs...)
     end
 end
@@ -508,23 +526,23 @@ Each subplot corresponds to a different station in the array.
  - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
 function plotcaltable(
-    gt::Comrade.CalTable...;
-    width = 150,
-    height = 125,
-    layout = nothing,
-    markers = nothing,
-    labels = nothing,
-    axis_kwargs = (;),
-    legend_kwargs = (;),
-    figure_kwargs = (;),
-    scatter_kwargs = (;),
-)
+        gt::Comrade.CalTable...;
+        width = 150,
+        height = 125,
+        layout = nothing,
+        markers = nothing,
+        labels = nothing,
+        axis_kwargs = (;),
+        legend_kwargs = (;),
+        figure_kwargs = (;),
+        scatter_kwargs = (;),
+    )
     if gt isa Comrade.CalTable
         gt = (gt,)
     end
-    sitelist = sites(argmax(x->length(sites(x)), gt))
-    tup = maximum(maximum.(x->x[:Ti].t0+x[:Ti].dt/2, gt))
-    tlo = minimum(minimum.(x->x[:Ti].t0-x[:Ti].dt/2, gt))
+    sitelist = sites(argmax(x -> length(sites(x)), gt))
+    tup = maximum(maximum.(x -> x[:Ti].t0 + x[:Ti].dt / 2, gt))
+    tlo = minimum(minimum.(x -> x[:Ti].t0 - x[:Ti].dt / 2, gt))
 
     lims = get(axis_kwargs, :limits, ((tlo, tup), nothing))
     lims = isnothing(lims[1]) ? ((tlo, tup), lims[2]) : lims
@@ -541,14 +559,16 @@ function plotcaltable(
 
     size = (width * (collen), height * (rowlen) + 50) # height + 50 is for the UTC label
     fig = Figure(; size, figure_kwargs...)
-    axs = map(Iterators.Filter(x->collen*(x[1]-1) + x[2] <= length(sitelist), Iterators.product(1:rowlen, 1:collen))) do (i,j)
-        n = collen*(i-1) + j
-        sitelist[n] => Axis(fig[i, j];
-             title=string(sitelist[n]),
-             width=width,
-             height=height,
-             limits = lims,
-             axis_kwargs...)
+    axs = map(Iterators.Filter(x -> collen * (x[1] - 1) + x[2] <= length(sitelist), Iterators.product(1:rowlen, 1:collen))) do (i, j)
+        n = collen * (i - 1) + j
+        sitelist[n] => Axis(
+            fig[i, j];
+            title = string(sitelist[n]),
+            width = width,
+            height = height,
+            limits = lims,
+            axis_kwargs...
+        )
     end
 
     markers = isnothing(markers) ? collect(keys(Makie.default_marker_map())) : markers
@@ -594,7 +614,7 @@ function plotcaltable(
 
     end
 
-    Legend(fig[1, collen+1], axs[end][2], legend_kwargs...)
+    Legend(fig[1, collen + 1], axs[end][2], legend_kwargs...)
     axs[rowlen][2].xlabel = "Time (UTC)"
     if !isnothing(ylabel)
         axs[rowlen][2].ylabel = ylabel

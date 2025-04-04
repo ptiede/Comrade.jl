@@ -11,7 +11,6 @@ noise(p::AbstractVisibilityDatum) = getfield(p, :noise)
 measwnoise(t::AbstractVisibilityDatum) = Measurements.measurement(measurement(t), noise(t))
 
 
-
 # function Base.propertynames(p::AbstractVisibilityDatum)
 #     return (propertynames(baseline(p))..., :measurement, :noise)
 # end
@@ -23,8 +22,8 @@ measwnoise(t::AbstractVisibilityDatum) = Measurements.measurement(measurement(t)
 
 build_datum(F::Type{<:AbstractVisibilityDatum}, m, e, b) = F(m, e, b)
 
-abstract type AbstractSinglePolDatum{P,S} <: AbstractVisibilityDatum{S} end
-abstract type ClosureProducts{P,T} <: AbstractSinglePolDatum{P,T} end
+abstract type AbstractSinglePolDatum{P, S} <: AbstractVisibilityDatum{S} end
+abstract type ClosureProducts{P, T} <: AbstractSinglePolDatum{P, T} end
 
 VLBISkyModels.polarization(p::AbstractSinglePolDatum{Pol}) where {Pol} = Pol
 
@@ -40,7 +39,7 @@ A Datum for a single coherency matrix
 $(FIELDS)
 
 """
-Base.@kwdef struct EHTCoherencyDatum{S, B<:AbstractBaselineDatum, M<:SMatrix{2,2,Complex{S}}, E<:SMatrix{2,2,S}} <: Comrade.AbstractVisibilityDatum{S}
+Base.@kwdef struct EHTCoherencyDatum{S, B <: AbstractBaselineDatum, M <: SMatrix{2, 2, Complex{S}}, E <: SMatrix{2, 2, S}} <: Comrade.AbstractVisibilityDatum{S}
     """
     coherency matrix, with entries in Jy
     """
@@ -59,20 +58,20 @@ VLBISkyModels.polarization(b::EHTCoherencyDatum) = b.baseline.polbasis
 function measwnoise(t::EHTCoherencyDatum)
     m = measurement(t)
     n = noise(t)
-    c11 = _measurement_complex(m[1,1], n[1,1])
-    c21 = _measurement_complex(m[2,1], n[2,1])
-    c12 = _measurement_complex(m[1,2], n[1,2])
-    c22 = _measurement_complex(m[2,2], n[2,2])
+    c11 = _measurement_complex(m[1, 1], n[1, 1])
+    c21 = _measurement_complex(m[2, 1], n[2, 1])
+    c12 = _measurement_complex(m[1, 2], n[1, 2])
+    c22 = _measurement_complex(m[2, 2], n[2, 2])
     return SMatrix{2, 2, typeof(c11), 4}(c11, c21, c12, c22)
 end
 
 function _measurement_complex(m, n)
-    # we assume that the noise on the real and complex is identical and 
+    # we assume that the noise on the real and complex is identical and
     # is a real number
     return complex(
-                   Measurements.measurement(real(m), real(n)),
-                   Measurements.measurement(imag(m), real(n))
-                   )
+        Measurements.measurement(real(m), real(n)),
+        Measurements.measurement(imag(m), real(n))
+    )
 end
 
 
@@ -85,7 +84,7 @@ A struct holding the information for a single measured complex visibility.
 $(FIELDS)
 
 """
-Base.@kwdef struct EHTVisibilityDatum{Pol, S<:Number, B<:AbstractBaselineDatum} <: AbstractSinglePolDatum{Pol,S}
+Base.@kwdef struct EHTVisibilityDatum{Pol, S <: Number, B <: AbstractBaselineDatum} <: AbstractSinglePolDatum{Pol, S}
     """
     Complex Vis. measurement (Jy)
     """
@@ -109,7 +108,6 @@ function measwnoise(t::EHTVisibilityDatum)
 end
 
 
-
 """
     $(TYPEDEF)
 
@@ -119,7 +117,7 @@ A struct holding the information for a single measured visibility amplitude.
 $(FIELDS)
 
 """
-Base.@kwdef struct EHTVisibilityAmplitudeDatum{P, S<:Number, B<:AbstractBaselineDatum} <: AbstractSinglePolDatum{P,S}
+Base.@kwdef struct EHTVisibilityAmplitudeDatum{P, S <: Number, B <: AbstractBaselineDatum} <: AbstractSinglePolDatum{P, S}
     """
     amplitude (Jy)
     """
@@ -145,7 +143,7 @@ A Datum for a single closure phase.
 $(FIELDS)
 
 """
-Base.@kwdef struct EHTClosurePhaseDatum{P,S<:Number, B<:AbstractBaselineDatum} <: ClosureProducts{P,S}
+Base.@kwdef struct EHTClosurePhaseDatum{P, S <: Number, B <: AbstractBaselineDatum} <: ClosureProducts{P, S}
     """
     closure phase (rad)
     """
@@ -167,8 +165,7 @@ EHTClosurePhaseDatum(m::Number, n::Number, b) = EHTClosurePhaseDatum{:I, typeof(
 
 Returns the sites used in the closure phase triangle.
 """
-triangle(b::EHTClosurePhaseDatum) = map(x->first(getproperty(x, :sites)), baseline(b))
-
+triangle(b::EHTClosurePhaseDatum) = map(x -> first(getproperty(x, :sites)), baseline(b))
 
 
 """
@@ -179,7 +176,7 @@ A Datum for a single log closure amplitude.
 # $(FIELDS)
 
 """
-Base.@kwdef struct EHTLogClosureAmplitudeDatum{P, S<:Number, B<:AbstractBaselineDatum} <: ClosureProducts{P,S}
+Base.@kwdef struct EHTLogClosureAmplitudeDatum{P, S <: Number, B <: AbstractBaselineDatum} <: ClosureProducts{P, S}
     """
     log-closure amplitude
     """
@@ -200,4 +197,4 @@ EHTLogClosureAmplitudeDatum(m::Number, n::Number, b) = EHTLogClosureAmplitudeDat
 
 Returns the sites used in the closure amplitude quadrangle.
 """
-quadrangle(b::EHTLogClosureAmplitudeDatum) = map(x->first(getproperty(x, :sites)), baseline(b))
+quadrangle(b::EHTLogClosureAmplitudeDatum) = map(x -> first(getproperty(x, :sites)), baseline(b))

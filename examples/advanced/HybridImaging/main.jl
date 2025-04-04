@@ -1,12 +1,11 @@
 import Pkg #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
+Pkg.activate(__DIR; io = pkg_io) #hide
+Pkg.develop(; path = joinpath(__DIR, "..", "..", ".."), io = pkg_io) #hide
+Pkg.instantiate(; io = pkg_io) #hide
+Pkg.precompile(; io = pkg_io) #hide
 close(pkg_io) #hide
-
 
 
 # # Hybrid Imaging of a Black Hole
@@ -54,7 +53,7 @@ obs = scan_average(obs).add_fractional_noise(0.02)
 # For this tutorial we will once again fit complex visibilities since they
 # provide the most information once the telescope/instrument model are taken
 # into account.
-dvis  = extract_table(obs, Visibilities())
+dvis = extract_table(obs, Visibilities())
 
 # ## Building the Model/Posterior
 
@@ -64,17 +63,17 @@ dvis  = extract_table(obs, Visibilities())
 # and a large asymmetric Gaussian component to model the unresolved short-baseline flux.
 
 function sky(θ, metadata)
-    (;c, σimg, f, r, σ, ma, mp, fg) = θ
-    (;ftot, grid) = metadata
+    (; c, σimg, f, r, σ, ma, mp, fg) = θ
+    (; ftot, grid) = metadata
     ## Form the image model
     ## First transform to simplex space first applying the non-centered transform
-    rast = (ftot*f*(1-fg)).*to_simplex(CenteredLR(), σimg.*c)
+    rast = (ftot * f * (1 - fg)) .* to_simplex(CenteredLR(), σimg .* c)
     mimg = ContinuousImage(rast, grid, BSplinePulse{3}())
     ## Form the ring model
-    α = ma.*cos.(mp)
-    β = ma.*sin.(mp)
-    ring = smoothed(modify(MRing(α, β), Stretch(r), Renormalize((ftot*(1-f)*(1-fg)))), σ)
-    gauss = modify(Gaussian(), Stretch(μas2rad(250.0)), Renormalize(ftot*f*fg))
+    α = ma .* cos.(mp)
+    β = ma .* sin.(mp)
+    ring = smoothed(modify(MRing(α, β), Stretch(r), Renormalize((ftot * (1 - f) * (1 - fg)))), σ)
+    gauss = modify(Gaussian(), Stretch(μas2rad(250.0)), Renormalize(ftot * f * fg))
     ## We group the geometric models together for improved efficiency. This will be
     ## automated in future versions.
     return mimg + (ring + gauss)
@@ -88,13 +87,13 @@ end
 
 using VLBIImagePriors
 using Distributions
-fgain(x) = exp(x.lg + 1im*x.gp)
+fgain(x) = exp(x.lg + 1im * x.gp)
 G = SingleStokesGain(fgain)
 
 intpr = (
-    lg= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0))
-        )
+    lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+    gp = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0)),
+)
 intmodel = InstrumentModel(G, intpr)
 
 
@@ -111,19 +110,18 @@ intmodel = InstrumentModel(G, intpr)
 
 # Now let's define our metadata. First we will define the cache for the image. This is
 # required to compute the numerical Fourier transform.
-fovxy  = μas2rad(200.0)
-npix   = 32
-g      = imagepixels(fovxy, fovxy, npix, npix)
-
+fovxy = μas2rad(200.0)
+npix = 32
+g = imagepixels(fovxy, fovxy, npix, npix)
 
 
 # Part of hybrid imaging is to force a scale separation between
 # the different model components to make them identifiable.
-# To enforce this we will set the raster component to have a 
+# To enforce this we will set the raster component to have a
 # correlation length of 5 times the beam size.
 beam = beamsize(dvis)
-rat = (beam/(step(g.X)))
-cprior = GaussMarkovRandomField(5*rat, size(g))
+rat = (beam / (step(g.X)))
+cprior = GaussMarkovRandomField(5 * rat, size(g))
 
 
 # For the other parameters we use a uniform priors for the ring fractional flux `f`
@@ -131,27 +129,27 @@ cprior = GaussMarkovRandomField(5*rat, size(g))
 # and the amplitude for the ring brightness modes. For the angular variables `ξτ` and `ξ`
 # we use the von Mises prior with concentration parameter `inv(π^2)` which is essentially
 # a uniform prior on the circle. Finally for the standard deviation of the MRF we use a
-# half-normal distribution. This is to ensure that the MRF has small differences from the 
+# half-normal distribution. This is to ensure that the MRF has small differences from the
 # mean image.
 skyprior = (
-          c  = cprior,
-          σimg = truncated(Normal(0.0, 0.1); lower=0.01),
-          f  = Uniform(0.0, 1.0),
-          r  = Uniform(μas2rad(10.0), μas2rad(30.0)),
-          σ  = Uniform(μas2rad(0.1), μas2rad(10.0)),
-          ma = ntuple(_->Uniform(0.0, 0.5), 2),
-          mp = ntuple(_->DiagonalVonMises(0.0, inv(π^2)), 2),
-          fg = Uniform(0.0, 1.0),
-        )
+    c = cprior,
+    σimg = truncated(Normal(0.0, 0.1); lower = 0.01),
+    f = Uniform(0.0, 1.0),
+    r = Uniform(μas2rad(10.0), μas2rad(30.0)),
+    σ = Uniform(μas2rad(0.1), μas2rad(10.0)),
+    ma = ntuple(_ -> Uniform(0.0, 0.5), 2),
+    mp = ntuple(_ -> DiagonalVonMises(0.0, inv(π^2)), 2),
+    fg = Uniform(0.0, 1.0),
+)
 
 # Now we form the metadata
-skymetadata = (;ftot=1.1, grid = g)
-skym = SkyModel(sky, skyprior, g; metadata=skymetadata)
+skymetadata = (; ftot = 1.1, grid = g)
+skym = SkyModel(sky, skyprior, g; metadata = skymetadata)
 
 # This is everything we need to specify our posterior distribution, which our is the main
 # object of interest in image reconstructions when using Bayesian inference.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis; admode=set_runtime_activity(Enzyme.Reverse))
+post = VLBIPosterior(skym, intmodel, dvis; admode = set_runtime_activity(Enzyme.Reverse))
 
 # We can sample from the prior to see what the model looks like
 using DisplayAs #hide
@@ -171,8 +169,10 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # To use this we use the [`comrade_opt`](@ref) function
 using Optimization
 using OptimizationOptimJL
-xopt, sol = comrade_opt(post, LBFGS(); 
-                        initial_params=xrand, maxiters=2000, g_tol=1e0);
+xopt, sol = comrade_opt(
+    post, LBFGS();
+    initial_params = xrand, maxiters = 2000, g_tol = 1.0e0
+);
 
 
 # First we will evaluate our fit by plotting the residuals
@@ -183,7 +183,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # These residuals suggest that we are substantially overfitting the data. This is a common
 # side effect of MAP imaging. As a result if we plot the image we see that there
 # is substantial high-frequency structure in the image that isn't supported by the data.
-fig = imageviz(intensitymap(skymodel(post, xopt), gpl), figure=(;resolution=(500, 400),));
+fig = imageviz(intensitymap(skymodel(post, xopt), gpl), figure = (; resolution = (500, 400)));
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 
@@ -191,7 +191,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # we recommend for all inference problems in `Comrade`. While it is slower the results are
 # often substantially better. To sample we will use the `AdvancedHMC` package.
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, progress = false, initial_params = xopt);
 
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]
@@ -209,10 +209,10 @@ msamples = skymodel.(Ref(post), chain[begin:2:end]);
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, Ref(gpl))
-fig = imageviz(mean(imgs), colormap=:afmhot, size=(400, 300));
+fig = imageviz(mean(imgs), colormap = :afmhot, size = (400, 300));
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 #-
-fig = imageviz(std(imgs), colormap=:batlow, size=(400, 300));
+fig = imageviz(std(imgs), colormap = :batlow, size = (400, 300));
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 #-
@@ -227,35 +227,35 @@ rast_imgs = intensitymap.(rast_samples, Ref(gpl));
 ring_mean, ring_std = mean_and_std(ring_imgs);
 rast_mean, rast_std = mean_and_std(rast_imgs);
 
-fig = Figure(; resolution=(400, 400));
-axes = [Axis(fig[i, j], xreversed=true, aspect=DataAspect()) for i in 1:2, j in 1:2]
-image!(axes[1,1], ring_mean, colormap=:afmhot); axes[1,1].title = "Ring Mean"
-image!(axes[1,2], ring_std, colormap=:afmhot); axes[1,2].title = "Ring Std. Dev."
-image!(axes[2,1], rast_mean, colormap=:afmhot); axes[2,1].title = "Rast Mean"
-image!(axes[2,2], rast_std./rast_mean, colormap=:afmhot); axes[2,2].title = "Rast std/mean"
+fig = Figure(; resolution = (400, 400));
+axes = [Axis(fig[i, j], xreversed = true, aspect = DataAspect()) for i in 1:2, j in 1:2]
+image!(axes[1, 1], ring_mean, colormap = :afmhot); axes[1, 1].title = "Ring Mean"
+image!(axes[1, 2], ring_std, colormap = :afmhot); axes[1, 2].title = "Ring Std. Dev."
+image!(axes[2, 1], rast_mean, colormap = :afmhot); axes[2, 1].title = "Rast Mean"
+image!(axes[2, 2], rast_std ./ rast_mean, colormap = :afmhot); axes[2, 2].title = "Rast std/mean"
 hidedecorations!.(axes)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # Finally, let's take a look at some of the ring parameters
 
-figd = Figure(;resolution=(650, 400));
-p1 = density(figd[1,1], rad2μas(chain.sky.r)*2, axis=(xlabel="Ring Diameter (μas)",))
-p2 = density(figd[1,2], rad2μas(chain.sky.σ)*2*sqrt(2*log(2)), axis=(xlabel="Ring FWHM (μas)",))
-p3 = density(figd[1,3], -rad2deg.(chain.sky.mp.:1) .+ 360.0, axis=(xlabel = "Ring PA (deg) E of N",))
-p4 = density(figd[2,1], 2*chain.sky.ma.:2, axis=(xlabel="Brightness asymmetry",))
-p5 = density(figd[2,2], 1 .- chain.sky.f, axis=(xlabel="Ring flux fraction",))
+figd = Figure(; resolution = (650, 400));
+p1 = density(figd[1, 1], rad2μas(chain.sky.r) * 2, axis = (xlabel = "Ring Diameter (μas)",))
+p2 = density(figd[1, 2], rad2μas(chain.sky.σ) * 2 * sqrt(2 * log(2)), axis = (xlabel = "Ring FWHM (μas)",))
+p3 = density(figd[1, 3], -rad2deg.(chain.sky.mp.:1) .+ 360.0, axis = (xlabel = "Ring PA (deg) E of N",))
+p4 = density(figd[2, 1], 2 * chain.sky.ma.:2, axis = (xlabel = "Brightness asymmetry",))
+p5 = density(figd[2, 2], 1 .- chain.sky.f, axis = (xlabel = "Ring flux fraction",))
 figd |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # Now let's check the residuals using draws from the posterior
-fig = Figure(;size=(600, 400))
-ax, = baselineplot(fig[1,1], res[1], :uvdist, :res, label="MAP", color=:blue, colorim=:red, marker=:circle)
+fig = Figure(; size = (600, 400))
+ax, = baselineplot(fig[1, 1], res[1], :uvdist, :res, label = "MAP", color = :blue, colorim = :red, marker = :circle)
 for s in sample(chain, 10)
-    baselineplot!(ax, residuals(post, s)[1], :uvdist, :res, alpha=0.2, label="Draw")
+    baselineplot!(ax, residuals(post, s)[1], :uvdist, :res, alpha = 0.2, label = "Draw")
 end
 ax.xlabel = "uv-distance (λ)"
 ax.ylabel = "Normalized Residuals"
-axislegend(ax, merge=true)
+axislegend(ax, merge = true)
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # And everything looks pretty good! Now comes the hard part: interpreting the results...

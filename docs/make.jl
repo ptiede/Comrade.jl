@@ -5,47 +5,47 @@
 using Documenter, Pkg
 using DocumenterVitepress
 using Comrade, ComradeBase, AdvancedHMC, Dynesty, Optimization,
-      PolarizedTypes
+    PolarizedTypes
 using Pyehtim, VLBISkyModels, InteractiveUtils
 using AbstractMCMC, Random, HypercubeTransform
 using CairoMakie
 
 
-Documenter.DocMeta.setdocmeta!(Comrade, :DocTestSetup, :(using Comrade); recursive=true)
+Documenter.DocMeta.setdocmeta!(Comrade, :DocTestSetup, :(using Comrade); recursive = true)
 
 
 TUTORIALS = [
-        "Overview" => "tutorials/index.md",
-        "Beginner" =>[
-            "tutorials/beginner/LoadingData.md",
-            "tutorials/beginner/GeometricModeling.md"
-            ],
-        "Intermediate" => [
-           "tutorials/intermediate/ClosureImaging.md",
-           "tutorials/intermediate/StokesIImaging.md",
-           "tutorials/intermediate/PolarizedImaging.md"
-           ],
-        "Advanced" => [
-           "tutorials/advanced/HybridImaging.md",
-           ]
-     ]
+    "Overview" => "tutorials/index.md",
+    "Beginner" => [
+        "tutorials/beginner/LoadingData.md",
+        "tutorials/beginner/GeometricModeling.md",
+    ],
+    "Intermediate" => [
+        "tutorials/intermediate/ClosureImaging.md",
+        "tutorials/intermediate/StokesIImaging.md",
+        "tutorials/intermediate/PolarizedImaging.md",
+    ],
+    "Advanced" => [
+        "tutorials/advanced/HybridImaging.md",
+    ],
+]
 
 format = MarkdownVitepress(
-        repo="https://github.com/ptiede/Comrade.jl",
-        devbranch = "main",
-        devurl = "dev",
-    )
+    repo = "https://github.com/ptiede/Comrade.jl",
+    devbranch = "main",
+    devurl = "dev",
+)
 
 
 makedocs(;
-    modules=[ComradeBase, Comrade, Base.get_extension(Comrade, :ComradeMakieExt)],
-    repo="https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
-    sitename="Comrade.jl",
+    modules = [ComradeBase, Comrade, Base.get_extension(Comrade, :ComradeMakieExt)],
+    repo = "https://github.com/ptiede/Comrade.jl/blob/{commit}{path}#{line}",
+    sitename = "Comrade.jl",
     format = format,
-    draft  = false,
+    draft = false,
     source = "src",
-    build  = "build",
-    pages=Any[
+    build = "build",
+    pages = Any[
         "Home" => "index.md",
         "introduction.md",
         "benchmarks.md",
@@ -53,19 +53,19 @@ makedocs(;
         "conventions.md",
         "Tutorials" => TUTORIALS,
         "Extensions" => [
-                        "ext/optimization.md",
-                        "ext/ahmc.md",
-                        "ext/dynesty.md",
-                        "ext/pigeons.md"
-                       ],
+            "ext/optimization.md",
+            "ext/ahmc.md",
+            "ext/dynesty.md",
+            "ext/pigeons.md",
+        ],
         "base_api.md",
-        "api.md"
+        "api.md",
     ],
 )
 
 deploydocs(;
-    repo="github.com/ptiede/Comrade.jl",
-    push_preview=true,
+    repo = "github.com/ptiede/Comrade.jl",
+    push_preview = true,
     devbranch = "main",
     target = "build"
 )

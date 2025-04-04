@@ -1,45 +1,43 @@
 export domain, datatable, arrayconfig, sites, beamsize, EHTObservationTable, snr, uvdist,
-       measwnoise
+    measwnoise
 
 """
     $(TYPEDEF)
 
 The abstract obervation table. This contains actual data plus the array configuration.
 """
-abstract type AbstractObservationTable{F<:AbstractVisibilityDatum} <: AbstractVLBITable{F} end
+abstract type AbstractObservationTable{F <: AbstractVisibilityDatum} <: AbstractVLBITable{F} end
 measurement(t::AbstractObservationTable) = getfield(t, :measurement)
 noise(t::AbstractObservationTable) = getfield(t, :noise)
 baseline(t::AbstractObservationTable) = datatable(arrayconfig(t))
 
 
-
 uvdist(d) = hypot(d.baseline.U, d.baseline.V)
 
 function uvdist(d::EHTClosurePhaseDatum)
-    u = map(x->x.U, d.baseline)
-    v = map(x->x.V, d.baseline)
-    a = hypot(u[1]-u[2], v[1]-v[2])
-    b = hypot(u[2]-u[3], v[2]-v[3])
-    c = hypot(u[3]-u[1], v[3]-v[1])
-    sqrt(heron(a,b,c))
+    u = map(x -> x.U, d.baseline)
+    v = map(x -> x.V, d.baseline)
+    a = hypot(u[1] - u[2], v[1] - v[2])
+    b = hypot(u[2] - u[3], v[2] - v[3])
+    c = hypot(u[3] - u[1], v[3] - v[1])
+    return sqrt(heron(a, b, c))
 end
 
-function heron(a,b,c)
-    s = 0.5*(a+b+c)
-    return sqrt(s*(s-a)*(s-b)*(s-c))
+function heron(a, b, c)
+    s = 0.5 * (a + b + c)
+    return sqrt(s * (s - a) * (s - b) * (s - c))
 end
 
 function uvdist(d::EHTLogClosureAmplitudeDatum)
-    u = map(x->x.U, d.baseline)
-    v = map(x->x.V, d.baseline)
-    a = hypot(u[1]-u[2], v[1]-v[2])
-    b = hypot(u[2]-u[3], v[2]-v[3])
-    c = hypot(u[3]-u[4], v[3]-v[4])
-    d = hypot(u[4]-u[1], v[4]-v[1])
-    h = hypot(u[1]-u[3], v[1]-v[3])
-    return sqrt(heron(a,b,h)+heron(c,d,h))
+    u = map(x -> x.U, d.baseline)
+    v = map(x -> x.V, d.baseline)
+    a = hypot(u[1] - u[2], v[1] - v[2])
+    b = hypot(u[2] - u[3], v[2] - v[3])
+    c = hypot(u[3] - u[4], v[3] - v[4])
+    d = hypot(u[4] - u[1], v[4] - v[1])
+    h = hypot(u[1] - u[3], v[1] - v[3])
+    return sqrt(heron(a, b, h) + heron(c, d, h))
 end
-
 
 
 arrayconfig(c::AbstractObservationTable, p::Symbol) = getindex(arrayconfig(c), p)
@@ -56,7 +54,7 @@ datumtype(::AbstractObservationTable{T}) where {T} = T
 
 Returns the u, v, time, frequency domain of the observation.
 """
-function domain(obs::AbstractObservationTable; executor=Serial(), header=ComradeBase.NoHeader())
+function domain(obs::AbstractObservationTable; executor = Serial(), header = ComradeBase.NoHeader())
     return domain(arrayconfig(obs); executor, header)
 end
 
@@ -67,7 +65,7 @@ Returns a tabular representation of the data. Note that for closures this ignore
 between quantities, which is otherwise included in the full `EHTObservationTable`.
 """
 function datatable(obs::AbstractObservationTable{F}) where {F}
-    StructArray((build_datum(obs, i) for i in 1:length(obs)), unwrap=(T->(T<:Tuple || T<:AbstractBaselineDatum || T<:SArray || T<:NamedTuple)))
+    return StructArray((build_datum(obs, i) for i in 1:length(obs)), unwrap = (T -> (T <: Tuple || T <: AbstractBaselineDatum || T <: SArray || T <: NamedTuple)))
 end
 
 """
@@ -88,16 +86,16 @@ unless they are implementing a new `AbstractObservationTable`.
 """
 function build_datum(data::AbstractObservationTable{F}, i::Int) where {F}
     arr = arrayconfig(data)
-    m   = measurement(data)
-    e   = noise(data)
+    m = measurement(data)
+    e = noise(data)
     return build_datum(F, m[i], e[i], arr[i])
 end
 
-function build_datum(data::AbstractObservationTable{F}, i::Int) where {F<:ClosureProducts}
+function build_datum(data::AbstractObservationTable{F}, i::Int) where {F <: ClosureProducts}
     arr = arrayconfig(data)
-    m   = measurement(data)
-    e   = noise(data)
-    return build_datum(F, m[i], sqrt(e[i,i]), arr[i])
+    m = measurement(data)
+    e = noise(data)
+    return build_datum(F, m[i], sqrt(e[i, i]), arr[i])
 end
 
 
@@ -119,7 +117,6 @@ function sites(d::AbstractObservationTable)
 end
 
 
-
 """
     $(TYPEDEF)
 
@@ -131,7 +128,7 @@ function.
 # Fields
 $FIELDS
 """
-struct EHTObservationTable{T<:AbstractVisibilityDatum,S<:AbstractArray, E<:AbstractArray, A<:AbstractArrayConfiguration} <: AbstractObservationTable{T}
+struct EHTObservationTable{T <: AbstractVisibilityDatum, S <: AbstractArray, E <: AbstractArray, A <: AbstractArrayConfiguration} <: AbstractObservationTable{T}
     """
     Obervation measurement
     """
@@ -163,23 +160,23 @@ end
 function Base.show(io::IO, d::EHTObservationTable{F}) where {F}
     config = arrayconfig(d)
     sF = split("$F", ",")[1]
-    sF = sF*"}"
+    sF = sF * "}"
     println(io, "EHTObservationTable{$sF}")
     println(io, "  source:      ", config.source)
     println(io, "  mjd:         ", config.mjd)
     println(io, "  bandwidth:   ", config.bandwidth)
     println(io, "  sites:       ", sites(d))
-    print(io,   "  nsamples:    ", length(config))
+    return print(io, "  nsamples:    ", length(config))
 end
 
-function Base.getindex(obs::EHTObservationTable{F}, i::AbstractVector) where {F<:ClosureProducts}
+function Base.getindex(obs::EHTObservationTable{F}, i::AbstractVector) where {F <: ClosureProducts}
     conf = arrayconfig(obs)[i]
     m = measurement(obs)[i]
     s = noise(obs)[i, i]
     return EHTObservationTable{F}(m, s, conf)
 end
 
-function Base.view(obs::EHTObservationTable{F}, i::AbstractVector) where {F<:ClosureProducts}
+function Base.view(obs::EHTObservationTable{F}, i::AbstractVector) where {F <: ClosureProducts}
     conf = @view arrayconfig(obs)[i]
     m = @view measurement(obs)[i]
     s = @view noise(obs)[i, i]

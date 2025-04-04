@@ -16,5 +16,4 @@ function LogDensityProblems.logdensity_and_gradient(d::Comrade.TransformedVLBIPo
 end
 
 
-
 end

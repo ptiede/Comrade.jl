@@ -1,4 +1,4 @@
-struct VLBIPosterior{D, T, P, MS<:ObservedSkyModel, MI<:AbstractInstrumentModel, ADMode<:Union{Nothing,EnzymeCore.Mode}} <: AbstractVLBIPosterior
+struct VLBIPosterior{D, T, P, MS <: ObservedSkyModel, MI <: AbstractInstrumentModel, ADMode <: Union{Nothing, EnzymeCore.Mode}} <: AbstractVLBIPosterior
     data::D
     lklhds::T
     prior::P
@@ -9,7 +9,6 @@ end
 
 (post::VLBIPosterior)(θ) = logdensityof(post, θ)
 admode(post::VLBIPosterior) = post.admode
-
 
 
 """
@@ -62,7 +61,7 @@ function VLBIPosterior(
         instrumentmodel::AbstractInstrumentModel,
         dataproducts::EHTObservationTable...;
         admode = nothing
-        )
+    )
 
 
     array = arrayconfig(dataproducts[begin])
@@ -74,19 +73,20 @@ function VLBIPosterior(
     ls = Tuple(map(makelikelihood, dataproducts))
 
     return VLBIPosterior{
-                typeof(dataproducts),typeof(ls),typeof(total_prior),
-                typeof(sky), typeof(int), typeof(admode)}(dataproducts, ls, total_prior, sky, int, admode)
+        typeof(dataproducts), typeof(ls), typeof(total_prior),
+        typeof(sky), typeof(int), typeof(admode),
+    }(dataproducts, ls, total_prior, sky, int, admode)
 end
 
-VLBIPosterior(skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...; admode=nothing) =
+VLBIPosterior(skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...; admode = nothing) =
     VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...; admode)
 
 function combine_prior(skyprior, instrumentmodelprior)
-    return NamedDist((sky=skyprior, instrument=instrumentmodelprior))
+    return NamedDist((sky = skyprior, instrument = instrumentmodelprior))
 end
 
 function combine_prior(skymodel, ::Tuple{})
-    return NamedDist((sky=skymodel,))
+    return NamedDist((sky = skymodel,))
 end
 
 function combine_prior(skymodel::NamedDist{()}, intmodel::Tuple{})
@@ -95,28 +95,28 @@ end
 
 
 function combine_prior(skymodel, ::NamedDist{()})
-    return NamedDist((sky=skymodel,))
+    return NamedDist((sky = skymodel,))
 end
 
 
 function combine_prior(::Tuple{}, instrumentmodel)
-    return NamedDist((; instrument=instrumentmodel,))
+    return NamedDist((; instrument = instrumentmodel))
 end
 
 function combine_prior(::NamedTuple{()}, instrumentmodel)
-    return NamedDist((; instrument=instrumentmodel,))
+    return NamedDist((; instrument = instrumentmodel))
 end
 
 
 function Base.show(io::IO, mime::MIME"text/plain", post::VLBIPosterior)
-    printstyled(io, "VLBIPosterior"; bold=true, color=:light_magenta)
+    printstyled(io, "VLBIPosterior"; bold = true, color = :light_magenta)
     println(io)
     show(io, mime, post.skymodel)
     println()
     show(io, mime, post.instrumentmodel)
     println()
-    printstyled(io, "Data Products: ", color=:light_green);
-    println(io, map(x->split(string(datumtype(x)), "{")[1], post.data)...)
+    printstyled(io, "Data Products: ", color = :light_green)
+    return println(io, map(x -> split(string(datumtype(x)), "{")[1], post.data)...)
     # println(io, "  Prior: ", post.prior)
 end
 
@@ -130,14 +130,14 @@ values `θ`. In Bayesian terminology this is a draw from the posterior predictiv
 If `add_thermal_noise` is true then baseline based thermal noise is added. Otherwise, we just
 return the model visibilities.
 """
-function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; add_thermal_noise=true)
+function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; add_thermal_noise = true)
     # ls = map(x->likelihood(x, visibilitymap(vlbimodel(post, θ), post.lklhd.ac)), post.lklhd.lklhds)
     vis = forward_model(post, θ)
-    ls = map(x->likelihood(x, vis), post.lklhds)
+    ls = map(x -> likelihood(x, vis), post.lklhds)
     if add_thermal_noise
-        ms = map(x->rand(rng, x), ls)
+        ms = map(x -> rand(rng, x), ls)
     else
-        ms = map(x->x.μ, ls)
+        ms = map(x -> x.μ, ls)
     end
     configs = map(arrayconfig, post.data)
     data = post.data
@@ -146,7 +146,7 @@ function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; 
         return EHTObservationTable{datumtype(di)}(ms[i], noise(di), configs[i])
     end
 end
-simulate_observation(post::VLBIPosterior, θ; add_thermal_noise=true) = simulate_observation(Random.default_rng(), post, θ; add_thermal_noise)
+simulate_observation(post::VLBIPosterior, θ; add_thermal_noise = true) = simulate_observation(Random.default_rng(), post, θ; add_thermal_noise)
 
 """
     residuals(post::VLBIPosterior, θ)
@@ -156,7 +156,7 @@ The resturn objects are `EHTObservationTables`, where the measurements are the r
 """
 function residuals(post::VLBIPosterior, p)
     vis = forward_model(post, p)
-    res = map(x->residual_data(vis, x), post.data)
+    res = map(x -> residual_data(vis, x), post.data)
     return res
 end
 
@@ -173,22 +173,20 @@ end
 
 function _chi2(res::EHTObservationTable)
     return sum(datatable(res)) do d
-            r2 = @. abs2(d.measurement/d.noise)
-            # Check if residual is NaN which means that the data is missing
-            isnan(r2) && return zero(r2)
-            return r2
+        r2 = @. abs2(d.measurement / d.noise)
+        # Check if residual is NaN which means that the data is missing
+        isnan(r2) && return zero(r2)
+        return r2
     end
 end
 
 function _chi2(res::EHTObservationTable{<:EHTCoherencyDatum})
     return sum(datatable(res)) do d
-            r2 = @. abs2(d.measurement/d.noise)
-            r11 = isnan(r2[1,1]) ? zero(r2[1,1]) : r2[1,1]
-            r12 = isnan(r2[1,2]) ? zero(r2[1,2]) : r2[1,2]
-            r21 = isnan(r2[2,1]) ? zero(r2[2,1]) : r2[2,1]
-            r22 = isnan(r2[2,2]) ? zero(r2[2,2]) : r2[2,2]
-            return typeof(r2)(r11, r21, r12, r22)
+        r2 = @. abs2(d.measurement / d.noise)
+        r11 = isnan(r2[1, 1]) ? zero(r2[1, 1]) : r2[1, 1]
+        r12 = isnan(r2[1, 2]) ? zero(r2[1, 2]) : r2[1, 2]
+        r21 = isnan(r2[2, 1]) ? zero(r2[2, 1]) : r2[2, 1]
+        r22 = isnan(r2[2, 2]) ? zero(r2[2, 2]) : r2[2, 2]
+        return typeof(r2)(r11, r21, r12, r22)
     end
 end
-
-

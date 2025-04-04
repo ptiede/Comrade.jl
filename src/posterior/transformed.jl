@@ -6,7 +6,7 @@ A transformed version of a `VLBIPosterior` object.
 This is an internal type that an end user shouldn't have to directly construct.
 To construct a transformed posterior see the [`asflat`](@ref asflat), [`ascube`](@ref ascube).
 """
-struct TransformedVLBIPosterior{P<:VLBIPosterior,T} <: AbstractVLBIPosterior
+struct TransformedVLBIPosterior{P <: VLBIPosterior, T} <: AbstractVLBIPosterior
     lpost::P
     transform::T
 end
@@ -15,11 +15,11 @@ admode(post::TransformedVLBIPosterior) = admode(post.lpost)
 
 function prior_sample(rng, tpost::TransformedVLBIPosterior, args...)
     inv = Base.Fix1(HypercubeTransform.inverse, tpost)
-    map(inv, prior_sample(rng, tpost.lpost, args...))
+    return map(inv, prior_sample(rng, tpost.lpost, args...))
 end
 function prior_sample(rng, tpost::TransformedVLBIPosterior)
     inv = Base.Fix1(HypercubeTransform.inverse, tpost)
-    inv(prior_sample(rng, tpost.lpost))
+    return inv(prior_sample(rng, tpost.lpost))
 end
 
 HypercubeTransform.dimension(post::TransformedVLBIPosterior) = dimension(post.transform)
@@ -74,11 +74,11 @@ function HypercubeTransform.asflat(post::VLBIPosterior)
     return TransformedVLBIPosterior(post, tr)
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", post::TransformedVLBIPosterior{P, T}) where {P, T<:TV.AbstractTransform}
+function Base.show(io::IO, mime::MIME"text/plain", post::TransformedVLBIPosterior{P, T}) where {P, T <: TV.AbstractTransform}
     println(io, "TransformedVLBIPosterior(")
     show(io, mime, post.lpost)
     println(io, "Transform: Params to ℝ^$(dimension(post))")
-    print(io, ")")
+    return print(io, ")")
 end
 
 # @noinline function _refed_transform_and_logprior(t::TV.AbstractTransform, prior, x)
@@ -128,7 +128,7 @@ end
 # make_sensitivity(out, ::AbstractZero) = zero(out)
 
 
-@inline function DensityInterface.logdensityof(post::TransformedVLBIPosterior{P, T}, x::AbstractArray) where {P, T<:TV.AbstractTransform}
+@inline function DensityInterface.logdensityof(post::TransformedVLBIPosterior{P, T}, x::AbstractArray) where {P, T <: TV.AbstractTransform}
     p, logjac = transform_and_logjac(post.transform, x)
     pr = logprior(post.lpost, p)
     lp = post.lpost
@@ -163,14 +163,14 @@ function HypercubeTransform.ascube(post::VLBIPosterior)
     return TransformedVLBIPosterior(post, tr)
 end
 
-function Base.show(io::IO, post::TransformedVLBIPosterior{P, T}) where {P, T<:HypercubeTransform.AbstractHypercubeTransform}
+function Base.show(io::IO, post::TransformedVLBIPosterior{P, T}) where {P, T <: HypercubeTransform.AbstractHypercubeTransform}
     println(io, "TransformedVLBIPosterior(")
     println(io, post.lpost)
     println(io, "Transform: Params to [0,1]^$(dimension(post))")
-    print(io, ")")
+    return print(io, ")")
 end
 
-function DensityInterface.logdensityof(tpost::TransformedVLBIPosterior{P, T}, x::AbstractArray) where {P, T<:HypercubeTransform.AbstractHypercubeTransform}
+function DensityInterface.logdensityof(tpost::TransformedVLBIPosterior{P, T}, x::AbstractArray) where {P, T <: HypercubeTransform.AbstractHypercubeTransform}
     # Check that x really is in the unit hypercube. If not return -Inf
     for xx in x
         (xx > 1 || xx < 0) && return -Inf

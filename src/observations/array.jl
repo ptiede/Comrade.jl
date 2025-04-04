@@ -1,16 +1,12 @@
-
 """
     $(TYPEDEF)
 
 This defined the abstract type for an array configuration. Namely, baseline
 times, SEFD's, bandwidth, observation frequencies, etc.
 """
-abstract type AbstractArrayConfiguration{F<:AbstractBaselineDatum} <: AbstractVLBITable{F} end
+abstract type AbstractArrayConfiguration{F <: AbstractBaselineDatum} <: AbstractVLBITable{F} end
 arrayconfig(c::AbstractArrayConfiguration) = c
 build_datum(c::AbstractArrayConfiguration, i) = datatable(c)[i]
-
-
-
 
 
 """
@@ -31,14 +27,13 @@ end
 
 Get the u, v, time, freq domain of the array.
 """
-function domain(ac::AbstractArrayConfiguration; executor=Serial(), header=ComradeBase.NoHeader())
+function domain(ac::AbstractArrayConfiguration; executor = Serial(), header = ComradeBase.NoHeader())
     u = ac[:U]
     v = ac[:V]
     t = ac[:Ti]
     ν = ac[:Fr]
-    return UnstructuredDomain((U=u, V=v, Ti=t, Fr=ν); executor, header)
+    return UnstructuredDomain((U = u, V = v, Ti = t, Fr = ν); executor, header)
 end
-
 
 
 """
@@ -50,13 +45,12 @@ distance.
 beamsize(ac::AbstractArrayConfiguration) = inv(mapreduce(hypot, max, ac[:U], ac[:V]))
 
 
-
 """
     $(TYPEDEF)
 
 A single datum of an `ArrayConfiguration`
 """
-struct EHTArrayBaselineDatum{T,P,V} <: AbstractBaselineDatum
+struct EHTArrayBaselineDatum{T, P, V} <: AbstractBaselineDatum
     """
     u position of the data point in λ
     """
@@ -84,26 +78,28 @@ struct EHTArrayBaselineDatum{T,P,V} <: AbstractBaselineDatum
     """
     elevation of baseline
     """
-    elevation::Tuple{V,V}
+    elevation::Tuple{V, V}
     """
     parallactic angle of baseline
     """
-    parallactic::Tuple{V,V}
+    parallactic::Tuple{V, V}
     function EHTArrayBaselineDatum(u, v, time, freq, sites, polbasis, elevation, parallactic)
         tt, ft, ut, vt = promote(time, freq, u, v)
         T = typeof(tt)
         V = typeof(elevation[1])
         E = typeof(polbasis)
-        return new{T,E,V}(ut, vt, tt, ft, sites, polbasis, elevation, parallactic)
+        return new{T, E, V}(ut, vt, tt, ft, sites, polbasis, elevation, parallactic)
     end
 end
 
 function flipbaseline(d::EHTArrayBaselineDatum)
-    return EHTArrayBaselineDatum(-d.U, -d.V, d.Ti, d.Fr,
-                                (d.sites[2], d.sites[1]),
-                                (d.polbasis[2], d.polbasis[1]),
-                                (d.elevation[2], d.elevation[1]),
-                                (d.parallactic[2], d.parallactic[1]))
+    return EHTArrayBaselineDatum(
+        -d.U, -d.V, d.Ti, d.Fr,
+        (d.sites[2], d.sites[1]),
+        (d.polbasis[2], d.polbasis[1]),
+        (d.elevation[2], d.elevation[1]),
+        (d.parallactic[2], d.parallactic[1])
+    )
 end
 
 
@@ -116,7 +112,7 @@ These are typically items that are known before the observation is made.
 # Fields
 $(FIELDS)
 """
-Base.@kwdef struct EHTArrayConfiguration{A<:EHTArrayBaselineDatum,F,T,S,D<:AbstractArray{A}} <: AbstractArrayConfiguration{A}
+Base.@kwdef struct EHTArrayConfiguration{A <: EHTArrayBaselineDatum, F, T, S, D <: AbstractArray{A}} <: AbstractArrayConfiguration{A}
     """
     Observing bandwith (Hz)
     """
@@ -162,38 +158,40 @@ function Base.show(io::IO, config::EHTArrayConfiguration)
     println(io, "  frequencies: ", unique(config[:Fr]))
     println(io, "  bandwidth:   ", config.bandwidth)
     println(io, "  sites:       ", sites(config))
-    print(io, "  nsamples:    ", length(config))
+    return print(io, "  nsamples:    ", length(config))
 end
 
 function VLBISkyModels.rebuild(c::EHTArrayConfiguration, table)
-    newconfig    = EHTArrayConfiguration(c.bandwidth, c.tarr, c.scans,
-                                         c.mjd, c.ra, c.dec, c.source,
-                                         c.timetype, table)
+    newconfig = EHTArrayConfiguration(
+        c.bandwidth, c.tarr, c.scans,
+        c.mjd, c.ra, c.dec, c.source,
+        c.timetype, table
+    )
     return newconfig
 end
 
-struct DesignMatrix{T, N, M<:AbstractSparseMatrix{T, <:Integer}, I} <: AbstractMatrix{T}
+struct DesignMatrix{T, N, M <: AbstractSparseMatrix{T, <:Integer}, I} <: AbstractMatrix{T}
     matrix::M
     nz::I
     function DesignMatrix(m::AbstractSparseMatrix{T}) where {T}
         nz = findnz(m)
         ncl = length(findall(==(1), nz[1]))
-        return new{T, ncl, typeof(m),typeof(nz)}(m, nz)
+        return new{T, ncl, typeof(m), typeof(nz)}(m, nz)
     end
 end
 Base.parent(m::DesignMatrix) = m.matrix
 Base.getindex(m::DesignMatrix, i::Int) = getindex(m.matrix, i)
 Base.size(m::DesignMatrix) = size(m.matrix)
-Base.IndexStyle(::Type{<:DesignMatrix{X,N,M}}) where {X,N,M} = Base.IndexStyle(M)
-Base.getindex(m::DesignMatrix, I::Vararg{Int,N}) where {N} = getindex(m.matrix, I...)
+Base.IndexStyle(::Type{<:DesignMatrix{X, N, M}}) where {X, N, M} = Base.IndexStyle(M)
+Base.getindex(m::DesignMatrix, I::Vararg{Int, N}) where {N} = getindex(m.matrix, I...)
 # Base.setindex!(m::DesignMatrix, v, i::Int) = setindex!(m.matrix, v, i)
 # Base.setindex!(m::DesignMatrix, v, i::Vararg{Int, N}) where {N} = setindex!(m.matrix, v, i...)
 
 Base.similar(m::DesignMatrix, ::Type{S}, dims::Dims) where {S} = similar(m.matrix, S, dims)
-Base.:*(m::DesignMatrix, x::AbstractVector) = m.matrix*x
+Base.:*(m::DesignMatrix, x::AbstractVector) = m.matrix * x
 Base.adjoint(m::DesignMatrix) = adjoint(m.matrix)
 LinearAlgebra.mul!(out::AbstractArray, m::DesignMatrix, x::AbstractArray) = mul!(out, parent(m), x)
-Base.show(io::IO, mime::MIME"text/plain",   m::DesignMatrix) = show(io, mime, m.matrix)
+Base.show(io::IO, mime::MIME"text/plain", m::DesignMatrix) = show(io, mime, m.matrix)
 
 
 """
@@ -204,7 +202,7 @@ that transforms from visibilties to closure products.
 # Fields
 $(FIELDS)
 """
-struct ClosureConfig{F, A<:AbstractArrayConfiguration{F}, D, V, E} <: AbstractArrayConfiguration{F}
+struct ClosureConfig{F, A <: AbstractArrayConfiguration{F}, D, V, E} <: AbstractArrayConfiguration{F}
     """Array configuration for visibilities"""
     ac::A
     """Closure design matrix"""
@@ -217,12 +215,12 @@ struct ClosureConfig{F, A<:AbstractArrayConfiguration{F}, D, V, E} <: AbstractAr
         A = typeof(ac)
         sdmat = DesignMatrix(blockdiag(sparse.(dmat)...))
         D = typeof(sdmat)
-        return new{F,A,D, typeof(vis), typeof(noise)}(ac, sdmat, vis, noise)
+        return new{F, A, D, typeof(vis), typeof(noise)}(ac, sdmat, vis, noise)
     end
     function ClosureConfig(ac::AbstractArrayConfiguration{F}, dmat::DesignMatrix, vis, noise) where {F}
         A = typeof(ac)
         D = typeof(dmat)
-        return new{F,A,D, typeof(vis), typeof(noise)}(ac, dmat, vis, noise)
+        return new{F, A, D, typeof(vis), typeof(noise)}(ac, dmat, vis, noise)
     end
 end
 arrayconfig(c::ClosureConfig) = getfield(c, :ac)
@@ -247,7 +245,7 @@ end
 
 Base.propertynames(c::ClosureConfig) = propertynames(arrayconfig(c))
 function Base.getproperty(c::ClosureConfig, p::Symbol)
-    getproperty(arrayconfig(c), p)
+    return getproperty(arrayconfig(c), p)
 end
 designmat(c::ClosureConfig) = getfield(c, :designmat)
 # ChainRulesCore.@non_differentiable designmat(c::ClosureConfig)
@@ -265,22 +263,22 @@ function build_datum(arr::ClosureConfig{F, A, <:DesignMatrix{T, N}}, i::Int) whe
 end
 
 function datatable(c::ClosureConfig)
-    StructArray((build_datum(c, i) for i in 1:length(c)), unwrap=(T->(T<:Tuple || T<:AbstractBaselineDatum)))
+    return StructArray((build_datum(c, i) for i in 1:length(c)), unwrap = (T -> (T <: Tuple || T <: AbstractBaselineDatum)))
 end
 
 function sites(c::ClosureConfig)
-    sites(arrayconfig(c))
+    return sites(arrayconfig(c))
 end
 
 function factornoisecovariance(c::ClosureConfig)
     dmat = designmat(c)
     amp2 = abs2.(getfield(c, :vis))
-    Σphase = getfield(c, :noise).^2 ./ amp2
-    return VLBILikelihoods.CholeskyFactor(sparse(dmat*Diagonal(Σphase)*transpose(dmat)))
+    Σphase = getfield(c, :noise) .^ 2 ./ amp2
+    return VLBILikelihoods.CholeskyFactor(sparse(dmat * Diagonal(Σphase) * transpose(dmat)))
 end
 
 
-function domain(ac::ClosureConfig; executor=Serial(), header=ComradeBase.NoHeader())
+function domain(ac::ClosureConfig; executor = Serial(), header = ComradeBase.NoHeader())
     return domain(arrayconfig(ac); executor, header)
 end
 
@@ -290,7 +288,7 @@ function Base.show(io::IO, config::ClosureConfig)
     println(io, "  mjd:         ", config.mjd)
     println(io, "  bandwidth:   ", config.bandwidth)
     println(io, "  sites:       ", sites(arrayconfig(config)))
-    print(io, "  nclosures:    ", length(config))
+    return print(io, "  nclosures:    ", length(config))
 end
 
 
@@ -304,7 +302,7 @@ This uses a closure design matrix for the computation.
 """
 function logclosure_amplitudes(vis::AbstractArray{<:Complex}, ac::DesignMatrix)
     lva = log.(abs.(vis))
-    return ac*lva
+    return ac * lva
 end
 
 @noinline logclosure_amplitudes(vis::UnstructuredMap, ac::DesignMatrix) = logclosure_amplitudes(baseimage(vis), ac)
@@ -319,7 +317,7 @@ This uses a closure design matrix for the computation.
 """
 function closure_phases(vis::AbstractArray{<:Complex}, ac::DesignMatrix)
     ph = angle.(vis)
-    return ac*ph
+    return ac * ph
 end
 
 @noinline closure_phases(vis::UnstructuredMap, ac::DesignMatrix) = closure_phases(baseimage(vis), ac)

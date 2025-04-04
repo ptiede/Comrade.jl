@@ -20,7 +20,7 @@ A = IIDSitePrior(ScanSeg(), Normal(0, 1))
 creates a site prior that is constant across scans and each scan has a unit Normal prior.
 
 """
-struct IIDSitePrior{S<:Segmentation, D} <: AbstractSitePrior
+struct IIDSitePrior{S <: Segmentation, D} <: AbstractSitePrior
     seg::S
     dist::D
 end

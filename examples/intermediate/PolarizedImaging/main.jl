@@ -1,10 +1,10 @@
 import Pkg #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
+Pkg.activate(__DIR; io = pkg_io) #hide
+Pkg.develop(; path = joinpath(__DIR, "..", "..", ".."), io = pkg_io) #hide
+Pkg.instantiate(; io = pkg_io) #hide
+Pkg.precompile(; io = pkg_io) #hide
 close(pkg_io) #hide
 
 # # Polarized Image and Instrumental Modeling
@@ -95,7 +95,6 @@ close(pkg_io) #hide
 #  while re-creating the polarized image from the first [`EHT results on M87`](https://iopscience.iop.org/article/10.3847/2041-8213/abe71d).
 
 
-
 # ## Load the Data
 # To get started we will load Comrade
 using Comrade
@@ -109,12 +108,14 @@ rng = StableRNG(42)
 
 
 # Now we will load some synthetic polarized data.
-fname = Base.download("https://de.cyverse.org/anon-files/iplant/home/shared/commons_repo/curated/EHTC_M87pol2017_Nov2023/hops_data/April11/SR2_M87_2017_101_lo_hops_ALMArot.uvfits",
-                      joinpath(__DIR, "m87polarized.uvfits")
-                    )
+fname = Base.download(
+    "https://de.cyverse.org/anon-files/iplant/home/shared/commons_repo/curated/EHTC_M87pol2017_Nov2023/hops_data/April11/SR2_M87_2017_101_lo_hops_ALMArot.uvfits",
+    joinpath(__DIR, "m87polarized.uvfits")
+)
 obs = Pyehtim.load_uvfits_and_array(
-        fname,
-        joinpath(__DIR, "..", "..", "Data", "array.txt"), polrep="circ")
+    fname,
+    joinpath(__DIR, "..", "..", "Data", "array.txt"), polrep = "circ"
+)
 
 
 # Notice that, unlike other non-polarized tutorials, we need to include a second argument.
@@ -122,7 +123,7 @@ obs = Pyehtim.load_uvfits_and_array(
 # of the array.
 
 # Now we scan average the data since the data to boost the SNR and reduce the total data volume.
-obs = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min=0.1e9)
+obs = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min = 0.1e9)
 #-
 # Now we extract our observed/corrupted coherency matrices.
 dvis = extract_table(obs, Coherencies())
@@ -152,14 +153,14 @@ dvis = extract_table(obs, Coherencies())
 # and the second are additional metadata required to build the model.
 using StatsFuns: logistic
 function sky(θ, metadata)
-    (;c, σ, p, p0, pσ, angparams) = θ
-    (;mimg, ftot) = metadata
+    (; c, σ, p, p0, pσ, angparams) = θ
+    (; mimg, ftot) = metadata
     ## Build the stokes I model
-    rast = apply_fluctuations(CenteredLR(), mimg, σ.*c.params)
+    rast = apply_fluctuations(CenteredLR(), mimg, σ .* c.params)
     brast = baseimage(rast)
-    brast .= ftot.*brast
+    brast .= ftot .* brast
     ## The total polarization fraction is modeled in logit space so we transform it back
-    pim = logistic.(p0 .+ pσ.*p.params)
+    pim = logistic.(p0 .+ pσ .* p.params)
     ## Build our IntensityMap
     pmap = PoincareSphere2Map(rast, pim, angparams)
     ## Construct the actual image model which uses a third order B-spline pulse
@@ -169,10 +170,6 @@ function sky(θ, metadata)
     ms = shifted(m, -x0, -y0)
     return ms
 end
-
-
-
-
 
 
 # Now, we define the model metadata required to build the model.
@@ -185,33 +182,33 @@ fovy = μas2rad(200.0)
 nx = ny = 32
 grid = imagepixels(fovx, fovy, nx, ny)
 
-fwhmfac = 2*sqrt(2*log(2))
-mpr  = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
+fwhmfac = 2 * sqrt(2 * log(2))
+mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
 mimg = intensitymap(mpr, grid)
 
 # For the image metadata we specify the grid and the total flux of the image, which is 1.0.
 # Note that we specify the total flux out front since it is degenerate with an overall shift
 # in the gain amplitudes.
-skymeta = (; mimg=mimg./flux(mimg), ftot=0.6);
+skymeta = (; mimg = mimg ./ flux(mimg), ftot = 0.6);
 
 
 # We use again use a GMRF prior similar to the [Imaging a Black Hole using only Closure Quantities](@ref) tutorial
-# for the log-ratio transformed image. We use the same correlated image prior for the inverse-logit transformed 
+# for the log-ratio transformed image. We use the same correlated image prior for the inverse-logit transformed
 # total polarization. The mean total polarization fraction `p0` is centered at -2.0 with a standard deviation of 2.0
 # which logit transformed puts most of the prior mass < 0.8 fractional polarization. The standard deviation of the
-# total polarization fraction `pσ` again uses a Half-normal process. The angular parameters of the polarizaton are 
+# total polarization fraction `pσ` again uses a Half-normal process. The angular parameters of the polarizaton are
 # given by a uniform prior on the sphere.
 cprior = corr_image_prior(grid, dvis)
 skyprior = (
     c = cprior,
-    σ  = Exponential(0.1),
-    p  = cprior,
+    σ = Exponential(0.1),
+    p = cprior,
     p0 = Normal(-2.0, 2.0),
-    pσ =  truncated(Normal(0.0, 1.0); lower=0.01),
+    pσ = truncated(Normal(0.0, 1.0); lower = 0.01),
     angparams = ImageSphericalUniform(nx, ny),
-    )
+)
 
-skym = SkyModel(sky, skyprior, grid; metadata=skymeta)
+skym = SkyModel(sky, skyprior, grid; metadata = skymeta)
 
 
 # Now we build the instrument model. Due to the complexity of VLBI the instrument model is critical
@@ -232,8 +229,8 @@ skym = SkyModel(sky, skyprior, grid; metadata=skymeta)
 # The first element of the tuple is the gain for the first polarization feed (R) and the
 # second is the gain for the second polarization feed (L).
 function fgain(x)
-    gR = exp(x.lgR + 1im*x.gpR)
-    gL = gR*exp(x.lgrat + 1im*x.gprat)
+    gR = exp(x.lgR + 1im * x.gpR)
+    gL = gR * exp(x.lgrat + 1im * x.gprat)
     return gR, gL
 end
 G = JonesG(fgain)
@@ -255,29 +252,29 @@ D = JonesD(fdterms)
 # Finally we define our response Jones matrix. This matrix is a basis transform matrix
 # plus the feed rotation angle for each station. These are typically set by the telescope
 # so there are no free parameters, so no parameterization is necessary.
-R = JonesR(;add_fr=true)
+R = JonesR(; add_fr = true)
 
 # Finally, we build our total Jones matrix by using the `JonesSandwich` function. The
 # first argument is a function that specifies how to combine each Jones matrix. In this case
 # we will use the standard decomposition J = adjoint(R)*G*D*R, where we need to apply the adjoint
-# of the feed rotaion matrix `R` because the data has feed rotation calibration. 
-js(g,d,r) = adjoint(r)*g*d*r
+# of the feed rotaion matrix `R` because the data has feed rotation calibration.
+js(g, d, r) = adjoint(r) * g * d * r
 J = JonesSandwich(js, G, D, R)
 
 # !!! note
 #     This is a general note that for arrays with non-zero leakage, feed rotation calibration
 #     does not remove the impact of feed rotations on the instrument model. That is,
-#     when modeling feed rotation must be taken into account. This is because 
+#     when modeling feed rotation must be taken into account. This is because
 #     the R and D matrices are not commutative. Therefore, to recover the correct instrumental
 #     terms we must include the feed rotation calibration in the instrument model. This is not
-#     ideal when doing polarized modeling, especially for interferometers using a mixture of linear 
-#     and circular feeds. For linear feeds R does not commute with G or D and applying feed rotation 
+#     ideal when doing polarized modeling, especially for interferometers using a mixture of linear
+#     and circular feeds. For linear feeds R does not commute with G or D and applying feed rotation
 #     calibration before solving for gains can mix gains and leakage with feed rotation calibration terms
 #     breaking many of the typical assumptions about the stabilty of different instrument effects.
 
 # For the instrument prior, we will use a simple IID prior for the complex gains and d-terms.
 # The `IIDSitePrior` function specifies that each site has the same prior and each value is independent
-# on some time segment. The current time segments are 
+# on some time segment. The current time segments are
 #  - `ScanSeg()` which specifies each scan has an independent value
 #  - `TrackSeg()` which says that the value is constant over the track.
 #  - `IntegSeg()` which says that the value changes each integration time
@@ -285,14 +282,14 @@ J = JonesSandwich(js, G, D, R)
 # so we use `ScanSeg` for those quantities. The d-terms are typically stable over the track
 # so we use `TrackSeg` for those.
 intprior = (
-    lgR  = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    lgrat= ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-    gpR  = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0), phase=true),
-    gprat= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase=true),
-    dRx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dRy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dLx  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dLy  = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    lgR = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+    gpR = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+    gprat = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true),
+    dRx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    dRy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    dLx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    dLy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
 )
 
 # Finally, we can build our instrument model which takes a model for the Jones matrix `J`
@@ -303,7 +300,7 @@ intmodel = InstrumentModel(J, intprior)
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling, and specifying to use Enzyme.Reverse with runtime activity for AD.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis; admode=set_runtime_activity(Enzyme.Reverse))
+post = VLBIPosterior(skym, intmodel, dvis; admode = set_runtime_activity(Enzyme.Reverse))
 
 # ## Reconstructing the Image and Instrument Effects
 
@@ -324,20 +321,21 @@ tpost = asflat(post)
 # work with the polarized Comrade posterior is Enzyme.
 using Optimization
 using OptimizationOptimisers
-xopt, sol = comrade_opt(post, Optimisers.Adam(); 
-                        initial_params=prior_sample(rng, post), maxiters=25_000)
-
+xopt, sol = comrade_opt(
+    post, Optimisers.Adam();
+    initial_params = prior_sample(rng, post), maxiters = 25_000
+)
 
 
 # Now let's evaluate our fits by plotting the residuals
 using CairoMakie
 using DisplayAs #hide
 res = residuals(post, xopt)
-fig = Figure(;size=(800, 600))
-baselineplot(fig[1,1], res[1], :uvdist, x->Comrade.measurement(x)[1,1]/noise(x)[1,1], axis=(ylabel="RR Residual", xlabel="uv distance (λ)"))
-baselineplot(fig[2,1], res[1], :uvdist, x->Comrade.measurement(x)[2,1]/noise(x)[1,1], axis=(ylabel="LR Residual", xlabel="uv distance (λ)"))
-baselineplot(fig[1,2], res[1], :uvdist, x->Comrade.measurement(x)[1,2]/noise(x)[1,1], axis=(ylabel="RL Residual", xlabel="uv distance (λ)"))
-baselineplot(fig[2,2], res[1], :uvdist, x->Comrade.measurement(x)[2,2]/noise(x)[1,1], axis=(ylabel="LL Residual", xlabel="uv distance (λ)"))
+fig = Figure(; size = (800, 600))
+baselineplot(fig[1, 1], res[1], :uvdist, x -> Comrade.measurement(x)[1, 1] / noise(x)[1, 1], axis = (ylabel = "RR Residual", xlabel = "uv distance (λ)"))
+baselineplot(fig[2, 1], res[1], :uvdist, x -> Comrade.measurement(x)[2, 1] / noise(x)[1, 1], axis = (ylabel = "LR Residual", xlabel = "uv distance (λ)"))
+baselineplot(fig[1, 2], res[1], :uvdist, x -> Comrade.measurement(x)[1, 2] / noise(x)[1, 1], axis = (ylabel = "RL Residual", xlabel = "uv distance (λ)"))
+baselineplot(fig[2, 2], res[1], :uvdist, x -> Comrade.measurement(x)[2, 2] / noise(x)[1, 1], axis = (ylabel = "LL Residual", xlabel = "uv distance (λ)"))
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting.
@@ -345,11 +343,11 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # First, we will load the polarized truth
 imgtrue = load_fits(joinpath(__DIR, "..", "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams});
 # Select a reasonable zoom in of the image.
-imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx*4, ny*4))
+imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx * 4, ny * 4))
 img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
 
 #Plotting the results gives
-fig = imageviz(img, adjust_length=true, colormap=:bone, pcolormap=:RdBu)
+fig = imageviz(img, adjust_length = true, colormap = :bone, pcolormap = :RdBu)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
@@ -362,28 +360,28 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # To grab the ratios and products we can use the `caltable` function which will return analyze the gprat array
 # and convert it to a uniform table. We can then plot the gain phases and amplitudes.
 gphase_ratio = caltable(xopt.instrument.gprat)
-gamp_ratio   = caltable(exp.(xopt.instrument.lgrat))
+gamp_ratio = caltable(exp.(xopt.instrument.lgrat))
 
 #-
 # Plotting the phases first, we see large trends in the righ circular polarization phase. This is expected
-# due to a lack of image centroid and the absense of absolute phase information in VLBI. However, the gain 
-# phase difference between the left and right circular polarization is stable and close to zero. This is 
+# due to a lack of image centroid and the absense of absolute phase information in VLBI. However, the gain
+# phase difference between the left and right circular polarization is stable and close to zero. This is
 # expected since gain ratios are typically stable over the course of an observation and the constant
 # offset was removed in the EHT calibration process.
 gphaseR = caltable(xopt.instrument.gpR)
-fig = plotcaltable(gphaseR, gphase_ratio, labels=["R Phase", "L/R Phase"]);
+fig = plotcaltable(gphaseR, gphase_ratio, labels = ["R Phase", "L/R Phase"]);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 # Moving to the amplitudes we see largely stable gain amplitudes on the right circular polarization except for LMT which is
 # known and due to pointing issues during the 2017 observation. Again the gain ratios are stable and close to unity. Typically
 # we expect that apriori calibration should make the gain ratios close to unity.
 gampr = caltable(exp.(xopt.instrument.lgR))
-fig = plotcaltable(gampr, gamp_ratio, labels=["R Amp", "L/R Amp"], axis_kwargs=(;limits=(nothing, (0.6, 1.3))));
+fig = plotcaltable(gampr, gamp_ratio, labels = ["R Amp", "L/R Amp"], axis_kwargs = (; limits = (nothing, (0.6, 1.3))));
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
 
-# To sample from the posterior, you can then just use the `sample` function from AdvancedHMC like in the 
+# To sample from the posterior, you can then just use the `sample` function from AdvancedHMC like in the
 # other imaging examples. For example
 # ```julia
 # using AdvancedHMC

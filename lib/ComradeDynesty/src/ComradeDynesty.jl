@@ -8,7 +8,7 @@ using Reexport
 using Random
 
 function __init__()
-    @warn "ComradeDynesty is deprecated. Dynesty.jl is now an extension."
+    return @warn "ComradeDynesty is deprecated. Dynesty.jl is now an extension."
 end
 
 

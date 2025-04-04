@@ -37,7 +37,7 @@ Base.eachindex(st::TimeTable) = LinearIndices(firstindex(st):lastindex(st))
 function Base.getindex(st::TimeTable, i::Int)
     istart = st.scanind[i]
     if i < length(st.scanind)
-        iend = st.scanind[i+1]-1
+        iend = st.scanind[i + 1] - 1
     else
         iend = length(st.obs)
     end
@@ -53,7 +53,7 @@ Composite type that holds information for a single scan of the telescope.
 # Fields
 $(FIELDS)
 """
-struct Scan{T,I,S}
+struct Scan{T, I, S}
     """
     Scan time
     """
@@ -75,14 +75,13 @@ Base.length(s::Scan) = length(s.scan)
 
 Return the baselines for each datum in a scan
 """
-function baseline(scan::Scan{A,B,<:EHTObservationTable}) where {A, B}
+function baseline(scan::Scan{A, B, <:EHTObservationTable}) where {A, B}
     bl = arrayconfig(scan.scan)[:sites]
     # organize the closure phase sites
     ant1 = first.(bl)
     ant2 = last.(bl)
     return ant1, ant2
 end
-
 
 
 function sites(s::Scan)
@@ -93,24 +92,24 @@ function Base.show(io::IO, s::Scan)
     println(io, "VLBI Scan")
     println(io, "\tscan index: ", s.index)
     println(io, "\tscan time:  ", s.time)
-    print(io, "\tsites: ", sites(s))
+    return print(io, "\tsites: ", sites(s))
 end
 
 
 function Base.getindex(st::TimeTable, I)
-    [getindex(st, i) for i in I]
+    return [getindex(st, i) for i in I]
 end
 
 function Base.getindex(scan::Scan, s::Symbol)
-    getindex(scan.scan, s)
+    return getindex(scan.scan, s)
 end
 
 function Base.getindex(scan::Scan, i::Int)
-    scan.scan[i]
+    return scan.scan[i]
 end
 
-function Base.getindex(scan::Scan, i::AbstractVector{<:Union{Bool,Int}})
-    Scan(scan.time, scan.index, scan.scan[i])
+function Base.getindex(scan::Scan, i::AbstractVector{<:Union{Bool, Int}})
+    return Scan(scan.time, scan.index, scan.scan[i])
 end
 
 

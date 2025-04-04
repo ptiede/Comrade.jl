@@ -9,7 +9,7 @@ using HypercubeTransform
 using LogDensityProblems
 
 function Optimization.OptimizationFunction(post::Comrade.TransformedVLBIPosterior, args...; kwargs...)
-    ℓ(x,p=post) = -logdensityof(p, x)
+    ℓ(x, p = post) = -logdensityof(p, x)
     if isnothing(Comrade.admode(post))
         return SciMLBase.OptimizationFunction(ℓ, args...; kwargs...)
     else
@@ -19,7 +19,7 @@ function Optimization.OptimizationFunction(post::Comrade.TransformedVLBIPosterio
             G .= dx
             return G
         end
-        return SciMLBase.OptimizationFunction(ℓ, args...; grad=grad, kwargs...)
+        return SciMLBase.OptimizationFunction(ℓ, args...; grad = grad, kwargs...)
     end
 end
 
@@ -70,7 +70,7 @@ Optimize the posterior `post` using the `opt` optimizer.
  - `kwargs` : Additional keyword arguments passed `Optimization.jl` `solve` method.
 
 """
-function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params=nothing, lb=nothing, ub=nothing, cube=false, kwargs...)
+function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params = nothing, lb = nothing, ub = nothing, cube = false, kwargs...)
     if isnothing(Comrade.admode(post)) || cube
         tpost = ascube(post)
     else
@@ -86,8 +86,8 @@ function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params=n
     end
 
     if tpost.transform isa HypercubeTransform.AbstractHypercubeTransform
-        lb=fill(0.0001, dimension(tpost))
-        ub=fill(0.9999, dimension(tpost))
+        lb = fill(0.0001, dimension(tpost))
+        ub = fill(0.9999, dimension(tpost))
     end
 
     prob = OptimizationProblem(f, initial_params, tpost; lb, ub)

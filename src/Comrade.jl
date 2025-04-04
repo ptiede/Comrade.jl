@@ -44,27 +44,26 @@ using VLBISkyModels: FourierTransform, FourierDualDomain
 
 export linearpol, mbreve, evpa
 using ComradeBase: AbstractRectiGrid, AbstractDomain, UnstructuredDomain,
-                   AbstractModel, AbstractPolarizedModel, AbstractHeader
-
+    AbstractModel, AbstractPolarizedModel, AbstractHeader
 
 
 export rad2μas, μas2rad, logdensity_def, logdensityof
 
 
 import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
-                    intensitymap_analytic, intensitymap_analytic!,
-                    intensitymap_numeric, intensitymap_numeric!,
-                    visibilitymap, visibilitymap!,
-                    _visibilitymap, _visibilitymap!,
-                    visibilitymap_analytic, visibilitymap_analytic!,
-                    visibilitymap_numeric, visibilitymap_numeric!,
-                    visanalytic, imanalytic, ispolarized,
-                    NotAnalytic, IsAnalytic, NotPolarized, IsPolarized,
-                    visibility_point, intensity_point,
-                    closure_phase, closure_phasemap,
-                    logclosure_amplitude, logclosure_amplitudemap,
-                    visibility, amplitude,
-                    amplitudemap
+    intensitymap_analytic, intensitymap_analytic!,
+    intensitymap_numeric, intensitymap_numeric!,
+    visibilitymap, visibilitymap!,
+    _visibilitymap, _visibilitymap!,
+    visibilitymap_analytic, visibilitymap_analytic!,
+    visibilitymap_numeric, visibilitymap_numeric!,
+    visanalytic, imanalytic, ispolarized,
+    NotAnalytic, IsAnalytic, NotPolarized, IsPolarized,
+    visibility_point, intensity_point,
+    closure_phase, closure_phasemap,
+    logclosure_amplitude, logclosure_amplitudemap,
+    visibility, amplitude,
+    amplitudemap
 include("observations/observations.jl")
 include("instrument/instrument.jl")
 include("skymodels/models.jl")

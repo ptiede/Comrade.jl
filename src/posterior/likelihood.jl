@@ -15,7 +15,7 @@ are simulated data.
 likelihood(d::ConditionedLikelihood, μ) = d.kernel(μ)
 
 
-struct _Visibility{S,L}
+struct _Visibility{S, L}
     S::S
     L::L
 end
@@ -26,14 +26,14 @@ end
 
 # internal function that creates the likelihood for a set of complex visibilities
 function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTVisibilityDatum})
-    Σ = noise(data).^2
+    Σ = noise(data) .^ 2
     vis = measurement(data)
     lnorm = VLBILikelihoods.lognorm(ComplexVisLikelihood(vis, Σ))
     ℓ = ConditionedLikelihood(_Visibility(Σ, lnorm), vis)
     return ℓ
 end
 
-struct _Coherency{S,L}
+struct _Coherency{S, L}
     S::S
     L::L
 end
@@ -43,7 +43,7 @@ function (c::_Coherency)(μ)
 end
 
 function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTCoherencyDatum})
-    Σ = map(x->x.^2, noise(data))
+    Σ = map(x -> x .^ 2, noise(data))
     vis = measurement(data)
     lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, Σ))
     ℓ = ConditionedLikelihood(_Coherency(Σ, lnorm), vis)
@@ -60,13 +60,13 @@ end
 
 # internal function that creates the likelihood for a set of visibility amplitudes
 function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTVisibilityAmplitudeDatum})
-    Σ = noise(data).^2
+    Σ = noise(data) .^ 2
     amp = measurement(data)
     ℓ = ConditionedLikelihood(_VisAmp(Σ), amp)
     return ℓ
 end
 
-struct _LCamp{F,S,L}
+struct _LCamp{F, S, L}
     f::F
     S::S
     L::L
@@ -86,7 +86,7 @@ function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTLogClosur
     return ℓ
 end
 
-struct _CPhase{F,S,L}
+struct _CPhase{F, S, L}
     f::F
     S::S
     L::L

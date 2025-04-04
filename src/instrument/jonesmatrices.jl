@@ -1,5 +1,5 @@
 export SingleStokesGain, JonesG, JonesD, JonesF, JonesR, GenericJones,
-       JonesSandwich, forward_jones
+    JonesSandwich, forward_jones
 
 abstract type AbstractJonesMatrix end
 @inline jonesmatrix(mat::AbstractJonesMatrix, params, visindex, site) = construct_jones(mat, param_map(mat, params), visindex, site)
@@ -159,8 +159,8 @@ function preallocate_jones(J::JonesR, array::AbstractArrayConfiguration, ref)
     Tcirc2 = StructArray(map(x -> basis_transform(CirBasis(), x[2]), array[:polbasis]))
     if J.add_fr
         field_rotations = build_feedrotation(array)
-        @. T1 .= Tcirc1*field_rotations[1]*adjoint(Tcirc1)*T1
-        @. T2 .= Tcirc2*field_rotations[2]*adjoint(Tcirc2)*T2
+        @. T1 .= Tcirc1 * field_rotations[1] * adjoint(Tcirc1) * T1
+        @. T2 .= Tcirc2 * field_rotations[2] * adjoint(Tcirc2) * T2
     end
     return JonesR((T1, T2), J.add_fr)
 
@@ -204,11 +204,11 @@ function JonesSandwich(matrices::AbstractJonesMatrix...)
 end
 
 @inline function jonesmatrix(J::JonesSandwich, x, index, site)
-    return J.jones_map(map(m->construct_jones(m, param_map(m, x), index, site), J.matrices))
+    return J.jones_map(map(m -> construct_jones(m, param_map(m, x), index, site), J.matrices))
 end
 
-function preallocate_jones(J::JonesSandwich, array::AbstractArrayConfiguration, refbasis=CirBasis())
-    m2 = map(x->preallocate_jones(x, array, refbasis), J.matrices)
+function preallocate_jones(J::JonesSandwich, array::AbstractArrayConfiguration, refbasis = CirBasis())
+    m2 = map(x -> preallocate_jones(x, array, refbasis), J.matrices)
     return JonesSandwich(J.jones_map, m2)
 end
 
@@ -224,10 +224,10 @@ of `xs, and whose elements are the jones matrices for the specific parameters.
 """
 function forward_jones(v::AbstractJonesMatrix, xs::NamedTuple{N}) where {N}
     sm = broadest_sitemap(xs)
-    bl = map(x->(x,x), sm.sites)
-    bmaps = map(x->_construct_baselinemap(getproperty.(sm.times, :t0), getproperty.(sm.frequencies, :central), bl, x).indices_1, xs)
+    bl = map(x -> (x, x), sm.sites)
+    bmaps = map(x -> _construct_baselinemap(getproperty.(sm.times, :t0), getproperty.(sm.frequencies, :central), bl, x).indices_1, xs)
     vs = map(eachindex(sm.times)) do index
-        indices = map(x->getindex(x, index), bmaps)
+        indices = map(x -> getindex(x, index), bmaps)
         params = NamedTuple{N}(map(getindex, values(xs), values(indices)))
         return jonesmatrix(v, params, index, Val(1))
     end
@@ -236,6 +236,5 @@ end
 
 function broadest_sitemap(xs::NamedTuple)
     v = values(xs)
-    return SiteLookup(argmax(x->length(x.times), v))
+    return SiteLookup(argmax(x -> length(x.times), v))
 end
-

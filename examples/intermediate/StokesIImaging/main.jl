@@ -1,10 +1,10 @@
 import Pkg #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
+Pkg.activate(__DIR; io = pkg_io) #hide
+Pkg.develop(; path = joinpath(__DIR, "..", "..", ".."), io = pkg_io) #hide
+Pkg.instantiate(; io = pkg_io) #hide
+Pkg.precompile(; io = pkg_io) #hide
 close(pkg_io) #hide
 
 
@@ -20,14 +20,12 @@ close(pkg_io) #hide
 using Comrade
 
 
-
 using Pyehtim
 using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(12)
-
 
 
 # ## Load the Data
@@ -58,16 +56,16 @@ dvis = extract_table(obs, Visibilities())
 # except we include a large scale gaussian since we want to model the zero baselines.
 # For more information about the image model please read the closure-only example.
 function sky(θ, metadata)
-    (;fg, c, σimg) = θ
-    (;ftot, mimg) = metadata
+    (; fg, c, σimg) = θ
+    (; ftot, mimg) = metadata
     ## Apply the GMRF fluctuations to the image
-    rast = apply_fluctuations(CenteredLR(), mimg, σimg.*c.params)
+    rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
     pimg = parent(rast)
-    @. pimg = (ftot*(1-fg))*pimg
+    @. pimg = (ftot * (1 - fg)) * pimg
     m = ContinuousImage(rast, BSplinePulse{3}())
     x0, y0 = centroid(m)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
-    g = modify(Gaussian(), Stretch(μas2rad(500.0), μas2rad(500.0)), Renormalize(ftot*fg))
+    g = modify(Gaussian(), Stretch(μas2rad(500.0), μas2rad(500.0)), Renormalize(ftot * fg))
     return shifted(m, -x0, -y0) + g
 end
 
@@ -92,8 +90,8 @@ grid = imagepixels(fovx, fovy, npix, npix)
 # a symmetric Gaussian with a FWHM of 50 μas
 using VLBIImagePriors
 using Distributions
-fwhmfac = 2*sqrt(2*log(2))
-mpr  = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
+fwhmfac = 2 * sqrt(2 * log(2))
+mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
 mimg = intensitymap(mpr, grid)
 
 
@@ -101,14 +99,14 @@ mimg = intensitymap(mpr, grid)
 # We will also fix the total flux to be the observed value 1.1. This is because
 # total flux is degenerate with a global shift in the gain amplitudes making the problem
 # degenerate. To fix this we use the observed total flux as our value.
-skymeta = (;ftot = 1.1, mimg = mimg./flux(mimg))
+skymeta = (; ftot = 1.1, mimg = mimg ./ flux(mimg))
 
 
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
 # that allow us to scale things linearly with the number of image pixels. The returns a
 # functional that accepts a single argument related to the correlation length of the field.
 # The second argument defines the underlying random field of the Markov process. Here
-# we are using a zero mean and unit variance Gaussian Markov random field. 
+# we are using a zero mean and unit variance Gaussian Markov random field.
 # For this tutorial we will use the first order random field
 cprior = corr_image_prior(grid, dvis)
 
@@ -116,13 +114,13 @@ cprior = corr_image_prior(grid, dvis)
 # Putting everything together the total prior is then our image prior, a prior on the
 # standard deviation of the MRF, and a prior on the fractional flux of the Gaussian component.
 prior = (
-         c = cprior,
-         σimg = truncated(Normal(0.0, 0.5); lower=0.0),
-         fg = Uniform(0.0, 1.0),
-        )
+    c = cprior,
+    σimg = truncated(Normal(0.0, 0.5); lower = 0.0),
+    fg = Uniform(0.0, 1.0),
+)
 
 # Now we can construct our sky model.
-skym = SkyModel(sky, prior, grid; metadata=skymeta)
+skym = SkyModel(sky, prior, grid; metadata = skymeta)
 
 # Unlike other imaging examples
 # (e.g., [Imaging a Black Hole using only Closure Quantities](@ref)) we also need to include
@@ -133,22 +131,22 @@ skym = SkyModel(sky, prior, grid; metadata=skymeta)
 G = SingleStokesGain() do x
     lg = x.lg
     gp = x.gp
-    return exp(lg + 1im*gp)
+    return exp(lg + 1im * gp)
 end
 
 intpr = (
     lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    gp= ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0), phase=true)
-        )
+    gp = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+)
 intmodel = InstrumentModel(G, intpr)
 
 
 # To form the posterior we just combine the skymodel, instrument model and the data. Additionally,
 # since we want to use gradients we need to specify the AD mode. Essentially for all modes we recommend
-# using `Enzyme.set_runtime_activity(Enzyme.Reverse)`. Eventually as Comrade and Enzyme matures we will 
+# using `Enzyme.set_runtime_activity(Enzyme.Reverse)`. Eventually as Comrade and Enzyme matures we will
 # no need `set_runtime_activity`.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis; admode=set_runtime_activity(Enzyme.Reverse))
+post = VLBIPosterior(skym, intmodel, dvis; admode = set_runtime_activity(Enzyme.Reverse))
 # done using the `asflat` function.
 tpost = asflat(post)
 ndim = dimension(tpost)
@@ -163,7 +161,7 @@ ndim = dimension(tpost)
 # To initialize our sampler we will use optimize using Adam
 using Optimization
 using OptimizationOptimisers
-xopt, sol = comrade_opt(post, Optimisers.Adam(); initial_params=prior_sample(rng, post), maxiters=20_000, g_tol=1e-1);
+xopt, sol = comrade_opt(post, Optimisers.Adam(); initial_params = prior_sample(rng, post), maxiters = 20_000, g_tol = 1.0e-1);
 
 # !!! warning
 #     Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -181,8 +179,7 @@ plotfields(res[1], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
 # [Imaging a Black Hole using only Closure Quantities](@ref).
 g = imagepixels(fovx, fovy, 128, 128)
 img = intensitymap(skymodel(post, xopt), g)
-imageviz(img, size=(500, 400))|> DisplayAs.PNG |> DisplayAs.Text
-
+imageviz(img, size = (500, 400)) |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
@@ -190,7 +187,7 @@ imageviz(img, size=(500, 400))|> DisplayAs.PNG |> DisplayAs.Text
 # to a tabular format based on the time and its segmentation.
 intopt = instrumentmodel(post, xopt)
 gt = Comrade.caltable(angle.(intopt))
-plotcaltable(gt)|> DisplayAs.PNG |> DisplayAs.Text
+plotcaltable(gt) |> DisplayAs.PNG |> DisplayAs.Text
 
 # The gain phases are pretty random, although much of this is due to us picking a random
 # reference sites for each scan.
@@ -198,7 +195,7 @@ plotcaltable(gt)|> DisplayAs.PNG |> DisplayAs.Text
 # Moving onto the gain amplitudes, we see that most of the gain variation is within 10% as expected
 # except LMT, which has massive variations.
 gt = Comrade.caltable(abs.(intopt))
-plotcaltable(gt)|> DisplayAs.PNG |> DisplayAs.Text
+plotcaltable(gt) |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For
@@ -209,7 +206,7 @@ plotcaltable(gt)|> DisplayAs.PNG |> DisplayAs.Text
 # run
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 1_000; n_adapts=500, progress=false, initial_params=xopt)
+chain = sample(rng, post, NUTS(0.8), 1_000; n_adapts = 500, progress = false, initial_params = xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -218,7 +215,6 @@ chain = sample(rng, post, NUTS(0.8), 1_000; n_adapts=500, progress=false, initia
 #     useage. You can load the chain using `load_samples(diskout)` where `diskout` is
 #     the object returned from sample.
 #-
-
 
 
 # Now we prune the adaptation phase
@@ -238,7 +234,7 @@ schain = Comrade.rmap(std, chain);
 # First we create a `caltable` the same way but making sure all of our variables have errors
 # attached to them.
 using Measurements
-gmeas = instrumentmodel(post, (;instrument= map((x,y)->Measurements.measurement.(x,y), mchain.instrument, schain.instrument)))
+gmeas = instrumentmodel(post, (; instrument = map((x, y) -> Measurements.measurement.(x, y), mchain.instrument, schain.instrument)))
 ctable_am = caltable(abs.(gmeas))
 ctable_ph = caltable(angle.(gmeas))
 
@@ -254,15 +250,14 @@ imgs = intensitymap.(samples, Ref(g))
 
 mimg = mean(imgs)
 simg = std(imgs)
-fig = Figure(;resolution=(700, 700));
-axs = [Axis(fig[i, j], xreversed=true, aspect=1) for i in 1:2, j in 1:2]
-image!(axs[1,1], mimg, colormap=:afmhot); axs[1, 1].title="Mean"
-image!(axs[1,2], simg./(max.(mimg, 1e-8)), colorrange=(0.0, 2.0), colormap=:afmhot);axs[1,2].title = "Std"
-image!(axs[2,1], imgs[1],   colormap=:afmhot);
-image!(axs[2,2], imgs[end], colormap=:afmhot);
+fig = Figure(; resolution = (700, 700));
+axs = [Axis(fig[i, j], xreversed = true, aspect = 1) for i in 1:2, j in 1:2]
+image!(axs[1, 1], mimg, colormap = :afmhot); axs[1, 1].title = "Mean"
+image!(axs[1, 2], simg ./ (max.(mimg, 1.0e-8)), colorrange = (0.0, 2.0), colormap = :afmhot);axs[1, 2].title = "Std"
+image!(axs[2, 1], imgs[1], colormap = :afmhot);
+image!(axs[2, 2], imgs[end], colormap = :afmhot);
 hidedecorations!.(axs)
 fig |> DisplayAs.PNG |> DisplayAs.Text
-
 
 
 # And viola, you have just finished making a preliminary image and instrument model reconstruction.
