@@ -16,12 +16,8 @@ using Serialization
 
 
 function __init__()
-    @warn "ComradeDynesty is deprecated, AdvancedHMC.jl is now an extension."
+    return @warn "ComradeDynesty is deprecated, AdvancedHMC.jl is now an extension."
 end
-
-
-
-
 
 
 end

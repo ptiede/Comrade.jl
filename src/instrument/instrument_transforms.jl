@@ -18,7 +18,7 @@ function TV.inverse_at!(x::AbstractArray, index, t::AbstractInstrumentTransform,
 end
 
 
-struct InstrumentTransform{T, L<:SiteLookup} <: AbstractInstrumentTransform
+struct InstrumentTransform{T, L <: SiteLookup} <: AbstractInstrumentTransform
     inner_transform::T
     site_map::L
 end
@@ -28,7 +28,7 @@ function TV.inverse_eltype(::AbstractInstrumentTransform, x)
 end
 
 
-struct MarkovInstrumentTransform{T, L<:SiteLookup} <: AbstractInstrumentTransform
+struct MarkovInstrumentTransform{T, L <: SiteLookup} <: AbstractInstrumentTransform
     inner_transform::T
     site_map::L
 end
@@ -41,13 +41,13 @@ TV.dimension(m::AbstractInstrumentTransform) = TV.dimension(inner_transform(m))
     return TV.transform_with(flag, itrf, x, index)
 end
 
-function branchcut(x::T) where {T} 
+function branchcut(x::T) where {T}
     xmod = mod2pi(x)
     return xmod > π ? xmod - convert(T, 2π) : xmod
 end
 
 @inline function _instrument_transform_with(flag::TV.LogJacFlag, m::MarkovInstrumentTransform, x, index)
-    (;inner_transform, site_map) = m
+    (; inner_transform, site_map) = m
     y, ℓ, index = TV.transform_with(flag, inner_transform, x, index)
     yout = site_sum(y, site_map)
     yout .= branchcut.(yout)
@@ -107,12 +107,12 @@ end
 
 function simplediff!(y::AbstractVector, x::AbstractVector)
     y[begin] = x[begin]
-    y[begin+1:end] .= @views x[begin+1:end] .- @views x[begin:end-1]
+    y[(begin + 1):end] .= @views x[(begin + 1):end] .- @views x[begin:(end - 1)]
     return nothing
 end
 
 function TV.inverse_at!(x::AbstractArray, index, t::MarkovInstrumentTransform, y::SiteArray)
-    (;inner_transform, site_map) = t
+    (; inner_transform, site_map) = t
     # Now difference to get the raw values
     yd = copy(y)
     site_diff!(yd, site_map)

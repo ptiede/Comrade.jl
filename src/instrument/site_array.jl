@@ -16,7 +16,7 @@ which will grab the first 10 time and frequency points for the ALMA site.
 Otherwise indexing into the array will return an element whose time, frequency, and site are
 the element of the `times`, `frequencies`, and `sites` arrays respectively.
 """
-struct SiteArray{T, N, A<:AbstractArray{T,N}, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:FrequencyChannel, N}, Sy<:AbstractArray{<:Any, N}} <: AbstractArray{T, N}
+struct SiteArray{T, N, A <: AbstractArray{T, N}, Ti <: AbstractArray{<:IntegrationTime, N}, Fr <: AbstractArray{<:FrequencyChannel, N}, Sy <: AbstractArray{<:Any, N}} <: AbstractArray{T, N}
     data::A
     times::Ti
     frequencies::Fr
@@ -80,10 +80,9 @@ function Base.similar(m::SiteArray, ::Type{S}) where {S}
 end
 
 function Base.similar(m::SiteArray, ::Type{S}, dims::Dims) where {S}
-    any(x->x[1]!=x[2], zip(dims, size(m))) && throw(DimensionMismatch("Size of new array must be a identical to passed SiteArray"))
+    any(x -> x[1] != x[2], zip(dims, size(m))) && throw(DimensionMismatch("Size of new array must be a identical to passed SiteArray"))
     return SiteArray(similar(parent(m), S, dims), m.times, m.frequencies, m.sites)
 end
-
 
 
 Base.BroadcastStyle(::Type{<:SiteArray}) = Broadcast.ArrayStyle{SiteArray}()
@@ -123,7 +122,7 @@ function frequency(arr::SiteArray, a::Union{AbstractInterval, Real})
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
-_equalorin(x::T, y::T) where {T} = x == y 
+_equalorin(x::T, y::T) where {T} = x == y
 _equalorin(x::Real, y) = x ∈ y
 _equalorin(x, y::Real) = y ∈ x
 _equalorin(x, y) = y ∈ x
@@ -131,17 +130,17 @@ _equalorin(x, ::typeof(Base.Colon())) = true
 _equalorin(::typeof(Base.Colon()), x) = true
 const Indexable = Union{Integer, AbstractArray{<:Integer}, BitArray}
 
-function Base.getindex(arr::SiteArray; Fr=Base.Colon(), S=Base.Colon(), Ti=Base.Colon())
+function Base.getindex(arr::SiteArray; Fr = Base.Colon(), S = Base.Colon(), Ti = Base.Colon())
     Fr2 = isa(Fr, Indexable) ? unique(arr.frequencies)[Fr] : Fr
     S2 = isa(S, Indexable) ? unique(arr.sites)[S] : S
     Ti2 = isa(Ti, Indexable) ? unique(arr.times)[Ti] : Ti
-    inds = findall(i->(_equalorin(S2, Comrade.sites(arr)[i])&&_equalorin(Ti2, Comrade.times(arr)[i])&&_equalorin(Fr2, Comrade.frequencies(arr)[i])), eachindex(arr))
+    inds = findall(i -> (_equalorin(S2, Comrade.sites(arr)[i])&&_equalorin(Ti2, Comrade.times(arr)[i])&&_equalorin(Fr2, Comrade.frequencies(arr)[i])), eachindex(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
 
-struct SiteLookup{L<:NamedTuple, N, Ti<:AbstractArray{<:IntegrationTime, N}, Fr<:AbstractArray{<:FrequencyChannel, N}, Sy<:AbstractArray{<:Any, N}}
+struct SiteLookup{L <: NamedTuple, N, Ti <: AbstractArray{<:IntegrationTime, N}, Fr <: AbstractArray{<:FrequencyChannel, N}, Sy <: AbstractArray{<:Any, N}}
     lookup::L
     times::Ti
     frequencies::Fr
@@ -159,7 +158,7 @@ EnzymeRules.inactive(::typeof(sites), ::SiteLookup) = nothing
 EnzymeRules.inactive(::typeof(lookup), ::SiteLookup) = nothing
 
 function sitemap!(f, out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
-    map(lookup(slook)) do site
+    return map(lookup(slook)) do site
         ysite = @view gains[site]
         outsite = @view out[site]
         outsite .= f.(ysite)
@@ -195,14 +194,14 @@ function SiteLookup(times::AbstractVector, frequencies::AbstractArray, sites::Ab
     slist = sort(unique(sites))
     flist = sort(unique(frequencies))
     if length(flist) == 1
-        return SiteLookup(NamedTuple{Tuple(slist)}(map(p->findall(==(p), sites), slist)), times, frequencies, sites)
+        return SiteLookup(NamedTuple{Tuple(slist)}(map(p -> findall(==(p), sites), slist)), times, frequencies, sites)
     else
         # Find sites first
         sflist = Symbol[]
         inds = Vector{Int}[]
         for s in slist
             sinds = findall(==(s), sites)
-            for (i,f) in enumerate(flist)
+            for (i, f) in enumerate(flist)
                 finds = findall(==(f), @view(frequencies[sinds]))
                 if !isempty(finds)
                     ss = Symbol(s, i)
@@ -226,10 +225,12 @@ function SiteArray(a::AbstractArray, map::SiteLookup)
     return SiteArray(a, times(map), frequencies(map), sites(map))
 end
 
-function SiteArray(data::SiteArray{T, N},
-                   times::AbstractArray{<:IntegrationTime, N}, 
-                   frequencies::AbstractArray{<:FrequencyChannel, N}, 
-                   sites::AbstractArray{<:Any, N}) where {T, N}
+function SiteArray(
+        data::SiteArray{T, N},
+        times::AbstractArray{<:IntegrationTime, N},
+        frequencies::AbstractArray{<:FrequencyChannel, N},
+        sites::AbstractArray{<:Any, N}
+    ) where {T, N}
     return data
 end
 

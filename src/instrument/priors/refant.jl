@@ -15,7 +15,6 @@ struct SingleReference{T} <: ReferencingScheme
 end
 
 
-
 struct SEFDReference{T} <: ReferencingScheme
     value::T
     offset::Int
@@ -47,7 +46,7 @@ function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r:
     sefd = NamedTuple{Tuple(tarr.sites)}(Tuple(tarr.SEFD1 .+ tarr.SEFD2))
     fixedinds = Int[]
     for i in eachindex(t), j in eachindex(f)
-        inds = findall(x->((st.times[x]==t[i])&&(st.frequencies[x]==f[j])), eachindex(st.times))
+        inds = findall(x -> ((st.times[x] == t[i])&&(st.frequencies[x] == f[j])), eachindex(st.times))
         if isempty(inds)
             continue
         end

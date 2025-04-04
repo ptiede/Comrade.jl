@@ -1,10 +1,10 @@
 import Pkg; #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
+Pkg.activate(__DIR; io = pkg_io) #hide
+Pkg.develop(; path = joinpath(__DIR, "..", "..", ".."), io = pkg_io) #hide
+Pkg.instantiate(; io = pkg_io) #hide
+Pkg.precompile(; io = pkg_io) #hide
 close(pkg_io) #hide
 
 
@@ -40,10 +40,10 @@ obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_201
 
 # Now we will kill 0-baselines since we don't care about large-scale flux and
 # since we know that the gains in this dataset are coherent across a scan, we make scan-average data
-obs = Pyehtim.scan_average(obs.flag_uvdist(uv_min=0.1e9)).add_fractional_noise(0.02)
+obs = Pyehtim.scan_average(obs.flag_uvdist(uv_min = 0.1e9)).add_fractional_noise(0.02)
 
 # Now we extract the data products we want to fit
-dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosurePhases(;snrcut=3.0))
+dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3.0), ClosurePhases(; snrcut = 3.0))
 
 # !!!warn
 #    We remove the low-snr closures since they are very non-gaussian. This can create rather
@@ -59,11 +59,11 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosureP
 # return an object that implements the [VLBISkyModels Interface](https://ehtjulia.github.io/VLBISkyModels.jl/stable/interface/)
 #-
 function sky(θ, p)
-    (;radius, width, ma, mp, τ, ξτ, f, σG, τG, ξG, xG, yG) = θ
-    α = ma.*cos.(mp .- ξτ)
-    β = ma.*sin.(mp .- ξτ)
-    ring = f*smoothed(modify(MRing(α, β), Stretch(radius, radius*(1+τ)), Rotate(ξτ)), width)
-    g = (1-f)*shifted(rotated(stretched(Gaussian(), σG, σG*(1+τG)), ξG), xG, yG)
+    (; radius, width, ma, mp, τ, ξτ, f, σG, τG, ξG, xG, yG) = θ
+    α = ma .* cos.(mp .- ξτ)
+    β = ma .* sin.(mp .- ξτ)
+    ring = f * smoothed(modify(MRing(α, β), Stretch(radius, radius * (1 + τ)), Rotate(ξτ)), width)
+    g = (1 - f) * shifted(rotated(stretched(Gaussian(), σG, σG * (1 + τG)), ξG), xG, yG)
     return ring + g
 end
 
@@ -76,19 +76,19 @@ end
 
 using Distributions, VLBIImagePriors
 prior = (
-          radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
-          width = Uniform(μas2rad(1.0), μas2rad(10.0)),
-          ma = (Uniform(0.0, 0.5), Uniform(0.0, 0.5)),
-          mp = (Uniform(0, 2π), Uniform(0, 2π)),
-          τ = Uniform(0.0, 1.0),
-          ξτ= Uniform(0.0, π),
-          f = Uniform(0.0, 1.0),
-          σG = Uniform(μas2rad(1.0), μas2rad(100.0)),
-          τG = Exponential(1.0),
-          ξG = Uniform(0.0, 1π),
-          xG = Uniform(-μas2rad(80.0), μas2rad(80.0)),
-          yG = Uniform(-μas2rad(80.0), μas2rad(80.0))
-        )
+    radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
+    width = Uniform(μas2rad(1.0), μas2rad(10.0)),
+    ma = (Uniform(0.0, 0.5), Uniform(0.0, 0.5)),
+    mp = (Uniform(0, 2π), Uniform(0, 2π)),
+    τ = Uniform(0.0, 1.0),
+    ξτ = Uniform(0.0, π),
+    f = Uniform(0.0, 1.0),
+    σG = Uniform(μas2rad(1.0), μas2rad(100.0)),
+    τG = Exponential(1.0),
+    ξG = Uniform(0.0, 1π),
+    xG = Uniform(-μas2rad(80.0), μas2rad(80.0)),
+    yG = Uniform(-μas2rad(80.0), μas2rad(80.0)),
+)
 
 # Note that for `α` and `β` we use a product distribution to signify that we want to use a
 # multivariate uniform for the mring components `α` and `β`. In general the structure of the
@@ -103,29 +103,35 @@ skym = SkyModel(sky, prior, imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 1
 
 # In this tutorial we will be using closure products as our data. As such we do not need to specify a
 # instrument model, since for stokes I imaging, the likelihood is approximately invariant to the instrument
-# model. 
+# model.
 post = VLBIPosterior(skym, dlcamp, dcphase)
 
 # !!! note
-#     When fitting visibilities a instrument is required, and a reader can refer to 
+#     When fitting visibilities a instrument is required, and a reader can refer to
 #     [Stokes I Simultaneous Image and Instrument Modeling](@ref).
 
 
 # This constructs a posterior density that can be evaluated by calling `logdensityof`.
 # For example,
 
-logdensityof(post, (sky = (radius = μas2rad(20.0),
-                  width = μas2rad(10.0),
-                  ma = (0.3, 0.3),
-                  mp = (π/2, π),
-                  τ = 0.1,
-                  ξτ= π/2,
-                  f = 0.6,
-                  σG = μas2rad(50.0),
-                  τG = 0.1,
-                  ξG = 0.5,
-                  xG = 0.0,
-                  yG = 0.0),))
+logdensityof(
+    post, (
+        sky = (
+            radius = μas2rad(20.0),
+            width = μas2rad(10.0),
+            ma = (0.3, 0.3),
+            mp = (π / 2, π),
+            τ = 0.1,
+            ξτ = π / 2,
+            f = 0.6,
+            σG = μas2rad(50.0),
+            τG = 0.1,
+            ξG = 0.5,
+            xG = 0.0,
+            yG = 0.0,
+        ),
+    )
+)
 
 # ## Reconstruction
 
@@ -144,7 +150,7 @@ cpost = ascube(post)
 
 fpost = asflat(post)
 
-# These transformed posterior expect a vector of parameters. For example, we can draw from the 
+# These transformed posterior expect a vector of parameters. For example, we can draw from the
 # prior in our usual parameter space
 p = prior_sample(rng, post)
 
@@ -163,14 +169,14 @@ logdensityof(fpost, Comrade.inverse(fpost, p))
 
 using Optimization
 using OptimizationBBO
-xopt, sol = comrade_opt(post, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters=50_000);
+xopt, sol = comrade_opt(post, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters = 50_000);
 
 # Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 
 using DisplayAs
 using CairoMakie
 g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
-fig = imageviz(intensitymap(skymodel(post, xopt), g), colormap=:afmhot, size=(500, 400));
+fig = imageviz(intensitymap(skymodel(post, xopt), g), colormap = :afmhot, size = (500, 400));
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
@@ -187,7 +193,7 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # parallel tempering sampler that enables global exploration of the posterior. For smaller dimension
 # problems (< 100) we recommend using this sampler, especially if you have access to > 1 core.
 using Pigeons
-pt = pigeons(target=cpost, explorer=SliceSampler(), record=[traces, round_trip, log_sum_ratio], n_chains=16, n_rounds=8)
+pt = pigeons(target = cpost, explorer = SliceSampler(), record = [traces, round_trip, log_sum_ratio], n_chains = 16, n_rounds = 8)
 
 
 # That's it! To finish it up we can then plot some simple visual fit diagnostics.
@@ -197,14 +203,14 @@ chain = sample_array(cpost, pt)
 # First to plot the image we call
 using DisplayAs #hide
 imgs = intensitymap.(skymodel.(Ref(post), sample(chain, 100)), Ref(g))
-fig = imageviz(imgs[end], colormap=:afmhot)
+fig = imageviz(imgs[end], colormap = :afmhot)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
 # What about the mean image? Well let's grab 100 images from the chain, where we first remove the
 # adaptation steps since they don't sample from the correct posterior distribution
 meanimg = mean(imgs)
-fig = imageviz(meanimg, colormap=:afmhot);
+fig = imageviz(meanimg, colormap = :afmhot);
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
@@ -213,34 +219,34 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # is the preferred plotting tool. For plotting data there are two classes of functions
 #  - `baselineplot` which gives complete control of plotting
 #  - `plotfields, axisfields` which are more automated and limited but will automatically add
-#     labels, legends, titles etc. 
+#     labels, legends, titles etc.
 # We will demonstrate both below.
-lcsim, cpsim = simulate_observation(post, xopt; add_thermal_noise=false)
-fig = Figure(;size=(800, 300))
-ax1 = Axis(fig[1,1], xlabel="√Quadrangle Area", ylabel="Log Closure Amplitude")
-baselineplot!(ax1, lcsim,  uvdist, measwnoise, marker=:circle, label="MAP", error=true)
-baselineplot!(ax1, dlcamp, uvdist, Comrade.measurement, marker=:+, color=:black, label="Data")
-ax2 = Axis(fig[1,2], xlabel="√Triangle Area", ylabel="Closure Phase")
-baselineplot!(ax2, cpsim,  uvdist, mod2pi∘measwnoise, marker=:circle, label="MAP", error=true)
-baselineplot!(ax2, dcphase, uvdist, mod2pi∘measurement, marker=:+, color=:black, label="Data")
-axislegend(ax1, framevisible=false)
+lcsim, cpsim = simulate_observation(post, xopt; add_thermal_noise = false)
+fig = Figure(; size = (800, 300))
+ax1 = Axis(fig[1, 1], xlabel = "√Quadrangle Area", ylabel = "Log Closure Amplitude")
+baselineplot!(ax1, lcsim, uvdist, measwnoise, marker = :circle, label = "MAP", error = true)
+baselineplot!(ax1, dlcamp, uvdist, Comrade.measurement, marker = :+, color = :black, label = "Data")
+ax2 = Axis(fig[1, 2], xlabel = "√Triangle Area", ylabel = "Closure Phase")
+baselineplot!(ax2, cpsim, uvdist, mod2pi ∘ measwnoise, marker = :circle, label = "MAP", error = true)
+baselineplot!(ax2, dcphase, uvdist, mod2pi ∘ measurement, marker = :+, color = :black, label = "Data")
+axislegend(ax1, framevisible = false)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 # We can also plot random draws from the posterior predictive distribution.
 # The posterior predictive distribution create a number of synthetic observations that
 # are marginalized over the posterior.
-fig = Figure(;size=(800, 300))
-ax1 = Axis(fig[1,1], xlabel="√Quadrangle Area", ylabel="Log Closure Amplitude")
-ax2 = Axis(fig[1,2], xlabel="√Triangle Area", ylabel="Closure Phase")
+fig = Figure(; size = (800, 300))
+ax1 = Axis(fig[1, 1], xlabel = "√Quadrangle Area", ylabel = "Log Closure Amplitude")
+ax2 = Axis(fig[1, 2], xlabel = "√Triangle Area", ylabel = "Closure Phase")
 for i in 1:10
     mobs = simulate_observation(post, sample(chain, 1)[1])
     mlca = mobs[1]
-    mcp  = mobs[2]
-    baselineplot!(ax1, mlca, uvdist, measurement, color=:grey, alpha=0.2)
-    baselineplot!(ax2, mcp, uvdist, mod2pi∘measurement, color=:grey, alpha=0.2)
+    mcp = mobs[2]
+    baselineplot!(ax1, mlca, uvdist, measurement, color = :grey, alpha = 0.2)
+    baselineplot!(ax2, mcp, uvdist, mod2pi ∘ measurement, color = :grey, alpha = 0.2)
 end
-baselineplot!(ax1, dlcamp, uvdist, measurement, marker=:x,)
-baselineplot!(ax2, dcphase, uvdist, mod2pi∘measurement, marker=:x,)
+baselineplot!(ax1, dlcamp, uvdist, measurement, marker = :x)
+baselineplot!(ax2, dcphase, uvdist, mod2pi ∘ measurement, marker = :x)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
@@ -248,8 +254,7 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
 rd = residuals(post, chain[end])
-fig = Figure(;size=(800, 300))
-axisfields(fig[1,1], rd[1], uvdist, :res)
-axisfields(fig[1,2], rd[2], uvdist, :res)
+fig = Figure(; size = (800, 300))
+axisfields(fig[1, 1], rd[1], uvdist, :res)
+axisfields(fig[1, 2], rd[2], uvdist, :res)
 DisplayAs.Text(DisplayAs.PNG(fig))
-

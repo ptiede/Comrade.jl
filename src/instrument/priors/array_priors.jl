@@ -29,7 +29,7 @@ p = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0, 0.1)); LM = IIDSitePrior(ScanSe
 means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM which is mean
 zero and unit std. dev. Finally the refant is using the [`SEFDReference`](@ref) scheme.
 """
-function ArrayPrior(dist; refant=NoReference(), phase=false, kwargs...)
+function ArrayPrior(dist; refant = NoReference(), phase = false, kwargs...)
     # if centroid_station isa Tuple{<:Symbol, <:Symbol}
     #     centroid_station = NamedTuple{centroid_station}((0.0, 0.0))
     # end
@@ -65,8 +65,8 @@ function build_sitemap(d::ArrayPrior, array)
     sites_prior = site_tuple(array, d.default_dist; d.override_dist...)
 
     # Now we need all possible times to make sure we have all combinations
-    T  = array[:Ti]
-    F  = array[:Fr]
+    T = array[:Ti]
+    F = array[:Fr]
 
     # Ok to so this we are going to construct the schema first over sites.
     # At the end we may re-order depending on the schema ordering we want
@@ -74,18 +74,18 @@ function build_sitemap(d::ArrayPrior, array)
     lists = map(keys(sites_prior)) do s
         seg = segmentation(sites_prior[s])
         # get all the indices where this site is present
-        inds_s = findall(x->((x[1]==s)||x[2]==s), array[:sites])
+        inds_s = findall(x -> ((x[1] == s)||x[2] == s), array[:sites])
         # Get all the unique times
         ts = T[inds_s]
         fs = F[inds_s]
         tfs = zip(ts, fs)
         # Now makes the acceptable time stamps given the segmentation
         tstamp = timestamps(seg, array)
-        fchan  = freqchannels(SpectralWindow(), array)
+        fchan = freqchannels(SpectralWindow(), array)
         # Now we find commonalities
         tf = Tuple{eltype(tstamp), eltype(fchan)}[]
         for f in fchan, t in tstamp
-            if any(x->(x[1]∈t && x[2]∈f), tfs) && ((!((t, f) ∈ tf)))
+            if any(x -> (x[1] ∈ t && x[2] ∈ f), tfs) && ((!((t, f) ∈ tf)))
                 push!(tf, (t, f))
             end
         end
@@ -94,7 +94,7 @@ function build_sitemap(d::ArrayPrior, array)
     tlists = first.(lists)
     flists = last.(lists)
     # construct the schema
-    slist = mapreduce((t,s)->fill(s, length(t)), vcat, tlists, keys(sites_prior))
+    slist = mapreduce((t, s) -> fill(s, length(t)), vcat, tlists, keys(sites_prior))
     tlist = reduce(vcat, tlists)
     flist = reduce(vcat, flists)
 
@@ -111,9 +111,9 @@ function build_sitemap(d::ArrayPrior, array)
         vtlist = @view tlist[ind]
         vslist = @view slist[ind]
         vflist = @view flist[ind]
-        tlistre[ind0:ind0+length(vtlist)-1] .= vtlist
-        slistre[ind0:ind0+length(vtlist)-1] .= vslist
-        flistre[ind0:ind0+length(vtlist)-1] .= vflist
+        tlistre[ind0:(ind0 + length(vtlist) - 1)] .= vtlist
+        slistre[ind0:(ind0 + length(vtlist) - 1)] .= vslist
+        flistre[ind0:(ind0 + length(vtlist) - 1)] .= vflist
         ind0 += length(vtlist)
     end
     return SiteLookup(tlistre, flistre, slistre)
@@ -163,8 +163,7 @@ end
 TV.inverse_eltype(t::PartiallyFixedTransform, y) = TV.inverse_eltype(t.transform, y)
 
 
-
-struct PartiallyConditionedDist{D<:Distributions.ContinuousMultivariateDistribution, I, F} <: Distributions.ContinuousMultivariateDistribution
+struct PartiallyConditionedDist{D <: Distributions.ContinuousMultivariateDistribution, I, F} <: Distributions.ContinuousMultivariateDistribution
     dist::D
     variate_index::I
     fixed_index::I
@@ -190,7 +189,6 @@ function Distributions._rand!(rng::AbstractRNG, d::PartiallyConditionedDist, x::
 end
 
 HypercubeTransform.asflat(t::PartiallyConditionedDist) = PartiallyFixedTransform(asflat(t.dist), t.variate_index, t.fixed_index, t.fixed_values)
-
 
 
 function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroid_station)

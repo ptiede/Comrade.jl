@@ -1,10 +1,10 @@
 import Pkg #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
+Pkg.activate(__DIR; io = pkg_io) #hide
+Pkg.develop(; path = joinpath(__DIR, "..", "..", ".."), io = pkg_io) #hide
+Pkg.instantiate(; io = pkg_io) #hide
+Pkg.precompile(; io = pkg_io) #hide
 close(pkg_io) #hide
 
 # # Loading Data into Comrade
@@ -36,18 +36,18 @@ obs = Pyehtim.scan_average(obseht)
 #     We use a custom scan-averaging function to ensure that the scan-times are homogenized.
 #-
 # We can now extract data products that `Comrade` can use
-vis    = extract_table(obs, Visibilities()) ## complex visibilites
-amp    = extract_table(obs, VisibilityAmplitudes()) ## visibility amplitudes
-cphase = extract_table(obs, ClosurePhases(; snrcut=3.0)) ## extract minimal set of closure phases
-lcamp  = extract_table(obs, LogClosureAmplitudes(; snrcut=3.0)) ## extract minimal set of log-closure amplitudes
+vis = extract_table(obs, Visibilities()) ## complex visibilites
+amp = extract_table(obs, VisibilityAmplitudes()) ## visibility amplitudes
+cphase = extract_table(obs, ClosurePhases(; snrcut = 3.0)) ## extract minimal set of closure phases
+lcamp = extract_table(obs, LogClosureAmplitudes(; snrcut = 3.0)) ## extract minimal set of log-closure amplitudes
 
 # For polarization we first load the data in the cirular polarization basis
 # Additionally, we load the array table at the same time to load the telescope mounts.
 obseht = Pyehtim.load_uvfits_and_array(
-                joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits"),
-                joinpath(__DIR, "..", "..", "Data", "array.txt"),
-                polrep="circ"
-                        )
+    joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits"),
+    joinpath(__DIR, "..", "..", "Data", "array.txt"),
+    polrep = "circ"
+)
 obs = Pyehtim.scan_average(obseht)
 coh = extract_table(obs, Coherencies())
 
@@ -58,24 +58,24 @@ coh = extract_table(obs, Coherencies())
 #-
 # We can also recover the array used in the observation using
 using DisplayAs
-plotfields(coh, :U, :V, axis_kwargs=(xreversed=true,)) |> DisplayAs.PNG |> DisplayAs.Text # Plot the baseline coverage
+plotfields(coh, :U, :V, axis_kwargs = (xreversed = true,)) |> DisplayAs.PNG |> DisplayAs.Text # Plot the baseline coverage
 
-# As of Comrade 0.11.7 Makie is the preferred plotting tool. For plotting data there are two 
+# As of Comrade 0.11.7 Makie is the preferred plotting tool. For plotting data there are two
 # classes of functions:
 #  - `baselineplot` which gives complete control of plotting
 #  - `plotfields, axisfields` which are more automated and limited but will automatically add
-#     labels, legends, titles etc. 
-fig = Figure(;size=(800, 600))
-axisfields(fig[1,1], vis, :uvdist, :measurement)
-axisfields(fig[1,2], amp, :uvdist, :measurement)
-axisfields(fig[2,1], cphase, :uvdist, :measurement)
-axisfields(fig[2,2], lcamp, :uvdist, :measurement)
+#     labels, legends, titles etc.
+fig = Figure(; size = (800, 600))
+axisfields(fig[1, 1], vis, :uvdist, :measurement)
+axisfields(fig[1, 2], amp, :uvdist, :measurement)
+axisfields(fig[2, 1], cphase, :uvdist, :measurement)
+axisfields(fig[2, 2], lcamp, :uvdist, :measurement)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # And also the coherency matrices. Here we show how to use `baselineplot` to plot the data
-fig = Figure(;size=(800, 600))
-baselineplot(fig[1,1], coh, x->uvdist(x)/1e9, x->abs(measwnoise(x)[1,1]), error=true, axis=(ylabel="RR", xlabel="uv distance (Gλ)"))
-baselineplot(fig[2,1], coh, x->uvdist(x)/1e9, x->abs(measwnoise(x)[2,1]), error=true, axis=(ylabel="LR", xlabel="uv distance (Gλ)"))
-baselineplot(fig[1,2], coh, x->uvdist(x)/1e9, x->abs(measwnoise(x)[1,2]), error=true, axis=(ylabel="RL", xlabel="uv distance (Gλ)"))
-baselineplot(fig[2,2], coh, x->uvdist(x)/1e9, x->abs(measwnoise(x)[2,2]), error=true, axis=(ylabel="LL", xlabel="uv distance (Gλ)"))
+fig = Figure(; size = (800, 600))
+baselineplot(fig[1, 1], coh, x -> uvdist(x) / 1.0e9, x -> abs(measwnoise(x)[1, 1]), error = true, axis = (ylabel = "RR", xlabel = "uv distance (Gλ)"))
+baselineplot(fig[2, 1], coh, x -> uvdist(x) / 1.0e9, x -> abs(measwnoise(x)[2, 1]), error = true, axis = (ylabel = "LR", xlabel = "uv distance (Gλ)"))
+baselineplot(fig[1, 2], coh, x -> uvdist(x) / 1.0e9, x -> abs(measwnoise(x)[1, 2]), error = true, axis = (ylabel = "RL", xlabel = "uv distance (Gλ)"))
+baselineplot(fig[2, 2], coh, x -> uvdist(x) / 1.0e9, x -> abs(measwnoise(x)[2, 2]), error = true, axis = (ylabel = "LL", xlabel = "uv distance (Gλ)"))
 fig

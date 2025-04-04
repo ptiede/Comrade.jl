@@ -22,13 +22,13 @@ using Enzyme
         p = Comrade.transform(tp, x)
         @test TV.transform(tp, TV.inverse(tp, p)).gp ≈ p.gp
         f(x) = logpdf(dc, TV.transform(tp, x).gp)
-        flj(x) = (((y, lj) = TV.transform_and_logjac(tp, x));logpdf(dc, y.gp)+lj)
+        flj(x) = (((y, lj) = TV.transform_and_logjac(tp, x)); logpdf(dc, y.gp) + lj)
 
         fdm = central_fdm(5, 1)
         gfdf, = grad(fdm, f, x)
         gfdlj, = grad(fdm, flj, x)
 
-        gzf,  = Enzyme.gradient(Enzyme.Reverse, Const(f), x)
+        gzf, = Enzyme.gradient(Enzyme.Reverse, Const(f), x)
         gzflj, = Enzyme.gradient(Enzyme.Reverse, Const(flj), x)
 
         @test gzf ≈ gfdf

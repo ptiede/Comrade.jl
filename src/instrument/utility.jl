@@ -27,7 +27,7 @@ julia> site_tuple(sites, Normal(0.0, 0.1); reference=:AA, LM = Normal(0.0, 1.0))
 ```
 """
 function site_tuple(sites::NTuple{N, Symbol}, default; kwargs...) where {N}
-    out = map(x->get(kwargs, x, default), sites)
+    out = map(x -> get(kwargs, x, default), sites)
     return NamedTuple{sites}(out)
 end
 site_tuple(dvis::AbstractObservationTable, default; kwargs...) = site_tuple((sites(dvis)), default; kwargs...)

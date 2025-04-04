@@ -64,16 +64,18 @@ i.e. the path specified in [`DiskStore`](@ref).
 """
 function load_samples(
         out::DiskOutput,
-        indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:both
-        )
-    @assert (table == :samples || table == :stats || table==:both) "Please select either `samples` or `stats`"
-    d = readdir(joinpath(abspath(out.filename), "samples"), join=true)
+        indices::Union{Base.Colon, UnitRange, StepRange} = Base.Colon(); table = :both
+    )
+    @assert (table == :samples || table == :stats || table == :both) "Please select either `samples` or `stats`"
+    d = readdir(joinpath(abspath(out.filename), "samples"), join = true)
 
     if table == :both
-        chain = load_samples(out, indices; table=:samples)
-        stats = load_samples(out, indices; table=:stats)
-        return PosteriorSamples(Comrade.postsamples(chain), stats,
-                ; metadata=Dict(:sampler=>:AHMC))
+        chain = load_samples(out, indices; table = :samples)
+        stats = load_samples(out, indices; table = :stats)
+        return PosteriorSamples(
+            Comrade.postsamples(chain), stats,
+            ; metadata = Dict(:sampler => :AHMC)
+        )
     end
 
 
@@ -85,20 +87,19 @@ function load_samples(
     # load and return the entire table
     if indices == Base.Colon()
         if table == :samples
-            return PosteriorSamples(reduce(vcat, tload.(d, :samples)), nothing; metadata=Dict(:sampler=>:AHMC))
+            return PosteriorSamples(reduce(vcat, tload.(d, :samples)), nothing; metadata = Dict(:sampler => :AHMC))
         else
             return Comrade.StructArray(reduce(vcat, tload.(d, :stats)))
         end
     end
 
 
-
     # Now get the index of the first file
     ind0 = first(indices)
     (ind0 < 1) && throw(BoundsError(1:out.nsamples, ind0))
     # Now let's find the file
-    find0 = ind0÷out.stride + 1
-    offset0 = ind0%out.stride # now get the offset
+    find0 = ind0 ÷ out.stride + 1
+    offset0 = ind0 % out.stride # now get the offset
     if offset0 == 0
         find0 = find0 - 1
         offset0 = out.stride
@@ -106,8 +107,8 @@ function load_samples(
 
     ind1 = last(indices)
     (ind1 > out.nsamples) && throw(BoundsError(1:out.nsamples, ind1))
-    find1 = ind1÷out.stride + 1
-    offset1 = ind1%out.stride # now get the offset
+    find1 = ind1 ÷ out.stride + 1
+    offset1 = ind1 % out.stride # now get the offset
     if offset1 == 0
         find1 = find1 - 1
         offset1 = out.stride
@@ -115,27 +116,25 @@ function load_samples(
 
 
     t = reduce(vcat, tload.(d[find0:find1], table))
-    out =  t[offset0:step(indices):(out.stride*(find1-find0) + offset1)]
+    out = t[offset0:step(indices):(out.stride * (find1 - find0) + offset1)]
     if table == :samples
-        return PosteriorSamples(out, nothing; metadata=Dict(:sampler=>:AHMC))
+        return PosteriorSamples(out, nothing; metadata = Dict(:sampler => :AHMC))
     else
         return Comrade.StructArray(out)
     end
 end
 
-function load_samples(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:both)
+function load_samples(out::String, indices::Union{Base.Colon, UnitRange, StepRange} = Base.Colon(); table = :both)
     @assert isdir(abspath(out)) "$out is not a directory. This isn't where the HMC samples are stored"
     @assert isfile(joinpath(abspath(out), "parameters.jls")) "parameters.jls "
     p = deserialize(joinpath(abspath(out), "parameters.jls")).params
     if p.filename != abspath(out)
-        @warn "filename stored in params does not equal what was passed\n"*
-                 "we will load the path passed\n  $(out)."
+        @warn "filename stored in params does not equal what was passed\n" *
+            "we will load the path passed\n  $(out)."
         p = DiskOutput(out, p.nfiles, p.stride, p.nsamples)
     end
     return load_samples(p, indices; table)
 end
-
-
 
 
 # include(joinpath(@__DIR__, "fishermatrix.jl"))

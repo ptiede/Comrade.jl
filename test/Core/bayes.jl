@@ -9,13 +9,12 @@ using Pyehtim
 using Enzyme
 
 
-
 @testset "bayes" begin
-    _,vis, amp, lcamp, cphase = load_data()
+    _, vis, amp, lcamp, cphase = load_data()
     g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
-    post_cl = VLBIPosterior(skym, lcamp, cphase; admode=set_runtime_activity(Enzyme.Reverse))
-    post    = VLBIPosterior(skym, vis)
+    post_cl = VLBIPosterior(skym, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
+    post = VLBIPosterior(skym, vis)
 
     prior = test_prior()
 
@@ -55,27 +54,31 @@ using Enzyme
 
 
     f = OptimizationFunction(tpostf)
-    x0 = transform(tpostf, [ 0.1,
-           0.4,
-           0.5,
-           0.9,
-           0.3,
-           0.1,
-           0.4,
-           0.7,
-           0.8,
-           0.8])
-    xopt, sol = comrade_opt(post, GCMAESOpt(); initial_params=x0, maxiters=10_000)
+    x0 = transform(
+        tpostf, [
+            0.1,
+            0.4,
+            0.5,
+            0.9,
+            0.3,
+            0.1,
+            0.4,
+            0.7,
+            0.8,
+            0.8,
+        ]
+    )
+    xopt, sol = comrade_opt(post, GCMAESOpt(); initial_params = x0, maxiters = 10_000)
 
-    @test isapprox(xopt.sky.f1/xopt.sky.f2, 2.0, atol=1e-3)
-    @test isapprox(xopt.sky.σ1*2*sqrt(2*log(2)), μas2rad(40.0), rtol=1e-3)
-    @test isapprox(xopt.sky.σ1*xopt.sky.τ1*2*sqrt(2*log(2)), μas2rad(20.0), rtol=1e-3)
-    @test isapprox(xopt.sky.ξ1, π/3, atol=1e-3)
-    @test isapprox(xopt.sky.σ2*2*sqrt(2*log(2)), μas2rad(20.0), atol=1e-3)
-    @test isapprox(xopt.sky.σ2*xopt.sky.τ2*2*sqrt(2*log(2)), μas2rad(10.0), rtol=1e-3)
-    @test isapprox(xopt.sky.ξ2, π/6, atol=1e-3)
-    @test isapprox(xopt.sky.x, μas2rad(30.0), rtol=1e-3)
-    @test isapprox(xopt.sky.y, μas2rad(30.0), rtol=1e-3)
+    @test isapprox(xopt.sky.f1 / xopt.sky.f2, 2.0, atol = 1.0e-3)
+    @test isapprox(xopt.sky.σ1 * 2 * sqrt(2 * log(2)), μas2rad(40.0), rtol = 1.0e-3)
+    @test isapprox(xopt.sky.σ1 * xopt.sky.τ1 * 2 * sqrt(2 * log(2)), μas2rad(20.0), rtol = 1.0e-3)
+    @test isapprox(xopt.sky.ξ1, π / 3, atol = 1.0e-3)
+    @test isapprox(xopt.sky.σ2 * 2 * sqrt(2 * log(2)), μas2rad(20.0), atol = 1.0e-3)
+    @test isapprox(xopt.sky.σ2 * xopt.sky.τ2 * 2 * sqrt(2 * log(2)), μas2rad(10.0), rtol = 1.0e-3)
+    @test isapprox(xopt.sky.ξ2, π / 6, atol = 1.0e-3)
+    @test isapprox(xopt.sky.x, μas2rad(30.0), rtol = 1.0e-3)
+    @test isapprox(xopt.sky.y, μas2rad(30.0), rtol = 1.0e-3)
 
 
     mopt = test_model(xopt.sky, nothing)
@@ -96,7 +99,7 @@ using Enzyme
         x0 = prior_sample(post)
         f0 = prior_sample(tpostf)
         c0 = prior_sample(tpostc)
-        @test LogDensityProblems.logdensity(post, x0)   ≈ logdensityof(post, x0)
+        @test LogDensityProblems.logdensity(post, x0) ≈ logdensityof(post, x0)
         @test LogDensityProblems.logdensity(tpostf, f0) ≈ logdensityof(tpostf, f0)
         @test LogDensityProblems.logdensity(tpostc, c0) ≈ logdensityof(tpostc, c0)
 
@@ -109,8 +112,8 @@ using Enzyme
     end
 
     @testset "corr image prior" begin
-        cprior1 = corr_image_prior(g, 10.0; base=EMRF, order=1)
-        cprior2 = corr_image_prior(g, 10.0; base=EMRF, order=2)
+        cprior1 = corr_image_prior(g, 10.0; base = EMRF, order = 1)
+        cprior2 = corr_image_prior(g, 10.0; base = EMRF, order = 2)
 
         @test cprior1 isa VLBIImagePriors.HierarchicalPrior
         @test cprior2 isa VLBIImagePriors.HierarchicalPrior
@@ -125,42 +128,44 @@ end
 using Enzyme
 using FiniteDifferences
 @testset "Polarized" begin
-    _,vis, amp, lcamp, cphase, coh = load_data()
+    _, vis, amp, lcamp, cphase, coh = load_data()
 
     R = JonesR()
     intm = InstrumentModel(R)
-    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata=(;lp=0.1))
+    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
     post = VLBIPosterior(skym, intm, coh)
 
     tpost = asflat(post)
 
     x = prior_sample(tpost)
     gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpost), x)
-    mfd = central_fdm(5,1)
+    mfd = central_fdm(5, 1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
 
     R = JonesR()
-    Gp = JonesG(x->(exp(x.lg + 1im*x.gp), exp(x.lg + 1im*x.gp)))
+    Gp = JonesG(x -> (exp(x.lg + 1im * x.gp), exp(x.lg + 1im * x.gp)))
     J = JonesSandwich(Gp, R)
-    pr = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-          gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant=SEFDReference(0.0), phase=true))
+    pr = (
+        lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+        gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+    )
     intm_coh = InstrumentModel(J, pr)
-    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata=(;lp=0.1))
+    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
     post = VLBIPosterior(skym, intm_coh, coh)
     tpost = asflat(post)
     x = prior_sample(tpost)
     fj = instrumentmodel(post, prior_sample(post))
     residual(post, Comrade.transform(tpost, x))
     gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpost), x)
-    mfd = central_fdm(5,1)
+    mfd = central_fdm(5, 1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
 
 end
 
 @testset "simulate_obs" begin
-    _,vis, amp, lcamp, cphase, coh = load_data()
+    _, vis, amp, lcamp, cphase, coh = load_data()
     g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
 
@@ -169,21 +174,25 @@ end
     post_lc = VLBIPosterior(skym, lcamp)
     post_vis = VLBIPosterior(skym, vis)
 
-    G = SingleStokesGain(x->exp(x.lg + 1im.*x.gp))
-    intm = InstrumentModel(G, (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-                               gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant=SEFDReference(0.0), phase=true)))
+    G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
+    intm = InstrumentModel(
+        G, (
+            lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+        )
+    )
     post_gvis = VLBIPosterior(skym, vis)
 
     function test_simobs(post, x)
         obs = simulate_observation(post, x)[begin]
         @test length(obs) == length(post.data[begin])
-        obs_nn = simulate_observation(post, x, add_thermal_noise=false)[begin]
+        obs_nn = simulate_observation(post, x, add_thermal_noise = false)[begin]
         @test Comrade.measurement(obs_nn) == Comrade.likelihood(post.lklhds[1], Comrade.forward_model(post, x)).μ
     end
 
     test_simobs(post_amp, prior_sample(post_amp))
-    test_simobs(post_cp,  prior_sample(post_cp))
-    test_simobs(post_lc,  prior_sample(post_lc))
+    test_simobs(post_cp, prior_sample(post_cp))
+    test_simobs(post_lc, prior_sample(post_lc))
     test_simobs(post_vis, prior_sample(post_vis))
     test_simobs(post_gvis, prior_sample(post_gvis))
 
@@ -192,23 +201,27 @@ end
 
 
     R = JonesR()
-    Gp = JonesG(x->(exp(x.lg + 1im*x.gp), exp(x.lg + 1im*x.gp)))
+    Gp = JonesG(x -> (exp(x.lg + 1im * x.gp), exp(x.lg + 1im * x.gp)))
     J = JonesSandwich(Gp, R)
     intm_coh = InstrumentModel(J, intm.prior)
-    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata=(;lp=0.1))
+    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
     post_coh = VLBIPosterior(skym, intm_coh, coh)
     test_simobs(post_coh, prior_sample(post_coh))
 end
 
 
 @testset "Bayes Non-analytic AD" begin
-    _,vis, amp, lcamp, cphase = load_data()
+    _, vis, amp, lcamp, cphase = load_data()
 
-    mfd = central_fdm(5,1)
+    mfd = central_fdm(5, 1)
 
-    G = SingleStokesGain(x->exp(x.lg + 1im.*x.gp))
-    intm = InstrumentModel(G, (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-                               gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant=SEFDReference(0.0), phase=true)))
+    G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
+    intm = InstrumentModel(
+        G, (
+            lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+        )
+    )
 
     function test_nonanalytic(intm, algorithm, vis)
         skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256))

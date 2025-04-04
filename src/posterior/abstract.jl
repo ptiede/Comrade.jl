@@ -2,8 +2,8 @@ using LinearAlgebra
 using VLBILikelihoods
 
 export vlbimodel, logdensityof, dimension, skymodel, instrumentmodel, dataproducts,
-       forward_model, prior_sample, simulate_observation,
-       VLBIPosterior, logdensityof, loglikelihood, chi2, residuals
+    forward_model, prior_sample, simulate_observation,
+    VLBIPosterior, logdensityof, loglikelihood, chi2, residuals
 
 
 """
@@ -82,7 +82,6 @@ EnzymeRules.inactive(::typeof(instrumentmodel), args...) = nothing
 # end
 
 
-
 function DensityInterface.logdensityof(post::AbstractVLBIPosterior, x)
     pr = logprior(post, x)
     !isfinite(pr) && return -Inf
@@ -105,7 +104,7 @@ end
 
 
 function prior_sample(rng, post::AbstractVLBIPosterior, dims...)
-    map(CartesianIndices(dims)) do _
+    return map(CartesianIndices(dims)) do _
         return prior_sample(rng, post)
     end
 end
@@ -154,8 +153,6 @@ function instrumentmodel(post::AbstractVLBIPosterior, θ)
 end
 
 
-
-
 """
     dataproducts(d::AbstractVLBIPosterior)
 
@@ -165,7 +162,6 @@ to the order of the `dataproducts` argument in [`VLBIPosterior`](@ref).
 function dataproducts(d::AbstractVLBIPosterior)
     return getfield(d, :data)
 end
-
 
 
 @inline function logdensityofvis(lklhds, vis::AbstractArray)

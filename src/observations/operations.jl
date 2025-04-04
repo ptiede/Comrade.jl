@@ -4,23 +4,25 @@ function add_fractional_noise!(dvis::EHTObservationTable{<:EHTCoherencyDatum}, f
     map!(dvis[:noise], dvis[:noise], dvis[:measurement]) do e, m
         # we do it like this so I don't NaN everything
         # if a feed is missing
-        if isnan(m[1,1])
-            err = m[2,2]
-        elseif isnan(m[2,2])
-            err = m[1,1]
+        if isnan(m[1, 1])
+            err = m[2, 2]
+        elseif isnan(m[2, 2])
+            err = m[1, 1]
         else
-            err = tr(m)/2
+            err = tr(m) / 2
         end
-        fe = sqrt.(e.^2 .+ ferr.^2*abs2(err))
+        fe = sqrt.(e .^ 2 .+ ferr .^ 2 * abs2(err))
         return fe
     end
     return dvis
 end
 
-function add_fractional_noise!(dvis::EHTObservationTable{<:Union{EHTVisibilityDatum, EHTVisibilityAmplitudeDatum}}, 
-                               ferr)
+function add_fractional_noise!(
+        dvis::EHTObservationTable{<:Union{EHTVisibilityDatum, EHTVisibilityAmplitudeDatum}},
+        ferr
+    )
     map!(dvis[:noise], dvis[:noise], dvis[:measurement]) do e, m
-        fe =  sqrt.(e.^2 .+ ferr.^2*abs2(m))
+        fe = sqrt.(e .^ 2 .+ ferr .^ 2 * abs2(m))
         return fe
     end
     return dvis
@@ -33,11 +35,11 @@ function add_fractional_noise!(dcl::EHTObservationTable{<:ClosureProducts}, ferr
     nvi = getfield(conf, :noise)
     dmat = designmat(conf)
     map!(nvi, nvi, vis) do e, m
-        fe =  sqrt.(e.^2 .+ ferr.^2*abs2(m))
+        fe = sqrt.(e .^ 2 .+ ferr .^ 2 * abs2(m))
         return fe
     end
     # update the noise covariance matrix
-    nois .= dmat*Diagonal(abs2.(nvi./vis))*transpose(dmat)
+    nois .= dmat * Diagonal(abs2.(nvi ./ vis)) * transpose(dmat)
     return dcl
 end
 
@@ -78,7 +80,7 @@ flag_data(vis, cond)
 ```
 """
 function flag(condition, dvis::AbstractObservationTable)
-    inds = findall(x->!condition(x), datatable(dvis))
+    inds = findall(x -> !condition(x), datatable(dvis))
     return dvis[inds]
 end
 
@@ -91,7 +93,7 @@ if condition returns true for a given datum, it is kept in the returned object.
 This is the converse of `flag`.
 """
 function Base.filter(f, dvis::AbstractObservationTable)
-    return flag(x->!f(x), dvis)
+    return flag(x -> !f(x), dvis)
 end
 
 
@@ -103,7 +105,7 @@ but the order of the symbols does not matter.
 """
 function select_baseline(dvis, bl::Tuple{Symbol, Symbol})
     cond(x) = ((x.baseline.sites == bl) || (x.baseline.sites == reverse(bl)))
-    return filter(cond, dvis) 
+    return filter(cond, dvis)
 end
 
 
@@ -113,7 +115,7 @@ end
 Compute the residuals for the model visibilities `vis` and the data `data`.
 The residuals are not normalized and the returned object is an `EHTObservationTable`.
 """
-function residual_data(vis, data::EHTObservationTable{A}) where {A<:EHTClosurePhaseDatum}
+function residual_data(vis, data::EHTObservationTable{A}) where {A <: EHTClosurePhaseDatum}
     phase = measurement(data)
     err = noise(data)
 
@@ -123,7 +125,7 @@ function residual_data(vis, data::EHTObservationTable{A}) where {A<:EHTClosurePh
 end
 
 
-function residual_data(vis, dlca::EHTObservationTable{A}) where {A<:EHTLogClosureAmplitudeDatum}
+function residual_data(vis, dlca::EHTObservationTable{A}) where {A <: EHTLogClosureAmplitudeDatum}
     phase = measurement(dlca)
     err = noise(dlca)
     mphase = logclosure_amplitudes(vis, designmat(arrayconfig(dlca)))
@@ -131,20 +133,20 @@ function residual_data(vis, dlca::EHTObservationTable{A}) where {A<:EHTLogClosur
     return EHTObservationTable{A}(res, err, arrayconfig(dlca))
 end
 
-function residual_data(vis, damp::EHTObservationTable{A}) where {A<:EHTVisibilityAmplitudeDatum}
+function residual_data(vis, damp::EHTObservationTable{A}) where {A <: EHTVisibilityAmplitudeDatum}
     mamp = abs.(vis)
     amp = measurement(damp)
     res = (amp - mamp)
     return EHTObservationTable{A}(res, noise(damp), arrayconfig(damp))
 end
 
-function residual_data(vis, dvis::EHTObservationTable{A}) where {A<:EHTCoherencyDatum}
+function residual_data(vis, dvis::EHTObservationTable{A}) where {A <: EHTCoherencyDatum}
     coh = measurement(dvis)
     res = coh .- vis
     return EHTObservationTable{A}(res, noise(dvis), arrayconfig(dvis))
 end
 
-function residual_data(mvis, dvis::EHTObservationTable{A}) where {A<:EHTVisibilityDatum}
+function residual_data(mvis, dvis::EHTObservationTable{A}) where {A <: EHTVisibilityDatum}
     vis = measurement(dvis)
     res = (vis - mvis)
     return EHTObservationTable{A}(res, noise(dvis), arrayconfig(dvis))

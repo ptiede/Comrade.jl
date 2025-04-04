@@ -1,12 +1,11 @@
-
-@recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTVisibilityDatum}
+@recipe function f(dvis::EHTObservationTable{A}) where {A <: EHTVisibilityDatum}
     xguide --> "uv-distance (Gλ)"
     yguide --> "V (Jy)"
     markershape --> :circle
 
     u = dvis[:baseline].U
     v = dvis[:baseline].V
-    uvdist = hypot.(u,v)
+    uvdist = hypot.(u, v)
     vis = dvis[:measurement]
     noise = dvis[:noise]
     vre = real.(vis)
@@ -18,7 +17,7 @@
         yerr := noise
         linecolor := nothing
         label := "Real"
-        uvdist./1e9, vre
+        uvdist ./ 1.0e9, vre
     end
 
     @series begin
@@ -26,23 +25,23 @@
         markeralpha := 0.1
         markerstrokecolor := :black
         markerstrokealpha := 1.0
-        linecolor :=nothing
+        linecolor := nothing
         label := nothing
         yerr := noise
         label := "Imag"
-        uvdist./1e9, vim
+        uvdist ./ 1.0e9, vim
     end
 end
 
-@recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTCoherencyDatum}
+@recipe function f(dvis::EHTObservationTable{A}) where {A <: EHTCoherencyDatum}
     markershape --> :circle
 
     u = dvis[:baseline].U
     v = dvis[:baseline].V
-    uvdist = hypot.(u,v)
+    uvdist = hypot.(u, v)
     coh = dvis[:measurement]
     noise = dvis[:noise]
-    layout := (2,2)
+    layout := (2, 2)
 
     #add data noisebars
     @series begin
@@ -58,18 +57,18 @@ end
             yerr := err
             linecolor := nothing
             label := "Real"
-            uvdist./1e9, vre
+            uvdist ./ 1.0e9, vre
         end
 
-            seriestype := :scatter
-            markeralpha := 0.5
-            markerstrokecolor := :black
-            markerstrokealpha := 1.0
-            linecolor :=nothing
-            label := nothing
-            yerr := err
-            label := "Imag"
-            uvdist./1e9, vim
+        seriestype := :scatter
+        markeralpha := 0.5
+        markerstrokecolor := :black
+        markerstrokealpha := 1.0
+        linecolor := nothing
+        label := nothing
+        yerr := err
+        label := "Imag"
+        uvdist ./ 1.0e9, vim
     end
 
     @series begin
@@ -85,19 +84,19 @@ end
             yerr := err
             linecolor := nothing
             label := "Real"
-            uvdist./1e9, vre
+            uvdist ./ 1.0e9, vre
         end
 
-            seriestype := :scatter
-            markeralpha := 0.5
-            markerstrokecolor := :black
-            markerstrokealpha := 1.0
-            linecolor :=nothing
-            legend := nothing
-            label := nothing
-            yerr := err
-            label := "Imag"
-            uvdist./1e9, vim
+        seriestype := :scatter
+        markeralpha := 0.5
+        markerstrokecolor := :black
+        markerstrokealpha := 1.0
+        linecolor := nothing
+        legend := nothing
+        label := nothing
+        yerr := err
+        label := "Imag"
+        uvdist ./ 1.0e9, vim
     end
 
     @series begin
@@ -113,19 +112,19 @@ end
             yerr := err
             linecolor := nothing
             label := "Real"
-            uvdist./1e9, vre
+            uvdist ./ 1.0e9, vre
         end
 
-            seriestype := :scatter
-            markeralpha := 0.5
-            markerstrokecolor := :black
-            markerstrokealpha := 1.0
-            linecolor :=nothing
-            label := nothing
-            legend := nothing
-            yerr := err
-            label := "Imag"
-            uvdist./1e9, vim
+        seriestype := :scatter
+        markeralpha := 0.5
+        markerstrokecolor := :black
+        markerstrokealpha := 1.0
+        linecolor := nothing
+        label := nothing
+        legend := nothing
+        yerr := err
+        label := "Imag"
+        uvdist ./ 1.0e9, vim
     end
     @series begin
         xguide --> "uv-distance (Gλ)"
@@ -140,30 +139,30 @@ end
             yerr := err
             linecolor := nothing
             label := "Real"
-            uvdist./1e9, vre
+            uvdist ./ 1.0e9, vre
         end
 
-            seriestype := :scatter
-            markeralpha := 0.5
-            markerstrokecolor := :black
-            markerstrokealpha := 1.0
-            linecolor :=nothing
-            label := nothing
-            legend := nothing
-            yerr := err
-            label := "Imag"
-            uvdist./1e9, vim
+        seriestype := :scatter
+        markeralpha := 0.5
+        markerstrokecolor := :black
+        markerstrokealpha := 1.0
+        linecolor := nothing
+        label := nothing
+        legend := nothing
+        yerr := err
+        label := "Imag"
+        uvdist ./ 1.0e9, vim
     end
 end
 
-@recipe function f(dvis::EHTObservationTable{A};) where {A<:EHTVisibilityAmplitudeDatum}
+@recipe function f(dvis::EHTObservationTable{A}) where {A <: EHTVisibilityAmplitudeDatum}
     xguide --> "uv-distance (Gλ)"
     yguide --> "|V| (Jy)"
     markershape --> :diamond
 
     u = dvis[:baseline].U
     v = dvis[:baseline].V
-    uvdist = hypot.(u,v)
+    uvdist = hypot.(u, v)
     amp = dvis[:measurement]
     noise = dvis[:noise]
     #add data noisebars
@@ -172,7 +171,7 @@ end
     yerr := noise
     linecolor --> nothing
     label --> "Data"
-    uvdist./1e9, amp
+    uvdist ./ 1.0e9, amp
 end
 
 @recipe function f(acc::AbstractArrayConfiguration)
@@ -187,12 +186,12 @@ end
     linecolor --> nothing
     aspect_ratio --> :equal
     label -->"Data"
-    title --> "Frequency: $(first(acc[:Fr])/1e9) GHz"
-    vcat(u/1e9,-u/1e9), vcat(v/1e9,-v/1e9)
+    title --> "Frequency: $(first(acc[:Fr]) / 1.0e9) GHz"
+    vcat(u / 1.0e9, -u / 1.0e9), vcat(v / 1.0e9, -v / 1.0e9)
 end
 
 
-@recipe function f(dlca::EHTObservationTable{A}) where {A<:EHTLogClosureAmplitudeDatum}
+@recipe function f(dlca::EHTObservationTable{A}) where {A <: EHTLogClosureAmplitudeDatum}
     xguide --> "√(convex quadrangle area) (λ)"
     yguide --> "Log Clos. Amp."
     markershape --> :diamond
@@ -209,7 +208,7 @@ end
 end
 
 
-@recipe function f(dcp::EHTObservationTable{A}) where {A<:EHTClosurePhaseDatum}
+@recipe function f(dcp::EHTObservationTable{A}) where {A <: EHTClosurePhaseDatum}
     xguide --> "√(triangle area) (λ)"
     yguide --> "Phase (rad)"
     markershape --> :circle
@@ -235,8 +234,8 @@ function residual end
 
 export ndata
 ndata(d::EHTObservationTable) = length(d)
-ndata(d::EHTObservationTable{D}) where {D<:EHTVisibilityDatum} = 2*length(d)
-ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
+ndata(d::EHTObservationTable{D}) where {D <: EHTVisibilityDatum} = 2 * length(d)
+ndata(d::EHTObservationTable{D}) where {D <: EHTCoherencyDatum} = 8 * length(d)
 
 @recipe function f(h::Residual)
     if length(h.args) != 2 || !(typeof(h.args[1]) <: AbstractVLBIPosterior)
@@ -248,18 +247,18 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
     # title-->"Norm. Residuals"
     legend-->nothing
     layout--> (length(ress), 1)
-    size --> (600, 300*length(ress))
+    size --> (600, 300 * length(ress))
 
     for i in eachindex(ress)
         rest = ress[i]
         res = map(datatable(rest)) do d
-            d.measurement./d.noise
+            d.measurement ./ d.noise
         end
         c2 = c2s[i]
         uvdist = Comrade.uvdist.(datatable(rest))
 
         if rest isa EHTObservationTable{<:EHTCoherencyDatum}
-            layout := (2,2)
+            layout := (2, 2)
             res2 = reinterpret(reshape, Float64, res)'
             @series begin
                 yguide := "RR"
@@ -267,8 +266,8 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
                 seriestype := :scatter
                 alpha := 0.5
                 linecolor := nothing
-                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,1:2]))/(2*size(res2,1))
-                uvdist./1e9, res2[:,1:2]
+                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:, 1:2])) / (2 * size(res2, 1))
+                uvdist ./ 1.0e9, res2[:, 1:2]
             end
             @series begin
                 xguide --> "uv-distance (Gλ)"
@@ -277,8 +276,8 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
                 seriestype := :scatter
                 alpha := 0.5
                 linecolor := nothing
-                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,3:4]))/(2*size(res2,1))
-                uvdist./1e9, res2[:,3:4]
+                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:, 3:4])) / (2 * size(res2, 1))
+                uvdist ./ 1.0e9, res2[:, 3:4]
             end
             @series begin
                 yguide := "RL"
@@ -286,8 +285,8 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
                 seriestype := :scatter
                 alpha := 0.5
                 linecolor := nothing
-                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,5:6]))/(2*size(res2,1))
-                uvdist./1e9, res2[:,5:6]
+                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:, 5:6])) / (2 * size(res2, 1))
+                uvdist ./ 1.0e9, res2[:, 5:6]
             end
             @series begin
                 yguide := "LL"
@@ -295,32 +294,28 @@ ndata(d::EHTObservationTable{D}) where {D<:EHTCoherencyDatum} = 8*length(d)
                 seriestype := :scatter
                 alpha := 0.5
                 linecolor := nothing
-                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:,7:8]))/(2*size(res2,1))
-                uvdist./1e9, res2[:,7:8]
+                title --> @sprintf "χ² = %.2f" sum(abs2, filter(!isnan, @view res2[:, 7:8])) / (2 * size(res2, 1))
+                uvdist ./ 1.0e9, res2[:, 7:8]
             end
         else
             @series begin
-            xguide --> "uv-distance (Gλ)"
-            T = datumtype(rest)
-            ST = split("$T", "Datum{")[1] |> x->split(x, ".EHT")[end]
-            yguide --> "Norm. Res. $ST"
-            markershape --> :circle
-            linecolor --> nothing
-            subplot := i
-            title --> @sprintf "<χ²> = %.2f" c2/ndata(rest)
-            if eltype(res) <: Complex
-                res = reinterpret(reshape, Float64, res)'
-                label --> ["Real" "Imag"]
-                legend := true
-            else
-                # legend --> false
-            end
-            return uvdist./1e9, res
+                xguide --> "uv-distance (Gλ)"
+                T = datumtype(rest)
+                ST = split("$T", "Datum{")[1] |> x -> split(x, ".EHT")[end]
+                yguide --> "Norm. Res. $ST"
+                markershape --> :circle
+                linecolor --> nothing
+                subplot := i
+                title --> @sprintf "<χ²> = %.2f" c2 / ndata(rest)
+                if eltype(res) <: Complex
+                    res = reinterpret(reshape, Float64, res)'
+                    label --> ["Real" "Imag"]
+                    legend := true
+                else
+                    # legend --> false
+                end
+                return uvdist ./ 1.0e9, res
             end
         end
     end
 end
-
-
-
-

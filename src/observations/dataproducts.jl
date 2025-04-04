@@ -1,6 +1,6 @@
 export extract_table,
-       ClosurePhases, LogClosureAmplitudes,
-       VisibilityAmplitudes, Visibilities, Coherencies
+    ClosurePhases, LogClosureAmplitudes,
+    VisibilityAmplitudes, Visibilities, Coherencies
 
 abstract type VLBIDataProducts{K} end
 
@@ -98,7 +98,7 @@ end
 
 for c in [:ClosurePhases, :LogClosureAmplitudes, :VisibilityAmplitudes, :Visibilities, :Coherencies]
     @eval begin
-        $(c)(;kwargs...) = $(c)(kwargs)
+        $(c)(; kwargs...) = $(c)(kwargs)
     end
 end
 
@@ -118,7 +118,7 @@ julia> dvis = extract_table(obs, VisibilityAmplitudes())
 """
 function extract_table(obs, dataproducts::VLBIDataProducts...)
     @assert length(dataproducts) >= 1 "No dataproducts passed to `extract_table`"
-    return  map(x->extract_table(obs, x), dataproducts)
+    return map(x -> extract_table(obs, x), dataproducts)
 end
 
 function extract_table(obs, dataproduct::ClosurePhases)

@@ -20,7 +20,7 @@ The following methods have default implementations:
 abstract type AbstractSkyModel end
 
 
-struct SkyModel{F,P,G<:AbstractDomain, A<:FourierTransform, M} <: AbstractSkyModel
+struct SkyModel{F, P, G <: AbstractDomain, A <: FourierTransform, M} <: AbstractSkyModel
     f::F
     prior::P
     grid::G
@@ -31,12 +31,12 @@ end
 function Base.show(io::IO, mime::MIME"text/plain", m::AbstractSkyModel)
     T = typeof(m)
     ST = split(split(" $T", '{')[1], ".")[end]
-    printstyled(io, ST; bold=true, color=:blue)
+    printstyled(io, ST; bold = true, color = :blue)
     println(io)
     println(io, "  with map: $(m.f)")
     GT = typeof(m.grid)
     SGT = split("$GT", '{')[1]
-    print(io, "   on grid: $SGT")
+    return print(io, "   on grid: $SGT")
 end
 
 """
@@ -64,15 +64,15 @@ contains additional information needed by the model `f`.
 - `metadata` : Additional information needed by the model `f`. These are the addtional arguments
    passed to the model function `f`.
 """
-function SkyModel(f, prior, grid::AbstractRectiGrid; algorithm = NFFTAlg(), metadata=nothing)
+function SkyModel(f, prior, grid::AbstractRectiGrid; algorithm = NFFTAlg(), metadata = nothing)
     return SkyModel(f, prior, grid, algorithm, metadata)
 end
 
-function VLBISkyModels.FourierDualDomain(grid::AbstractRectiGrid, array::AbstractArrayConfiguration, alg::FourierTransform; executor=Serial())
+function VLBISkyModels.FourierDualDomain(grid::AbstractRectiGrid, array::AbstractArrayConfiguration, alg::FourierTransform; executor = Serial())
     return FourierDualDomain(grid, domain(array; executor), alg)
 end
 
-struct ObservedSkyModel{F, G<:VLBISkyModels.AbstractDomain, M} <: AbstractSkyModel
+struct ObservedSkyModel{F, G <: VLBISkyModels.AbstractDomain, M} <: AbstractSkyModel
     f::F
     grid::G
     metadata::M
@@ -148,7 +148,7 @@ image structure is known apriori but the instrument model is unknown.
    `NFFTAlg()` which uses a non-uniform fast Fourier transform. Other options can be found by using
    `subtypes(VLBISkyModels.FourierTransform)`
 """
-Base.@kwdef struct FixedSkyModel{M<:AbstractModel, G, A<:FourierTransform} <: AbstractSkyModel
+Base.@kwdef struct FixedSkyModel{M <: AbstractModel, G, A <: FourierTransform} <: AbstractSkyModel
     model::M
     grid::G
     algorithm::A = NFFTAlg()
@@ -162,7 +162,7 @@ function ObservedSkyModel(m::FixedSkyModel, arr::AbstractArrayConfiguration)
     gfour = FourierDualDomain(m.grid, arr, m.algorithm)
     img = intensitymap(m.model, gfour)
     vis = visibilitymap(m.model, gfour)
-    return ObservedSkyModel(m, gfour, (;img, vis))
+    return ObservedSkyModel(m, gfour, (; img, vis))
 end
 
 function set_array(m::FixedSkyModel, array::AbstractArrayConfiguration)

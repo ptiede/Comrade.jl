@@ -50,11 +50,11 @@ given segmentation scheme `seg` and array configuration `array`.
 function timestamps end
 
 function timestamps(::ScanSeg, array)
-    st     = array.scans
-    mjd    = array.mjd
+    st = array.scans
+    mjd = array.mjd
     # Shift the central time to the middle of the scan
     dt = (st.stop .- st.start)
-    t0 = st.start .+ dt./2
+    t0 = st.start .+ dt ./ 2
 
     return IntegrationTime.(mjd, t0, dt)
 end
@@ -64,12 +64,12 @@ end
 
 function timestamps(::IntegSeg, array)
     ts = unique(array[:Ti])
-    mjd    = array.mjd
+    mjd = array.mjd
 
     # TODO build in the dt into the data format
     if length(ts) <= 1
         # arbritrarily set the dt to 1
-        dt = 1/3600
+        dt = 1 / 3600
     else
         dt = minimum(diff(ts))
     end
@@ -77,16 +77,16 @@ function timestamps(::IntegSeg, array)
 end
 
 function timestamps(::TrackSeg, array)
-    mjd    = array.mjd
+    mjd = array.mjd
 
     tstart, tend = extrema(array[:Ti])
     tend = tend + 1
     dt = tend - tstart
     if iszero(dt)
-        dt = 1/3600
+        dt = 1 / 3600
     end
     # TODO build in the dt into the data format
-    return (IntegrationTime(mjd, (tend-tstart)/2 + tstart, dt),)
+    return (IntegrationTime(mjd, (tend - tstart) / 2 + tstart, dt),)
 end
 
 

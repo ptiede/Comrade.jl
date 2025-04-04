@@ -25,25 +25,28 @@ chain = sample(post, NestedSampler(dimension(post), 1000))
 equal_weighted_chain = sample(chain, Weights(samplerstats(chain).weights), 10_000)
 ```
 """
-function Dynesty.dysample(post::Comrade.VLBIPosterior,
-                          sampler::Union{Dynesty.NestedSampler, DynamicNestedSampler};
-                          kwargs...)
+function Dynesty.dysample(
+        post::Comrade.VLBIPosterior,
+        sampler::Union{Dynesty.NestedSampler, DynamicNestedSampler};
+        kwargs...
+    )
 
     tpost = ascube(post)
     ℓ = logdensityof(tpost)
     res = dysample(ℓ, identity, Comrade.dimension(tpost), sampler; kwargs...)
     # Make sure that res["sample"] is an array and use transpose
     samples, weights = transpose(Dynesty.PythonCall.pyconvert(Array, res["samples"])),
-                       exp.(Dynesty.PythonCall.pyconvert(Vector, res["logwt"] - res["logz"][-1]))
+        exp.(Dynesty.PythonCall.pyconvert(Vector, res["logwt"] - res["logz"][-1]))
     chain = transform.(Ref(tpost), eachcol(samples))
-    stats = (logl = Dynesty.PythonCall.pyconvert(Vector, res["logl"]),
-             weights = weights,
-            )
+    stats = (
+        logl = Dynesty.PythonCall.pyconvert(Vector, res["logl"]),
+        weights = weights,
+    )
 
     logz = Dynesty.PythonCall.pyconvert(Float64, res["logz"][-1])
     logzerr = Dynesty.PythonCall.pyconvert(Float64, res["logzerr"][-1])
 
-    return PosteriorSamples(chain, stats; metadata=Dict(:sampler => :dynesty, :dynesty_output => res, :logz => logz, :logzerr => logzerr))
+    return PosteriorSamples(chain, stats; metadata = Dict(:sampler => :dynesty, :dynesty_output => res, :logz => logz, :logzerr => logzerr))
 end
 
 

@@ -22,30 +22,28 @@ Constructs an ideal instrument that has no corruptions or feed rotation.
 """
 struct IdealInstrumentModel <: AbstractInstrumentModel end
 
-Base.show(io::IO, mime::MIME"text/plain", m::IdealInstrumentModel) = printstyled(io, "IdealInstrumentModel"; color=:light_cyan, bold=true)
+Base.show(io::IO, mime::MIME"text/plain", m::IdealInstrumentModel) = printstyled(io, "IdealInstrumentModel"; color = :light_cyan, bold = true)
 
 @inline apply_instrument(vis, ::IdealInstrumentModel, x) = vis
 
 
-struct InstrumentModel{J<:AbstractJonesMatrix, PI, P<:PolBasis} <: AbstractInstrumentModel
+struct InstrumentModel{J <: AbstractJonesMatrix, PI, P <: PolBasis} <: AbstractInstrumentModel
     jones::J
     prior::PI
     refbasis::P
 end
 
 function Base.show(io::IO, ::MIME"text/plain", m::InstrumentModel)
-    printstyled(io, "InstrumentModel"; bold=true, color=:light_cyan)
+    printstyled(io, "InstrumentModel"; bold = true, color = :light_cyan)
     println(io)
     T = typeof(m.jones)
     ST = split(split(" $T", '{')[1], ".")[end]
     println(io, "  with Jones: ", ST)
-    print(io, "  with reference basis: ", m.refbasis)
+    return print(io, "  with reference basis: ", m.refbasis)
 end
 
 
-
-
-struct ObservedInstrumentModel{I<:AbstractJonesMatrix, PB<:PolBasis, B} <: AbstractInstrumentModel
+struct ObservedInstrumentModel{I <: AbstractJonesMatrix, PB <: PolBasis, B} <: AbstractInstrumentModel
     """
     The abstract instrument model
     """
@@ -71,12 +69,12 @@ EnzymeRules.inactive(::typeof(instrument), args...) = nothing
 EnzymeRules.inactive(::typeof(refbasis), args...) = nothing
 
 function Base.show(io::IO, mime::MIME"text/plain", m::ObservedInstrumentModel)
-    printstyled(io, "ObservedInstrumentModel"; bold=true, color=:light_cyan)
+    printstyled(io, "ObservedInstrumentModel"; bold = true, color = :light_cyan)
     println(io)
     T = typeof(m.instrument)
     ST = split(split(" $T", '{')[1], ".")[end]
     println(io, "  with Jones: ", ST)
-    print(io, "  with reference basis: ", m.refbasis)
+    return print(io, "  with reference basis: ", m.refbasis)
 end
 
 
@@ -150,19 +148,19 @@ function InstrumentModel(jones::AbstractJonesMatrix, prior::NamedTuple{N, <:NTup
     return InstrumentModel(jones, prior, refbasis)
 end
 
-function InstrumentModel(jones::JonesR; refbasis=CirBasis())
+function InstrumentModel(jones::JonesR; refbasis = CirBasis())
     return InstrumentModel(jones, NamedTuple(), refbasis)
 end
 
 function set_array(int::InstrumentModel, array::AbstractArrayConfiguration)
-    (;jones, prior, refbasis) = int
+    (; jones, prior, refbasis) = int
     # 1. preallocate and jones matrices
     Jpre = preallocate_jones(jones, array, refbasis)
     # 2. construct the prior with the array you have
-    prior_obs = NamedDist(map(x->ObservedArrayPrior(x, array), prior))
+    prior_obs = NamedDist(map(x -> ObservedArrayPrior(x, array), prior))
     # 3. construct the baseline site map for each prior
     x = rand(prior_obs)
-    bsitemaps = map(x->_construct_baselinemap(array, x), x)
+    bsitemaps = map(x -> _construct_baselinemap(array, x), x)
     intobs = ObservedInstrumentModel(Jpre, refbasis, bsitemaps)
     return intobs, prior_obs
 end
@@ -171,7 +169,7 @@ function set_array(int::IdealInstrumentModel, ::AbstractArrayConfiguration)
     return (int, ())
 end
 
-struct BaselineSiteLookup{V<:AbstractArray{<:Integer}}
+struct BaselineSiteLookup{V <: AbstractArray{<:Integer}}
     indices_1::V
     indices_2::V
 end
@@ -195,8 +193,8 @@ function _construct_baselinemap(T, F, bl, x::SiteArray)
         t = T[i]
         f = F[i]
         s1, s2 = bl[i]
-        i1 = findall(x->(t∈x[1])&&(x[2]==s1)&&(f∈x[3]), tsf)
-        i2 = findall(x->(t∈x[1])&&(x[2]==s2)&&(f∈x[3]), tsf)
+        i1 = findall(x -> (t ∈ x[1])&&(x[2] == s1)&&(f ∈ x[3]), tsf)
+        i2 = findall(x -> (t ∈ x[1])&&(x[2] == s2)&&(f ∈ x[3]), tsf)
         length(i1) > 1 && throw(AssertionError("Multiple indices found for $t, $((s1)) in SiteArray"))
         length(i2) > 1 && throw(AssertionError("Multiple indices found for $t, $((s2)) in SiteArray"))
         (isnothing(i1) | isempty(i1)) && throw(AssertionError("$t, $f, $((s1)) not found in SiteArray"))
@@ -204,19 +202,19 @@ function _construct_baselinemap(T, F, bl, x::SiteArray)
         ind1[i] = i1[begin]
         ind2[i] = i2[begin]
     end
-    BaselineSiteLookup(ind1, ind2)
+    return BaselineSiteLookup(ind1, ind2)
 end
 
 
-@inline intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
-@inline intout(vis::AbstractArray{T}) where {T<:Real} = similar(vis, Complex{T})
-@inline intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Real} = similar(vis, SMatrix{2,2, Complex{T}, 4})
+@inline intout(vis::AbstractArray{<:StokesParams{T}}) where {T <: Real} = similar(vis, SMatrix{2, 2, Complex{T}, 4})
+@inline intout(vis::AbstractArray{T}) where {T <: Real} = similar(vis, Complex{T})
+@inline intout(vis::AbstractArray{<:CoherencyMatrix{A, B, T}}) where {A, B, T <: Real} = similar(vis, SMatrix{2, 2, Complex{T}, 4})
 
-@inline intout(vis::AbstractArray{<:StokesParams{T}}) where {T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
-@inline intout(vis::AbstractArray{T}) where {T<:Complex} = similar(vis, T)
-@inline intout(vis::AbstractArray{<:CoherencyMatrix{A,B,T}}) where {A,B,T<:Complex} = similar(vis, SMatrix{2,2, T, 4})
+@inline intout(vis::AbstractArray{<:StokesParams{T}}) where {T <: Complex} = similar(vis, SMatrix{2, 2, T, 4})
+@inline intout(vis::AbstractArray{T}) where {T <: Complex} = similar(vis, T)
+@inline intout(vis::AbstractArray{<:CoherencyMatrix{A, B, T}}) where {A, B, T <: Complex} = similar(vis, SMatrix{2, 2, T, 4})
 
-intout(vis::StructArray{<:StokesParams{T}}) where {T<:Complex} = StructArray{SMatrix{2,2, T, 4}}((vis.I, vis.Q, vis.U, vis.V))
+intout(vis::StructArray{<:StokesParams{T}}) where {T <: Complex} = StructArray{SMatrix{2, 2, T, 4}}((vis.I, vis.Q, vis.U, vis.V))
 
 @inline function apply_instrument(vis, J::ObservedInstrumentModel, x)
     vout = intout(parent(vis))
@@ -262,8 +260,8 @@ end
 #     return nothing
 # end
 
-@inline get_indices(bsitemaps, index, ::Val{1}) = map(x->getindex(x.indices_1, index), bsitemaps)
-@inline get_indices(bsitemaps, index, ::Val{2}) = map(x->getindex(x.indices_2, index), bsitemaps)
+@inline get_indices(bsitemaps, index, ::Val{1}) = map(x -> getindex(x.indices_1, index), bsitemaps)
+@inline get_indices(bsitemaps, index, ::Val{2}) = map(x -> getindex(x.indices_2, index), bsitemaps)
 @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map(getindex, values(x), values(indices)))
 # @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(ntuple(i->getindex(x[i], indices[i]), Val(length(N))))
 
@@ -274,25 +272,23 @@ EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 
 @inline function apply_jones(v, index::Int, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
     # First lhs station
-    indices1 = map(x->getindex(x.indices_1, index), sitelookup(J))#get_indices(sitelookup(J), index, Val(N))
+    indices1 = map(x -> getindex(x.indices_1, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
     params1 = NamedTuple{N}(map(getindex, values(x), values(indices1)))
     j1 = jonesmatrix(instrument(J), params1, index, Val(1))
 
     # Second RHS station
-    indices2 = map(x->getindex(x.indices_2, index), sitelookup(J))#get_indices(sitelookup(J), index, Val(N))
+    indices2 = map(x -> getindex(x.indices_2, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
     params2 = NamedTuple{N}(map(getindex, values(x), values(indices2)))
     j2 = jonesmatrix(instrument(J), params2, index, Val(2))
 
-    vout =  _apply_jones(v, j1, j2, refbasis(J))
+    vout = _apply_jones(v, j1, j2, refbasis(J))
     return vout
 end
 
 
-@inline _apply_jones(v::Number, j1, j2, ::B) where {B} = j1*v*conj(j2)
-@inline _apply_jones(v::CoherencyMatrix, j1, j2, ::B) where {B} = j1*CoherencyMatrix{B,B}(v)*j2'
-@inline _apply_jones(v::StokesParams, j1, j2, ::B) where {B} = j1*CoherencyMatrix{B,B}(v)*j2'
-
-
+@inline _apply_jones(v::Number, j1, j2, ::B) where {B} = j1 * v * conj(j2)
+@inline _apply_jones(v::CoherencyMatrix, j1, j2, ::B) where {B} = j1 * CoherencyMatrix{B, B}(v) * j2'
+@inline _apply_jones(v::StokesParams, j1, j2, ::B) where {B} = j1 * CoherencyMatrix{B, B}(v) * j2'
 
 
 # function ChainRulesCore.rrule(::typeof(apply_instrument), vis, J::ObservedInstrumentModel, x)

@@ -1,4 +1,3 @@
-
 #from Lux to speed up tuple merging
 # function ChainRulesCore.rrule(::typeof(merge), nt1::NamedTuple{F1}, nt2::NamedTuple{F2}) where {F1, F2}
 #     y = merge(nt1, nt2)

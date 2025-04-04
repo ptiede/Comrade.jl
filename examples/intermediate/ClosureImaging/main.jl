@@ -1,10 +1,10 @@
 import Pkg #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
+Pkg.activate(__DIR; io = pkg_io) #hide
+Pkg.develop(; path = joinpath(__DIR, "..", "..", ".."), io = pkg_io) #hide
+Pkg.instantiate(; io = pkg_io) #hide
+Pkg.precompile(; io = pkg_io) #hide
 close(pkg_io) #hide
 
 # # Imaging a Black Hole using only Closure Quantities
@@ -56,7 +56,7 @@ obs = scan_average(obs).add_fractional_noise(0.02)
 
 # Now, we extract our closure quantities from the EHT data set. We flag now SNR points since
 # the closure likelihood we use is only applicable to high SNR data.
-dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePhases(;snrcut=3))
+dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3), ClosurePhases(; snrcut = 3))
 
 # !!! note
 #     Fitting low SNR closure data is complicated and requires a more sophisticated likelihood.
@@ -72,11 +72,11 @@ dlcamp, dcphase  = extract_table(obs, LogClosureAmplitudes(;snrcut=3), ClosurePh
 # for the model that is typically constant. For our model the constant `metdata` will just
 # by the mean or prior image.
 function sky(θ, metadata)
-    (;fg, c, σimg) = θ
-    (;mimg) = metadata
+    (; fg, c, σimg) = θ
+    (; mimg) = metadata
     ## Apply the GMRF fluctuations to the image
-    rast = apply_fluctuations(CenteredLR(), mimg, σimg.*c.params)
-    m = ContinuousImage(((1-fg)).*rast, BSplinePulse{3}())
+    rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
+    m = ContinuousImage(((1 - fg)) .* rast, BSplinePulse{3}())
     ## Force the image centroid to be at the origin
     x0, y0 = centroid(m)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
@@ -97,17 +97,16 @@ fovxy = μas2rad(150.0)
 grid = imagepixels(fovxy, fovxy, npix, npix)
 
 
-
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
 # Random field prior
 using VLBIImagePriors, Distributions
 
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 50 μas
-fwhmfac = 2*sqrt(2*log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(50.0)./fwhmfac))
+fwhmfac = 2 * sqrt(2 * log(2))
+mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
 imgpr = intensitymap(mpr, grid)
-skymeta = (;mimg = imgpr./flux(imgpr));
+skymeta = (; mimg = imgpr ./ flux(imgpr));
 
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
@@ -120,15 +119,15 @@ cprior = corr_image_prior(grid, dlcamp)
 
 # Putting everything together the total prior is then our image prior, a prior on the
 # standard deviation of the MRF, and a prior on the fractional flux of the Gaussian component.
-prior = (c = cprior, σimg = Exponential(0.1), fg=Uniform(0.0, 1.0))
+prior = (c = cprior, σimg = Exponential(0.1), fg = Uniform(0.0, 1.0))
 
 # We can then define our sky model.
-skym = SkyModel(sky, prior, grid; metadata=skymeta)
+skym = SkyModel(sky, prior, grid; metadata = skymeta)
 
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
-post = VLBIPosterior(skym, dlcamp, dcphase; admode=set_runtime_activity(Enzyme.Reverse))
+post = VLBIPosterior(skym, dlcamp, dcphase; admode = set_runtime_activity(Enzyme.Reverse))
 
 # ## Reconstructing the Image
 
@@ -143,23 +142,25 @@ post = VLBIPosterior(skym, dlcamp, dcphase; admode=set_runtime_activity(Enzyme.R
 # OptimizationOptimJL. We also need to import Enzyme to allow for automatic differentiation.
 using Optimization
 using OptimizationOptimJL
-xopt, sol = comrade_opt(post, LBFGS(); 
-                        maxiters=1000, initial_params=prior_sample(rng, post));
+xopt, sol = comrade_opt(
+    post, LBFGS();
+    maxiters = 1000, initial_params = prior_sample(rng, post)
+);
 
 
 # First we will evaluate our fit by plotting the residuals
 using CairoMakie
 using DisplayAs #hide
 res = residuals(post, xopt)
-fig = Figure(;size=(800, 300))
-axisfields(fig[1,1], res[1], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
-axisfields(fig[1,2], res[2], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
+fig = Figure(; size = (800, 300))
+axisfields(fig[1, 1], res[1], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
+axisfields(fig[1, 2], res[2], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # Now let's plot the MAP estimate.
 g = imagepixels(μas2rad(150.0), μas2rad(150.0), 100, 100)
 img = intensitymap(skymodel(post, xopt), g)
-fig = imageviz(img, size=(600, 500));
+fig = imageviz(img, size = (600, 500));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
@@ -176,7 +177,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 #     For our `metric` we use a diagonal matrix due to easier tuning.
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, progress = false, initial_params = xopt);
 
 
 # !!! warning
@@ -194,25 +195,25 @@ using StatsBase
 imgs = intensitymap.(msamples, Ref(g))
 mimg = mean(imgs)
 simg = std(imgs)
-fig = Figure(;resolution=(700, 700));
-axs = [Axis(fig[i, j], xreversed=true, aspect=1) for i in 1:2, j in 1:2]
-image!(axs[1,1], mimg, colormap=:afmhot); axs[1, 1].title="Mean"
-image!(axs[1,2], simg./(max.(mimg, 1e-8)), colorrange=(0.0, 2.0), colormap=:afmhot);axs[1,2].title = "Std"
-image!(axs[2,1], imgs[1],   colormap=:afmhot);
-image!(axs[2,2], imgs[end], colormap=:afmhot);
+fig = Figure(; resolution = (700, 700));
+axs = [Axis(fig[i, j], xreversed = true, aspect = 1) for i in 1:2, j in 1:2]
+image!(axs[1, 1], mimg, colormap = :afmhot); axs[1, 1].title = "Mean"
+image!(axs[1, 2], simg ./ (max.(mimg, 1.0e-8)), colorrange = (0.0, 2.0), colormap = :afmhot);axs[1, 2].title = "Std"
+image!(axs[2, 1], imgs[1], colormap = :afmhot);
+image!(axs[2, 2], imgs[end], colormap = :afmhot);
 hidedecorations!.(axs)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # Now let's see whether our residuals look better.
-fig = Figure(;size=(800, 300))
-ax1, = baselineplot(fig[1, 1], res[1], :uvdist, :res, label="MAP residuals", axis=(ylabel="LCA Normalized Residuals", xlabel="uvdist (Gλ)"))
-ax2, = baselineplot(fig[1, 2], res[2], :uvdist, :res, label="MAP residuals", axis=(ylabel="CP Normalized Residuals", xlabel="uvdist (Gλ)"))
+fig = Figure(; size = (800, 300))
+ax1, = baselineplot(fig[1, 1], res[1], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "LCA Normalized Residuals", xlabel = "uvdist (Gλ)"))
+ax2, = baselineplot(fig[1, 2], res[2], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "CP Normalized Residuals", xlabel = "uvdist (Gλ)"))
 for s in sample(chain[501:end], 10)
     rs = residuals(post, s)
-    baselineplot!(ax1, rs[1], :uvdist, :res, color=:grey, alpha=0.2, label="Posterior Draw")
-    baselineplot!(ax2, rs[2], :uvdist, :res, color=:grey, alpha=0.2, label="Posterior Draw")
+    baselineplot!(ax1, rs[1], :uvdist, :res, color = :grey, alpha = 0.2, label = "Posterior Draw")
+    baselineplot!(ax2, rs[2], :uvdist, :res, color = :grey, alpha = 0.2, label = "Posterior Draw")
 end
-axislegend(ax1, merge=true)
+axislegend(ax1, merge = true)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 

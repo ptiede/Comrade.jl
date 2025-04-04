@@ -36,7 +36,7 @@ function selfcal(obs::PyCall.PyObject, model::GainModel)
     ctabcol = map(sites) do s
         mask = Base.:!.(ismissing.(getproperty(ctable, s)))
         tmask = time[mask]
-        gmask = ctable[:,s][mask]
+        gmask = ctable[:, s][mask]
         # make the ndarray that eht-imaging expects
         arr = np.array(PyObject(tmask), dtype = ehtim.DTCAL)
         set!(arr, "time", tmask)
@@ -46,11 +46,12 @@ function selfcal(obs::PyCall.PyObject, model::GainModel)
     end
     datatable = PyDict(Dict(ctabcol))
     ctab_eh = ehtim.caltable.Caltable(
-            obs.ra, obs.dec,
-            obs.rf, obs.bw,
-            datatable,
-            obs.tarr,
-            source=obs.source, mjd=obs.mjd)
+        obs.ra, obs.dec,
+        obs.rf, obs.bw,
+        datatable,
+        obs.tarr,
+        source = obs.source, mjd = obs.mjd
+    )
     o2 = ctab_eh.applycal(obscpy)
     return o2, ctab_eh
 end
@@ -75,18 +76,18 @@ is not the case then this function will need to be modified.
 function selfcal_submission(results::String, obs, outdir::String, nsamples::Int, nburn::Int)
     res = deserialize(results)
     # obs = ehtim.obsdata.load_uvfits(obsfile)
-	# obs.add_scans()
-	# # make scan-average data #.flag_uvdist(uv_min=0.1e9)
-	# obs = scan_average(obs.flag_uvdist(uv_min=0.1e9).add_fractional_noise(0.01))
+    # obs.add_scans()
+    # # make scan-average data #.flag_uvdist(uv_min=0.1e9)
+    # obs = scan_average(obs.flag_uvdist(uv_min=0.1e9).add_fractional_noise(0.01))
 
-	# extract amplitudes and closure phases
-	damp = extract_amp(obs)
+    # extract amplitudes and closure phases
+    damp = extract_amp(obs)
 
     mms = GModel(damp, res[:fovx], res[:fovy], res[:npixx], res[:npixy])
 
     mkpath(outdir)
 
-    fov = max(res[:fovx], res[:fovy])*1.1
+    fov = max(res[:fovx], res[:fovy]) * 1.1
 
     chain = sample(res[:chain][nburn:end], nsamples)
     for i in 1:nsamples
@@ -105,8 +106,8 @@ end
 
 function selfcal_2018(results, obsfile, outdir, nsamples, nburn)
     obs = ehtim.obsdata.load_uvfits(obsfile)
-	obs.add_scans()
-	# make scan-average data #.flag_uvdist(uv_min=0.1e9)
-	obs = scan_average(obs.flag_uvdist(uv_min=0.1e9).add_fractional_noise(0.01))
+    obs.add_scans()
+    # make scan-average data #.flag_uvdist(uv_min=0.1e9)
+    obs = scan_average(obs.flag_uvdist(uv_min = 0.1e9).add_fractional_noise(0.01))
     return selfcal_submission(results, obs, outdir, nsamples, nburn)
 end
