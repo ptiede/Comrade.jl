@@ -87,7 +87,7 @@ function DensityInterface.logdensityof(post::AbstractVLBIPosterior, x)
     !isfinite(pr) && return -Inf
     l = loglikelihood(post, x)
     isnan(l) && throw(ArgumentError("NaN in loglikelihood at $x"))
-    return loglikelihood(post, x) + pr
+    return l + pr
 end
 
 prior_sample(post::AbstractVLBIPosterior, args...) = prior_sample(Random.default_rng(), post, args...)
