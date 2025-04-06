@@ -57,7 +57,7 @@ post = VLBIPosterior(skym, intmodel, dlcamp, dcphase)
 ```
 """
 function VLBIPosterior(
-        skymodel::AbstractSkyModel,
+        skymodel::SkyModel,
         instrumentmodel::AbstractInstrumentModel,
         dataproducts::EHTObservationTable...;
         admode = nothing
