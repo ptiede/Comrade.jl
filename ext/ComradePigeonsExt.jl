@@ -82,9 +82,9 @@ function LogDensityProblems.logdensity_and_gradient(log_potential::Pigeons.Buffe
     ∂ℓ_∂x = fill!(b, zero(eltype(b))) # NB: Enzyme gives erroneous answer if buffer is not zeroed first
     mode = EnzymeCore.WithPrimal(Comrade.admode(m))
     _, y = EnzymeCore.autodiff(
-                mode, LogDensityProblems.logdensity, EnzymeCore.Active,
-                EnzymeCore.Const(m), EnzymeCore.Duplicated(x, ∂ℓ_∂x)
-            )
+        mode, LogDensityProblems.logdensity, EnzymeCore.Active,
+        EnzymeCore.Const(m), EnzymeCore.Duplicated(x, ∂ℓ_∂x)
+    )
     return y, ∂ℓ_∂x
 end
 

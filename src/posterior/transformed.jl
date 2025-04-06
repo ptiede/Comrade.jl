@@ -130,9 +130,8 @@ end
 
 @inline function DensityInterface.logdensityof(post::TransformedVLBIPosterior{P, T}, x::AbstractArray) where {P, T <: TV.AbstractTransform}
     p, logjac = transform_and_logjac(post.transform, x)
-    pr = logprior(post.lpost, p)
     lp = post.lpost
-    return loglikelihood(lp, p) + pr + logjac
+    return logdensityof(lp, p) + logjac
 end
 
 
