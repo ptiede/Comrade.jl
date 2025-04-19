@@ -81,9 +81,9 @@ function timestamps(::TrackSeg, array)
 
     tstart, tend = extrema(array[:Ti])
     tend = tend + 1
-    dt = tend - tstart
+    dt = 2*(tend - tstart)
     if iszero(dt)
-        dt = 1 / 3600
+        dt = 2*1 / 3600
     end
     # TODO build in the dt into the data format
     return (IntegrationTime(mjd, (tend - tstart) / 2 + tstart, dt),)
