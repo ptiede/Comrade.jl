@@ -26,3 +26,4 @@ VLBISkyModels = "d6343c73-7174-4e0f-bb64-562643efbeca"
 
 [compat]
 Documenter = "1"
+DocumenterVitepress = "0.2"

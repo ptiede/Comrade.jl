@@ -30,7 +30,7 @@ TUTORIALS = [
     ],
 ]
 
-format = MarkdownVitepress(
+format = DocumenterVitepress.MarkdownVitepress(
     repo = "https://github.com/ptiede/Comrade.jl",
     devbranch = "main",
     devurl = "dev",
@@ -63,9 +63,10 @@ makedocs(;
     ],
 )
 
-deploydocs(;
+DocumenterVitepress.deploydocs(;
     repo = "github.com/ptiede/Comrade.jl",
     push_preview = true,
     devbranch = "main",
-    target = "build"
+    target = joinpath(@__DIR__,"build"),
+    branch = "gh-pages",
 )
