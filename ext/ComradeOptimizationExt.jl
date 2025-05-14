@@ -77,10 +77,10 @@ Optimize the posterior `post` using the `opt` optimizer.
 
 """
 function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params = nothing, lb = nothing, ub = nothing, transform = nothing, kwargs...)
-    
+
     (!isnothing(lb) & isnothing(ub)) && throw(ArgumentError("You specified lower bounds but not upper bounds. Please specify both or neither."))
     (!isnothing(ub) & isnothing(lb)) && throw(ArgumentError("You specified upper bounds but not lower bounds. Please specify both or neither."))
-    
+
     tpost = _transform_heuristic(post, opt, lb, transform)
     f = OptimizationFunction(tpost)
 
@@ -92,43 +92,47 @@ function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params =
 
 
     lbt = nothing
-    ubt = nothing 
+    ubt = nothing
 
     if tpost.transform isa HypercubeTransform.AbstractHypercubeTransform
         lbt = fill(0.0001, dimension(tpost))
         ubt = fill(0.9999, dimension(tpost))
     end
 
-    if SciMLBase.allowsbounds(opt) && !isnothing(lb) 
+    if SciMLBase.allowsbounds(opt) && !isnothing(lb)
         lbt = Comrade.inverse(tpost, lb)
         ubt = Comrade.inverse(tpost, ub)
     end
 
 
-    prob = OptimizationProblem(f, initial_params, tpost; lb=lbt, ub=ubt)
+    prob = OptimizationProblem(f, initial_params, tpost; lb = lbt, ub = ubt)
     sol = solve(prob, opt, args...; kwargs...)
     return Comrade.transform(tpost, sol), sol
 end
 
 @noinline function _transform_heuristic(post, opt, lb, transform)
     if isnothing(transform)
-        # If bounds if no gradient then the cubic transform is the most appropriate 
-        if SciMLBase.requiresbounds(opt) && !SciMLBase.requiresgradient(opt) 
+        # If bounds if no gradient then the cubic transform is the most appropriate
+        if SciMLBase.requiresbounds(opt) && !SciMLBase.requiresgradient(opt)
             return ascube(post)
-        # If bounds and gradients but the size of the problem is small then we still use the cubic transform
+            # If bounds and gradients but the size of the problem is small then we still use the cubic transform
         elseif SciMLBase.requiresbounds(opt) && Comrade.dimension(post) < 100
             return ascube(post)
         elseif SciMLBase.requiresbounds(opt) && !isnothing(lb)
             return asflat(post)
         elseif SciMLBase.requiresbounds(opt) && (isnothing(lb))
-            throw(ArgumentError("You are using the $(show(opt)) optimizer which requires bounds, is high dimensional, and wants gradients.\n"*
-                                "`asflat` is the best choice here but it requires you to manually specify the bounds.\n"*
-                                "Please specify the bounds for the optimization problem."))     
+            throw(
+                ArgumentError(
+                    "You are using the $(show(opt)) optimizer which requires bounds, is high dimensional, and wants gradients.\n" *
+                        "`asflat` is the best choice here but it requires you to manually specify the bounds.\n" *
+                        "Please specify the bounds for the optimization problem."
+                )
+            )
         elseif !SciMLBase.requiresbounds(opt)
             return asflat(post)
         elseif !SciMLBase.allowsbounds(opt) && (!isnothing(lb))
             @warn "You using the $(show(opt)) optimizer which does not allow bounds but you specified them. We are ignoring them."
-            return asflat(post) 
+            return asflat(post)
         else
             # Default to asflat since we require gradients and now bounds so things is the best option.
             return asflat(post)

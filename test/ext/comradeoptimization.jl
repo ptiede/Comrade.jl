@@ -31,10 +31,10 @@ const Ahyper = HypercubeTransform.AbstractHypercubeTransform
     )
 
     # This is a dummy test for the heuristic to ensure that for large problems we switch to asflat
-    skymbig = SkyModel(test_model, merge(test_prior(), (;foo = MvNormal(ones(100)))), g)
+    skymbig = SkyModel(test_model, merge(test_prior(), (; foo = MvNormal(ones(100)))), g)
     postbig = VLBIPosterior(skymbig, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
 
-    @testset "Heuristic Test" begin 
+    @testset "Heuristic Test" begin
         @test !isa(COExt._transform_heuristic(post, LBFGS(), nothing, nothing).transform, Ahyper)
         @test isa(COExt._transform_heuristic(post, LBFGS(), nothing, ascube).transform, Ahyper)
         @test !isa(COExt._transform_heuristic(post, LBFGS(), nothing, asflat).transform, Ahyper)
