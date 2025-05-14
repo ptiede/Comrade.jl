@@ -67,6 +67,6 @@ DocumenterVitepress.deploydocs(;
     repo = "github.com/ptiede/Comrade.jl",
     push_preview = true,
     devbranch = "main",
-    target = joinpath(@__DIR__,"build"),
+    target = joinpath(@__DIR__, "build"),
     branch = "gh-pages",
 )
