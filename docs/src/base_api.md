@@ -96,4 +96,5 @@ ComradeBase.stokes
 ComradeBase._visibilitymap
 ComradeBase._visibilitymap!
 ComradeBase.create_map
+ComradeBase.@threaded
 ```
