@@ -80,8 +80,10 @@ function VLBIPosterior(
     }(dataproducts, ls, total_prior, sky, int, admode)
 end
 
-VLBIPosterior(skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...; 
-              admode = EnzymeCore.set_runtime_activity(EnzymeCore.Reverse)) =
+VLBIPosterior(
+    skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...;
+    admode = EnzymeCore.set_runtime_activity(EnzymeCore.Reverse)
+) =
     VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...; admode)
 
 function combine_prior(skyprior, instrumentmodelprior)
