@@ -12,7 +12,9 @@ admode(post::VLBIPosterior) = post.admode
 
 
 """
-    VLBIPosterior(skymodel::SkyModel, instumentmodel::InstrumentModel, dataproducts::EHTObservationTable...; admode=nothing)
+    VLBIPosterior(skymodel::SkyModel, instumentmodel::InstrumentModel, 
+                  dataproducts::EHTObservationTable...; 
+                  admode=set_runtime_activity(Reverse))
 
 Creates a VLBILikelihood using the `skymodel` its related metadata `skymeta`
 and the `instrumentmodel` and its metadata `instumentmeta`. The `model` is a 
@@ -21,9 +23,9 @@ AbstractModel which can be used to compute [`visibilitymap`](@ref) and a set of
 `metadata` that is used by `model` to compute the model.
 
 To enable automatic differentiation, the `admode` keyword argument can be set to any `EnzymeCore.Mode` type 
-of if no AD is desired then `nothing`. We recommend using `Enzyme.set_runtime_activity(Enzyme.Reverse)` 
-for essentially every problem. Note that runtime activity does have a perfomance cost, and as Enzyme and 
-Comrade matures we expect this to not need runtime activity.
+of if no AD is desired then `nothing`. The default is `Enzyme.set_runtime_activity(Enzyme.Reverse)` 
+which should work for essentially every problem. Note that runtime activity does have a perfomance cost, 
+and as Enzyme and Comrade matures we expect this to not need runtime activity.
 
 # Warning
 
@@ -60,7 +62,7 @@ function VLBIPosterior(
         skymodel::AbstractSkyModel,
         instrumentmodel::AbstractInstrumentModel,
         dataproducts::EHTObservationTable...;
-        admode = nothing
+        admode = EnzymeCore.set_runtime_activity(EnzymeCore.Reverse)
     )
 
 
@@ -78,7 +80,10 @@ function VLBIPosterior(
     }(dataproducts, ls, total_prior, sky, int, admode)
 end
 
-VLBIPosterior(skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...; admode = nothing) =
+VLBIPosterior(
+    skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...;
+    admode = EnzymeCore.set_runtime_activity(EnzymeCore.Reverse)
+) =
     VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...; admode)
 
 function combine_prior(skyprior, instrumentmodelprior)

@@ -1,7 +1,12 @@
 using Comrade, Optimization
 using Pyehtim, OptimizationOptimJL, Distributions, VLBIImagePriors
+using OptimizationBBO, OptimizationGCMAES, OptimizationOptimisers
+using HypercubeTransform
 using Enzyme
 using Test
+
+const COExt = Base.get_extension(Comrade, :ComradeOptimizationExt)
+const Ahyper = HypercubeTransform.AbstractHypercubeTransform
 
 
 @testset "ComradeOptimizationExt" begin
@@ -24,6 +29,22 @@ using Test
             2.0,
         ]
     )
+
+    # This is a dummy test for the heuristic to ensure that for large problems we switch to asflat
+    skymbig = SkyModel(test_model, merge(test_prior(), (; foo = MvNormal(ones(100)))), g)
+    postbig = VLBIPosterior(skymbig, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
+
+    @testset "Heuristic Test" begin
+        @test !isa(COExt._transform_heuristic(post, LBFGS(), nothing, nothing).transform, Ahyper)
+        @test isa(COExt._transform_heuristic(post, LBFGS(), nothing, ascube).transform, Ahyper)
+        @test !isa(COExt._transform_heuristic(post, LBFGS(), nothing, asflat).transform, Ahyper)
+        @test isa(COExt._transform_heuristic(post, SAMIN(), nothing, nothing).transform, Ahyper)
+        @test isa(COExt._transform_heuristic(post, GCMAESOpt(), nothing, nothing).transform, Ahyper)
+        @test_throws "You are using the" COExt._transform_heuristic(postbig, GCMAESOpt(), nothing, nothing)
+        # We don't actually use the bounds when constructing so just test that the condition in the heuristic is correct
+        @test !isa(COExt._transform_heuristic(postbig, GCMAESOpt(), prior_sample(postbig), nothing).transform, Ahyper)
+        @test !isa(COExt._transform_heuristic(postbig, OptimizationOptimisers.Adam(), prior_sample(postbig), nothing).transform, Ahyper)
+    end
 
     xopt2, sol = comrade_opt(post, LBFGS(); initial_params = x0, maxiters = 10_000)
 
