@@ -47,7 +47,7 @@ If `bl` is a `Colon` or bl is not specified all baselines are plotted.
   - `alpha` : The transparency of the markers
 
 # Examples
-```jldoctest
+```julia-repl
 julia> baselineplot(log_closure_amplitudes, Comrade.uvdist, Comrade.measwnoise, error=true)
 ```
 """
