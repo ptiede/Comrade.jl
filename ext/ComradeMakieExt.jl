@@ -22,13 +22,15 @@ If `bl` is a `Colon` or bl is not specified all baselines are plotted.
  - `data` : The data to plot
 
  - `field1` and `field2` : The fields to plot. field1 - x axis, field2 - y axis 
-    If `field1` or `field2` is a function it will apply to `datatable(obsdata)` to get the value.
+    If `field1` or `field2` is a function, baselineplot will broadcast them over `datatable(obsdata)` 
+    to get the x and y values as the outputs from `field1.(datatable(obsdata))` and `field2.(datatable(obsdata))`.
     If field1 or field2 is a symbol, it will look for a predefined function:
      - :U - baseline u coordinate
      - :V - baseline v coordinate
      - :Ti - time
      - :Fr - frequency
-     - :measure - measurement
+     - :measurement - measurement
+     - :measwnoise - measurement and noise
      - :noise - noise
      - :amp - visibility amplitude
      - :phase - visibility phase
@@ -43,6 +45,11 @@ If `bl` is a `Colon` or bl is not specified all baselines are plotted.
   - `marker` : The marker type
   - `markersize` : The size of the markers
   - `alpha` : The transparency of the markers
+
+# Examples
+```julia-repl
+julia> baselineplot(log_closure_amplitudes, Comrade.uvdist, Comrade.measwnoise, error=true)
+```
 """
 Makie.@recipe(BaselinePlot, data, bl, fieldx, fieldy) do scene
     Makie.Attributes(;
