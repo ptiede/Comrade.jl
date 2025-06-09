@@ -54,7 +54,7 @@ A transformation that broadcasts a function `f` over an array, and the normalize
 to have unit flux. This is used with the function [`apply_fluctuations`](@ref) while 
 imaging.
 """
-struct UnitFluxMap{F} 
+struct UnitFluxMap{F}
     f::F
 end
 
@@ -73,7 +73,7 @@ function apply_fluctuations!(t::UnitFluxMap, out::IntensityMap, mimg::IntensityM
     bout .= f.(baseimage(δ))
     fd = _fastsum(bout)
     bmimg = baseimage(mimg)
-    
+
     for i in eachindex(bout, bmimg)
         bout[i] *= bmimg[i] / fd
     end
@@ -90,7 +90,7 @@ function apply_fluctuations!(t::VLBIImagePriors.LogRatioTransform, out::Intensit
     bout = baseimage(out)
     to_simplex!(t, bout, baseimage(δ))
 
-    for i in eachindex(bout, bmimg)    
+    for i in eachindex(bout, bmimg)
         bout[i] .= baseimage(mimg)
     end
     fi = _fastsum(bout)
