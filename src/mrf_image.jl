@@ -1,4 +1,4 @@
-export apply_fluctuations, corr_image_prior
+export apply_fluctuations, apply_fluctuations!, UnitFluxMap, corr_image_prior
 
 
 """
@@ -9,7 +9,9 @@ The function `f` is applied to the fluctuations and then the the transfored δ a
 to the image.
 """
 @inline function apply_fluctuations(f, mimg::IntensityMap, δ::AbstractArray)
-    return IntensityMap(_apply_fluctuations(f, baseimage(mimg), δ), axisdims(mimg))
+    out = similar(mimg)
+    apply_fluctuations!(f, out, mimg, δ)
+    return out
 end
 
 @inline function apply_fluctuations(f, m::AbstractModel, g::AbstractRectiGrid, δ::AbstractArray)
@@ -18,7 +20,7 @@ end
 
 @inline function apply_fluctuations(t::VLBIImagePriors.LogRatioTransform, m::AbstractModel, g::AbstractRectiGrid, δ::AbstractArray)
     mimg = baseimage(intensitymap(m, g))
-    return apply_fluctuations(t, IntensityMap(mimg ./ sum(mimg), g), δ)
+    return apply_fluctuations(t, IntensityMap(mimg ./ _fastsum(mimg), g), δ)
 end
 
 
@@ -26,8 +28,11 @@ end
     return apply_fluctuations(identity, mimg, δ)
 end
 
-@inline function _apply_fluctuations(f, mimg::AbstractArray, δ::AbstractArray)
-    return mimg .* f.(δ)
+@inline function apply_fluctuations!(f, out::IntensityMap, mimg::IntensityMap, δ::AbstractArray)
+    bout = baseimage(out)
+    bmimg = baseimage(mimg)
+    bout .= bmimg .* f.(δ)
+    return nothing
 end
 
 @noinline _checknorm(m::AbstractArray) = isapprox(sum(m), 1, atol = 1.0e-6)
@@ -42,12 +47,56 @@ function _fastsum(x)
 end
 
 
-function _apply_fluctuations(t::VLBIImagePriors.LogRatioTransform, mimg::AbstractArray, δ::AbstractArray)
+"""
+    UnitFluxMap(f)
+
+A transformation that broadcasts a function `f` over an array, and the normalizes the resulting array
+to have unit flux. This is used with the function [`apply_fluctuations`](@ref) while 
+imaging.
+"""
+struct UnitFluxMap{F} 
+    f::F
+end
+
+
+"""
+    apply_fluctuations!(t::UnitFluxMap{F}, out::IntensityMap, mimg::IntensityMap, δ::AbstractArray)
+
+Apply multiplicative fluctuations to an image `mimg` with fluctuations `δ` using the transformation `t`,
+by broadcasting the function `F` over the array `δ` and then normalizing the resulting array to have unit flux.
+
+"""
+function apply_fluctuations!(t::UnitFluxMap, out::IntensityMap, mimg::IntensityMap, δ::AbstractArray)
+    @argcheck _checknorm(mimg) "Mean image must have unit flux when using unit flux transformations in apply_fluctuations while it seems to be $(sum(mimg))"
+    f = t.f
+    bout = baseimage(out)
+    bout .= f.(baseimage(δ))
+    fd = _fastsum(bout)
+    bmimg = baseimage(mimg)
+    
+    for i in eachindex(bout, bmimg)
+        bout[i] *= bmimg[i] / fd
+    end
+
+    fi = _fastsum(bout)
+    bout .*= inv(fi)
+
+    return nothing
+end
+
+
+function apply_fluctuations!(t::VLBIImagePriors.LogRatioTransform, out::IntensityMap, mimg::IntensityMap, δ::AbstractArray)
     @argcheck _checknorm(mimg) "Mean image must have unit flux when using log-ratio transformations in apply_fluctuations while it seems to be $(sum(mimg))"
-    r = to_simplex(t, baseimage(δ))
-    r .= r .* baseimage(mimg)
-    r .= r ./ _fastsum(r)
-    return r
+    bout = baseimage(out)
+    to_simplex!(t, bout, baseimage(δ))
+
+    for i in eachindex(bout, bmimg)    
+        bout[i] .= baseimage(mimg)
+    end
+    fi = _fastsum(bout)
+
+    bout .*= inv(fi)
+    return nothing
 end
 
 

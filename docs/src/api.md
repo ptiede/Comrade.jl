@@ -169,6 +169,8 @@ Comrade.dirty_image
 Comrade.dirty_beam
 Comrade.beamsize
 Comrade.apply_fluctuations
+Comrade.apply_fluctuations!
+Comrade.UnitFluxMap
 Comrade.corr_image_prior
 Comrade.rmap
 ```
