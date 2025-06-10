@@ -90,8 +90,9 @@ function apply_fluctuations!(t::VLBIImagePriors.LogRatioTransform, out::Intensit
     bout = baseimage(out)
     to_simplex!(t, bout, baseimage(δ))
 
+    bmimg = baseimage(mimg)
     for i in eachindex(bout, bmimg)
-        bout[i] .= baseimage(mimg)
+        bout[i] *= bmimg[i]
     end
     fi = _fastsum(bout)
 
