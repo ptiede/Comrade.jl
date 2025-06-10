@@ -59,7 +59,7 @@ post = VLBIPosterior(skym, intmodel, dlcamp, dcphase)
 ```
 """
 function VLBIPosterior(
-        skymodel::AbstractSkyModel,
+        skymodel::SkyModel,
         instrumentmodel::AbstractInstrumentModel,
         dataproducts::EHTObservationTable...;
         admode = EnzymeCore.set_runtime_activity(EnzymeCore.Reverse)

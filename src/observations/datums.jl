@@ -25,7 +25,7 @@ build_datum(F::Type{<:AbstractVisibilityDatum}, m, e, b) = F(m, e, b)
 abstract type AbstractSinglePolDatum{P, S} <: AbstractVisibilityDatum{S} end
 abstract type ClosureProducts{P, T} <: AbstractSinglePolDatum{P, T} end
 
-VLBISkyModels.polarization(p::AbstractSinglePolDatum{Pol}) where {Pol} = Pol
+VLBISkyModels.polarization(::AbstractSinglePolDatum{Pol}) where {Pol} = Pol
 
 
 abstract type AbstractBaselineDatum end
