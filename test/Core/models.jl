@@ -147,7 +147,7 @@ end
     img5 = apply_fluctuations(CenteredLR(), mimg ./ flux(mimg), δ)
     @test img4 ≈ img5
 
-    img6 = apply_fluctuations(UnitFluxMap(exp), m, g, δ ./ flux(δ))
+    img6 = apply_fluctuations(UnitFluxMap(exp), mimg ./ flux(mimg), δ)
     @test img6 ≈ img5
     @test_throws ArgumentError apply_fluctuations(UnitFluxMap(exp), mimg, δ)
 
