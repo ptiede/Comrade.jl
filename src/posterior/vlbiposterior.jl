@@ -1,4 +1,4 @@
-struct VLBIPosterior{D, T, P, MS <: ObservedSkyModel, MI <: AbstractInstrumentModel, ADMode <: Union{Nothing, EnzymeCore.Mode}} <: AbstractVLBIPosterior
+struct VLBIPosterior{D, T, P, MS <: AbstractSkyModel, MI <: AbstractInstrumentModel, ADMode <: Union{Nothing, EnzymeCore.Mode}} <: AbstractVLBIPosterior
     data::D
     lklhds::T
     prior::P

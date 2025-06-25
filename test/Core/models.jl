@@ -13,6 +13,7 @@ using Tables
 using Plots
 import TransformVariables as TV
 using VLBIImagePriors
+using JET
 
 ntequal(x::NamedTuple{N}, y::NamedTuple{N}) where {N} = map(_ntequal, (x), (y))
 ntequal(x, y) = false
@@ -127,6 +128,32 @@ end
 
         @test Comrade.skymodel(oskym, x) == m
         @test Comrade.idealvisibilities(oskym, (; sky = x)) ≈ Comrade.idealvisibilities(oskyf, (; sky = x))
+    end
+
+    @testset "MultiSkyModel" begin
+        _, vis, amp, lcamp, cphase = load_data()
+        skytot = MultiSkyModel((dynamic = skym, static = skyf))
+        oskytot, ptot = Comrade.set_array(skytot, arrayconfig(vis))
+
+        show(IOBuffer(), MIME"text/plain"(), skytot)
+
+
+        x = rand(Comrade.NamedDist(ptot))
+        
+        oskym, = Comrade.set_array(skym, arrayconfig(vis))
+        oskyf, = Comrade.set_array(skyf, arrayconfig(vis))
+
+        tt = Comrade.skymodel(oskytot, x)
+        @test tt.dynamic == Comrade.skymodel(oskym, x.dynamic)
+        @test tt.static == Comrade.skymodel(oskyf, x.static)
+
+        vtot = Comrade.idealvisibilities(oskytot, (; sky = x))
+        vdyn = Comrade.idealvisibilities(oskym, (; sky = x.dynamic))
+        vstat = Comrade.idealvisibilities(oskyf, (; sky = x.static))
+
+        @test_opt Comrade.idealvisibilities(oskytot, (; sky = x))
+
+        @test vtot ≈ vdyn + vstat
     end
 end
 

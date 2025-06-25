@@ -87,6 +87,7 @@ Comrade.Coherencies
 Comrade.AbstractSkyModel
 Comrade.SkyModel
 Comrade.FixedSkyModel
+Comrade.MultiSkyModel
 Comrade.idealvisibilities
 Comrade.skymodel(::Comrade.AbstractVLBIPosterior, ::Any)
 ```
