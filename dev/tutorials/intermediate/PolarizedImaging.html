@@ -9,11 +9,11 @@
     <link rel="preload stylesheet" href="/Comrade.jl/dev/assets/style.DXostV6N.css" as="style">
     <link rel="preload stylesheet" href="/Comrade.jl/dev/vp-icons.css" as="style">
     
-    <script type="module" src="/Comrade.jl/dev/assets/app.3MF5XN3d.js"></script>
+    <script type="module" src="/Comrade.jl/dev/assets/app.BMyrRWoU.js"></script>
     <link rel="preload" href="/Comrade.jl/dev/assets/inter-roman-latin.Di8DUHzh.woff2" as="font" type="font/woff2" crossorigin="">
-    <link rel="modulepreload" href="/Comrade.jl/dev/assets/chunks/theme.CX58ryiu.js">
-    <link rel="modulepreload" href="/Comrade.jl/dev/assets/chunks/framework.la0KY8n6.js">
-    <link rel="modulepreload" href="/Comrade.jl/dev/assets/tutorials_intermediate_PolarizedImaging.md.BSNd38pr.lean.js">
+    <link rel="modulepreload" href="/Comrade.jl/dev/assets/chunks/theme.Bocg2Ggf.js">
+    <link rel="modulepreload" href="/Comrade.jl/dev/assets/chunks/framework.CbmS6riI.js">
+    <link rel="modulepreload" href="/Comrade.jl/dev/assets/tutorials_intermediate_PolarizedImaging.md.aECjha9Z.lean.js">
     <link rel="icon" href="REPLACE_ME_DOCUMENTER_VITEPRESS_FAVICON">
     <script id="check-dark-mode">(()=>{const e=localStorage.getItem("vitepress-theme-appearance")||"auto",a=window.matchMedia("(prefers-color-scheme: dark)").matches;(!e||e==="auto"?a:e==="dark")&&document.documentElement.classList.add("dark")})();</script>
     <script id="check-mac-os">document.documentElement.classList.toggle("mac",/Mac|iPhone|iPod|iPad/i.test(navigator.platform));</script>
@@ -78,7 +78,7 @@
 <span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">obs </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> Pyehtim</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">load_uvfits_and_array</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(</span></span>
 <span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">    fname,</span></span>
 <span class="line"><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">    joinpath</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(__DIR, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;..&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;..&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;Data&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;array.txt&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">), polrep </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;"> &quot;circ&quot;</span></span>
-<span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">)</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>Python: &lt;ehtim.obsdata.Obsdata object at 0x7f2d8b8fbee0&gt;</span></span></code></pre></div><p>Notice that, unlike other non-polarized tutorials, we need to include a second argument. This is the <strong>array file</strong> of the observation and is required to determine the feed rotation of the array.</p><p>Now we scan average the data since the data to boost the SNR and reduce the total data volume.</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">obs </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> scan_average</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(obs)</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">add_fractional_noise</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">0.01</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">)</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">flag_uvdist</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(uv_min </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> 0.1e9</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">)</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>Python: &lt;ehtim.obsdata.Obsdata object at 0x7f2da5a781c0&gt;</span></span></code></pre></div><p>Now we extract our observed/corrupted coherency matrices.</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">dvis </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> extract_table</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(obs, </span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">Coherencies</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">())</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>EHTObservationTable{Comrade.EHTCoherencyDatum{Float64}}</span></span>
+<span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">)</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>Python: &lt;ehtim.obsdata.Obsdata object at 0x7f3d0409d8a0&gt;</span></span></code></pre></div><p>Notice that, unlike other non-polarized tutorials, we need to include a second argument. This is the <strong>array file</strong> of the observation and is required to determine the feed rotation of the array.</p><p>Now we scan average the data since the data to boost the SNR and reduce the total data volume.</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">obs </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> scan_average</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(obs)</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">add_fractional_noise</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">0.01</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">)</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">flag_uvdist</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(uv_min </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> 0.1e9</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">)</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>Python: &lt;ehtim.obsdata.Obsdata object at 0x7f3d04183e50&gt;</span></span></code></pre></div><p>Now we extract our observed/corrupted coherency matrices.</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">dvis </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> extract_table</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(obs, </span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">Coherencies</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">())</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>EHTObservationTable{Comrade.EHTCoherencyDatum{Float64}}</span></span>
 <span class="line"><span>  source:      M87</span></span>
 <span class="line"><span>  mjd:         57854</span></span>
 <span class="line"><span>  bandwidth:   1.856e9</span></span>
@@ -159,7 +159,14 @@
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">skym </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> SkyModel</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(sky, skyprior, grid; metadata </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> skymeta)</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>SkyModel</span></span>
 <span class="line"><span>  with map: sky</span></span>
-<span class="line"><span>   on grid: ComradeBase.RectiGrid</span></span></code></pre></div><p>Now we build the instrument model. Due to the complexity of VLBI the instrument model is critical to the success of imaging and getting reliable results. For this example we will use the standard instrument model used in polarized EHT analyses expressed in the RIME formalism. Our Jones decomposition will be given by <code>GDR</code>, where <code>G</code> are the complex gains, <code>D</code> are the d-terms, and <code>R</code> is what we call the <em>ideal instrument response</em>, which is how an ideal interferometer using the feed basis we observe relative to some reference basis.</p><p>Given the possible flexibility in different parameterizations of the individual Jones matrices each Jones matrix requires the user to specify a function that converts from parameters to specific parameterization f the jones matrices.</p><p>For the complex gain matrix, we used the <code>JonesG</code> jones matrix. The first argument is now a function that converts from the parameters to the complex gain matrix. In this case, we will use a amplitude and phase decomposition of the complex gain matrix. Note that since the gain matrix is a diagonal 2x2 matrix the function must return a 2-element tuple. The first element of the tuple is the gain for the first polarization feed (R) and the second is the gain for the second polarization feed (L).</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">function</span><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;"> fgain</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(x)</span></span>
+<span class="line"><span>   on grid: </span></span>
+<span class="line"><span>RectiGrid(</span></span>
+<span class="line"><span>executor: ComradeBase.Serial()</span></span>
+<span class="line"><span>Dimensions: </span></span>
+<span class="line"><span>(↓ X Sampled{Float64} LinRange{Float64}(-4.69663253574863e-10, 4.69663253574863e-10, 32) ForwardOrdered Regular Points,</span></span>
+<span class="line"><span>→ Y Sampled{Float64} LinRange{Float64}(-4.69663253574863e-10, 4.69663253574863e-10, 32) ForwardOrdered Regular Points)</span></span>
+<span class="line"><span>)</span></span>
+<span class="line"><span>   )</span></span></code></pre></div><p>Now we build the instrument model. Due to the complexity of VLBI the instrument model is critical to the success of imaging and getting reliable results. For this example we will use the standard instrument model used in polarized EHT analyses expressed in the RIME formalism. Our Jones decomposition will be given by <code>GDR</code>, where <code>G</code> are the complex gains, <code>D</code> are the d-terms, and <code>R</code> is what we call the <em>ideal instrument response</em>, which is how an ideal interferometer using the feed basis we observe relative to some reference basis.</p><p>Given the possible flexibility in different parameterizations of the individual Jones matrices each Jones matrix requires the user to specify a function that converts from parameters to specific parameterization f the jones matrices.</p><p>For the complex gain matrix, we used the <code>JonesG</code> jones matrix. The first argument is now a function that converts from the parameters to the complex gain matrix. In this case, we will use a amplitude and phase decomposition of the complex gain matrix. Note that since the gain matrix is a diagonal 2x2 matrix the function must return a 2-element tuple. The first element of the tuple is the gain for the first polarization feed (R) and the second is the gain for the second polarization feed (L).</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">function</span><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;"> fgain</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(x)</span></span>
 <span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">    gR </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> exp</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(x</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">lgR </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">+</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> 1im</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;"> *</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> x</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">gpR)</span></span>
 <span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">    gL </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> gR </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">*</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> exp</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(x</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">lgrat </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">+</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> 1im</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;"> *</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> x</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">gprat)</span></span>
 <span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">    return</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> gR, gL</span></span>
@@ -185,13 +192,421 @@
 <span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">post </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> VLBIPosterior</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(skym, intmodel, dvis; admode </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> set_runtime_activity</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(Enzyme</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">Reverse))</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>VLBIPosterior</span></span>
 <span class="line"><span>ObservedSkyModel</span></span>
 <span class="line"><span>  with map: sky</span></span>
-<span class="line"><span>   on grid: VLBISkyModels.FourierDualDomainObservedInstrumentModel</span></span>
+<span class="line"><span>   on grid: </span></span>
+<span class="line"><span>FourierDualDomain(</span></span>
+<span class="line"><span>Algorithm: VLBISkyModels.NFFTAlg{Float64, AbstractNFFTs.PrecomputeFlags, UInt32}(1, 1.0e-9, AbstractNFFTs.TENSOR, 0x00000000)</span></span>
+<span class="line"><span>Image Domain: RectiGrid(</span></span>
+<span class="line"><span>executor: ComradeBase.Serial()</span></span>
+<span class="line"><span>Dimensions: </span></span>
+<span class="line"><span>(↓ X Sampled{Float64} LinRange{Float64}(-4.69663253574863e-10, 4.69663253574863e-10, 32) ForwardOrdered Regular Points,</span></span>
+<span class="line"><span>→ Y Sampled{Float64} LinRange{Float64}(-4.69663253574863e-10, 4.69663253574863e-10, 32) ForwardOrdered Regular Points)</span></span>
+<span class="line"><span>)</span></span>
+<span class="line"><span>Visibility Domain: UnstructredDomain(</span></span>
+<span class="line"><span>executor: ComradeBase.Serial()</span></span>
+<span class="line"><span>Dimensions: </span></span>
+<span class="line"><span>189-element StructArray(::Vector{Float64}, ::Vector{Float64}, ::Vector{Float64}, ::Vector{Float64}) with eltype @NamedTuple{U::Float64, V::Float64, Ti::Float64, Fr::Float64}:</span></span>
+<span class="line"><span> (U = -4.404687701333328e9, V = -4.521597269333328e9, Ti = 0.5833333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.427688319999995e9, V = -4.558917845333328e9, Ti = 0.7333333566784859, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.422283775999995e9, V = -4.545737898666661e9, Ti = 0.7333333566784859, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.443824298666661e9, V = -4.596403783111106e9, Ti = 0.8833333253860474, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.444612451555551e9, V = -4.594719701333328e9, Ti = 0.8833333253860474, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.452459235555551e9, V = -4.700912867555551e9, Ti = 1.300000011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.453204522666661e9, V = -4.699246847999995e9, Ti = 1.300000011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.442525923555551e9, V = -4.738497991111106e9, Ti = 1.4500000029802322, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.446617087999995e9, V = -4.727102591999995e9, Ti = 1.4500000029802322, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.373388259555551e9, V = -4.848290346666661e9, Ti = 1.8916667103767395, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.374057457777773e9, V = -4.846647935999995e9, Ti = 1.8916667103767395, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.854972024888887e9, V = -4.900536604444439e9, Ti = 2.0416667461395264, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.33647849244444e9, V = -4.885093333333328e9, Ti = 2.0416667461395264, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.8543247111111093e9, V = -4.898899640888884e9, Ti = 2.0416667461395264, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.337125802666661e9, V = -4.883456426666661e9, Ti = 2.0416667461395264, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.191450481777771e9, V = 1.544323338368054e7, Ti = 2.0416667461395264, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.1988920319999957e9, V = -4.985362616888884e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.9771115377777758e9, V = -3.616703032888885e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.112877287111109e9, V = -4.853924366222218e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.1994733297777734e9, V = -4.983740188444439e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.1122959964444423e9, V = -4.852301823999995e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.9765302328888867e9, V = -3.6150805831111073e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.311769287111104e9, V = -1.3143835066666654e8, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -1.3576575533333316e8, V = 1.2372212337777765e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.176003569777771e9, V = -1.368659580444443e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2020455187692285e9, V = -4.835182867692303e9, Ti = 2.612500011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.023443446153844e9, V = -3.5993280459487143e9, Ti = 2.612500011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2014904845128183e9, V = -4.833565380923072e9, Ti = 2.612500011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.0228883987692285e9, V = -3.5977105394871755e9, Ti = 2.612500011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -1.7860208246153826e8, V = 1.2358548479999986e9, Ti = 2.612500011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.439166364444442e9, V = -4.776837418666661e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.1385755875555534e9, V = -3.547005681777774e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.9131562524444404e9, V = -5.122736583111106e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.438692103111109e9, V = -4.775232839111106e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.913630471111107e9, V = -5.121131932444439e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.1381013582222202e9, V = -3.545401116444441e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.352322559999993e9, V = -3.4589914133333296e8, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.005907564444441e8, V = 1.229831726222221e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.051731839999993e9, V = -1.575730865777776e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.511586922666664e9, V = -4.755918350222218e9, Ti = 3.208333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.170796600888887e9, V = -3.528796735999996e9, Ti = 3.208333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.170351103999998e9, V = -3.5271960746666627e9, Ti = 3.208333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.5111413973333306e9, V = -4.754317681777773e9, Ti = 3.208333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.4079030488888854e8, V = 1.2271216071111097e9, Ti = 3.208333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.554185649777774e9, V = -5.242140615111105e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.691997553777775e9, V = -4.694789262222218e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2425047537777753e9, V = -3.4769514666666627e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2421424639999976e9, V = -3.4753602986666627e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.5545479253333297e9, V = -5.24054941866666e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.6916352782222195e9, V = -4.693198023111106e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.4949279733333284e8, V = 1.2178377671111097e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.246183196444438e9, V = -5.47351347555555e8, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.796690360888883e9, V = -1.7651891164444425e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2622677727179465e9, V = -3.457387467487176e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.7506836742564077e9, V = -4.671151025230764e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.442546884923073e9, V = -5.272523263999994e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.4428772102564063e9, V = -5.270935092512815e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2619374342564077e9, V = -3.455799302564099e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.750353309538459e9, V = -4.66956284061538e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.193230559179481e9, V = -6.013722551794866e8, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.88415901538461e8, V = 1.2137635511794858e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.704814683897429e9, V = -1.8151358063589723e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.063708287999995e9, V = -4.2083771519999957e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.298526215111109e9, V = -3.400051128888885e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.088728042666663e9, V = -5.354635448888883e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.8947912462222195e9, V = -4.600179484444439e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.063473251555551e9, V = -4.206796074666662e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.894556095999997e9, V = -4.598598385777773e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.298291107555553e9, V = -3.398470051555552e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.0889631217777743e9, V = -5.35305430755555e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.1689170879999976e9, V = 3.918022879999996e8, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.983519260444438e9, V = -7.544559466666658e8, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.962650044444438e8, V = 1.2001283235555544e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.7651820871111083e9, V = 8.08326024888888e8, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -8.152436351999991e9, V = -1.1462582471111097e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.38725424355555e9, V = -1.954584263111109e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.20314781866666e9, V = -4.164995278222218e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.303663210666664e9, V = -3.3806049066666627e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.959920895999997e9, V = -5.380193535999994e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.934449208888886e9, V = -4.575548401777773e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.202945521777772e9, V = -4.163416078222218e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.96012315733333e9, V = -5.378614286222217e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.9342469404444413e9, V = -4.573969180444439e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.3034609279999976e9, V = -3.379025671111108e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2686985813333306e9, V = 4.105531208888885e8, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.894370119111105e9, V = -8.046451235555547e8, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.307860088888882e8, V = 1.1949434986666653e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.8994846222222195e9, V = 7.843903822222214e8, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -8.163068671999991e9, V = -1.2151982364444432e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.26358409955555e9, V = -1.9995886115555534e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.54752803555555e9, V = -4.038701703111107e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.299188743111109e9, V = -3.3265329137777743e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.020574414222219e9, V = -4.505591765333328e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.5786923022222195e9, V = -5.445258367999994e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.547500060444439e9, V = -4.0388189439999957e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.545354601411759e9, V = -4.037995941647054e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.299206753882351e9, V = -3.325316984470585e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.0200180856470556e9, V = -4.504489261176466e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.5814593882352915e9, V = -5.443281573647054e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.545326531764701e9, V = -4.0381131670588193e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.5269535999999976e9, V = 4.668900488888884e8, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -7.213856906666659e8, V = 1.179058869333332e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.59926673066666e9, V = -9.396666328888879e8, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.5269256533333306e9, V = 4.667728097777773e8, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.248339306666663e9, V = 7.121688159999993e8, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -8.126220359111103e9, V = -1.406556682666665e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.877881031111106e9, V = -2.1187254968888867e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.248311303111108e9, V = -7.122860568888881e8, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 8.126192398222214e9, V = 1.4064394311111097e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.658309684512815e9, V = -3.9900336836923037e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.658283887589737e9, V = -3.990151154871791e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.0433165062564073e9, V = -4.479256681025637e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.290543504410254e9, V = -3.3066006843076887e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.4295591712820487e9, V = -5.467004468512815e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.658234788102558e9, V = -3.9884589423589706e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.0432416295384583e9, V = -4.477681939692303e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2904686145641003e9, V = -3.305025916717945e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.658209004307686e9, V = -3.9885764069743543e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.429634061128203e9, V = -5.465429700923072e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.614993171692305e9, V = 4.8922299733333284e8, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -7.527729985641018e8, V = 1.1726559999999988e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.472875690666661e9, V = -9.87747757948717e8, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.6149673616410227e9, V = 4.891055195897431e8, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.367766186666663e9, V = 6.834330141538454e8, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -8.087868875487172e9, V = -1.4769707651282036e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.720102662564097e9, V = -2.160403784205126e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.3677403569230733e9, V = -6.835504902564095e8, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 8.087843052307683e9, V = 1.47685327753846e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.037485539555549e9, V = -3.7629412693333297e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.206725866666664e9, V = -3.2192776817777743e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.0838075448888855e9, V = -4.360287900444439e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.037469781333326e9, V = -3.763059541333329e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.037566023111104e9, V = -3.761366407111107e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.083888028444441e9, V = -4.358713059555551e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.206806371555553e9, V = -3.217702819555552e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.037550279111104e9, V = -3.7614846791111073e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.9536779662222195e9, V = 5.973466417777772e8, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -8.77081679999999e8, V = 1.141010222222221e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.953662200888886e9, V = 5.97228362666666e8, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.830759658666662e9, V = 5.436635751111104e8, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.8307439288888845e9, V = -5.43781858666666e8, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.193776597333326e9, V = -3.584673976888885e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.193768718222216e9, V = -3.584792625777774e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.0963110399999979e9, V = -3.1565621119999967e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.04824456533333e9, V = -4.2709149368888845e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.193972479999993e9, V = -3.583095103999996e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.0965068515555534e9, V = -3.154983210666663e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.0484403768888855e9, V = -4.269336042666662e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.193964600888882e9, V = -3.5832137315555515e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.145532039111108e9, V = 6.862409528888881e8, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.145524195555552e9, V = 6.861223146666659e8, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -9.519335111111101e8, V = 1.114352821333332e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.0974655644444404e9, V = 4.2811187466666627e8, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 4.0974577137777734e9, V = -4.2823050222222173e8, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.234329756444438e9, V = -3.385946503111108e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.931031367111109e9, V = -3.0921642239999967e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.234330837333326e9, V = -3.3860652231111073e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.9449131591111083e9, V = -4.1750833208888845e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.234647921777771e9, V = -3.3843593599999967e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.234648903111104e9, V = -3.3844781297777743e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.931349447111109e9, V = -3.090577116444441e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.94523125333333e9, V = -4.1734962275555515e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.289416654222219e9, V = 7.89136849777777e8, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.2894176639999967e9, V = 7.890181191111102e8, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -1.0138817973333323e9, V = 1.0829191111111097e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.303298439111107e9, V = 2.937822586666663e8, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 4.30329948444444e9, V = -2.939009928888886e8, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.151253688888882e9, V = -3.205430023111108e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.7430493191111093e9, V = -3.038615523555552e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.7939210951111083e9, V = -4.091441422222218e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.151262791111104e9, V = -3.205548579555552e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.159540360533327e9, V = -3.2139407530666633e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.804326297599997e9, V = -4.0944362495999956e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.159549064533327e9, V = -3.214059332266663e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.7550084863999982e9, V = -3.039883980799997e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.35733262933333e9, V = 8.86011391999999e8, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -1.0508717404444433e9, V = 1.0528258951111101e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.357341724444441e9, V = 8.858928017777768e8, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.408204373333328e9, V = 1.6681450088888872e8, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 4.408213447111106e9, V = -1.6693308977777758e8, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.086775295999993e9, V = -3.1345589279999967e9, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.719461119999997e9, V = -4.0595089759999957e9, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.6591904159999983e9, V = -3.0189068799999967e9, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.086787583999993e9, V = -3.1346773919999967e9, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.367314207999996e9, V = 9.24950019999999e8, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -1.0602706839999988e9, V = 1.0406020399999988e9, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.367326447999996e9, V = 9.248315599999989e8, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.427584863999995e9, V = 1.1565201249999988e8, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 4.427597119999995e9, V = -1.1577047599999988e8, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span>)</span></span>
+<span class="line"><span>   )</span></span>
+<span class="line"><span>ObservedInstrumentModel</span></span>
 <span class="line"><span>  with Jones: JonesSandwich</span></span>
 <span class="line"><span>  with reference basis: PolarizedTypes.CirBasis()Data Products: Comrade.EHTCoherencyDatum</span></span></code></pre></div><h2 id="Reconstructing-the-Image-and-Instrument-Effects" tabindex="-1">Reconstructing the Image and Instrument Effects <a class="header-anchor" href="#Reconstructing-the-Image-and-Instrument-Effects" aria-label="Permalink to &quot;Reconstructing the Image and Instrument Effects {#Reconstructing-the-Image-and-Instrument-Effects}&quot;">​</a></h2><p>To sample from this posterior, it is convenient to move from our constrained parameter space to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This transformation is done using the <code>asflat</code> function.</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">tpost </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> asflat</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(post)</span></span></code></pre></div><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>TransformedVLBIPosterior(</span></span>
 <span class="line"><span>VLBIPosterior</span></span>
 <span class="line"><span>ObservedSkyModel</span></span>
 <span class="line"><span>  with map: sky</span></span>
-<span class="line"><span>   on grid: VLBISkyModels.FourierDualDomainObservedInstrumentModel</span></span>
+<span class="line"><span>   on grid: </span></span>
+<span class="line"><span>FourierDualDomain(</span></span>
+<span class="line"><span>Algorithm: VLBISkyModels.NFFTAlg{Float64, AbstractNFFTs.PrecomputeFlags, UInt32}(1, 1.0e-9, AbstractNFFTs.TENSOR, 0x00000000)</span></span>
+<span class="line"><span>Image Domain: RectiGrid(</span></span>
+<span class="line"><span>executor: ComradeBase.Serial()</span></span>
+<span class="line"><span>Dimensions: </span></span>
+<span class="line"><span>(↓ X Sampled{Float64} LinRange{Float64}(-4.69663253574863e-10, 4.69663253574863e-10, 32) ForwardOrdered Regular Points,</span></span>
+<span class="line"><span>→ Y Sampled{Float64} LinRange{Float64}(-4.69663253574863e-10, 4.69663253574863e-10, 32) ForwardOrdered Regular Points)</span></span>
+<span class="line"><span>)</span></span>
+<span class="line"><span>Visibility Domain: UnstructredDomain(</span></span>
+<span class="line"><span>executor: ComradeBase.Serial()</span></span>
+<span class="line"><span>Dimensions: </span></span>
+<span class="line"><span>189-element StructArray(::Vector{Float64}, ::Vector{Float64}, ::Vector{Float64}, ::Vector{Float64}) with eltype @NamedTuple{U::Float64, V::Float64, Ti::Float64, Fr::Float64}:</span></span>
+<span class="line"><span> (U = -4.404687701333328e9, V = -4.521597269333328e9, Ti = 0.5833333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.427688319999995e9, V = -4.558917845333328e9, Ti = 0.7333333566784859, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.422283775999995e9, V = -4.545737898666661e9, Ti = 0.7333333566784859, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.443824298666661e9, V = -4.596403783111106e9, Ti = 0.8833333253860474, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.444612451555551e9, V = -4.594719701333328e9, Ti = 0.8833333253860474, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.452459235555551e9, V = -4.700912867555551e9, Ti = 1.300000011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.453204522666661e9, V = -4.699246847999995e9, Ti = 1.300000011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.442525923555551e9, V = -4.738497991111106e9, Ti = 1.4500000029802322, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.446617087999995e9, V = -4.727102591999995e9, Ti = 1.4500000029802322, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.373388259555551e9, V = -4.848290346666661e9, Ti = 1.8916667103767395, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.374057457777773e9, V = -4.846647935999995e9, Ti = 1.8916667103767395, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.854972024888887e9, V = -4.900536604444439e9, Ti = 2.0416667461395264, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.33647849244444e9, V = -4.885093333333328e9, Ti = 2.0416667461395264, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.8543247111111093e9, V = -4.898899640888884e9, Ti = 2.0416667461395264, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.337125802666661e9, V = -4.883456426666661e9, Ti = 2.0416667461395264, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.191450481777771e9, V = 1.544323338368054e7, Ti = 2.0416667461395264, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.1988920319999957e9, V = -4.985362616888884e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.9771115377777758e9, V = -3.616703032888885e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.112877287111109e9, V = -4.853924366222218e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.1994733297777734e9, V = -4.983740188444439e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.1122959964444423e9, V = -4.852301823999995e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.9765302328888867e9, V = -3.6150805831111073e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.311769287111104e9, V = -1.3143835066666654e8, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -1.3576575533333316e8, V = 1.2372212337777765e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.176003569777771e9, V = -1.368659580444443e9, Ti = 2.4583332538604736, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2020455187692285e9, V = -4.835182867692303e9, Ti = 2.612500011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.023443446153844e9, V = -3.5993280459487143e9, Ti = 2.612500011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2014904845128183e9, V = -4.833565380923072e9, Ti = 2.612500011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.0228883987692285e9, V = -3.5977105394871755e9, Ti = 2.612500011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -1.7860208246153826e8, V = 1.2358548479999986e9, Ti = 2.612500011920929, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.439166364444442e9, V = -4.776837418666661e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.1385755875555534e9, V = -3.547005681777774e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.9131562524444404e9, V = -5.122736583111106e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.438692103111109e9, V = -4.775232839111106e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.913630471111107e9, V = -5.121131932444439e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.1381013582222202e9, V = -3.545401116444441e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.352322559999993e9, V = -3.4589914133333296e8, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.005907564444441e8, V = 1.229831726222221e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.051731839999993e9, V = -1.575730865777776e9, Ti = 3.0583332180976868, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.511586922666664e9, V = -4.755918350222218e9, Ti = 3.208333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.170796600888887e9, V = -3.528796735999996e9, Ti = 3.208333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.170351103999998e9, V = -3.5271960746666627e9, Ti = 3.208333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.5111413973333306e9, V = -4.754317681777773e9, Ti = 3.208333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.4079030488888854e8, V = 1.2271216071111097e9, Ti = 3.208333432674408, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.554185649777774e9, V = -5.242140615111105e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.691997553777775e9, V = -4.694789262222218e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2425047537777753e9, V = -3.4769514666666627e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2421424639999976e9, V = -3.4753602986666627e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.5545479253333297e9, V = -5.24054941866666e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.6916352782222195e9, V = -4.693198023111106e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.4949279733333284e8, V = 1.2178377671111097e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.246183196444438e9, V = -5.47351347555555e8, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.796690360888883e9, V = -1.7651891164444425e9, Ti = 3.6249999403953552, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2622677727179465e9, V = -3.457387467487176e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.7506836742564077e9, V = -4.671151025230764e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.442546884923073e9, V = -5.272523263999994e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.4428772102564063e9, V = -5.270935092512815e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2619374342564077e9, V = -3.455799302564099e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.750353309538459e9, V = -4.66956284061538e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.193230559179481e9, V = -6.013722551794866e8, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.88415901538461e8, V = 1.2137635511794858e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.704814683897429e9, V = -1.8151358063589723e9, Ti = 3.7791666984558105, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.063708287999995e9, V = -4.2083771519999957e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.298526215111109e9, V = -3.400051128888885e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.088728042666663e9, V = -5.354635448888883e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.8947912462222195e9, V = -4.600179484444439e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.063473251555551e9, V = -4.206796074666662e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.894556095999997e9, V = -4.598598385777773e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.298291107555553e9, V = -3.398470051555552e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.0889631217777743e9, V = -5.35305430755555e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.1689170879999976e9, V = 3.918022879999996e8, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.983519260444438e9, V = -7.544559466666658e8, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.962650044444438e8, V = 1.2001283235555544e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.7651820871111083e9, V = 8.08326024888888e8, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -8.152436351999991e9, V = -1.1462582471111097e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.38725424355555e9, V = -1.954584263111109e9, Ti = 4.225000083446503, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.20314781866666e9, V = -4.164995278222218e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.303663210666664e9, V = -3.3806049066666627e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.959920895999997e9, V = -5.380193535999994e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.934449208888886e9, V = -4.575548401777773e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.202945521777772e9, V = -4.163416078222218e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.96012315733333e9, V = -5.378614286222217e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.9342469404444413e9, V = -4.573969180444439e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.3034609279999976e9, V = -3.379025671111108e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2686985813333306e9, V = 4.105531208888885e8, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.894370119111105e9, V = -8.046451235555547e8, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -6.307860088888882e8, V = 1.1949434986666653e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.8994846222222195e9, V = 7.843903822222214e8, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -8.163068671999991e9, V = -1.2151982364444432e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.26358409955555e9, V = -1.9995886115555534e9, Ti = 4.374999940395355, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.54752803555555e9, V = -4.038701703111107e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.299188743111109e9, V = -3.3265329137777743e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.020574414222219e9, V = -4.505591765333328e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.5786923022222195e9, V = -5.445258367999994e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.547500060444439e9, V = -4.0388189439999957e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.545354601411759e9, V = -4.037995941647054e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.299206753882351e9, V = -3.325316984470585e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.0200180856470556e9, V = -4.504489261176466e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.5814593882352915e9, V = -5.443281573647054e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.545326531764701e9, V = -4.0381131670588193e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.5269535999999976e9, V = 4.668900488888884e8, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -7.213856906666659e8, V = 1.179058869333332e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.59926673066666e9, V = -9.396666328888879e8, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.5269256533333306e9, V = 4.667728097777773e8, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.248339306666663e9, V = 7.121688159999993e8, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -8.126220359111103e9, V = -1.406556682666665e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.877881031111106e9, V = -2.1187254968888867e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.248311303111108e9, V = -7.122860568888881e8, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 8.126192398222214e9, V = 1.4064394311111097e9, Ti = 4.791666805744171, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.658309684512815e9, V = -3.9900336836923037e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.658283887589737e9, V = -3.990151154871791e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.0433165062564073e9, V = -4.479256681025637e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.290543504410254e9, V = -3.3066006843076887e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.4295591712820487e9, V = -5.467004468512815e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.658234788102558e9, V = -3.9884589423589706e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.0432416295384583e9, V = -4.477681939692303e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.2904686145641003e9, V = -3.305025916717945e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 5.658209004307686e9, V = -3.9885764069743543e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -2.429634061128203e9, V = -5.465429700923072e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.614993171692305e9, V = 4.8922299733333284e8, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -7.527729985641018e8, V = 1.1726559999999988e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -5.472875690666661e9, V = -9.87747757948717e8, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.6149673616410227e9, V = 4.891055195897431e8, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.367766186666663e9, V = 6.834330141538454e8, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -8.087868875487172e9, V = -1.4769707651282036e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.720102662564097e9, V = -2.160403784205126e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.3677403569230733e9, V = -6.835504902564095e8, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 8.087843052307683e9, V = 1.47685327753846e9, Ti = 4.945833384990692, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.037485539555549e9, V = -3.7629412693333297e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.206725866666664e9, V = -3.2192776817777743e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.0838075448888855e9, V = -4.360287900444439e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.037469781333326e9, V = -3.763059541333329e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.037566023111104e9, V = -3.761366407111107e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.083888028444441e9, V = -4.358713059555551e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.206806371555553e9, V = -3.217702819555552e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.037550279111104e9, V = -3.7614846791111073e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.9536779662222195e9, V = 5.973466417777772e8, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -8.77081679999999e8, V = 1.141010222222221e9, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.953662200888886e9, V = 5.97228362666666e8, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -3.830759658666662e9, V = 5.436635751111104e8, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.8307439288888845e9, V = -5.43781858666666e8, Ti = 5.633333265781403, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.193776597333326e9, V = -3.584673976888885e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.193768718222216e9, V = -3.584792625777774e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.0963110399999979e9, V = -3.1565621119999967e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.04824456533333e9, V = -4.2709149368888845e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.193972479999993e9, V = -3.583095103999996e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.0965068515555534e9, V = -3.154983210666663e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.0484403768888855e9, V = -4.269336042666662e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.193964600888882e9, V = -3.5832137315555515e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.145532039111108e9, V = 6.862409528888881e8, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.145524195555552e9, V = 6.861223146666659e8, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -9.519335111111101e8, V = 1.114352821333332e9, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.0974655644444404e9, V = 4.2811187466666627e8, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 4.0974577137777734e9, V = -4.2823050222222173e8, Ti = 6.1499998569488525, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.234329756444438e9, V = -3.385946503111108e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.931031367111109e9, V = -3.0921642239999967e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.234330837333326e9, V = -3.3860652231111073e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.9449131591111083e9, V = -4.1750833208888845e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.234647921777771e9, V = -3.3843593599999967e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.234648903111104e9, V = -3.3844781297777743e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.931349447111109e9, V = -3.090577116444441e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.94523125333333e9, V = -4.1734962275555515e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.289416654222219e9, V = 7.89136849777777e8, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.2894176639999967e9, V = 7.890181191111102e8, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -1.0138817973333323e9, V = 1.0829191111111097e9, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.303298439111107e9, V = 2.937822586666663e8, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 4.30329948444444e9, V = -2.939009928888886e8, Ti = 6.716666579246521, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.151253688888882e9, V = -3.205430023111108e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.7430493191111093e9, V = -3.038615523555552e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.7939210951111083e9, V = -4.091441422222218e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.151262791111104e9, V = -3.205548579555552e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.159540360533327e9, V = -3.2139407530666633e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.804326297599997e9, V = -4.0944362495999956e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.159549064533327e9, V = -3.214059332266663e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.7550084863999982e9, V = -3.039883980799997e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.35733262933333e9, V = 8.86011391999999e8, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -1.0508717404444433e9, V = 1.0528258951111101e9, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.357341724444441e9, V = 8.858928017777768e8, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.408204373333328e9, V = 1.6681450088888872e8, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 4.408213447111106e9, V = -1.6693308977777758e8, Ti = 7.233333349227905, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.086775295999993e9, V = -3.1345589279999967e9, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 2.719461119999997e9, V = -4.0595089759999957e9, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 1.6591904159999983e9, V = -3.0189068799999967e9, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 6.086787583999993e9, V = -3.1346773919999967e9, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.367314207999996e9, V = 9.24950019999999e8, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -1.0602706839999988e9, V = 1.0406020399999988e9, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 3.367326447999996e9, V = 9.248315599999989e8, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = -4.427584863999995e9, V = 1.1565201249999988e8, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span> (U = 4.427597119999995e9, V = -1.1577047599999988e8, Ti = 7.438888907432556, Fr = 2.27070703125e11)</span></span>
+<span class="line"><span>)</span></span>
+<span class="line"><span>   )</span></span>
+<span class="line"><span>ObservedInstrumentModel</span></span>
 <span class="line"><span>  with Jones: JonesSandwich</span></span>
 <span class="line"><span>  with reference basis: PolarizedTypes.CirBasis()Data Products: Comrade.EHTCoherencyDatum</span></span>
 <span class="line"><span>Transform: Params to ℝ^5689</span></span>
@@ -247,7 +662,7 @@
 <span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">fig </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> plotcaltable</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(gampr, gamp_ratio, labels </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> [</span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;R Amp&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, </span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;">&quot;L/R Amp&quot;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">], axis_kwargs </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> (; limits </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> (</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">nothing</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, (</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">0.6</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, </span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">1.3</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">))));</span></span>
 <span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">fig </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">|&gt;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> DisplayAs</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">PNG </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">|&gt;</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> DisplayAs</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">.</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">Text</span></span></code></pre></div><p><img src="/Comrade.jl/dev/assets/PolarizedImaging-67.D748txMP.png" alt=""></p><p>To sample from the posterior, you can then just use the <code>sample</code> function from AdvancedHMC like in the other imaging examples. For example</p><div class="language-julia vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">julia</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">using</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> AdvancedHMC</span></span>
 <span class="line"><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">chain </span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> sample</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(rng, post, </span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">NUTS</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">(</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">0.8</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">), </span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">10_000</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, n_adapts</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">5000</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, progress</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;">true</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">, initial_params</span><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">=</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;">xopt)</span></span></code></pre></div><hr><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl" target="_blank" rel="noreferrer">Literate.jl</a>.</em></p><hr class="footnotes-sep"><section class="footnotes"><ol class="footnotes-list"><li id="fn1" class="footnote-item"><p>Hamaker J.P, Bregman J.D., Sault R.J. (1996) [<a href="https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H" target="_blank" rel="noreferrer">https://articles.adsabs.harvard.edu/pdf/1996A%26AS..117..137H</a>] <a href="#fnref1" class="footnote-backref">↩︎</a></p></li><li id="fn2" class="footnote-item"><p>Pesce D. (2021) [<a href="https://ui.adsabs.harvard.edu/abs/2021AJ....161..178P/abstract" target="_blank" rel="noreferrer">https://ui.adsabs.harvard.edu/abs/2021AJ....161..178P/abstract</a>] <a href="#fnref2" class="footnote-backref">↩︎</a></p></li></ol></section></div></div></main><footer class="VPDocFooter" data-v-83890dd9 data-v-4f9813fa><!--[--><!--]--><div class="edit-info" data-v-4f9813fa><div class="edit-link" data-v-4f9813fa><a class="VPLink link vp-external-link-icon no-icon edit-link-button" href="https://https://github.com/ptiede/Comrade.jl/edit/main/docs/src/tutorials/intermediate/PolarizedImaging.md" target="_blank" rel="noreferrer" data-v-4f9813fa><!--[--><span class="vpi-square-pen edit-link-icon" data-v-4f9813fa></span> Edit this page<!--]--></a></div><!----></div><nav class="prev-next" aria-labelledby="doc-footer-aria-label" data-v-4f9813fa><span class="visually-hidden" id="doc-footer-aria-label" data-v-4f9813fa>Pager</span><div class="pager" data-v-4f9813fa><a class="VPLink link pager-link prev" href="/Comrade.jl/dev/tutorials/intermediate/StokesIImaging" data-v-4f9813fa><!--[--><span class="desc" data-v-4f9813fa>Previous page</span><span class="title" data-v-4f9813fa>Stokes I Simultaneous Image and Instrument Modeling</span><!--]--></a></div><div class="pager" data-v-4f9813fa><a class="VPLink link pager-link next" href="/Comrade.jl/dev/tutorials/advanced/HybridImaging" data-v-4f9813fa><!--[--><span class="desc" data-v-4f9813fa>Next page</span><span class="title" data-v-4f9813fa>Hybrid Imaging of a Black Hole</span><!--]--></a></div></nav></footer><!--[--><!--]--></div></div></div><!--[--><!--]--></div></div><footer class="VPFooter has-sidebar" data-v-a9a9e638 data-v-c970a860><div class="container" data-v-c970a860><p class="message" data-v-c970a860>Made with <a href="https://luxdl.github.io/DocumenterVitepress.jl/dev/" target="_blank"><strong>DocumenterVitepress.jl</strong></a><br></p><p class="copyright" data-v-c970a860>© Copyright 2025.</p></div></footer><!--[--><!--]--></div></div>
-    <script>window.__VP_HASH_MAP__=JSON.parse("{\"api.md\":\"DE6a2K7T\",\"base_api.md\":\"C3O0AZqb\",\"benchmarks.md\":\"BhADEEHp\",\"conventions.md\":\"DfnhyepK\",\"ext_ahmc.md\":\"muzIFyTH\",\"ext_dynesty.md\":\"CFvzAycn\",\"ext_optimization.md\":\"DwoG7gB9\",\"ext_pigeons.md\":\"eHTyyMC-\",\"index.md\":\"D-NHp_6b\",\"interface.md\":\"C1x7skKY\",\"introduction.md\":\"CX0dDJDQ\",\"tutorials_advanced_hybridimaging.md\":\"5XVmcJB9\",\"tutorials_beginner_geometricmodeling.md\":\"BP_E4DdX\",\"tutorials_beginner_loadingdata.md\":\"o3Tllenu\",\"tutorials_index.md\":\"DIBEEswf\",\"tutorials_intermediate_closureimaging.md\":\"Cch3Aavq\",\"tutorials_intermediate_polarizedimaging.md\":\"BSNd38pr\",\"tutorials_intermediate_stokesiimaging.md\":\"WmLFmIrr\",\"vlbi_imaging_problem.md\":\"Dc3bsJr9\"}");window.__VP_SITE_DATA__=JSON.parse("{\"lang\":\"en-US\",\"dir\":\"ltr\",\"title\":\"Comrade.jl\",\"description\":\"Documentation for Comrade.jl\",\"base\":\"/Comrade.jl/dev/\",\"head\":[],\"router\":{\"prefetchLinks\":true},\"appearance\":true,\"themeConfig\":{\"outline\":\"deep\",\"search\":{\"provider\":\"local\",\"options\":{\"detailedView\":true}},\"nav\":[{\"text\":\"Home\",\"link\":\"/index\"},{\"text\":\"Introduction\",\"link\":\"/introduction\"},{\"text\":\"Benchmarks\",\"link\":\"/benchmarks\"},{\"text\":\"Introduction to the VLBI Imaging Problem\",\"link\":\"/vlbi_imaging_problem\"},{\"text\":\"Conventions\",\"link\":\"/conventions\"},{\"text\":\"Tutorials\",\"collapsed\":false,\"items\":[{\"text\":\"Overview\",\"link\":\"/tutorials/index\"},{\"text\":\"Beginner\",\"collapsed\":false,\"items\":[{\"text\":\"Loading Data into Comrade\",\"link\":\"/tutorials/beginner/LoadingData\"},{\"text\":\"Geometric Modeling of EHT Data\",\"link\":\"/tutorials/beginner/GeometricModeling\"}]},{\"text\":\"Intermediate\",\"collapsed\":false,\"items\":[{\"text\":\"Imaging a Black Hole using only Closure Quantities\",\"link\":\"/tutorials/intermediate/ClosureImaging\"},{\"text\":\"Stokes I Simultaneous Image and Instrument Modeling\",\"link\":\"/tutorials/intermediate/StokesIImaging\"},{\"text\":\"Polarized Image and Instrumental Modeling\",\"link\":\"/tutorials/intermediate/PolarizedImaging\"}]},{\"text\":\"Advanced\",\"collapsed\":false,\"items\":[{\"text\":\"Hybrid Imaging of a Black Hole\",\"link\":\"/tutorials/advanced/HybridImaging\"}]}]},{\"text\":\"Extensions\",\"collapsed\":false,\"items\":[{\"text\":\"Optimization Extension\",\"link\":\"/ext/optimization\"},{\"text\":\"AdvancedHMC Extension\",\"link\":\"/ext/ahmc\"},{\"text\":\"Dynesty Extension\",\"link\":\"/ext/dynesty\"},{\"text\":\"Pigeons Extension\",\"link\":\"/ext/pigeons\"}]},{\"text\":\"Base API\",\"link\":\"/base_api\"},{\"text\":\"Comrade API\",\"link\":\"/api\"}],\"sidebar\":[{\"text\":\"Home\",\"link\":\"/index\"},{\"text\":\"Introduction\",\"link\":\"/introduction\"},{\"text\":\"Benchmarks\",\"link\":\"/benchmarks\"},{\"text\":\"Introduction to the VLBI Imaging Problem\",\"link\":\"/vlbi_imaging_problem\"},{\"text\":\"Conventions\",\"link\":\"/conventions\"},{\"text\":\"Tutorials\",\"collapsed\":false,\"items\":[{\"text\":\"Overview\",\"link\":\"/tutorials/index\"},{\"text\":\"Beginner\",\"collapsed\":false,\"items\":[{\"text\":\"Loading Data into Comrade\",\"link\":\"/tutorials/beginner/LoadingData\"},{\"text\":\"Geometric Modeling of EHT Data\",\"link\":\"/tutorials/beginner/GeometricModeling\"}]},{\"text\":\"Intermediate\",\"collapsed\":false,\"items\":[{\"text\":\"Imaging a Black Hole using only Closure Quantities\",\"link\":\"/tutorials/intermediate/ClosureImaging\"},{\"text\":\"Stokes I Simultaneous Image and Instrument Modeling\",\"link\":\"/tutorials/intermediate/StokesIImaging\"},{\"text\":\"Polarized Image and Instrumental Modeling\",\"link\":\"/tutorials/intermediate/PolarizedImaging\"}]},{\"text\":\"Advanced\",\"collapsed\":false,\"items\":[{\"text\":\"Hybrid Imaging of a Black Hole\",\"link\":\"/tutorials/advanced/HybridImaging\"}]}]},{\"text\":\"Extensions\",\"collapsed\":false,\"items\":[{\"text\":\"Optimization Extension\",\"link\":\"/ext/optimization\"},{\"text\":\"AdvancedHMC Extension\",\"link\":\"/ext/ahmc\"},{\"text\":\"Dynesty Extension\",\"link\":\"/ext/dynesty\"},{\"text\":\"Pigeons Extension\",\"link\":\"/ext/pigeons\"}]},{\"text\":\"Base API\",\"link\":\"/base_api\"},{\"text\":\"Comrade API\",\"link\":\"/api\"}],\"editLink\":{\"pattern\":\"https://https://github.com/ptiede/Comrade.jl/edit/main/docs/src/:path\"},\"socialLinks\":[{\"icon\":\"github\",\"link\":\"https://github.com/ptiede/Comrade.jl\"}],\"footer\":{\"message\":\"Made with <a href=\\\"https://luxdl.github.io/DocumenterVitepress.jl/dev/\\\" target=\\\"_blank\\\"><strong>DocumenterVitepress.jl</strong></a><br>\",\"copyright\":\"© Copyright 2025.\"}},\"locales\":{},\"scrollOffset\":134,\"cleanUrls\":true}");</script>
+    <script>window.__VP_HASH_MAP__=JSON.parse("{\"api.md\":\"B7Zoj3Zt\",\"base_api.md\":\"C_uhWZ0O\",\"benchmarks.md\":\"C9jVDWAR\",\"conventions.md\":\"terDaoGI\",\"ext_ahmc.md\":\"-dbaA042\",\"ext_dynesty.md\":\"D2rapjPr\",\"ext_optimization.md\":\"yEaWeEuM\",\"ext_pigeons.md\":\"BV2S2qDo\",\"index.md\":\"DPh-HKIm\",\"interface.md\":\"i0GW1mHJ\",\"introduction.md\":\"DXbg8n8n\",\"tutorials_advanced_hybridimaging.md\":\"tzK72AtF\",\"tutorials_beginner_geometricmodeling.md\":\"Ckoxca99\",\"tutorials_beginner_loadingdata.md\":\"DI3NVb6V\",\"tutorials_index.md\":\"BHZAkwWH\",\"tutorials_intermediate_closureimaging.md\":\"BllSx278\",\"tutorials_intermediate_polarizedimaging.md\":\"aECjha9Z\",\"tutorials_intermediate_stokesiimaging.md\":\"j58fHpNN\",\"vlbi_imaging_problem.md\":\"DZWj4UjG\"}");window.__VP_SITE_DATA__=JSON.parse("{\"lang\":\"en-US\",\"dir\":\"ltr\",\"title\":\"Comrade.jl\",\"description\":\"Documentation for Comrade.jl\",\"base\":\"/Comrade.jl/dev/\",\"head\":[],\"router\":{\"prefetchLinks\":true},\"appearance\":true,\"themeConfig\":{\"outline\":\"deep\",\"search\":{\"provider\":\"local\",\"options\":{\"detailedView\":true}},\"nav\":[{\"text\":\"Home\",\"link\":\"/index\"},{\"text\":\"Introduction\",\"link\":\"/introduction\"},{\"text\":\"Benchmarks\",\"link\":\"/benchmarks\"},{\"text\":\"Introduction to the VLBI Imaging Problem\",\"link\":\"/vlbi_imaging_problem\"},{\"text\":\"Conventions\",\"link\":\"/conventions\"},{\"text\":\"Tutorials\",\"collapsed\":false,\"items\":[{\"text\":\"Overview\",\"link\":\"/tutorials/index\"},{\"text\":\"Beginner\",\"collapsed\":false,\"items\":[{\"text\":\"Loading Data into Comrade\",\"link\":\"/tutorials/beginner/LoadingData\"},{\"text\":\"Geometric Modeling of EHT Data\",\"link\":\"/tutorials/beginner/GeometricModeling\"}]},{\"text\":\"Intermediate\",\"collapsed\":false,\"items\":[{\"text\":\"Imaging a Black Hole using only Closure Quantities\",\"link\":\"/tutorials/intermediate/ClosureImaging\"},{\"text\":\"Stokes I Simultaneous Image and Instrument Modeling\",\"link\":\"/tutorials/intermediate/StokesIImaging\"},{\"text\":\"Polarized Image and Instrumental Modeling\",\"link\":\"/tutorials/intermediate/PolarizedImaging\"}]},{\"text\":\"Advanced\",\"collapsed\":false,\"items\":[{\"text\":\"Hybrid Imaging of a Black Hole\",\"link\":\"/tutorials/advanced/HybridImaging\"}]}]},{\"text\":\"Extensions\",\"collapsed\":false,\"items\":[{\"text\":\"Optimization Extension\",\"link\":\"/ext/optimization\"},{\"text\":\"AdvancedHMC Extension\",\"link\":\"/ext/ahmc\"},{\"text\":\"Dynesty Extension\",\"link\":\"/ext/dynesty\"},{\"text\":\"Pigeons Extension\",\"link\":\"/ext/pigeons\"}]},{\"text\":\"Base API\",\"link\":\"/base_api\"},{\"text\":\"Comrade API\",\"link\":\"/api\"}],\"sidebar\":[{\"text\":\"Home\",\"link\":\"/index\"},{\"text\":\"Introduction\",\"link\":\"/introduction\"},{\"text\":\"Benchmarks\",\"link\":\"/benchmarks\"},{\"text\":\"Introduction to the VLBI Imaging Problem\",\"link\":\"/vlbi_imaging_problem\"},{\"text\":\"Conventions\",\"link\":\"/conventions\"},{\"text\":\"Tutorials\",\"collapsed\":false,\"items\":[{\"text\":\"Overview\",\"link\":\"/tutorials/index\"},{\"text\":\"Beginner\",\"collapsed\":false,\"items\":[{\"text\":\"Loading Data into Comrade\",\"link\":\"/tutorials/beginner/LoadingData\"},{\"text\":\"Geometric Modeling of EHT Data\",\"link\":\"/tutorials/beginner/GeometricModeling\"}]},{\"text\":\"Intermediate\",\"collapsed\":false,\"items\":[{\"text\":\"Imaging a Black Hole using only Closure Quantities\",\"link\":\"/tutorials/intermediate/ClosureImaging\"},{\"text\":\"Stokes I Simultaneous Image and Instrument Modeling\",\"link\":\"/tutorials/intermediate/StokesIImaging\"},{\"text\":\"Polarized Image and Instrumental Modeling\",\"link\":\"/tutorials/intermediate/PolarizedImaging\"}]},{\"text\":\"Advanced\",\"collapsed\":false,\"items\":[{\"text\":\"Hybrid Imaging of a Black Hole\",\"link\":\"/tutorials/advanced/HybridImaging\"}]}]},{\"text\":\"Extensions\",\"collapsed\":false,\"items\":[{\"text\":\"Optimization Extension\",\"link\":\"/ext/optimization\"},{\"text\":\"AdvancedHMC Extension\",\"link\":\"/ext/ahmc\"},{\"text\":\"Dynesty Extension\",\"link\":\"/ext/dynesty\"},{\"text\":\"Pigeons Extension\",\"link\":\"/ext/pigeons\"}]},{\"text\":\"Base API\",\"link\":\"/base_api\"},{\"text\":\"Comrade API\",\"link\":\"/api\"}],\"editLink\":{\"pattern\":\"https://https://github.com/ptiede/Comrade.jl/edit/main/docs/src/:path\"},\"socialLinks\":[{\"icon\":\"github\",\"link\":\"https://github.com/ptiede/Comrade.jl\"}],\"footer\":{\"message\":\"Made with <a href=\\\"https://luxdl.github.io/DocumenterVitepress.jl/dev/\\\" target=\\\"_blank\\\"><strong>DocumenterVitepress.jl</strong></a><br>\",\"copyright\":\"© Copyright 2025.\"}},\"locales\":{},\"scrollOffset\":134,\"cleanUrls\":true}");</script>
     
   </body>
 </html>
