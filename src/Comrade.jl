@@ -65,7 +65,7 @@ import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
     amplitudemap
 include("observations/observations.jl")
 include("instrument/instrument.jl")
-include("skymodels/models.jl")
+include("skymodels/abstract.jl")
 include("posterior/abstract.jl")
 include("inference/inference.jl")
 include("visualizations/visualizations.jl")
