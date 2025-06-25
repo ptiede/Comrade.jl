@@ -139,7 +139,7 @@ end
 
 
         x = rand(Comrade.NamedDist(ptot))
-        
+
         oskym, = Comrade.set_array(skym, arrayconfig(vis))
         oskyf, = Comrade.set_array(skyf, arrayconfig(vis))
 

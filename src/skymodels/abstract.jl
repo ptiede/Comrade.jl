@@ -31,7 +31,7 @@ function Base.show(io::IO, mime::MIME"text/plain", m::AbstractSkyModel)
     # SGT = split("$GT", '{')[1]
     print(io, "   on grid: \n")
     show(io, mime, domain(m))
-    print(io, "\n   )\n")
+    return print(io, "\n   )\n")
 end
 
 skymodel(m::AbstractSkyModel) = getfield(m, :f)

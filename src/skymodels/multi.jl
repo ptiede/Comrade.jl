@@ -41,7 +41,7 @@ function idealvisibilities(m::MultiSkyModel{N}, x) where {N}
     sm = m.skymodels
     vis = map(N) do n
         Base.@_inline_meta
-        @inline idealvisibilities(getproperty(sm, n), (;sky = getproperty(x.sky, n)))
+        @inline idealvisibilities(getproperty(sm, n), (; sky = getproperty(x.sky, n)))
     end
     return reduce(+, vis)
 end

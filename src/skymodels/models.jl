@@ -1,7 +1,6 @@
 export SkyModel, FixedSkyModel
 
 
-
 struct SkyModel{F, P, G <: AbstractDomain, A <: FourierTransform, M} <: AbstractSkyModel
     f::F
     prior::P
@@ -43,7 +42,6 @@ end
 function VLBISkyModels.FourierDualDomain(grid::AbstractRectiGrid, array::AbstractArrayConfiguration, alg::FourierTransform; executor = Serial())
     return FourierDualDomain(grid, domain(array; executor), alg)
 end
-
 
 
 # If we are using a analytic model then we don't need to plan the FT and we
