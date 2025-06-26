@@ -642,6 +642,7 @@ end
 
     @testset "Hypercube Instrument" begin
         _, dvis, amp, lcamp, cphase, dcoh = load_data()
+        G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
 
         @testset "standard" begin
             intprior = (
