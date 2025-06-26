@@ -136,7 +136,7 @@ end
 
 intpr = (
     lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    gp = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+    gp = ArrayPrior(IIDSitePrior(ScanSeg(), Uniform(0.0, 2π)); refant = SEFDReference(0.0), phase = true),
 )
 intmodel = InstrumentModel(G, intpr)
 
