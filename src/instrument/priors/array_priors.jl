@@ -52,8 +52,8 @@ Base.length(d::ObservedArrayPrior) = length(d.dists)
 Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists._logpdf(d.dists, parent(x))
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
 function asflat(d::ObservedArrayPrior)
-    d.phase && MarkovInstrumentTransform(ascube(d.dists), d.sitemap)
-    return InstrumentTransform(ascube(d.dists), d.sitemap)
+    d.phase && MarkovInstrumentTransform(asflat(d.dists), d.sitemap)
+    return InstrumentTransform(asflat(d.dists), d.sitemap)
 end
 
 function ascube(d::ObservedArrayPrior)
