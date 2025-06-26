@@ -162,7 +162,6 @@ function HypercubeTransform._step_inverse!(y::AbstractVector, index, t::Partiall
 end
 
 
-
 TV.inverse_eltype(t::PartiallyFixedTransform, y) = TV.inverse_eltype(t.transform, y)
 
 

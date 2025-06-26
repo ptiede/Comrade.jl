@@ -30,10 +30,6 @@ function HypercubeTransform._step_transform(m::AbstractInstrumentTransform, x, i
 end
 
 
-
-
-
-
 struct InstrumentTransform{T, L <: SiteLookup} <: AbstractInstrumentTransform
     inner_transform::T
     site_map::L
