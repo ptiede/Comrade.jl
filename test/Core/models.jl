@@ -643,7 +643,7 @@ end
     @testset "Hypercube Instrument" begin
         _, dvis, amp, lcamp, cphase, dcoh = load_data()
 
-        @testset "standard" begin 
+        @testset "standard" begin
             intprior = (
                 lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
                 gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0)),
@@ -651,7 +651,7 @@ end
 
             intprior_mar = (
                 lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-                gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0), phase=true),
+                gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
             )
 
 
@@ -662,7 +662,7 @@ end
             cpost = ascube(post)
             x = prior_sample(cpost)
             p = Comrade.transform(cpost, x)
-            @test all(x->0<x<1, x)
+            @test all(x -> 0 < x < 1, x)
 
             l1 = logdensityof(cpost, x)
             l2 = Comrade.loglikelihood(post, p)
@@ -674,7 +674,7 @@ end
 
             intprior = (
                 lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-                gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0), phase=true),
+                gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
             )
 
             intm = InstrumentModel(G, intprior)
@@ -684,7 +684,7 @@ end
             cpost = ascube(post)
             x = prior_sample(cpost)
             p = Comrade.transform(cpost, x)
-            @test all(x->0<x<1, x)
+            @test all(x -> 0 < x < 1, x)
 
             l1 = logdensityof(cpost, x)
             l2 = Comrade.loglikelihood(post, p)

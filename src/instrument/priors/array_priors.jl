@@ -56,7 +56,7 @@ function asflat(d::ObservedArrayPrior)
     return InstrumentTransform(ascube(d.dists), d.sitemap)
 end
 
-function ascube(d::ObservedArrayPrior) 
+function ascube(d::ObservedArrayPrior)
     d.phase && return MarkovInstrumentTransform(ascube(d.dists), d.sitemap)
     return InstrumentTransform(ascube(d.dists), d.sitemap)
 end
