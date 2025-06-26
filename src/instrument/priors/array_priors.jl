@@ -52,13 +52,14 @@ Base.length(d::ObservedArrayPrior) = length(d.dists)
 Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists._logpdf(d.dists, parent(x))
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
 function asflat(d::ObservedArrayPrior)
-    if d.phase
-        return MarkovInstrumentTransform(asflat(d.dists), d.sitemap)
-    else
-        return InstrumentTransform(asflat(d.dists), d.sitemap)
-    end
+    d.phase && MarkovInstrumentTransform(ascube(d.dists), d.sitemap)
+    return InstrumentTransform(ascube(d.dists), d.sitemap)
 end
-ascube(d::ObservedArrayPrior) = InstrumentTransform(ascube(d.dists), d.sitemap)
+
+function ascube(d::ObservedArrayPrior) 
+    d.phase && return MarkovInstrumentTransform(ascube(d.dists), d.sitemap)
+    return InstrumentTransform(ascube(d.dists), d.sitemap)
+end
 
 function build_sitemap(d::ArrayPrior, array)
     # construct the site by site prior
