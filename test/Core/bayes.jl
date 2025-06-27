@@ -244,3 +244,53 @@ end
     end
 
 end
+
+@testset "FixedSkyModel" begin
+    _, vis, amp, lcamp, cphase = load_data()
+
+    G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
+    intm = InstrumentModel(
+        G, (
+            lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+        )
+    )
+
+    f = test_model
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    skym = SkyModel(f, test_prior(), g)
+
+    x = rand(Comrade.NamedDist(test_prior()))
+    m = Comrade.skymodel(skym, x)
+    skyf = FixedSkyModel(m, g)
+
+    @testset "With Instrument Model" begin
+        post = VLBIPosterior(skyf, intm, vis)
+        prior_sample(post)
+        tpostf = asflat(post)
+        tpostc = ascube(post)
+
+        xf = prior_sample(tpostf)
+        xc = prior_sample(tpostc)
+
+        logdensityof(tpostf, xf)
+        logdensityof(tpostc, xc)
+    end
+
+    @testset "No Instrument Model" begin
+        post = VLBIPosterior(skyf, lcamp, cphase)
+        prior_sample(post) == (;)
+        tpostf = asflat(post)
+        tpostc = ascube(post)
+
+        xf = prior_sample(tpostf)
+        xc = prior_sample(tpostc)
+
+        l1 = logdensityof(tpostf, xf)
+        l2 = logdensityof(tpostc, xc)
+
+        @test l1 ≈ l2
+    end
+
+
+end

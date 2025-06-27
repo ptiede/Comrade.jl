@@ -30,9 +30,9 @@ end
 
 function ObservedSkyModel(m::FixedSkyModel, arr::AbstractArrayConfiguration)
     gfour = FourierDualDomain(m.grid, arr, m.algorithm)
-    img = intensitymap(m.model, gfour)
+    # img = intensitymap(m.model, gfour)
     vis = visibilitymap(m.model, gfour)
-    return ObservedSkyModel(m, gfour, (; img, vis))
+    return ObservedSkyModel(m, gfour, (; m.model, vis))
 end
 
 function set_prior(::FixedSkyModel, ::AbstractArrayConfiguration)

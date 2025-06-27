@@ -38,7 +38,7 @@ skymodel(m::AbstractSkyModel) = getfield(m, :f)
 
 
 function set_array(m::AbstractSkyModel, array::AbstractArrayConfiguration)
-    return ObservedSkyModel(m, array), set_prior(m, array)
+    return ObservedSkyModel(m, array), NamedDist(set_prior(m, array))
 end
 
 function domain(m::AbstractSkyModel; kwargs...)
