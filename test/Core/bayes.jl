@@ -289,7 +289,7 @@ end
         l1 = logdensityof(tpostf, xf)
         l2 = logdensityof(tpostc, xc)
 
-        @test l1 ≈ l2 
+        @test l1 ≈ l2
     end
 
 
