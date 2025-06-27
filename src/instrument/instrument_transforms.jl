@@ -2,6 +2,7 @@ abstract type AbstractInstrumentTransform <: TV.VectorTransform end
 site_map(t::AbstractInstrumentTransform) = t.site_map
 EnzymeRules.inactive(::typeof(site_map), args...) = nothing
 inner_transform(t::AbstractInstrumentTransform) = t.inner_transform
+ascube(t::AbstractInstrumentTransform) = t
 
 function TV.transform_with(flag::TV.LogJacFlag, m::AbstractInstrumentTransform, x, index)
     y, ℓ, index = _instrument_transform_with(flag, m, x, index)
@@ -15,6 +16,17 @@ EnzymeRules.inactive_type(::Type{AbstractArray{<:FrequencyChannel}}) = true
 function TV.inverse_at!(x::AbstractArray, index, t::AbstractInstrumentTransform, y::SiteArray)
     itrf = inner_transform(t)
     return TV.inverse_at!(x, index, itrf, parent(y))
+end
+
+function HypercubeTransform._step_inverse!(y::AbstractVector, index, t::AbstractInstrumentTransform, x)
+    itrf = inner_transform(t)
+    return HypercubeTransform._step_inverse!(y, index, itrf, parent(x))
+end
+
+function HypercubeTransform._step_transform(m::AbstractInstrumentTransform, x, index)
+    y, index = _hc_instrument_transform_with(m, x, index)
+    sm = site_map(m)
+    return SiteArray(y, sm), index
 end
 
 
@@ -41,6 +53,12 @@ TV.dimension(m::AbstractInstrumentTransform) = TV.dimension(inner_transform(m))
     return TV.transform_with(flag, itrf, x, index)
 end
 
+@inline function _hc_instrument_transform_with(m::InstrumentTransform, x, index)
+    itrf = inner_transform(m)
+    return HypercubeTransform._step_transform(itrf, x, index)
+end
+
+
 function branchcut(x::T) where {T}
     xmod = mod2pi(x)
     return xmod > π ? xmod - convert(T, 2π) : xmod
@@ -53,6 +71,15 @@ end
     yout .= branchcut.(yout)
     return yout, ℓ, index
 end
+
+@inline function _hc_instrument_transform_with(m::MarkovInstrumentTransform, x, index)
+    (; inner_transform, site_map) = m
+    y, index = HypercubeTransform._step_transform(inner_transform, x, index)
+    yout = site_sum(y, site_map)
+    yout .= branchcut.(yout)
+    return yout, index
+end
+
 
 EnzymeRules.inactive_type(::Type{<:SiteLookup}) = true
 

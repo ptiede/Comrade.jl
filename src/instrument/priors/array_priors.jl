@@ -52,13 +52,14 @@ Base.length(d::ObservedArrayPrior) = length(d.dists)
 Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists._logpdf(d.dists, parent(x))
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
 function asflat(d::ObservedArrayPrior)
-    if d.phase
-        return MarkovInstrumentTransform(asflat(d.dists), d.sitemap)
-    else
-        return InstrumentTransform(asflat(d.dists), d.sitemap)
-    end
+    d.phase && MarkovInstrumentTransform(asflat(d.dists), d.sitemap)
+    return InstrumentTransform(asflat(d.dists), d.sitemap)
 end
-ascube(d::ObservedArrayPrior) = InstrumentTransform(ascube(d.dists), d.sitemap)
+
+function ascube(d::ObservedArrayPrior)
+    d.phase && return MarkovInstrumentTransform(ascube(d.dists), d.sitemap)
+    return InstrumentTransform(ascube(d.dists), d.sitemap)
+end
 
 function build_sitemap(d::ArrayPrior, array)
     # construct the site by site prior
@@ -144,21 +145,23 @@ function TV.transform_with(flag::TV.LogJacFlag, t::PartiallyFixedTransform, x, i
     return yfv, ℓ, index
 end
 
-# function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(TV.transform_with), flag, t::PartiallyFixedTransform, x, index)
-#     (y, ℓ, index), dt = rrule_via_ad(config, TV.transform_with, flag, t.transform, x, index)
-#     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
-#     yfv[t.variate_index] .= y
-#     yfv[t.fixed_index] .= t.fixed_values
-#     function _partially_fixed_transform_pullback(Δ)
-#         Δy = @view(Δ[1][t.variate_index])
-#         return dt((Δy, Δ[2], Δ[3]))
-#     end
-#     return (yfv, ℓ, index), _partially_fixed_transform_pullback
-# end
 
 function TV.inverse_at!(x::AbstractArray, index, t::PartiallyFixedTransform, y)
     return TV.inverse_at!(x, index, t.transform, y[t.variate_index])
 end
+
+function HypercubeTransform._step_transform(t::PartiallyFixedTransform, x, index)
+    y, index = HypercubeTransform._step_transform(t.transform, x, index)
+    yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
+    yfv[t.variate_index] .= y
+    yfv[t.fixed_index] .= t.fixed_values
+    return yfv, index
+end
+
+function HypercubeTransform._step_inverse!(y::AbstractVector, index, t::PartiallyFixedTransform, x)
+    return HypercubeTransform._step_inverse!(y, index, t.transform, x[t.variate_index])
+end
+
 
 TV.inverse_eltype(t::PartiallyFixedTransform, y) = TV.inverse_eltype(t.transform, y)
 
@@ -189,7 +192,7 @@ function Distributions._rand!(rng::AbstractRNG, d::PartiallyConditionedDist, x::
 end
 
 HypercubeTransform.asflat(t::PartiallyConditionedDist) = PartiallyFixedTransform(asflat(t.dist), t.variate_index, t.fixed_index, t.fixed_values)
-
+HypercubeTransform.ascube(t::PartiallyConditionedDist) = PartiallyFixedTransform(ascube(t.dist), t.variate_index, t.fixed_index, t.fixed_values)
 
 function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroid_station)
     ts = smap.times

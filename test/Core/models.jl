@@ -640,6 +640,61 @@ end
 
     end
 
+    @testset "Hypercube Instrument" begin
+        _, dvis, amp, lcamp, cphase, dcoh = load_data()
+        G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
+
+        @testset "standard" begin
+            intprior = (
+                lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+                gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0)),
+            )
+
+            intprior_mar = (
+                lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+                gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+            )
+
+
+            intm = InstrumentModel(G, intprior)
+            skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256))
+            post = VLBIPosterior(skym, intm, dvis)
+
+            cpost = ascube(post)
+            x = prior_sample(cpost)
+            p = Comrade.transform(cpost, x)
+            @test all(x -> 0 < x < 1, x)
+
+            l1 = logdensityof(cpost, x)
+            l2 = Comrade.loglikelihood(post, p)
+
+            @test l1 ≈ l2
+        end
+
+        @testset "markov" begin
+
+            intprior = (
+                lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+                gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+            )
+
+            intm = InstrumentModel(G, intprior)
+            skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256))
+            post = VLBIPosterior(skym, intm, dvis)
+
+            cpost = ascube(post)
+            x = prior_sample(cpost)
+            p = Comrade.transform(cpost, x)
+            @test all(x -> 0 < x < 1, x)
+
+            l1 = logdensityof(cpost, x)
+            l2 = Comrade.loglikelihood(post, p)
+
+            @test l1 ≈ l2
+        end
+
+    end
+
     @testset "Integration" begin
         _, dvis, amp, lcamp, cphase, dcoh = load_data()
         ts = Comrade.timestamps(ScanSeg(), arrayconfig(dvis))
