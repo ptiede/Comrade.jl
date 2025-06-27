@@ -157,11 +157,11 @@ function _process_samples(pt, tpost, next, time, nscans, out, outbase, outdir, i
     )
 
     serialize(outbase * (@sprintf "%05d.jls" iter), (samples = Comrade.postsamples(s), stats = Comrade.samplerstats(s)))
-    # chain = nothing
-    # samples = nothing
-    # stats = nothing
-    # s = nothing
-    # GC.gc()
+    chain = nothing
+    samples = nothing
+    stats = nothing
+    s = nothing
+    GC.gc(true)
     iter += 1
     serialize(joinpath(outdir, "checkpoint.jls"), (; pt, state, out, iter))
     return state, iter
