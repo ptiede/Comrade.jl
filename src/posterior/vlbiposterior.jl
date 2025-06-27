@@ -69,7 +69,6 @@ function VLBIPosterior(
     array = arrayconfig(dataproducts[begin])
     int, intprior = set_array(instrumentmodel, array)
     sky, skyprior = set_array(skymodel, array)
-
     total_prior = combine_prior(skyprior, intprior)
 
     ls = Tuple(map(makelikelihood, dataproducts))
@@ -90,27 +89,18 @@ function combine_prior(skyprior, instrumentmodelprior)
     return NamedDist((sky = skyprior, instrument = instrumentmodelprior))
 end
 
-function combine_prior(skymodel, ::Tuple{})
-    return NamedDist((sky = skymodel,))
-end
-
-function combine_prior(skymodel::NamedDist{()}, intmodel::Tuple{})
-    return NamedDist()
-end
-
-
-function combine_prior(skymodel, ::NamedDist{()})
-    return NamedDist((sky = skymodel,))
-end
-
-
-function combine_prior(::Tuple{}, instrumentmodel)
-    return NamedDist((; instrument = instrumentmodel))
+function combine_prior(skymodel, ::NamedTuple{()})
+    return NamedDist((;sky = skymodel,))
 end
 
 function combine_prior(::NamedTuple{()}, instrumentmodel)
     return NamedDist((; instrument = instrumentmodel))
 end
+
+function combine_prior(::NamedTuple{()}, ::NamedTuple{()})
+    return NamedDist()
+end
+
 
 
 function Base.show(io::IO, mime::MIME"text/plain", post::VLBIPosterior)
@@ -146,7 +136,7 @@ function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; 
     end
     configs = map(arrayconfig, post.data)
     data = post.data
-    return map(eachindex(ms, configs)) do i
+    return ntuple(length(data)) do i
         di = data[i]
         return EHTObservationTable{datumtype(di)}(ms[i], noise(di), configs[i])
     end

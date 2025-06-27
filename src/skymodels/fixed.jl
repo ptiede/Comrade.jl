@@ -36,7 +36,7 @@ function ObservedSkyModel(m::FixedSkyModel, arr::AbstractArrayConfiguration)
 end
 
 function set_prior(::FixedSkyModel, ::AbstractArrayConfiguration)
-    return NamedTuple()
+    return (;)
 end
 
 function idealvisibilities(m::ObservedSkyModel{<:FixedSkyModel}, x)

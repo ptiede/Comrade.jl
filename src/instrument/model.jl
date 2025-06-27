@@ -157,7 +157,7 @@ function set_array(int::InstrumentModel, array::AbstractArrayConfiguration)
     # 1. preallocate and jones matrices
     Jpre = preallocate_jones(jones, array, refbasis)
     # 2. construct the prior with the array you have
-    prior_obs = NamedDist(map(x -> ObservedArrayPrior(x, array), prior))
+    prior_obs = (map(x -> ObservedArrayPrior(x, array), prior))
     # 3. construct the baseline site map for each prior
     x = rand(prior_obs)
     bsitemaps = map(x -> _construct_baselinemap(array, x), x)
@@ -166,7 +166,7 @@ function set_array(int::InstrumentModel, array::AbstractArrayConfiguration)
 end
 
 function set_array(int::IdealInstrumentModel, ::AbstractArrayConfiguration)
-    return (int, ())
+    return (int, ((;)))
 end
 
 struct BaselineSiteLookup{V <: AbstractArray{<:Integer}}

@@ -32,6 +32,8 @@ abstract type AbstractVLBIPosterior end
 Computes the log-prior of the posterior `d` with parameters `θ`.
 """
 logprior(d::AbstractVLBIPosterior, θ) = logdensityof(d.prior, θ)
+logprior(d::AbstractVLBIPosterior, ::NamedTuple{()}) = zero(eltype(d.data[1].config.datatable.U))
+
 LogDensityProblems.logdensity(d::AbstractVLBIPosterior, θ) = logdensityof(d, θ)
 LogDensityProblems.dimension(d::AbstractVLBIPosterior) = dimension(d)
 LogDensityProblems.capabilities(::Type{<:AbstractVLBIPosterior}) = LogDensityProblems.LogDensityOrder{0}()
