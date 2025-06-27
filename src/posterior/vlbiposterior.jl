@@ -90,7 +90,7 @@ function combine_prior(skyprior, instrumentmodelprior)
 end
 
 function combine_prior(skymodel, ::NamedDist{()})
-    return NamedDist((;sky = skymodel,))
+    return NamedDist((; sky = skymodel))
 end
 
 function combine_prior(::NamedDist{()}, instrumentmodel)
@@ -100,7 +100,6 @@ end
 function combine_prior(::NamedDist{()}, ::NamedDist{()})
     return NamedDist()
 end
-
 
 
 function Base.show(io::IO, mime::MIME"text/plain", post::VLBIPosterior)
