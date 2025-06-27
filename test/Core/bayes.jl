@@ -269,6 +269,28 @@ end
         prior_sample(post)
         tpostf = asflat(post)
         tpostc = ascube(post)
+
+        xf = prior_sample(tpostf)
+        xc = prior_sample(tpostc)
+
+        logdensityof(tpostf, xf)
+        logdensityof(tpostc, xc)
     end
+
+    @testset "No Instrument Model" begin
+        post = VLBIPosterior(skyf, lcamp, cphase)
+        prior_sample(post) == (;)
+        tpostf = asflat(post)
+        tpostc = ascube(post)
+
+        xf = prior_sample(tpostf)
+        xc = prior_sample(tpostc)
+
+        l1 = logdensityof(tpostf, xf)
+        l2 = logdensityof(tpostc, xc)
+
+        @test l1 ≈ l2 
+    end
+
 
 end
