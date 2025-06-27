@@ -138,7 +138,7 @@ end
         show(IOBuffer(), MIME"text/plain"(), skytot)
 
 
-        x = rand(Comrade.NamedDist(ptot))
+        x = rand(ptot)
 
         oskym, = Comrade.set_array(skym, arrayconfig(vis))
         oskyf, = Comrade.set_array(skyf, arrayconfig(vis))
