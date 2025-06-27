@@ -89,15 +89,15 @@ function combine_prior(skyprior, instrumentmodelprior)
     return NamedDist((sky = skyprior, instrument = instrumentmodelprior))
 end
 
-function combine_prior(skymodel, ::NamedTuple{()})
+function combine_prior(skymodel, ::NamedDist{()})
     return NamedDist((;sky = skymodel,))
 end
 
-function combine_prior(::NamedTuple{()}, instrumentmodel)
+function combine_prior(::NamedDist{()}, instrumentmodel)
     return NamedDist((; instrument = instrumentmodel))
 end
 
-function combine_prior(::NamedTuple{()}, ::NamedTuple{()})
+function combine_prior(::NamedDist{()}, ::NamedDist{()})
     return NamedDist()
 end
 
