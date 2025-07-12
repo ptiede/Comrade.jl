@@ -105,8 +105,36 @@ but the order of the symbols does not matter.
 """
 function select_baseline(dvis, bl::Tuple{Symbol, Symbol})
     cond(x) = ((x.baseline.sites == bl) || (x.baseline.sites == reverse(bl)))
-    return filter(cond, dvis)
+    fl = filter(cond, dvis)
+    dt = map(datatable(fl)) do d
+        si = d.baseline.sites
+        si != bl && return flipbaseline(d)
+        return d
+    end
+    return rebuild(fl, dt)
 end
+
+function flipbaseline(datum::EHTCoherencyDatum)
+    return EHTCoherencyDatum(
+        datum.measurement',
+        datum.noise',
+        flipbaseline(datum.baseline)
+    )
+end
+
+function flipbaseline(datum::EHTVisibilityDatum)
+    return EHTCoherencyDatum(
+        conj(datum.measurement),
+        conj(datum.noise),
+        flipbaseline(datum.baseline)
+    )
+end
+
+function flipbaseline(datum::EHTVisibilityAmplitudeDatum)
+    return datum
+end
+
+
 
 
 """

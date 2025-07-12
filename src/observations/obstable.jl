@@ -154,7 +154,7 @@ function VLBISkyModels.rebuild(data::EHTObservationTable{T}, newtable) where {T}
     s = newtable.noise
     b = newtable.baseline
     newconf = rebuild(arrayconfig(data), b)
-    return EHTObservationTable{T}(m, s, newconf)
+    return EHTObservationTable{eltype(newtable)}(m, s, newconf)
 end
 
 function Base.show(io::IO, d::EHTObservationTable{F}) where {F}
