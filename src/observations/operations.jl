@@ -135,8 +135,6 @@ function flipbaseline(datum::EHTVisibilityAmplitudeDatum)
 end
 
 
-
-
 """
     residual_data(vis::AbstractArray, data::EHTObservationTable)
 
