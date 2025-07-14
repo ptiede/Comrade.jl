@@ -123,7 +123,7 @@ function flipbaseline(datum::EHTCoherencyDatum)
 end
 
 function flipbaseline(datum::EHTVisibilityDatum)
-    return EHTVisibilityDatum{:I}(
+    return EHTVisibilityDatum(
         conj(datum.measurement),
         conj(datum.noise),
         flipbaseline(datum.baseline)
