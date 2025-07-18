@@ -112,7 +112,7 @@ These are typically items that are known before the observation is made.
 # Fields
 $(FIELDS)
 """
-Base.@kwdef struct EHTArrayConfiguration{A <: EHTArrayBaselineDatum, F, T, S, D <: AbstractArray{A}} <: AbstractArrayConfiguration{A}
+Base.@kwdef struct EHTArrayConfiguration{A <: AbstractBaselineDatum, F, T, S, D <: AbstractArray{A}} <: AbstractArrayConfiguration{A}
     """
     Observing bandwith (Hz)
     """
@@ -169,6 +169,8 @@ function VLBISkyModels.rebuild(c::EHTArrayConfiguration, table)
     )
     return newconfig
 end
+
+datatable(c::EHTArrayConfiguration) = c.datatable
 
 struct DesignMatrix{T, N, M <: AbstractSparseMatrix{T, <:Integer}, I} <: AbstractMatrix{T}
     matrix::M

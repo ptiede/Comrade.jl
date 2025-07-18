@@ -106,6 +106,7 @@ but the order of the symbols does not matter.
 function select_baseline(dvis, bl::Tuple{Symbol, Symbol})
     cond(x) = ((x.baseline.sites == bl) || (x.baseline.sites == reverse(bl)))
     fl = filter(cond, dvis)
+    # return fl
     dt = map(datatable(fl)) do d
         si = d.baseline.sites
         si != bl && return flipbaseline(d)
