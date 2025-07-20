@@ -78,8 +78,8 @@ using Distributions, VLBIImagePriors
 prior = (
     radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
     width = Uniform(μas2rad(1.0), μas2rad(10.0)),
-    ma = (Uniform(0.0, 0.5), Uniform(0.0, 0.5)),
-    mp = (Uniform(0, 2π), Uniform(0, 2π)),
+    ma = (Uniform(0.0, 0.5), ),
+    mp = (Uniform(0, 2π),),
     τ = Uniform(0.0, 1.0),
     ξτ = Uniform(0.0, π),
     f = Uniform(0.0, 1.0),
@@ -119,8 +119,8 @@ logdensityof(
         sky = (
             radius = μas2rad(20.0),
             width = μas2rad(10.0),
-            ma = (0.3, 0.3),
-            mp = (π / 2, π),
+            ma = (0.3, ),
+            mp = (π / 2, ),
             τ = 0.1,
             ξτ = π / 2,
             f = 0.6,
@@ -218,16 +218,14 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # model is fitting the data we can plot the model and data products. As of Comrade 0.11.7 Makie
 # is the preferred plotting tool. For plotting data there are two classes of functions
 #  - `baselineplot` which gives complete control of plotting
-#  - `plotfields, axisfields` which are more automated and limited but will automatically add
+#  - `plotfields, plotfields!` which are more automated and limited but will automatically add
 #     labels, legends, titles etc.
-# We will demonstrate both below.
+# A reasonable workflow is to use `plotfields` to set up the initial figure and axis labels and then
+# then use `baselineplot!` to add additional plots to the axis. For example,
 lcsim, cpsim = simulate_observation(post, xopt; add_thermal_noise = false)
-fig = Figure(; size = (800, 300))
-ax1 = Axis(fig[1, 1], xlabel = "√Quadrangle Area", ylabel = "Log Closure Amplitude")
-baselineplot!(ax1, lcsim, uvdist, measwnoise, marker = :circle, label = "MAP", error = true)
-baselineplot!(ax1, dlcamp, uvdist, Comrade.measurement, marker = :+, color = :black, label = "Data")
-ax2 = Axis(fig[1, 2], xlabel = "√Triangle Area", ylabel = "Closure Phase")
-baselineplot!(ax2, cpsim, uvdist, mod2pi ∘ measwnoise, marker = :circle, label = "MAP", error = true)
+fig, ax1 = plotfields(lcsim, uvdist, measwnoise, scatter_kwargs = (;marker=:circle, label="MAP"), figure_kwargs = (;size=(800,300)), legend=false);
+baselineplot!(ax1, dlcamp, uvdist, measurement, marker = :+, color = :black, label = "Data")
+ax2, = plotfields!(fig[1,2], cpsim, uvdist, mod2pi ∘ measwnoise, scatter_kwargs = (;marker=:circle, label="MAP"), axis_kwargs = (ylabel = "Closure Phase (rad)",))
 baselineplot!(ax2, dcphase, uvdist, mod2pi ∘ measurement, marker = :+, color = :black, label = "Data")
 axislegend(ax1, framevisible = false)
 DisplayAs.Text(DisplayAs.PNG(fig))
@@ -237,7 +235,7 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # are marginalized over the posterior.
 fig = Figure(; size = (800, 300))
 ax1 = Axis(fig[1, 1], xlabel = "√Quadrangle Area", ylabel = "Log Closure Amplitude")
-ax2 = Axis(fig[1, 2], xlabel = "√Triangle Area", ylabel = "Closure Phase")
+ax2 = Axis(fig[1, 2], xlabel = "√Triangle Area", ylabel = "Closure Phase (rad)")
 for i in 1:10
     mobs = simulate_observation(post, sample(chain, 1)[1])
     mlca = mobs[1]
@@ -254,7 +252,6 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
 rd = residuals(post, chain[end])
-fig = Figure(; size = (800, 300))
-axisfields(fig[1, 1], rd[1], uvdist, :res)
-axisfields(fig[1, 2], rd[2], uvdist, :res)
+fig, ax = plotfields(rd[1], uvdist, :res, axis_kwargs = (;ylabel = "Norm. Res. LCA"))
+plotfields!(fig[2,1], rd[2], uvdist, :res, axis_kwargs = (;ylabel = "Norm. Res. CP"))
 DisplayAs.Text(DisplayAs.PNG(fig))

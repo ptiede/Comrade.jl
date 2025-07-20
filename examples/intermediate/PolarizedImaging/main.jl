@@ -300,7 +300,7 @@ intmodel = InstrumentModel(J, intprior)
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling, and specifying to use Enzyme.Reverse with runtime activity for AD.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis; admode = set_runtime_activity(Enzyme.Reverse))
+post = VLBIPosterior(skym, intmodel, dvis)
 
 # ## Reconstructing the Image and Instrument Effects
 
@@ -332,10 +332,10 @@ using CairoMakie
 using DisplayAs #hide
 res = residuals(post, xopt)
 fig = Figure(; size = (800, 600))
-baselineplot(fig[1, 1], res[1], :uvdist, x -> Comrade.measurement(x)[1, 1] / noise(x)[1, 1], axis = (ylabel = "RR Residual", xlabel = "uv distance (λ)"))
-baselineplot(fig[2, 1], res[1], :uvdist, x -> Comrade.measurement(x)[2, 1] / noise(x)[1, 1], axis = (ylabel = "LR Residual", xlabel = "uv distance (λ)"))
-baselineplot(fig[1, 2], res[1], :uvdist, x -> Comrade.measurement(x)[1, 2] / noise(x)[1, 1], axis = (ylabel = "RL Residual", xlabel = "uv distance (λ)"))
-baselineplot(fig[2, 2], res[1], :uvdist, x -> Comrade.measurement(x)[2, 2] / noise(x)[1, 1], axis = (ylabel = "LL Residual", xlabel = "uv distance (λ)"))
+plotfields!(fig[1, 1], res[1], uvdist, x -> Comrade.measurement(x)[1, 1] / noise(x)[1, 1], axis_kwargs = (;ylabel = "RR Residual"))
+plotfields!(fig[2, 1], res[1], uvdist, x -> Comrade.measurement(x)[2, 1] / noise(x)[2, 1], axis_kwargs = (;ylabel = "LR Residual"))
+plotfields!(fig[1, 2], res[1], uvdist, x -> Comrade.measurement(x)[1, 2] / noise(x)[1, 2], axis_kwargs = (;ylabel = "RL Residual"))
+plotfields!(fig[2, 2], res[1], uvdist, x -> Comrade.measurement(x)[2, 2] / noise(x)[2, 2], axis_kwargs = (;ylabel = "LL Residual"))
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting.

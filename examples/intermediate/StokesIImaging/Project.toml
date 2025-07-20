@@ -16,7 +16,7 @@ StableRNGs = "860ef19b-820b-49d6-a774-d7a799459cd3"
 VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 
 [compat]
-CairoMakie = "0.13"
+CairoMakie = "0.15"
 Distributions = "0.25"
 Optimization = "4"
 Pkg = "1"
