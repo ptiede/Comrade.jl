@@ -206,5 +206,5 @@ Comrade.axisfields
 Comrade.plotcaltable
 Comrade.baselineplot
 Comrade.baselineplot!
-Comrade.BaselinePlot
+ComradeMakieExt.BaselinePlot
 ```
