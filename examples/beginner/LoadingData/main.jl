@@ -80,16 +80,16 @@ plotfields!(fig[1, 2], coh, uvdist, x -> measwnoise(x)[1, 2], axis_kwargs = (yla
 plotfields!(fig[2, 2], coh, uvdist, x -> measwnoise(x)[2, 2], axis_kwargs = (ylabel = "LL", xlabel = "uv distance (Gλ)"))
 fig
 
-# You can also plot a single baseline 
-fig,ax = plotfields(coh, (:AA, :LM), Ti, x->abs(measwnoise(x)[1,1]), axis_kwargs = (;ylabel = "|RR|"))
-ax2 = plotfields!(fig[1,2], coh, (:LM, :AZ), Ti, x->abs(measwnoise(x)[1,1]), axis_kwargs = (;ylabel = "|RR|"))
+# You can also plot a single baseline
+fig, ax = plotfields(coh, (:AA, :LM), Ti, x -> abs(measwnoise(x)[1, 1]), axis_kwargs = (; ylabel = "|RR|"))
+ax2 = plotfields!(fig[1, 2], coh, (:LM, :AZ), Ti, x -> abs(measwnoise(x)[1, 1]), axis_kwargs = (; ylabel = "|RR|"))
 fig
 
 # Finally, we provide a more low-level plotting function `baselineplot` which allows you to plot
 # any field against any other field. This is what `plotfields` calls under the hood. However, it
 # does not automatically add labels, legends, titles etc, but can add multiple baselines to the same plot.
-fig, ax = baselineplot(coh, (:AA, :LM), Ti, x->abs(measwnoise(x)[1,1]), label="AA-LM")
-baselineplot!(ax, coh, (:LM, :AZ), Ti, x->abs(measwnoise(x)[1,1]), label="LM-AZ")
+fig, ax = baselineplot(coh, (:AA, :LM), Ti, x -> abs(measwnoise(x)[1, 1]), label = "AA-LM")
+baselineplot!(ax, coh, (:LM, :AZ), Ti, x -> abs(measwnoise(x)[1, 1]), label = "LM-AZ")
 ax.ylabel = "|RR|"
 ax.xlabel = "Time (UTC)"
 axislegend(ax)

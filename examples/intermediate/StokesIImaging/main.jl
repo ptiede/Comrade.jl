@@ -161,8 +161,9 @@ ndim = dimension(tpost)
 # To initialize our sampler we will use optimize using Adam
 using Optimization
 using OptimizationOptimisers
-xopt, sol = comrade_opt(post, Optimisers.Adam(); initial_params = prior_sample(rng, post), 
-                        maxiters = 20_000, g_tol = 1.0e-1
+xopt, sol = comrade_opt(
+    post, Optimisers.Adam(); initial_params = prior_sample(rng, post),
+    maxiters = 20_000, g_tol = 1.0e-1
 );
 
 # !!! warning
@@ -208,7 +209,7 @@ plotcaltable(gt) |> DisplayAs.PNG |> DisplayAs.Text
 # run
 #-
 using AdvancedHMC
-out = sample(rng, post, NUTS(0.8), 1_000; n_adapts = 500, saveto=DiskStore(), initial_params = xopt)
+out = sample(rng, post, NUTS(0.8), 1_000; n_adapts = 500, saveto = DiskStore(), initial_params = xopt)
 chain = load_samples(out)
 #-
 # !!! note

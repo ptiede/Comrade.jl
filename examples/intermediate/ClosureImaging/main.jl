@@ -138,7 +138,7 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 
 # To optimize our posterior `Comrade` provides the `comrade_opt` function. To use this
 # functionality a user first needs to import `Optimization.jl` and the optimizer of choice.
-# In this tutorial we will use Optiizations LBFGS optimizer. 
+# In this tutorial we will use Optiizations LBFGS optimizer.
 # We also need to import Enzyme to allow for automatic differentiation.
 using Optimization
 xopt, sol = comrade_opt(
@@ -176,7 +176,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 #     For our `metric` we use a diagonal matrix due to easier tuning.
 #-
 using AdvancedHMC
-out = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, saveto=DiskStore(), initial_params = xopt);
+out = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, saveto = DiskStore(), initial_params = xopt);
 chain = load_samples(out)
 
 # !!! warning

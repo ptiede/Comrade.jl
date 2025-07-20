@@ -78,7 +78,7 @@ using Distributions, VLBIImagePriors
 prior = (
     radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
     width = Uniform(μas2rad(1.0), μas2rad(10.0)),
-    ma = (Uniform(0.0, 0.5), ),
+    ma = (Uniform(0.0, 0.5),),
     mp = (Uniform(0, 2π),),
     τ = Uniform(0.0, 1.0),
     ξτ = Uniform(0.0, π),
@@ -119,8 +119,8 @@ logdensityof(
         sky = (
             radius = μas2rad(20.0),
             width = μas2rad(10.0),
-            ma = (0.3, ),
-            mp = (π / 2, ),
+            ma = (0.3,),
+            mp = (π / 2,),
             τ = 0.1,
             ξτ = π / 2,
             f = 0.6,
@@ -223,9 +223,9 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # A reasonable workflow is to use `plotfields` to set up the initial figure and axis labels and then
 # then use `baselineplot!` to add additional plots to the axis. For example,
 lcsim, cpsim = simulate_observation(post, xopt; add_thermal_noise = false)
-fig, ax1 = plotfields(lcsim, uvdist, measwnoise, scatter_kwargs = (;marker=:circle, label="MAP"), figure_kwargs = (;size=(800,300)), legend=false);
+fig, ax1 = plotfields(lcsim, uvdist, measwnoise, scatter_kwargs = (; marker = :circle, label = "MAP"), figure_kwargs = (; size = (800, 300)), legend = false);
 baselineplot!(ax1, dlcamp, uvdist, measurement, marker = :+, color = :black, label = "Data")
-ax2, = plotfields!(fig[1,2], cpsim, uvdist, mod2pi ∘ measwnoise, scatter_kwargs = (;marker=:circle, label="MAP"), axis_kwargs = (ylabel = "Closure Phase (rad)",))
+ax2, = plotfields!(fig[1, 2], cpsim, uvdist, mod2pi ∘ measwnoise, scatter_kwargs = (; marker = :circle, label = "MAP"), axis_kwargs = (ylabel = "Closure Phase (rad)",))
 baselineplot!(ax2, dcphase, uvdist, mod2pi ∘ measurement, marker = :+, color = :black, label = "Data")
 axislegend(ax1, framevisible = false)
 DisplayAs.Text(DisplayAs.PNG(fig))
@@ -252,6 +252,6 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
 rd = residuals(post, chain[end])
-fig, ax = plotfields(rd[1], uvdist, :res, axis_kwargs = (;ylabel = "Norm. Res. LCA"))
-plotfields!(fig[2,1], rd[2], uvdist, :res, axis_kwargs = (;ylabel = "Norm. Res. CP"))
+fig, ax = plotfields(rd[1], uvdist, :res, axis_kwargs = (; ylabel = "Norm. Res. LCA"))
+plotfields!(fig[2, 1], rd[2], uvdist, :res, axis_kwargs = (; ylabel = "Norm. Res. CP"))
 DisplayAs.Text(DisplayAs.PNG(fig))

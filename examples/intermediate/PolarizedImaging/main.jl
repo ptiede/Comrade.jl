@@ -332,10 +332,10 @@ using CairoMakie
 using DisplayAs #hide
 res = residuals(post, xopt)
 fig = Figure(; size = (800, 600))
-plotfields!(fig[1, 1], res[1], uvdist, x -> Comrade.measurement(x)[1, 1] / noise(x)[1, 1], axis_kwargs = (;ylabel = "RR Residual"))
-plotfields!(fig[2, 1], res[1], uvdist, x -> Comrade.measurement(x)[2, 1] / noise(x)[2, 1], axis_kwargs = (;ylabel = "LR Residual"))
-plotfields!(fig[1, 2], res[1], uvdist, x -> Comrade.measurement(x)[1, 2] / noise(x)[1, 2], axis_kwargs = (;ylabel = "RL Residual"))
-plotfields!(fig[2, 2], res[1], uvdist, x -> Comrade.measurement(x)[2, 2] / noise(x)[2, 2], axis_kwargs = (;ylabel = "LL Residual"))
+plotfields!(fig[1, 1], res[1], uvdist, x -> Comrade.measurement(x)[1, 1] / noise(x)[1, 1], axis_kwargs = (; ylabel = "RR Residual"))
+plotfields!(fig[2, 1], res[1], uvdist, x -> Comrade.measurement(x)[2, 1] / noise(x)[2, 1], axis_kwargs = (; ylabel = "LR Residual"))
+plotfields!(fig[1, 2], res[1], uvdist, x -> Comrade.measurement(x)[1, 2] / noise(x)[1, 2], axis_kwargs = (; ylabel = "RL Residual"))
+plotfields!(fig[2, 2], res[1], uvdist, x -> Comrade.measurement(x)[2, 2] / noise(x)[2, 2], axis_kwargs = (; ylabel = "LL Residual"))
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting.

@@ -111,7 +111,7 @@ function convert_field(field::Symbol)
     )
 end
 
-function ismeasure(::AbstractArray{T}) where {T<:Union{Complex{<:Measurements.Measurement}, Measurements.Measurement}}
+function ismeasure(::AbstractArray{T}) where {T <: Union{Complex{<:Measurements.Measurement}, Measurements.Measurement}}
     return true
 end
 
@@ -141,7 +141,6 @@ function Makie.plot!(
         x, y = convert_field(fieldx).(obl), convert_field(fieldy).(obl)
         return x, y
     end
-
 
 
     lift(plot.x, plot.y) do x, y
@@ -182,7 +181,6 @@ function Makie.plot!(
                 strokecolor = plot.strokecolor,
                 strokewidth = plot.strokewidth,
             )
-
 
 
         else
@@ -292,18 +290,18 @@ function plotfields(
         legend = true,
         conjugate = true,
         axis_kwargs = (;),
-        legend_kwargs = (;merge=true, unique=true),
+        legend_kwargs = (; merge = true, unique = true),
         scatter_kwargs = (;),
         figure_kwargs = (;)
     )
 
 
-    fig = Figure(;figure_kwargs...)
+    fig = Figure(; figure_kwargs...)
     ax = plotfields!(
         fig[1, 1],
         obsdata, field1, field2;
         legend, conjugate,
-        axis_kwargs, 
+        axis_kwargs,
         scatter_kwargs,
         legend_kwargs
     )
@@ -317,27 +315,28 @@ function axis_labels(field1, field2, axis_kwargs)
 end
 
 function maybeset(nt, key, val)
-    hasproperty(nt, key) && return nt 
+    hasproperty(nt, key) && return nt
     return merge(nt, NamedTuple{(key,)}((val,)))
 end
 
 
-function plotfields!(f::MakieGrid,
+function plotfields!(
+        f::MakieGrid,
         obsdata::Comrade.EHTObservationTable,
         field1,
         field2;
         legend = true,
         conjugate = true,
         axis_kwargs = (;),
-        legend_kwargs = (;merge=true, unique=true),
+        legend_kwargs = (; merge = true, unique = true),
         scatter_kwargs = (;),
-)
+    )
 
 
     ax = plotaxis(
         f,
         obsdata,
-        field1, 
+        field1,
         field2;
         legend,
         conjugate,
@@ -349,7 +348,6 @@ function plotfields!(f::MakieGrid,
 end
 
 
-
 function plotfields(
         obsdata::Comrade.EHTObservationTable,
         bl::NTuple{2, Union{String, Symbol}},
@@ -358,7 +356,7 @@ function plotfields(
         conjugate = false,
         legend = true,
         axis_kwargs = (;),
-        legend_kwargs = (;merge=true, unique=true),
+        legend_kwargs = (; merge = true, unique = true),
         scatter_kwargs = (;),
     )
     blobs = select_baseline(obsdata, bl)
@@ -367,7 +365,7 @@ function plotfields(
         blobs,
         field1,
         field2;
-        legend, 
+        legend,
         conjugate,
         axis_kwargs = maybeset(axis_kwargs, :title, title),
         legend_kwargs = legend_kwargs,
@@ -375,7 +373,8 @@ function plotfields(
     )
 end
 
-function plotfields!(f::MakieGrid,
+function plotfields!(
+        f::MakieGrid,
         obsdata::Comrade.EHTObservationTable,
         bl::NTuple{2, Union{String, Symbol}},
         field1,
@@ -383,9 +382,9 @@ function plotfields!(f::MakieGrid,
         legend = true,
         conjugate = true,
         axis_kwargs = (;),
-        legend_kwargs = (;merge=true, unique=true),
+        legend_kwargs = (; merge = true, unique = true),
         scatter_kwargs = (;),
-)
+    )
 
     blobs = select_baseline(obsdata, bl)
     title = string(bl[1]) * " - " * string(bl[2])
@@ -393,11 +392,11 @@ function plotfields!(f::MakieGrid,
     ax = plotaxis(
         f,
         blobs,
-        field1, 
+        field1,
         field2;
         legend,
         conjugate,
-        axis_kwargs=maybeset(axis_kwargs, :title, title),
+        axis_kwargs = maybeset(axis_kwargs, :title, title),
         scatter_kwargs,
         legend_kwargs,
     )
@@ -453,20 +452,19 @@ function plotaxis(
         legend = true,
         axis_kwargs = (;),
         scatter_kwargs = (;),
-        legend_kwargs = (;merge=true, unique=true),
+        legend_kwargs = (; merge = true, unique = true),
     )
 
     fx = (_ismeas(field1) ? measname(obsdata) : field1)
     fy = (_ismeas(field2) ? measname(obsdata) : field2)
 
     if field2 == :res
-        title = "χ² = $(round(Comrade._chi2(obsdata)/Comrade.ndata(obsdata), digits=2))"
+        title = "χ² = $(round(Comrade._chi2(obsdata) / Comrade.ndata(obsdata), digits = 2))"
         axis_kwargs = maybeset(axis_kwargs, :title, title)
     end
 
 
     axis_kwargs = axis_labels(fx, fy, axis_kwargs)
-
 
 
     fx = convert_field(field1)
@@ -497,13 +495,13 @@ function plotaxis(
 
     pl = nothing
     for ν in νlist
-        obsν = filter(x->getfr(x.baseline)≈ν, obsdata)
+        obsν = filter(x -> getfr(x.baseline) ≈ ν, obsdata)
         label = frequencylabel(ν)
         color = get(scatter_kwargs, :color, Makie.wong_colors()[1])
         pl = baselineplot!(ax, obsν, field1, field2; color, label, scatter_kwargs...)
 
         if conjugate && fx in (_U, _V) && fy in (_U, _V)
-            baselineplot!(ax, obsν, x->-fx(x), x->-fy(x); color, label, scatter_kwargs...)
+            baselineplot!(ax, obsν, x -> -fx(x), x -> -fy(x); color, label, scatter_kwargs...)
         end
 
     end
