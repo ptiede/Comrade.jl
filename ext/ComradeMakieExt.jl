@@ -319,7 +319,13 @@ function maybeset(nt, key, val)
     return merge(nt, NamedTuple{(key,)}((val,)))
 end
 
+"""
+    plotfields!(f::Makie.GridPosition, obsdata::Comrade.EHTObservationTable, field1, field2;
+                kwargs...)
 
+Plots the two data fields in the grid position `f`. For more information about the arguments
+see the [`plotfields`](@ref) function. 
+"""
 function plotfields!(
         f::MakieGrid,
         obsdata::Comrade.EHTObservationTable,
@@ -412,31 +418,9 @@ end
 Plots two data fields from `obsdata` against each other on `fig`, returns a Makie Axis which can 
 be used to configure subplots.
 
-# Arguments
-- `fig`: The GridPosition i.e. `fig[i,j]` to plot the data on.
-- `obsdata` : EHTObservationTable containing the data to plot (closure quantities not supported yet)
+! warning
+    This function is deprecated, use `plotfields!` instead.
 
-- `field1` and `field2` : The fields to plot. field1 - x axis, field2 - y axis 
-    If field1 or field2 is a function it will apply to `datatable(obsdata)` to get the value
-    If field1 or field2 is a symbol, it will look for a predefined function:
-     - :U - baseline u coordinate
-     - :V - baseline v coordinate
-     - :Ti - time
-     - :Fr - frequency
-     - :measure - measurement
-     - :noise - noise
-     - :amp - visibility amplitude
-     - :phase - visibility phase
-     - :uvdist - projected baseline length
-     - :snr - signal to noise ratio
-     - :res - normalized residual visibilities (only if obsdata contains the residuals)
-
-# Keyword Arguments
- - `legend` : If true, legend is shown. If false, legend is hidden.
- - `conjugate` : Only relevant if plotting (u,v) coverage. If true, data is conjugated. If false, data is plotted as is. 
- - `axis_kwargs` : Keyword arguments for each subplot's Axis.
- - `legend_kwargs` : Keyword arguments passed to the figure legend.
- - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
 axisfields(args...; kwargs...) = plotfields!(args...; kwargs...)
 
