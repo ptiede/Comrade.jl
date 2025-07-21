@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
-version = "0.11.17"
+version = "0.11.18"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -82,7 +82,7 @@ FillArrays = "1"
 HypercubeTransform = "^0.4.11"
 IntervalSets = "0.6, 0.7"
 LogDensityProblems = "2"
-Makie = "0.22"
+Makie = "0.24"
 Measurements = "2"
 NamedTupleTools = "0.13,0.14"
 Optimization = "4"
@@ -103,7 +103,7 @@ Tables = "1"
 TransformVariables = "0.8"
 VLBIImagePriors = "0.10"
 VLBILikelihoods = "^0.2.6"
-VLBISkyModels = "0.6"
+VLBISkyModels = "^0.6.15"
 julia = "1.10"
 
 [extras]

@@ -10,6 +10,7 @@ using Pyehtim, VLBISkyModels, InteractiveUtils
 using AbstractMCMC, Random, HypercubeTransform
 using CairoMakie
 
+const ComradeMakieExt = Base.get_extension(Comrade, :ComradeMakieExt)
 
 Documenter.DocMeta.setdocmeta!(Comrade, :DocTestSetup, :(using Comrade); recursive = true)
 

@@ -127,7 +127,7 @@ skym = SkyModel(sky, prior, grid; metadata = skymeta)
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
-post = VLBIPosterior(skym, dlcamp, dcphase; admode = set_runtime_activity(Enzyme.Reverse))
+post = VLBIPosterior(skym, dlcamp, dcphase)
 
 # ## Reconstructing the Image
 
@@ -138,13 +138,12 @@ post = VLBIPosterior(skym, dlcamp, dcphase; admode = set_runtime_activity(Enzyme
 
 # To optimize our posterior `Comrade` provides the `comrade_opt` function. To use this
 # functionality a user first needs to import `Optimization.jl` and the optimizer of choice.
-# In this tutorial we will use Optim.jl's L-BFGS optimizer, which is defined in the sub-package
-# OptimizationOptimJL. We also need to import Enzyme to allow for automatic differentiation.
+# In this tutorial we will use Optiizations LBFGS optimizer.
+# We also need to import Enzyme to allow for automatic differentiation.
 using Optimization
-using OptimizationOptimJL
 xopt, sol = comrade_opt(
-    post, LBFGS();
-    maxiters = 1000, initial_params = prior_sample(rng, post)
+    post, Optimization.LBFGS();
+    maxiters = 2000, initial_params = prior_sample(rng, post)
 );
 
 
@@ -153,8 +152,8 @@ using CairoMakie
 using DisplayAs #hide
 res = residuals(post, xopt)
 fig = Figure(; size = (800, 300))
-axisfields(fig[1, 1], res[1], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
-axisfields(fig[1, 2], res[2], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
+plotfields!(fig[1, 1], res[1], :uvdist, :res);
+plotfields!(fig[1, 2], res[2], :uvdist, :res);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # Now let's plot the MAP estimate.
@@ -177,8 +176,8 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 #     For our `metric` we use a diagonal matrix due to easier tuning.
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, progress = false, initial_params = xopt);
-
+out = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, saveto = DiskStore(), initial_params = xopt);
+chain = load_samples(out)
 
 # !!! warning
 #     This should be run for longer!

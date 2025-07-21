@@ -38,7 +38,7 @@ using Pyehtim
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(11)
+rng = StableRNG(12)
 
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
@@ -149,13 +149,13 @@ skym = SkyModel(sky, skyprior, g; metadata = skymetadata)
 # This is everything we need to specify our posterior distribution, which our is the main
 # object of interest in image reconstructions when using Bayesian inference.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis; admode = set_runtime_activity(Enzyme.Reverse))
+post = VLBIPosterior(skym, intmodel, dvis)
 
 # We can sample from the prior to see what the model looks like
 using DisplayAs #hide
 using CairoMakie
 xrand = prior_sample(rng, post)
-gpl = imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128)
+gpl = refinespatial(g, 3)
 fig = imageviz(intensitymap(skymodel(post, xrand), gpl));
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
@@ -168,9 +168,8 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # For optimization we will use the `Optimization.jl` package and the LBFGS optimizer.
 # To use this we use the [`comrade_opt`](@ref) function
 using Optimization
-using OptimizationOptimJL
 xopt, sol = comrade_opt(
-    post, LBFGS();
+    post, Optimization.LBFGS();
     initial_params = xrand, maxiters = 2000, g_tol = 1.0e0
 );
 
@@ -249,12 +248,10 @@ figd |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # Now let's check the residuals using draws from the posterior
 fig = Figure(; size = (600, 400))
-ax, = baselineplot(fig[1, 1], res[1], :uvdist, :res, label = "MAP", color = :blue, colorim = :red, marker = :circle)
+ax, = plotfields!(fig[1, 1], res[1], :uvdist, :res, scatter_kwargs = (; label = "MAP", color = :blue, colorim = :red, marker = :circle), legend = false)
 for s in sample(chain, 10)
     baselineplot!(ax, residuals(post, s)[1], :uvdist, :res, alpha = 0.2, label = "Draw")
 end
-ax.xlabel = "uv-distance (λ)"
-ax.ylabel = "Normalized Residuals"
 axislegend(ax, merge = true)
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 

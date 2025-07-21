@@ -13,7 +13,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 
 [compat]
-CairoMakie = "0.13"
+CairoMakie = "0.15"
 Optimization = "4"
 Pyehtim = "0.2"
 StableRNGs = "1"

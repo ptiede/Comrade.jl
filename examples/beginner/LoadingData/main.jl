@@ -58,7 +58,7 @@ coh = extract_table(obs, Coherencies())
 #-
 # We can also recover the array used in the observation using
 using DisplayAs
-plotfields(coh, :U, :V, axis_kwargs = (xreversed = true,)) |> DisplayAs.PNG |> DisplayAs.Text # Plot the baseline coverage
+plotfields(coh, U, V, axis_kwargs = (xreversed = true,)) |> DisplayAs.PNG |> DisplayAs.Text # Plot the baseline coverage
 
 # As of Comrade 0.11.7 Makie is the preferred plotting tool. For plotting data there are two
 # classes of functions:
@@ -66,16 +66,31 @@ plotfields(coh, :U, :V, axis_kwargs = (xreversed = true,)) |> DisplayAs.PNG |> D
 #  - `plotfields, axisfields` which are more automated and limited but will automatically add
 #     labels, legends, titles etc.
 fig = Figure(; size = (800, 600))
-axisfields(fig[1, 1], vis, :uvdist, :measurement)
-axisfields(fig[1, 2], amp, :uvdist, :measurement)
-axisfields(fig[2, 1], cphase, :uvdist, :measurement)
-axisfields(fig[2, 2], lcamp, :uvdist, :measurement)
+plotfields!(fig[1, 1], vis, uvdist, measurement)
+plotfields!(fig[1, 2], amp, uvdist, measurement)
+plotfields!(fig[2, 1], cphase, uvdist, measurement)
+plotfields!(fig[2, 2], lcamp, uvdist, measurement)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
-# And also the coherency matrices. Here we show how to use `baselineplot` to plot the data
+# And also the coherency matrices. Since the data products are a matrix we need to plot each one separately.
 fig = Figure(; size = (800, 600))
-baselineplot(fig[1, 1], coh, x -> uvdist(x) / 1.0e9, x -> abs(measwnoise(x)[1, 1]), error = true, axis = (ylabel = "RR", xlabel = "uv distance (Gλ)"))
-baselineplot(fig[2, 1], coh, x -> uvdist(x) / 1.0e9, x -> abs(measwnoise(x)[2, 1]), error = true, axis = (ylabel = "LR", xlabel = "uv distance (Gλ)"))
-baselineplot(fig[1, 2], coh, x -> uvdist(x) / 1.0e9, x -> abs(measwnoise(x)[1, 2]), error = true, axis = (ylabel = "RL", xlabel = "uv distance (Gλ)"))
-baselineplot(fig[2, 2], coh, x -> uvdist(x) / 1.0e9, x -> abs(measwnoise(x)[2, 2]), error = true, axis = (ylabel = "LL", xlabel = "uv distance (Gλ)"))
+plotfields!(fig[1, 1], coh, uvdist, x -> measwnoise(x)[1, 1], axis_kwargs = (ylabel = "RR", xlabel = "uv distance (Gλ)"))
+plotfields!(fig[2, 1], coh, uvdist, x -> measwnoise(x)[2, 1], axis_kwargs = (ylabel = "LR", xlabel = "uv distance (Gλ)"))
+plotfields!(fig[1, 2], coh, uvdist, x -> measwnoise(x)[1, 2], axis_kwargs = (ylabel = "RL", xlabel = "uv distance (Gλ)"))
+plotfields!(fig[2, 2], coh, uvdist, x -> measwnoise(x)[2, 2], axis_kwargs = (ylabel = "LL", xlabel = "uv distance (Gλ)"))
+fig
+
+# You can also plot a single baseline
+fig, ax = plotfields(coh, (:AA, :LM), Ti, x -> abs(measwnoise(x)[1, 1]), axis_kwargs = (; ylabel = "|RR|"))
+ax2 = plotfields!(fig[1, 2], coh, (:LM, :AZ), Ti, x -> abs(measwnoise(x)[1, 1]), axis_kwargs = (; ylabel = "|RR|"))
+fig
+
+# Finally, we provide a more low-level plotting function `baselineplot` which allows you to plot
+# any field against any other field. This is what `plotfields` calls under the hood. However, it
+# does not automatically add labels, legends, titles etc, but can add multiple baselines to the same plot.
+fig, ax = baselineplot(coh, (:AA, :LM), Ti, x -> abs(measwnoise(x)[1, 1]), label = "AA-LM")
+baselineplot!(ax, coh, (:LM, :AZ), Ti, x -> abs(measwnoise(x)[1, 1]), label = "LM-AZ")
+ax.ylabel = "|RR|"
+ax.xlabel = "Time (UTC)"
+axislegend(ax)
 fig

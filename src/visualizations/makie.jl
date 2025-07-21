@@ -1,6 +1,7 @@
-export plotfields, axisfields, plotcaltable, baselineplot, baselineplot!
+export plotfields, plotfields!, axisfields, plotcaltable, baselineplot, baselineplot!
 
 function plotfields end
+function plotfields! end
 
 function axisfields end
 

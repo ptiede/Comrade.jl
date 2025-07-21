@@ -201,7 +201,10 @@ A user must first load `Makie` or a `Makie` backend, e.g., `CairoMakie` to use t
 
 ```@docs
 Comrade.plotfields
+Comrade.plotfields!
 Comrade.axisfields
 Comrade.plotcaltable
 Comrade.baselineplot
+Comrade.baselineplot!
+ComradeMakieExt.BaselinePlot
 ```
