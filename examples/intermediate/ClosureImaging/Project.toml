@@ -17,7 +17,7 @@ VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 VLBILikelihoods = "90db92cd-0007-4c0a-8e51-dbf0782ce592"
 
 [compat]
-CairoMakie = "0.13"
+CairoMakie = "0.15"
 DisplayAs = "0.1"
 Distributions = "0.25"
 Optimization = "4"

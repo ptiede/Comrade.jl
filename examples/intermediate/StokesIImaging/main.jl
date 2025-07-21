@@ -146,7 +146,7 @@ intmodel = InstrumentModel(G, intpr)
 # using `Enzyme.set_runtime_activity(Enzyme.Reverse)`. Eventually as Comrade and Enzyme matures we will
 # no need `set_runtime_activity`.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis; admode = set_runtime_activity(Enzyme.Reverse))
+post = VLBIPosterior(skym, intmodel, dvis)
 # done using the `asflat` function.
 tpost = asflat(post)
 ndim = dimension(tpost)
@@ -161,7 +161,10 @@ ndim = dimension(tpost)
 # To initialize our sampler we will use optimize using Adam
 using Optimization
 using OptimizationOptimisers
-xopt, sol = comrade_opt(post, Optimisers.Adam(); initial_params = prior_sample(rng, post), maxiters = 20_000, g_tol = 1.0e-1);
+xopt, sol = comrade_opt(
+    post, Optimisers.Adam(); initial_params = prior_sample(rng, post),
+    maxiters = 20_000, g_tol = 1.0e-1
+);
 
 # !!! warning
 #     Fitting gains tends to be very difficult, meaning that optimization can take a lot longer.
@@ -206,12 +209,13 @@ plotcaltable(gt) |> DisplayAs.PNG |> DisplayAs.Text
 # run
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 1_000; n_adapts = 500, progress = false, initial_params = xopt)
+out = sample(rng, post, NUTS(0.8), 1_000; n_adapts = 500, saveto = DiskStore(), initial_params = xopt)
+chain = load_samples(out)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
-#     can lead to out-of-memory issues. To fix that you can include the keyword argument
-#     `saveto = DiskStore()` which periodically saves the samples to disk limiting memory
+#     can lead to out-of-memory issues. To avoid this we recommend using the
+#     `saveto = DiskStore()` kwargs which periodically saves the samples to disk limiting memory
 #     useage. You can load the chain using `load_samples(diskout)` where `diskout` is
 #     the object returned from sample.
 #-
