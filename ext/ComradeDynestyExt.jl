@@ -33,7 +33,11 @@ function Dynesty.dysample(
 
     tpost = ascube(post)
     ℓ = logdensityof(tpost)
-    res = dysample(ℓ, identity, Comrade.dimension(tpost), sampler; kwargs...)
+    function l(x)
+        out = ℓ(x)
+        return isfinite(out) ? out : -1e300
+    end
+    res = dysample(l, identity, Comrade.dimension(tpost), sampler; kwargs...)
     # Make sure that res["sample"] is an array and use transpose
     samples, weights = transpose(Dynesty.PythonCall.pyconvert(Array, res["samples"])),
         exp.(Dynesty.PythonCall.pyconvert(Vector, res["logwt"] - res["logz"][-1]))
