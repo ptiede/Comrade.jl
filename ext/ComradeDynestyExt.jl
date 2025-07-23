@@ -35,7 +35,7 @@ function Dynesty.dysample(
     ℓ = logdensityof(tpost)
     function l(x)
         out = ℓ(x)
-        return isfinite(out) ? out : -1e300
+        return isfinite(out) ? out : -1.0e300
     end
     res = dysample(l, identity, Comrade.dimension(tpost), sampler; kwargs...)
     # Make sure that res["sample"] is an array and use transpose
