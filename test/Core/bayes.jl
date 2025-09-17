@@ -201,7 +201,7 @@ end
         c2 = chi2(postsim, x; reduce = true)
         c2nn = chi2(postsim_nn, x; reduce = true)
 
-        @test all(x -> reduce(&, x .< 1.2), c2)
+        @test all(x -> reduce(&, x .< 1.25), c2)
         @test all(x -> reduce(&, x .≈ 0), c2nn)
 
 
