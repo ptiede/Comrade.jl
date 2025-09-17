@@ -126,7 +126,7 @@ return the model visibilities.
 """
 function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; add_thermal_noise = true)
     v0 = forward_model(post, θ)
-    Σn  = _visnoise(first(post.data))
+    Σn = _visnoise(first(post.data))
     data = post.data
 
     # Closures are rather annoying. So rather than directly simulating them under the likelihood
@@ -136,7 +136,7 @@ function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; 
             dv = ComplexVisLikelihood(v0, Σn)
         elseif eltype(v0) <: SMatrix
             dv = CoherencyLikelihood(v0, Σn)
-        end 
+        end
         vis = rand(rng, dv)
     else
         vis = baseimage(v0)
@@ -151,14 +151,13 @@ function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; 
 end
 simulate_observation(post::VLBIPosterior, θ; add_thermal_noise = true) = simulate_observation(Random.default_rng(), post, θ; add_thermal_noise)
 
-_visnoise(d::EHTObservationTable) = noise(d).^2
-function _visnoise(d::EHTObservationTable{<:EHTCoherencyDatum}) 
+_visnoise(d::EHTObservationTable) = noise(d) .^ 2
+function _visnoise(d::EHTObservationTable{<:EHTCoherencyDatum})
     n = noise(d)
-    return map(x->x.^2, n)
+    return map(x -> x .^ 2, n)
 end
-_visnoise(d::EHTObservationTable{<:EHTLogClosureAmplitudeDatum}) = getfield(arrayconfig(d), :noise).^2
-_visnoise(d::EHTObservationTable{<:EHTClosurePhaseDatum}) = getfield(arrayconfig(d), :noise).^2
-
+_visnoise(d::EHTObservationTable{<:EHTLogClosureAmplitudeDatum}) = getfield(arrayconfig(d), :noise) .^ 2
+_visnoise(d::EHTObservationTable{<:EHTClosurePhaseDatum}) = getfield(arrayconfig(d), :noise) .^ 2
 
 
 """
@@ -183,7 +182,7 @@ points then set `reduce=true`.
 Note that reduce doesn't take into account the number of model parameters
 which for non-linear models is difficult to define globally.
 """
-function chi2(post::AbstractVLBIPosterior, p; reduce=false)
+function chi2(post::AbstractVLBIPosterior, p; reduce = false)
     res = residuals(post, p)
     return map(res) do r
         c2 = _chi2(r)

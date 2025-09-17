@@ -183,12 +183,12 @@ end
     )
     post_gvis = VLBIPosterior(skym, vis)
 
-    function test_simobs(post, x, int=nothing)
+    function test_simobs(post, x, int = nothing)
         obs = simulate_observation(post, x)[begin]
         @test length(obs) == length(post.data[begin])
         obs_nn = simulate_observation(post, x, add_thermal_noise = false)[begin]
         @test Comrade.measurement(obs_nn) == Comrade.likelihood(post.lklhds[1], Comrade.forward_model(post, x)).μ
-        
+
         if isnothing(int)
             postsim = VLBIPosterior(skym, obs)
             postsim_nn = VLBIPosterior(skym, obs_nn)
@@ -198,11 +198,11 @@ end
         end
 
 
-        c2 = chi2(postsim, x; reduce=true)
-        c2nn = chi2(postsim_nn, x; reduce=true)
+        c2 = chi2(postsim, x; reduce = true)
+        c2nn = chi2(postsim_nn, x; reduce = true)
 
-        @test all(x->reduce(&, x.<1.2), c2)
-        @test all(x->reduce(&, x.≈0), c2nn)
+        @test all(x -> reduce(&, x .< 1.2), c2)
+        @test all(x -> reduce(&, x .≈ 0), c2nn)
 
 
     end
