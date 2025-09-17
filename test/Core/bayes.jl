@@ -183,11 +183,28 @@ end
     )
     post_gvis = VLBIPosterior(skym, vis)
 
-    function test_simobs(post, x)
+    function test_simobs(post, x, int=nothing)
         obs = simulate_observation(post, x)[begin]
         @test length(obs) == length(post.data[begin])
         obs_nn = simulate_observation(post, x, add_thermal_noise = false)[begin]
         @test Comrade.measurement(obs_nn) == Comrade.likelihood(post.lklhds[1], Comrade.forward_model(post, x)).μ
+        
+        if isnothing(int)
+            postsim = VLBIPosterior(skym, obs)
+            postsim_nn = VLBIPosterior(skym, obs_nn)
+        else
+            postsim = VLBIPosterior(skym, int, obs)
+            postsim_nn = VLBIPosterior(skym, int, obs_nn)
+        end
+
+
+        c2 = chi2(postsim, x; reduce=true)
+        c2nn = chi2(postsim_nn, x; reduce=true)
+
+        @test all(x->reduce(&, x.<1.2), c2)
+        @test all(x->reduce(&, x.≈0), c2nn)
+
+
     end
 
     test_simobs(post_amp, prior_sample(post_amp))
@@ -206,7 +223,7 @@ end
     intm_coh = InstrumentModel(J, intm.prior)
     skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
     post_coh = VLBIPosterior(skym, intm_coh, coh)
-    test_simobs(post_coh, prior_sample(post_coh))
+    test_simobs(post_coh, prior_sample(post_coh), intm_coh)
 end
 
 
