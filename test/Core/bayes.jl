@@ -206,10 +206,10 @@ end
         end
 
 
-        c2 = chi2(postsim, x0; reduce = true)
-        c2nn = chi2(postsim_nn, x0; reduce = true)
+        c2 = chi2(postsim, x; reduce = true)
+        c2nn = chi2(postsim_nn, x; reduce = true)
         @info c2
-        @info logdensityof(postsim, x0)
+        @info logdensityof(postsim, x)
         @test all(x -> reduce(&, x .< 1.25), c2)
         @test all(x -> reduce(&, x .≈ 0), c2nn)
 
