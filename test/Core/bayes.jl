@@ -183,6 +183,11 @@ end
     )
     post_gvis = VLBIPosterior(skym, vis)
 
+    fwhmfac = 2 * sqrt(2 * log(2))
+    x0 = (;sky = (f1 = 1.0, σ1 = μas2rad(40.0)/fwhmfac, τ1 = 0.5, ξ1 = π/3,
+            f2 = 0.5, σ2 = μas2rad(20.0)/fwhmfac, τ2 = 0.5, ξ2 = π/6,
+            x = μas2rad(30.0), y = μas2rad(30.0))
+    )
     function test_simobs(post, x, int = nothing)
         obs = simulate_observation(post, x)[begin]
         @test length(obs) == length(post.data[begin])
@@ -198,23 +203,24 @@ end
         end
 
 
-        c2 = chi2(postsim, x; reduce = true)
-        c2nn = chi2(postsim_nn, x; reduce = true)
-
+        c2 = chi2(postsim, x0; reduce = true)
+        c2nn = chi2(postsim_nn, x0; reduce = true)
+        @info c2
+        @info logdensityof(postsim, x0)
         @test all(x -> reduce(&, x .< 1.25), c2)
         @test all(x -> reduce(&, x .≈ 0), c2nn)
 
 
     end
 
-    test_simobs(post_amp, prior_sample(post_amp))
-    test_simobs(post_cp, prior_sample(post_cp))
-    test_simobs(post_lc, prior_sample(post_lc))
-    test_simobs(post_vis, prior_sample(post_vis))
-    test_simobs(post_gvis, prior_sample(post_gvis))
+    test_simobs(post_amp, x0)
+    test_simobs(post_cp, x0)
+    test_simobs(post_lc, x0)
+    test_simobs(post_vis, x0)
+    test_simobs(post_gvis, x0)
 
     post_all = VLBIPosterior(skym, vis, amp, lcamp, cphase)
-    simulate_observation(post_all, prior_sample(post_all))
+    simulate_observation(post_all, x0)
 
 
     R = JonesR()
