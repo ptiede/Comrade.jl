@@ -184,9 +184,12 @@ end
     post_gvis = VLBIPosterior(skym, vis)
 
     fwhmfac = 2 * sqrt(2 * log(2))
-    x0 = (;sky = (f1 = 1.0, σ1 = μas2rad(40.0)/fwhmfac, τ1 = 0.5, ξ1 = π/3,
-            f2 = 0.5, σ2 = μas2rad(20.0)/fwhmfac, τ2 = 0.5, ξ2 = π/6,
-            x = μas2rad(30.0), y = μas2rad(30.0))
+    x0 = (;
+        sky = (
+            f1 = 1.0, σ1 = μas2rad(40.0) / fwhmfac, τ1 = 0.5, ξ1 = π / 3,
+            f2 = 0.5, σ2 = μas2rad(20.0) / fwhmfac, τ2 = 0.5, ξ2 = π / 6,
+            x = μas2rad(30.0), y = μas2rad(30.0),
+        ),
     )
     function test_simobs(post, x, int = nothing)
         obs = simulate_observation(post, x)[begin]
