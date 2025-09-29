@@ -70,11 +70,14 @@ function apply_fluctuations!(t::UnitFluxMap, out::IntensityMap, mimg::IntensityM
     @argcheck _checknorm(mimg) "Mean image must have unit flux when using unit flux transformations in apply_fluctuations while it seems to be $(sum(mimg))"
     f = t.f
     bout = baseimage(out)
-    bout .= f.(baseimage(δ))
+    @inbounds for i in eachindex(bout, δ)
+        bout[i] = f(δ[i])
+    end
+    # bout .= f.(baseimage(δ))
     fd = _fastsum(bout)
     bmimg = baseimage(mimg)
 
-    for i in eachindex(bout, bmimg)
+    @inbounds for i in eachindex(bout, bmimg)
         bout[i] *= bmimg[i] / fd
     end
 
