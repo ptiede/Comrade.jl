@@ -19,7 +19,7 @@ jobs:
           - Core 
         version:
           - 'lts'
-          - '1'
+          - '1.11'
         os:
           - ubuntu-latest
         arch:
