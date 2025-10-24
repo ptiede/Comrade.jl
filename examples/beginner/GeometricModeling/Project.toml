@@ -16,7 +16,7 @@ VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 [compat]
 CairoMakie = "0.15"
 Distributions = "0.25"
-Optimization = "4"
+Optimization = "5"
 Pigeons = "0.4"
 Plots = "1"
 Pyehtim = "0.2"

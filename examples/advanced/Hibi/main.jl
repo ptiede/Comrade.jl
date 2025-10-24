@@ -47,7 +47,7 @@ using Pyehtim
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(12)
+rng = StableRNG(42)
 
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
@@ -65,7 +65,7 @@ obs = scan_average(obs)
 # we don't want to model. Specifically we will remove the
 #  - Baselines shorter than 0.1Gλ since this represents overresolved structure
 #  - Add 1% systematic uncertainty to handle residual calibration errors such as leakage.
-dvis = add_fractional_noise(flag(x->uvdist(x)<0.1e9, extract_table(obs, Visibilities())), 0.1)
+dvis = add_fractional_noise(flag(x->uvdist(x)<0.1e9, extract_table(obs, Visibilities())), 0.01)
 
 # ## Building the Model/Posterior
 
@@ -73,21 +73,17 @@ dvis = add_fractional_noise(flag(x->uvdist(x)<0.1e9, extract_table(obs, Visibili
 # to define 
 
 function sky(θ, metadata)
-    (; c, σimg, r, ain, aout, fg) = θ
+    (; c, σimg, r, ain, aout) = θ
     (; ftot, grid) = metadata
     ## Form the image model
     ## First transform to simplex space first applying the non-centered transform
     mb = RingTemplate(RadialDblPower(ain, aout), AzimuthalUniform())
     mr = modify(mb, Stretch(r))
     mimg = intensitymap(mr, grid)
-    mimg .*= inv(sum(mimg)) # Normalize to unit flux
     rast = apply_fluctuations(CenteredLR(), mimg, σimg * c.params)
-    rast .*= ftot * (1 - fg)
+    rast .*= ftot
     mimg = ContinuousImage(rast, grid, BSplinePulse{3}())
-    gauss = modify(Gaussian(), Stretch(μas2rad(250.0)), Renormalize(ftot * fg))
-    ## We group the geometric models together for improved efficiency. This will be
-    ## automated in future versions.
-    return mimg + gauss
+    return mimg
 end
 
 # Unlike other imaging examples
@@ -121,8 +117,8 @@ intmodel = InstrumentModel(G, intpr)
 
 # Now let's define our metadata. First we will define the cache for the image. This is
 # required to compute the numerical Fourier transform.
-fovxy = μas2rad(200.0)
-npix = 64
+fovxy = μas2rad(150.0)
+npix = 48
 g = imagepixels(fovxy, fovxy, npix, npix)
 
 
@@ -146,7 +142,6 @@ skyprior = (
     r = Uniform(μas2rad(10.0), μas2rad(40.0)),
     ain = Uniform(1.0, 20.0),
     aout = Uniform(1.0, 20.0),
-    fg = Uniform(0.0, 1.0),
 )
 
 # Now we form the metadata
@@ -174,9 +169,9 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 #  - Sampling to find the posterior (slow but provides a substantially better estimator)
 # For optimization we will use the `Optimization.jl` package and the LBFGS optimizer.
 # To use this we use the [`comrade_opt`](@ref) function
-using Optimization
+using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
-    post, Optimization.LBFGS();
+    post, LBFGSB();
     initial_params = xrand, maxiters = 2000, g_tol = 1.0e0
 );
 
@@ -197,10 +192,10 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # we recommend for all inference problems in `Comrade`. While it is slower the results are
 # often substantially better. To sample we will use the `AdvancedHMC` package.
 using AdvancedHMC
-out = sample(rng, post, NUTS(0.8), 2000; n_adapts = 1500, saveto = DiskStore(), initial_params = xopt);
-chain = load_samples(out)
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt);
+# chain = load_samples(out)
 # We then remove the adaptation/warmup phase from our chain
-chain = chain[1501:end]
+chain = chain[501:end]
 
 # !!! warning
 #     This should be run for 4-5x more steps to properly estimate expectations of the posterior
@@ -215,7 +210,7 @@ msamples = skymodel.(Ref(post), chain[begin:5:end]);
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, Ref(gpl))
-fig = imageviz(mean(imgs), colormap = :afmhot, size = (400, 300));
+fig = imageviz(mean(imgs), size = (400, 300));
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 #-
 fig = imageviz(std(imgs), colormap = :batlow, size = (400, 300));

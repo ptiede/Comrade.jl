@@ -154,10 +154,9 @@ post = VLBIPosterior(skym, intmodel, dvis)
 # algorithm, and some keyword arguments. For this tutorial we will use the L-BFGS algorithm.
 # For more information about the optimization algorithms available see the Optimization.jl 
 # [docs](https://docs.sciml.ai/Optimization/stable/).
-using Optimization
-using OptimizationOptimisers
+using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
-    post, Optimization.LBFGS(); initial_params = prior_sample(rng, post),
+    post, LBFGSB(); initial_params = prior_sample(rng, post),
     maxiters = 2000, g_tol = 1.0e-1
 );
 

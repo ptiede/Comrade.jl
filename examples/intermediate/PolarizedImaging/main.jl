@@ -322,8 +322,7 @@ tpost = asflat(post)
 # Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
 # due to the higher dimension of the space. In addition the only AD package that can currently
 # work with the polarized Comrade posterior is Enzyme.
-using Optimization
-using OptimizationOptimisers
+using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
     post, Optimization.LBFGS();
     initial_params = prior_sample(rng, post), maxiters = 2_000

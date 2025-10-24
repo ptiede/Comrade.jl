@@ -67,7 +67,6 @@ by broadcasting the function `F` over the array `δ` and then normalizing the re
 
 """
 function apply_fluctuations!(t::UnitFluxMap, out::IntensityMap, mimg::IntensityMap, δ::AbstractArray)
-    @argcheck _checknorm(mimg) "Mean image must have unit flux when using unit flux transformations in apply_fluctuations while it seems to be $(sum(mimg))"
     f = t.f
     bout = baseimage(out)
     @inbounds for i in eachindex(bout, δ)
@@ -89,7 +88,6 @@ end
 
 
 function apply_fluctuations!(t::VLBIImagePriors.LogRatioTransform, out::IntensityMap, mimg::IntensityMap, δ::AbstractArray)
-    @argcheck _checknorm(mimg) "Mean image must have unit flux when using log-ratio transformations in apply_fluctuations while it seems to be $(sum(mimg))"
     bout = baseimage(out)
     to_simplex!(t, bout, baseimage(δ))
 

@@ -167,9 +167,9 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 #  - Sampling to find the posterior (slow but provides a substantially better estimator)
 # For optimization we will use the `Optimization.jl` package and the LBFGS optimizer.
 # To use this we use the [`comrade_opt`](@ref) function
-using Optimization
+using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
-    post, Optimization.LBFGS();
+    post, LBFGSB();
     initial_params = xrand, maxiters = 2000, g_tol = 1.0e0
 );
 
