@@ -38,7 +38,7 @@ rng = StableRNG(123)
 
 # ## Load the Data
 # For this tutorial we will image publicly available VLBA data of the AGN 
-# To load the eht-imaging obsdata object we do:
+# 1308+326 observed on 2021/03/19 at 43 GHz as part of the Boston University blazar monitoring program.
 file = Base.download("https://www.bu.edu/blazars/VLBA_GLAST/1308/1308+326Q.2021-03-19.UVP.gz")
 obs0 = ehtim.obsdata.load_uvfits(file)
 
@@ -48,13 +48,9 @@ obs0 = ehtim.obsdata.load_uvfits(file)
 #   - Add 0.5% systematic noise to deal with calibration issues such as leakage.
 obs = scan_average(obs0).add_fractional_noise(0.005)
 
-# Now, we extract our closure quantities from the EHT data set. We flag now SNR points since
-# the closure likelihood we use is only applicable to high SNR data.
+# For this tutorial we will only use closure quantities to reconstruct the image however, polarized
+# or complex visibilities can also be used with instrumental models following the other tutorials.
 dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3), ClosurePhases(; snrcut = 3))
-
-# !!! note
-#     Fitting low SNR closure data is complicated and requires a more sophisticated likelihood.
-#     If low-SNR data is very important we recommend fitting visibilties with a instrumental model.
 
 
 # ## Build the Model/Posterior
@@ -112,7 +108,7 @@ cprior = std_dist(pl)
 
 # For the coefficients of the spectral expansion we will use a uniform prior between 0.1 and
 # 4 times the maximum dimension of the image. This prior is rather uninformative and
-# allows for a wide range of power spectra. Additionally, we truncate the expansion at order 2
+# allows for a wide range of power spectra. Additionally, we truncate the expansion at order 3
 # for simplicity in this tutorial. 
 using Distributions
 ρs = ntuple(Returns(Uniform(0.1, 2 * max(size(grid)...))), 3)
@@ -128,7 +124,7 @@ prior = (;
 )
 
 # We can then define our sky model.
-skym = SkyModel(sky, prior, grid; metadata = skymeta, algorithm = NonuniformFFTsAlg())
+skym = SkyModel(sky, prior, grid; metadata = skymeta)
 
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
@@ -146,7 +142,7 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 # functionality a user first needs to import `Optimization.jl` and the optimizer of choice.
 # In this tutorial we will use Optiizations LBFGS optimizer.
 # We also need to import Enzyme to allow for automatic differentiation.
-using Optimization, OptimizationLBFGSB, OptimizationOptimisers
+using Optimization, OptimizationOptimisers
 # tpost = asflat(post)
 xopt, sol = comrade_opt(post, Adam(); maxiters = 5000)
 
@@ -170,19 +166,21 @@ plotfields!(fig[1, 2], res[2], :uvdist, :res);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 
-# Overall, the image looks reasonable but the MAP has a slightly high reduced chi-square. Note that
-# since we are fitting with an image prior the MAP may actually have a higher reduced chi-square
-# than the MLE since the prior may pull the solution away from the MLE. The MAP however, is not
-# a robust estimator of the image statistics. For high dimensional problems like imaging it is often
+# Overall, the image looks reasonable. However, the MAP is not
+# a robust estimator of the image morphology. For high dimensional problems the MAP is often
 # not representative of the entire image posterior. For this reason Comrade's main goal is to sample
 # the posterior of the image given the data. 
 
 
-# To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
-# see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
+# To sample from the posterior we will use HMC and more specifically the NUTS algorithm similar to 
+# the other imaging tutorials. For this tutorial we will also show how to use the `DiskStore` 
+# functionality that save the chain to disk to reduce memory usage.
+# This is especially useful for high-dimensional imaging problems where the chain can easily
+# reach multiple GBs in size. This also allows us to restart sampling from a previous chain if needed.
+# by using the keyword argument `restart=true` in the `sample` function.
 using AdvancedHMC
-mc = sample(rng, post, AdvancedHMC.NUTS(0.8), 200 + 500, n_adapts = 200,  
-            initial_params = xopt, saveto=DiskStore(;stride=10, name="VLBA_2025"), restart=true);
+mc = sample(rng, post, AdvancedHMC.NUTS(0.8), 300 + 400, n_adapts = 400,  
+            initial_params = xopt, saveto=DiskStore(;stride=10, name="VLBA_2025"));
 chain = load_samples(mc)
 # !!! warning
 #     This should be run for longer!
