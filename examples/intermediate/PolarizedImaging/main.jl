@@ -156,7 +156,7 @@ function sky(θ, metadata)
     (; σs, as) = θ
     (; mimg, ftot) = metadata
     ## Build the stokes I model
-    δs = ntuple(Val(4)) do i 
+    δs = ntuple(Val(4)) do i
         σs[i] * as[i].params
     end
 
@@ -205,9 +205,9 @@ skymeta = (; mimg = mimg ./ flux(mimg), ftot = 0.6);
 # which logit transformed puts most of the prior mass < 0.8 fractional polarization. The standard deviation of the
 # total polarization fraction `pσ` again uses a Half-normal process. The angular parameters of the polarizaton are
 # given by a uniform prior on the sphere.
-cprior = corr_image_prior(grid, dvis; order=2)
+cprior = corr_image_prior(grid, dvis; order = 2)
 skyprior = (
-    σs = ntuple(Returns(truncated(Normal(0.0, 0.5); lower=0.0)), 4),
+    σs = ntuple(Returns(truncated(Normal(0.0, 0.5); lower = 0.0)), 4),
     as = ntuple(Returns(cprior), 4),
 )
 
@@ -345,7 +345,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
 
 #Plotting the results gives
-fig = imageviz(img, adjust_length = true, colormap=:cmr_gothic, pcolormap=:rainbow1, plot_total=false);
+fig = imageviz(img, adjust_length = true, colormap = :cmr_gothic, pcolormap = :rainbow1, plot_total = false);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 

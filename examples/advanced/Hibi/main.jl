@@ -16,21 +16,21 @@ close(pkg_io) #hide
 # We will demonstrate how a use can incorporate their knowledge of the source
 # structure into the model to potentially improve the image reconstruction.
 
-# Explicitly, we will take advantage of the fact that optically thin accretion flows 
+# Explicitly, we will take advantage of the fact that optically thin accretion flows
 # from a black hole that is face on is expected to produce a ring-like structure.
-# To take advantage of this we will use a hierarchical imaging approach where we 
+# To take advantage of this we will use a hierarchical imaging approach where we
 # can easily incorporate this domain model into the image reconstruction.
 
 # This approach is called Hierarchical Interferometric Bayesian Imaging (HIBI) and is
 # described in detail in the paper [Hierarchical Interferometric Bayesian Imaging](in prep).
-# For our image model we will use a raster image similar to 
+# For our image model we will use a raster image similar to
 # [`Stokes I Simultaneous Image and Instrument Modeling`](@ref). We will decompose the image raster
 # components $F_{ij}$ as follows
 # ```math
 # F_{ij} = F_0 \frac{\mu(x_i,y_j) \exp(σ r_{ij})}{\sum_{ij} \mu(x_i,y_j) \exp(σ r_{ij})}
 # ```
 # where $F_0$ is the total flux of the image, $μ(x_i,y_j)$ is a mean image and $r_{ij}$ is a
-# is the multiplicative fluctuations about this mean image. 
+# is the multiplicative fluctuations about this mean image.
 
 # However, before we continue let's load the packages and tutorials we will need.
 
@@ -65,12 +65,12 @@ obs = scan_average(obs)
 # we don't want to model. Specifically we will remove the
 #  - Baselines shorter than 0.1Gλ since this represents overresolved structure
 #  - Add 1% systematic uncertainty to handle residual calibration errors such as leakage.
-dvis = add_fractional_noise(flag(x->uvdist(x)<0.1e9, extract_table(obs, Visibilities())), 0.01)
+dvis = add_fractional_noise(flag(x -> uvdist(x) < 0.1e9, extract_table(obs, Visibilities())), 0.01)
 
 # ## Building the Model/Posterior
 
 # Now let's construct our model using the decomposition described above. For this we will need
-# to define 
+# to define
 
 function sky(θ, metadata)
     (; c, σimg, r, ain, aout) = θ

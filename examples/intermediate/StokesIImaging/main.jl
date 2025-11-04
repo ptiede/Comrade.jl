@@ -148,11 +148,11 @@ post = VLBIPosterior(skym, intmodel, dvis)
 
 # ## Optimization and Sampling
 
-# Now we need to actually compute our image. For this we will first follow standard approaches in 
+# Now we need to actually compute our image. For this we will first follow standard approaches in
 # VLBI and find the maximum a posteriori (MAP) estimate of the image and instrument model.
 # This is done using the `comrade_opt` function which accepts the posterior, an optimization
 # algorithm, and some keyword arguments. For this tutorial we will use the L-BFGS algorithm.
-# For more information about the optimization algorithms available see the Optimization.jl 
+# For more information about the optimization algorithms available see the Optimization.jl
 # [docs](https://docs.sciml.ai/Optimization/stable/).
 using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
@@ -180,39 +180,39 @@ imageviz(img, size = (500, 400)) |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
-# First, let's query the posterior object with the optimal parameters to get 
+# First, let's query the posterior object with the optimal parameters to get
 # the instrument model.
 intopt = instrumentmodel(post, xopt)
-# This returns a `SiteArray` object which contains the gains as a flat vector with 
+# This returns a `SiteArray` object which contains the gains as a flat vector with
 # metadata about the sites, time, and frequency. To visualize the gains we can use
 # the `plotcaltable` function which automatically plots the gains. Since the gains are complex
 # we will first plot the phases.
 plotcaltable(angle.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 
-# Due to the a priori calibration of the data, the gain phases are quite stable and just drift 
+# Due to the a priori calibration of the data, the gain phases are quite stable and just drift
 # over time. Note that the one outlier around 2.5 UT is when ALMA leaves the array. As a result
 # we shift the reference antenna to APEX on that scan causing the gain phases to jump.
 
 
 # We can also plot the gain amplitudes
 plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
-# Here we find relatively stable gains for most stations. The exception is LMT which 
-# has a large offset after 2.5 UT. This is a known issue with the LMT in 2017 and is 
-# due to pointing issues. However, we can see the power of simultaneous imaging and 
+# Here we find relatively stable gains for most stations. The exception is LMT which
+# has a large offset after 2.5 UT. This is a known issue with the LMT in 2017 and is
+# due to pointing issues. However, we can see the power of simultaneous imaging and
 # instrument modeling as we are able to solve for the gain amplitudes and get a reasonable
 # image.
 
 
-# One problem with the MAP estimate is that it does not provide uncertainties on the image. 
-# That is we are unable to statistically assess which components of the image are certain. 
+# One problem with the MAP estimate is that it does not provide uncertainties on the image.
+# That is we are unable to statistically assess which components of the image are certain.
 # Comrade is really a Bayesian imaging and calibration package for VLBI. Therefore, our
 # goal is to sample from the posterior distribution of the image and instrument model.
 # This is a very high-dimensional distribution with typically 1,000 - 100,000 parameters.
 # To sample from this very high dimensional distribution, Comrade has an array of samplers
 # that can be used. However, note that `Comrade` also satisfies the `LogDensityProblems.jl`
 # interface. Therefore, you can use any package that supports `LogDensityProblems.jl` if you
-# have your own fancy sampler. 
-# - 
+# have your own fancy sampler.
+# -
 # For this example, we will use HMC, specifically the NUTS algorithm. For
 # However, due to the need to sample a large number of gain parameters, constructing the posterior
 # can take a few minutes. Therefore, for this tutorial, we will only do a quick preliminary

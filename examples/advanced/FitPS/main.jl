@@ -11,15 +11,14 @@ close(pkg_io) #hide
 
 # In this tutorial, we will reconstruct VLBA data observations of the AGN XYZ using closures.
 # However we will also model the power spectrum of the AGN using a Markov Random Field expansion
-# Where we can fit multiple scales of the power spectrum simultaneously up to some order. 
+# Where we can fit multiple scales of the power spectrum simultaneously up to some order.
 
 
-# In this tutorial, we will do closure-only modeling of the AGN DA 193 observed with the VLBA 
-# at 15 GHz with the Mojave AGN project. Unlike the previous tutorials, we will constrain the 
+# In this tutorial, we will do closure-only modeling of the AGN DA 193 observed with the VLBA
+# at 15 GHz with the Mojave AGN project. Unlike the previous tutorials, we will constrain the
 # power spectrum slope and using a Markov random field expansion. This will allow us to model
 # more complex and multi-scale processes in AGN, which is expected to be common in black hole
-# jets. 
-
+# jets.
 
 
 # To get started, we will load Comrade
@@ -37,7 +36,7 @@ rng = StableRNG(123)
 
 
 # ## Load the Data
-# For this tutorial we will image publicly available VLBA data of the AGN 
+# For this tutorial we will image publicly available VLBA data of the AGN
 # 1308+326 observed on 2021/03/19 at 43 GHz as part of the Boston University blazar monitoring program.
 file = Base.download("https://www.bu.edu/blazars/VLBA_GLAST/1308/1308+326Q.2021-03-19.UVP.gz")
 obs0 = ehtim.obsdata.load_uvfits(file)
@@ -63,16 +62,16 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3), Closure
 #   P(k) \propto \frac{\sigma}{1 + \sum_s \rho_s k^{2s}}
 # ```
 # where `σ` is the marginal variance of the image, `ρs` are the coefficients of the Markovian expansion,
-# and `k` is the norm of the spatial wavenumber. 
+# and `k` is the norm of the spatial wavenumber.
 using VLBIImagePriors ## Defines the `MarkovPS` power spectrum model and `StationaryRandomField`
 function sky(θ, metadata)
     (; fb, c, ρs, σimg) = θ
     (; mimg, pl) = metadata
     ## Apply the GMRF fluctuations to the image
-    x = genfield(StationaryRandomField(MarkovPS(ρs.^2), pl), c)
+    x = genfield(StationaryRandomField(MarkovPS(ρs .^ 2), pl), c)
     x .= σimg .* x
-    fbn = fb/length(mimg)
-    mb = mimg.*(1 - fb) .+ fbn
+    fbn = fb / length(mimg)
+    mb = mimg .* (1 - fb) .+ fbn
     rast = apply_fluctuations(CenteredLR(), mb, x)
     m = ContinuousImage(rast, BSplinePulse{3}())
     return m
@@ -83,7 +82,7 @@ end
 nx = 64
 ny = 64
 fovx = μas2rad(1_000)
-fovy = fovx*ny/nx
+fovy = fovx * ny / nx
 grid = imagepixels(fovx, fovy, nx, ny, μas2rad(150.0), -μas2rad(150.0))
 
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
@@ -99,7 +98,7 @@ imgpr = intensitymap(mpr, grid)
 # This will be used to construct the actual correlated realization of the RF given some initial
 # white noise.
 pl = StationaryRandomFieldPlan(grid)
-skymeta = (; mimg=imgpr./sum(imgpr), pl);
+skymeta = (; mimg = imgpr ./ sum(imgpr), pl);
 
 
 # For the stationary random field prior we also need to define the *noise* prior. Luckily
@@ -109,13 +108,13 @@ cprior = std_dist(pl)
 # For the coefficients of the spectral expansion we will use a uniform prior between 0.1 and
 # 4 times the maximum dimension of the image. This prior is rather uninformative and
 # allows for a wide range of power spectra. Additionally, we truncate the expansion at order 3
-# for simplicity in this tutorial. 
+# for simplicity in this tutorial.
 using Distributions
 ρs = ntuple(Returns(Uniform(0.1, 2 * max(size(grid)...))), 3)
 
 # Putting everything together the total prior is then our image prior, a prior on the
 # standard deviation of the MRF, and a prior on the fractional flux of the Gaussian component.
-# 
+#
 prior = (;
     c = cprior,
     ρs = ρs,
@@ -154,7 +153,7 @@ using DisplayAs #hide
 g = refinespatial(grid, 3)
 # Now to produce the intensity map we just do
 imgmap = intensitymap(skymodel(post, xopt), g)
-fig = imageviz(imgmap, colorscale=log10, colorrange=(1e-8, 1e-4), size = (650, 500));
+fig = imageviz(imgmap, colorscale = log10, colorrange = (1.0e-8, 1.0e-4), size = (650, 500));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
@@ -169,18 +168,20 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # Overall, the image looks reasonable. However, the MAP is not
 # a robust estimator of the image morphology. For high dimensional problems the MAP is often
 # not representative of the entire image posterior. For this reason Comrade's main goal is to sample
-# the posterior of the image given the data. 
+# the posterior of the image given the data.
 
 
-# To sample from the posterior we will use HMC and more specifically the NUTS algorithm similar to 
-# the other imaging tutorials. For this tutorial we will also show how to use the `DiskStore` 
+# To sample from the posterior we will use HMC and more specifically the NUTS algorithm similar to
+# the other imaging tutorials. For this tutorial we will also show how to use the `DiskStore`
 # functionality that save the chain to disk to reduce memory usage.
 # This is especially useful for high-dimensional imaging problems where the chain can easily
 # reach multiple GBs in size. This also allows us to restart sampling from a previous chain if needed.
 # by using the keyword argument `restart=true` in the `sample` function.
 using AdvancedHMC
-mc = sample(rng, post, AdvancedHMC.NUTS(0.8), 300 + 400, n_adapts = 400,  
-            initial_params = xopt, saveto=DiskStore(;stride=10, name="VLBA_2025"));
+mc = sample(
+    rng, post, AdvancedHMC.NUTS(0.8), 300 + 400, n_adapts = 400,
+    initial_params = xopt, saveto = DiskStore(; stride = 10, name = "VLBA_2025")
+);
 chain = load_samples(mc)
 # !!! warning
 #     This should be run for longer!
@@ -192,11 +193,11 @@ chain = load_samples(mc)
 # To explore our posterior let's first create images from a bunch of draws from the posterior
 msamples = skymodel.(Ref(post), chain[501:5:end]);
 
-k = range(1 / size(grid)[1], π/2, length = 512)
+k = range(1 / size(grid)[1], π / 2, length = 512)
 fig = Figure()
 ax = Axis(fig[1, 1], xscale = log10, yscale = log10)
 for i in 501:10:length(chain)
-    lines!(ax, k, VLBIImagePriors.ampspectrum.(Ref(MarkovPS(chain.sky.ρs[i].^2)), tuple.(k, 0)))
+    lines!(ax, k, VLBIImagePriors.ampspectrum.(Ref(MarkovPS(chain.sky.ρs[i] .^ 2)), tuple.(k, 0)))
 end
 fig
 
@@ -207,9 +208,9 @@ imgs = intensitymap.(msamples, Ref(gpl))
 mimg = mean(imgs)
 simg = std(imgs)
 fig = Figure(; size = (500, 300));
-crange = (5e-6, 5e-2)
+crange = (5.0e-6, 5.0e-2)
 axs = [Axis(fig[i, j], xreversed = true, aspect = DataAspect()) for i in 1:1, j in 1:2]
-image!(axs[1, 1], mimg, colormap = :afmhot, colorscale=log10, colorrange=crange); axs[1, 1].title = "Mean"
+image!(axs[1, 1], mimg, colormap = :afmhot, colorscale = log10, colorrange = crange); axs[1, 1].title = "Mean"
 image!(axs[1, 2], simg ./ (max.(mimg, 1.0e-12)), colormap = :afmhot);axs[1, 2].title = "Fractional Uncertainty"
 hidedecorations!.(axs)
 fig |> DisplayAs.PNG |> DisplayAs.Text
@@ -218,7 +219,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 cleanf = Base.download("https://www.bu.edu/blazars/VLBA_GLAST/1308/1308+326Q.2021-03-19.IMAP.gz")
 # By default this will load the clean components with the beam defined in the FITS header.
 mcl = load_clean_components(cleanf)
-# We can also choose the load the clean components with a user-defined beam. 
+# We can also choose the load the clean components with a user-defined beam.
 mcl_50 = load_clean_components(cleanf, modify(Gaussian(), Stretch(beamsize(dlcamp) / 4 / fwhmfac)))
 
 # Now we can produce the CLEAN images on the same grid as our Comrade reconstruction.
@@ -227,32 +228,32 @@ cleanimg25 = intensitymap(mcl_50, gpl)
 
 fig = Figure(; size = (900, 350));
 axs = [Axis(fig[1, j], xreversed = true, aspect = DataAspect()) for j in 1:3]
-image!(axs[1], mimg, colormap = :afmhot, colorscale=log10, colorrange=crange); axs[1].title = "Comrade Mean"
-image!(axs[2], max.(cleanimg, 1e-20), colormap = :afmhot, colorscale=log10, colorrange=crange); axs[2].title = "CLEAN (Nominal beam)"   
-image!(axs[3], max.(cleanimg50, 1e-20), colormap = :afmhot, colorscale=log10, colorrange=crange); axs[3].title = "CLEAN (25% beam)"
+image!(axs[1], mimg, colormap = :afmhot, colorscale = log10, colorrange = crange); axs[1].title = "Comrade Mean"
+image!(axs[2], max.(cleanimg, 1.0e-20), colormap = :afmhot, colorscale = log10, colorrange = crange); axs[2].title = "CLEAN (Nominal beam)"
+image!(axs[3], max.(cleanimg50, 1.0e-20), colormap = :afmhot, colorscale = log10, colorrange = crange); axs[3].title = "CLEAN (25% beam)"
 hidedecorations!.(axs)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # From the plot you can see that the Comrade reconstruction is significantly superresolved compared
-# to the CLEAN reconstruction with the nominal beam. If we use a smaller beam for CLEAN we see 
-# a reconstruction that is more similar to Comrade. However, unlike CLEAN Comrade automatically 
+# to the CLEAN reconstruction with the nominal beam. If we use a smaller beam for CLEAN we see
+# a reconstruction that is more similar to Comrade. However, unlike CLEAN Comrade automatically
 # infers the effective resolution from the data itself and does not require a restoring beam.
 
 # Additionally, Comrade allows us to fully explore the distributions of images that are consistent
 # with the data. For example, we can plot a few random samples from the posterior to see the
 # variety of images that are consistent with the data.
-fig = Figure(;resolution=(800, 450))
+fig = Figure(; resolution = (800, 450))
 axs = [Axis(fig[i, j], xreversed = true, aspect = DataAspect()) for i in 1:2, j in 1:3]
 map(enumerate(axs)) do (i, ax)
     hidedecorations!(ax)
-    image!(ax, sample(imgs), colormap = :afmhot, colorscale=log10, colorrange=crange)
-    text!(ax, 0.05, 0.9, text="χ²= $(round(mean(chi2(post, chain[51:5:end][i]; reduce=true)); digits=2))", space=:relative, color=:white)
+    image!(ax, sample(imgs), colormap = :afmhot, colorscale = log10, colorrange = crange)
+    text!(ax, 0.05, 0.9, text = "χ²= $(round(mean(chi2(post, chain[51:5:end][i]; reduce = true)); digits = 2))", space = :relative, color = :white)
 end
 axcl = Axis(fig[1:2, 4], xreversed = true, aspect = DataAspect())
 hidedecorations!(axcl)
-image!(axcl, max.(cleanimg25, 1e-20), colormap = :afmhot, colorscale=log10, colorrange=crange)
+image!(axcl, max.(cleanimg25, 1.0e-20), colormap = :afmhot, colorscale = log10, colorrange = crange)
 axcl.title = "CLEAN (25% beam)"
-Label(fig[0, 1:3], "Comrade Post. Samples", tellheight=true)
+Label(fig[0, 1:3], "Comrade Post. Samples", tellheight = true)
 rowgap!(fig.layout, 1, 0.0)
 fig
 
