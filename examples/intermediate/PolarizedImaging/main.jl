@@ -151,7 +151,6 @@ dvis = extract_table(obs, Coherencies())
 # First we specify our sky model. As always `Comrade` requires this to be a two argument
 # function where the first argument is typically a NamedTuple of parameters we will fit
 # and the second are additional metadata required to build the model.
-using StatsFuns: logistic
 function sky(θ, metadata)
     (; σs, as) = θ
     (; mimg, ftot) = metadata
@@ -324,7 +323,7 @@ tpost = asflat(post)
 # work with the polarized Comrade posterior is Enzyme.
 using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
-    post, Optimization.LBFGS();
+    post, LBFGSB();
     initial_params = prior_sample(rng, post), maxiters = 2_000
 )
 
@@ -342,10 +341,9 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting.
 # Let's plot the results
-img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
-
-#Plotting the results gives
-fig = imageviz(img, adjust_length = true, colormap = :cmr_gothic, pcolormap = :rainbow1, plot_total = false);
+gpl = refinespatial(grid, 2)
+img = intensitymap(skymodel(post, xopt), gpl)
+fig = imageviz(img, adjust_length = true, colormap = :cmr_gothic, pcolormap = :rainbow1, pcolorrange=(0.0, 0.2), plot_total = false);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
