@@ -14,16 +14,18 @@ close(pkg_io) #hide
 # Where we can fit multiple scales of the power spectrum simultaneously up to some order. 
 
 
-# ## Introduction to Closure Imaging
-#
-# In this tutorial, we will do closure-only modeling of the AGN XYZ observed with the VLBA at XYZ GHz.
+# In this tutorial, we will do closure-only modeling of the AGN DA 193 observed with the VLBA 
+# at 15 GHz with the Mojave AGN project. Unlike the previous tutorials, we will constrain the 
+# power spectrum slope and using a Markov random field expansion. This will allow us to model
+# more complex and multi-scale processes in AGN, which is expected to be common in black hole
+# jets. 
+
 
 
 # To get started, we will load Comrade
 using Comrade
 using LinearAlgebra
 LinearAlgebra.BLAS.set_num_threads(1)
-VLBISkyModels.FFTW.set_num_threads(Threads.nthreads())
 # Pyehtim loads eht-imaging using PythonCall this is necessary to load uvfits files
 # currently.
 using Pyehtim
@@ -35,16 +37,16 @@ rng = StableRNG(123)
 
 
 # ## Load the Data
-# To download the data visit https://doi.org/10.25739/g85n-f134
+# For this tutorial we will image publicly available VLBA data of the AGN 
 # To load the eht-imaging obsdata object we do:
-# obs = ehtim.obsdata.load_uvfits("/home/ptiede/Smithsonian External Dropbox/Paul Tiede/MixedPolPaper/data/VLBA/BU/0954+658Q.2025-03-23.UVP.gz")
-obs0 = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+file = Base.download("https://www.bu.edu/blazars/VLBA_GLAST/1308/1308+326Q.2021-03-19.UVP.gz")
+obs0 = ehtim.obsdata.load_uvfits(file)
 
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      are coherent.
-#   - Add 2% systematic noise to deal with calibration issues such as leakage.
-obs = scan_average(obs)
+#   - Add 0.5% systematic noise to deal with calibration issues such as leakage.
+obs = scan_average(obs0).add_fractional_noise(0.005)
 
 # Now, we extract our closure quantities from the EHT data set. We flag now SNR points since
 # the closure likelihood we use is only applicable to high SNR data.
@@ -54,65 +56,48 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3), Closure
 #     Fitting low SNR closure data is complicated and requires a more sophisticated likelihood.
 #     If low-SNR data is very important we recommend fitting visibilties with a instrumental model.
 
-function fast_centroid(img::IntensityMap{<:Real, 2})
-    x0 = zero(eltype(img))
-    y0 = zero(eltype(img))
-    dp = domainpoints(img)
-    fs = Comrade._fastsum(img)
-    @inbounds for i in CartesianIndices(img)
-        x0 += dp[i].X * img[i]
-        y0 += dp[i].Y * img[i]
-    end
-    return x0 / fs, y0 / fs
-end
-
-
 
 # ## Build the Model/Posterior
-# For our model, we will be using an image model that consists of a raster of point sources,
-# convolved with some pulse or kernel to make a `ContinuousImage`.
-# To define this model we define the standard two argument function `sky` that defines the
-# sky model we want to fit. The first argument are the model parameters, and are typically
-# a NamedTuple. The second argument defines the metadata
-# for the model that is typically constant. For our model the constant `metdata` will just
-# by the mean or prior image.
+# Most of the model building here will look very similar to the previous [Imaging a Black Hole using only Closure Quantities](@ref)
+# tutorial. However, we will be utilizing a more complex image prior. Specifically, [`VLBIImagePriors`](@ref)
+# provides a basic framework for building stationary Gaussian random fields with cyclic boundary conditions.
+# To define the random field we just need to define a spectral model. For this work we will use a
+# Markovian spectral model. Namely, our power spectrum will be modeled as
+# ```math
+#   P(k) \propto \frac{\sigma}{1 + \sum_s \rho_s k^{2s}}
+# ```
+# where `σ` is the marginal variance of the image, `ρs` are the coefficients of the Markovian expansion,
+# and `k` is the norm of the spatial wavenumber. 
+using VLBIImagePriors ## Defines the `MarkovPS` power spectrum model and `StationaryRandomField`
 function sky(θ, metadata)
-    (; fb, c, ρs, τ, ξτ, σimg) = θ
+    (; fb, c, ρs, σimg) = θ
     (; mimg, pl) = metadata
     ## Apply the GMRF fluctuations to the image
-    x = genfield(StationaryRandomField(MarkovPS(ρs), pl), c)
+    x = genfield(StationaryRandomField(MarkovPS(ρs.^2), pl), c)
     x .= σimg .* x
     fbn = fb/length(mimg)
     mb = mimg.*(1 - fb) .+ fbn
-    rast = apply_fluctuations(UnitFluxMap(exp), mb, x)
-    x0, y0 = fast_centroid(rast)
-    m = ContinuousImage(rast, DeltaPulse())
-    ## Force the image centroid to be at the origin
-    ## Add a large-scale gaussian to deal with the over-resolved mas flux
-    return shifted(m, -x0, -y0)
+    rast = apply_fluctuations(CenteredLR(), mb, x)
+    m = ContinuousImage(rast, BSplinePulse{3}())
+    return m
 end
 
-
-# Now, let's set up our image model. The EHT's nominal resolution is 20-25 μas. Additionally,
-# the EHT is not very sensitive to a larger field of views; typically, 60-80 μas is enough to
-# describe the compact flux of M87. Given this, we only need to use a small number of pixels
-# to describe our image.
-npix = 64
-fovxy = μas2rad(2000.0)
-
-# To define the image model we need to specify both the grid we will be using and the
-# FT algorithm we will use, in this case the NFFT which is the most efficient.
-grid = imagepixels(fovxy, fovxy, npix, npix)
-
+# For this tutorial we decided to image a very compact AGN. Thus, we will use a small FOV for a 15 GHz
+# observation. Namely, we will use a 5000 μas FOV with 64x64 pixels.
+nx = 64
+ny = 64
+fovx = μas2rad(1_000)
+fovy = fovx*ny/nx
+grid = imagepixels(fovx, fovy, nx, ny, μas2rad(150.0), -μas2rad(150.0))
 
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
 # Random field prior
-using VLBIImagePriors, Distributions
 
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
-# image. For this work we will use a symmetric Gaussian with a FWHM of 50 μas
+# image. For this work we will use a symmetric Gaussian with a FWHM equal to the approximate
+# beamsize of the array. This models the fact that we expect the AGN core to be compact.
 fwhmfac = 2 * sqrt(2 * log(2))
-mpr = modify(Gaussian(), Stretch(3*beamsize(dlcamp) / fwhmfac))
+mpr = modify(Gaussian(), Stretch(beamsize(dlcamp) / 4 / fwhmfac))
 imgpr = intensitymap(mpr, grid)
 # To momdel the power spectrum we also need to construct our execution plan for the given grid.
 # This will be used to construct the actual correlated realization of the RF given some initial
@@ -121,21 +106,24 @@ pl = StationaryRandomFieldPlan(grid)
 skymeta = (; mimg=imgpr./sum(imgpr), pl);
 
 
-# Now we can finally form our image prior. For this we use a heirarchical prior where the
-# direct log-ratio image prior is a Gaussian Markov Random Field. The correlation length
-# of the GMRF is a hyperparameter that is fit during imaging. We pass the data to the prior
-# to estimate what the maximumal resolutoin of the array is and prevent the prior from allowing
-# correlation lengths that are much small than the telescope beam size. Note that this GMRF prior
-# has unit variance. For more information on the GMRF prior see the [`corr_image_prior`](@ref) doc string.
+# For the stationary random field prior we also need to define the *noise* prior. Luckily
+# VLBIImagePriors provides a helper function to do this for us.
 cprior = std_dist(pl)
+
+# For the coefficients of the spectral expansion we will use a uniform prior between 0.1 and
+# 4 times the maximum dimension of the image. This prior is rather uninformative and
+# allows for a wide range of power spectra. Additionally, we truncate the expansion at order 2
+# for simplicity in this tutorial. 
+using Distributions
+ρs = ntuple(Returns(Uniform(0.1, 2 * max(size(grid)...))), 3)
 
 # Putting everything together the total prior is then our image prior, a prior on the
 # standard deviation of the MRF, and a prior on the fractional flux of the Gaussian component.
-dρ = Uniform(0.1, 4 * max(size(grid)...))
-prior = (
+# 
+prior = (;
     c = cprior,
-    ρs = ntuple(Returns(dρ), 2),
-    σimg = truncated(Normal(0.0, 0.5); lower=0.0),
+    ρs = ρs,
+    σimg = Exponential(2.0),
     fb = Uniform(0.0, 1.0),
 )
 
@@ -158,49 +146,44 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 # functionality a user first needs to import `Optimization.jl` and the optimizer of choice.
 # In this tutorial we will use Optiizations LBFGS optimizer.
 # We also need to import Enzyme to allow for automatic differentiation.
-using Optimization
-xopt, sol = comrade_opt(
-    post, Optimization.LBFGS();
-    maxiters = 2000, initial_params = prior_sample(rng, post)
-);
+using Optimization, OptimizationLBFGSB, OptimizationOptimisers
+# tpost = asflat(post)
+xopt, sol = comrade_opt(post, Adam(); maxiters = 5000)
 
 using CairoMakie
 using DisplayAs #hide
-g = refinespatial(grid, 2)
-# img = intensitymap(skymodel(post, xopt), g)
-img = skymodel(post, xopt).model.img
-fig = imageviz(img, size = (600, 500));
+# The image we actually fit is a continuous object so we can easily refine the image
+# to produce a higher resolution rendering.
+# Here we refine the image by a factor of 3 in each dimension.
+g = refinespatial(grid, 3)
+# Now to produce the intensity map we just do
+imgmap = intensitymap(skymodel(post, xopt), g)
+fig = imageviz(imgmap, colorscale=log10, colorrange=(1e-8, 1e-4), size = (650, 500));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
-# First we will evaluate our fit by plotting the residuals
+# To see how well the MAP estimate fits the data we can plot the residuals.
 res = Comrade.residuals(post, xopt)
 fig = Figure(; size = (800, 300))
 plotfields!(fig[1, 1], res[1], :uvdist, :res);
 plotfields!(fig[1, 2], res[2], :uvdist, :res);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
-# Now let's plot the MAP estimate.
 
-
-# That doesn't look great. This is pretty common for the sparse EHT data. In this case the
-# MAP often drastically overfits the data, producing a image filled with artifacts. In addition,
-# we note that the MAP itself is not invariant to the model parameterization. Namely, if we
-# changed our prior to use a fully centered parameterization we would get a very different image.
-# Fortunately, these issues go away when we sample from the posterior, and construct expectations
-# of the posterior, like the mean image.
+# Overall, the image looks reasonable but the MAP has a slightly high reduced chi-square. Note that
+# since we are fitting with an image prior the MAP may actually have a higher reduced chi-square
+# than the MLE since the prior may pull the solution away from the MLE. The MAP however, is not
+# a robust estimator of the image statistics. For high dimensional problems like imaging it is often
+# not representative of the entire image posterior. For this reason Comrade's main goal is to sample
+# the posterior of the image given the data. 
 
 
 # To sample from the posterior we will use HMC and more specifically the NUTS algorithm. For information about NUTS
 # see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
-# !!! note
-#     For our `metric` we use a diagonal matrix due to easier tuning.
-#-
 using AdvancedHMC
-out = sample(rng, post, AdvancedHMC.NUTS(0.8), 1000 + 1000, n_adapts = 1000, 
-            saveto = DiskStore(name = joinpath(@__DIR__, "gausstest"), stride = 10), 
-            initial_params = xopt, restart=false);
-chain = load_samples(joinpath(@__DIR__, "gausstest"), 1:69*10)
+mc = sample(rng, post, AdvancedHMC.NUTS(0.8), 200 + 500, n_adapts = 200,  
+            initial_params = xopt, saveto=DiskStore(;stride=10, name="VLBA_2025"), restart=true);
+chain = load_samples(mc)
 # !!! warning
 #     This should be run for longer!
 #-
@@ -209,60 +192,73 @@ chain = load_samples(joinpath(@__DIR__, "gausstest"), 1:69*10)
 # unable to assess uncertainty in their reconstructions.
 #
 # To explore our posterior let's first create images from a bunch of draws from the posterior
-msamples = skymodel.(Ref(post), chain[301:5:end]);
+msamples = skymodel.(Ref(post), chain[501:5:end]);
 
 k = range(1 / size(grid)[1], π/2, length = 512)
 fig = Figure()
 ax = Axis(fig[1, 1], xscale = log10, yscale = log10)
-for i in 301:5:length(chain)
-    lines!(ax, k, VLBIImagePriors.ampspectrum.(Ref(MarkovPS(chain.sky.ρs[i])), tuple.(k, 0)))
+for i in 501:10:length(chain)
+    lines!(ax, k, VLBIImagePriors.ampspectrum.(Ref(MarkovPS(chain.sky.ρs[i].^2)), tuple.(k, 0)))
 end
 fig
 
 # The mean image is then given by
 using StatsBase
-imgs = center_image.(parent.(VLBISkyModels.unmodified.(msamples)))
+gpl = refinespatial(grid, 3)
+imgs = intensitymap.(msamples, Ref(gpl))
 mimg = mean(imgs)
 simg = std(imgs)
-fig = Figure(; resolution = (700, 400));
-axs = [Axis(fig[i, j], xreversed = true, aspect = DataAspect()) for i in 1:2, j in 1:2]
-image!(axs[1, 1], mimg, colormap = :afmhot, ); axs[1, 1].title = "Mean"
-image!(axs[1, 2], simg ./ (max.(mimg, 1.0e-8)), colormap = :afmhot);axs[1, 2].title = "Std"
-image!(axs[2, 1], sample(imgs), colormap = :afmhot, );
-image!(axs[2, 2], sample(imgs), colormap = :afmhot, );
+fig = Figure(; size = (500, 300));
+crange = (5e-6, 5e-2)
+axs = [Axis(fig[i, j], xreversed = true, aspect = DataAspect()) for i in 1:1, j in 1:2]
+image!(axs[1, 1], mimg, colormap = :afmhot, colorscale=log10, colorrange=crange); axs[1, 1].title = "Mean"
+image!(axs[1, 2], simg ./ (max.(mimg, 1.0e-12)), colormap = :afmhot);axs[1, 2].title = "Fractional Uncertainty"
 hidedecorations!.(axs)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
-gpl = imagepixels(μas2rad(100.0), μas2rad(100.0), 128, 128)
-pimgs = regrid.(imgs, Ref(gpl))
+# We can also compare the Comrade reconstruction to the CLEAN reconstruction of the same data.
+cleanf = Base.download("https://www.bu.edu/blazars/VLBA_GLAST/1308/1308+326Q.2021-03-19.IMAP.gz")
+# By default this will load the clean components with the beam defined in the FITS header.
+mcl = load_clean_components(cleanf)
+# We can also choose the load the clean components with a user-defined beam. 
+mcl_50 = load_clean_components(cleanf, modify(Gaussian(), Stretch(beamsize(dlcamp) / 4 / fwhmfac)))
 
-fig = Figure(;resolution=(600, 400))
+# Now we can produce the CLEAN images on the same grid as our Comrade reconstruction.
+cleanimg = intensitymap(mcl, gpl)
+cleanimg25 = intensitymap(mcl_50, gpl)
+
+fig = Figure(; size = (900, 350));
+axs = [Axis(fig[1, j], xreversed = true, aspect = DataAspect()) for j in 1:3]
+image!(axs[1], mimg, colormap = :afmhot, colorscale=log10, colorrange=crange); axs[1].title = "Comrade Mean"
+image!(axs[2], max.(cleanimg, 1e-20), colormap = :afmhot, colorscale=log10, colorrange=crange); axs[2].title = "CLEAN (Nominal beam)"   
+image!(axs[3], max.(cleanimg50, 1e-20), colormap = :afmhot, colorscale=log10, colorrange=crange); axs[3].title = "CLEAN (25% beam)"
+hidedecorations!.(axs)
+fig |> DisplayAs.PNG |> DisplayAs.Text
+
+# From the plot you can see that the Comrade reconstruction is significantly superresolved compared
+# to the CLEAN reconstruction with the nominal beam. If we use a smaller beam for CLEAN we see 
+# a reconstruction that is more similar to Comrade. However, unlike CLEAN Comrade automatically 
+# infers the effective resolution from the data itself and does not require a restoring beam.
+
+# Additionally, Comrade allows us to fully explore the distributions of images that are consistent
+# with the data. For example, we can plot a few random samples from the posterior to see the
+# variety of images that are consistent with the data.
+fig = Figure(;resolution=(800, 450))
 axs = [Axis(fig[i, j], xreversed = true, aspect = DataAspect()) for i in 1:2, j in 1:3]
 map(enumerate(axs)) do (i, ax)
     hidedecorations!(ax)
-    image!(ax, pimgs[i], colormap = :afmhot)
-    text!(ax, 0.05, 0.9, text="χ²= $(round(mean(chi2(post, chain[300:5:end][i]; reduce=true)); digits=2))", space=:relative, color=:white)
+    image!(ax, sample(imgs), colormap = :afmhot, colorscale=log10, colorrange=crange)
+    text!(ax, 0.05, 0.9, text="χ²= $(round(mean(chi2(post, chain[51:5:end][i]; reduce=true)); digits=2))", space=:relative, color=:white)
 end
+axcl = Axis(fig[1:2, 4], xreversed = true, aspect = DataAspect())
+hidedecorations!(axcl)
+image!(axcl, max.(cleanimg25, 1e-20), colormap = :afmhot, colorscale=log10, colorrange=crange)
+axcl.title = "CLEAN (25% beam)"
+Label(fig[0, 1:3], "Comrade Post. Samples", tellheight=true)
+rowgap!(fig.layout, 1, 0.0)
 fig
 
-
-# Now let's see whether our residuals look better.
-fig = Figure(; size = (800, 300))
-res = Comrade.residuals(post, chain[end])
-ax1, = baselineplot(fig[1, 1], res[1], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "LCA Normalized Residuals", xlabel = "uvdist (Gλ)"))
-ax2, = baselineplot(fig[1, 2], res[2], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "CP Normalized Residuals", xlabel = "uvdist (Gλ)"))
-ax1.title = "χ²ᵣ = $(chi2(post, chain[end]; reduce=true)[1])"
-ax2.title = "χ²ᵣ = $(chi2(post, chain[end]; reduce=true)[2])"
-for s in sample(chain[201:end], 10)
-    rs = Comrade.residuals(post, s)
-    baselineplot!(ax1, rs[1], :uvdist, :res, color = :grey, alpha = 0.2, label = "Posterior Draw")
-    baselineplot!(ax2, rs[2], :uvdist, :res, color = :grey, alpha = 0.2, label = "Posterior Draw")
-end
-axislegend(ax1, merge = true)
-fig |> DisplayAs.PNG |> DisplayAs.Text
-
-
-# And viola, you have a quick and preliminary image of M87 fitting only closure products.
-# For a publication-level version we would recommend
-#    1. Running the chain longer and multiple times to properly assess things like ESS and R̂ (see [Geometric Modeling of EHT Data](@ref))
-#    2. Fitting gains. Typically gain amplitudes are good to 10-20% for the EHT not the infinite uncertainty closures implicitly assume
+# In summary, we have demonstrated how to use Comrade to reconstruct VLBA data of an AGN
+# using only closure quantities. Additionally, we have shown how to use a Markov Random Field
+# expansion to model the power spectrum of the AGN. This allows us to model more complex
+# structures in the AGN jet and infer the power spectrum directly from the data.
