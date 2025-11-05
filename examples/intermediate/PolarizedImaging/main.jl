@@ -343,7 +343,10 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # Let's plot the results
 gpl = refinespatial(grid, 2)
 img = intensitymap(skymodel(post, xopt), gpl)
-fig = imageviz(img, adjust_length = true, colormap = :cmr_gothic, pcolormap = :rainbow1, pcolorrange=(0.0, 0.2), plot_total = false);
+fig = imageviz(
+    img, adjust_length = true, colormap = :cmr_gothic, pcolormap = :rainbow1,
+    pcolorrange = (0.0, 0.2), plot_total = false
+);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
