@@ -220,17 +220,17 @@ cleanf = Base.download("https://www.bu.edu/blazars/VLBA_GLAST/1308/1308+326Q.202
 # By default this will load the clean components with the beam defined in the FITS header.
 mcl = load_clean_components(cleanf)
 # We can also choose the load the clean components with a user-defined beam.
-mcl_50 = load_clean_components(cleanf, modify(Gaussian(), Stretch(beamsize(dlcamp) / 4 / fwhmfac)))
+mcl_25 = load_clean_components(cleanf, modify(Gaussian(), Stretch(beamsize(dlcamp) / 4 / fwhmfac)))
 
 # Now we can produce the CLEAN images on the same grid as our Comrade reconstruction.
 cleanimg = intensitymap(mcl, gpl)
-cleanimg25 = intensitymap(mcl_50, gpl)
+cleanimg25 = intensitymap(mcl_25, gpl)
 
 fig = Figure(; size = (900, 350));
 axs = [Axis(fig[1, j], xreversed = true, aspect = DataAspect()) for j in 1:3]
 image!(axs[1], mimg, colormap = :afmhot, colorscale = log10, colorrange = crange); axs[1].title = "Comrade Mean"
 image!(axs[2], max.(cleanimg, 1.0e-20), colormap = :afmhot, colorscale = log10, colorrange = crange); axs[2].title = "CLEAN (Nominal beam)"
-image!(axs[3], max.(cleanimg50, 1.0e-20), colormap = :afmhot, colorscale = log10, colorrange = crange); axs[3].title = "CLEAN (25% beam)"
+image!(axs[3], max.(cleanimg25, 1.0e-20), colormap = :afmhot, colorscale = log10, colorrange = crange); axs[3].title = "CLEAN (25% beam)"
 hidedecorations!.(axs)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
