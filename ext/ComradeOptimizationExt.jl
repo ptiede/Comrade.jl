@@ -16,8 +16,7 @@ function Optimization.OptimizationFunction(post::Comrade.TransformedVLBIPosterio
     else
         function grad(G, x, p)
             (_, dx) = Comrade.LogDensityProblems.logdensity_and_gradient(post, x)
-            dx .*= -1
-            G .= dx
+            G .= -dx
             return G
         end
         return SciMLBase.OptimizationFunction(ℓ, args...; grad = grad, kwargs...)
