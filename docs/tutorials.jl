@@ -33,7 +33,7 @@ withenv("JULIA_DEBUG" => "Literate") do
         try
             run(cm)
         catch e
-            @warn "there was an issues with $cm\n $e"
+            @warn "there was an issue with $cm\n $e"
         end
 
     end

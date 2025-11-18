@@ -18,10 +18,19 @@ effort by the end user.
 
 ## Tutorials
 
-Our tutorial section currently has a large number of examples. The simplest example is fitting simple geometric models to the 2017 M87 data and is detailed in the [Geometric Modeling of EHT Data](@ref) tutorial. We also include "non-parametric" modeling or imaging examples in [Imaging a Black Hole using only Closure Quantities](@ref), and [Stokes I Simultaneous Image and Instrument Modeling](@ref). There is also an introduction to hybrid geometric and image modeling in [Hybrid Imaging of a Black Hole](@ref), which combines physically motivated geometric modeling with the flexibility of image-based models. Finally, we
-provide a tutorial on how to use `Comrade` to model polarized data including simultaneously solving for 
-the image and instrumental effects like gain ratios and leakage terms in [Polarized Image and Instrumental Modeling](@ref).
+Our tutorial section currently has a large number of examples. Including:
+ - [Geometric Modeling of EHT Data](@ref)
+ - [Imaging a Black Hole using only Closure Quantities](@ref)
+ - [Stokes I Simultaneous Image and Instrument Modeling](@ref)
+ - [Hierarchicial Interferometric Bayesian Imaging (HIBI)](@ref)
+ - [Modeling the Power Spectrum of an AGN with Markov Random Field Expansion](@ref)
+ - [Polarized Image and Instrumental Modeling](@ref)
 
+Note that these tutorials should be treated as starting points for your own modeling efforts! 
+`Comrade` is highly flexible and so you should be able to combine different aspects of these 
+tutorials to create your own models. We are currently working on a high-level imaging 
+code that uses `Comrade` as a backend, but in the mean time these tutorials should help you get 
+on your own VLBI imaging projects.
 
 
 ## Contributing

@@ -7,7 +7,7 @@ Pkg.instantiate(; io = pkg_io) #hide
 Pkg.precompile(; io = pkg_io) #hide
 close(pkg_io) #hide
 
-# # Modeling a Power Spectrum of AGN with Markov Random Field Expansion
+# # Modeling the Power Spectrum of an AGN with Markov Random Field Expansion
 
 # In this tutorial, we will reconstruct VLBA data observations of the AGN XYZ using closures.
 # However we will also model the power spectrum of the AGN using a Markov Random Field expansion
@@ -54,7 +54,7 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3), Closure
 
 # ## Build the Model/Posterior
 # Most of the model building here will look very similar to the previous [Imaging a Black Hole using only Closure Quantities](@ref)
-# tutorial. However, we will be utilizing a more complex image prior. Specifically, [`VLBIImagePriors`](@ref)
+# tutorial. However, we will be utilizing a more complex image prior. Specifically, [`VLBIImagePriors`](https://ptiede.github.io/VLBIImagePriors.jl/stable/)
 # provides a basic framework for building stationary Gaussian random fields with cyclic boundary conditions.
 # To define the random field we just need to define a spectral model. For this work we will use a
 # Markovian spectral model. Namely, our power spectrum will be modeled as

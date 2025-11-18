@@ -22,9 +22,9 @@ close(pkg_io) #hide
 # can easily incorporate this domain model into the image reconstruction.
 
 # This approach is called Hierarchical Interferometric Bayesian Imaging (HIBI) and is
-# described in detail in the paper [Hierarchical Interferometric Bayesian Imaging](in prep).
+# described in detail in the paper Hierarchical Interferometric Bayesian Imaging (in prep).
 # For our image model we will use a raster image similar to
-# [`Stokes I Simultaneous Image and Instrument Modeling`](@ref). We will decompose the image raster
+# [Stokes I Simultaneous Image and Instrument Modeling](@ref). We will decompose the image raster
 # components $F_{ij}$ as follows
 # ```math
 # F_{ij} = F_0 \frac{\mu(x_i,y_j) \exp(σ r_{ij})}{\sum_{ij} \mu(x_i,y_j) \exp(σ r_{ij})}
@@ -192,7 +192,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # we recommend for all inference problems in `Comrade`. While it is slower the results are
 # often substantially better. To sample we will use the `AdvancedHMC` package.
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt);
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, progress=false, initial_params = xopt);
 # chain = load_samples(out)
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]
