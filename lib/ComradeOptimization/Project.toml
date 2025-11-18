@@ -24,11 +24,11 @@ julia = "1.7"
 [extras]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 OptimizationBBO = "3e6eede4-6085-4f62-9a71-46d9bc1eb92b"
-OptimizationOptimJL = "36348300-93cb-4f02-beb5-3c3902f8871e"
+OptimizationLBFGSB = "22f7324a-a79d-40f2-bebe-3af60c77bd15"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["Test", "OptimizationBBO", "OptimizationOptimJL", "Pyehtim", "Distributions", "VLBIImagePriors", "Zygote"]
+test = ["Test", "OptimizationBBO", "OptimizationLBFGS", "Pyehtim", "Distributions", "VLBIImagePriors", "Zygote"]

@@ -1,5 +1,5 @@
 using Comrade, Optimization
-using Pyehtim, OptimizationOptimJL, Distributions, VLBIImagePriors
+using Pyehtim, OptimizationLBFGSB, Distributions, VLBIImagePriors
 using OptimizationBBO, OptimizationGCMAES, OptimizationOptimisers
 using HypercubeTransform
 using Enzyme
@@ -35,10 +35,10 @@ const Ahyper = HypercubeTransform.AbstractHypercubeTransform
     postbig = VLBIPosterior(skymbig, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
 
     @testset "Heuristic Test" begin
-        @test !isa(COExt._transform_heuristic(post, LBFGS(), nothing, nothing).transform, Ahyper)
-        @test isa(COExt._transform_heuristic(post, LBFGS(), nothing, ascube).transform, Ahyper)
-        @test !isa(COExt._transform_heuristic(post, LBFGS(), nothing, asflat).transform, Ahyper)
-        @test isa(COExt._transform_heuristic(post, SAMIN(), nothing, nothing).transform, Ahyper)
+        @test !isa(COExt._transform_heuristic(post, LBFGSB(), nothing, nothing).transform, Ahyper)
+        @test isa(COExt._transform_heuristic(post, LBFGSB(), nothing, ascube).transform, Ahyper)
+        @test !isa(COExt._transform_heuristic(post, LBFGSB(), nothing, asflat).transform, Ahyper)
+        @test isa(COExt._transform_heuristic(post, BBO_adaptive_de_rand_1_bin_radiuslimited(), nothing, nothing).transform, Ahyper)
         @test isa(COExt._transform_heuristic(post, GCMAESOpt(), nothing, nothing).transform, Ahyper)
         @test_throws "You are using the" COExt._transform_heuristic(postbig, GCMAESOpt(), nothing, nothing)
         # We don't actually use the bounds when constructing so just test that the condition in the heuristic is correct
@@ -46,7 +46,7 @@ const Ahyper = HypercubeTransform.AbstractHypercubeTransform
         @test !isa(COExt._transform_heuristic(postbig, OptimizationOptimisers.Adam(), prior_sample(postbig), nothing).transform, Ahyper)
     end
 
-    xopt2, sol = comrade_opt(post, LBFGS(); initial_params = x0, maxiters = 10_000)
+    xopt2, sol = comrade_opt(post, LBFGSB(); initial_params = x0, maxiters = 10_000)
 
     xopt = xopt2.sky
     @test isapprox(xopt.f1 / xopt.f2, 2.0, atol = 1.0e-3)

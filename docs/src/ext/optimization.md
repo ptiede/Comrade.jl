@@ -18,11 +18,11 @@ To see what optimizers are available and what options are available, please see 
 ```julia
 using Comrade
 using Optimization
-using OptimizationOptimJL
+using OptimizationLBFGSB
 using Enzyme
 
 # Some stuff to create a posterior object
 post # of type Comrade.Posterior
 
-xopt, sol = comrade_opt(post, LBFGS())
+xopt, sol = comrade_opt(post, LBFGSB())
 ```
