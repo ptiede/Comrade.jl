@@ -14,7 +14,7 @@ TUTORIALS = [
     "intermediate/StokesIImaging/main.jl",
     "intermediate/PolarizedImaging/main.jl",
     "advanced/Hibi/main.jl",
-    "advanced/FitPS/main.jl"
+    "advanced/FitPS/main.jl",
 ]
 
 withenv("JULIA_DEBUG" => "Literate") do
