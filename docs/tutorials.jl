@@ -13,7 +13,8 @@ TUTORIALS = [
     "intermediate/ClosureImaging/main.jl",
     "intermediate/StokesIImaging/main.jl",
     "intermediate/PolarizedImaging/main.jl",
-    "advanced/HybridImaging/main.jl",
+    "advanced/Hibi/main.jl",
+    "advanced/FitPS/main.jl"
 ]
 
 withenv("JULIA_DEBUG" => "Literate") do
