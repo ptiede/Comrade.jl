@@ -28,7 +28,7 @@ jobs:
           - '1.11'
         os:
           - ubuntu-latest
-          - macOS-latest
+          # - macOS-latest # Hangs on lts right now
         arch:
           - x64
         python-version:
