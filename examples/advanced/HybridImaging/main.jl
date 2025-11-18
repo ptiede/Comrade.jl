@@ -165,7 +165,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # To find the image we will demonstrate two methods:
 #  - Optimization to find the MAP (fast but often a poor estimator)
 #  - Sampling to find the posterior (slow but provides a substantially better estimator)
-# For optimization we will use the `Optimization.jl` package and the LBFGS optimizer.
+# For optimization we will use the `Optimization.jl` package and the LBFGSB optimizer.
 # To use this we use the [`comrade_opt`](@ref) function
 using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
