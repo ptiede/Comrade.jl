@@ -28,30 +28,20 @@ jobs:
           - '1'
         os:
           - ubuntu-latest
+          - macOS-latest
         arch:
           - x64
         python-version:
           - '3.10'
     steps:
-      - name: Install Libs
-        run: |
-          sudo apt-get update
-          sudo apt-get install libhdf5-dev
-          sudo apt-get install --reinstall libxcb-xinerama0
       - uses: actions/checkout@v5
-      - name: Setup python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: ${{ matrix.arch }}
-
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
-          arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1      
-      - uses: julia-actions/julia-runtest@v1
+      - name: Run tests
+        uses: julia-actions/julia-runtest@v1
         env:
           GROUP: ${{ matrix.group }}
       - uses: julia-actions/julia-processcoverage@v1
