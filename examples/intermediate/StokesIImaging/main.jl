@@ -25,7 +25,7 @@ using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(12)
+rng = StableRNG(42)
 
 
 # ## Load the Data
@@ -34,7 +34,6 @@ rng = StableRNG(12)
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
 obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-# obs = ehtim.obsdata.load_uvfits("~/Dropbox (Smithsonian External)/M872021Project/Data/2021/CASA/e21e18/V4/M87_calibrated_b3.uvf+EVPA_rotation+netcal_10savg+flag.uvfits")
 # Now we do some minor preprocessing:
 #   - Scan average the data since the data have been preprocessed so that the gain phases
 #      coherent.
@@ -74,7 +73,7 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 32
+npix = 48
 fovx = μas2rad(200.0)
 fovy = μas2rad(200.0)
 
@@ -141,29 +140,24 @@ intpr = (
 intmodel = InstrumentModel(G, intpr)
 
 
-# To form the posterior we just combine the skymodel, instrument model and the data. Additionally,
-# since we want to use gradients we need to specify the AD mode. Essentially for all modes we recommend
-# using `Enzyme.set_runtime_activity(Enzyme.Reverse)`. Eventually as Comrade and Enzyme matures we will
-# no need `set_runtime_activity`.
+# To form the posterior we just combine the skymodel, instrument model and the data. To utilize
+# gradients of the posterior we also need to load `Enzyme.jl`. Under the hood, Comrade will use
+# Enzyme to compute the gradients of the posterior.
 using Enzyme
 post = VLBIPosterior(skym, intmodel, dvis)
-# done using the `asflat` function.
-tpost = asflat(post)
-ndim = dimension(tpost)
 
-# We can now also find the dimension of our posterior or the number of parameters we are going to sample.
-# !!! warning
-#     This can often be different from what you would expect. This is especially true when using
-#     angular variables where we often artificially increase the dimension
-#     of the parameter space to make sampling easier.
-#-
+# ## Optimization and Sampling
 
-# To initialize our sampler we will use optimize using Adam
-using Optimization
-using OptimizationOptimisers
+# Now we need to actually compute our image. For this we will first follow standard approaches in
+# VLBI and find the maximum a posteriori (MAP) estimate of the image and instrument model.
+# This is done using the `comrade_opt` function which accepts the posterior, an optimization
+# algorithm, and some keyword arguments. For this tutorial we will use the L-BFGS algorithm.
+# For more information about the optimization algorithms available see the Optimization.jl
+# [docs](https://docs.sciml.ai/Optimization/stable/).
+using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
-    post, Optimisers.Adam(); initial_params = prior_sample(rng, post),
-    maxiters = 20_000, g_tol = 1.0e-1
+    post, LBFGSB(); initial_params = prior_sample(rng, post),
+    maxiters = 2000, g_tol = 1.0e-1
 );
 
 # !!! warning
@@ -186,31 +180,46 @@ imageviz(img, size = (500, 400)) |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # Because we also fit the instrument model, we can inspect their parameters.
-# To do this, `Comrade` provides a `caltable` function that converts the flattened gain parameters
-# to a tabular format based on the time and its segmentation.
+# First, let's query the posterior object with the optimal parameters to get
+# the instrument model.
 intopt = instrumentmodel(post, xopt)
-gt = Comrade.caltable(angle.(intopt))
-plotcaltable(gt) |> DisplayAs.PNG |> DisplayAs.Text
+# This returns a `SiteArray` object which contains the gains as a flat vector with
+# metadata about the sites, time, and frequency. To visualize the gains we can use
+# the `plotcaltable` function which automatically plots the gains. Since the gains are complex
+# we will first plot the phases.
+plotcaltable(angle.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 
-# The gain phases are pretty random, although much of this is due to us picking a random
-# reference sites for each scan.
-
-# Moving onto the gain amplitudes, we see that most of the gain variation is within 10% as expected
-# except LMT, which has massive variations.
-gt = Comrade.caltable(abs.(intopt))
-plotcaltable(gt) |> DisplayAs.PNG |> DisplayAs.Text
+# Due to the a priori calibration of the data, the gain phases are quite stable and just drift
+# over time. Note that the one outlier around 2.5 UT is when ALMA leaves the array. As a result
+# we shift the reference antenna to APEX on that scan causing the gain phases to jump.
 
 
-# To sample from the posterior, we will use HMC, specifically the NUTS algorithm. For
-# information about NUTS,
-# see Michael Betancourt's [notes](https://arxiv.org/abs/1701.02434).
+# We can also plot the gain amplitudes
+plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
+# Here we find relatively stable gains for most stations. The exception is LMT which
+# has a large offset after 2.5 UT. This is a known issue with the LMT in 2017 and is
+# due to pointing issues. However, we can see the power of simultaneous imaging and
+# instrument modeling as we are able to solve for the gain amplitudes and get a reasonable
+# image.
+
+
+# One problem with the MAP estimate is that it does not provide uncertainties on the image.
+# That is we are unable to statistically assess which components of the image are certain.
+# Comrade is really a Bayesian imaging and calibration package for VLBI. Therefore, our
+# goal is to sample from the posterior distribution of the image and instrument model.
+# This is a very high-dimensional distribution with typically 1,000 - 100,000 parameters.
+# To sample from this very high dimensional distribution, Comrade has an array of samplers
+# that can be used. However, note that `Comrade` also satisfies the `LogDensityProblems.jl`
+# interface. Therefore, you can use any package that supports `LogDensityProblems.jl` if you
+# have your own fancy sampler.
+# -
+# For this example, we will use HMC, specifically the NUTS algorithm. For
 # However, due to the need to sample a large number of gain parameters, constructing the posterior
-# is rather time-consuming. Therefore, for this tutorial, we will only do a quick preliminary
-# run
+# can take a few minutes. Therefore, for this tutorial, we will only do a quick preliminary
+# run.
 #-
 using AdvancedHMC
-out = sample(rng, post, NUTS(0.8), 1_000; n_adapts = 500, saveto = DiskStore(), initial_params = xopt)
-chain = load_samples(out)
+chain = sample(rng, post, NUTS(0.8), 1_000; n_adapts = 500, initial_params = xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -257,7 +266,7 @@ simg = std(imgs)
 fig = Figure(; resolution = (700, 700));
 axs = [Axis(fig[i, j], xreversed = true, aspect = 1) for i in 1:2, j in 1:2]
 image!(axs[1, 1], mimg, colormap = :afmhot); axs[1, 1].title = "Mean"
-image!(axs[1, 2], simg ./ (max.(mimg, 1.0e-8)), colorrange = (0.0, 2.0), colormap = :afmhot);axs[1, 2].title = "Std"
+image!(axs[1, 2], simg ./ (max.(mimg, 1.0e-8)), colorrange = (0.0, 2.0), colormap = :afmhot);axs[1, 2].title = "Frac. Uncer."
 image!(axs[2, 1], imgs[1], colormap = :afmhot);
 image!(axs[2, 2], imgs[end], colormap = :afmhot);
 hidedecorations!.(axs)

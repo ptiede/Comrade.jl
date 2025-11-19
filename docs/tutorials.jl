@@ -13,7 +13,8 @@ TUTORIALS = [
     "intermediate/ClosureImaging/main.jl",
     "intermediate/StokesIImaging/main.jl",
     "intermediate/PolarizedImaging/main.jl",
-    "advanced/HybridImaging/main.jl",
+    "advanced/Hibi/main.jl",
+    "advanced/FitPS/main.jl",
 ]
 
 withenv("JULIA_DEBUG" => "Literate") do
@@ -32,7 +33,7 @@ withenv("JULIA_DEBUG" => "Literate") do
         try
             run(cm)
         catch e
-            @warn "there was an issues with $cm\n $e"
+            @warn "there was an issue with $cm\n $e"
         end
 
     end

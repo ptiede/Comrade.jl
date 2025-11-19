@@ -27,7 +27,8 @@ TUTORIALS = [
         "tutorials/intermediate/PolarizedImaging.md",
     ],
     "Advanced" => [
-        "tutorials/advanced/HybridImaging.md",
+        "tutorials/advanced/Hibi.md",
+        "tutorials/advanced/FitPS.md",
     ],
 ]
 

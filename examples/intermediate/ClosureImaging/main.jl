@@ -138,11 +138,11 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 
 # To optimize our posterior `Comrade` provides the `comrade_opt` function. To use this
 # functionality a user first needs to import `Optimization.jl` and the optimizer of choice.
-# In this tutorial we will use Optiizations LBFGS optimizer.
+# In this tutorial we will use Optiizations LBFGSB optimizer.
 # We also need to import Enzyme to allow for automatic differentiation.
-using Optimization
+using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
-    post, Optimization.LBFGS();
+    post, LBFGSB();
     maxiters = 2000, initial_params = prior_sample(rng, post)
 );
 

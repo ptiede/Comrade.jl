@@ -77,8 +77,8 @@ close(pkg_io) #hide
 #           d_b     &1\\
 #       \end{pmatrix}
 # ```
-#   - [`JonesR`](@ref) is the basis transform matrix $T$. This transformation is special and
-#      combines two things using the decomposition $T=FB$. The first, $B$, is the transformation from
+#   - [`JonesR`](@ref) is the ideal telescope response $R$. This transformation is special and
+#      combines two things using the decomposition $R=FB$. The first, $B$, is the transformation from
 #      some reference basis to the observed coherency basis (this allows for mixed basis measurements).
 #      The second is the feed rotation, $F$, that transforms from some reference axis to the axis of the
 #      telescope as the source moves in the sky. The feed rotation matrix `F` for circular feeds
@@ -104,7 +104,7 @@ using Pyehtim
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(42)
+rng = StableRNG(48)
 
 
 # Now we will load some synthetic polarized data.
@@ -151,24 +151,30 @@ dvis = extract_table(obs, Coherencies())
 # First we specify our sky model. As always `Comrade` requires this to be a two argument
 # function where the first argument is typically a NamedTuple of parameters we will fit
 # and the second are additional metadata required to build the model.
-using StatsFuns: logistic
 function sky(θ, metadata)
-    (; c, σ, p, p0, pσ, angparams) = θ
+    (; σs, as) = θ
     (; mimg, ftot) = metadata
     ## Build the stokes I model
-    rast = apply_fluctuations(CenteredLR(), mimg, σ .* c.params)
-    brast = baseimage(rast)
-    brast .= ftot .* brast
-    ## The total polarization fraction is modeled in logit space so we transform it back
-    pim = logistic.(p0 .+ pσ .* p.params)
-    ## Build our IntensityMap
-    pmap = PoincareSphere2Map(rast, pim, angparams)
-    ## Construct the actual image model which uses a third order B-spline pulse
-    m = ContinuousImage(pmap, BSplinePulse{3}())
-    ## Finally find the image centroid and shift it to be at the center
+    δs = ntuple(Val(4)) do i
+        σs[i] * as[i].params
+    end
+
+    ## Convert hyperbolic polarization basis to Stokes basis
+    pmap = VLBISkyModels.PolExp2Map!(δs..., axisdims(mimg))
+
+    ## We now add a mean image. Namely, we assume that `pmap` are multiplicative fluctuations
+    ## about some mean image `mimg`. We also compute the total flux of the Stokes I image
+    ## for normalization purposes below.
+    ft = zero(eltype(mimg))
+    for i in eachindex(pmap, mimg)
+        pmap[i] *= mimg[i]
+        ft += pmap[i].I
+    end
+
+    pmap .= ftot .* pmap ./ ft
     x0, y0 = centroid(pmap)
-    ms = shifted(m, -x0, -y0)
-    return ms
+    m = ContinuousImage(pmap, BSplinePulse{3}())
+    return shifted(m, -x0, -y0)
 end
 
 
@@ -179,7 +185,7 @@ using Distributions
 using VLBIImagePriors
 fovx = μas2rad(200.0)
 fovy = μas2rad(200.0)
-nx = ny = 32
+nx = ny = 48
 grid = imagepixels(fovx, fovy, nx, ny)
 
 fwhmfac = 2 * sqrt(2 * log(2))
@@ -198,14 +204,10 @@ skymeta = (; mimg = mimg ./ flux(mimg), ftot = 0.6);
 # which logit transformed puts most of the prior mass < 0.8 fractional polarization. The standard deviation of the
 # total polarization fraction `pσ` again uses a Half-normal process. The angular parameters of the polarizaton are
 # given by a uniform prior on the sphere.
-cprior = corr_image_prior(grid, dvis)
+cprior = corr_image_prior(grid, dvis; order = 2)
 skyprior = (
-    c = cprior,
-    σ = Exponential(0.1),
-    p = cprior,
-    p0 = Normal(-2.0, 2.0),
-    pσ = truncated(Normal(0.0, 1.0); lower = 0.01),
-    angparams = ImageSphericalUniform(nx, ny),
+    σs = ntuple(Returns(truncated(Normal(0.0, 0.5); lower = 0.0)), 4),
+    as = ntuple(Returns(cprior), 4),
 )
 
 skym = SkyModel(sky, skyprior, grid; metadata = skymeta)
@@ -319,11 +321,10 @@ tpost = asflat(post)
 # Now we optimize. Unlike other imaging examples, we move straight to gradient optimizers
 # due to the higher dimension of the space. In addition the only AD package that can currently
 # work with the polarized Comrade posterior is Enzyme.
-using Optimization
-using OptimizationOptimisers
+using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
-    post, Optimisers.Adam();
-    initial_params = prior_sample(rng, post), maxiters = 25_000
+    post, LBFGSB();
+    initial_params = prior_sample(rng, post), maxiters = 2_000
 )
 
 
@@ -339,15 +340,13 @@ plotfields!(fig[2, 2], res[1], uvdist, x -> Comrade.measurement(x)[2, 2] / noise
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting.
-# Let's compare our results to the ground truth values we know in this example.
-# First, we will load the polarized truth
-imgtrue = load_fits(joinpath(__DIR, "..", "..", "Data", "polarized_gaussian.fits"), IntensityMap{StokesParams});
-# Select a reasonable zoom in of the image.
-imgtruesub = regrid(imgtrue, imagepixels(fovx, fovy, nx * 4, ny * 4))
-img = intensitymap(Comrade.skymodel(post, xopt), axisdims(imgtruesub))
-
-#Plotting the results gives
-fig = imageviz(img, adjust_length = true, colormap = :bone, pcolormap = :RdBu)
+# Let's plot the results
+gpl = refinespatial(grid, 2)
+img = intensitymap(skymodel(post, xopt), gpl)
+fig = imageviz(
+    img, adjust_length = true, colormap = :cmr_gothic, pcolormap = :rainbow1,
+    pcolorrange = (0.0, 0.2), plot_total = false
+);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 

@@ -40,11 +40,18 @@ const intermediate = [
 
 const advanced = [
   {
-    href: "advanced/HybridImaging", 
-    src: "../hybrid.png",
-    caption: "Hybrid ring modeling and residual imaging of M87*",
-    desc: "How to combine everything to model the ring and create a residual image of M87*." 
-  }
+    href: "advanced/Hibi", 
+    src: "../telescopes.jpg",
+    caption: "Hierarchical Bayesian Imaging (HIBI) of M87*",
+    desc: "How to incorporate physical assumptions in to the modeo." 
+  },
+  {
+    href: "advanced/FitPS", 
+    src: "../telescopes.jpg",
+    caption: "Fitting the Power Spectrum of an AGN",
+    desc: "Fitting a power spectrum model to VLBI data of an AGN." 
+  },
+
 ];
 
 
