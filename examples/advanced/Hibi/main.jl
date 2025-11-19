@@ -1,10 +1,10 @@
 import Pkg #hide
 __DIR = @__DIR__ #hide
 pkg_io = open(joinpath(__DIR, "pkg.log"), "w") #hide
-Pkg.activate(__DIR; io=pkg_io) #hide
-Pkg.develop(; path=joinpath(__DIR, "..", "..", ".."), io=pkg_io) #hide
-Pkg.instantiate(; io=pkg_io) #hide
-Pkg.precompile(; io=pkg_io) #hide
+Pkg.activate(__DIR; io = pkg_io) #hide
+Pkg.develop(; path = joinpath(__DIR, "..", "..", ".."), io = pkg_io) #hide
+Pkg.instantiate(; io = pkg_io) #hide
+Pkg.precompile(; io = pkg_io) #hide
 close(pkg_io) #hide
 
 
@@ -98,8 +98,8 @@ fgain(x) = exp(x.lg + 1im * x.gp)
 G = SingleStokesGain(fgain)
 
 intpr = (
-    lg=ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM=IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    gp=ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant=SEFDReference(0.0)),
+    lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+    gp = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0)),
 )
 intmodel = InstrumentModel(G, intpr)
 
@@ -137,16 +137,16 @@ cprior = corr_image_prior(g, dvis)
 # half-normal distribution. This is to ensure that the MRF has small differences from the
 # mean image.
 skyprior = (
-    c=cprior,
-    σimg=truncated(Normal(0.0, 0.5); lower=0.0),
-    r=Uniform(μas2rad(10.0), μas2rad(40.0)),
-    ain=Uniform(1.0, 20.0),
-    aout=Uniform(1.0, 20.0),
+    c = cprior,
+    σimg = truncated(Normal(0.0, 0.5); lower = 0.0),
+    r = Uniform(μas2rad(10.0), μas2rad(40.0)),
+    ain = Uniform(1.0, 20.0),
+    aout = Uniform(1.0, 20.0),
 )
 
 # Now we form the metadata
-skymetadata = (; ftot=1.1, grid=g)
-skym = SkyModel(sky, skyprior, g; metadata=skymetadata)
+skymetadata = (; ftot = 1.1, grid = g)
+skym = SkyModel(sky, skyprior, g; metadata = skymetadata)
 
 # This is everything we need to specify our posterior distribution, which our is the main
 # object of interest in image reconstructions when using Bayesian inference.
@@ -172,7 +172,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
     post, LBFGSB();
-    initial_params=xrand, maxiters=2000, g_tol=1.0e0
+    initial_params = xrand, maxiters = 2000, g_tol = 1.0e0
 );
 
 
@@ -184,7 +184,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # These residuals suggest that we are substantially overfitting the data. This is a common
 # side effect of MAP imaging. As a result if we plot the image we see that there
 # is substantial high-frequency structure in the image that isn't supported by the data.
-fig = imageviz(intensitymap(skymodel(post, xopt), gpl), figure=(; resolution=(500, 400)));
+fig = imageviz(intensitymap(skymodel(post, xopt), gpl), figure = (; resolution = (500, 400)));
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 
@@ -192,7 +192,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 # we recommend for all inference problems in `Comrade`. While it is slower the results are
 # often substantially better. To sample we will use the `AdvancedHMC` package.
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts=500, progress=false, initial_params=xopt);
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, progress = false, initial_params = xopt);
 # chain = load_samples(out)
 # We then remove the adaptation/warmup phase from our chain
 chain = chain[501:end]
@@ -210,10 +210,10 @@ msamples = skymodel.(Ref(post), chain[begin:5:end]);
 
 # The mean image is then given by
 imgs = intensitymap.(msamples, Ref(gpl))
-fig = imageviz(mean(imgs), size=(400, 300));
+fig = imageviz(mean(imgs), size = (400, 300));
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 #-
-fig = imageviz(std(imgs), colormap=:batlow, size=(400, 300));
+fig = imageviz(std(imgs), colormap = :batlow, size = (400, 300));
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 #-
@@ -222,18 +222,18 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # Finally, let's take a look at some of the ring parameters
 
-figd = Figure(; resolution=(650, 200));
-p1 = density(figd[1, 1], rad2μas(chain.sky.r) * 2, axis=(xlabel="Ring Pwr Law Transition (μas)",))
-p2 = density(figd[1, 2], chain.sky.ain, axis=(xlabel="Inner Radial Index",))
-p3 = density(figd[1, 3], chain.sky.aout, axis=(xlabel="Outer Radial Index",))
+figd = Figure(; resolution = (650, 200));
+p1 = density(figd[1, 1], rad2μas(chain.sky.r) * 2, axis = (xlabel = "Ring Pwr Law Transition (μas)",))
+p2 = density(figd[1, 2], chain.sky.ain, axis = (xlabel = "Inner Radial Index",))
+p3 = density(figd[1, 3], chain.sky.aout, axis = (xlabel = "Outer Radial Index",))
 figd |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # Now let's check the residuals using draws from the posterior
-fig = Figure(; size=(600, 400))
+fig = Figure(; size = (600, 400))
 resch = residuals(post, chain[end])
-ax, = plotfields!(fig[1, 1], resch[1], :uvdist, :res, scatter_kwargs=(; label="MAP", color=:blue, colorim=:red, marker=:circle), legend=false)
+ax, = plotfields!(fig[1, 1], resch[1], :uvdist, :res, scatter_kwargs = (; label = "MAP", color = :blue, colorim = :red, marker = :circle), legend = false)
 for s in sample(chain, 10)
-    baselineplot!(ax, residuals(post, s)[1], :uvdist, :res, alpha=0.2, label="Draw")
+    baselineplot!(ax, residuals(post, s)[1], :uvdist, :res, alpha = 0.2, label = "Draw")
 end
-axislegend(ax, merge=true)
+axislegend(ax, merge = true)
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
