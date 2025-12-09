@@ -35,7 +35,7 @@ struct InstrumentTransform{T, L <: SiteLookup} <: AbstractInstrumentTransform
     site_map::L
 end
 
-function TV.inverse_eltype(::AbstractInstrumentTransform, ::Type)
+function TV.inverse_eltype(::AbstractInstrumentTransform, x::Type)
     return eltype(x)
 end
 
