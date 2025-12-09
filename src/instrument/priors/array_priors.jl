@@ -43,10 +43,8 @@ end
 
 
 struct ObservedArrayPrior{D, DS, S} <: Distributions.ContinuousMultivariateDistribution
-    dists::D
     sitedists::DS
     sitemap::S
-    phase::Bool
 end
 Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)

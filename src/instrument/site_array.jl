@@ -152,9 +152,9 @@ sites(s::SiteLookup) = s.sites
 frequencies(s::SiteLookup) = s.frequencies
 lookup(s::SiteLookup) = s.lookup
 
-times(s::SiteLookup, site::Symbol) = @view(times(s), lookup(s)[site])
-frequencies(s::SiteLookup, site::Symbol) = @view(frequencies(s), lookup(s)[site])
-sites(s::SiteLookup, site::Symbol) = @view(sites(s), lookup(s)[site])
+times(s::SiteLookup, site::Symbol) = view(times(s), lookup(s)[site])
+frequencies(s::SiteLookup, site::Symbol) = view(frequencies(s), lookup(s)[site])
+sites(s::SiteLookup, site::Symbol) = view(sites(s), lookup(s)[site])
 
 EnzymeRules.inactive(::typeof(times), ::SiteLookup, ::Any...) = nothing
 EnzymeRules.inactive(::typeof(frequencies), ::SiteLookup, ::Any...) = nothing
