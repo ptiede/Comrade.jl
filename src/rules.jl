@@ -28,4 +28,3 @@
 #     ∇copy(dy) = (NoTangent(), dy)
 #     return copy(x), ∇copy
 # end
-
