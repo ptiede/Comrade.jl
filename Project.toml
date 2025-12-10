@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
-authors = ["Paul Tiede <ptiede91@gmail.com>"]
 version = "0.11.20"
+authors = ["Paul Tiede <ptiede91@gmail.com>"]
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -76,7 +76,7 @@ DimensionalData = "0.29 - 0.29.24, ^0.29.26"
 Distributions = "0.25"
 DocStringExtensions = "0.8, 0.9"
 Dynesty = "0.4"
-Enzyme = "0.13 - 0.13.104"
+Enzyme = "0.13 - 0.13.104, 0.13"
 EnzymeCore = "0.8"
 FillArrays = "1"
 HypercubeTransform = "^0.4.11"
