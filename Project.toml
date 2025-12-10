@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
-authors = ["Paul Tiede <ptiede91@gmail.com>"]
 version = "0.11.20"
+authors = ["Paul Tiede <ptiede91@gmail.com>"]
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -100,7 +100,7 @@ Statistics = "1.8"
 StatsBase = "0.33,0.34"
 StructArrays = "0.5,0.6, 0.7"
 Tables = "1"
-TransformVariables = "0.8 - 0.8.17"
+TransformVariables = "0.8 - 0.8.17, 0.8"
 VLBIImagePriors = "0.10"
 VLBILikelihoods = "^0.2.6"
 VLBISkyModels = "^0.6.15"
