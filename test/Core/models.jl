@@ -541,9 +541,9 @@ end
             trsi = asflat(printsi)
             trmf = asflat(printmf)
 
-            lsi = trsi.transformations.lgR.site_map.lookup
-            lmf = trmf.transformations.lgR.site_map.lookup
-            l = length(trsi.transformations.lgR.site_map.frequencies)
+            lsi = trsi.lgR.site_map.lookup
+            lmf = trmf.lgR.site_map.lookup
+            l = length(trsi.lgR.site_map.frequencies)
             for s in keys(lsi)
                 s1 = Symbol(string(s, 1))
                 s2 = Symbol(string(s, 2))
