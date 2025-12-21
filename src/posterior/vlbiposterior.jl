@@ -1,6 +1,8 @@
-struct VLBIPosterior{D, T, P, MS <: AbstractSkyModel, MI <: AbstractInstrumentModel, ADMode <: Union{Nothing, EnzymeCore.Mode}} <: AbstractVLBIPosterior
-    data::D
-    lklhds::T
+struct VLBIPosterior{DV, DI, LV, LI, P, MS <: AbstractSkyModel, MI <: AbstractInstrumentModel, ADMode <: Union{Nothing, EnzymeCore.Mode}} <: AbstractVLBIPosterior
+    data::DV
+    dataimg::DI
+    lklhds::LV
+    lklhdsimg::LI
     prior::P
     skymodel::MS
     instrumentmodel::MI
@@ -9,6 +11,11 @@ end
 
 (post::VLBIPosterior)(θ) = logdensityof(post, θ)
 admode(post::VLBIPosterior) = post.admode
+
+@inline function datatype(::Type{VLBIPosterior{DV, DI}}) where {DV, DI}
+    return datatype(DV, DI)
+end
+
 
 
 """
@@ -58,10 +65,11 @@ intmodel = InstrumentModel(G, intprior, array)
 post = VLBIPosterior(skym, intmodel, dlcamp, dcphase)
 ```
 """
-function VLBIPosterior(
+@noinline function VLBIPosterior(
         skymodel::AbstractSkyModel,
         instrumentmodel::AbstractInstrumentModel,
         dataproducts::EHTObservationTable...;
+        imgdata = nothing,
         admode = EnzymeCore.set_runtime_activity(EnzymeCore.Reverse)
     )
 
@@ -72,18 +80,23 @@ function VLBIPosterior(
     total_prior = combine_prior(skyprior, intprior)
 
     ls = Tuple(map(makelikelihood, dataproducts))
+    if !isnothing(imgdata)
+        ils = Tuple(map(makelikelihood, imgdata))
+    else
+        ils = ()
+    end
 
     return VLBIPosterior{
-        typeof(dataproducts), typeof(ls), typeof(total_prior),
+        typeof(dataproducts), typeof(imgdata), typeof(ls), typeof(ils), typeof(total_prior),
         typeof(sky), typeof(int), typeof(admode),
-    }(dataproducts, ls, total_prior, sky, int, admode)
+    }(dataproducts, imgdata, ls, lis, total_prior, sky, int, admode)
 end
 
 VLBIPosterior(
     skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...;
-    admode = EnzymeCore.set_runtime_activity(EnzymeCore.Reverse)
+    admode = EnzymeCore.set_runtime_activity(EnzymeCore.Reverse), kwargs...
 ) =
-    VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...; admode)
+    VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...;admode, kwargs..., )
 
 function combine_prior(skyprior, instrumentmodelprior)
     return NamedDist((sky = skyprior, instrument = instrumentmodelprior))
@@ -187,7 +200,7 @@ function chi2(post::AbstractVLBIPosterior, p; reduce = false)
     return map(res) do r
         c2 = _chi2(r)
         if reduce
-            return c2 / length(r)
+            return c2 / ndata(r)
         else
             return c2
         end

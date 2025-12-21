@@ -2,6 +2,20 @@ export extract_table,
     ClosurePhases, LogClosureAmplitudes,
     VisibilityAmplitudes, Visibilities, Coherencies
 
+
+# Traits that decide the domain of the data. We include this to prevent additional computation if
+# e.g., on visibility data is considered.
+struct NoData end
+struct DualData end
+struct VisData end
+struct ImgData end
+
+datatype(::Type, ::Nothing) = VisData()
+datatype(::Nothing, ::Type) = ImgData()
+datatype(::Nothing, ::Nothing) = throw(ArgumentError("No data in uv plane or image plane is provided"))
+datatype(::Type, ::Type) = DualData()
+
+
 abstract type VLBIDataProducts{K} end
 
 keywords(d::VLBIDataProducts) = d.keywords

@@ -107,6 +107,12 @@ function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTClosurePh
 end
 
 
+struct CentroidData{M, N}
+    measurement::M
+    noise::N
+end
+
+
 struct _Centroid{F,T}
     f::F
     Σ::T
@@ -120,24 +126,8 @@ function makeimagelikelihood(data::CentroidData, grid)
     Σ = noise(data).^2
     meas = measurement(data)
     f = Base.Fix2(SVector∘centroid, grid)
-    ℓ = ConditionedLikelihood(_Centroid(f, meas, Σ), SVector(meas))
+    ℓ = ConditionedLikelihood(_Centroid(f, Σ), SVector(meas))
     return ℓ
-end
-
-function ComradeBase.centroid(m::Comrade.AbstractModel, g)
-    return centroid(intensitymap(m, g))
-end
-
-
-function ComradeBase.centroid(m::VLBISkyModels.ContinuousImage, g)
-    checkdims(axisdims(m), g) && return centroid(VLBISkyModels.make_map(m))
-    return centroid(intensitymap(m, g))
-end
-
-
-function ComradeBase.flux(m::VLBISkyModels.ContinuousImage, g) 
-    checkdims(axisdims(m), g) && flux(VLBISkyModels.make_map(m))
-    return flux(intensitymap(m, g))
 end
 
 # function Comrade.centroid(m::VLBISkyModels.ModifiedModel{<:ContinuousImage}, g)

@@ -46,13 +46,21 @@ function domain(m::AbstractSkyModel; kwargs...)
 end
 
 """
-    idealvisibilities(m::AbstractSkyModel, x)
+    idealmaps(D, m::AbstractSkyModel, x)
 
 Computes the ideal non-corrupted visibilities of the sky model `m` given the model parameters `x`.
 """
-function idealvisibilities(m::AbstractSkyModel, x)
+function idealmaps(::VisData, m::AbstractSkyModel, x)
     skym = skymodel(m, x.sky)
-    return visibilitymap(skym, domain(m))
+    vis = visibilitymap(skym, domain(m))
+    return vis, zero(real(eltype(vis)))
+end
+
+
+function idealvisibilities(::DualData, m::AbstractSkyModel, x)
+    skym = skymodel(m, x)
+    vis, img = dualmap(skym, domain(m))
+    return vis, img
 end
 
 function skymodel(m::AbstractSkyModel, x)
