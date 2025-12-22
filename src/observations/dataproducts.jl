@@ -10,9 +10,9 @@ struct DualData end
 struct VisData end
 struct ImgData end
 
-datatype(::Type, ::Nothing) = VisData()
-datatype(::Nothing, ::Type) = ImgData()
-datatype(::Nothing, ::Nothing) = throw(ArgumentError("No data in uv plane or image plane is provided"))
+datatype(::Type, ::Type{<:Nothing}) = VisData()
+datatype(::Type{<:Nothing}, ::Type) = ImgData()
+datatype(::Type{<:Nothing}, ::Type{<:Nothing}) = throw(ArgumentError("No data in uv plane or image plane is provided"))
 datatype(::Type, ::Type) = DualData()
 
 

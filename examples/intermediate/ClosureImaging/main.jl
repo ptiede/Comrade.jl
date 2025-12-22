@@ -78,10 +78,9 @@ function sky(θ, metadata)
     rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
     m = ContinuousImage(((1 - fg)) .* rast, BSplinePulse{3}())
     ## Force the image centroid to be at the origin
-    x0, y0 = centroid(m)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
-    return shifted(m, -x0, -y0) + g
+    return m + g
 end
 
 
@@ -127,7 +126,7 @@ skym = SkyModel(sky, prior, grid; metadata = skymeta)
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
-post = VLBIPosterior(skym, dlcamp, dcphase)
+post = VLBIPosterior(skym, dlcamp, dcphase; imgdata = (Comrade.CentroidData((0.0, 0.0), μas2rad(0.1), grid), ))
 
 # ## Reconstructing the Image
 

@@ -127,7 +127,10 @@ end
         oskyf, = Comrade.set_array(skyf, arrayconfig(vis))
 
         @test Comrade.skymodel(oskym, x) == m
-        @test Comrade.idealvisibilities(oskym, (; sky = x)) ≈ Comrade.idealvisibilities(oskyf, (; sky = x))
+        dmimg, dmvis = Comrade.idealmaps(Comrade.VisData(), oskym, (; sky = x))
+        dfimg, dfvis = Comrade.idealmaps(Comrade.VisData(), oskyf, (; sky = x))
+        @test dmimg ≈ dfimg
+        @test dmvis ≈ dfvis
     end
 
     @testset "MultiSkyModel" begin
@@ -147,11 +150,11 @@ end
         @test tt.dynamic == Comrade.skymodel(oskym, x.dynamic)
         @test tt.static == Comrade.skymodel(oskyf, x.static)
 
-        vtot = Comrade.idealvisibilities(oskytot, (; sky = x))
-        vdyn = Comrade.idealvisibilities(oskym, (; sky = x.dynamic))
-        vstat = Comrade.idealvisibilities(oskyf, (; sky = x.static))
+        vtot  = last(Comrade.idealmaps(oskytot, (; sky = x)))
+        vdyn  = last(Comrade.idealmaps(oskym, (; sky = x.dynamic)))
+        vstat = last(Comrade.idealmaps(oskyf, (; sky = x.static)))
 
-        @test_opt Comrade.idealvisibilities(oskytot, (; sky = x))
+        @test_opt Comrade.idealmaps(oskytot, (; sky = x))
 
         @test vtot ≈ vdyn + vstat
     end

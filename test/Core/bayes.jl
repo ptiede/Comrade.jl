@@ -41,7 +41,7 @@ using Enzyme
 
     x = prior_sample(post)
     @test skymodel(post, x) == test_model(x.sky, nothing)
-    @test Comrade.idealvisibilities(skymodel(post), x) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
+    @test last(Comrade.idealmaps(Comrade.VisData(), skymodel(post), x)) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
     @test Comrade.forward_model(post, x) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
 
 

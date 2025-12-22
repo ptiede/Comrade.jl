@@ -235,7 +235,7 @@ function residual end
 export ndata
 ndata(d::EHTObservationTable) = length(d)
 ndata(d::EHTObservationTable{D}) where {D <: EHTVisibilityDatum} = 2 * length(d)
-ndata(d::EHTObservationTable{D}) where {D <: EHTCoherencyDatum} = 8 * length(d)
+ndata(d::EHTObservationTable{D}) where {D <: EHTCoherencyDatum} = 2 * length(d)
 
 @recipe function f(h::Residual)
     if length(h.args) != 2 || !(typeof(h.args[1]) <: AbstractVLBIPosterior)

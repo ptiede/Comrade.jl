@@ -88,7 +88,7 @@ Comrade.AbstractSkyModel
 Comrade.SkyModel
 Comrade.FixedSkyModel
 Comrade.MultiSkyModel
-Comrade.idealvisibilities
+Comrade.idealmaps
 Comrade.skymodel(::Comrade.AbstractVLBIPosterior, ::Any)
 ```
 

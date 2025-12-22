@@ -37,13 +37,14 @@ function set_prior(m::MultiSkyModel, array::AbstractArrayConfiguration)
     return prs
 end
 
-function idealvisibilities(m::MultiSkyModel{N}, x) where {N}
+function idealmaps(d, m::MultiSkyModel{N}, x) where {N}
     sm = m.skymodels
-    vis = map(N) do n
+    maps = map(N) do n
         Base.@_inline_meta
-        @inline idealvisibilities(getproperty(sm, n), (; sky = getproperty(x.sky, n)))
+        idealmaps(d, getproperty(sm, n), (; sky = getproperty(x.sky, n)))
     end
-    return reduce(+, vis)
+    vis = reduce(+, map(last, maps))
+    return map(first, maps), vis
 end
 
 function domain(m::MultiSkyModel)

@@ -9,7 +9,7 @@ Any subtype must implement the following methods
     and image of the sky model.
 
 The following methods have default implementations:
- - `idealvisibilities(m::AbstractSkyModel, x)`: Computes the ideal visibilities of the sky model `m`
+ - `idealmaps(datatype, m::AbstractSkyModel, x)`: Computes the ideal intensities and visibilities of the sky model `m`
     given the model parameters `x`.
  - `skymodel(m::AbstractSkyModel, x)`: Returns the sky model image given the model parameters `x`.
  - `domain(m::AbstractSkyModel)`: Returns the domain of the sky model `m`.
@@ -53,14 +53,14 @@ Computes the ideal non-corrupted visibilities of the sky model `m` given the mod
 function idealmaps(::VisData, m::AbstractSkyModel, x)
     skym = skymodel(m, x.sky)
     vis = visibilitymap(skym, domain(m))
-    return vis, zero(real(eltype(vis)))
+    return zero(real(eltype(vis))), vis
 end
 
 
-function idealvisibilities(::DualData, m::AbstractSkyModel, x)
-    skym = skymodel(m, x)
-    vis, img = dualmap(skym, domain(m))
-    return vis, img
+function idealmaps(::DualData, m::AbstractSkyModel, x)
+    skym = skymodel(m, x.sky)
+    dmap = dualmap(skym, domain(m))
+    return imgmap(dmap), vismap(dmap)
 end
 
 function skymodel(m::AbstractSkyModel, x)

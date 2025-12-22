@@ -172,9 +172,8 @@ function sky(θ, metadata)
     end
 
     pmap .= ftot .* pmap ./ ft
-    x0, y0 = centroid(pmap)
     m = ContinuousImage(pmap, BSplinePulse{3}())
-    return shifted(m, -x0, -y0)
+    return m
 end
 
 
@@ -302,7 +301,7 @@ intmodel = InstrumentModel(J, intprior)
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling, and specifying to use Enzyme.Reverse with runtime activity for AD.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis)
+post = VLBIPosterior(skym, intmodel, dvis; imgdata = (Comrade.CentroidData((0.0, 0.0), μas2rad(0.1), grid), ))
 
 # ## Reconstructing the Image and Instrument Effects
 
@@ -384,7 +383,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # other imaging examples. For example
 # ```julia
 # using AdvancedHMC
-# chain = sample(rng, post, NUTS(0.8), 10_000, n_adapts=5000, progress=true, initial_params=xopt)
+chain = sample(rng, post, NUTS(0.8), 2_000, n_adapts=1000, progress=true, initial_params=xopt)
 # ```
 
 

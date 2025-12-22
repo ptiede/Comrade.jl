@@ -91,8 +91,8 @@ Note these are the complex visiblities or the coherency matrices, not the actual
 data products observed.
 """
 @inline function forward_model_map(D, d::AbstractVLBIPosterior, θ)
-    vis, img = idealmaps(D, skymodel(d), θ)
-    return apply_instrument(vis, instrumentmodel(d), θ), img
+    img, vis = idealmaps(D, skymodel(d), θ)
+    return img, apply_instrument(vis, instrumentmodel(d), θ)
 end
 
 @inline function forward_model(d::AbstractVLBIPosterior, θ)
@@ -105,7 +105,7 @@ end
 Computes the log-likelihood of the posterior `d` with parameters `θ`.
 """
 @inline function loglikelihood(d::AbstractVLBIPosterior, θ)
-    vis, img = forward_model(d, θ)
+    img, vis = forward_model(d, θ)
     # Convert because of conventions
     lis = d.lklhdsimg
     return logdensityofvis(d.lklhds, vis) + logdensityofimg(lis, img)
@@ -156,9 +156,14 @@ end
 end
 
 ## There is no image data so just return 0
-@inline function logdensityofimg(lklhds, img::Number)
+@inline function logdensityofimg(lklhds::Tuple{}, img::Number)
     return zero(img)
 end
+
+@inline function logdensityofimg(lklhds::Tuple{}, img::AbstractArray{T}) where T
+    return zero(T)
+end
+
 
 
 

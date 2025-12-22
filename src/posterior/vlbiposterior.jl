@@ -12,7 +12,7 @@ end
 (post::VLBIPosterior)(θ) = logdensityof(post, θ)
 admode(post::VLBIPosterior) = post.admode
 
-@inline function datatype(::Type{VLBIPosterior{DV, DI}}) where {DV, DI}
+@inline function datatype(::Type{<:VLBIPosterior{DV, DI}}) where {DV, DI}
     return datatype(DV, DI)
 end
 
@@ -89,7 +89,7 @@ post = VLBIPosterior(skym, intmodel, dlcamp, dcphase)
     return VLBIPosterior{
         typeof(dataproducts), typeof(imgdata), typeof(ls), typeof(ils), typeof(total_prior),
         typeof(sky), typeof(int), typeof(admode),
-    }(dataproducts, imgdata, ls, lis, total_prior, sky, int, admode)
+    }(dataproducts, imgdata, ls, ils, total_prior, sky, int, admode)
 end
 
 VLBIPosterior(
@@ -180,7 +180,7 @@ Compute the residuals for each data product in `post` using the parameter values
 The resturn objects are `EHTObservationTables`, where the measurements are the residuals.
 """
 function residuals(post::VLBIPosterior, p)
-    vis = forward_model(post, p)
+    vis = first(forward_model(post, p))
     res = map(x -> residual_data(vis, x), post.data)
     return res
 end
@@ -198,9 +198,10 @@ which for non-linear models is difficult to define globally.
 function chi2(post::AbstractVLBIPosterior, p; reduce = false)
     res = residuals(post, p)
     return map(res) do r
+        nd = ndata(r)
         c2 = _chi2(r)
         if reduce
-            return c2 / ndata(r)
+            return c2 / nd
         else
             return c2
         end

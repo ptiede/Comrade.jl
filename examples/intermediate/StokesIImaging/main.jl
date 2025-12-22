@@ -62,10 +62,10 @@ function sky(θ, metadata)
     pimg = parent(rast)
     @. pimg = (ftot * (1 - fg)) * pimg
     m = ContinuousImage(rast, BSplinePulse{3}())
-    x0, y0 = centroid(m)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(500.0), μas2rad(500.0)), Renormalize(ftot * fg))
-    return shifted(m, -x0, -y0) + g
+    # x, y = centroid(m)
+    return m + g
 end
 
 
@@ -73,9 +73,9 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 48
-fovx = μas2rad(200.0)
-fovy = μas2rad(200.0)
+npix = 96
+fovx = μas2rad(300.0)
+fovy = μas2rad(300.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -90,7 +90,7 @@ grid = imagepixels(fovx, fovy, npix, npix)
 using VLBIImagePriors
 using Distributions
 fwhmfac = 2 * sqrt(2 * log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(60.0) ./ fwhmfac))
 mimg = intensitymap(mpr, grid)
 
 
@@ -144,7 +144,7 @@ intmodel = InstrumentModel(G, intpr)
 # gradients of the posterior we also need to load `Enzyme.jl`. Under the hood, Comrade will use
 # Enzyme to compute the gradients of the posterior.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis)
+post = VLBIPosterior(skym, intmodel, dvis; imgdata = (Comrade.CentroidData((0.0, 0.0), μas2rad(0.1), grid), ))
 
 # ## Optimization and Sampling
 
@@ -219,7 +219,7 @@ plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 # run.
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 1_000; n_adapts = 500, initial_params = xopt)
+chain = sample(rng, post, NUTS(0.8), 2_000; n_adapts = 1_000, initial_params = xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -231,7 +231,7 @@ chain = sample(rng, post, NUTS(0.8), 1_000; n_adapts = 500, initial_params = xop
 
 
 # Now we prune the adaptation phase
-chain = chain[501:end]
+chain = chain[1001:end]
 
 #-
 # !!! warning
