@@ -180,7 +180,7 @@ Compute the residuals for each data product in `post` using the parameter values
 The resturn objects are `EHTObservationTables`, where the measurements are the residuals.
 """
 function residuals(post::VLBIPosterior, p)
-    vis = first(forward_model(post, p))
+    vis = last(forward_model(post, p))
     res = map(x -> residual_data(vis, x), post.data)
     return res
 end

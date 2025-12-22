@@ -60,7 +60,7 @@ end
 function idealmaps(::DualData, m::AbstractSkyModel, x)
     skym = skymodel(m, x.sky)
     dmap = dualmap(skym, domain(m))
-    return imgmap(dmap), vismap(dmap)
+    return ComradeBase.imgmap(dmap), ComradeBase.vismap(dmap)
 end
 
 function skymodel(m::AbstractSkyModel, x)

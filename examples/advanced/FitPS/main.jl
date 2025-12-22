@@ -70,9 +70,9 @@ function sky(θ, metadata)
     ## Apply the GMRF fluctuations to the image
     x = genfield(StationaryRandomField(MarkovPS(ρs .^ 2), pl), c)
     x .= σimg .* x
-    fbn = fb / length(mimg)
-    mb = mimg .* (1 - fb) .+ fbn
-    rast = apply_fluctuations(CenteredLR(), mb, x)
+    # fbn = fb / length(mimg)
+    # mb = mimg .* (1 - fb) .+ fbn
+    rast = IntensityMap(to_simplex(CenteredLR(), x), axisdims(mimg))
     m = ContinuousImage(rast, BSplinePulse{3}())
     return m
 end
@@ -83,7 +83,7 @@ nx = 64
 ny = 64
 fovx = μas2rad(1_000)
 fovy = fovx * ny / nx
-grid = imagepixels(fovx, fovy, nx, ny, μas2rad(150.0), -μas2rad(150.0))
+grid = imagepixels(fovx, fovy, nx, ny)
 
 # Now we need to specify our image prior. For this work we will use a Gaussian Markov
 # Random field prior
@@ -128,7 +128,7 @@ skym = SkyModel(sky, prior, grid; metadata = skymeta)
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
-post = VLBIPosterior(skym, dlcamp, dcphase)
+post = VLBIPosterior(skym, dlcamp, dcphase; imgdata = (Comrade.CentroidData((0.0, 0.0), beamsize(dcphase)/10.0, grid), ))
 
 # ## Reconstructing the Image
 
@@ -143,7 +143,7 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 # We also need to import Enzyme to allow for automatic differentiation.
 using Optimization, OptimizationOptimisers
 # tpost = asflat(post)
-xopt, sol = comrade_opt(post, Adam(); maxiters = 5000)
+xopt, sol = comrade_opt(post, Adam(); maxiters = 5000, initial_params=xopt)
 
 using CairoMakie
 using DisplayAs #hide
