@@ -64,8 +64,8 @@ function sky(θ, metadata)
     m = ContinuousImage(rast, BSplinePulse{3}())
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(500.0), μas2rad(500.0)), Renormalize(ftot * fg))
-    # x, y = centroid(m)
-    return m + g
+    x, y = centroid(m)
+    return shifted(m, -x, -y) + g
 end
 
 
@@ -73,9 +73,9 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 96
-fovx = μas2rad(300.0)
-fovy = μas2rad(300.0)
+npix = 48
+fovx = μas2rad(200.0)
+fovy = μas2rad(200.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
@@ -144,7 +144,7 @@ intmodel = InstrumentModel(G, intpr)
 # gradients of the posterior we also need to load `Enzyme.jl`. Under the hood, Comrade will use
 # Enzyme to compute the gradients of the posterior.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis; imgdata = (Comrade.CentroidData((0.0, 0.0), μas2rad(0.1), grid),))
+post = VLBIPosterior(skym, intmodel, dvis)
 
 # ## Optimization and Sampling
 
@@ -219,7 +219,7 @@ plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 # run.
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 2_000; n_adapts = 1_000, initial_params = xopt)
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -231,7 +231,7 @@ chain = sample(rng, post, NUTS(0.8), 2_000; n_adapts = 1_000, initial_params = x
 
 
 # Now we prune the adaptation phase
-chain = chain[1001:end]
+chain = chain[begin+500:end]
 
 #-
 # !!! warning

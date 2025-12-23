@@ -301,7 +301,7 @@ intmodel = InstrumentModel(J, intprior)
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling, and specifying to use Enzyme.Reverse with runtime activity for AD.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis; imgdata = (Comrade.CentroidData((0.0, 0.0), μas2rad(0.1), grid),))
+post = VLBIPosterior(skym, intmodel, dvis)
 
 # ## Reconstructing the Image and Instrument Effects
 

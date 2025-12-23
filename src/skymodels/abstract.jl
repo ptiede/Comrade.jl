@@ -71,9 +71,9 @@ function fastdualmap(skym::AbstractModel, grid::VLBISkyModels.AbstractFourierDua
 end
 
 function fastdualmap(skym::ContinuousImage, grid::VLBISkyModels.AbstractFourierDualDomain)
-    VLBISkyModels.checkgrid(axisdims(skym), imgdomain(grid)) ||
+    VLBISkyModels.checkgrid(axisdims(skym), ComradeBase.imgdomain(grid)) ||
         throw(DomainError("Image domain does not match skymodel image domain"))
-    img = VLBISkyModels.make_map(m)
+    img = VLBISkyModels.make_map(skym)
     return img, visibilitymap(skym, grid)
 end
 

@@ -107,10 +107,9 @@ function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTClosurePh
 end
 
 
-struct CentroidData{M, N, G}
+struct CentroidData{M, N}
     measurement::M
     noise::N
-    grid::G
 end
 
 
