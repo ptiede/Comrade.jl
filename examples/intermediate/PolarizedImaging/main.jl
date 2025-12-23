@@ -384,7 +384,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # other imaging examples. For example
 # ```julia
 # using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 2_000, n_adapts = 1000, progress = true, initial_params = xopt)
+# chain = sample(rng, post, NUTS(0.8), 2_000, n_adapts = 1000, progress = true, initial_params = xopt)
 # ```
 
 
