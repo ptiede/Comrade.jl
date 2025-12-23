@@ -126,7 +126,7 @@ skym = SkyModel(sky, prior, grid; metadata = skymeta)
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
-post = VLBIPosterior(skym, dlcamp, dcphase; imgdata = (Comrade.CentroidData((0.0, 0.0), μas2rad(0.1), grid), ))
+post = VLBIPosterior(skym, dlcamp, dcphase; imgdata = (Comrade.CentroidData((0.0, 0.0), μas2rad(0.1), grid),))
 
 # ## Reconstructing the Image
 

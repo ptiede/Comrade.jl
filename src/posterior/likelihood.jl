@@ -114,12 +114,12 @@ struct CentroidData{M, N, G}
 end
 
 
-struct _Centroid{F,T}
+struct _Centroid{F, T}
     f::F
     Σ::T
 end
 
-struct NormalFast{T,S}
+struct NormalFast{T, S}
     μ::T
     Σ::S
 end
@@ -137,7 +137,7 @@ end
 function makelikelihood(data::CentroidData)
     Σ = data.noise .^ 2
     meas = data.measurement
-    f = SVector∘centroid
+    f = SVector ∘ centroid
     ℓ = ConditionedLikelihood(_Centroid(f, Σ), SVector(meas))
     return ℓ
 end

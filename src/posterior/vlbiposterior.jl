@@ -17,7 +17,6 @@ admode(post::VLBIPosterior) = post.admode
 end
 
 
-
 """
     VLBIPosterior(skymodel::SkyModel, instumentmodel::InstrumentModel, 
                   dataproducts::EHTObservationTable...; 
@@ -96,7 +95,7 @@ VLBIPosterior(
     skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...;
     admode = EnzymeCore.set_runtime_activity(EnzymeCore.Reverse), kwargs...
 ) =
-    VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...;admode, kwargs..., )
+    VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...; admode, kwargs...)
 
 function combine_prior(skyprior, instrumentmodelprior)
     return NamedDist((sky = skyprior, instrument = instrumentmodelprior))

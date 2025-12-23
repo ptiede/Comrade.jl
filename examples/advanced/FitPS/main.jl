@@ -128,7 +128,7 @@ skym = SkyModel(sky, prior, grid; metadata = skymeta)
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
-post = VLBIPosterior(skym, dlcamp, dcphase; imgdata = (Comrade.CentroidData((0.0, 0.0), beamsize(dcphase)/10.0, grid), ))
+post = VLBIPosterior(skym, dlcamp, dcphase; imgdata = (Comrade.CentroidData((0.0, 0.0), beamsize(dcphase) / 10.0, grid),))
 
 # ## Reconstructing the Image
 
@@ -143,7 +143,7 @@ post = VLBIPosterior(skym, dlcamp, dcphase; imgdata = (Comrade.CentroidData((0.0
 # We also need to import Enzyme to allow for automatic differentiation.
 using Optimization, OptimizationOptimisers
 # tpost = asflat(post)
-xopt, sol = comrade_opt(post, Adam(); maxiters = 5000, initial_params=xopt)
+xopt, sol = comrade_opt(post, Adam(); maxiters = 5000, initial_params = xopt)
 
 using CairoMakie
 using DisplayAs #hide

@@ -144,7 +144,7 @@ intmodel = InstrumentModel(G, intpr)
 # gradients of the posterior we also need to load `Enzyme.jl`. Under the hood, Comrade will use
 # Enzyme to compute the gradients of the posterior.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis; imgdata = (Comrade.CentroidData((0.0, 0.0), μas2rad(0.1), grid), ))
+post = VLBIPosterior(skym, intmodel, dvis; imgdata = (Comrade.CentroidData((0.0, 0.0), μas2rad(0.1), grid),))
 
 # ## Optimization and Sampling
 

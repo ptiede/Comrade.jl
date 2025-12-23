@@ -96,7 +96,7 @@ data products observed.
 end
 
 @inline function forward_model(d::AbstractVLBIPosterior, θ)
-    forward_model_map(datatype(typeof(d)), d, θ)
+    return forward_model_map(datatype(typeof(d)), d, θ)
 end
 
 """
@@ -160,12 +160,9 @@ end
     return zero(img)
 end
 
-@inline function logdensityofimg(lklhds::Tuple{}, img::AbstractArray{T}) where T
+@inline function logdensityofimg(lklhds::Tuple{}, img::AbstractArray{T}) where {T}
     return zero(T)
 end
-
-
-
 
 
 include("likelihood.jl")
