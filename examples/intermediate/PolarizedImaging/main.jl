@@ -173,7 +173,8 @@ function sky(θ, metadata)
 
     pmap .= ftot .* pmap ./ ft
     m = ContinuousImage(pmap, BSplinePulse{3}())
-    return m
+    x, y = centroid(pmap)
+    return shifted(m, -x, -y)
 end
 
 
