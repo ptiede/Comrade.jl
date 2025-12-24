@@ -37,7 +37,11 @@ function set_prior(m::MultiSkyModel, array::AbstractArrayConfiguration)
     return prs
 end
 
-function idealmaps(d::Union{VisData, DualData}, m::MultiSkyModel{N}, x) where {N}
+function idealmaps(d::ComradeDataType, m::MultiSkyModel{N}, x) where {N}
+    return _multi_idealmaps(d, m, x)
+end
+
+function _multi_idealmaps(d::ComradeDataType, m::MultiSkyModel{N}, x)
     sm = m.skymodels
     maps = map(N) do n
         Base.@_inline_meta

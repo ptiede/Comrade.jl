@@ -5,10 +5,11 @@ export extract_table,
 
 # Traits that decide the domain of the data. We include this to prevent additional computation if
 # e.g., on visibility data is considered.
-struct NoData end
-struct DualData end
-struct VisData end
-struct ImgData end
+abstract type ComradeDataType end
+struct NoData <: ComradeDataType end
+struct DualData <: ComradeDataType end
+struct VisData <: ComradeDataType end
+struct ImgData <: ComradeDataType end
 
 datatype(::Type, ::Type{<:Nothing}) = VisData()
 datatype(::Type{<:Nothing}, ::Type) = ImgData()
