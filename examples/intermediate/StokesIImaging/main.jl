@@ -231,7 +231,7 @@ chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt)
 
 
 # Now we prune the adaptation phase
-chain = chain[begin+500:end]
+chain = chain[(begin + 500):end]
 
 #-
 # !!! warning

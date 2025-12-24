@@ -143,7 +143,7 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 # We also need to import Enzyme to allow for automatic differentiation.
 using Optimization, OptimizationLBFGSB
 # tpost = asflat(post)
-xopt, sol = comrade_opt(post, LBFGSB(); initial_params=prior_sample(rng, post), maxiters = 5000)
+xopt, sol = comrade_opt(post, LBFGSB(); initial_params = prior_sample(rng, post), maxiters = 5000)
 
 using CairoMakie
 using DisplayAs #hide

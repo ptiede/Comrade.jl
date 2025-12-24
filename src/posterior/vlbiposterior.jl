@@ -137,7 +137,7 @@ If `add_thermal_noise` is true then baseline based thermal noise is added. Other
 return the model visibilities.
 """
 function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; add_thermal_noise = true)
-    v0 = forward_model(post, θ)
+    v0 = last(forward_model(post, θ))
     Σn = _visnoise(first(post.data))
     data = post.data
 

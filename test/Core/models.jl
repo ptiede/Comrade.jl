@@ -150,11 +150,11 @@ end
         @test tt.dynamic == Comrade.skymodel(oskym, x.dynamic)
         @test tt.static == Comrade.skymodel(oskyf, x.static)
 
-        vtot = last(Comrade.idealmaps(oskytot, (; sky = x)))
-        vdyn = last(Comrade.idealmaps(oskym, (; sky = x.dynamic)))
-        vstat = last(Comrade.idealmaps(oskyf, (; sky = x.static)))
+        vtot = last(Comrade.idealmaps(Comrade.VisData(), oskytot, (; sky = x)))
+        vdyn = last(Comrade.idealmaps(Comrade.VisData(), oskym, (; sky = x.dynamic)))
+        vstat = last(Comrade.idealmaps(Comrade.VisData(), oskyf, (; sky = x.static)))
 
-        @test_opt Comrade.idealmaps(oskytot, (; sky = x))
+        @test_opt Comrade.idealmaps(Comrade.VisData(), oskytot, (; sky = x))
 
         @test vtot ≈ vdyn + vstat
     end
