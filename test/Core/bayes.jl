@@ -42,7 +42,7 @@ using Enzyme
     x = prior_sample(post)
     @test skymodel(post, x) == test_model(x.sky, nothing)
     @test last(Comrade.idealmaps(Comrade.VisData(), skymodel(post), x)) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
-    @test Comrade.forward_model(post, x) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
+    @test last(Comrade.forward_model(post, x)) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
 
 
     @test dimension(post) == length(post.prior)
@@ -195,7 +195,7 @@ end
         obs = simulate_observation(post, x)[begin]
         @test length(obs) == length(post.data[begin])
         obs_nn = simulate_observation(post, x, add_thermal_noise = false)[begin]
-        @test Comrade.measurement(obs_nn) == Comrade.likelihood(post.lklhds[1], Comrade.forward_model(post, x)).μ
+        @test Comrade.measurement(obs_nn) == Comrade.likelihood(post.lklhds[1], last(Comrade.forward_model(post, x))).μ
 
         if isnothing(int)
             postsim = VLBIPosterior(skym, obs)
