@@ -41,7 +41,7 @@ function idealmaps(d::ComradeDataType, m::MultiSkyModel{N}, x) where {N}
     return _multi_idealmaps(d, m, x)
 end
 
-function _multi_idealmaps(d::ComradeDataType, m::MultiSkyModel{N}, x)
+function _multi_idealmaps(d::ComradeDataType, m::MultiSkyModel{N}, x) where {N}
     sm = m.skymodels
     maps = map(N) do n
         Base.@_inline_meta
