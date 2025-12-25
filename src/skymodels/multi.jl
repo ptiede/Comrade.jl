@@ -37,9 +37,14 @@ function set_prior(m::MultiSkyModel, array::AbstractArrayConfiguration)
     return prs
 end
 
-function idealmaps(d::ComradeDataType, m::MultiSkyModel{N}, x) where {N}
+function idealmaps(d::VisData, m::MultiSkyModel{N}, x) where {N}
     return _multi_idealmaps(d, m, x)
 end
+
+function idealmaps(d::DualData, m::MultiSkyModel{N}, x) where {N}
+    return _multi_idealmaps(d, m, x)
+end
+
 
 function _multi_idealmaps(d::ComradeDataType, m::MultiSkyModel{N}, x) where {N}
     sm = m.skymodels
