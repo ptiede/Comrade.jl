@@ -60,6 +60,36 @@ function test_prior2()
     )
 end
 
+function testimg(θ, metadata)
+    (; c, σimg) = θ
+    (; grid) = metadata
+    rast = to_simplex(CenteredLR(), σimg .* c.params)
+    m = ContinuousImage(rast, grid, BSplinePulse{3}())
+    return m
+end
+
+function testimg_prior(grid)
+    cprior = corr_image_prior(grid, μas2rad(20.0))
+    prior = (c = cprior, σimg = Exponential(0.1))
+    return prior
+end
+
+function testimg_add(θ, metadata)
+    (; c, σimg, fg) = θ
+    (; grid) = metadata
+    rast = to_simplex(CenteredLR(), σimg .* c.params)
+    m = ContinuousImage((1-fg) .* rast, grid, BSplinePulse{3}())
+    g = fg * modify(Gaussian(), Stretch(μas2rad(500.0)))
+    return m + g
+end
+
+function testimg_add_prior(grid)
+    cprior = corr_image_prior(grid, μas2rad(20.0))
+    prior = (c = cprior, σimg = Exponential(0.1), fg = Uniform(0.0, 1.0))
+    return prior
+end
+
+
 function test_prior()
     return (
         f1 = Uniform(0.8, 1.2),

@@ -61,16 +61,16 @@ function idealmaps(::DualData, m::AbstractSkyModel, x)
     skym = skymodel(m, x.sky)
     # We include this special method to sometime optimize the dualmap computation
     # for specific sky models
-    img, vis = fastdualmap(skym, domain(m))
+    img, vis = forward_dualmap(skym, domain(m))
     return img, vis
 end
 
-function fastdualmap(skym::AbstractModel, grid::VLBISkyModels.AbstractFourierDualDomain)
+function forward_dualmap(skym::AbstractModel, grid::VLBISkyModels.AbstractFourierDualDomain)
     dm = dualmap(skym, grid)
     return ComradeBase.imgmap(dm), ComradeBase.vismap(dm)
 end
 
-function fastdualmap(skym::ContinuousImage, grid::VLBISkyModels.AbstractFourierDualDomain)
+function forward_dualmap(skym::ContinuousImage, grid::VLBISkyModels.AbstractFourierDualDomain)
     VLBISkyModels.checkgrid(axisdims(skym), ComradeBase.imgdomain(grid)) ||
         throw(DomainError("Image domain does not match skymodel image domain"))
     img = VLBISkyModels.make_map(skym)
@@ -78,16 +78,17 @@ function fastdualmap(skym::ContinuousImage, grid::VLBISkyModels.AbstractFourierD
 end
 
 
-function fastdualmap(skym::VLBISkyModels.CompositeModel{<:ContinuousImage}, grid::VLBISkyModels.AbstractFourierDualDomain)
-    VLBISkyModels.checkgrid(axisdims(skym.m1), ComradeBase.imgdomain(grid)) || throw(DomainError("Image domain does not match skymodel image domain"))
+function forward_dualmap(skym::VLBISkyModels.AddModel{<:ContinuousImage}, grid::VLBISkyModels.AbstractFourierDualDomain)
+    VLBISkyModels.checkgrid(axisdims(skym.m1), ComradeBase.imgdomain(grid)) || 
+        throw(DomainError("Image domain does not match skymodel image domain"))
     img = VLBISkyModels.make_map(skym.m1)
     img2 = intensitymap(skym.m2, grid)
     img2 .+= img #copy into this one because img will alias otherwise
     return img, visibilitymap(skym, grid)
 end
 
-fastdualmap(m::VLBISkyModels.CompositeModel{M1, <:ContinuousImage}, grid::VLBISkyModels.AbstractFourierDualDomain) where {M1} =
-    fastdualmap(swap(m), grid)
+forward_dualmap(m::VLBISkyModels.AddModel{M1, <:ContinuousImage}, grid::VLBISkyModels.AbstractFourierDualDomain) where {M1} =
+    forward_dualmap(swap(m), grid)
 
 
 function skymodel(m::AbstractSkyModel, x)
