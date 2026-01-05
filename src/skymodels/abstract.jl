@@ -79,7 +79,7 @@ end
 
 
 function forward_dualmap(skym::VLBISkyModels.AddModel{<:ContinuousImage}, grid::VLBISkyModels.AbstractFourierDualDomain)
-    VLBISkyModels.checkgrid(axisdims(skym.m1), ComradeBase.imgdomain(grid)) || 
+    VLBISkyModels.checkgrid(axisdims(skym.m1), ComradeBase.imgdomain(grid)) ||
         throw(DomainError("Image domain does not match skymodel image domain"))
     img = VLBISkyModels.make_map(skym.m1)
     img2 = intensitymap(skym.m2, grid)

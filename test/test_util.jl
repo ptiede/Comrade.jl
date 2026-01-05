@@ -78,7 +78,7 @@ function testimg_add(θ, metadata)
     (; c, σimg, fg) = θ
     (; grid) = metadata
     rast = to_simplex(CenteredLR(), σimg .* c.params)
-    m = ContinuousImage((1-fg) .* rast, grid, BSplinePulse{3}())
+    m = ContinuousImage((1 - fg) .* rast, grid, BSplinePulse{3}())
     g = fg * modify(Gaussian(), Stretch(μas2rad(500.0)))
     return m + g
 end
