@@ -106,7 +106,7 @@ function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTClosurePh
     return ℓ
 end
 
-export ImgNormalData 
+export ImgNormalData
 
 """
     ImgNormalData(reduction, measurement, noise)
@@ -131,8 +131,8 @@ struct NormalFast{T, S}
 end
 
 function DensityInterface.logdensityof(d::NormalFast, x)
-    dev = (x .- d.μ).*inv.(d.σ)
-    exponent = -sum(abs2, dev)/2
+    dev = (x .- d.μ) .* inv.(d.σ)
+    exponent = -sum(abs2, dev) / 2
     return exponent
 end
 
