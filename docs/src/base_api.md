@@ -62,9 +62,10 @@ ComradeBase.intensitymap_numeric!
 
 ### Image Domain
 ```@docs
-ComradeBase.imagepixels
+ComradeBase.AbstractDualDomain
 ComradeBase.RectiGrid
 ComradeBase.UnstructuredDomain
+ComradeBase.imagepixels
 ComradeBase.dims
 ComradeBase.named_dims
 ComradeBase.axisdims
@@ -89,7 +90,19 @@ ComradeBase.baseimage
 ComradeBase.centroid
 ComradeBase.second_moment
 ComradeBase.stokes
+ComradeBase.dualmap
+ComradeBase.DualMap
 ```
+
+### Time and Frequency Domain
+```@docs
+ComradeBase.DomainParams
+ComradeBase.paramtype
+ComradeBase.getparam
+ComradeBase.@unpack_params
+ComradeBase.build_param
+```
+
 
 ## Internal Methods not part of public API
 ```@docs

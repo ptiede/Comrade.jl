@@ -6,10 +6,6 @@
 Pages = ["api.md"]
 ```
 
-```@docs
-Comrade.Comrade
-```
-
 ## Model Definitions
 
 
@@ -133,13 +129,13 @@ Comrade.dataproducts
 Comrade.skymodel
 Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior)
 Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior, ::Any)
-Comrade.forward_model
 Comrade.prior_sample
 Comrade.likelihood
 Comrade.VLBIPosterior
 Comrade.simulate_observation
 Comrade.residuals
 Comrade.TransformedVLBIPosterior
+Comrade.ImgNormalData
 HypercubeTransform.transform(::Comrade.TransformedVLBIPosterior, ::Any)
 HypercubeTransform.inverse(::Comrade.TransformedVLBIPosterior, ::Any)
 HypercubeTransform.ascube(::Comrade.VLBIPosterior)
@@ -181,6 +177,7 @@ Comrade.rmap
 ```@docs
 Comrade.build_datum
 Comrade.ObservedSkyModel
+Comrade.forward_model_map
 ```
 
 ### eht-imaging interface (Internal)

@@ -106,43 +106,44 @@ function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTClosurePh
     return ℓ
 end
 
+export ImgNormalData 
 
-struct CentroidData{M, N}
+"""
+    ImgNormalData(reduction, measurement, noise)
+
+Container for image-domain data assuming a normal likelihood with a `measurement` and `noise`. 
+"""
+struct ImgNormalData{F, M, N}
+    reduction::F
     measurement::M
     noise::N
 end
 
 
-struct _Centroid{F, T}
+struct _Reduced{F, T}
     f::F
-    Σ::T
+    σ::T
 end
 
 struct NormalFast{T, S}
     μ::T
-    Σ::S
+    σ::S
 end
 
 function DensityInterface.logdensityof(d::NormalFast, x)
-    dev = x .- d.μ
-    exponent = - sum(abs2, dev) * inv(2 * d.Σ)
+    dev = (x .- d.μ).*inv.(d.σ)
+    exponent = -sum(abs2, dev)/2
     return exponent
 end
 
-function (c::_Centroid)(μ)
-    return NormalFast(c.f(μ), c.Σ)
+function (c::_Reduced)(μ)
+    return NormalFast(c.f(μ), c.σ)
 end
 
-function makelikelihood(data::CentroidData)
-    Σ = data.noise .^ 2
+function makelikelihood(data::ImgNormalData)
+    σ = data.noise
     meas = data.measurement
-    f = SVector ∘ centroid
-    ℓ = ConditionedLikelihood(_Centroid(f, Σ), SVector(meas))
+    f = data.reduction
+    ℓ = ConditionedLikelihood(_Reduced(f, σ), meas)
     return ℓ
 end
-
-# function Comrade.centroid(m::VLBISkyModels.ModifiedModel{<:ContinuousImage}, g)
-#     c = centroid(VLBISkyModels.unmodified(m), g)
-#     tr = m.transforms
-#     return shift_centroid(tr, c)
-# end
