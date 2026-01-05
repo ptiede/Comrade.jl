@@ -62,10 +62,10 @@ function sky(θ, metadata)
     pimg = parent(rast)
     @. pimg = (ftot * (1 - fg)) * pimg
     m = ContinuousImage(rast, BSplinePulse{3}())
-    x0, y0 = centroid(m)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(500.0), μas2rad(500.0)), Renormalize(ftot * fg))
-    return shifted(m, -x0, -y0) + g
+    x, y = centroid(m)
+    return shifted(m, -x, -y) + g
 end
 
 
@@ -90,7 +90,7 @@ grid = imagepixels(fovx, fovy, npix, npix)
 using VLBIImagePriors
 using Distributions
 fwhmfac = 2 * sqrt(2 * log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(60.0) ./ fwhmfac))
 mimg = intensitymap(mpr, grid)
 
 
@@ -219,7 +219,7 @@ plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 # run.
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 1_000; n_adapts = 500, initial_params = xopt)
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -231,7 +231,7 @@ chain = sample(rng, post, NUTS(0.8), 1_000; n_adapts = 500, initial_params = xop
 
 
 # Now we prune the adaptation phase
-chain = chain[501:end]
+chain = chain[(begin + 500):end]
 
 #-
 # !!! warning

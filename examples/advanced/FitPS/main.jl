@@ -32,7 +32,7 @@ using NonuniformFFTs
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(123)
+rng = StableRNG(11)
 
 
 # ## Load the Data
@@ -68,7 +68,7 @@ function sky(θ, metadata)
     (; fb, c, ρs, σimg) = θ
     (; mimg, pl) = metadata
     ## Apply the GMRF fluctuations to the image
-    x = genfield(StationaryRandomField(MarkovPS(ρs .^ 2), pl), c)
+    x = genfield(StationaryRandomField(MarkovPS(ρs), pl), c)
     x .= σimg .* x
     fbn = fb / length(mimg)
     mb = mimg .* (1 - fb) .+ fbn
@@ -92,7 +92,7 @@ grid = imagepixels(fovx, fovy, nx, ny, μas2rad(150.0), -μas2rad(150.0))
 # image. For this work we will use a symmetric Gaussian with a FWHM equal to the approximate
 # beamsize of the array. This models the fact that we expect the AGN core to be compact.
 fwhmfac = 2 * sqrt(2 * log(2))
-mpr = modify(Gaussian(), Stretch(beamsize(dlcamp) / 4 / fwhmfac))
+mpr = modify(TBlob(3.0), Stretch(beamsize(dlcamp) / 4 / fwhmfac))
 imgpr = intensitymap(mpr, grid)
 # To momdel the power spectrum we also need to construct our execution plan for the given grid.
 # This will be used to construct the actual correlated realization of the RF given some initial
@@ -110,7 +110,7 @@ cprior = std_dist(pl)
 # allows for a wide range of power spectra. Additionally, we truncate the expansion at order 3
 # for simplicity in this tutorial.
 using Distributions
-ρs = ntuple(Returns(Uniform(0.1, 2 * max(size(grid)...))), 3)
+ρs = ntuple(Returns(Uniform(0.01, max(size(grid)...))), 3)
 
 # Putting everything together the total prior is then our image prior, a prior on the
 # standard deviation of the MRF, and a prior on the fractional flux of the Gaussian component.
@@ -141,9 +141,9 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 # functionality a user first needs to import `Optimization.jl` and the optimizer of choice.
 # In this tutorial we will use the Adam optimizer.
 # We also need to import Enzyme to allow for automatic differentiation.
-using Optimization, OptimizationOptimisers
+using Optimization, OptimizationLBFGSB
 # tpost = asflat(post)
-xopt, sol = comrade_opt(post, Adam(); maxiters = 5000)
+xopt, sol = comrade_opt(post, LBFGSB(); initial_params = prior_sample(rng, post), maxiters = 5000)
 
 using CairoMakie
 using DisplayAs #hide
@@ -197,7 +197,7 @@ k = range(1 / size(grid)[1], π / 2, length = 512)
 fig = Figure()
 ax = Axis(fig[1, 1], xscale = log10, yscale = log10)
 for i in 501:10:length(chain)
-    lines!(ax, k, VLBIImagePriors.ampspectrum.(Ref(MarkovPS(chain.sky.ρs[i] .^ 2)), tuple.(k, 0)))
+    lines!(ax, k, VLBIImagePriors.ampspectrum.(Ref(MarkovPS(chain.sky.ρs[i])), tuple.(k, 0)))
 end
 fig
 

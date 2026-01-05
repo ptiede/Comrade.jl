@@ -39,9 +39,14 @@ function set_prior(::FixedSkyModel, ::AbstractArrayConfiguration)
     return (;)
 end
 
-function idealvisibilities(m::ObservedSkyModel{<:FixedSkyModel}, x)
-    return m.metadata.vis
+function idealmaps(::VisData, m::ObservedSkyModel{<:FixedSkyModel}, x)
+    return zero(real(eltype(m.metadata.vis))), m.metadata.vis
 end
+
+function idealmaps(::DualData, m::ObservedSkyModel{<:FixedSkyModel}, x)
+    return zero(real(eltype(m.metadata.vis))), m.metadata.vis
+end
+
 
 function skymodel(m::ObservedSkyModel{<:FixedSkyModel}, x)
     return m.f.model
