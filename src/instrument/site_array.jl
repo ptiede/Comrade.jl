@@ -152,10 +152,14 @@ sites(s::SiteLookup) = s.sites
 frequencies(s::SiteLookup) = s.frequencies
 lookup(s::SiteLookup) = s.lookup
 
-EnzymeRules.inactive(::typeof(times), ::SiteLookup) = nothing
-EnzymeRules.inactive(::typeof(frequencies), ::SiteLookup) = nothing
-EnzymeRules.inactive(::typeof(sites), ::SiteLookup) = nothing
-EnzymeRules.inactive(::typeof(lookup), ::SiteLookup) = nothing
+times(s::SiteLookup, site::Symbol) = view(times(s), lookup(s)[site])
+frequencies(s::SiteLookup, site::Symbol) = view(frequencies(s), lookup(s)[site])
+sites(s::SiteLookup, site::Symbol) = view(sites(s), lookup(s)[site])
+
+EnzymeRules.inactive(::typeof(times), ::SiteLookup, ::Any...) = nothing
+EnzymeRules.inactive(::typeof(frequencies), ::SiteLookup, ::Any...) = nothing
+EnzymeRules.inactive(::typeof(sites), ::SiteLookup, ::Any...) = nothing
+EnzymeRules.inactive(::typeof(lookup), ::SiteLookup, ::Any...) = nothing
 
 function sitemap!(f, out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
     return map(lookup(slook)) do site

@@ -42,15 +42,15 @@ end
 # end
 
 
-struct ObservedArrayPrior{D, S} <: Distributions.ContinuousMultivariateDistribution
-    dists::D
+struct ObservedArrayPrior{D, DS, S} <: Distributions.ContinuousMultivariateDistribution
+    sitedists::DS
     sitemap::S
-    phase::Bool
 end
 Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)
 Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists._logpdf(d.dists, parent(x))
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
+
 function asflat(d::ObservedArrayPrior)
     d.phase && MarkovInstrumentTransform(asflat(d.dists), d.sitemap)
     return InstrumentTransform(asflat(d.dists), d.sitemap)
@@ -197,7 +197,7 @@ HypercubeTransform.ascube(t::PartiallyConditionedDist) = PartiallyFixedTransform
 function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroid_station)
     ts = smap.times
     ss = smap.sites
-    # fs = smap.frequencies
+    fs = smap.frequencies
     fixedinds, vals = reference_indices(array, smap, refants)
 
     if !(centroid_station isa Nothing)
@@ -212,9 +212,22 @@ function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroi
 
     variateinds = setdiff(eachindex(ts), fixedinds)
     dist = map(variateinds) do i
-        getproperty(dists, ss[i]).dist
+        s = ss[i]
+        sitedist(getproperty(dists, s), s, ts[i], fs[i], smap)
     end
     dist = Dists.product_distribution(dist)
     length(fixedinds) == 0 && return dist
     return PartiallyConditionedDist(dist, variateinds, fixedinds, vals)
+end
+
+function sitedist(dist::IIDSitePrior, site, time, freq, smap)
+    return dist.dist
+end
+
+function sitedist(dist::RWSitePrior, site, time, freq, smap)
+    if time > first(smap.times[smap.lookup[site]])
+        return dist.trans
+    else
+        return dist.dist0
+    end
 end
