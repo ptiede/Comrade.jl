@@ -164,7 +164,7 @@ using FiniteDifferences
 
 end
 
-function test_simobs(post, x, int = nothing)
+function test_simobs(post, x, skym, int = nothing)
     obs = simulate_observation(post, x)[begin]
     @test length(obs) == length(post.data[begin])
     obs_nn = simulate_observation(post, x, add_thermal_noise = false)[begin]
@@ -216,12 +216,11 @@ end
         ),
     )
 
-    test_simobs(post_amp, x0)
-    test_simobs(post_cp, x0)
-    test_simobs(post_lc, x0)
-    test_simobs(post_vis, x0)
-    test_simobs(post_gvis, x0)
-
+    test_simobs(post_amp, skym, x0)
+    test_simobs(post_cp, skym, x0)
+    test_simobs(post_lc, skym, x0)
+    test_simobs(post_vis, skym, x0)
+    test_simobs(post_gvis, skym, x0)
     post_all = VLBIPosterior(skym, vis, amp, lcamp, cphase)
     simulate_observation(post_all, x0)
 
@@ -232,7 +231,7 @@ end
     intm_coh = InstrumentModel(J, intm.prior)
     skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
     post_coh = VLBIPosterior(skym, intm_coh, coh)
-    test_simobs(post_coh, prior_sample(post_coh), intm_coh)
+    test_simobs(post_coh, skym, prior_sample(post_coh), intm_coh)
 end
 
 function test_nonanalytic(intm, algorithm, vis)
@@ -242,7 +241,8 @@ function test_nonanalytic(intm, algorithm, vis)
     tpostf = asflat(post)
     x0 = prior_sample(tpostf)
     @inferred logdensityof(tpostf, x0)
-    gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpostf), x0)
+    _, gz = LogDensityProblems.logdensity_and_gradient(tpostf, x0)
+    mfd = central_fdm(5, 1)
     gn, = FiniteDifferences.grad(mfd, tpostf, x0)
     return @test gz ≈ gn
 end
@@ -251,7 +251,6 @@ end
 @testset "Bayes Non-analytic AD" begin
     _, vis, amp, lcamp, cphase = load_data()
 
-    mfd = central_fdm(5, 1)
 
     G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
     intm = InstrumentModel(
