@@ -233,6 +233,18 @@ end
     test_simobs(post_coh, prior_sample(post_coh), intm_coh)
 end
 
+function test_nonanalytic(intm, algorithm, vis)
+    skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); algorithm)
+    post = VLBIPosterior(skym, intm, vis)
+    
+    tpostf = asflat(post)
+    x0 = prior_sample(tpostf)
+    @inferred logdensityof(tpostf, x0)
+    gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpostf), x0)
+    gn, = FiniteDifferences.grad(mfd, tpostf, x0)
+    @test gz ≈ gn
+end
+
 
 @testset "Bayes Non-analytic AD" begin
     _, vis, amp, lcamp, cphase = load_data()
@@ -247,18 +259,6 @@ end
         )
     )
 
-    function test_nonanalytic(intm, algorithm, vis)
-        skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256))
-        post = VLBIPosterior(skym, intm, vis)
-
-        tpostf = asflat(post)
-        x0 = prior_sample(tpostf)
-
-        @inferred logdensityof(tpostf, x0)
-        gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpostf), x0)
-        gn, = FiniteDifferences.grad(mfd, tpostf, x0)
-        @test gz ≈ gn
-    end
     @testset "DFT" begin
         test_nonanalytic(intm, DFTAlg(), vis)
     end

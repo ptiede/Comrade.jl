@@ -2,6 +2,7 @@
 #    include("install_pycall.jl")
 #end
 using Pkg, Distributions
+Pkg.develop(PackageSpec(url = "https://github.com/ptiede/ComradeBase.jl"))
 using ChainRulesTestUtils
 using Pyehtim
 using Optimization
@@ -15,7 +16,6 @@ import Plots
 
 include(joinpath(@__DIR__, "test_util.jl"))
 
-Pkg.develop(PackageSpec(url = "https://github.com/ptiede/ComradeBase.jl"))
 @testset "Comrade.jl" begin
     include(joinpath(@__DIR__, "Core/core.jl"))
     include(joinpath(@__DIR__, "ext/comradeahmc.jl"))
