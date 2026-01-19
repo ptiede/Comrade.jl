@@ -1,5 +1,6 @@
 using Distributions
 
+
 @testset "ImgNormalData" begin
     # Load test data to get a working model
     _, vis, amp, lcamp, cphase = load_data()
