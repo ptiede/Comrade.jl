@@ -164,6 +164,30 @@ using FiniteDifferences
 
 end
 
+function test_simobs(post, x, int = nothing)
+    obs = simulate_observation(post, x)[begin]
+    @test length(obs) == length(post.data[begin])
+    obs_nn = simulate_observation(post, x, add_thermal_noise = false)[begin]
+    @test Comrade.measurement(obs_nn) == Comrade.likelihood(post.lklhds[1], last(Comrade.forward_model(post, x))).μ
+
+    if isnothing(int)
+        postsim = VLBIPosterior(skym, obs)
+        postsim_nn = VLBIPosterior(skym, obs_nn)
+    else
+        postsim = VLBIPosterior(skym, int, obs)
+        postsim_nn = VLBIPosterior(skym, int, obs_nn)
+    end
+
+
+    c2 = chi2(postsim, x; reduce = true)
+    c2nn = chi2(postsim_nn, x; reduce = true)
+    @test all(x -> reduce(&, x .< 1.25), c2)
+    return @test all(x -> reduce(&, x .≈ 0), c2nn)
+
+
+end
+
+
 @testset "simulate_obs" begin
     _, vis, amp, lcamp, cphase, coh = load_data()
     g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
@@ -191,28 +215,6 @@ end
             x = μas2rad(30.0), y = μas2rad(30.0),
         ),
     )
-    function test_simobs(post, x, int = nothing)
-        obs = simulate_observation(post, x)[begin]
-        @test length(obs) == length(post.data[begin])
-        obs_nn = simulate_observation(post, x, add_thermal_noise = false)[begin]
-        @test Comrade.measurement(obs_nn) == Comrade.likelihood(post.lklhds[1], last(Comrade.forward_model(post, x))).μ
-
-        if isnothing(int)
-            postsim = VLBIPosterior(skym, obs)
-            postsim_nn = VLBIPosterior(skym, obs_nn)
-        else
-            postsim = VLBIPosterior(skym, int, obs)
-            postsim_nn = VLBIPosterior(skym, int, obs_nn)
-        end
-
-
-        c2 = chi2(postsim, x; reduce = true)
-        c2nn = chi2(postsim_nn, x; reduce = true)
-        @test all(x -> reduce(&, x .< 1.25), c2)
-        @test all(x -> reduce(&, x .≈ 0), c2nn)
-
-
-    end
 
     test_simobs(post_amp, x0)
     test_simobs(post_cp, x0)
@@ -236,13 +238,13 @@ end
 function test_nonanalytic(intm, algorithm, vis)
     skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); algorithm)
     post = VLBIPosterior(skym, intm, vis)
-    
+
     tpostf = asflat(post)
     x0 = prior_sample(tpostf)
     @inferred logdensityof(tpostf, x0)
     gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpostf), x0)
     gn, = FiniteDifferences.grad(mfd, tpostf, x0)
-    @test gz ≈ gn
+    return @test gz ≈ gn
 end
 
 
