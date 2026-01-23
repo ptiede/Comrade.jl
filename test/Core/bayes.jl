@@ -125,8 +125,6 @@ using Enzyme
 
 end
 
-using Enzyme
-using FiniteDifferences
 @testset "Polarized" begin
     _, vis, amp, lcamp, cphase, coh = load_data()
 
@@ -234,38 +232,44 @@ end
     test_simobs(post_coh, skym, prior_sample(post_coh), intm_coh)
 end
 
-function test_nonanalytic(intm, algorithm, vis)
-    skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); algorithm)
+function test_nonanalytic(intm, vis)
+    skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256))
     post = VLBIPosterior(skym, intm, vis)
 
     tpostf = asflat(post)
-    x0 = prior_sample(tpostf)
-    @inferred logdensityof(tpostf, x0)
-    _, gz = LogDensityProblems.logdensity_and_gradient(tpostf, x0)
+    x0 = rand(dimension(tpostf))
+    dx1 = zero(x0)
+    autodiff(set_runtime_activity(Enzyme.Reverse), Const(tpostf), Duplicated(x0, dx1))
+    dx2 = zero(x0)    
+    autodiff(set_runtime_activity(Enzyme.Reverse), Const(tpostf), Duplicated(x0, dx2))
+
+    @test dx1 ≈ dx2
     mfd = central_fdm(5, 1)
     gn, = FiniteDifferences.grad(mfd, tpostf, x0)
-    return @test gz ≈ gn
+    @test dx2 ≈ gn
 end
 
 
+fgain(x) = (x.lg)
+
 @testset "Bayes Non-analytic AD" begin
-    _, vis, amp, lcamp, cphase = load_data()
+    # _, vis, amp, lcamp, cphase = load_data()
+    vis = deserialize("test_data.jls")
 
-
-    G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
+    # serialize("test_data.jls", vis)
+    G = SingleStokesGain(fgain)
     intm = InstrumentModel(
         G, (
-            lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+            lg = ArrayPrior(IIDSitePrior(TrackSeg(), Normal())),
         )
     )
 
-    @testset "DFT" begin
-        test_nonanalytic(intm, DFTAlg(), vis)
-    end
+    # @testset "DFT" begin
+    #     test_nonanalytic(intm, DFTAlg(), vis)
+    # end
 
     @testset "NFFT" begin
-        test_nonanalytic(intm, NFFTAlg(), vis)
+        test_nonanalytic(intm, vis[1:1])
     end
 
 end

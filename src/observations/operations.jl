@@ -39,7 +39,7 @@ function add_fractional_noise!(dcl::EHTObservationTable{<:ClosureProducts}, ferr
         return fe
     end
     # update the noise covariance matrix
-    nois .= dmat * Diagonal(abs2.(nvi ./ vis)) * transpose(dmat)
+    copyto!(nois, dmat * Diagonal(abs2.(nvi ./ vis)) * transpose(dmat))
     return dcl
 end
 
