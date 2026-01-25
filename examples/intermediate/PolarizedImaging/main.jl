@@ -172,9 +172,9 @@ function sky(θ, metadata)
     end
 
     pmap .= ftot .* pmap ./ ft
-    x0, y0 = centroid(pmap)
     m = ContinuousImage(pmap, BSplinePulse{3}())
-    return shifted(m, -x0, -y0)
+    x, y = centroid(pmap)
+    return shifted(m, -x, -y)
 end
 
 
@@ -384,7 +384,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # other imaging examples. For example
 # ```julia
 # using AdvancedHMC
-# chain = sample(rng, post, NUTS(0.8), 10_000, n_adapts=5000, progress=true, initial_params=xopt)
+# chain = sample(rng, post, NUTS(0.8), 2_000, n_adapts = 1000, progress = true, initial_params = xopt)
 # ```
 
 

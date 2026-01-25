@@ -9,7 +9,7 @@ Any subtype must implement the following methods
     and image of the sky model.
 
 The following methods have default implementations:
- - `idealvisibilities(m::AbstractSkyModel, x)`: Computes the ideal visibilities of the sky model `m`
+ - `idealmaps(datatype, m::AbstractSkyModel, x)`: Computes the ideal intensities and visibilities of the sky model `m`
     given the model parameters `x`.
  - `skymodel(m::AbstractSkyModel, x)`: Returns the sky model image given the model parameters `x`.
  - `domain(m::AbstractSkyModel)`: Returns the domain of the sky model `m`.
@@ -46,14 +46,50 @@ function domain(m::AbstractSkyModel; kwargs...)
 end
 
 """
-    idealvisibilities(m::AbstractSkyModel, x)
+    idealmaps(D, m::AbstractSkyModel, x)
 
 Computes the ideal non-corrupted visibilities of the sky model `m` given the model parameters `x`.
 """
-function idealvisibilities(m::AbstractSkyModel, x)
+function idealmaps(::VisData, m::AbstractSkyModel, x)
     skym = skymodel(m, x.sky)
-    return visibilitymap(skym, domain(m))
+    vis = visibilitymap(skym, domain(m))
+    return zero(real(eltype(vis))), vis
 end
+
+
+function idealmaps(::DualData, m::AbstractSkyModel, x)
+    skym = skymodel(m, x.sky)
+    # We include this special method to sometime optimize the dualmap computation
+    # for specific sky models
+    img, vis = forward_dualmap(skym, domain(m))
+    return img, vis
+end
+
+function forward_dualmap(skym::AbstractModel, grid::VLBISkyModels.AbstractFourierDualDomain)
+    dm = dualmap(skym, grid)
+    return ComradeBase.imgmap(dm), ComradeBase.vismap(dm)
+end
+
+function forward_dualmap(skym::ContinuousImage, grid::VLBISkyModels.AbstractFourierDualDomain)
+    VLBISkyModels.checkgrid(axisdims(skym), ComradeBase.imgdomain(grid)) ||
+        throw(DomainError("Image domain does not match skymodel image domain"))
+    img = VLBISkyModels.make_map(skym)
+    return img, visibilitymap(skym, grid)
+end
+
+
+function forward_dualmap(skym::VLBISkyModels.AddModel{<:ContinuousImage}, grid::VLBISkyModels.AbstractFourierDualDomain)
+    VLBISkyModels.checkgrid(axisdims(skym.m1), ComradeBase.imgdomain(grid)) ||
+        throw(DomainError("Image domain does not match skymodel image domain"))
+    img = VLBISkyModels.make_map(skym.m1)
+    img2 = intensitymap(skym.m2, grid)
+    img2 .+= img #copy into this one because img will alias otherwise
+    return img, visibilitymap(skym, grid)
+end
+
+forward_dualmap(m::VLBISkyModels.AddModel{M1, <:ContinuousImage}, grid::VLBISkyModels.AbstractFourierDualDomain) where {M1} =
+    forward_dualmap(swap(m), grid)
+
 
 function skymodel(m::AbstractSkyModel, x)
     return m.f(x, m.metadata)

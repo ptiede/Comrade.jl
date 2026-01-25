@@ -105,3 +105,45 @@ function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTClosurePh
     ℓ = ConditionedLikelihood(_CPhase(f, Σcp, lnorm), phase)
     return ℓ
 end
+
+export ImgNormalData
+
+"""
+    ImgNormalData(reduction, measurement, noise)
+
+Container for image-domain data assuming a normal likelihood with a `measurement` and `noise`. 
+"""
+struct ImgNormalData{F, M, N}
+    reduction::F
+    measurement::M
+    noise::N
+end
+
+
+struct _Reduced{F, T}
+    f::F
+    σ::T
+end
+
+struct NormalFast{T, S}
+    μ::T
+    σ::S
+end
+
+function DensityInterface.logdensityof(d::NormalFast, x)
+    dev = (x .- d.μ) .* inv.(d.σ)
+    exponent = -sum(abs2, dev) / 2
+    return exponent
+end
+
+function (c::_Reduced)(μ)
+    return NormalFast(c.f(μ), c.σ)
+end
+
+function makelikelihood(data::ImgNormalData)
+    σ = data.noise
+    meas = data.measurement
+    f = data.reduction
+    ℓ = ConditionedLikelihood(_Reduced(f, σ), meas)
+    return ℓ
+end

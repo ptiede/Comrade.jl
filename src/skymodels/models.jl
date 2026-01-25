@@ -39,7 +39,7 @@ function SkyModel(f, prior, grid::AbstractRectiGrid; algorithm = NFFTAlg(), meta
     return SkyModel(f, prior, grid, algorithm, metadata)
 end
 
-function VLBISkyModels.FourierDualDomain(grid::AbstractRectiGrid, array::AbstractArrayConfiguration, alg::FourierTransform; executor = Serial())
+function VLBISkyModels.FourierDualDomain(grid::AbstractRectiGrid, array::AbstractArrayConfiguration, alg::FourierTransform; executor = executor(grid))
     return FourierDualDomain(grid, domain(array; executor), alg)
 end
 
