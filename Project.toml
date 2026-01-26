@@ -52,6 +52,8 @@ Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 Pigeons = "0eb8d820-af6a-4919-95ae-11206f830c31"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
+
 
 [extensions]
 ComradeAdvancedHMCExt = "AdvancedHMC"
@@ -61,6 +63,7 @@ ComradeMakieExt = "Makie"
 ComradeOptimizationExt = "Optimization"
 ComradePigeonsExt = "Pigeons"
 ComradePyehtimExt = "Pyehtim"
+ComradeReactantExt = "Reactant"
 
 [compat]
 AbstractMCMC = "3, 4, 5"
@@ -76,7 +79,7 @@ DimensionalData = "0.29 - 0.29.24, ^0.29.26"
 Distributions = "0.25"
 DocStringExtensions = "0.8, 0.9"
 Dynesty = "0.4"
-Enzyme = "0.13 - 0.13.104, 0.13.109 - 0.13.111"
+Enzyme = "0.13 - 0.13.104, ^0.13.109"
 EnzymeCore = "0.8"
 FillArrays = "1"
 HypercubeTransform = "^0.4.11"
@@ -90,7 +93,7 @@ PaddedViews = "0.5"
 ParameterHandling = "0.4, 0.5"
 Pigeons = "0.4, 0.5"
 PolarizedTypes = "0.1"
-PrettyTables = "1, 2"
+PrettyTables = "3"
 Pyehtim = "0.2"
 RecipesBase = "1"
 Reexport = "1"
@@ -115,7 +118,8 @@ Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 Pigeons = "0eb8d820-af6a-4919-95ae-11206f830c31"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "AdvancedHMC", "Dynesty", "Enzyme", "Makie", "Optimization", "Pigeons", "Pyehtim"]
+test = ["Test", "AdvancedHMC", "Dynesty", "Enzyme", "Makie", "Optimization", "Pigeons", "Pyehtim", "Reactant"]
