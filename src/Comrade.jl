@@ -1,7 +1,3 @@
-"""
-    Comrade
-Composable Modeling of Radio Emission
-"""
 module Comrade
 
 using AbstractMCMC

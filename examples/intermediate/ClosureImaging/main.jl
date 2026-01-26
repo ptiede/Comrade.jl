@@ -78,10 +78,9 @@ function sky(θ, metadata)
     rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
     m = ContinuousImage(((1 - fg)) .* rast, BSplinePulse{3}())
     ## Force the image centroid to be at the origin
-    x0, y0 = centroid(m)
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
-    return shifted(m, -x0, -y0) + g
+    return m + g
 end
 
 

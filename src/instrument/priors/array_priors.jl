@@ -49,7 +49,7 @@ struct ObservedArrayPrior{D, S} <: Distributions.ContinuousMultivariateDistribut
 end
 Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)
-Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists._logpdf(d.dists, parent(x))
+Dists.logpdf(d::ObservedArrayPrior, x::AbstractVector{<:Number}) = Dists.logpdf(d.dists, parent(x))
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
 function asflat(d::ObservedArrayPrior)
     d.phase && MarkovInstrumentTransform(asflat(d.dists), d.sitemap)
@@ -140,8 +140,8 @@ TV.dimension(t::PartiallyFixedTransform) = TV.dimension(t.transform)
 function TV.transform_with(flag::TV.LogJacFlag, t::PartiallyFixedTransform, x, index)
     y, ℓ, index = TV.transform_with(flag, t.transform, x, index)
     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
-    yfv[t.variate_index] .= y
-    yfv[t.fixed_index] .= t.fixed_values
+    yfv[t.variate_index] = y
+    yfv[t.fixed_index] = t.fixed_values
     return yfv, ℓ, index
 end
 
@@ -153,8 +153,8 @@ end
 function HypercubeTransform._step_transform(t::PartiallyFixedTransform, x, index)
     y, index = HypercubeTransform._step_transform(t.transform, x, index)
     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
-    yfv[t.variate_index] .= y
-    yfv[t.fixed_index] .= t.fixed_values
+    yfv[t.variate_index] = y
+    yfv[t.fixed_index] = t.fixed_values
     return yfv, index
 end
 
@@ -179,7 +179,7 @@ Base.eltype(d::PartiallyConditionedDist) = eltype(d.dist)
 
 Distributions.sampler(d::PartiallyConditionedDist) = d
 
-function Distributions._logpdf(d::PartiallyConditionedDist, x)
+function Distributions.logpdf(d::PartiallyConditionedDist, x::AbstractVector)
     xv = @view parent(x)[d.variate_index]
     return Dists.logpdf(d.dist, xv)
 end

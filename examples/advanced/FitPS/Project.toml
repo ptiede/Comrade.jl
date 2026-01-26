@@ -2,6 +2,7 @@
 AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+ComradeBase = "6d8c423b-a35f-4ef1-850c-862fe21f82c4"
 DisplayAs = "0b91fe84-8a4c-11e9-3e1d-67c38462b6d6"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
@@ -18,6 +19,7 @@ StableRNGs = "860ef19b-820b-49d6-a774-d7a799459cd3"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 VLBILikelihoods = "90db92cd-0007-4c0a-8e51-dbf0782ce592"
+VLBISkyModels = "d6343c73-7174-4e0f-bb64-562643efbeca"
 
 [compat]
 CairoMakie = "0.15"

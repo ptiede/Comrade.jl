@@ -26,6 +26,7 @@ Default methods include:
 abstract type AbstractVLBIPosterior end
 @inline DensityInterface.DensityKind(::AbstractVLBIPosterior) = DensityInterface.IsDensity()
 
+
 """
     logprior(d::AbstractVLBIPosterior, θ)
 
@@ -54,39 +55,9 @@ instrumentmodel(d::AbstractVLBIPosterior) = getfield(d, :instrumentmodel)
 HypercubeTransform.dimension(d::AbstractVLBIPosterior) = length(d.prior)
 EnzymeRules.inactive(::typeof(instrumentmodel), args...) = nothing
 
-# @noinline logprior_ref(d, x) = logprior(d, x[])
-
-# function ChainRulesCore.rrule(::typeof(logprior), d::AbstractVLBIPosterior, x)
-#     p = logprior(d, x)
-#     # We need this
-#     px = ProjectTo(x)
-#     function _logprior_pullback(Δ)
-#         # @info "HERE"
-#         xr = Ref(x)
-#         dxr = Ref(ntzero(x))
-#         autodiff(Reverse, logprior_ref, Active, Const(d), Duplicated(xr, dxr))
-#         return NoTangent(), NoTangent(), (_perturb(Δ, dxr[]))
-#     end
-#     return p, _logprior_pullback
-# end
-
-# function _perturb(Δ, x::Union{NamedTuple, Tuple})
-#     return map(x->_perturb(Δ, x), x)
-# end
-
-# function _perturb(Δ, x)
-#     return Δ*x
-# end
-
-# function _perturb(Δ, x::AbstractArray)
-#     x .= Δ*x
-#     return x
-# end
-
 
 function DensityInterface.logdensityof(post::AbstractVLBIPosterior, x)
     pr = logprior(post, x)
-    !isfinite(pr) && return -Inf
     l = loglikelihood(post, x)
     # isnan(l) && throw(ArgumentError("NaN in loglikelihood at $x"))
     return l + pr
@@ -118,9 +89,13 @@ Computes the forward model visibilities of the posterior `d` with parameters `θ
 Note these are the complex visiblities or the coherency matrices, not the actual
 data products observed.
 """
+@inline function forward_model_map(D, d::AbstractVLBIPosterior, θ)
+    img, vis = idealmaps(D, skymodel(d), θ)
+    return img, apply_instrument(vis, instrumentmodel(d), θ)
+end
+
 @inline function forward_model(d::AbstractVLBIPosterior, θ)
-    vis = idealvisibilities(skymodel(d), θ)
-    return apply_instrument(vis, instrumentmodel(d), θ)
+    return forward_model_map(datatype(typeof(d)), d, θ)
 end
 
 """
@@ -129,9 +104,10 @@ end
 Computes the log-likelihood of the posterior `d` with parameters `θ`.
 """
 @inline function loglikelihood(d::AbstractVLBIPosterior, θ)
-    vis = forward_model(d, θ)
+    img, vis = forward_model(d, θ)
     # Convert because of conventions
-    return logdensityofvis(d.lklhds, vis)
+    lis = d.lklhdsimg
+    return logdensityofvis(d.lklhds, vis) + logdensityofimg(lis, img)
 end
 
 """
@@ -170,6 +146,21 @@ end
     fl = Base.Fix2(logdensityof, vis)
     ls = map(fl, lklhds)
     return sum(ls)
+end
+
+@inline function logdensityofimg(lklhds, img::IntensityMap)
+    fl = Base.Fix2(logdensityof, img)
+    ls = map(fl, lklhds)
+    return sum(ls)
+end
+
+## There is no image data so just return 0
+@inline function logdensityofimg(lklhds::Tuple{}, img::Number)
+    return zero(img)
+end
+
+@inline function logdensityofimg(lklhds::Tuple{}, img::AbstractArray{T}) where {T}
+    return zero(T)
 end
 
 

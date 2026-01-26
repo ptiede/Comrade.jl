@@ -56,5 +56,5 @@ function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r:
         _, ind = findmin(values(sp))
         push!(fixedinds, inds[ind])
     end
-    return fixedinds, Fill(r.value, length(fixedinds))
+    return fixedinds, fill(r.value, length(fixedinds))
 end
