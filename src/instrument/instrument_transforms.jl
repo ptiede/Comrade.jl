@@ -7,7 +7,8 @@ ascube(t::AbstractInstrumentTransform) = t
 function TV.transform_with(flag::TV.LogJacFlag, m::AbstractInstrumentTransform, x, index)
     y, ℓ, index = _instrument_transform_with(flag, m, x, index)
     sm = site_map(m)
-    return SiteArray(y, sm), ℓ, index
+    sa = SiteArray(y, sm)
+    return sa, ℓ, index
 end
 
 EnzymeRules.inactive_type(::Type{AbstractArray{<:IntegrationTime}}) = true
@@ -60,8 +61,13 @@ end
 
 
 function branchcut(x::T) where {T}
-    xmod = mod2pi(x)
-    return xmod > π ? xmod - convert(T, 2π) : xmod
+    xmod = mod(x, convert(T, 2π))
+    if xmod > π
+        r = xmod - convert(T, 2π)
+    else
+        r = xmod
+    end
+    return r
 end
 
 @inline function _instrument_transform_with(flag::TV.LogJacFlag, m::MarkovInstrumentTransform, x, index)
@@ -91,6 +97,7 @@ EnzymeRules.inactive_type(::Type{<:SiteLookup}) = true
         # yout[i0] = y[i0]
         acc = zero(eltype(y))
         @inbounds ys = @view y[site]
+        cumsum(ys)
         for i in eachindex(ys)
             acc += ys[i]
             ys[i] = acc

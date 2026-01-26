@@ -209,21 +209,20 @@ end
 @inline intout(vis::AbstractArray{<:StokesParams{T}}) where {T} = similar(vis, SMatrix{2, 2, complex(T), 4})
 @inline intout(vis::AbstractArray{T}) where {T} = similar(vis, complex(T))
 @inline intout(vis::AbstractArray{<:CoherencyMatrix{A, B, T}}) where {A, B, T} = similar(vis, SMatrix{2, 2, complex(T), 4})
-
-intout(vis::StructArray{<:StokesParams{T}}) where {T} = StructArray{SMatrix{2, 2, complex(T), 4}}((vis.I, vis.Q, vis.U, vis.V))
+@inline intout(vis::StructArray{<:StokesParams{T}}) where {T} = StructArray{SMatrix{2, 2, complex(T), 4}}((vis.I, vis.Q, vis.U, vis.V))
 
 @inline function apply_instrument(vis, J::ObservedInstrumentModel, x)
     vout = parent(intout(vis))
-    # Grab parent arrary so that type inference works better for Enzyme Reverse pass
+    # Grab parent arrary so we don't trace through SiteArray since that stuff is constant
     xint = map(parent, x.instrument)
-    _apply_instrument!(vout, J, xint)
+    _apply_instrument!(vout, parent(vis), J, xint)
     return vout
 end
 
 
-function _apply_instrument!(vout::AbstractArray, J::ObservedInstrumentModel, xint)
+function _apply_instrument!(vout::AbstractArray, vis, J::ObservedInstrumentModel, xint)
     for i in eachindex(vout)
-        vout[i] = apply_jones(vout[i], i, J, xint)
+        vout[i] = apply_jones(vis[i], i, J, xint)
     end
 end
 
