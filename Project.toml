@@ -53,6 +53,8 @@ Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 Pigeons = "0eb8d820-af6a-4919-95ae-11206f830c31"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
+
 VLBIFiles = "c1ebf4c8-f9d4-409a-8daf-7009448f4e6e"
 
 [extensions]
@@ -63,6 +65,7 @@ ComradeMakieExt = "Makie"
 ComradeOptimizationExt = "Optimization"
 ComradePigeonsExt = "Pigeons"
 ComradePyehtimExt = "Pyehtim"
+ComradeReactantExt = "Reactant"
 ComradeVLBIFilesExt = "VLBIFiles"
 
 [compat]
@@ -92,7 +95,7 @@ Optimization = "5"
 PaddedViews = "0.5"
 ParameterHandling = "0.4, 0.5"
 Pigeons = "0.4, 0.5"
-PolarizedTypes = "0.1.0 - 0.1.3"
+PolarizedTypes = "0.1"
 PrettyTables = "3"
 Pyehtim = "0.2"
 RecipesBase = "1"
@@ -119,8 +122,9 @@ Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 Pigeons = "0eb8d820-af6a-4919-95ae-11206f830c31"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 VLBIFiles = "c1ebf4c8-f9d4-409a-8daf-7009448f4e6e"
 
 [targets]
-test = ["Test", "AdvancedHMC", "Dynesty", "Enzyme", "Makie", "Optimization", "Pigeons", "Pyehtim", "VLBIFiles"]
+test = ["Test", "AdvancedHMC", "Dynesty", "Enzyme", "Makie", "Optimization", "Pigeons", "Pyehtim", "VLBIFiles", "Reactant"]
