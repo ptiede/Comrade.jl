@@ -47,8 +47,8 @@ is the complex gain `g1` and the second element is the complex gain `g2`.
 ## Example
 ```julia
 G = JonesG() do
-    g1 = exp(x.lg1 + 1im.*x.gp1)
-    g2 = g1*exp(x.lgratio + 1im.*x.gpratio)
+    g1 = exp(complex(x.lg1, x.gp1))
+    g2 = g1*exp(complex(x.lgratio, x.gpratio))
     return g1, g2
 end
 ```

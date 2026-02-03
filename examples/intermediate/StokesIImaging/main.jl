@@ -130,7 +130,7 @@ skym = SkyModel(sky, prior, grid; metadata = skymeta)
 G = SingleStokesGain() do x
     lg = x.lg
     gp = x.gp
-    return exp(lg + 1im * gp)
+    return exp(complex(lg, gp))
 end
 
 intpr = (

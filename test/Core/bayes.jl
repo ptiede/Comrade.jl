@@ -144,7 +144,7 @@ using FiniteDifferences
     @test gz ≈ gfd
 
     R = JonesR()
-    Gp = JonesG(x -> (exp(x.lg + 1im * x.gp), exp(x.lg + 1im * x.gp)))
+    Gp = JonesG(x -> (exp(complex(x.lg, x.gp)), exp(complex(x.lg, x.gp))))
     J = JonesSandwich(Gp, R)
     pr = (
         lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
@@ -174,7 +174,7 @@ end
     post_lc = VLBIPosterior(skym, lcamp)
     post_vis = VLBIPosterior(skym, vis)
 
-    G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
+    G = SingleStokesGain(x -> exp(complex(x.lg, x.gp)))
     intm = InstrumentModel(
         G, (
             lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),

@@ -231,8 +231,8 @@ skym = SkyModel(sky, skyprior, grid; metadata = skymeta)
 # The first element of the tuple is the gain for the first polarization feed (R) and the
 # second is the gain for the second polarization feed (L).
 function fgain(x)
-    gR = exp(x.lgR + 1im * x.gpR)
-    gL = gR * exp(x.lgrat + 1im * x.gprat)
+    gR = exp(complex(x.lgR, x.gpR))
+    gL = gR * exp(complex(x.lgrat, x.gprat))
     return gR, gL
 end
 G = JonesG(fgain)
