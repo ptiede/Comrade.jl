@@ -106,7 +106,7 @@ visibilities.
 
 A Stokes I example is
 ```julia-repl
-julia> G = SingleStokesGain(x->exp(x.lg + 1im*x.pg))
+julia> G = SingleStokesGain(x->exp(complex(x.lg, x.pg)))
 julia> intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
             pg = ArrayPrior(IIDSitePrior(ScanSeg(), DiagVonMises(0.0, inv(π^2))))
             )
@@ -117,8 +117,8 @@ julia> intm = InstrumentModel(G, intprior)
 A standard polarized example is
 ```julia-repl
 julia> G = JonesG() do
-        gR = exp.(x.lgr + 1im*x.gpr)
-        gL = gr*exp.(x.lgrat + 1im*x.gprat)
+        gR = exp.(complex(x.lgr, x.gpr))
+        gL = gr*exp.(complex(x.lgrat, x.gprat))
         return gR, gL
     end
 julia> D = JonesD() do
