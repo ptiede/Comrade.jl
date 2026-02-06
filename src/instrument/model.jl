@@ -221,8 +221,9 @@ end
 
 
 function _apply_instrument!(vout::AbstractArray, vis, J::ObservedInstrumentModel, xint)
-    for i in eachindex(vout)
-        vout[i] = apply_jones(vis[i], i, J, xint)
+    @trace for i in eachindex(vout)
+        tmp = apply_jones(rgetindex(vis, i), i, J, xint)
+        rsetindex!(vout, tmp, i)
     end
 end
 
