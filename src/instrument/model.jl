@@ -256,9 +256,9 @@ end
 #     return nothing
 # end
 
-@inline get_indices(bsitemaps, index, ::Val{1}) = map(x -> getindex(x.indices_1, index), bsitemaps)
-@inline get_indices(bsitemaps, index, ::Val{2}) = map(x -> getindex(x.indices_2, index), bsitemaps)
-@inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map(getindex, values(x), values(indices)))
+@inline get_indices(bsitemaps, index, ::Val{1}) = map(x -> rgetindex(x.indices_1, index), bsitemaps)
+@inline get_indices(bsitemaps, index, ::Val{2}) = map(x -> rgetindex(x.indices_2, index), bsitemaps)
+@inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map(rgetindex, values(x), values(indices)))
 # @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(ntuple(i->getindex(x[i], indices[i]), Val(length(N))))
 
 # We need this because Enzyme seems to crash when generating code for this
@@ -268,14 +268,13 @@ EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 
 Base.@propagate_inbounds function apply_jones(v, index::Int, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
     # First lhs station
-    id1 = Base.Fix2(getindex, index) ∘ Base.Fix2(getproperty, :indices_1)
-    indices1 = map(x -> getindex(x.indices_1, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
-    params1 = NamedTuple{N}(map(getindex, values(x), values(indices1)))
+    indices1 = map(x -> rgetindex(x.indices_1, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
+    params1 = NamedTuple{N}(map(rgetindex, values(x), values(indices1)))
     j1 = jonesmatrix(instrument(J), params1, index, Val(1))
 
     # Second RHS station
-    indices2 = map(x -> getindex(x.indices_2, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
-    params2 = NamedTuple{N}(map(getindex, values(x), values(indices2)))
+    indices2 = map(x -> rgetindex(x.indices_2, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
+    params2 = NamedTuple{N}(map(rgetindex, values(x), values(indices2)))
     j2 = jonesmatrix(instrument(J), params2, index, Val(2))
 
     vout = _apply_jones(v, j1, j2, refbasis(J))
