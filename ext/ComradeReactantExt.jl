@@ -2,16 +2,16 @@ module ComradeReactantExt
 using Comrade
 using Reactant
 
-# @inline function Comrade._apply_instrument!(
-#     vout::Reactant.AnyTracedRArray,
-#     vis,
-#     J::Comrade.ObservedInstrumentModel, 
-#     xint
-# )
-#     Reactant.@allowscalar @trace track_numbers=false for i in eachindex(vis)
-#         vout[i] = Comrade.apply_jones(vis[i], i, J, xint)
-#     end
-# end
+@inline function Comrade._apply_instrument!(
+    vout::Reactant.AnyTracedRArray,
+    vis,
+    J::Comrade.ObservedInstrumentModel, 
+    xint
+)
+    Reactant.@allowscalar @trace track_numbers=false for i in eachindex(vis)
+        vout[i] = Comrade.apply_jones(vis[i], i, J, xint)
+    end
+end
 
 @inline function Comrade.site_sum(y::Reactant.AnyTracedRArray, site_map::Comrade.SiteLookup)
     yout = similar(y)
