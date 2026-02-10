@@ -6,6 +6,9 @@ using StructArrays: StructVector, StructArray, append!!
 using LinearAlgebra
 using StaticArraysCore
 
+
+removeesc(str) = Symbol(replace(str, r"[^a-zA-Z0-9\s]" => ""))
+
 function build_arrayconfig(obsc)
     obsd = obsc.data
     ra, dec = get_radec(obsc)
@@ -30,8 +33,8 @@ function build_arrayconfig(obsc)
 
     U = pyconvert(Vector, obsd["u"])
     V = pyconvert(Vector, obsd["v"])
-    t1 = Symbol.(pyconvert(Vector{String}, obsd["t1"]))
-    t2 = Symbol.(pyconvert(Vector{String}, obsd["t2"]))
+    t1 = removeesc.(pyconvert(Vector{String}, obsd["t1"]))
+    t2 = removeesc.(pyconvert(Vector{String}, obsd["t2"]))
     Ti = pyconvert(Vector, obsd["time"])
     Fr = fill(pyconvert(eltype(U), obsc.rf), length(U))
     sites = tuple.(t1, t2)
@@ -97,9 +100,9 @@ function getcpfield(obs)
     obscp = obs.cphase
     time = pyconvert(Vector, obscp["time"])
     freq = fill(get_rf(obs), length(time))
-    t1 = Symbol.(pyconvert(Vector{String}, obscp["t1"]))
-    t2 = Symbol.(pyconvert(Vector{String}, obscp["t2"]))
-    t3 = Symbol.(pyconvert(Vector{String}, obscp["t3"]))
+    t1 = removeesc(pyconvert(Vector{String}, obscp["t1"]))
+    t2 = removeesc(pyconvert(Vector{String}, obscp["t2"]))
+    t3 = removeesc(pyconvert(Vector{String}, obscp["t3"]))
     noise = pyconvert(Vector, obscp["sigmacp"])
     baseline = tuple.(t1, t2, t3)
     return StructArray((; T = time, F = freq, noise, baseline))
@@ -109,11 +112,11 @@ function getlcampfield(obs)
     # Here we just return the information needed to form
     # the closure configuration
     obslcamp = obs.logcamp
-    t1 = Symbol.(pyconvert(Vector{String}, obslcamp["t1"]))
-    t2 = Symbol.(pyconvert(Vector{String}, obslcamp["t2"]))
-    t3 = Symbol.(pyconvert(Vector{String}, obslcamp["t3"]))
+    t1 = removeesc(pyconvert(Vector{String}, obslcamp["t1"]))
+    t2 = removeesc(pyconvert(Vector{String}, obslcamp["t2"]))
+    t3 = removeesc(pyconvert(Vector{String}, obslcamp["t3"]))
     time = pyconvert(Vector, obslcamp["time"])
-    t4 = Symbol.(pyconvert(Vector{String}, obslcamp["t4"]))
+    t4 = removeesc(pyconvert(Vector{String}, obslcamp["t4"]))
     baseline = tuple.(t1, t2, t3, t4)
     noise = pyconvert(Vector, obslcamp["sigmaca"])
     freq = fill(get_rf(obs), length(time))
@@ -123,7 +126,7 @@ end
 
 function get_arraytable(obs)
     return StructArray(
-        sites = Symbol.(pyconvert(Vector{String}, obs.tarr["site"])),
+        sites = removeesc(pyconvert(Vector{String}, obs.tarr["site"])),
         X = pyconvert(Vector, obs.tarr["x"]),
         Y = pyconvert(Vector, obs.tarr["y"]),
         Z = pyconvert(Vector, obs.tarr["z"]),
