@@ -23,6 +23,11 @@ struct SiteArray{T, N, A <: AbstractArray{T, N}, Ti <: AbstractArray{<:Integrati
     sites::Sy
 end
 
+function Adapt.parent_type(::Type{<:Comrade.SiteArray{T, N, A}}) where {T, N, A}
+    return A
+end
+
+
 # function ChainRulesCore.rrule(::Type{SiteArray}, data::AbstractArray, args...)
 #     s = SiteArray(data, args...)
 #     pd = ProjectTo(data)
@@ -41,12 +46,12 @@ EnzymeRules.inactive(::(typeof(Base.size)), ::SiteArray) = nothing
 Base.parent(a::SiteArray) = getfield(a, :data)
 Base.size(a::SiteArray) = size(parent(a))
 Base.IndexStyle(::Type{<:SiteArray{T, N, A}}) where {T, N, A} = Base.IndexStyle(A)
-Base.@propagate_inbounds Base.getindex(a::SiteArray{T}, i::Integer) where {T} = getindex(parent(a), i)
-Base.@propagate_inbounds Base.getindex(a::SiteArray, I::Vararg{Integer, N}) where {N} = getindex(parent(a), I...)
+Base.@propagate_inbounds Base.getindex(a::SiteArray, i::Int) = rgetindex(parent(a), i)
+Base.@propagate_inbounds Base.getindex(a::SiteArray{T, N}, I::Vararg{Int, N}) where {T, N} = rgetindex(parent(a), I...)
 Base.@propagate_inbounds Base.setindex!(m::SiteArray, v, i::Integer) = setindex!(parent(m), v, i)
 Base.@propagate_inbounds Base.setindex!(m::SiteArray, v, i::Vararg{Integer, N}) where {N} = setindex!(parent(m), v, i...)
 Base.@propagate_inbounds function Base.getindex(m::SiteArray, I::AbstractArray...)
-    return SiteArray(getindex(parent(m), I...), getindex(m.times, I...), getindex(m.frequencies, I...), getindex(m.sites, I...))
+    return SiteArray(rgetindex(parent(m), I...), rgetindex(m.times, I...), rgetindex(m.frequencies, I...), rgetindex(m.sites, I...))
 end
 
 Base.@propagate_inbounds function Base.view(A::SiteArray, I::AbstractArray...)

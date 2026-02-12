@@ -69,6 +69,7 @@ function build_sitemap(d::ArrayPrior, array)
     T = array[:Ti]
     F = array[:Fr]
 
+
     # Ok to so this we are going to construct the schema first over sites.
     # At the end we may re-order depending on the schema ordering we want
     # to use.
@@ -76,7 +77,7 @@ function build_sitemap(d::ArrayPrior, array)
         seg = segmentation(sites_prior[s])
         # get all the indices where this site is present
         inds_s = findall(x -> ((x[1] == s)||x[2] == s), array[:sites])
-        # Get all the unique times
+        # Get all the times and frequencies for that site
         ts = T[inds_s]
         fs = F[inds_s]
         tfs = zip(ts, fs)

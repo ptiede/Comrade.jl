@@ -69,7 +69,7 @@ function timestamps(::IntegSeg, array)
     # TODO build in the dt into the data format
     if length(ts) <= 1
         # arbritrarily set the dt to 1
-        dt = 1 / 3600
+        dt = 0.1 / 3600
     else
         dt = minimum(diff(ts))
     end

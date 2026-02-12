@@ -221,7 +221,7 @@ end
 
 
 function _apply_instrument!(vout::AbstractArray, vis, J::ObservedInstrumentModel, xint)
-    @trace track_numbers=false for i in eachindex(vout)
+    for i in eachindex(vout)
         tmp = apply_jones(rgetindex(vis, i), i, J, xint)
         rsetindex!(vout, tmp, i)
     end

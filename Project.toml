@@ -6,6 +6,7 @@ version = "0.11.23"
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
 Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 AstroTime = "c61b5328-d09d-5e37-a9a8-0eb41c39009c"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
@@ -66,6 +67,7 @@ ComradePyehtimExt = "Pyehtim"
 ComradeReactantExt = "Reactant"
 
 [compat]
+Adapt = "4"
 AbstractMCMC = "3, 4, 5"
 Accessors = "0.1"
 AdvancedHMC = "0.6, 0.7, 0.8"
