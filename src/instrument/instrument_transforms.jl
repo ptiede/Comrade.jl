@@ -97,7 +97,6 @@ EnzymeRules.inactive_type(::Type{<:SiteLookup}) = true
         # yout[i0] = y[i0]
         acc = zero(eltype(y))
         @inbounds ys = @view y[site]
-        cumsum(ys)
         for i in eachindex(ys)
             acc += ys[i]
             ys[i] = acc

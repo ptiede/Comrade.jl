@@ -1,5 +1,6 @@
 module Comrade
 
+using Adapt
 using AbstractMCMC
 using Accessors: @set
 using ArgCheck: @argcheck

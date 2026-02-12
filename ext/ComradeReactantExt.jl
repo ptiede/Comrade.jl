@@ -24,6 +24,25 @@ end
     return yout
 end
 
+# @inline function Comrade.site_sum(y::Reactant.AnyTracedRArray, site_map::Comrade.SiteLookup)
+#     yout = similar(y)
+#     vals = values(lookup(site_map))
+#     #unroll this?
+#     @trace track_numbers=false for i in eachindex(vals)
+#         site = vals[i]
+#         ys = y[site]
+#         acc = zero(eltype(y))
+#         @inbounds ys = @view y[site]
+#         for i in eachindex(ys)
+#             acc += ys[i]
+#             ys[i] = acc
+#         end
+#         yout[site] = ys
+#     end
+#     return yout
+# end
+
+
 function Comrade.branchcut(x::Reactant.TracedRNumber)
     xmod = mod(x, oftype(x, 2π))
     return ifelse(xmod > π, xmod - oftype(x, 2π), xmod)
