@@ -10,7 +10,7 @@ close(pkg_io) #hide
 # # Neural Field Imaging with Lux in Comrade
 
 # In this tutorial, we will do closure-only modeling of the AGN DA 193 observed with the VLBA
-# at 15 GHz with the Mojave AGN project. Unlike other tutorials, we will not attempt a Bayesian 
+# at 15 GHz with the Mojave AGN project. Unlike other tutorials, we will not attempt a Bayesian
 # analysis and instead utilize a **neural field** to obtain a MAP estimate of the image.
 # This is mainly due to the challenges of characterizing posterior uncertainty with neural fields.
 # The goal here is not to provide a optimal analysis of this source, or neural fields, but rather
@@ -58,25 +58,25 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3), Closure
 #
 # where NN is a neural network with weights and biases θ and $x$ are the spatial coordinates. γ denotes
 # a Fourier feature embedding of the spatial coordinates, which we include to potentially help with
-# learning high frequency structure in the image. This kind of model for VLBI is described in more detail in 
-# the excellent paper [kine](@citet). 
+# learning high frequency structure in the image. This kind of model for VLBI is described in more detail in
+# the excellent paper [kine](@citet).
 #
 # Let's first define the Fourier feature embedding function.
 function fourierfeature(grid::RectiGrid; m = 4)
     nx, ny = size(grid)
-    freqs = ntuple(n -> 2^(n-1), m)
+    freqs = ntuple(n -> 2^(n - 1), m)
     feats = zeros(Float32, 4 * m, nx, ny)
-    x = range(-1f0*π, 1f0*π, length = nx+1)[begin:end-1] #clip the endpoint
-    y = range(-1f0*π, 1f0*π, length = ny+1)[begin:end-1] #clip the endpoint
-    for i in 1:nx, j in 1:ny, (ik, k) in enumerate(1:4:4*m)
+    x = range(-1.0f0 * π, 1.0f0 * π, length = nx + 1)[begin:(end - 1)] #clip the endpoint
+    y = range(-1.0f0 * π, 1.0f0 * π, length = ny + 1)[begin:(end - 1)] #clip the endpoint
+    for i in 1:nx, j in 1:ny, (ik, k) in enumerate(1:4:(4 * m))
         s, c = sincos(freqs[ik] * x[j])
         feats[k, j, i] = s
-        feats[k+1, j, i] = c
+        feats[k + 1, j, i] = c
         s, c = sincos(freqs[ik] * y[i])
         feats[k + 2, j, i] = s
-        feats[k + 3, j, i] = c 
+        feats[k + 3, j, i] = c
     end
-    return reshape(feats, 4*m, nx*ny)
+    return reshape(feats, 4 * m, nx * ny)
 end
 
 # For this tutorial we decided to image a very compact AGN. Thus, we will use a small FOV for a 15 GHz
@@ -88,7 +88,7 @@ fovy = fovx * ny / nx
 grid = imagepixels(fovx, fovy, nx, ny, μas2rad(150.0), -μas2rad(150.0))
 
 
-# Next we define neural network using the Lux.jl package. 
+# Next we define neural network using the Lux.jl package.
 using Lux
 
 # We only use 1 Fourier feature embedding here for simplicity and because VLBI practioners typically
@@ -102,31 +102,28 @@ ff = fourierfeature(grid; m = 2)
 # and to ensure smoothness in the image. Also be disable the bias in the last layer since
 # in some sense is prefers zero mean output which is desirable for fluctuation modeling.
 nnmodel = Chain(
-    Dense(size(ff,1) => 128, Lux.tanh_fast),
+    Dense(size(ff, 1) => 128, Lux.tanh_fast),
     Dense(128 => 128, Lux.tanh_fast),
-    Dense(128 => 1, use_bias=false),
+    Dense(128 => 1, use_bias = false),
 )
-
 
 
 # We can now define our sky model function. This function takes in the neural network parameters `nn`
 # and hyperparameters `fb, σ` and returns a `ContinuousImage` representing the sky brightness distribution.
 # This should look similar to essentially every other imaging model in the Comrade tutorials.
 function sky(θ, metadata)
-    (;nn, σ, fb) = θ
+    (; nn, σ, fb) = θ
     (; nnmodel, mimg, ff, st) = metadata
     fbn = fb / length(mimg)
     mb = mimg .* (1 - fb) .+ fbn
 
     ## Compute the neural field
     δ = reshape(first(Lux.apply(nnmodel, ff, nn, st)), size(mimg))
-    δ .*= σ 
+    δ .*= σ
     rast = apply_fluctuations(CenteredLR(), mb, δ)
     m = ContinuousImage(rast, BSplinePulse{3}())
     return m
 end
-
-
 
 
 # We assume that the prior is a IID standard normal on the neural network weights and biases. To set
@@ -134,10 +131,10 @@ end
 # map each parameter to a standard normal prior.
 using Random
 ps, st = Lux.setup(Random.default_rng(), nnmodel)
-nnprior = Comrade.rmap(x->VLBIImagePriors.StdNormal(size(x)), ps)
+nnprior = Comrade.rmap(x -> VLBIImagePriors.StdNormal(size(x)), ps)
 
 # Similar to the RF models we will use a so-called `mean image`. Note that in this case is isn't
-# actually clean what the mean image is, but this will help with centroid drift so we include it. 
+# actually clean what the mean image is, but this will help with centroid drift so we include it.
 # We will use a symmetric Gaussian with a FWHM equal to the approximate
 # beamsize of the array. This models the fact that we expect the AGN core to be compact.
 fwhmfac = 2 * sqrt(2 * log(2))
@@ -152,7 +149,7 @@ using Distributions
 prior = (;
     nn = nnprior,
     fb = Uniform(0.0, 1.0),
-    σ = Exponential(0.25)
+    σ = Exponential(0.25),
 )
 
 # We can then define our sky model.
@@ -172,10 +169,10 @@ post = VLBIPosterior(skym, dlcamp, dcphase)
 using Optimization, OptimizationOptimisers
 xinit = prior_sample(rng, post) ## draw initial parameters from the prior to reproducible results
 imageviz(parent(skymodel(post, xinit)); colorscale = log10, colorrange = (1.0e-8, 1.0e-4), size = (500, 400)) |> DisplayAs.PNG |> DisplayAs.Text
-xopt, sol = comrade_opt(post, AdamW(3e-4); maxiters = 5000, initial_params = xinit)
+xopt, sol = comrade_opt(post, AdamW(3.0e-4); maxiters = 5000, initial_params = xinit)
 
 # !!! note
-#     We are currently working on making Comrade utilize MLIR and XLA through Reactant. This 
+#     We are currently working on making Comrade utilize MLIR and XLA through Reactant. This
 #     will greatly speed up these neural models.
 
 using CairoMakie
@@ -221,8 +218,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # From the plot you can see that the neural field reconstruction appears to capture a lot of fine detail.
 # Interpreting the reliability of these features is rather challenging without either 1 posterior uncertainty
 # estimates or 2 knowledege of what these sources look like. However, this example demonstrates the flexibility of neural fields
-# for VLBI imaging. 
+# for VLBI imaging.
 #
 # A disclaimer is that we have not made any attempt to optimize the neural network architecture or hyperparameters here.
 # For a more thorough and insightful analysis a paper by Foschi et al is in preparation.
-

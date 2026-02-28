@@ -224,6 +224,7 @@ function _apply_instrument!(vout::AbstractArray, vis, J::ObservedInstrumentModel
     for i in eachindex(vout)
         vout[i] = apply_jones(vis[i], i, J, xint)
     end
+    return
 end
 
 # function apply_instrument(vis, J::ObservedInstrumentModel, x)

@@ -94,7 +94,7 @@ end
 
 using VLBIImagePriors
 using Distributions
-fgain(x) = exp(complex(x.lg , x.gp))
+fgain(x) = exp(complex(x.lg, x.gp))
 G = SingleStokesGain(fgain)
 
 intpr = (

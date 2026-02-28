@@ -214,7 +214,7 @@ function Base.show(io::IO, ct::CalTable)
     return pretty_table(
         io, Tables.columns(ct);
         column_labels = Tables.columnnames(ct),
-        formatters = [_ctab_formatter,]
+        formatters = [_ctab_formatter]
     )
 end
 
