@@ -1,9 +1,11 @@
 module ComradeReactantExt
 using Comrade
 using Reactant
+using StructArrays
+using StaticArraysCore
 
 @inline function Comrade._apply_instrument!(
-    vout::Reactant.AnyTracedRArray,
+    vout::Union{Reactant.AnyTracedRArray, AbstractArray{<:SMatrix{2, 2, <:Reactant.TracedRNumber}}},
     vis,
     J::Comrade.ObservedInstrumentModel, 
     xint
