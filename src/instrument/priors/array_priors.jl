@@ -49,7 +49,7 @@ struct ObservedArrayPrior{D, S} <: Distributions.ContinuousMultivariateDistribut
 end
 Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)
-Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists._logpdf(d.dists, parent(x))
+Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists.logpdf(d.dists, parent(x))
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
 function asflat(d::ObservedArrayPrior)
     d.phase && MarkovInstrumentTransform(asflat(d.dists), d.sitemap)
