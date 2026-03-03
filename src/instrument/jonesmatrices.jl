@@ -119,8 +119,8 @@ struct JonesConst{M} <: AbstractJonesMatrix
     m1::M
     m2::M
 end
-Base.@propagate_inbounds construct_jones(J::JonesConst, x, index, ::Val{1}) where {M} = rgetindex(J.m1, index)
-Base.@propagate_inbounds construct_jones(J::JonesConst, x, index, ::Val{2}) where {M} = rgetindex(J.m2, index)
+Base.@propagate_inbounds construct_jones(J::JonesConst, x, index, ::Val{1}) = rgetindex(J.m1, index)
+Base.@propagate_inbounds construct_jones(J::JonesConst, x, index, ::Val{2}) = rgetindex(J.m2, index)
 param_map(::JonesConst, x) = x
 
 
