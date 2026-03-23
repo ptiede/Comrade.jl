@@ -6,6 +6,12 @@ export vlbimodel, logdensityof, dimension, skymodel, instrumentmodel, dataproduc
     VLBIPosterior, logdensityof, loglikelihood, chi2, residuals
 
 
+
+function prepare_device(any, ex)
+    return any
+end
+
+
 """
     $(TYPEDEF)
 
