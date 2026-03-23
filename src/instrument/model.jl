@@ -276,7 +276,6 @@ EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
     indices2 = map(x -> rgetindex(x.indices_2, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
     params2 = NamedTuple{N}(map(rgetindex, values(x), values(indices2)))
     j2 = jonesmatrix(instrument(J), params2, index, Val(2))
-
     vout = _apply_jones(v, j1, j2, refbasis(J))
     return vout
 end
