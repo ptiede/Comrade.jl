@@ -34,13 +34,13 @@ function make_sampler(rng, ∇ℓ, sampler::AdvancedHMC.AbstractHMCSampler, θ0)
 end
 
 
-function AbstractMCMC.Sample(
+function AbstractMCMC.steps(
         rng::Random.AbstractRNG, tpost::Comrade.TransformedVLBIPosterior,
         sampler::AbstractHMCSampler; initial_params = nothiing, kwargs...
     )
     θ0 = initialize_params(tpost, initial_params)
     model, smplr = make_sampler(rng, tpost, sampler, θ0)
-    return AbstractMCMC.Sample(rng, model, smplr; initial_params = θ0, kwargs...)
+    return AbstractMCMC.steps(rng, model, smplr; initial_params = θ0, kwargs...)
 end
 
 """
@@ -128,9 +128,9 @@ function initialize(
         @warn "No starting location chosen, picking start from prior"
         θ0 = prior_sample(rng, tpost)
     end
-    t = Sample(rng, tpost, sampler; initial_params = θ0, n_adapts, kwargs...)(1:nsamples)
-    pt = Iterators.partition(t, output_stride)
+    t = AbstractMCMC.steps(rng, tpost, sampler; initial_params = θ0, n_adapts, kwargs...)
     nscans = nsamples ÷ output_stride + (nsamples % output_stride != 0 ? 1 : 0)
+    pt = Iterators.take(Iterators.partition(t, output_stride), nscans)
 
     # Now save the output
     out = Comrade.DiskOutput(abspath(outdir), nscans, output_stride, nsamples)
