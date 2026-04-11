@@ -107,38 +107,30 @@ function initialize(
         @assert isfile(joinpath(outdir, "checkpoint.jls")) "Checkpoint file does not exist in $(outdir)"
         tmp = deserialize(joinpath(outdir, "checkpoint.jls"))
         (; pt, state, out, iter) = tmp
-        if iter * output_stride >= nsamples
+        if (iter) * output_stride >= nsamples
             @warn("Not sampling because the current number of samples is greater than the number you requested")
-            return pt, state, out, iter
+            return pt, state, iter
         end
-        if pt.c.coll.stop != nsamples
+
+        if iter * output_stride != nsamples
             @warn(
                 "The number of samples wanted in the stored checkpoint does not match the number of samples requested." *
                     "Changing to the number you requested"
             )
-            pt = @set pt.c.coll.stop = nsamples
         end
-        @info "Resuming from checkpoint on iteration $iter"
-        return pt, state, out, iter
+        @info "Resuming from checkpoint on iteration $(iter+1)"
+        return pt, state, iter
     end
 
-    mkpath(joinpath(outdir, "samples"))
     θ0 = initial_params
     if isnothing(initial_params)
         @warn "No starting location chosen, picking start from prior"
         θ0 = prior_sample(rng, tpost)
     end
     t = AbstractMCMC.steps(rng, tpost, sampler; initial_params = θ0, n_adapts, kwargs...)
-    nscans = nsamples ÷ output_stride + (nsamples % output_stride != 0 ? 1 : 0)
-    pt = Iterators.take(Iterators.partition(t, output_stride), nscans)
+    pt = Iterators.partition(t, output_stride)
 
-    # Now save the output
-    out = Comrade.DiskOutput(abspath(outdir), nscans, output_stride, nsamples)
-    serialize(joinpath(outdir, "parameters.jls"), (; params = out))
-
-    tmp = @timed iterate(pt)
-    state, iter = _process_samples(pt, tpost, tmp.value, tmp.time, nscans, out, outbase, outdir, 1)
-    return pt, state, out, iter
+    return pt, nothing, 0
 end
 
 
@@ -162,9 +154,8 @@ function _process_samples(pt, tpost, next, time, nscans, out, outbase, outdir, i
     # stats = nothing
     # s = nothing
     # GC.gc(true)
-    iter += 1
     serialize(joinpath(outdir, "checkpoint.jls"), (; pt, state, out, iter))
-    return state, iter
+    return state
 end
 
 function sample_to_disk(
@@ -177,25 +168,37 @@ function sample_to_disk(
         kwargs...
     )
 
+    if output_stride > nsamples
+        @warn "Output stride is greater than the number of samples, setting output stride to number of samples"
+        output_stride = nsamples
+    end
 
     tpost = asflat(post)
     nscans = nsamples ÷ output_stride + (nsamples % output_stride != 0 ? 1 : 0)
+    mkpath(joinpath(outdir, "samples"))
     outbase = joinpath(outdir, "samples", "output_scan_")
 
-    pt, state, out, i = initialize(
+    pt, state, i = initialize(
         rng, tpost, sampler, nsamples, outbase, args...;
         n_adapts,
         initial_params, restart, outdir, output_stride, kwargs...
     )
 
-    tmp = @timed iterate(pt, state)
-    t = tmp.time
-    next = tmp.value
-    while !isnothing(next)
+    # Now save the output
+    out = Comrade.DiskOutput(abspath(outdir), nscans, output_stride, nsamples)
+    serialize(joinpath(outdir, "parameters.jls"), (; params = out))
+
+    next = nothing
+    while i < nscans
         t = @elapsed begin
-            state, i = _process_samples(pt, tpost, next, t, nscans, out, outbase, outdir, i)
-            next = iterate(pt, state)
+            if isnothing(state)
+                next = iterate(pt)
+            else
+                next = iterate(pt, state)
+            end
         end
+        i += 1
+        state = _process_samples(pt, tpost, next, t, nscans, out, outbase, outdir, i)
     end
 
 
