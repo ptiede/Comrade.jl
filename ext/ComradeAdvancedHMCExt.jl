@@ -118,7 +118,7 @@ function initialize(
                     "Changing to the number you requested"
             )
         end
-        @info "Resuming from checkpoint on iteration $(iter+1)"
+        @info "Resuming from checkpoint on iteration $(iter + 1)"
         return pt, state, iter
     end
 
