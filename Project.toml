@@ -1,6 +1,6 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
-version = "0.11.24"
+version = "0.11.25"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
 
 [deps]
@@ -89,7 +89,7 @@ Optimization = "5"
 PaddedViews = "0.5"
 ParameterHandling = "0.4, 0.5"
 Pigeons = "0.4, 0.5"
-PolarizedTypes = "0.1"
+PolarizedTypes = "0.1.0 - 0.1.2"
 PrettyTables = "1, 2"
 Pyehtim = "0.2"
 RecipesBase = "1"

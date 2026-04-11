@@ -127,11 +127,8 @@ skym = SkyModel(sky, prior, grid; metadata = skymeta)
 #   - Gain amplitudes which are typically known to 10-20%, except for LMT, which has amplitudes closer to 50-100%.
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
-G = SingleStokesGain() do x
-    lg = x.lg
-    gp = x.gp
-    return exp(lg + 1im * gp)
-end
+gain(x) = exp(x.lg + 1im * x.gp)
+G = SingleStokesGain(gain)
 
 intpr = (
     lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
