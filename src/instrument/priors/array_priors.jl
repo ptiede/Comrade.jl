@@ -140,8 +140,8 @@ TV.dimension(t::PartiallyFixedTransform) = TV.dimension(t.transform)
 function TV.transform_with(flag::TV.LogJacFlag, t::PartiallyFixedTransform, x, index)
     y, ℓ, index = TV.transform_with(flag, t.transform, x, index)
     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
-    yfv[t.variate_index] .= y
-    yfv[t.fixed_index] .= t.fixed_values
+    yfv[t.variate_index] = y
+    yfv[t.fixed_index] = t.fixed_values
     return yfv, ℓ, index
 end
 
@@ -153,8 +153,8 @@ end
 function HypercubeTransform._step_transform(t::PartiallyFixedTransform, x, index)
     y, index = HypercubeTransform._step_transform(t.transform, x, index)
     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
-    yfv[t.variate_index] .= y
-    yfv[t.fixed_index] .= t.fixed_values
+    yfv[t.variate_index] = y
+    yfv[t.fixed_index] = t.fixed_values
     return yfv, index
 end
 

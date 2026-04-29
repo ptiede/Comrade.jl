@@ -260,7 +260,7 @@ imgs = intensitymap.(samples, Ref(g))
 
 mimg = mean(imgs)
 simg = std(imgs)
-fig = Figure(; resolution = (700, 700));
+fig = Figure(; size = (700, 700));
 axs = [Axis(fig[i, j], xreversed = true, aspect = 1) for i in 1:2, j in 1:2]
 image!(axs[1, 1], mimg, colormap = :afmhot); axs[1, 1].title = "Mean"
 image!(axs[1, 2], simg ./ (max.(mimg, 1.0e-8)), colorrange = (0.0, 2.0), colormap = :afmhot);axs[1, 2].title = "Frac. Uncer."
