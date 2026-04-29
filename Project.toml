@@ -1,6 +1,6 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
-version = "0.11.25"
+version = "0.11.26"
 authors = ["Paul Tiede <ptiede91@gmail.com>"]
 
 [deps]
