@@ -8,7 +8,7 @@ using VLBIImagePriors
 
     @testset "parity with hand-written SkyModel" begin
         # Macro form
-        @sky function macro_gauss(grid; flo=μas2rad(1.0), fhi=μas2rad(40.0))
+        @sky function macro_gauss(grid; flo = μas2rad(1.0), fhi = μas2rad(40.0))
             σ ~ Uniform(flo, fhi)
             τ ~ Uniform(0.35, 0.65)
             return stretched(Gaussian(), σ * τ, σ)
@@ -40,11 +40,11 @@ using VLBIImagePriors
     end
 
     @testset "metadata flow and grid in metadata" begin
-        @sky function with_grid(grid; ftot=1.0)
+        @sky function with_grid(grid; ftot = 1.0)
             σ ~ Uniform(μas2rad(1.0), μas2rad(40.0))
             return ftot * stretched(Gaussian(), σ, σ)
         end
-        m = with_grid(g; ftot=2.5)
+        m = with_grid(g; ftot = 2.5)
         @test m.metadata.ftot == 2.5
         @test m.metadata.grid === g
         @test m.grid === g
@@ -59,12 +59,12 @@ using VLBIImagePriors
             return ftot * stretched(Gaussian(), σ, σ)
         end
         @test_throws UndefKeywordError needs_kw(g)
-        m = needs_kw(g; ftot=1.5)
+        m = needs_kw(g; ftot = 1.5)
         @test m.metadata.ftot == 1.5
     end
 
     @testset "tuple-of-IID priors via ntuple" begin
-        @sky function ntuple_prior(grid; n=3, lo=0.01, hi=10.0)
+        @sky function ntuple_prior(grid; n = 3, lo = 0.01, hi = 10.0)
             ρs ~ ntuple(Returns(Uniform(lo, hi)), n)
             return stretched(Gaussian(), ρs[1], ρs[2])
         end
@@ -78,13 +78,13 @@ using VLBIImagePriors
         cprior = corr_image_prior(g, μas2rad(20.0))
         @test cprior isa VLBIImagePriors.HierarchicalPrior
 
-        @sky function hier_imager(grid; cprior, σscale=0.1)
+        @sky function hier_imager(grid; cprior, σscale = 0.1)
             c ~ cprior
             σimg ~ Exponential(σscale)
             rast = to_simplex(CenteredLR(), σimg .* c.params)
             return ContinuousImage(rast, grid, BSplinePulse{3}())
         end
-        m = hier_imager(g; cprior=cprior)
+        m = hier_imager(g; cprior = cprior)
         @test m.prior.c === cprior
         x = rand(Comrade.HypercubeTransform.NamedDist(m.prior))
         @test haskey(x, :c) && haskey(x, :σimg)
@@ -111,7 +111,7 @@ using VLBIImagePriors
     end
 
     @testset "@skymodel alias produces same output" begin
-        @skymodel function aliased(grid; w=μas2rad(40.0))
+        @skymodel function aliased(grid; w = μas2rad(40.0))
             σ ~ Uniform(μas2rad(1.0), w)
             return stretched(Gaussian(), σ, σ)
         end
@@ -130,7 +130,7 @@ using VLBIImagePriors
         end
 
         # Name clash between sampled param and kwarg
-        @test_throws LoadError @eval @sky function clash(grid; σ=1.0)
+        @test_throws LoadError @eval @sky function clash(grid; σ = 1.0)
             σ ~ Uniform(0.0, 1.0)
             return stretched(Gaussian(), σ, σ)
         end

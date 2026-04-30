@@ -71,9 +71,9 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3), Closure
 # become metadata fields that flow into both the prior expressions and the body.
 using VLBIImagePriors, Distributions
 @sky function sky(grid; mimg, cprior)
-    c    ~ cprior
+    c ~ cprior
     σimg ~ Exponential(0.1)
-    fg   ~ Uniform(0.0, 1.0)
+    fg ~ Uniform(0.0, 1.0)
     ## Apply the GMRF fluctuations to the image
     rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
     m = ContinuousImage(((1 - fg)) .* rast, BSplinePulse{3}())

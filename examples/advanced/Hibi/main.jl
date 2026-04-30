@@ -78,10 +78,10 @@ dvis = add_fractional_noise(flag(x -> uvdist(x) < 0.1e9, extract_table(obs, Visi
 using VLBIImagePriors
 using Distributions
 @sky function sky(grid; ftot, cprior)
-    c    ~ cprior
+    c ~ cprior
     σimg ~ truncated(Normal(0.0, 0.5); lower = 0.0)
-    r    ~ Uniform(μas2rad(10.0), μas2rad(40.0))
-    ain  ~ Uniform(1.0, 20.0)
+    r ~ Uniform(μas2rad(10.0), μas2rad(40.0))
+    ain ~ Uniform(1.0, 20.0)
     aout ~ Uniform(1.0, 20.0)
     ## Form the image model
     mb = RingTemplate(RadialDblPower(ain, aout), AzimuthalUniform())

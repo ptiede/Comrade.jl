@@ -71,10 +71,10 @@ using Distributions
 # body. Metadata fields (`mimg`, `pl`, `cprior`, `ρmax`) are passed as keyword
 # arguments and are in scope inside both the prior expressions and the body.
 @sky function sky(grid; mimg, pl, cprior, ρmax)
-    c    ~ cprior
-    ρs   ~ ntuple(Returns(Uniform(0.01, ρmax)), 3)
+    c ~ cprior
+    ρs ~ ntuple(Returns(Uniform(0.01, ρmax)), 3)
     σimg ~ Exponential(2.0)
-    fb   ~ Uniform(0.0, 1.0)
+    fb ~ Uniform(0.0, 1.0)
     ## Apply the GMRF fluctuations to the image
     x = genfield(StationaryRandomField(MarkovPS(ρs), pl), c)
     x .= σimg .* x

@@ -59,9 +59,9 @@ dvis = extract_table(obs, Visibilities())
 using VLBIImagePriors
 using Distributions
 @sky function sky(grid; ftot, mimg, cprior)
-    c    ~ cprior
+    c ~ cprior
     σimg ~ truncated(Normal(0.0, 0.5); lower = 0.0)
-    fg   ~ Uniform(0.0, 1.0)
+    fg ~ Uniform(0.0, 1.0)
     ## Apply the GMRF fluctuations to the image
     rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
     pimg = parent(rast)
