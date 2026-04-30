@@ -1,4 +1,4 @@
-export @sky, @skymodel
+export @sky
 
 
 _kwname(x) = x isa Symbol ? x : x.args[1]
@@ -199,14 +199,5 @@ not supported directly. Express such cases by wrapping the chain in a
 hyperprior chains.
 """
 macro sky(fexpr)
-    return esc(_sky_impl(fexpr))
-end
-
-"""
-    @skymodel
-
-Alias for [`@sky`](@ref).
-"""
-macro skymodel(fexpr)
     return esc(_sky_impl(fexpr))
 end

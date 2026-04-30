@@ -110,16 +110,6 @@ using VLBIImagePriors
         @test isfinite(logdensityof(tpostc, prior_sample(tpostc)))
     end
 
-    @testset "@skymodel alias produces same output" begin
-        @skymodel function aliased(grid; w = μas2rad(40.0))
-            σ ~ Uniform(μas2rad(1.0), w)
-            return stretched(Gaussian(), σ, σ)
-        end
-        m = aliased(g)
-        @test m isa SkyModel
-        @test keys(m.prior) == (:σ,)
-    end
-
     @testset "macro-expansion errors" begin
         # Tilde nested inside another expression is rejected
         @test_throws LoadError @eval @sky function nested_tilde(grid)
