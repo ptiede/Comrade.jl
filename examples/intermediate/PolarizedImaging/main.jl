@@ -148,12 +148,15 @@ dvis = extract_table(obs, Coherencies())
 #       the total number of parameters we need to model.
 
 
-# First we specify our sky model. As always `Comrade` requires this to be a two argument
-# function where the first argument is typically a NamedTuple of parameters we will fit
-# and the second are additional metadata required to build the model.
-function sky(θ, metadata)
-    (; σs, as) = θ
-    (; mimg, ftot) = metadata
+# First we specify our sky model with the `@sky` macro. Each `name ~ dist` line contributes
+# an entry to the prior; everything else is the model body. The metadata fields (`mimg`,
+# `ftot`, `cprior`) are passed as keyword arguments and are in scope inside both the prior
+# expressions and the body.
+using Distributions
+using VLBIImagePriors
+@sky function sky(grid; mimg, ftot, cprior)
+    σs ~ ntuple(Returns(truncated(Normal(0.0, 0.5); lower = 0.0)), 4)
+    as ~ ntuple(Returns(cprior), 4)
     ## Build the stokes I model
     δs = ntuple(Val(4)) do i
         σs[i] * as[i].params
@@ -178,11 +181,9 @@ function sky(θ, metadata)
 end
 
 
-# Now, we define the model metadata required to build the model.
+# Now, we define the metadata needed to build the model.
 # We specify our image grid and cache model needed to define the polarimetric
 # image model. Our image will be a 10x10 raster with a 60μas FOV.
-using Distributions
-using VLBIImagePriors
 fovx = μas2rad(200.0)
 fovy = μas2rad(200.0)
 nx = ny = 48
@@ -190,12 +191,8 @@ grid = imagepixels(fovx, fovy, nx, ny)
 
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
-mimg = intensitymap(mpr, grid)
-
-# For the image metadata we specify the grid and the total flux of the image, which is 1.0.
-# Note that we specify the total flux out front since it is degenerate with an overall shift
-# in the gain amplitudes.
-skymeta = (; mimg = mimg ./ flux(mimg), ftot = 0.6);
+mimg_raw = intensitymap(mpr, grid)
+mimg = mimg_raw ./ flux(mimg_raw)
 
 
 # We use again use a GMRF prior similar to the [Imaging a Black Hole using only Closure Quantities](@ref) tutorial
@@ -205,12 +202,10 @@ skymeta = (; mimg = mimg ./ flux(mimg), ftot = 0.6);
 # total polarization fraction `pσ` again uses a Half-normal process. The angular parameters of the polarizaton are
 # given by a uniform prior on the sphere.
 cprior = corr_image_prior(grid, dvis; order = 2)
-skyprior = (
-    σs = ntuple(Returns(truncated(Normal(0.0, 0.5); lower = 0.0)), 4),
-    as = ntuple(Returns(cprior), 4),
-)
 
-skym = SkyModel(sky, skyprior, grid; metadata = skymeta)
+# The total flux is fixed to 0.6 since it is degenerate with an overall shift in the gain
+# amplitudes.
+skym = sky(grid; mimg, ftot = 0.6, cprior)
 
 
 # Now we build the instrument model. Due to the complexity of VLBI the instrument model is critical

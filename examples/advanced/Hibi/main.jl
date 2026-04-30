@@ -69,14 +69,21 @@ dvis = add_fractional_noise(flag(x -> uvdist(x) < 0.1e9, extract_table(obs, Visi
 
 # ## Building the Model/Posterior
 
-# Now let's construct our model using the decomposition described above. For this we will need
-# to define
-
-function sky(θ, metadata)
-    (; c, σimg, r, ain, aout) = θ
-    (; ftot, grid) = metadata
+# Now let's construct our model using the decomposition described above. We use the
+# `@sky` macro to define the model and prior in a single block. Each `name ~ dist`
+# line contributes an entry to the prior; everything else is the model body. The
+# uniform priors on `r`, `ain`, `aout` are the ring radius and inner/outer radial
+# brightness power-law indices. `σimg` is half-normal to keep the MRF close to the
+# mean image.
+using VLBIImagePriors
+using Distributions
+@sky function sky(grid; ftot, cprior)
+    c    ~ cprior
+    σimg ~ truncated(Normal(0.0, 0.5); lower = 0.0)
+    r    ~ Uniform(μas2rad(10.0), μas2rad(40.0))
+    ain  ~ Uniform(1.0, 20.0)
+    aout ~ Uniform(1.0, 20.0)
     ## Form the image model
-    ## First transform to simplex space first applying the non-centered transform
     mb = RingTemplate(RadialDblPower(ain, aout), AzimuthalUniform())
     mr = modify(mb, Stretch(r))
     mimg = intensitymap(mr, grid)
@@ -92,8 +99,6 @@ end
 #   - Gain amplitudes which are typically known to 10-20%, except for LMT, which has amplitudes closer to 50-100%.
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
-using VLBIImagePriors
-using Distributions
 fgain(x) = exp(x.lg + 1im * x.gp)
 G = SingleStokesGain(fgain)
 
@@ -103,20 +108,7 @@ intpr = (
 )
 intmodel = InstrumentModel(G, intpr)
 
-
-# Before we move on, let's go into the `model` function a bit. This function takes two arguments
-# `θ` and `metadata`. The `θ` argument is a named tuple of parameters that are fit
-# to the data. The `metadata` argument is all the ancillary information we need to construct the model.
-# For our hybrid model, we will need two variables for the metadata, a `grid` that specifies
-# the locations of the image pixels and a `cache` that defines the algorithm used to calculate
-# the visibilities given the image model. This is required since `ContinuousImage` is most easily
-# computed using number Fourier transforms like the [`NFFT`](https://github.com/JuliaMath/NFFT.jl)
-# or [FFT](https://github.com/JuliaMath/FFTW.jl).
-# To combine the models, we use `Comrade`'s overloaded `+` operators, which will combine the
-# images such that their intensities and visibilities are added pointwise.
-
-# Now let's define our metadata. First we will define the cache for the image. This is
-# required to compute the numerical Fourier transform.
+# Now let's define our grid and the data-dependent prior, then build the sky model.
 fovxy = μas2rad(150.0)
 npix = 48
 g = imagepixels(fovxy, fovxy, npix, npix)
@@ -128,25 +120,7 @@ g = imagepixels(fovxy, fovxy, npix, npix)
 # correlation length of 5 times the beam size.
 cprior = corr_image_prior(g, dvis)
 
-
-# For the other parameters we use a uniform priors for the ring fractional flux `f`
-# ring radius `r`, ring width `σ`, and the flux fraction of the Gaussian component `fg`
-# and the amplitude for the ring brightness modes. For the angular variables `ξτ` and `ξ`
-# we use the von Mises prior with concentration parameter `inv(π^2)` which is essentially
-# a uniform prior on the circle. Finally for the standard deviation of the MRF we use a
-# half-normal distribution. This is to ensure that the MRF has small differences from the
-# mean image.
-skyprior = (
-    c = cprior,
-    σimg = truncated(Normal(0.0, 0.5); lower = 0.0),
-    r = Uniform(μas2rad(10.0), μas2rad(40.0)),
-    ain = Uniform(1.0, 20.0),
-    aout = Uniform(1.0, 20.0),
-)
-
-# Now we form the metadata
-skymetadata = (; ftot = 1.1, grid = g)
-skym = SkyModel(sky, skyprior, g; metadata = skymetadata)
+skym = sky(g; ftot = 1.1, cprior)
 
 # This is everything we need to specify our posterior distribution, which our is the main
 # object of interest in image reconstructions when using Bayesian inference.

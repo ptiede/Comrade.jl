@@ -65,19 +65,18 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3), Closure
 
 # ## Build the Model/Posterior
 # For our model, we will be using an image model that consists of a raster of point sources,
-# convolved with some pulse or kernel to make a `ContinuousImage`.
-# To define this model we define the standard two argument function `sky` that defines the
-# sky model we want to fit. The first argument are the model parameters, and are typically
-# a NamedTuple. The second argument defines the metadata
-# for the model that is typically constant. For our model the constant `metdata` will just
-# by the mean or prior image.
-function sky(θ, metadata)
-    (; fg, c, σimg) = θ
-    (; mimg) = metadata
+# convolved with some pulse or kernel to make a `ContinuousImage`. We define the model and
+# its prior in a single block using the `@sky` macro. Each `name ~ dist` line contributes
+# an entry to the prior; everything else is the model body. Keyword arguments to the macro
+# become metadata fields that flow into both the prior expressions and the body.
+using VLBIImagePriors, Distributions
+@sky function sky(grid; mimg, cprior)
+    c    ~ cprior
+    σimg ~ Exponential(0.1)
+    fg   ~ Uniform(0.0, 1.0)
     ## Apply the GMRF fluctuations to the image
     rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
     m = ContinuousImage(((1 - fg)) .* rast, BSplinePulse{3}())
-    ## Force the image centroid to be at the origin
     ## Add a large-scale gaussian to deal with the over-resolved mas flux
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
     return m + g
@@ -96,16 +95,12 @@ fovxy = μas2rad(150.0)
 grid = imagepixels(fovxy, fovxy, npix, npix)
 
 
-# Now we need to specify our image prior. For this work we will use a Gaussian Markov
-# Random field prior
-using VLBIImagePriors, Distributions
-
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM of 50 μas
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
 imgpr = intensitymap(mpr, grid)
-skymeta = (; mimg = imgpr ./ flux(imgpr));
+mimg = imgpr ./ flux(imgpr);
 
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
@@ -116,12 +111,8 @@ skymeta = (; mimg = imgpr ./ flux(imgpr));
 # has unit variance. For more information on the GMRF prior see the [`corr_image_prior`](@ref) doc string.
 cprior = corr_image_prior(grid, dlcamp)
 
-# Putting everything together the total prior is then our image prior, a prior on the
-# standard deviation of the MRF, and a prior on the fractional flux of the Gaussian component.
-prior = (c = cprior, σimg = Exponential(0.1), fg = Uniform(0.0, 1.0))
-
 # We can then define our sky model.
-skym = SkyModel(sky, prior, grid; metadata = skymeta)
+skym = sky(grid; mimg, cprior)
 
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.

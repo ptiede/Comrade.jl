@@ -54,9 +54,14 @@ dvis = extract_table(obs, Visibilities())
 # The model construction is very similar to [Imaging a Black Hole using only Closure Quantities](@ref),
 # except we include a large scale gaussian since we want to model the zero baselines.
 # For more information about the image model please read the closure-only example.
-function sky(θ, metadata)
-    (; fg, c, σimg) = θ
-    (; ftot, mimg) = metadata
+# We use the `@sky` macro to bundle the model and its priors in one block. Each
+# `name ~ dist` line adds an entry to the prior; everything else is the model body.
+using VLBIImagePriors
+using Distributions
+@sky function sky(grid; ftot, mimg, cprior)
+    c    ~ cprior
+    σimg ~ truncated(Normal(0.0, 0.5); lower = 0.0)
+    fg   ~ Uniform(0.0, 1.0)
     ## Apply the GMRF fluctuations to the image
     rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
     pimg = parent(rast)
@@ -81,24 +86,14 @@ fovy = μas2rad(200.0)
 # compute the visibilities.
 grid = imagepixels(fovx, fovy, npix, npix)
 
-# Now we need to specify our image prior. For this work we will use a Gaussian Markov
-# Random field prior
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. This behaves somewhat similary to a entropy regularizer in that it will
 # start with an initial guess for the image structure. For this tutorial we will use a
 # a symmetric Gaussian with a FWHM of 50 μas
-using VLBIImagePriors
-using Distributions
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(60.0) ./ fwhmfac))
-mimg = intensitymap(mpr, grid)
-
-
-# Now we can form our metadata we need to fully define our model.
-# We will also fix the total flux to be the observed value 1.1. This is because
-# total flux is degenerate with a global shift in the gain amplitudes making the problem
-# degenerate. To fix this we use the observed total flux as our value.
-skymeta = (; ftot = 1.1, mimg = mimg ./ flux(mimg))
+mimg_raw = intensitymap(mpr, grid)
+mimg = mimg_raw ./ flux(mimg_raw)
 
 
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
@@ -110,16 +105,9 @@ skymeta = (; ftot = 1.1, mimg = mimg ./ flux(mimg))
 cprior = corr_image_prior(grid, dvis)
 
 
-# Putting everything together the total prior is then our image prior, a prior on the
-# standard deviation of the MRF, and a prior on the fractional flux of the Gaussian component.
-prior = (
-    c = cprior,
-    σimg = truncated(Normal(0.0, 0.5); lower = 0.0),
-    fg = Uniform(0.0, 1.0),
-)
-
-# Now we can construct our sky model.
-skym = SkyModel(sky, prior, grid; metadata = skymeta)
+# Now we can construct our sky model. We fix the total flux to the observed value 1.1
+# because total flux is degenerate with a global shift in the gain amplitudes.
+skym = sky(grid; ftot = 1.1, mimg, cprior)
 
 # Unlike other imaging examples
 # (e.g., [Imaging a Black Hole using only Closure Quantities](@ref)) we also need to include
