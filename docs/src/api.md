@@ -80,6 +80,7 @@ Comrade.Coherencies
 ### Sky Models
 
 ```@docs
+Comrade.@sky
 Comrade.AbstractSkyModel
 Comrade.SkyModel
 Comrade.FixedSkyModel

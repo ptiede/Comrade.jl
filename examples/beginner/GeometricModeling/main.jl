@@ -58,8 +58,21 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3.0), Closu
 # Comrade expects that any model function must accept a named tuple and returns  must always
 # return an object that implements the [VLBISkyModels Interface](https://ehtjulia.github.io/VLBISkyModels.jl/stable/interface/)
 #-
-function sky(θ, p)
-    (; radius, width, ma, mp, τ, ξτ, f, σG, τG, ξG, xG, yG) = θ
+using Distributions, VLBIImagePriors
+
+@sky function sky(grid)
+    radius ~ Uniform(μas2rad(10.0), μas2rad(30.0))
+    width ~ Uniform(μas2rad(1.0), μas2rad(10.0))
+    ma ~ (Uniform(0.0, 0.5),)
+    mp ~ (Uniform(0, 2π),)
+    τ ~ Uniform(0.0, 1.0)
+    ξτ ~ Uniform(0.0, π)
+    f ~ Uniform(0.0, 1.0)
+    σG ~ Uniform(μas2rad(1.0), μas2rad(100.0))
+    τG ~ Exponential(1.0)
+    ξG ~ Uniform(0.0, 1π)
+    xG ~ Uniform(-μas2rad(80.0), μas2rad(80.0))
+    yG ~ Uniform(-μas2rad(80.0), μas2rad(80.0))
     α = ma .* cos.(mp .- ξτ)
     β = ma .* sin.(mp .- ξτ)
     ring = f * smoothed(modify(MRing(α, β), Stretch(radius, radius * (1 + τ)), Rotate(ξτ)), width)
@@ -67,38 +80,13 @@ function sky(θ, p)
     return ring + g
 end
 
-# To construct our likelihood `p(V|M)` where `V` is our data and `M` is our model, we use the `RadioLikelihood` function.
-# The first argument of `RadioLikelihood` is always a function that constructs our Comrade
-# model from the set of parameters `θ`.
+# Each `name ~ dist` line above contributes an entry to the prior, while every other line
+# is part of the model body. Note that for `α` and `β` we use a product distribution to
+# signify that we want to use a multivariate uniform for the mring components.
 
-# We now need to specify the priors for our model. The easiest way to do this is to
-# specify a NamedTuple of distributions:
-
-using Distributions, VLBIImagePriors
-prior = (
-    radius = Uniform(μas2rad(10.0), μas2rad(30.0)),
-    width = Uniform(μas2rad(1.0), μas2rad(10.0)),
-    ma = (Uniform(0.0, 0.5),),
-    mp = (Uniform(0, 2π),),
-    τ = Uniform(0.0, 1.0),
-    ξτ = Uniform(0.0, π),
-    f = Uniform(0.0, 1.0),
-    σG = Uniform(μas2rad(1.0), μas2rad(100.0)),
-    τG = Exponential(1.0),
-    ξG = Uniform(0.0, 1π),
-    xG = Uniform(-μas2rad(80.0), μas2rad(80.0)),
-    yG = Uniform(-μas2rad(80.0), μas2rad(80.0)),
-)
-
-# Note that for `α` and `β` we use a product distribution to signify that we want to use a
-# multivariate uniform for the mring components `α` and `β`. In general the structure of the
-# variables is specified by the prior. Note that this structure must be compatible with the
-# model definition `model(θ)`.
-
-# We can now construct our Sky model, which typically takes a model, prior and the
-# on sky grid. Note that since our model is analytic the grid is not directly used when
-# computing visibilities.
-skym = SkyModel(sky, prior, imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128))
+# We can now construct our Sky model, which typically takes a grid. Note that since our
+# model is analytic the grid is not directly used when computing visibilities.
+skym = sky(imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128))
 
 
 # In this tutorial we will be using closure products as our data. As such we do not need to specify a

@@ -109,3 +109,4 @@ end
 include("models.jl")
 include("fixed.jl")
 include("multi.jl")
+include("macro.jl")

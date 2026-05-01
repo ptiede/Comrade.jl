@@ -64,9 +64,17 @@ dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3), Closure
 # where `σ` is the marginal variance of the image, `ρs` are the coefficients of the Markovian expansion,
 # and `k` is the norm of the spatial wavenumber.
 using VLBIImagePriors ## Defines the `MarkovPS` power spectrum model and `StationaryRandomField`
-function sky(θ, metadata)
-    (; fb, c, ρs, σimg) = θ
-    (; mimg, pl) = metadata
+using Distributions
+
+# We use the `@sky` macro to define the model and prior in a single block. Each
+# `name ~ dist` line contributes an entry to the prior; everything else is the model
+# body. Metadata fields (`mimg`, `pl`, `cprior`, `ρmax`) are passed as keyword
+# arguments and are in scope inside both the prior expressions and the body.
+@sky function sky(grid; mimg, pl, cprior, ρmax)
+    c ~ cprior
+    ρs ~ ntuple(Returns(Uniform(0.01, ρmax)), 3)
+    σimg ~ Exponential(2.0)
+    fb ~ Uniform(0.0, 1.0)
     ## Apply the GMRF fluctuations to the image
     x = genfield(StationaryRandomField(MarkovPS(ρs), pl), c)
     x .= σimg .* x
@@ -85,45 +93,27 @@ fovx = μas2rad(1_000)
 fovy = fovx * ny / nx
 grid = imagepixels(fovx, fovy, nx, ny, μas2rad(150.0), -μas2rad(150.0))
 
-# Now we need to specify our image prior. For this work we will use a Gaussian Markov
-# Random field prior
-
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM equal to the approximate
 # beamsize of the array. This models the fact that we expect the AGN core to be compact.
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(TBlob(3.0), Stretch(beamsize(dlcamp) / 4 / fwhmfac))
 imgpr = intensitymap(mpr, grid)
+mimg = imgpr ./ sum(imgpr)
 # To momdel the power spectrum we also need to construct our execution plan for the given grid.
 # This will be used to construct the actual correlated realization of the RF given some initial
 # white noise.
 pl = StationaryRandomFieldPlan(grid)
-skymeta = (; mimg = imgpr ./ sum(imgpr), pl);
 
 
 # For the stationary random field prior we also need to define the *noise* prior. Luckily
 # VLBIImagePriors provides a helper function to do this for us.
 cprior = std_dist(pl)
 
-# For the coefficients of the spectral expansion we will use a uniform prior between 0.1 and
-# 4 times the maximum dimension of the image. This prior is rather uninformative and
-# allows for a wide range of power spectra. Additionally, we truncate the expansion at order 3
-# for simplicity in this tutorial.
-using Distributions
-ρs = ntuple(Returns(Uniform(0.01, max(size(grid)...))), 3)
-
-# Putting everything together the total prior is then our image prior, a prior on the
-# standard deviation of the MRF, and a prior on the fractional flux of the Gaussian component.
-#
-prior = (;
-    c = cprior,
-    ρs = ρs,
-    σimg = Exponential(2.0),
-    fb = Uniform(0.0, 1.0),
-)
-
-# We can then define our sky model.
-skym = SkyModel(sky, prior, grid; metadata = skymeta)
+# For the coefficients of the spectral expansion we will use a uniform prior between 0.01
+# and the maximum image dimension. This prior is rather uninformative and allows for a wide
+# range of power spectra. Additionally, we truncate the expansion at order 3 for simplicity.
+skym = sky(grid; mimg, pl, cprior, ρmax = max(size(grid)...))
 
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
