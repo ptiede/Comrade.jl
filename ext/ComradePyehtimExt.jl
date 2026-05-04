@@ -188,100 +188,6 @@ function Comrade.extract_coherency(obsc; kwargs...)
     return Comrade.EHTObservationTable{T}(vis, viserr, config)
 end
 
-function closure_designmat(type, closures, scanvis)
-    return if type == :cphase
-        design_mat = closurephase_designmat(closures, scanvis)
-    elseif type == :lcamp
-        design_mat = closureamp_designmat(closures, scanvis)
-    else
-        throw(ArgumentError("Not a valid type of closure"))
-    end
-end
-
-
-function closurephase_designmat(cphase, scanvis)
-    antvis1, antvis2 = baseline(scanvis)
-    design_mat = zeros(length(cphase), length(scanvis))
-    #throw("here")
-    # fill in each row of the design matrix
-    for i in axes(design_mat, 2), j in axes(design_mat, 1)
-        a1, a2, a3 = cphase[j].baseline
-        # check leg 1
-        ((antvis1[i] == a1) & (antvis2[i] == a2)) && (design_mat[j, i] = 1.0)
-        ((antvis1[i] == a2) & (antvis2[i] == a1)) && (design_mat[j, i] = -1.0)
-
-        #check leg 2
-        ((antvis1[i] == a2) & (antvis2[i] == a3)) && (design_mat[j, i] = 1.0)
-        ((antvis1[i] == a3) & (antvis2[i] == a2)) && (design_mat[j, i] = -1.0)
-
-        #check leg 3
-        ((antvis1[i] == a3) & (antvis2[i] == a1)) && (design_mat[j, i] = 1.0)
-        ((antvis1[i] == a1) & (antvis2[i] == a3)) && (design_mat[j, i] = -1.0)
-    end
-    return design_mat
-end
-
-function closureamp_designmat(lcamp, scanvis)
-    antvis1, antvis2 = baseline(scanvis)
-    design_mat = zeros(length(lcamp), length(scanvis))
-    # fill in each row of the design matrix
-    for i in axes(design_mat, 2), j in axes(design_mat, 1)
-        a1, a2, a3, a4 = lcamp[j].baseline
-
-        av1 = antvis1[i]
-        av2 = antvis2[i]
-        # check leg 1
-        (((av1 == a1) & (av2 == a2)) || (av1 == a2) & (av2 == a1))&& (design_mat[j, i] = 1.0)
-
-        #check leg 2
-        (((av1 == a3) & (av2 == a4)) || (av1 == a4) & (av2 == a3))&& (design_mat[j, i] = 1.0)
-
-        #check leg 3
-        (((av1 == a1) & (av2 == a4)) || (av1 == a4) & (av2 == a1))&& (design_mat[j, i] = -1.0)
-
-        #check leg 4
-        (((av1 == a2) & (av2 == a3)) || (av1 == a3) & (av2 == a2))&& (design_mat[j, i] = -1.0)
-
-    end
-    return design_mat
-end
-
-function build_dmats(type::Symbol, closure, st)
-    S = eltype(closure.time)
-    dmat = Matrix{S}[]
-    for i in 1:length(st)
-        scanvis = st[i]
-        inds = findall(==(scanvis.time), closure.times)
-        if isnothing(inds)
-            inow = length(dmat)
-            # I want to construct block diagonal matrices for efficienty but we need
-            # to be careful with scan that can't form closures. This hack moves these
-            # scans into the preceding scan but fills it with zeros
-            if i > 1
-                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow], 1), length(scanvis.scan)))
-            else
-                push!(dmat, zeros(S, 1, length(scanvis.scan)))
-            end
-            continue
-        end
-        scancl = closures[inds]
-        if type == :cphase
-            dmatscan = closurephase_designmat(scancl, scanvis)
-        elseif type == :lcamp
-            dmatscan = closureamp_designmat(scancl, scanvis)
-        else
-            throw(ArgumentError("Not a valid type of closure"))
-        end
-        push!(dmat, dmatscan)
-    end
-
-    if iszero(dmat[1])
-        dmat[2] = hcat(zeros(S, size(dmat[2], 1), size(dmat[1], 2)), dmat[2])
-        dmat = dmat[2:end]
-    end
-    return dmat
-end
-
 function _ehtim_cphase(obsc; count = "max", cut_trivial = false, uvmin = 0.1e9, kwargs...)
     obs = obsc.copy()
 
@@ -329,119 +235,6 @@ function _ehtim_lcamp(obsc; count = "max", kwargs...)
 end
 
 
-function _minimal_closure(type, closures, st)
-
-    # Determine the number of timestamps containing a closure triangle
-    S = eltype(closures.T)
-    # loop over all timestamps
-    dmat = Matrix{S}[]
-    for i in 1:length(st)
-        scanvis = st[i]
-        inds = findall(==(scanvis.time), closures.T)
-        if length(inds) == 0
-            inow = length(dmat)
-            # I want to construct block diagonal matrices for efficienty but we need
-            # to be careful with scan that can't form closures. This hack moves these
-            # scans into the preceding scan but fills it with zeros
-            if i > 1
-                dmat[inow] = hcat(dmat[inow], zeros(S, size(dmat[inow], 1), length(scanvis.scan)))
-            else
-                push!(dmat, zeros(S, 1, length(scanvis.scan)))
-            end
-            continue
-        end
-
-        # Get our cphase scan
-        scancl = closures[inds]
-        # @info scancl
-
-        # sort by closure noise so we form a nice minimal set
-        snr = inv.(scancl.noise)
-        ind_snr = sortperm(snr)
-        scancl = scancl[ind_snr]
-
-        # initialize the design matrix
-        design_mat = closure_designmat(type, scancl, scanvis)
-        # determine the expected size of the minimal set
-        # this is needed to make sure we aren't killing too many triangles
-        nmin = rank(design_mat)
-
-        # print some info
-        # println("For timestamp $(scanvis.time):")
-
-        # get the current sites
-        # println("Observing sites are $(scancl.baseline)")
-        # println("scanvis sites ", sites(scanvis))
-
-        # println("Size of maximal set of closure products = $(length(scancl))")
-        # println("Size of minimal set of closure products = $(nmin)")
-        # println("...")
-
-        ##########################################################
-        # start of loop to recover minimal set
-        ##########################################################
-        dmat_min = minimal_closure_scan(type, scancl, scanvis, nmin)
-        push!(dmat, dmat_min)
-    end
-
-    # Now if the first scan can't form a closure we will have an extra row of zeros
-    # kill this
-    if iszero(dmat[1])
-        dmat[2] = hcat(zeros(S, size(dmat[2], 1), size(dmat[1], 2)), dmat[2])
-        dmat = dmat[2:end]
-    end
-    return dmat
-end
-
-
-function minimal_closure_scan(type, closures, scanvis, nmin::Int)
-    # make a mask to keep track of which clhases will stick around
-    scancl = deepcopy(closures)
-    keep = fill(true, length(closures))
-
-    # remember the original minimal set size
-    nmin0 = nmin
-
-    # perform the loop
-    count = 1
-    keep = fill(true, length(closures))
-    good = true
-    while good
-        # recreate the mask each time
-        closurekeep = closures[keep]
-
-        design_mat = closure_designmat(type, closurekeep, scanvis)
-
-        # determine the size of the minimal set
-        nmin = rank(design_mat)
-        #println(nmin0, " ", nmin, " ", size(design_mat, 1))
-
-        # Now decide whether to continue pruning
-        if (sum(keep) == nmin0) && (nmin == nmin0)
-            good = false
-        else
-            if nmin == nmin0
-                keep[count] = false
-            else
-                keep[count - 1] = true
-                count -= 1
-            end
-            #(nmin == nmin0) && (keep[count] = false)
-        end
-        count += 1
-        count + 1 > length(scancl) && break
-    end
-
-    # print out the size of the recovered set for double-checking
-    closurekeep = closures[keep]
-    dmat = closure_designmat(type, closurekeep, scanvis)
-    if length(closurekeep) != nmin
-        @error "minimal set not found $(length(closurekeep)) $(nmin)"
-        throw("No minimal set found at time $(scanvis.time)")
-    end
-    return dmat
-end
-
 """
     extract_cphase(obs)
 Extracts the closure phases from an ehtim observation object
@@ -468,24 +261,11 @@ and does construct proper minimal sets of closure quantities if the array isn't 
 
 """
 function Comrade.extract_cphase(obs; pol = :I, count = "min", kwargs...)
-    # compute a maximum set of closure phases
     obsc = obs.copy()
-    # reorder to maximize the snr
     obsc.reorder_tarr_snr()
 
     cphase, dvis = _ehtim_cphase(obsc; count = "max", kwargs...)
-
-    #Now make the vis obs
-    st = timetable(dvis)
-
-    if count == "min"
-        dmat = _minimal_closure(:cphase, cphase, st)
-    elseif count == "max"
-        dmat = build_dmats(:cphase, cphase, st)
-    else
-        throw(ArgumentError("$(count) is not valid use 'min' or 'max'"))
-    end
-    clac = Comrade.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
+    clac = Comrade.build_closure_config(dvis, cphase; type = :cphase, count)
     T = Comrade.EHTClosurePhaseDatum{pol, eltype(cphase.T), typeof(arrayconfig(dvis)[1])}
     cp = Comrade.closure_phases(measurement(dvis), Comrade.designmat(clac))
     cp_sig = abs2.(Comrade.noise(dvis) ./ Comrade.measurement(dvis))
@@ -516,30 +296,17 @@ and does construct proper minimal sets of closure quantities if the array isn't 
 
 """
 function Comrade.extract_lcamp(obs; pol = :I, count = "min", kwargs...)
-    # compute a maximum set of closure phases
     obsc = obs.copy()
-    # reorder to maximize the snr
     obsc.reorder_tarr_snr()
 
     lcamp, dvis = _ehtim_lcamp(obsc; count = "max", kwargs...)
-
-    #Now make the vis obs
-    st = timetable(dvis)
-
-    if count == "min"
-        dmat = _minimal_closure(:lcamp, lcamp, st)
-    elseif count == "max"
-        dmat = build_dmats(:lcamp, lcamp, st)
-    else
-        throw(ArgumentError("$(count) is not valid use 'min' or 'max'"))
-    end
-    clac = Comrade.ClosureConfig(arrayconfig(dvis), dmat, measurement(dvis), noise(dvis))
+    clac = Comrade.build_closure_config(dvis, lcamp; type = :lcamp, count)
     cldmat = Comrade.designmat(clac)
     T = Comrade.EHTLogClosureAmplitudeDatum{pol, eltype(lcamp.T), typeof(arrayconfig(dvis)[1])}
-    lcamp = Comrade.logclosure_amplitudes(measurement(dvis), Comrade.designmat(clac))
+    lcamp_vals = Comrade.logclosure_amplitudes(measurement(dvis), cldmat)
     lcamp_sig = abs2.(Comrade.noise(dvis) ./ Comrade.measurement(dvis))
     lcamp_cov = cldmat * Diagonal(lcamp_sig) * transpose(cldmat)
-    return Comrade.EHTObservationTable{T}(lcamp, lcamp_cov, clac)
+    return Comrade.EHTObservationTable{T}(lcamp_vals, lcamp_cov, clac)
 end
 
 

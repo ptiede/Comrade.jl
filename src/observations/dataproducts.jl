@@ -197,3 +197,13 @@ This is an internal method for dispatch. Only use this if
 interfacing Comrade with a new data type.
 """
 function extract_coherency end
+
+"""
+    load_array_txt(path) -> Dict{Symbol, NamedTuple}
+
+Read an ehtim-style antenna text file and return a per-site overrides dict
+suitable to pass to `extract_*(uvd; array_overrides=...)`.
+
+Implemented by extensions (currently `ComradeVLBIFilesExt`).
+"""
+function load_array_txt end
