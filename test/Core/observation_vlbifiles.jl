@@ -165,3 +165,19 @@ end
     @test length(v1) == length(v2)
     @test v1[:measurement] ≈ v2[:measurement]
 end
+
+
+@testset "time_average / frequency_average kwargs" begin
+    import VLBIData: VLBI
+    path = joinpath(@__DIR__, "..", "test_data.uvfits")
+    uvd = VLBIFiles.load(VLBIFiles.UVData, path)
+    v_raw = Comrade.extract_vis(uvd)
+    v_avg = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
+    @test 0 < length(v_avg) < length(v_raw)
+
+    a_avg = extract_table(uvd, VisibilityAmplitudes(; time_average = VLBI.GapBasedScans()))
+    @test length(a_avg) == length(v_avg)
+
+    cp_avg = extract_table(uvd, ClosurePhases(; time_average = VLBI.GapBasedScans()))
+    @test length(cp_avg) > 0
+end

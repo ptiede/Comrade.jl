@@ -20,7 +20,9 @@ close(pkg_io) #hide
 using Comrade
 
 
-using Pyehtim
+using VLBIFiles
+using VLBIData
+import VLBIData: VLBI
 using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator
@@ -33,15 +35,12 @@ rng = StableRNG(42)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-# Now we do some minor preprocessing:
-#   - Scan average the data since the data have been preprocessed so that the gain phases
-#      coherent.
-#   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs).add_fractional_noise(0.02)
-
-# Now we extract our complex visibilities.
-dvis = extract_table(obs, Visibilities())
+uvd = VLBIFiles.load(VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+# Extract scan-averaged complex visibilities. Then inflate the noise by 2% to account for
+# residual calibration errors.
+dvis = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
+add_fractional_noise!(dvis, 0.02)
 
 # ##Building the Model/Posterior
 

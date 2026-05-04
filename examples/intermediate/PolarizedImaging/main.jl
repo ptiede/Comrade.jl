@@ -100,7 +100,9 @@ close(pkg_io) #hide
 using Comrade
 
 # ## Load the Data
-using Pyehtim
+using VLBIFiles
+using VLBIData
+import VLBIData: VLBI
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
@@ -112,21 +114,18 @@ fname = Base.download(
     "https://de.cyverse.org/anon-files/iplant/home/shared/commons_repo/curated/EHTC_M87pol2017_Nov2023/hops_data/April11/SR2_M87_2017_101_lo_hops_ALMArot.uvfits",
     joinpath(__DIR, "m87polarized.uvfits")
 )
-obs = Pyehtim.load_uvfits_and_array(
-    fname,
-    joinpath(__DIR, "..", "..", "Data", "array.txt"), polrep = "circ"
-)
+uvd = VLBIFiles.load(VLBIFiles.UVData, fname)
 
 
-# Notice that, unlike other non-polarized tutorials, we need to include a second argument.
-# This is the **array file** of the observation and is required to determine the feed rotation
-# of the array.
-
-# Now we scan average the data since the data to boost the SNR and reduce the total data volume.
-obs = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min = 0.1e9)
-#-
-# Now we extract our observed/corrupted coherency matrices.
-dvis = extract_table(obs, Coherencies())
+# Unlike non-polarized tutorials, we also need an **array file** describing the antenna
+# feed rotation parameters. We pass it via the `arrayfile` keyword on the data product.
+dvis = extract_table(uvd, Coherencies(;
+    time_average = VLBI.GapBasedScans(),
+    arrayfile    = joinpath(__DIR, "..", "..", "Data", "array.txt"),
+))
+# Inflate noise by 1% and drop short (uvdist < 0.1 Gλ) baselines.
+add_fractional_noise!(dvis, 0.01)
+dvis = flag(d -> hypot(d.baseline.U, d.baseline.V) < 0.1e9, dvis)
 
 # ##Building the Model/Posterior
 

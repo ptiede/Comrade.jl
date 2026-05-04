@@ -242,6 +242,24 @@ function _pol_filter(pol::Symbol, available::Set{Symbol})
 end
 
 
+# Load the uvtable, optionally apply averaging, then filter to the requested
+# polarization. The averaging strategies come straight from VLBIData:
+#   frequency_average=true (or anything truthy) -> VLBI.average_data(VLBI.ByFrequency(), ...)
+#   time_average=VLBI.GapBasedScans()           -> VLBI.average_data(time_average, ...)
+#   time_average=VLBI.FixedTimeIntervals(...)
+function _prep_uvtable(uvd::VLBIFiles.UVData; pol::Symbol,
+                       time_average = nothing, frequency_average = true)
+    rows = VLBIData.uvtable(uvd)
+    if frequency_average !== nothing && frequency_average !== false
+        rows = VLBI.average_data(VLBI.ByFrequency(), rows)
+    end
+    if time_average !== nothing && time_average !== false
+        rows = VLBI.average_data(time_average, rows)
+    end
+    return _filter_to_pol(rows, pol)
+end
+
+
 function _filter_to_pol(uvtbl, pol::Symbol)
     available = Set(unique(uvtbl.stokes))
     mode = _pol_filter(pol, available)
@@ -330,15 +348,16 @@ row of `VLBIFiles.uvtable(uvd)` after polarization filtering.
 mount type for individual stations.
 """
 function Comrade.extract_vis(uvd::VLBIFiles.UVData; pol = :I,
+                              time_average = nothing,
+                              frequency_average = true,
                               mount_overrides = nothing,
                               array_overrides = nothing,
                               arrayfile = nothing, kwargs...)
     array_overrides === nothing && arrayfile !== nothing &&
         (array_overrides = Comrade.load_array_txt(arrayfile))
-    uvtbl_full = uvtable(uvd)
-    uvtbl = _filter_to_pol(uvtbl_full, pol)
-    config = _arrayconfig(uvd, uvtbl; mount_overrides, array_overrides)
-    vis, err = getvisfield(uvtbl)
+    rows = _prep_uvtable(uvd; pol, time_average, frequency_average)
+    config = _arrayconfig(uvd, rows; mount_overrides, array_overrides)
+    vis, err = getvisfield(rows)
     T = Comrade.EHTVisibilityDatum{pol, eltype(err), typeof(config[1])}
     return Comrade.EHTObservationTable{T}(vis, err, config)
 end
@@ -352,15 +371,16 @@ Build a Comrade `EHTObservationTable` of visibility amplitudes. If
 `debias=true` the Rice-bias correction `√max(|V|² − σ², 0)` is applied.
 """
 function Comrade.extract_amp(uvd::VLBIFiles.UVData; pol = :I, debias = false,
+                              time_average = nothing,
+                              frequency_average = true,
                               mount_overrides = nothing,
                               array_overrides = nothing,
                               arrayfile = nothing, kwargs...)
     array_overrides === nothing && arrayfile !== nothing &&
         (array_overrides = Comrade.load_array_txt(arrayfile))
-    uvtbl_full = uvtable(uvd)
-    uvtbl = _filter_to_pol(uvtbl_full, pol)
-    config = _arrayconfig(uvd, uvtbl; mount_overrides, array_overrides)
-    vis, err = getvisfield(uvtbl)
+    rows = _prep_uvtable(uvd; pol, time_average, frequency_average)
+    config = _arrayconfig(uvd, rows; mount_overrides, array_overrides)
+    vis, err = getvisfield(rows)
     amp = abs.(vis)
     if debias
         amp = @. sqrt(max(amp^2 - err^2, zero(amp)))
@@ -381,12 +401,20 @@ a given (time, baseline, frequency) row are filled with `NaN+NaN*im` and
 infinite uncertainty.
 """
 function Comrade.extract_coherency(uvd::VLBIFiles.UVData;
+                                    time_average = nothing,
+                                    frequency_average = true,
                                     mount_overrides = nothing,
                                     array_overrides = nothing,
                                     arrayfile = nothing, kwargs...)
     array_overrides === nothing && arrayfile !== nothing &&
         (array_overrides = Comrade.load_array_txt(arrayfile))
-    uvtbl_full = uvtable(uvd)
+    uvtbl_full = VLBIData.uvtable(uvd)
+    if frequency_average !== nothing
+        uvtbl_full = VLBI.average_data(VLBI.ByFrequency(), uvtbl_full)
+    end
+    if time_average !== nothing
+        uvtbl_full = VLBI.average_data(time_average, uvtbl_full)
+    end
     available = Set(unique(uvtbl_full.stokes))
     needed = (:RR, :RL, :LR, :LL)
     for h in needed
@@ -570,8 +598,11 @@ then optionally reduced to a minimal independent set (`count="min"`) or kept
 as the maximal set (`count="max"`).
 """
 function Comrade.extract_cphase(uvd::VLBIFiles.UVData; pol = :I, count = "min",
+                                 time_average = nothing,
+                                 frequency_average = true,
                                  mount_overrides = nothing, kwargs...)
-    dvis = Comrade.extract_vis(uvd; pol, mount_overrides, kwargs...)
+    dvis = Comrade.extract_vis(uvd; pol, time_average, frequency_average,
+                               mount_overrides, kwargs...)
     cphase = _build_closures(dvis, Val(:cphase))
     clac = Comrade.build_closure_config(dvis, cphase; type = :cphase, count)
     T = Comrade.EHTClosurePhaseDatum{pol, eltype(cphase.T), typeof(arrayconfig(dvis)[1])}
@@ -589,8 +620,11 @@ end
 Extract log-closure amplitudes.
 """
 function Comrade.extract_lcamp(uvd::VLBIFiles.UVData; pol = :I, count = "min",
+                                time_average = nothing,
+                                frequency_average = true,
                                 mount_overrides = nothing, kwargs...)
-    dvis = Comrade.extract_vis(uvd; pol, mount_overrides, kwargs...)
+    dvis = Comrade.extract_vis(uvd; pol, time_average, frequency_average,
+                               mount_overrides, kwargs...)
     lcamp = _build_closures(dvis, Val(:lcamp))
     clac = Comrade.build_closure_config(dvis, lcamp; type = :lcamp, count)
     cldmat = Comrade.designmat(clac)

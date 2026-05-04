@@ -43,7 +43,9 @@ using Comrade
 # ## Load the Data
 
 
-using Pyehtim
+using VLBIFiles
+using VLBIData
+import VLBIData: VLBI
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
@@ -51,21 +53,17 @@ rng = StableRNG(42)
 
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
-# To load the eht-imaging obsdata object we do:
-obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-
-# Now we do some minor preprocessing:
-#   - Scan average the data since the data have been preprocessed so that the gain phases
-#      coherent.
-obs = scan_average(obs)
+uvd = VLBIFiles.load(VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
 
 # For this tutorial we will once again fit complex visibilities since they
 # provide the most information once the telescope/instrument model are taken
-# into account. Additionally, we will preprocess the data to remove effects
-# we don't want to model. Specifically we will remove the
-#  - Baselines shorter than 0.1Gλ since this represents overresolved structure
-#  - Add 1% systematic uncertainty to handle residual calibration errors such as leakage.
-dvis = add_fractional_noise(flag(x -> uvdist(x) < 0.1e9, extract_table(obs, Visibilities())), 0.01)
+# into account. We scan-average the data (gain phases are coherent within a scan), then
+# remove baselines shorter than 0.1Gλ and add 1% systematic uncertainty to handle
+# residual calibration errors such as leakage.
+dvis = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
+dvis = flag(x -> uvdist(x) < 0.1e9, dvis)
+add_fractional_noise!(dvis, 0.01)
 
 # ## Building the Model/Posterior
 
