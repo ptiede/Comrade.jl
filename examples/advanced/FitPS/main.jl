@@ -50,11 +50,12 @@ uvd = VLBIFiles.load(VLBIFiles.UVData, file)
 # by 0.5% to account for residual calibration errors (e.g. leakage). For this tutorial we
 # only use closure quantities; polarized or complex visibilities can also be used with
 # instrumental models following the other tutorials.
-dlcamp, dcphase = extract_table(uvd,
+dlcamp, dcphase = extract_table(
+    uvd,
     LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()),
-    ClosurePhases(;        time_average = VLBI.GapBasedScans()),
+    ClosurePhases(; time_average = VLBI.GapBasedScans()),
 )
-add_fractional_noise!(dlcamp,  0.005)
+add_fractional_noise!(dlcamp, 0.005)
 add_fractional_noise!(dcphase, 0.005)
 
 

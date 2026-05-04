@@ -23,14 +23,14 @@ _to_hz(q) = Float64(q.val)
 # Conventions match eht-imaging's antenna table: 1 = field rotates with the
 # corresponding angle, 0 = no rotation, ±1 for Naismith handedness.
 const _MOUNT_FR = Dict(
-    AntennaMountType.AltAzimuth   => (1.0, 0.0, 0.0),
-    AntennaMountType.Equatorial   => (0.0, 0.0, 0.0),
-    AntennaMountType.Orbiting     => (0.0, 0.0, 0.0),
-    AntennaMountType.XY           => (1.0, 0.0, 0.0),
-    AntennaMountType.NaismithR    => (1.0, 1.0, 0.0),
-    AntennaMountType.NaismithL    => (1.0, -1.0, 0.0),
+    AntennaMountType.AltAzimuth => (1.0, 0.0, 0.0),
+    AntennaMountType.Equatorial => (0.0, 0.0, 0.0),
+    AntennaMountType.Orbiting => (0.0, 0.0, 0.0),
+    AntennaMountType.XY => (1.0, 0.0, 0.0),
+    AntennaMountType.NaismithR => (1.0, 1.0, 0.0),
+    AntennaMountType.NaismithL => (1.0, -1.0, 0.0),
     AntennaMountType.ApertureArray => (0.0, 0.0, 0.0),
-    AntennaMountType.Unknown      => (1.0, 0.0, 0.0),
+    AntennaMountType.Unknown => (1.0, 0.0, 0.0),
 )
 
 
@@ -58,7 +58,7 @@ end
 
 function _radec(uvd::VLBIFiles.UVData)
     fh = uvd.header.fits
-    ra_deg  = Float64(VLBIFiles.axis_dict(fh, "RA")["CRVAL"])
+    ra_deg = Float64(VLBIFiles.axis_dict(fh, "RA")["CRVAL"])
     dec_deg = Float64(VLBIFiles.axis_dict(fh, "DEC")["CRVAL"])
     return (ra_deg, dec_deg)
 end
@@ -69,8 +69,10 @@ function _mjd(uvd::VLBIFiles.UVData)
 end
 
 
-function _build_tarr(uvd::VLBIFiles.UVData; mount_overrides = nothing,
-                      array_overrides = nothing)
+function _build_tarr(
+        uvd::VLBIFiles.UVData; mount_overrides = nothing,
+        array_overrides = nothing
+    )
     # collect unique antennas across (typically just one) ant_array
     seen = Set{Symbol}()
     sites = Symbol[]
@@ -98,14 +100,18 @@ function _build_tarr(uvd::VLBIFiles.UVData; mount_overrides = nothing,
             haskey(ov, :SEFD1)          && (SEFD1[i] = ov[:SEFD1])
             haskey(ov, :SEFD2)          && (SEFD2[i] = ov[:SEFD2])
             haskey(ov, :fr_parallactic) && (fr_par[i] = ov[:fr_parallactic])
-            haskey(ov, :fr_elevation)   && (fr_el[i]  = ov[:fr_elevation])
+            haskey(ov, :fr_elevation)   && (fr_el[i] = ov[:fr_elevation])
             haskey(ov, :fr_offset)      && (fr_off[i] = ov[:fr_offset])
         end
     end
-    return StructArray((; sites, X, Y, Z, SEFD1, SEFD2,
-                          fr_parallactic = fr_par,
-                          fr_elevation   = fr_el,
-                          fr_offset      = fr_off))
+    return StructArray(
+        (;
+            sites, X, Y, Z, SEFD1, SEFD2,
+            fr_parallactic = fr_par,
+            fr_elevation = fr_el,
+            fr_offset = fr_off,
+        )
+    )
 end
 
 
@@ -139,7 +145,7 @@ function Comrade.load_array_txt(path::AbstractString)
         dr = complex(parse(Float64, toks[7]), parse(Float64, toks[8]))
         dl = complex(parse(Float64, toks[9]), parse(Float64, toks[10]))
         fr_par = parse(Float64, toks[11])
-        fr_el  = parse(Float64, toks[12])
+        fr_el = parse(Float64, toks[12])
         fr_off = deg2rad(parse(Float64, toks[13]))
         overrides[site] = (
             SEFD1 = sefd_r, SEFD2 = sefd_l,
@@ -160,25 +166,27 @@ function _build_scans(uvtbl)
 end
 
 
-function _arrayconfig(uvd::VLBIFiles.UVData, uvtbl;
-                       mount_overrides = nothing, array_overrides = nothing)
+function _arrayconfig(
+        uvd::VLBIFiles.UVData, uvtbl;
+        mount_overrides = nothing, array_overrides = nothing
+    )
     ra_deg, dec_deg = _radec(uvd)
     # Pyehtim/ehtim stores RA in hours; match that convention so downstream
     # tooling that consumes either path agrees on units.
     ra_hours = ra_deg / 15
-    mjd     = _mjd(uvd)
-    source  = Symbol(uvd.header.object)
-    bw      = sum(fw -> _to_hz(fw.width), uvd.freq_windows)
-    tarr    = _build_tarr(uvd; mount_overrides, array_overrides)
-    scans   = _build_scans(uvtbl)
+    mjd = _mjd(uvd)
+    source = Symbol(uvd.header.object)
+    bw = sum(fw -> _to_hz(fw.width), uvd.freq_windows)
+    tarr = _build_tarr(uvd; mount_overrides, array_overrides)
+    scans = _build_scans(uvtbl)
 
     n = length(uvtbl)
-    U  = Vector{Float64}(undef, n)
-    V  = Vector{Float64}(undef, n)
+    U = Vector{Float64}(undef, n)
+    V = Vector{Float64}(undef, n)
     Ti = Vector{Float64}(undef, n)
     Fr = Vector{Float64}(undef, n)
     sites_v = Vector{Tuple{Symbol, Symbol}}(undef, n)
-    elevation   = Vector{Tuple{Float64, Float64}}(undef, n)
+    elevation = Vector{Tuple{Float64, Float64}}(undef, n)
     parallactic = Vector{Tuple{Float64, Float64}}(undef, n)
 
     # caches built from antenna metadata
@@ -200,7 +208,7 @@ function _arrayconfig(uvd::VLBIFiles.UVData, uvtbl;
     geocache = Dict{Tuple{Symbol, DateTime}, NTuple{2, Float64}}()
 
     @inbounds for i in 1:n
-        r  = uvtbl[i]
+        r = uvtbl[i]
         s1, s2 = r.spec.bl.antennas
         U[i] = Float64(r.spec.uv.u)
         V[i] = Float64(r.spec.uv.v)
@@ -215,15 +223,17 @@ function _arrayconfig(uvd::VLBIFiles.UVData, uvtbl;
         e2, p2 = get!(geocache, (s2, r.datetime)) do
             Comrade.elevation_parallactic(site_xyz[s2], ra_deg, dec_deg, jd)
         end
-        elevation[i]   = (e1, e2)
+        elevation[i] = (e1, e2)
         parallactic[i] = (p1, p2)
     end
 
     data = StructArray{Comrade.EHTArrayBaselineDatum{Float64, eltype(polbasis), Float64}}(
         (; U, V, Ti, Fr, sites = sites_v, polbasis, elevation, parallactic)
     )
-    return Comrade.EHTArrayConfiguration(bw, tarr, scans, mjd, ra_hours, dec_deg,
-                                         source, :UTC, data)
+    return Comrade.EHTArrayConfiguration(
+        bw, tarr, scans, mjd, ra_hours, dec_deg,
+        source, :UTC, data
+    )
 end
 
 
@@ -247,8 +257,10 @@ end
 #   frequency_average=true (or anything truthy) -> VLBI.average_data(VLBI.ByFrequency(), ...)
 #   time_average=VLBI.GapBasedScans()           -> VLBI.average_data(time_average, ...)
 #   time_average=VLBI.FixedTimeIntervals(...)
-function _prep_uvtable(uvd::VLBIFiles.UVData; pol::Symbol,
-                       time_average = nothing, frequency_average = true)
+function _prep_uvtable(
+        uvd::VLBIFiles.UVData; pol::Symbol,
+        time_average = nothing, frequency_average = true
+    )
     rows = VLBIData.uvtable(uvd)
     if frequency_average !== nothing && frequency_average !== false
         rows = VLBI.average_data(VLBI.ByFrequency(), rows)
@@ -303,18 +315,20 @@ function _combine_parallel_hands(uvtbl, hands::NTuple{2, Symbol})
     for i in 1:n
         v1, e1 = r1[i].value.v, r1[i].value.u
         v2, e2 = r2[i].value.v, r2[i].value.u
-        I  = (v1 + v2) / 2
+        I = (v1 + v2) / 2
         σI = sqrt(e1^2 + e2^2) / 2
         new_value[i] = typeof(r1[i].value)(I, σI)
     end
 
-    return StructArray((;
-        datetime  = r1.datetime,
-        stokes    = fill(:I, n),
-        freq_spec = r1.freq_spec,
-        spec      = r1.spec,
-        value     = new_value,
-    ))
+    return StructArray(
+        (;
+            datetime = r1.datetime,
+            stokes = fill(:I, n),
+            freq_spec = r1.freq_spec,
+            spec = r1.spec,
+            value = new_value,
+        )
+    )
 end
 
 
@@ -347,12 +361,14 @@ row of `VLBIFiles.uvtable(uvd)` after polarization filtering.
 `(fr_parallactic, fr_elevation, fr_offset)` triplet derived from the uvfits
 mount type for individual stations.
 """
-function Comrade.extract_vis(uvd::VLBIFiles.UVData; pol = :I,
-                              time_average = nothing,
-                              frequency_average = true,
-                              mount_overrides = nothing,
-                              array_overrides = nothing,
-                              arrayfile = nothing, kwargs...)
+function Comrade.extract_vis(
+        uvd::VLBIFiles.UVData; pol = :I,
+        time_average = nothing,
+        frequency_average = true,
+        mount_overrides = nothing,
+        array_overrides = nothing,
+        arrayfile = nothing, kwargs...
+    )
     array_overrides === nothing && arrayfile !== nothing &&
         (array_overrides = Comrade.load_array_txt(arrayfile))
     rows = _prep_uvtable(uvd; pol, time_average, frequency_average)
@@ -370,12 +386,14 @@ end
 Build a Comrade `EHTObservationTable` of visibility amplitudes. If
 `debias=true` the Rice-bias correction `√max(|V|² − σ², 0)` is applied.
 """
-function Comrade.extract_amp(uvd::VLBIFiles.UVData; pol = :I, debias = false,
-                              time_average = nothing,
-                              frequency_average = true,
-                              mount_overrides = nothing,
-                              array_overrides = nothing,
-                              arrayfile = nothing, kwargs...)
+function Comrade.extract_amp(
+        uvd::VLBIFiles.UVData; pol = :I, debias = false,
+        time_average = nothing,
+        frequency_average = true,
+        mount_overrides = nothing,
+        array_overrides = nothing,
+        arrayfile = nothing, kwargs...
+    )
     array_overrides === nothing && arrayfile !== nothing &&
         (array_overrides = Comrade.load_array_txt(arrayfile))
     rows = _prep_uvtable(uvd; pol, time_average, frequency_average)
@@ -400,12 +418,14 @@ uvfits to contain all four circular hands (RR, LL, RL, LR). Missing hands for
 a given (time, baseline, frequency) row are filled with `NaN+NaN*im` and
 infinite uncertainty.
 """
-function Comrade.extract_coherency(uvd::VLBIFiles.UVData;
-                                    time_average = nothing,
-                                    frequency_average = true,
-                                    mount_overrides = nothing,
-                                    array_overrides = nothing,
-                                    arrayfile = nothing, kwargs...)
+function Comrade.extract_coherency(
+        uvd::VLBIFiles.UVData;
+        time_average = nothing,
+        frequency_average = true,
+        mount_overrides = nothing,
+        array_overrides = nothing,
+        arrayfile = nothing, kwargs...
+    )
     array_overrides === nothing && arrayfile !== nothing &&
         (array_overrides = Comrade.load_array_txt(arrayfile))
     uvtbl_full = VLBIData.uvtable(uvd)
@@ -481,7 +501,7 @@ function Comrade.extract_coherency(uvd::VLBIFiles.UVData;
     config = _arrayconfig(uvd, spine_kept; mount_overrides, array_overrides)
 
     cohmat = StructArray{SMatrix{2, 2, ComplexF64, 4}}((rrv, lrv, rlv, llv))
-    errmat = StructArray{SMatrix{2, 2, Float64,    4}}((rre, lre, rle, lle))
+    errmat = StructArray{SMatrix{2, 2, Float64, 4}}((rre, lre, rle, lle))
     T = Comrade.EHTCoherencyDatum{Float64, typeof(config[1]), eltype(cohmat), eltype(errmat)}
     return Comrade.EHTObservationTable{T}(cohmat, errmat, config)
 end
@@ -496,13 +516,13 @@ function _build_closures(dvis::Comrade.EHTObservationTable, ::Val{:cphase})
     Tvec = Float64[]
     Fvec = Float64[]
     nvec = Float64[]
-    bls  = Tuple{Symbol, Symbol, Symbol}[]
+    bls = Tuple{Symbol, Symbol, Symbol}[]
     for si in eachindex(st)
         s = st[si]
         scan = s.scan
         ant1, ant2 = Comrade.baseline(s)
         meas = Comrade.measurement(scan)
-        nz   = Comrade.noise(scan)
+        nz = Comrade.noise(scan)
         # build baseline -> (idx) map for this scan
         blmap = Dict{Tuple{Symbol, Symbol}, Int}()
         for k in eachindex(ant1)
@@ -512,23 +532,23 @@ function _build_closures(dvis::Comrade.EHTObservationTable, ::Val{:cphase})
         scan_sites = sort(unique(vcat(ant1, ant2)))
         nsites = length(scan_sites)
         nsites < 3 && continue
-        for ii in 1:nsites-2, jj in ii+1:nsites-1, kk in jj+1:nsites
+        for ii in 1:(nsites - 2), jj in (ii + 1):(nsites - 1), kk in (jj + 1):nsites
             a, b, c = scan_sites[ii], scan_sites[jj], scan_sites[kk]
             i_ab = get(blmap, (a, b), 0)
             i_bc = get(blmap, (b, c), 0)
             i_ca = get(blmap, (c, a), 0)
             (i_ab == 0 || i_bc == 0 || i_ca == 0) && continue
-            v_ab = i_ab > 0 ? meas[i_ab]  : conj(meas[-i_ab])
-            v_bc = i_bc > 0 ? meas[i_bc]  : conj(meas[-i_bc])
-            v_ca = i_ca > 0 ? meas[i_ca]  : conj(meas[-i_ca])
+            v_ab = i_ab > 0 ? meas[i_ab] : conj(meas[-i_ab])
+            v_bc = i_bc > 0 ? meas[i_bc] : conj(meas[-i_bc])
+            v_ca = i_ca > 0 ? meas[i_ca] : conj(meas[-i_ca])
             σ_ab = nz[abs(i_ab)]
             σ_bc = nz[abs(i_bc)]
             σ_ca = nz[abs(i_ca)]
             # closure-phase noise (small-error approx)
             cpnoise = sqrt(
                 (σ_ab / abs(v_ab))^2 +
-                (σ_bc / abs(v_bc))^2 +
-                (σ_ca / abs(v_ca))^2
+                    (σ_bc / abs(v_bc))^2 +
+                    (σ_ca / abs(v_ca))^2
             )
             push!(Tvec, s.time)
             push!(Fvec, scan[1].baseline.Fr)
@@ -545,13 +565,13 @@ function _build_closures(dvis::Comrade.EHTObservationTable, ::Val{:lcamp})
     Tvec = Float64[]
     Fvec = Float64[]
     nvec = Float64[]
-    bls  = Tuple{Symbol, Symbol, Symbol, Symbol}[]
+    bls = Tuple{Symbol, Symbol, Symbol, Symbol}[]
     for si in eachindex(st)
         s = st[si]
         scan = s.scan
         ant1, ant2 = Comrade.baseline(s)
         meas = Comrade.measurement(scan)
-        nz   = Comrade.noise(scan)
+        nz = Comrade.noise(scan)
         blmap = Dict{Tuple{Symbol, Symbol}, Int}()
         for k in eachindex(ant1)
             blmap[(ant1[k], ant2[k])] = k
@@ -560,7 +580,7 @@ function _build_closures(dvis::Comrade.EHTObservationTable, ::Val{:lcamp})
         scan_sites = sort(unique(vcat(ant1, ant2)))
         nsites = length(scan_sites)
         nsites < 4 && continue
-        for ia in 1:nsites-3, ib in ia+1:nsites-2, ic in ib+1:nsites-1, id in ic+1:nsites
+        for ia in 1:(nsites - 3), ib in (ia + 1):(nsites - 2), ic in (ib + 1):(nsites - 1), id in (ic + 1):nsites
             a, b, c, d = scan_sites[ia], scan_sites[ib], scan_sites[ic], scan_sites[id]
             i_ab = get(blmap, (a, b), 0)
             i_cd = get(blmap, (c, d), 0)
@@ -577,7 +597,7 @@ function _build_closures(dvis::Comrade.EHTObservationTable, ::Val{:lcamp})
             σ_bc = nz[abs(i_bc)]
             lcanoise = sqrt(
                 (σ_ab / v_ab)^2 + (σ_cd / v_cd)^2 +
-                (σ_ad / v_ad)^2 + (σ_bc / v_bc)^2
+                    (σ_ad / v_ad)^2 + (σ_bc / v_bc)^2
             )
             push!(Tvec, s.time)
             push!(Fvec, scan[1].baseline.Fr)
@@ -597,12 +617,16 @@ Extract closure phases. Closure triangles are enumerated within each scan and
 then optionally reduced to a minimal independent set (`count="min"`) or kept
 as the maximal set (`count="max"`).
 """
-function Comrade.extract_cphase(uvd::VLBIFiles.UVData; pol = :I, count = "min",
-                                 time_average = nothing,
-                                 frequency_average = true,
-                                 mount_overrides = nothing, kwargs...)
-    dvis = Comrade.extract_vis(uvd; pol, time_average, frequency_average,
-                               mount_overrides, kwargs...)
+function Comrade.extract_cphase(
+        uvd::VLBIFiles.UVData; pol = :I, count = "min",
+        time_average = nothing,
+        frequency_average = true,
+        mount_overrides = nothing, kwargs...
+    )
+    dvis = Comrade.extract_vis(
+        uvd; pol, time_average, frequency_average,
+        mount_overrides, kwargs...
+    )
     cphase = _build_closures(dvis, Val(:cphase))
     clac = Comrade.build_closure_config(dvis, cphase; type = :cphase, count)
     T = Comrade.EHTClosurePhaseDatum{pol, eltype(cphase.T), typeof(arrayconfig(dvis)[1])}
@@ -619,12 +643,16 @@ end
 
 Extract log-closure amplitudes.
 """
-function Comrade.extract_lcamp(uvd::VLBIFiles.UVData; pol = :I, count = "min",
-                                time_average = nothing,
-                                frequency_average = true,
-                                mount_overrides = nothing, kwargs...)
-    dvis = Comrade.extract_vis(uvd; pol, time_average, frequency_average,
-                               mount_overrides, kwargs...)
+function Comrade.extract_lcamp(
+        uvd::VLBIFiles.UVData; pol = :I, count = "min",
+        time_average = nothing,
+        frequency_average = true,
+        mount_overrides = nothing, kwargs...
+    )
+    dvis = Comrade.extract_vis(
+        uvd; pol, time_average, frequency_average,
+        mount_overrides, kwargs...
+    )
     lcamp = _build_closures(dvis, Val(:lcamp))
     clac = Comrade.build_closure_config(dvis, lcamp; type = :lcamp, count)
     cldmat = Comrade.designmat(clac)

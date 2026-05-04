@@ -37,21 +37,24 @@ rng = StableRNG(42)
 # available M 87 data which can be downloaded
 # from [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019).
 # For an introduction to data loading, see [Loading Data into Comrade](@ref).
-uvd = VLBIFiles.load(VLBIFiles.UVData,
-    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+uvd = VLBIFiles.load(
+    VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+)
 
 # Since the gains in this dataset are coherent across a scan, we extract scan-averaged
 # closures.
-dlcamp, dcphase = extract_table(uvd,
+dlcamp, dcphase = extract_table(
+    uvd,
     LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()),
-    ClosurePhases(;        time_average = VLBI.GapBasedScans()),
+    ClosurePhases(; time_average = VLBI.GapBasedScans()),
 )
 # Kill the trivial 0-baseline triangles (we don't care about large-scale flux) and inflate
 # the noise by 2% in quadrature to account for residual systematics.
 isshort(d) = any(b -> hypot(b.U, b.V) < 0.1e9, d.baseline)
-dlcamp  = flag(isshort, dlcamp)
+dlcamp = flag(isshort, dlcamp)
 dcphase = flag(isshort, dcphase)
-add_fractional_noise!(dlcamp,  0.02)
+add_fractional_noise!(dlcamp, 0.02)
 add_fractional_noise!(dcphase, 0.02)
 
 # !!!warn

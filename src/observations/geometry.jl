@@ -4,7 +4,7 @@ export ecef_to_geodetic, elevation_parallactic
 const _WGS84_A = 6378137.0                # semi-major axis (m)
 const _WGS84_F = 1 / 298.257223563        # flattening
 const _WGS84_B = _WGS84_A * (1 - _WGS84_F) # semi-minor axis
-const _WGS84_E2  = _WGS84_F * (2 - _WGS84_F)
+const _WGS84_E2 = _WGS84_F * (2 - _WGS84_F)
 const _WGS84_EP2 = (_WGS84_A^2 - _WGS84_B^2) / _WGS84_B^2
 
 
@@ -56,11 +56,13 @@ mean sidereal time. The parallactic angle uses the standard atan2 form
 
 which matches the convention used by both eht-imaging and Astropy.
 """
-function elevation_parallactic(antenna_xyz, ra_deg, dec_deg, jd;
-                                precession::Bool = false,
-                                nutate::Bool = false,
-                                aberration::Bool = false,
-                                refract::Bool = false)
+function elevation_parallactic(
+        antenna_xyz, ra_deg, dec_deg, jd;
+        precession::Bool = false,
+        nutate::Bool = false,
+        aberration::Bool = false,
+        refract::Bool = false
+    )
     x, y, z = antenna_xyz[1], antenna_xyz[2], antenna_xyz[3]
     lat, lon, alt_m = ecef_to_geodetic(x, y, z)
 

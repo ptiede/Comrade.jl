@@ -184,8 +184,10 @@ Arguments
 - `count`: `"min"` (compute a minimal closure set per scan) or `"max"`
   (use the supplied closures as-is).
 """
-function build_closure_config(dvis::EHTObservationTable, closures::StructArray;
-                              type::Symbol, count::String = "min")
+function build_closure_config(
+        dvis::EHTObservationTable, closures::StructArray;
+        type::Symbol, count::String = "min"
+    )
     st = timetable(dvis)
     dmat = if count == "min"
         _minimal_closure(type, closures, st)

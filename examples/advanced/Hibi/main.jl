@@ -53,8 +53,10 @@ rng = StableRNG(42)
 
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
-uvd = VLBIFiles.load(VLBIFiles.UVData,
-    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+uvd = VLBIFiles.load(
+    VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+)
 
 # For this tutorial we will once again fit complex visibilities since they
 # provide the most information once the telescope/instrument model are taken

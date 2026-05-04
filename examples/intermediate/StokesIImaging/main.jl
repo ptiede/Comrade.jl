@@ -35,8 +35,10 @@ rng = StableRNG(42)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-uvd = VLBIFiles.load(VLBIFiles.UVData,
-    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+uvd = VLBIFiles.load(
+    VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+)
 # Extract scan-averaged complex visibilities. Then inflate the noise by 2% to account for
 # residual calibration errors.
 dvis = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))

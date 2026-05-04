@@ -29,27 +29,33 @@ import VLBIData: VLBI
 
 # We will use the 2017 public M87 data which can be downloaded from
 # [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019)
-uvd = VLBIFiles.load(VLBIFiles.UVData,
-    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+uvd = VLBIFiles.load(
+    VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+)
 
 # We average the data over telescope scans by passing a `time_average` strategy on the data
 # product. Note that the EHT data has been pre-calibrated so this averaging doesn't induce
 # large coherence losses.
 scan_avg = VLBI.GapBasedScans()
-vis    = extract_table(uvd, Visibilities(; time_average = scan_avg))                         # complex visibilities
-amp    = extract_table(uvd, VisibilityAmplitudes(; time_average = scan_avg))                 # visibility amplitudes
+vis = extract_table(uvd, Visibilities(; time_average = scan_avg))                         # complex visibilities
+amp = extract_table(uvd, VisibilityAmplitudes(; time_average = scan_avg))                 # visibility amplitudes
 cphase = extract_table(uvd, ClosurePhases(; time_average = scan_avg))                        # minimal closure phases
-lcamp  = extract_table(uvd, LogClosureAmplitudes(; time_average = scan_avg))                 # minimal log-closure amplitudes
+lcamp = extract_table(uvd, LogClosureAmplitudes(; time_average = scan_avg))                 # minimal log-closure amplitudes
 
 # For polarization we load the file the same way; circular polarization is detected from the
 # antenna feed types in the FITS table. We pass the antenna text file via `arrayfile=` so
 # the telescope mount info is set correctly for the `Coherencies` extraction.
-uvdp = VLBIFiles.load(VLBIFiles.UVData,
-    joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits"))
-coh = extract_table(uvdp, Coherencies(;
-    time_average = scan_avg,
-    arrayfile    = joinpath(__DIR, "..", "..", "Data", "array.txt"),
-))
+uvdp = VLBIFiles.load(
+    VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits")
+)
+coh = extract_table(
+    uvdp, Coherencies(;
+        time_average = scan_avg,
+        arrayfile = joinpath(__DIR, "..", "..", "Data", "array.txt"),
+    )
+)
 
 
 # !!! warning

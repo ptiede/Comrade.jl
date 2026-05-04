@@ -119,10 +119,12 @@ uvd = VLBIFiles.load(VLBIFiles.UVData, fname)
 
 # Unlike non-polarized tutorials, we also need an **array file** describing the antenna
 # feed rotation parameters. We pass it via the `arrayfile` keyword on the data product.
-dvis = extract_table(uvd, Coherencies(;
-    time_average = VLBI.GapBasedScans(),
-    arrayfile    = joinpath(__DIR, "..", "..", "Data", "array.txt"),
-))
+dvis = extract_table(
+    uvd, Coherencies(;
+        time_average = VLBI.GapBasedScans(),
+        arrayfile = joinpath(__DIR, "..", "..", "Data", "array.txt"),
+    )
+)
 # Inflate noise by 1% and drop short (uvdist < 0.1 Gλ) baselines.
 add_fractional_noise!(dvis, 0.01)
 dvis = flag(d -> hypot(d.baseline.U, d.baseline.V) < 0.1e9, dvis)

@@ -46,17 +46,20 @@ rng = StableRNG(123)
 
 # ## Load the Data
 # To download the data visit https://doi.org/10.25739/g85n-f134
-uvd = VLBIFiles.load(VLBIFiles.UVData,
-    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+uvd = VLBIFiles.load(
+    VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+)
 
 # Now we extract closure quantities. We scan-average via the `time_average` keyword (the data
 # have been preprocessed so gain phases are coherent within a scan) and inflate the
 # uncertainties by 2% to deal with calibration issues such as leakage.
-dlcamp, dcphase = extract_table(uvd,
+dlcamp, dcphase = extract_table(
+    uvd,
     LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()),
-    ClosurePhases(;        time_average = VLBI.GapBasedScans()),
+    ClosurePhases(; time_average = VLBI.GapBasedScans()),
 )
-add_fractional_noise!(dlcamp,  0.02)
+add_fractional_noise!(dlcamp, 0.02)
 add_fractional_noise!(dcphase, 0.02)
 
 # !!! note
