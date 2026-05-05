@@ -266,13 +266,13 @@ function _arrayconfig(
     polbasis = fill(single_pb, n)
 
     geocache = Dict{Tuple{Symbol, DateTime}, NTuple{2, Float64}}()
-
+    day0 = Date(minimum(uvtbl.datetime))
     @inbounds for i in 1:n
         r = uvtbl[i]
         s1, s2 = r.spec.bl.antennas
         U[i] = Float64(r.spec.uv.u)
         V[i] = Float64(r.spec.uv.v)
-        Ti[i] = _hour_of_day(r.datetime)
+        Ti[i] = _hour_of_day(r.datetime) + 24 * Dates.value(Date(r.datetime) - day0)
         Fr[i] = _to_hz(r.freq_spec.freq)
         sites_v[i] = (s1, s2)
 
