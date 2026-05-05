@@ -87,8 +87,8 @@ function _build_tarr(
             push!(X, ant.xyz[1])
             push!(Y, ant.xyz[2])
             push!(Z, ant.xyz[3])
-            push!(SEFD1, NaN)
-            push!(SEFD2, NaN)
+            push!(SEFD1, 0.0)
+            push!(SEFD2, 0.0)
             fp, fe, fo = _mount_coeffs(ant, mount_overrides)
             push!(fr_par, fp); push!(fr_el, fe); push!(fr_off, fo)
         end
@@ -124,34 +124,94 @@ symbol. Each value is a NamedTuple with the columns present in the file:
 fields `(DR, DL)` if present. `fr_offset` is converted from degrees (the
 ehtim file convention) to radians.
 
-The parsed file is in the same column layout that `eht-imaging` uses:
+The file must begin with a commented header naming the columns, e.g.
 
-    SITE  X  Y  Z  SEFDR  SEFDL  DR_re DR_im  DL_re DL_im  FR_PAR  FR_ELEV  FR_OFF
+    # site  X  Y  Z  SEFDR  SEFDL  DR_RE  DR_IM  DL_RE  DL_IM  FR_PAR  FR_ELEV  FR_OFF
 
-`X, Y, Z` are ignored here — antenna positions come from the uvfits AIPS-AN
-table. The result can be passed to any `extract_*` as
+Columns are matched by name (case-insensitive), so the order of fields and the
+relative position of the D-term and FR blocks are flexible. `X, Y, Z` are
+ignored here — antenna positions come from the uvfits AIPS-AN table. The
+result can be passed to any `extract_*` as
 `array_overrides=load_array_txt("array.txt")`.
 """
 function Comrade.load_array_txt(path::AbstractString)
-    overrides = Dict{Symbol, NamedTuple}()
+    # Aliases for column names we care about. Matching is case-insensitive.
+    aliases = Dict(
+        :site => ("site", "name", "station"),
+        :sefdr => ("sefdr", "sefd1", "sefd_r"),
+        :sefdl => ("sefdl", "sefd2", "sefd_l"),
+        :dr_re => ("dr_re", "dre", "drre", "d_r_re"),
+        :dr_im => ("dr_im", "dim", "drim", "d_r_im"),
+        :dl_re => ("dl_re", "dlre", "d_l_re"),
+        :dl_im => ("dl_im", "dlim", "d_l_im"),
+        :fr_par => ("fr_par", "frpar", "fr_parallactic", "f_par"),
+        :fr_el => ("fr_elev", "frelev", "fr_elevation", "f_el", "fr_el"),
+        :fr_off => ("fr_off", "fr_offset", "froff", "f_off"),
+    )
+
+    header = nothing
+    rows = String[]
     for raw in eachline(path)
         line = strip(raw)
-        (isempty(line) || startswith(line, "#")) && continue
+        isempty(line) && continue
+        if startswith(line, "#")
+            # Use the *last* commented line before data as the header.
+            header = strip(lstrip(line, '#'))
+        else
+            push!(rows, line)
+        end
+    end
+    header === nothing && error(
+        "load_array_txt: $path has no '#'-commented header line — column layout cannot be inferred."
+    )
+
+    header_toks = split(header)
+    # idx[:key] = column index in the data rows
+    idx = Dict{Symbol, Int}()
+    for (key, names) in aliases
+        for (i, tok) in enumerate(header_toks)
+            if lowercase(tok) in names
+                idx[key] = i
+                break
+            end
+        end
+    end
+
+    required = (:site, :sefdr, :sefdl, :fr_par, :fr_el, :fr_off)
+    missing_cols = filter(k -> !haskey(idx, k), collect(required))
+    isempty(missing_cols) || error(
+        "load_array_txt: header is missing required columns $missing_cols. Header was: $header"
+    )
+
+    has_dterms = all(haskey(idx, k) for k in (:dr_re, :dr_im, :dl_re, :dl_im))
+    ncols_needed = maximum(values(idx))
+
+    overrides = Dict{Symbol, NamedTuple}()
+    for line in rows
         toks = split(line)
-        length(toks) >= 13 || continue
-        site = Symbol(toks[1])
-        sefd_r = parse(Float64, toks[5])
-        sefd_l = parse(Float64, toks[6])
-        dr = complex(parse(Float64, toks[7]), parse(Float64, toks[8]))
-        dl = complex(parse(Float64, toks[9]), parse(Float64, toks[10]))
-        fr_par = parse(Float64, toks[11])
-        fr_el = parse(Float64, toks[12])
-        fr_off = deg2rad(parse(Float64, toks[13]))
-        overrides[site] = (
+        length(toks) >= ncols_needed || continue
+        site = Symbol(toks[idx[:site]])
+        sefd_r = parse(Float64, toks[idx[:sefdr]])
+        sefd_l = parse(Float64, toks[idx[:sefdl]])
+        fr_par = parse(Float64, toks[idx[:fr_par]])
+        fr_el = parse(Float64, toks[idx[:fr_el]])
+        fr_off = deg2rad(parse(Float64, toks[idx[:fr_off]]))
+        nt = (
             SEFD1 = sefd_r, SEFD2 = sefd_l,
             fr_parallactic = fr_par, fr_elevation = fr_el, fr_offset = fr_off,
-            DR = dr, DL = dl,
         )
+        if has_dterms
+            dr = complex(
+                parse(Float64, toks[idx[:dr_re]]),
+                parse(Float64, toks[idx[:dr_im]]),
+            )
+            dl = complex(
+                parse(Float64, toks[idx[:dl_re]]),
+                parse(Float64, toks[idx[:dl_im]]),
+            )
+            nt = merge(nt, (DR = dr, DL = dl))
+        end
+        overrides[site] = nt
     end
     return overrides
 end
@@ -162,7 +222,7 @@ function _build_scans(uvtbl)
     isempty(times) && return StructArray((; start = Float64[], stop = Float64[]))
     day0 = Date(times[1])
     hrs = map(t -> _hour_of_day(t) + 24 * Dates.value(Date(t) - day0), times)
-    return StructArray((; start = hrs, stop = hrs))
+    return StructArray((; start = hrs[1:end-1], stop = hrs[2:end]))
 end
 
 
@@ -286,46 +346,80 @@ function _filter_to_pol(uvtbl, pol::Symbol)
 end
 
 
-# Average two parallel-hand stokes per group into a single Stokes-I row.
-# A row only appears in the output if BOTH hands are present for that group.
+# Combine two parallel-hand stokes per group into a single Stokes-I row.
+# Outer-join: if BOTH hands are present, I = (h1 + h2)/2; if only one is
+# present, use it directly (consistent with V≈0). Rows are only dropped if
+# both hands are absent — which can't happen with the union spine below.
 function _combine_parallel_hands(uvtbl, hands::NTuple{2, Symbol})
     h1, h2 = hands
     rows1 = uvtbl[uvtbl.stokes .== h1]
     rows2 = uvtbl[uvtbl.stokes .== h2]
     keyfn = r -> (r.datetime, r.spec.bl.antennas, r.freq_spec.freq, r.spec.uv.u, r.spec.uv.v)
+
+    map1 = Dict{Any, Int}()
+    for (i, r) in pairs(rows1)
+        map1[keyfn(r)] = i
+    end
     map2 = Dict{Any, Int}()
     for (j, r) in pairs(rows2)
         map2[keyfn(r)] = j
     end
 
-    keep1 = Int[]
-    keep2 = Int[]
+    pair_idx = Tuple{Int, Int}[]
     for (i, r) in pairs(rows1)
         j = get(map2, keyfn(r), 0)
-        j == 0 && continue
-        push!(keep1, i)
-        push!(keep2, j)
+        push!(pair_idx, (i, j))
     end
-    r1 = rows1[keep1]
-    r2 = rows2[keep2]
+    for (j, r) in pairs(rows2)
+        haskey(map1, keyfn(r)) && continue
+        push!(pair_idx, (0, j))
+    end
 
-    # construct Stokes-I rows: I = (h1 + h2)/2; sigma_I = 0.5 * sqrt(σ1² + σ2²)
-    n = length(r1)
-    new_value = Vector{eltype(r1.value)}(undef, n)
-    for i in 1:n
-        v1, e1 = r1[i].value.v, r1[i].value.u
-        v2, e2 = r2[i].value.v, r2[i].value.u
-        I = (v1 + v2) / 2
-        σI = sqrt(e1^2 + e2^2) / 2
-        new_value[i] = typeof(r1[i].value)(I, σI)
+    n = length(pair_idx)
+    template = isempty(rows1) ? rows2[1] : rows1[1]
+    Tval = typeof(template.value)
+    Tdt = typeof(template.datetime)
+    Tfs = typeof(template.freq_spec)
+    Tsp = typeof(template.spec)
+
+    datetimes = Vector{Tdt}(undef, n)
+    freq_specs = Vector{Tfs}(undef, n)
+    specs = Vector{Tsp}(undef, n)
+    new_value = Vector{Tval}(undef, n)
+
+    for k in 1:n
+        i, j = pair_idx[k]
+        if i != 0 && j != 0
+            r1 = rows1[i]; r2 = rows2[j]
+            v1, e1 = r1.value.v, r1.value.u
+            v2, e2 = r2.value.v, r2.value.u
+            I = (v1 + v2) / 2
+            σI = sqrt(e1^2 + e2^2) / 2
+            datetimes[k] = r1.datetime
+            freq_specs[k] = r1.freq_spec
+            specs[k] = r1.spec
+            new_value[k] = Tval(I, σI)
+        elseif i != 0
+            r1 = rows1[i]
+            datetimes[k] = r1.datetime
+            freq_specs[k] = r1.freq_spec
+            specs[k] = r1.spec
+            new_value[k] = Tval(r1.value.v, r1.value.u)
+        else
+            r2 = rows2[j]
+            datetimes[k] = r2.datetime
+            freq_specs[k] = r2.freq_spec
+            specs[k] = r2.spec
+            new_value[k] = Tval(r2.value.v, r2.value.u)
+        end
     end
 
     return StructArray(
         (;
-            datetime = r1.datetime,
+            datetime = datetimes,
             stokes = fill(:I, n),
-            freq_spec = r1.freq_spec,
-            spec = r1.spec,
+            freq_spec = freq_specs,
+            spec = specs,
             value = new_value,
         )
     )
@@ -435,70 +529,70 @@ function Comrade.extract_coherency(
     if time_average !== nothing
         uvtbl_full = VLBI.average_data(time_average, uvtbl_full)
     end
-    available = Set(unique(uvtbl_full.stokes))
-    needed = (:RR, :RL, :LR, :LL)
-    for h in needed
-        h in available || error("uvfits is missing $h hand; coherency requires all four circular hands")
-    end
+    hands = (:RR, :RL, :LR, :LL)
 
     keyfn = r -> (r.datetime, r.spec.bl.antennas, r.freq_spec.freq, r.spec.uv.u, r.spec.uv.v)
     rows_by = Dict{Symbol, Any}()
-    for h in needed
-        rows_by[h] = uvtbl_full[uvtbl_full.stokes .== h]
-    end
-
     keys_for = Dict{Symbol, Dict{Any, Int}}()
-    for h in needed
+    for h in hands
+        rh = uvtbl_full[uvtbl_full.stokes .== h]
+        rows_by[h] = rh
         d = Dict{Any, Int}()
-        rh = rows_by[h]
         for (i, r) in pairs(rh)
             d[keyfn(r)] = i
         end
         keys_for[h] = d
     end
 
-    # use RR rows as the row "spine"; ensure all four hands have entries
-    spine = rows_by[:RR]
-    n = length(spine)
+    # Spine = union of all per-hand keys (preserve insertion order from RR,RL,LR,LL).
+    seen = Set{Any}()
+    spine_keys = Any[]
+    spine_rows = Any[]
+    for h in hands
+        for r in rows_by[h]
+            k = keyfn(r)
+            k in seen && continue
+            push!(seen, k)
+            push!(spine_keys, k)
+            push!(spine_rows, r)
+        end
+    end
+
+    n = length(spine_keys)
     rrv = Vector{ComplexF64}(undef, n); rre = Vector{Float64}(undef, n)
     rlv = Vector{ComplexF64}(undef, n); rle = Vector{Float64}(undef, n)
     lrv = Vector{ComplexF64}(undef, n); lre = Vector{Float64}(undef, n)
     llv = Vector{ComplexF64}(undef, n); lle = Vector{Float64}(undef, n)
 
-    keep = Int[]
-    for (i, r) in pairs(spine)
-        k = keyfn(r)
-        jrl = get(keys_for[:RL], k, 0)
-        jlr = get(keys_for[:LR], k, 0)
-        jll = get(keys_for[:LL], k, 0)
-        # require LL present at minimum; missing crosshands -> NaN
-        jll == 0 && continue
-        push!(keep, i)
-        idx = length(keep)
-        rrv[idx] = ComplexF64(r.value.v); rre[idx] = Float64(r.value.u)
-        if jrl == 0
-            rlv[idx] = ComplexF64(NaN, NaN); rle[idx] = Inf
+    fill_hand! = (vec_v, vec_e, h, idx, k) -> begin
+        j = get(keys_for[h], k, 0)
+        if j == 0
+            vec_v[idx] = ComplexF64(NaN, NaN); vec_e[idx] = NaN
         else
-            rrl = rows_by[:RL][jrl]
-            rlv[idx] = ComplexF64(rrl.value.v); rle[idx] = Float64(rrl.value.u)
+            r = rows_by[h][j]
+            vec_v[idx] = r.value.v; vec_e[idx] = r.value.u
         end
-        if jlr == 0
-            lrv[idx] = ComplexF64(NaN, NaN); lre[idx] = Inf
-        else
-            rlr = rows_by[:LR][jlr]
-            lrv[idx] = ComplexF64(rlr.value.v); lre[idx] = Float64(rlr.value.u)
-        end
-        rll = rows_by[:LL][jll]
-        llv[idx] = ComplexF64(rll.value.v); lle[idx] = Float64(rll.value.u)
     end
-    nkeep = length(keep)
-    resize!(rrv, nkeep); resize!(rre, nkeep)
-    resize!(rlv, nkeep); resize!(rle, nkeep)
-    resize!(lrv, nkeep); resize!(lre, nkeep)
-    resize!(llv, nkeep); resize!(lle, nkeep)
 
-    spine_kept = spine[keep]
-    config = _arrayconfig(uvd, spine_kept; mount_overrides, array_overrides)
+    for (idx, k) in pairs(spine_keys)
+        fill_hand!(rrv, rre, :RR, idx, k)
+        fill_hand!(rlv, rle, :RL, idx, k)
+        fill_hand!(lrv, lre, :LR, idx, k)
+        fill_hand!(llv, lle, :LL, idx, k)
+    end
+
+    # Build a StructArray "spine" for _arrayconfig (it only reads datetime,
+    # spec, freq_spec). Construct from the representative rows we picked above.
+    spine_struct = StructArray(
+        (;
+            datetime = [r.datetime for r in spine_rows],
+            stokes = fill(:RR, n),
+            freq_spec = [r.freq_spec for r in spine_rows],
+            spec = [r.spec for r in spine_rows],
+            value = [r.value for r in spine_rows],
+        )
+    )
+    config = _arrayconfig(uvd, spine_struct; mount_overrides, array_overrides)
 
     cohmat = StructArray{SMatrix{2, 2, ComplexF64, 4}}((rrv, lrv, rlv, llv))
     errmat = StructArray{SMatrix{2, 2, Float64, 4}}((rre, lre, rle, lle))

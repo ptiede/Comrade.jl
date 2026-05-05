@@ -160,7 +160,7 @@ using VLBIImagePriors
     as ~ ntuple(Returns(cprior), 4)
     ## Build the stokes I model
     δs = ntuple(Val(4)) do i
-        σs[i] * as[i].params
+        σs[i] .* as[i].params
     end
 
     ## Convert hyperbolic polarization basis to Stokes basis
@@ -169,13 +169,24 @@ using VLBIImagePriors
     ## We now add a mean image. Namely, we assume that `pmap` are multiplicative fluctuations
     ## about some mean image `mimg`. We also compute the total flux of the Stokes I image
     ## for normalization purposes below.
-    ft = zero(eltype(mimg))
-    for i in eachindex(pmap, mimg)
-        pmap[i] *= mimg[i]
-        ft += pmap[i].I
-    end
+    bpmap = baseimage(pmap)
+    bpmapI = stokes(bpmap, :I)
+    bpmapQ = stokes(bpmap, :Q)
+    bpmapU = stokes(bpmap, :U)
+    bpmapV = stokes(bpmap, :V)
 
-    pmap .= ftot .* pmap ./ ft
+    bpmapI .*= baseimage(mimg)
+    bpmapQ .*= baseimage(mimg)
+    bpmapU .*= baseimage(mimg)
+    bpmapV .*= baseimage(mimg)
+
+    ft = sum(bpmapI)
+
+    bpmapI .*= ftot / ft
+    bpmapQ .*= ftot / ft
+    bpmapU .*= ftot / ft
+    bpmapV .*= ftot / ft
+
     m = ContinuousImage(pmap, BSplinePulse{3}())
     x, y = centroid(pmap)
     return shifted(m, -x, -y)
@@ -193,7 +204,7 @@ grid = imagepixels(fovx, fovy, nx, ny)
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
 mimg_raw = intensitymap(mpr, grid)
-mimg = mimg_raw ./ flux(mimg_raw)
+mimg = mimg_raw ./ Comrade.flux(mimg_raw)
 
 
 # We use again use a GMRF prior similar to the [Imaging a Black Hole using only Closure Quantities](@ref) tutorial
@@ -280,10 +291,10 @@ J = JonesSandwich(js, G, D, R)
 # so we use `ScanSeg` for those quantities. The d-terms are typically stable over the track
 # so we use `TrackSeg` for those.
 intprior = (
-    lgR = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-    gpR = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
-    gprat = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true),
+    lgR = ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), Normal(0.0, 1.0))),
+    lgrat = ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 0.1))),
+    gpR = ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+    gprat = ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true),
     dRx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dRy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dLx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
@@ -341,7 +352,7 @@ gpl = refinespatial(grid, 2)
 img = intensitymap(skymodel(post, xopt), gpl)
 fig = imageviz(
     img, adjust_length = true, colormap = :cmr_gothic, pcolormap = :rainbow1,
-    pcolorrange = (0.0, 0.2), plot_total = false
+    pcolorrange = (0.0, 0.9), plot_total = false
 );
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
@@ -375,6 +386,8 @@ fig = plotcaltable(gampr, gamp_ratio, labels = ["R Amp", "L/R Amp"], axis_kwargs
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
+using AdvancedHMC
+chain = sample(rng, post, NUTS(0.8), 1_000, n_adapts = 500, progress = true, initial_params = xopt)
 
 # To sample from the posterior, you can then just use the `sample` function from AdvancedHMC like in the
 # other imaging examples. For example

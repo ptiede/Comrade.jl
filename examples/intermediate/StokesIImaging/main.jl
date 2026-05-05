@@ -94,7 +94,7 @@ grid = imagepixels(fovx, fovy, npix, npix)
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(60.0) ./ fwhmfac))
 mimg_raw = intensitymap(mpr, grid)
-mimg = mimg_raw ./ flux(mimg_raw)
+mimg = mimg_raw ./ Comrade.flux(mimg_raw)
 
 
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
@@ -120,8 +120,8 @@ gain(x) = exp(x.lg + 1im * x.gp)
 G = SingleStokesGain(gain)
 
 intpr = (
-    lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    gp = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+    lg = ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), Normal(0.0, 1.0))),
+    gp = ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
 )
 intmodel = InstrumentModel(G, intpr)
 

@@ -220,7 +220,7 @@ intout(vis::StructArray{<:StokesParams{T}}) where {T <: Complex} = StructArray{S
     vout = intout(parent(vis))
     # Grab parent arrary so that type inference works better for Enzyme Reverse pass
     xint = map(parent, x.instrument)
-    for i in eachindex(vis, vout)
+    @inbounds for i in eachindex(vis, vout)
         vout[i] = @inline apply_jones(vis[i], i, J, xint)
     end
     # TODO this randomly segfaults when hitting the GC if we figure out why
@@ -270,8 +270,9 @@ end
 EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 
 
-@inline function apply_jones(v, index::Int, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
+Base.@propagate_inbounds function apply_jones(v, index::Int, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
     # First lhs station
+    id1 = Base.Fix2(getindex, index) ∘ Base.Fix2(getproperty, :indices_1)
     indices1 = map(x -> getindex(x.indices_1, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
     params1 = NamedTuple{N}(map(getindex, values(x), values(indices1)))
     j1 = jonesmatrix(instrument(J), params1, index, Val(1))
