@@ -309,7 +309,7 @@ intmodel = InstrumentModel(J, intprior)
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling, and specifying to use Enzyme.Reverse with runtime activity for AD.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis)
+post = VLBIPosterior(skym, intmodel, dvise)
 
 # ## Reconstructing the Image and Instrument Effects
 
@@ -386,8 +386,6 @@ fig = plotcaltable(gampr, gamp_ratio, labels = ["R Amp", "L/R Amp"], axis_kwargs
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 
-using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 1_000, n_adapts = 500, progress = true, initial_params = xopt)
 
 # To sample from the posterior, you can then just use the `sample` function from AdvancedHMC like in the
 # other imaging examples. For example
