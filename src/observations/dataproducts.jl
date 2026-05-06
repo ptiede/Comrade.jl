@@ -136,24 +136,33 @@ function extract_table(obs, dataproducts::VLBIDataProducts...)
     return map(x -> extract_table(obs, x), dataproducts)
 end
 
+function _preptable(obs, dataproduct)
+    return obs, dataproduct
+end
+
 function extract_table(obs, dataproduct::ClosurePhases)
-    return extract_cphase(obs; keywords(dataproduct)...)
+    pobs, dp2 = _preptable(obs, dataproduct)
+    return extract_cphase(pobs; keywords(dp2)...)
 end
 
 function extract_table(obs, dataproduct::LogClosureAmplitudes)
-    return extract_lcamp(obs; keywords(dataproduct)...)
+    pobs, dp2 = _preptable(obs, dataproduct)
+    return extract_lcamp(pobs; keywords(dp2)...)
 end
 
 function extract_table(obs, dataproduct::Visibilities)
-    return extract_vis(obs; keywords(dataproduct)...)
+    pobs, dp2 = _preptable(obs, dataproduct)
+    return extract_vis(pobs; keywords(dp2)...)
 end
 
 function extract_table(obs, dataproduct::VisibilityAmplitudes)
-    return extract_amp(obs; keywords(dataproduct)...)
+    pobs, dp2 = _preptable(obs, dataproduct)
+    return extract_amp(pobs; keywords(dp2)...)
 end
 
 function extract_table(obs, dataproduct::Coherencies)
-    return extract_coherency(obs; keywords(dataproduct)...)
+    pobs, dp2 = _preptable(obs, dataproduct)
+    return extract_coherency(pobs; keywords(dp2)...)
 end
 
 # internal methods to extract information from `obs`
@@ -199,7 +208,7 @@ interfacing Comrade with a new data type.
 function extract_coherency end
 
 """
-    load_array_txt(path) -> Dict{Symbol, NamedTuple}
+    load_array_txt(path)
 
 Read an ehtim-style antenna text file and return a dictionary keyed by site
 symbol. Each value is a NamedTuple with the columns present in the file:
@@ -217,7 +226,7 @@ ignored here — antenna positions come from the uvfits AIPS-AN table. The
 result can be passed to any `extract_*` as
 `array_overrides=load_array_txt("array.txt")`.
 """
-function Comrade.load_array_txt(path::AbstractString)
+function load_array_txt(path::AbstractString)
     # Aliases for column names we care about. Matching is case-insensitive.
     aliases = Dict(
         :site => ("site", "name", "station"),
