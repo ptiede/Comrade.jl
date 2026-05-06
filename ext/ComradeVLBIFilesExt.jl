@@ -233,6 +233,7 @@ function _prep_uvtable(
     if time_average !== nothing && time_average !== false
         rows = VLBI.average_data(time_average, uvtbl)
     end
+
     return _filter_to_pol(rows, pol)
 end
 
@@ -247,7 +248,10 @@ end
 
 function _filter_to_pol(uvtbl, pol::Symbol)
     available = Set(unique(uvtbl.stokes))
+
+    pol == :all && return uvtbl
     mode = _pol_filter(pol, available)
+
     if mode === :raw
         return uvtbl[uvtbl.stokes .== pol]
     elseif mode === :I_circ
@@ -422,6 +426,7 @@ function Comrade.extract_coherency(
         kwargs...
     )
     hands = (:RR, :RL, :LR, :LL)
+
 
     ## TODO once VLBIFIles can handle missing feeds we can simplify this.
     keyfn = r -> (r.datetime, r.spec.bl.antennas, r.freq_spec.freq, r.spec.uv.u, r.spec.uv.v)
