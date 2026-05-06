@@ -62,8 +62,8 @@ function _radec(uvd::VLBIFiles.UVData)
 end
 
 
-function _mjd(uvd::VLBIFiles.UVData)
-    return Dates.value(uvd.header.date_obs - Date(1858, 11, 17))
+function _mjd(date_obs)
+    return Dates.value(Date(date_obs) - Date(1858, 11, 17))
 end
 
 
@@ -99,7 +99,8 @@ function _build_tarr(
     )
 end
 
-function Comrade.extract_table(obs::VLBIFiles.UVData, dataproduct::Comrade.VLBIDataProducts)
+function Comrade._preptable(obs::VLBIFiles.UVData, dataproduct::Comrade.VLBIDataProducts)
+    
     time_average = get(dataproduct.keywords, :time_average, nothing)
     frequency_average = get(dataproduct.keywords, :frequency_average, true)
     
@@ -111,15 +112,13 @@ function Comrade.extract_table(obs::VLBIFiles.UVData, dataproduct::Comrade.VLBID
         uvtbl, dataproduct;
         time_average, frequency_average,
     )
-    
-    dataproduct2 = @set dataproduct.keywords = merge(keywords(dataproduct, (;antarray, source)))
-    tbl = extract_table(puvtbl, dataproduct2)
-    reset_tarr
+    dataproduct2 = @set dataproduct.keywords = merge(NamedTuple(Comrade.keywords(dataproduct)), (;antarray, source))
+    return puvtbl, dataproduct2
 end
 
 
 function _build_scans(method, uvtbl)
-    si = VLBIData.IntervalSets.endpoints(VLBIData.scan_intervals(method, uvtbl))
+    si = VLBIData.IntervalSets.endpoints.(VLBIData.scan_intervals(method, uvtbl))
     start = first.(si)
     stop = last.(si)
     day0 = Date(start[1])
@@ -198,7 +197,7 @@ function _arrayconfig(
     )
     return Comrade.EHTArrayConfiguration(
         bw, tarr, scans, mjd, ra_hours, dec_deg,
-        nm, :UTC, data
+        Symbol(nm), :UTC, data
     )
 end
 
@@ -224,7 +223,7 @@ end
 #   time_average=VLBI.GapBasedScans()           -> VLBI.average_data(time_average, ...)
 #   time_average=VLBI.FixedTimeIntervals(...)
 function _prep_uvtable(
-        uvtbl, dataproduct,
+        uvtbl, dataproduct;
         time_average = nothing, frequency_average = true
     )
 
@@ -372,12 +371,12 @@ mount type for individual stations.
 """
 function Comrade.extract_vis(
         uvtbl::AbstractArray{<:NamedTuple}; 
-        antarry, source = (;name="UNKNOWN", ra=0.0, dec=0.0);
+        antarray, source = (;name="UNKNOWN", ra=0.0, dec=0.0),
         pol = :I,
         kwargs...
     )
     config = _arrayconfig(uvtbl; antarray, source)
-    vis, err = getvisfield(rows)
+    vis, err = getvisfield(uvtbl)
     T = Comrade.EHTVisibilityDatum{pol, eltype(err), typeof(config[1])}
     return Comrade.EHTObservationTable{T}(vis, err, config)
 end
@@ -392,7 +391,7 @@ Build a Comrade `EHTObservationTable` of visibility amplitudes. If
 """
 function Comrade.extract_amp(
         uvtbl::AbstractArray{<:NamedTuple}; 
-        antarry, source = (;name="UNKNOWN", ra=0.0, dec=0.0);
+        antarray, source = (;name="UNKNOWN", ra=0.0, dec=0.0),
         pol = :I,
         debias = false,
         kwargs...
@@ -420,7 +419,7 @@ infinite uncertainty.
 """
 function Comrade.extract_coherency(
         uvtbl::AbstractArray{<:NamedTuple}; 
-        antarry, source = (;name="UNKNOWN", ra=0.0, dec=0.0);
+        antarray, source = (;name="UNKNOWN", ra=0.0, dec=0.0),
         kwargs...
     )
     hands = (:RR, :RL, :LR, :LL)
@@ -610,12 +609,12 @@ as the maximal set (`count="max"`).
 """
 function Comrade.extract_cphase(
         uvtbl::AbstractArray{<:NamedTuple}; 
-        antarry, source = (;name="UNKNOWN", ra=0.0, dec=0.0);
+        antarray, source = (;name="UNKNOWN", ra=0.0, dec=0.0),
         pol = :I, count="min",
         kwargs...
     )
     dvis = Comrade.extract_vis(
-        uvtbl; antarry, source, pol,
+        uvtbl; antarray, source, pol,
         kwargs...
     )
     cphase = _build_closures(dvis, Val(:cphase))
@@ -636,12 +635,12 @@ Extract log-closure amplitudes.
 """
 function Comrade.extract_lcamp(
         uvtbl::AbstractArray{<:NamedTuple}; 
-        antarry, source = (;name="UNKNOWN", ra=0.0, dec=0.0);
+        antarray, source = (;name="UNKNOWN", ra=0.0, dec=0.0),
         pol = :I, count = "min",
         kwargs...
     )
     dvis = Comrade.extract_vis(
-        uvtbl; antarry, source, pol,
+        uvtbl; antarray, source, pol,
         kwargs...
     )
     lcamp = _build_closures(dvis, Val(:lcamp))
