@@ -2,8 +2,7 @@ module ComradeVLBIFilesExt
 
 using Comrade
 using VLBIFiles
-using VLBIData
-using VLBIData: VLBI, AntennaMountType, uvtable
+using VLBIFiles: VLBIData
 using Comrade: PolarizedTypes
 using Comrade.PolarizedTypes: CirBasis, LinBasis
 using AstroLib
@@ -23,14 +22,14 @@ _to_hz(q) = Float64(q.val)
 # Conventions match eht-imaging's antenna table: 1 = field rotates with the
 # corresponding angle, 0 = no rotation, ±1 for Naismith handedness.
 const _MOUNT_FR = Dict(
-    AntennaMountType.AltAzimuth => (1.0, 0.0, 0.0),
-    AntennaMountType.Equatorial => (0.0, 0.0, 0.0),
-    AntennaMountType.Orbiting => (0.0, 0.0, 0.0),
-    AntennaMountType.XY => (1.0, 0.0, 0.0),
-    AntennaMountType.NaismithR => (1.0, 1.0, 0.0),
-    AntennaMountType.NaismithL => (1.0, -1.0, 0.0),
-    AntennaMountType.ApertureArray => (0.0, 0.0, 0.0),
-    AntennaMountType.Unknown => (1.0, 0.0, 0.0),
+    VLBIData.AntennaMountType.AltAzimuth => (1.0, 0.0, 0.0),
+    VLBIData.AntennaMountType.Equatorial => (0.0, 0.0, 0.0),
+    VLBIData.AntennaMountType.Orbiting => (0.0, 0.0, 0.0),
+    VLBIData.AntennaMountType.XY => (1.0, 0.0, 0.0),
+    VLBIData.AntennaMountType.NaismithR => (1.0, 1.0, 0.0),
+    VLBIData.AntennaMountType.NaismithL => (1.0, -1.0, 0.0),
+    VLBIData.AntennaMountType.ApertureArray => (0.0, 0.0, 0.0),
+    VLBIData.AntennaMountType.Unknown => (1.0, 0.0, 0.0),
 )
 
 
