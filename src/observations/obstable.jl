@@ -182,3 +182,27 @@ function Base.view(obs::EHTObservationTable{F}, i::AbstractVector) where {F <: C
     s = @view noise(obs)[i, i]
     return EHTObservationTable{F}(m, s, conf)
 end
+
+"""
+    reset_mounts!(d::EHTObservation, overrides)
+
+Apply per-site overrides to the array configuration of an `EHTObservation` from a dict of the form `Dict{Symbol, NamedTuple}` 
+where the keys are site names and the values are named tuples with fields `SEFD1`, `SEFD2`, `fr_parallactic`, `fr_elevation`, and `fr_offset`.
+You can construct the overrides from ehtim-style array.txt files via [`Comrade.load_array_txt`](@ref) or programmatically.
+"""
+function reset_mounts!(d::EHTObservationTable, overrides)
+    tarr = arrayconfig(d).tarr
+    for i in eachindex(tarr.sites)
+        site = tarr.sites[i]
+        if haskey(overrides, site)
+            o = overrides[site]
+            tarr.SEFD1[i] = o.SEFD1
+            tarr.SEFD2[i] = o.SEFD2
+            tarr.fr_parallactic[i] = o.fr_parallactic
+            tarr.fr_elevation[i] = o.fr_elevation
+            tarr.fr_offset[i] = o.fr_offset
+        end
+    end
+    return d
+end
+
