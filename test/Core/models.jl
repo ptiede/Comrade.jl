@@ -174,11 +174,11 @@ end
 
     img4 = apply_fluctuations(CenteredLR(), m, g, δ)
     img5nf = apply_fluctuations(CenteredLR(), mimg, δ)
-    img5 = apply_fluctuations(CenteredLR(), mimg ./ flux(mimg), δ)
+    img5 = apply_fluctuations(CenteredLR(), mimg ./ Comrade.flux(mimg), δ)
     @test img4 ≈ img5
     @test img5nf ≈ img5
 
-    img6 = apply_fluctuations(UnitFluxMap(exp), mimg ./ flux(mimg), δ)
+    img6 = apply_fluctuations(UnitFluxMap(exp), mimg ./ Comrade.flux(mimg), δ)
     @test img6 ≈ img5
     img7 = apply_fluctuations(UnitFluxMap(exp), mimg, δ)
     @test img7 ≈ img5
