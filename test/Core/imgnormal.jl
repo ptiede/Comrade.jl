@@ -14,7 +14,7 @@ using Distributions
     # Test with a simple reduction function (total flux)
     @testset "Total Flux Measurement" begin
         # Create reduction function for total flux
-        reduction = flux
+        reduction = Comrade.flux
 
         # Get a sample image to create mock measurement
         x0 = prior_sample(base_post)
@@ -132,7 +132,7 @@ using Distributions
 
     @testset "Combining ImgNormalData with VLBI data" begin
         # Create image measurement data
-        reduction = flux
+        reduction = Comrade.flux
         measurement = [1.0]
         noise = [0.1]
         imgdata = ImgNormalData(reduction, measurement, noise)
