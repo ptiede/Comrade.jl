@@ -38,7 +38,6 @@ function reset_mounts!(dvis::AbstractObservationTable, file::AbstractString)
 end
 
 function add_fractional_noise!(dvis::EHTObservationTable{<:EHTCoherencyDatum}, ferr)
-    @info "HERE"
     map!(dvis[:noise], dvis[:noise], dvis[:measurement]) do e, m
         # we do it like this so I don't NaN everything
         # if a feed is missing
@@ -50,7 +49,6 @@ function add_fractional_noise!(dvis::EHTObservationTable{<:EHTCoherencyDatum}, f
             err = tr(m) / 2
         end
         fe = @. sqrt(e^2 + ferr^2 * abs2(err))
-        @info fe
         return fe
     end
     return dvis
