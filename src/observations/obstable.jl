@@ -205,4 +205,3 @@ function reset_mounts!(d::EHTObservationTable, overrides)
     end
     return d
 end
-

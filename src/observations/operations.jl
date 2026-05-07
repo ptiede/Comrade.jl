@@ -26,8 +26,8 @@ function reset_mounts!(dvis::AbstractObservationTable, overrides)
         haskey(ov, :SEFD1)          && (tarr.SEFD1[i] = ov[:SEFD1])
         haskey(ov, :SEFD2)          && (tarr.SEFD2[i] = ov[:SEFD2])
         haskey(ov, :fr_parallactic) && (tarr.fr_parallactic[i] = ov[:fr_parallactic])
-        haskey(ov, :fr_elevation)   && (tarr.fr_elevation[i]   = ov[:fr_elevation])
-        haskey(ov, :fr_offset)      && (tarr.fr_offset[i]      = ov[:fr_offset])
+        haskey(ov, :fr_elevation)   && (tarr.fr_elevation[i] = ov[:fr_elevation])
+        haskey(ov, :fr_offset)      && (tarr.fr_offset[i] = ov[:fr_offset])
     end
     return dvis
 end
@@ -49,7 +49,7 @@ function add_fractional_noise!(dvis::EHTObservationTable{<:EHTCoherencyDatum}, f
         else
             err = tr(m) / 2
         end
-        fe = @. sqrt(e ^ 2 + ferr ^ 2 * abs2(err))
+        fe = @. sqrt(e^2 + ferr^2 * abs2(err))
         @info fe
         return fe
     end

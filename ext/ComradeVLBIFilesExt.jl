@@ -67,7 +67,7 @@ end
 
 
 function _build_tarr(
-        ar::VLBIFiles.AntArray;
+        ar::VLBIFiles.AntArray
     )
     # collect unique antennas across (typically just one) ant_array
     seen = Set{Symbol}()
@@ -99,10 +99,10 @@ function _build_tarr(
 end
 
 function Comrade._preptable(obs::VLBIFiles.UVData, dataproduct::Comrade.VLBIDataProducts)
-    
+
     time_average = get(dataproduct.keywords, :time_average, nothing)
     frequency_average = get(dataproduct.keywords, :frequency_average, true)
-    
+
     uvtbl = VLBIData.uvtable(obs)
     antarray = only(obs.ant_arrays)
     ra, dec = _radec(obs)
@@ -111,7 +111,7 @@ function Comrade._preptable(obs::VLBIFiles.UVData, dataproduct::Comrade.VLBIData
         uvtbl, dataproduct;
         time_average, frequency_average,
     )
-    dataproduct2 = @set dataproduct.keywords = merge(NamedTuple(Comrade.keywords(dataproduct)), (;antarray, source))
+    dataproduct2 = @set dataproduct.keywords = merge(NamedTuple(Comrade.keywords(dataproduct)), (; antarray, source))
     return puvtbl, dataproduct2
 end
 
@@ -128,9 +128,9 @@ end
 
 
 function _arrayconfig(
-        uvtbl; 
-        antarray, 
-        source = (;name="UNKNOWN", ra=0.0, dec=0.0)
+        uvtbl;
+        antarray,
+        source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0)
     )
     ra_deg, dec_deg = source.ra, source.dec
     # Pyehtim/ehtim stores RA in hours; match that convention so downstream
@@ -139,7 +139,7 @@ function _arrayconfig(
     mjd = _mjd(minimum(uvtbl.datetime))
     nm = source.name
     bw = _to_hz(uvtbl[1].freq_spec.width)
-    
+
     tarr = _build_tarr(antarray)
     scans = _build_scans(VLBIData.GapBasedScans(), uvtbl)
 
@@ -373,8 +373,8 @@ row of `VLBIFiles.uvtable(uvd)` after polarization filtering.
 mount type for individual stations.
 """
 function Comrade.extract_vis(
-        uvtbl::AbstractArray{<:NamedTuple}; 
-        antarray, source = (;name="UNKNOWN", ra=0.0, dec=0.0),
+        uvtbl::AbstractArray{<:NamedTuple};
+        antarray, source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0),
         pol = :I,
         kwargs...
     )
@@ -393,8 +393,8 @@ Build a Comrade `EHTObservationTable` of visibility amplitudes. If
 `debias=true` the Rice-bias correction `√max(|V|² − σ², 0)` is applied.
 """
 function Comrade.extract_amp(
-        uvtbl::AbstractArray{<:NamedTuple}; 
-        antarray, source = (;name="UNKNOWN", ra=0.0, dec=0.0),
+        uvtbl::AbstractArray{<:NamedTuple};
+        antarray, source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0),
         pol = :I,
         debias = false,
         kwargs...
@@ -421,8 +421,8 @@ a given (time, baseline, frequency) row are filled with `NaN+NaN*im` and
 infinite uncertainty.
 """
 function Comrade.extract_coherency(
-        uvtbl::AbstractArray{<:NamedTuple}; 
-        antarray, source = (;name="UNKNOWN", ra=0.0, dec=0.0),
+        uvtbl::AbstractArray{<:NamedTuple};
+        antarray, source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0),
         kwargs...
     )
     hands = (:RR, :RL, :LR, :LL)
@@ -612,9 +612,9 @@ then optionally reduced to a minimal independent set (`count="min"`) or kept
 as the maximal set (`count="max"`).
 """
 function Comrade.extract_cphase(
-        uvtbl::AbstractArray{<:NamedTuple}; 
-        antarray, source = (;name="UNKNOWN", ra=0.0, dec=0.0),
-        pol = :I, count="min",
+        uvtbl::AbstractArray{<:NamedTuple};
+        antarray, source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0),
+        pol = :I, count = "min",
         kwargs...
     )
     dvis = Comrade.extract_vis(
@@ -638,8 +638,8 @@ end
 Extract log-closure amplitudes.
 """
 function Comrade.extract_lcamp(
-        uvtbl::AbstractArray{<:NamedTuple}; 
-        antarray, source = (;name="UNKNOWN", ra=0.0, dec=0.0),
+        uvtbl::AbstractArray{<:NamedTuple};
+        antarray, source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0),
         pol = :I, count = "min",
         kwargs...
     )
