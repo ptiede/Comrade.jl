@@ -4,6 +4,7 @@ using Comrade
 using Accessors
 using VLBIFiles
 using VLBIFiles: VLBIData
+using VLBIData: VLBI
 using Comrade: PolarizedTypes
 using Comrade.PolarizedTypes: CirBasis, LinBasis
 using AstroLib
@@ -138,8 +139,7 @@ function _arrayconfig(
     ra_hours = ra_deg / 15
     mjd = _mjd(minimum(uvtbl.datetime))
     nm = source.name
-    bwarr = uvtbl[1].freq_spec.width |> _to_hz
-    bw = length(bwarr) == 1 ? bwarr[1] : bwarr
+    bw = _to_hz(uvtbl[1].freq_spec.width)
     
     tarr = _build_tarr(antarray)
     scans = _build_scans(VLBIData.GapBasedScans(), uvtbl)
@@ -227,11 +227,12 @@ function _prep_uvtable(
     )
 
     pol = getpol(dataproduct)
+    rows = uvtbl
     if frequency_average !== nothing && frequency_average !== false
-        rows = VLBI.average_data(VLBI.ByFrequency(), uvtbl)
+        rows = VLBI.average_data(VLBI.ByFrequency(), rows)
     end
     if time_average !== nothing && time_average !== false
-        rows = VLBI.average_data(time_average, uvtbl)
+        rows = VLBI.average_data(time_average, rows)
     end
 
     return _filter_to_pol(rows, pol)
@@ -400,7 +401,7 @@ function Comrade.extract_amp(
         kwargs...
     )
     config = _arrayconfig(uvtbl; antarray, source)
-    vis, err = getvisfield(rows)
+    vis, err = getvisfield(uvtbl)
     amp = abs.(vis)
     if debias
         amp = @. sqrt(max(amp^2 - err^2, zero(amp)))
