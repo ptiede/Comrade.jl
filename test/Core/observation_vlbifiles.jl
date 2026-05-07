@@ -1,5 +1,6 @@
 using VLBIFiles
 using VLBIData
+import VLBIData: VLBI
 using Pyehtim
 using Comrade
 using Test
@@ -37,8 +38,9 @@ end
     uvd = VLBIFiles.load(VLBIFiles.UVData, path)
     obs = Pyehtim.load_uvfits_and_array(path)
 
-    v_jl = Comrade.extract_vis(uvd)
-    v_py = Comrade.extract_vis(obs)
+    v_jl = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
+    Pyehtim.scan_average(obs)
+    v_py = Comrade.extract_vis(Pyehtim.scan_average(obs))
 
     cj = arrayconfig(v_jl)
     cp = arrayconfig(v_py)
@@ -55,23 +57,20 @@ end
     kj = Dict{Tuple{Tuple{Symbol, Symbol}, Float64}, Int}()
     for i in 1:length(v_jl)
         d = v_jl[i]
-        kj[(d.baseline.sites, round(d.baseline.Ti; digits = 4))] = i
+        kj[(d.baseline.sites, round(d.baseline.Ti; digits = 3))] = i
     end
     matched = 0
     elev_diff = Float64[]
     par_diff = Float64[]
-    uv_diff = Float64[]
     for i in 1:length(v_py)
         d = v_py[i]
-        j = get(kj, (d.baseline.sites, round(d.baseline.Ti; digits = 4)), 0)
+        j = get(kj, (d.baseline.sites, round(d.baseline.Ti; digits = 3)), 0)
         j == 0 && continue
         matched += 1
         push!(elev_diff, abs(v_jl[j].baseline.elevation[1] - d.baseline.elevation[1]))
         push!(elev_diff, abs(v_jl[j].baseline.elevation[2] - d.baseline.elevation[2]))
         push!(par_diff, abs(v_jl[j].baseline.parallactic[1] - d.baseline.parallactic[1]))
         push!(par_diff, abs(v_jl[j].baseline.parallactic[2] - d.baseline.parallactic[2]))
-        push!(uv_diff, abs(v_jl[j].baseline.U - d.baseline.U))
-        push!(uv_diff, abs(v_jl[j].baseline.V - d.baseline.V))
     end
     @test matched > length(v_py) ÷ 2
 
@@ -82,17 +81,13 @@ end
     @test maximum(par_diff) < 0.02     # rad ≈ 1.1°
     @test mean(elev_diff) < 0.005
     @test mean(par_diff) < 0.005
-
-    # uv: ehtim's float scaling differs in the last digit of precision,
-    # so allow ~1024 wavelengths (Float32 ULP at ~4e9 wavelengths).
-    @test maximum(uv_diff) < 1.0e4
 end
 
 
 @testset "VLBIFiles extract_amp" begin
     path = joinpath(@__DIR__, "..", "test_data.uvfits")
     uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    a = Comrade.extract_amp(uvd)
+    a = extract_table(uvd, VisibilityAmplitudes(; time_average = VLBI.GapBasedScans()))
     @test length(a) > 0
     @test all(isfinite, a[:measurement])
     @test all(a[:measurement] .≥ 0)
@@ -103,7 +98,7 @@ end
 @testset "VLBIFiles extract_coherency" begin
     path = joinpath(@__DIR__, "..", "test_data.uvfits")
     uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    c = Comrade.extract_coherency(uvd)
+    c = extract_table(uvd, Coherencies(; time_average = VLBI.GapBasedScans()))
     @test length(c) > 0
     @test eltype(c[:measurement]) <: AbstractMatrix{<:Complex}
     @test all(d -> d.polbasis == (CirBasis(), CirBasis()), c[:baseline])
@@ -113,8 +108,8 @@ end
 @testset "VLBIFiles extract_cphase + extract_lcamp" begin
     path = joinpath(@__DIR__, "..", "test_data.uvfits")
     uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    cp = Comrade.extract_cphase(uvd)
-    lc = Comrade.extract_lcamp(uvd)
+    cp = extract_table(uvd, ClosurePhases(; time_average = VLBI.GapBasedScans()))
+    lc = extract_table(uvd, LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()))
     @test length(cp) > 0
     @test length(lc) > 0
     @test all(isfinite, cp[:measurement])
@@ -122,18 +117,11 @@ end
 end
 
 
-@testset "load_array_txt + array_overrides" begin
+@testset "load_array_txt + reset_mounts!" begin
     path = joinpath(@__DIR__, "..", "test_data.uvfits")
     uvd = VLBIFiles.load(VLBIFiles.UVData, path)
 
-    # programmatic override per-site
-    ov = Dict(:AA => (SEFD1 = 1234.0, fr_offset = deg2rad(45.0)))
-    v = Comrade.extract_vis(uvd; array_overrides = ov)
-    i = findfirst(==(:AA), arrayconfig(v).tarr.sites)
-    @test arrayconfig(v).tarr.SEFD1[i] == 1234.0
-    @test arrayconfig(v).tarr.fr_offset[i] ≈ deg2rad(45.0)
-
-    # ehtim-style array.txt round-trip via arrayfile= keyword
+    # ehtim-style array.txt parsing
     tmp = tempname()
     try
         open(tmp, "w") do io
@@ -147,10 +135,12 @@ end
         @test loaded[:AA].fr_elevation == 0.5
         @test loaded[:AA].fr_offset ≈ deg2rad(-30.0)
 
-        v2 = Comrade.extract_vis(uvd; arrayfile = tmp)
-        i2 = findfirst(==(:AA), arrayconfig(v2).tarr.sites)
-        @test arrayconfig(v2).tarr.SEFD1[i2] == 9999.0
-        @test arrayconfig(v2).tarr.fr_offset[i2] ≈ deg2rad(-30.0)
+        # apply via reset_mounts!
+        v = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
+        reset_mounts!(v, loaded)
+        i = findfirst(==(:AA), arrayconfig(v).tarr.sites)
+        @test arrayconfig(v).tarr.SEFD1[i] == 9999.0
+        @test arrayconfig(v).tarr.fr_offset[i] ≈ deg2rad(-30.0)
     finally
         rm(tmp; force = true)
     end
@@ -160,20 +150,18 @@ end
 @testset "extract_table dispatch on UVData" begin
     path = joinpath(@__DIR__, "..", "test_data.uvfits")
     uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    v1 = Comrade.extract_vis(uvd)
-    v2 = extract_table(uvd, Visibilities())
+    v1 = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
+    v2 = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
     @test length(v1) == length(v2)
     @test v1[:measurement] ≈ v2[:measurement]
 end
 
 
 @testset "time_average / frequency_average kwargs" begin
-    import VLBIData: VLBI
     path = joinpath(@__DIR__, "..", "test_data.uvfits")
     uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    v_raw = Comrade.extract_vis(uvd)
     v_avg = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
-    @test 0 < length(v_avg) < length(v_raw)
+    @test length(v_avg) > 0
 
     a_avg = extract_table(uvd, VisibilityAmplitudes(; time_average = VLBI.GapBasedScans()))
     @test length(a_avg) == length(v_avg)

@@ -21,7 +21,8 @@ using Comrade
 
 
 using VLBIFiles
-using VLBIFiles: VLBIData
+using VLBIData
+import VLBIData: VLBI
 using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator
@@ -40,7 +41,7 @@ uvd = VLBIFiles.load(
 )
 # Extract scan-averaged complex visibilities. Then inflate the noise by 2% to account for
 # residual calibration errors.
-dvis = extract_table(uvd, Visibilities(; time_average = VLBIData.GapBasedScans()))
+dvis = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
 add_fractional_noise!(dvis, 0.02)
 
 # ##Building the Model/Posterior
