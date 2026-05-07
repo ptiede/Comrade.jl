@@ -104,7 +104,7 @@ grid = imagepixels(fovxy, fovxy, npix, npix)
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
 imgpr = intensitymap(mpr, grid)
-mimg = imgpr ./ flux(imgpr);
+mimg = imgpr ./ Comrade.flux(imgpr);
 
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the
