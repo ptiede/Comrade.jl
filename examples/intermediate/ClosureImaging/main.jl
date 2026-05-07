@@ -34,10 +34,9 @@ close(pkg_io) #hide
 # To get started, we will load Comrade
 using Comrade
 
-# VLBIFiles is a pure-Julia uvfits reader; VLBIData carries the averaging strategies.
+# VLBIFiles is a pure-Julia uvfits reader; it re-exports VLBIData, so the
+# `VLBI` averaging namespace is in scope too.
 using VLBIFiles
-using VLBIData
-import VLBIData: VLBI
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs

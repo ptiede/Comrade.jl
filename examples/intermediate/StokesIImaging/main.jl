@@ -21,8 +21,6 @@ using Comrade
 
 
 using VLBIFiles
-using VLBIData
-import VLBIData: VLBI
 using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator

@@ -3,8 +3,7 @@ module ComradeVLBIFilesExt
 using Comrade
 using Accessors
 using VLBIFiles
-using VLBIFiles: VLBIData
-using VLBIData: VLBI
+using VLBIFiles: VLBIData, VLBI
 using Comrade: PolarizedTypes
 using Comrade.PolarizedTypes: CirBasis, LinBasis
 using AstroLib

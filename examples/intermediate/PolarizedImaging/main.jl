@@ -101,8 +101,6 @@ using Comrade
 
 # ## Load the Data
 using VLBIFiles
-using VLBIData
-import VLBIData: VLBI
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs

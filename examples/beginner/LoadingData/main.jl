@@ -21,11 +21,10 @@ close(pkg_io) #hide
 using Comrade
 using CairoMakie
 
-# We also load `VLBIFiles` (which loads `VLBIData`) to read the uvfits file. The averaging
-# strategies live on the `VLBI` namespace inside `VLBIData`.
+# We also load `VLBIFiles` to read the uvfits file. `VLBIFiles` re-exports
+# `VLBIData`, so all of the data-table types (`uvtable`, `Antenna`, …) and the
+# `VLBI` averaging namespace come along for free.
 using VLBIFiles
-using VLBIData
-import VLBIData: VLBI
 
 # We will use the 2017 public M87 data which can be downloaded from
 # [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019)

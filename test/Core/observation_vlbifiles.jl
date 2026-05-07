@@ -1,6 +1,4 @@
 using VLBIFiles
-using VLBIData
-import VLBIData: VLBI
 using Pyehtim
 using Comrade
 using Test

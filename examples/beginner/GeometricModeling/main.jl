@@ -25,10 +25,9 @@ close(pkg_io) #hide
 using Comrade
 
 
-# We load uvfits with the pure-Julia VLBIFiles loader.
+# We load uvfits with the pure-Julia VLBIFiles loader. VLBIFiles re-exports
+# VLBIData, so the `VLBI` averaging namespace is in scope too.
 using VLBIFiles
-using VLBIData
-import VLBIData: VLBI
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(42)
