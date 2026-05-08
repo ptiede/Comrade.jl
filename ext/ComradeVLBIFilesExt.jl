@@ -242,7 +242,7 @@ function _prep_uvtable(
     if time_average !== nothing && time_average !== false
         rows = VLBI.average_data(time_average, rows)
     end
-    
+
     scan_table = VLBIData.scan_intervals(time_average, uvtbl)
 
     return rows, scan_table
