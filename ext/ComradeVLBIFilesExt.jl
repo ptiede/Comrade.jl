@@ -107,20 +107,24 @@ function Comrade._preptable(obs::VLBIFiles.UVData, dataproduct::Comrade.VLBIData
     antarray = only(obs.ant_arrays)
     ra, dec = _radec(obs)
     source = (; name = obs.header.object, ra = ra, dec = dec)
-    puvtbl = _prep_uvtable(
+    puvtbl, scan_table = _prep_uvtable(
         uvtbl;
         time_average, frequency_average,
     )
-    dataproduct2 = @set dataproduct.keywords = merge(NamedTuple(Comrade.keywords(dataproduct)), (; antarray, source))
+    dataproduct2 = @set dataproduct.keywords = merge(NamedTuple(Comrade.keywords(dataproduct)), (; antarray, source, scan_table))
     return puvtbl, dataproduct2
 end
 
 
-function _build_scans(method, uvtbl)
-    if hasproperty(uvtbl, :scan_id)
-        sint = VLBIData.scan_intervals(uvtbl)
+function _build_scans(method, scan_table, uvtbl)
+    if isnothing(scan_table)
+        if hasproperty(uvtbl, :scan_id)
+            sint = VLBIData.scan_intervals(uvtbl)
+        else
+            sint = VLBIData.scan_intervals(method, uvtbl)
+        end
     else
-        sint = VLBIData.scan_intervals(method, uvtbl)
+        sint = scan_table
     end
 
     si = VLBIData.IntervalSets.endpoints.(sint)
@@ -137,7 +141,8 @@ function _arrayconfig(
         ptbl,
         uvtbl;
         antarray,
-        source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0)
+        source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0),
+        scan_table = nothing,
     )
     ra_deg, dec_deg = source.ra, source.dec
     # Pyehtim/ehtim stores RA in hours; match that convention so downstream
@@ -147,7 +152,7 @@ function _arrayconfig(
     nm = source.name
     bw = _to_hz(uvtbl[1].freq_spec.width)
     tarr = _build_tarr(antarray)
-    scans = _build_scans(VLBIData.GapBasedScans(), uvtbl)
+    scans = _build_scans(VLBIData.GapBasedScans(), scan_table, uvtbl)
 
     n = length(ptbl)
     U = Vector{Float64}(undef, n)
@@ -237,8 +242,10 @@ function _prep_uvtable(
     if time_average !== nothing && time_average !== false
         rows = VLBI.average_data(time_average, rows)
     end
+    
+    scan_table = VLBIData.scan_intervals(time_average, uvtbl)
 
-    return rows
+    return rows, scan_table
 end
 
 getpol(::Comrade.VLBIDataProducts) = PolarizedTypes.IPol
@@ -277,13 +284,14 @@ mount type for individual stations.
 function Comrade.extract_vis(
         uvtbl::AbstractArray{<:NamedTuple};
         antarray, source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0),
+        scan_table = nothing,
         pol = :I,
         kwargs...
     )
 
 
     val = VLBIData.uvtable_values_to(IPol, uvtbl)
-    config = _arrayconfig(val, uvtbl; antarray, source)
+    config = _arrayconfig(val, uvtbl; antarray, source, scan_table)
     vis, err = getvisfield(val)
     T = Comrade.EHTVisibilityDatum{pol, eltype(err), typeof(config[1])}
     return Comrade.EHTObservationTable{T}(vis, err, config)
@@ -300,11 +308,12 @@ Build a Comrade `EHTObservationTable` of visibility amplitudes. If
 function Comrade.extract_amp(
         uvtbl::AbstractArray{<:NamedTuple};
         antarray, source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0),
+        scan_table = nothing,
         pol = :I,
         debias = false,
         kwargs...
     )
-    config = _arrayconfig(uvtbl; antarray, source)
+    config = _arrayconfig(uvtbl; antarray, source, scan_table)
     vis, err = getvisfield(uvtbl)
     amp = abs.(vis)
     if debias
