@@ -117,7 +117,13 @@ end
 
 
 function _build_scans(method, uvtbl)
-    si = VLBIData.IntervalSets.endpoints.(VLBIData.scan_intervals(method, uvtbl))
+    if hasproperty(uvtbl, :scan_id)
+        sint = VLBIData.scan_intervals(uvtbl)
+    else
+        sint = VLBIData.scan_intervals(method, uvtbl)
+    end
+
+    si = VLBIData.IntervalSets.endpoints.(sint)
     start = first.(si)
     stop = last.(si)
     day0 = Date(start[1])
@@ -128,6 +134,7 @@ end
 
 
 function _arrayconfig(
+        ptbl,
         uvtbl;
         antarray,
         source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0)
@@ -142,7 +149,7 @@ function _arrayconfig(
     tarr = _build_tarr(antarray)
     scans = _build_scans(VLBIData.GapBasedScans(), uvtbl)
 
-    n = length(uvtbl)
+    n = length(ptbl)
     U = Vector{Float64}(undef, n)
     V = Vector{Float64}(undef, n)
     Ti = Vector{Float64}(undef, n)
@@ -168,9 +175,9 @@ function _arrayconfig(
     polbasis = fill(single_pb, n)
 
     geocache = Dict{Tuple{Symbol, DateTime}, NTuple{2, Float64}}()
-    day0 = Date(minimum(uvtbl.datetime))
-    @inbounds for i in 1:n
-        r = uvtbl[i]
+    day0 = Date(minimum(ptbl.datetime))
+    @inbounds for i in eachindex(ptbl)
+        r = ptbl[i]
         s1, s2 = r.spec.bl.antennas
         U[i] = Float64(r.spec.uv.u)
         V[i] = Float64(r.spec.uv.v)
@@ -223,11 +230,12 @@ function _prep_uvtable(
         uvtbl;
         time_average = nothing, frequency_average = true
     )
+    rows = uvtbl
     if frequency_average !== nothing && frequency_average !== false
-        rows = VLBI.average_data(VLBI.ByFrequency(), uvtbl)
+        rows = VLBI.average_data(VLBI.ByFrequency(), rows)
     end
     if time_average !== nothing && time_average !== false
-        rows = VLBI.average_data(time_average, uvtbl)
+        rows = VLBI.average_data(time_average, rows)
     end
 
     return rows
@@ -320,12 +328,20 @@ function Comrade.extract_coherency(
         kwargs...
     )
 
-    spine_struct = VLBIData.uvtable_values_to(CoherencyMatrix, uvtbl)
+    coherency = VLBIData.uvtable_values_to(CoherencyMatrix, uvtbl)
+    config = _arrayconfig(coherency, uvtbl; antarray, source)
 
-    config = _arrayconfig(spine_struct; antarray, source)
+    cohmat = StructArray{SMatrix{2, 2, ComplexF64, 4}}(undef, length(coherency))
+    errmat = StructArray{SMatrix{2, 2, Float64, 4}}(undef, length(coherency))
 
-    cohmat = StructArray{SMatrix{2, 2, ComplexF64, 4}}((rrv, lrv, rlv, llv))
-    errmat = StructArray{SMatrix{2, 2, Float64, 4}}((rre, lre, rle, lle))
+    for i in eachindex(coherency)
+        c = coherency[i].value
+        v = getproperty.(c, :v)
+        e = getproperty.(c, :u)
+        cohmat[i] = v
+        errmat[i] = e
+    end
+
     T = Comrade.EHTCoherencyDatum{Float64, typeof(config[1]), eltype(cohmat), eltype(errmat)}
     return Comrade.EHTObservationTable{T}(cohmat, errmat, config)
 end
