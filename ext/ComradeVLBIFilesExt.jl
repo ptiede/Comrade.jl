@@ -108,7 +108,7 @@ function Comrade._preptable(obs::VLBIFiles.UVData, dataproduct::Comrade.VLBIData
     ra, dec = _radec(obs)
     source = (; name = obs.header.object, ra = ra, dec = dec)
     puvtbl = _prep_uvtable(
-        uvtbl, dataproduct;
+        uvtbl;
         time_average, frequency_average,
     )
     dataproduct2 = @set dataproduct.keywords = merge(NamedTuple(Comrade.keywords(dataproduct)), (; antarray, source))
@@ -139,7 +139,6 @@ function _arrayconfig(
     mjd = _mjd(minimum(uvtbl.datetime))
     nm = source.name
     bw = _to_hz(uvtbl[1].freq_spec.width)
-
     tarr = _build_tarr(antarray)
     scans = _build_scans(VLBIData.GapBasedScans(), uvtbl)
 
@@ -221,126 +220,21 @@ end
 #   time_average=VLBI.GapBasedScans()           -> VLBI.average_data(time_average, ...)
 #   time_average=VLBI.FixedTimeIntervals(...)
 function _prep_uvtable(
-        uvtbl, dataproduct;
+        uvtbl;
         time_average = nothing, frequency_average = true
     )
-
-    pol = getpol(dataproduct)
-    rows = uvtbl
     if frequency_average !== nothing && frequency_average !== false
-        rows = VLBI.average_data(VLBI.ByFrequency(), rows)
+        rows = VLBI.average_data(VLBI.ByFrequency(), uvtbl)
     end
     if time_average !== nothing && time_average !== false
-        rows = VLBI.average_data(time_average, rows)
+        rows = VLBI.average_data(time_average, uvtbl)
     end
 
-    return _filter_to_pol(rows, pol)
+    return rows
 end
 
-function getpol(dataproduct)
-    pol = get(dataproduct.keywords, :pol, :I)
-    return pol
-end
-
-function getpol(::Coherencies)
-    return :all
-end
-
-function _filter_to_pol(uvtbl, pol::Symbol)
-    available = Set(unique(uvtbl.stokes))
-
-    pol == :all && return uvtbl
-    mode = _pol_filter(pol, available)
-
-    if mode === :raw
-        return uvtbl[uvtbl.stokes .== pol]
-    elseif mode === :I_circ
-        # take I = (RR + LL) / 2 per (datetime, baseline, freq_spec)
-        return _combine_parallel_hands(uvtbl, (:RR, :LL))
-    elseif mode === :I_lin
-        return _combine_parallel_hands(uvtbl, (:XX, :YY))
-    end
-end
-
-
-# Combine two parallel-hand stokes per group into a single Stokes-I row.
-# Outer-join: if BOTH hands are present, I = (h1 + h2)/2; if only one is
-# present, use it directly (consistent with V≈0). Rows are only dropped if
-# both hands are absent — which can't happen with the union spine below.
-function _combine_parallel_hands(uvtbl, hands::NTuple{2, Symbol})
-    h1, h2 = hands
-    rows1 = uvtbl[uvtbl.stokes .== h1]
-    rows2 = uvtbl[uvtbl.stokes .== h2]
-    keyfn = r -> (r.datetime, r.spec.bl.antennas, r.freq_spec.freq, r.spec.uv.u, r.spec.uv.v)
-
-    map1 = Dict{Any, Int}()
-    for (i, r) in pairs(rows1)
-        map1[keyfn(r)] = i
-    end
-    map2 = Dict{Any, Int}()
-    for (j, r) in pairs(rows2)
-        map2[keyfn(r)] = j
-    end
-
-    pair_idx = Tuple{Int, Int}[]
-    for (i, r) in pairs(rows1)
-        j = get(map2, keyfn(r), 0)
-        push!(pair_idx, (i, j))
-    end
-    for (j, r) in pairs(rows2)
-        haskey(map1, keyfn(r)) && continue
-        push!(pair_idx, (0, j))
-    end
-
-    n = length(pair_idx)
-    template = isempty(rows1) ? rows2[1] : rows1[1]
-    Tval = typeof(template.value)
-    Tdt = typeof(template.datetime)
-    Tfs = typeof(template.freq_spec)
-    Tsp = typeof(template.spec)
-
-    datetimes = Vector{Tdt}(undef, n)
-    freq_specs = Vector{Tfs}(undef, n)
-    specs = Vector{Tsp}(undef, n)
-    new_value = Vector{Tval}(undef, n)
-
-    for k in 1:n
-        i, j = pair_idx[k]
-        if i != 0 && j != 0
-            r1 = rows1[i]; r2 = rows2[j]
-            v1, e1 = r1.value.v, r1.value.u
-            v2, e2 = r2.value.v, r2.value.u
-            I = (v1 + v2) / 2
-            σI = sqrt(e1^2 + e2^2) / 2
-            datetimes[k] = r1.datetime
-            freq_specs[k] = r1.freq_spec
-            specs[k] = r1.spec
-            new_value[k] = Tval(I, σI)
-        elseif i != 0
-            r1 = rows1[i]
-            datetimes[k] = r1.datetime
-            freq_specs[k] = r1.freq_spec
-            specs[k] = r1.spec
-            new_value[k] = Tval(r1.value.v, r1.value.u)
-        else
-            r2 = rows2[j]
-            datetimes[k] = r2.datetime
-            freq_specs[k] = r2.freq_spec
-            specs[k] = r2.spec
-            new_value[k] = Tval(r2.value.v, r2.value.u)
-        end
-    end
-
-    return StructArray(
-        (;
-            datetime = datetimes,
-            stokes = fill(:I, n),
-            freq_spec = freq_specs,
-            spec = specs,
-            value = new_value,
-        )
-    )
-end
+getpol(::Comrade.VLBIDataProducts) = PolarizedTypes.IPol
+getpol(::Coherencies) = CoherencyMatrix
 
 
 function getvisfield(uvtbl)
@@ -425,72 +319,8 @@ function Comrade.extract_coherency(
         antarray, source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0),
         kwargs...
     )
-    hands = (:RR, :RL, :LR, :LL)
 
-
-    ## TODO once VLBIFIles can handle missing feeds we can simplify this.
-    keyfn = r -> (r.datetime, r.spec.bl.antennas, r.freq_spec.freq, r.spec.uv.u, r.spec.uv.v)
-    rows_by = Dict{Symbol, Any}()
-    keys_for = Dict{Symbol, Dict{Any, Int}}()
-    for h in hands
-        rh = uvtbl[uvtbl.stokes .== h]
-        rows_by[h] = rh
-        d = Dict{Any, Int}()
-        for (i, r) in pairs(rh)
-            d[keyfn(r)] = i
-        end
-        keys_for[h] = d
-    end
-
-    # Spine = union of all per-hand keys (preserve insertion order from RR,RL,LR,LL).
-    seen = Set{Any}()
-    spine_keys = Any[]
-    spine_rows = Any[]
-    for h in hands
-        for r in rows_by[h]
-            k = keyfn(r)
-            k in seen && continue
-            push!(seen, k)
-            push!(spine_keys, k)
-            push!(spine_rows, r)
-        end
-    end
-
-    n = length(spine_keys)
-    rrv = Vector{ComplexF64}(undef, n); rre = Vector{Float64}(undef, n)
-    rlv = Vector{ComplexF64}(undef, n); rle = Vector{Float64}(undef, n)
-    lrv = Vector{ComplexF64}(undef, n); lre = Vector{Float64}(undef, n)
-    llv = Vector{ComplexF64}(undef, n); lle = Vector{Float64}(undef, n)
-
-    fill_hand! = (vec_v, vec_e, h, idx, k) -> begin
-        j = get(keys_for[h], k, 0)
-        if j == 0
-            vec_v[idx] = ComplexF64(NaN, NaN); vec_e[idx] = NaN
-        else
-            r = rows_by[h][j]
-            vec_v[idx] = r.value.v; vec_e[idx] = r.value.u
-        end
-    end
-
-    for (idx, k) in pairs(spine_keys)
-        fill_hand!(rrv, rre, :RR, idx, k)
-        fill_hand!(rlv, rle, :RL, idx, k)
-        fill_hand!(lrv, lre, :LR, idx, k)
-        fill_hand!(llv, lle, :LL, idx, k)
-    end
-
-    # Build a StructArray "spine" for _arrayconfig (it only reads datetime,
-    # spec, freq_spec). Construct from the representative rows we picked above.
-    spine_struct = StructArray(
-        (;
-            datetime = [r.datetime for r in spine_rows],
-            stokes = fill(:RR, n),
-            freq_spec = [r.freq_spec for r in spine_rows],
-            spec = [r.spec for r in spine_rows],
-            value = [r.value for r in spine_rows],
-        )
-    )
-    # END TODO
+    spine_struct = VLBIData.uvtable_values_to(CoherencyMatrix, uvtbl)
 
     config = _arrayconfig(spine_struct; antarray, source)
 
