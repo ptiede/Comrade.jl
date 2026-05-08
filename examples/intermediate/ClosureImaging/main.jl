@@ -141,7 +141,7 @@ xopt, sol = comrade_opt(
 
 
 # First we will evaluate our fit by plotting the residuals
- using CairoMakie
+using CairoMakie
 using DisplayAs #hide
 res = residuals(post, xopt)
 fig = Figure(; size = (800, 300))
