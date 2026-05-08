@@ -307,7 +307,7 @@ intmodel = InstrumentModel(J, intprior)
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling, and specifying to use Enzyme.Reverse with runtime activity for AD.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvise)
+post = VLBIPosterior(skym, intmodel, dvis)
 
 # ## Reconstructing the Image and Instrument Effects
 
@@ -350,7 +350,7 @@ gpl = refinespatial(grid, 2)
 img = intensitymap(skymodel(post, xopt), gpl)
 fig = imageviz(
     img, adjust_length = true, colormap = :cmr_gothic, pcolormap = :rainbow1,
-    pcolorrange = (0.0, 0.9), plot_total = false
+    pcolorrange = (0.0, 0.3), plot_total = false
 );
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-

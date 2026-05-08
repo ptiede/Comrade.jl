@@ -280,8 +280,11 @@ function Comrade.extract_vis(
         pol = :I,
         kwargs...
     )
-    config = _arrayconfig(uvtbl; antarray, source)
-    vis, err = getvisfield(uvtbl)
+
+
+    val = VLBIData.uvtable_values_to(IPol, uvtbl)
+    config = _arrayconfig(val, uvtbl; antarray, source)
+    vis, err = getvisfield(val)
     T = Comrade.EHTVisibilityDatum{pol, eltype(err), typeof(config[1])}
     return Comrade.EHTObservationTable{T}(vis, err, config)
 end
