@@ -313,8 +313,10 @@ function Comrade.extract_amp(
         debias = false,
         kwargs...
     )
-    config = _arrayconfig(uvtbl; antarray, source, scan_table)
-    vis, err = getvisfield(uvtbl)
+
+    val = VLBIData.uvtable_values_to(IPol, uvtbl)
+    config = _arrayconfig(val, uvtbl; antarray, source, scan_table)
+    vis, err = getvisfield(val)
     amp = abs.(vis)
     if debias
         amp = @. sqrt(max(amp^2 - err^2, zero(amp)))
