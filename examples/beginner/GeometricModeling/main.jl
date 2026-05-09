@@ -25,9 +25,9 @@ close(pkg_io) #hide
 using Comrade
 
 
-# Currently we use eht-imaging for data management, however this will soon be replaced
-# by a pure Julia solution.
-using Pyehtim
+# We load uvfits with the pure-Julia VLBIFiles loader. VLBIFiles re-exports
+# VLBIData, so the `VLBI` averaging namespace is in scope too.
+using VLBIFiles
 # For reproducibility we use a stable random number genreator
 using StableRNGs
 rng = StableRNG(42)
@@ -36,14 +36,25 @@ rng = StableRNG(42)
 # available M 87 data which can be downloaded
 # from [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019).
 # For an introduction to data loading, see [Loading Data into Comrade](@ref).
-obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+uvd = VLBIFiles.load(
+    VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+)
 
-# Now we will kill 0-baselines since we don't care about large-scale flux and
-# since we know that the gains in this dataset are coherent across a scan, we make scan-average data
-obs = Pyehtim.scan_average(obs.flag_uvdist(uv_min = 0.1e9)).add_fractional_noise(0.02)
-
-# Now we extract the data products we want to fit
-dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3.0), ClosurePhases(; snrcut = 3.0))
+# Since the gains in this dataset are coherent across a scan, we extract scan-averaged
+# closures.
+dlcamp, dcphase = extract_table(
+    uvd,
+    LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()),
+    ClosurePhases(; time_average = VLBI.GapBasedScans()),
+)
+# Kill the trivial 0-baseline triangles (we don't care about large-scale flux) and inflate
+# the noise by 2% in quadrature to account for residual systematics.
+isshort(d) = any(b -> hypot(b.U, b.V) < 0.1e9, d.baseline)
+dlcamp = flag(isshort, dlcamp)
+dcphase = flag(isshort, dcphase)
+add_fractional_noise!(dlcamp, 0.02)
+add_fractional_noise!(dcphase, 0.02)
 
 # !!!warn
 #    We remove the low-snr closures since they are very non-gaussian. This can create rather

@@ -20,7 +20,7 @@ close(pkg_io) #hide
 using Comrade
 
 
-using Pyehtim
+using VLBIFiles
 using LinearAlgebra
 
 # For reproducibility we use a stable random number genreator
@@ -33,15 +33,14 @@ rng = StableRNG(42)
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 # First we will load our data:
-obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-# Now we do some minor preprocessing:
-#   - Scan average the data since the data have been preprocessed so that the gain phases
-#      coherent.
-#   - Add 1% systematic noise to deal with calibration issues that cause 1% non-closing errors.
-obs = scan_average(obs).add_fractional_noise(0.02)
-
-# Now we extract our complex visibilities.
-dvis = extract_table(obs, Visibilities())
+uvd = VLBIFiles.load(
+    VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+)
+# Extract scan-averaged complex visibilities. Then inflate the noise by 2% to account for
+# residual calibration errors.
+dvis = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
+add_fractional_noise!(dvis, 0.02)
 
 # ##Building the Model/Posterior
 
@@ -93,7 +92,7 @@ grid = imagepixels(fovx, fovy, npix, npix)
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(60.0) ./ fwhmfac))
 mimg_raw = intensitymap(mpr, grid)
-mimg = mimg_raw ./ flux(mimg_raw)
+mimg = mimg_raw ./ Comrade.flux(mimg_raw)
 
 
 # To make the Gaussian Markov random field efficient we first precompute a bunch of quantities
@@ -119,8 +118,8 @@ gain(x) = exp(x.lg + 1im * x.gp)
 G = SingleStokesGain(gain)
 
 intpr = (
-    lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    gp = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+    lg = ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), Normal(0.0, 1.0))),
+    gp = ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
 )
 intmodel = InstrumentModel(G, intpr)
 

@@ -46,6 +46,8 @@ Comrade.flag
 Base.filter(::Any, ::Comrade.EHTObservationTable)
 Comrade.select_baseline
 Comrade.add_fractional_noise
+Comrade.load_array_txt
+Comrade.reset_mounts!
 ```
 
 ### Datums
@@ -179,9 +181,10 @@ Comrade.rmap
 Comrade.build_datum
 Comrade.ObservedSkyModel
 Comrade.forward_model_map
+
 ```
 
-### eht-imaging interface (Internal)
+### Data Internals (Internal)
 
 ```@docs
 Comrade.extract_amp
@@ -189,6 +192,11 @@ Comrade.extract_cphase
 Comrade.extract_lcamp
 Comrade.extract_vis
 Comrade.extract_coherency
+Comrade.closure_designmat
+Comrade.elevation_parallactic
+Comrade.ecef_to_geodetic
+Comrade.build_closure_config
+
 ```
 
 ## Plotting

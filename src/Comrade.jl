@@ -17,7 +17,6 @@ import HypercubeTransform: ascube, asflat, NamedDist, NamedDist, transform, inve
 using HypercubeTransform
 #using MappedArrays: mappedarray
 using Measurements
-using NamedTupleTools
 using Printf
 using Random
 using RecipesBase

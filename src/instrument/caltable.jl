@@ -213,9 +213,7 @@ using PrettyTables
 function Base.show(io::IO, ct::CalTable)
     return pretty_table(
         io, Tables.columns(ct);
-        header = Tables.columnnames(ct),
-        vlines = [1, 2],
-        formatters = _ctab_formatter
+        formatters = [_ctab_formatter]
     )
 end
 

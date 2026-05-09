@@ -100,7 +100,7 @@ close(pkg_io) #hide
 using Comrade
 
 # ## Load the Data
-using Pyehtim
+using VLBIFiles
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
@@ -112,21 +112,20 @@ fname = Base.download(
     "https://de.cyverse.org/anon-files/iplant/home/shared/commons_repo/curated/EHTC_M87pol2017_Nov2023/hops_data/April11/SR2_M87_2017_101_lo_hops_ALMArot.uvfits",
     joinpath(__DIR, "m87polarized.uvfits")
 )
-obs = Pyehtim.load_uvfits_and_array(
-    fname,
-    joinpath(__DIR, "..", "..", "Data", "array.txt"), polrep = "circ"
+uvd = VLBIFiles.load(VLBIFiles.UVData, fname)
+
+
+# Unlike non-polarized tutorials, we also need an **array file** describing the antenna
+# feed rotation parameters. We pass it via the `arrayfile` keyword on the data product.
+dvis = extract_table(
+    uvd, Coherencies(;
+        time_average = VLBI.GapBasedScans(),
+    )
 )
-
-
-# Notice that, unlike other non-polarized tutorials, we need to include a second argument.
-# This is the **array file** of the observation and is required to determine the feed rotation
-# of the array.
-
-# Now we scan average the data since the data to boost the SNR and reduce the total data volume.
-obs = scan_average(obs).add_fractional_noise(0.01).flag_uvdist(uv_min = 0.1e9)
-#-
-# Now we extract our observed/corrupted coherency matrices.
-dvis = extract_table(obs, Coherencies())
+Comrade.reset_mounts!(dvis, Comrade.load_array_txt(joinpath(__DIR, "../../Data/array.txt")))
+# Inflate noise by 1% and drop short (uvdist < 0.1 Gλ) baselines.
+add_fractional_noise!(dvis, 0.01)
+dvis = flag(d -> hypot(d.baseline.U, d.baseline.V) < 0.1e9, dvis)
 
 # ##Building the Model/Posterior
 
@@ -159,7 +158,7 @@ using VLBIImagePriors
     as ~ ntuple(Returns(cprior), 4)
     ## Build the stokes I model
     δs = ntuple(Val(4)) do i
-        σs[i] * as[i].params
+        σs[i] .* as[i].params
     end
 
     ## Convert hyperbolic polarization basis to Stokes basis
@@ -168,13 +167,24 @@ using VLBIImagePriors
     ## We now add a mean image. Namely, we assume that `pmap` are multiplicative fluctuations
     ## about some mean image `mimg`. We also compute the total flux of the Stokes I image
     ## for normalization purposes below.
-    ft = zero(eltype(mimg))
-    for i in eachindex(pmap, mimg)
-        pmap[i] *= mimg[i]
-        ft += pmap[i].I
-    end
+    bpmap = baseimage(pmap)
+    bpmapI = stokes(bpmap, :I)
+    bpmapQ = stokes(bpmap, :Q)
+    bpmapU = stokes(bpmap, :U)
+    bpmapV = stokes(bpmap, :V)
 
-    pmap .= ftot .* pmap ./ ft
+    bpmapI .*= baseimage(mimg)
+    bpmapQ .*= baseimage(mimg)
+    bpmapU .*= baseimage(mimg)
+    bpmapV .*= baseimage(mimg)
+
+    ft = sum(bpmapI)
+
+    bpmapI .*= ftot / ft
+    bpmapQ .*= ftot / ft
+    bpmapU .*= ftot / ft
+    bpmapV .*= ftot / ft
+
     m = ContinuousImage(pmap, BSplinePulse{3}())
     x, y = centroid(pmap)
     return shifted(m, -x, -y)
@@ -192,7 +202,7 @@ grid = imagepixels(fovx, fovy, nx, ny)
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
 mimg_raw = intensitymap(mpr, grid)
-mimg = mimg_raw ./ flux(mimg_raw)
+mimg = mimg_raw ./ Comrade.flux(mimg_raw)
 
 
 # We use again use a GMRF prior similar to the [Imaging a Black Hole using only Closure Quantities](@ref) tutorial
@@ -279,10 +289,10 @@ J = JonesSandwich(js, G, D, R)
 # so we use `ScanSeg` for those quantities. The d-terms are typically stable over the track
 # so we use `TrackSeg` for those.
 intprior = (
-    lgR = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-    gpR = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
-    gprat = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true),
+    lgR = ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), Normal(0.0, 1.0))),
+    lgrat = ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 0.1))),
+    gpR = ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+    gprat = ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true),
     dRx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dRy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dLx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
@@ -340,7 +350,7 @@ gpl = refinespatial(grid, 2)
 img = intensitymap(skymodel(post, xopt), gpl)
 fig = imageviz(
     img, adjust_length = true, colormap = :cmr_gothic, pcolormap = :rainbow1,
-    pcolorrange = (0.0, 0.2), plot_total = false
+    pcolorrange = (0.0, 0.3), plot_total = false
 );
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-

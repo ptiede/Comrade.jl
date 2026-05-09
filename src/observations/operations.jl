@@ -1,4 +1,41 @@
-export flag, select_baseline, add_fractional_noise!, add_fractional_noise
+export flag, select_baseline, add_fractional_noise!, add_fractional_noise, reset_mounts!
+
+
+"""
+    reset_mounts!(dvis::AbstractObservationTable, overrides)
+    reset_mounts!(dvis::AbstractObservationTable, file::String)
+
+Update the mount-related columns of `dvis`'s array table in place from a per-site
+`overrides` dict. Each entry is a `Symbol => NamedTuple` whose keys may be any of
+`:SEFD1, :SEFD2, :fr_parallactic, :fr_elevation, :fr_offset`. Missing keys keep the
+existing value.
+
+The dict is most easily produced by [`load_array_txt`](@ref). This is the recommended
+way to apply an ehtim-style antenna text file to a freshly extracted observation:
+
+```julia
+dvis = extract_table(uvd, Coherencies(; time_average = VLBI.GapBasedScans()))
+reset_mounts!(dvis, load_array_txt("array.txt"))
+```
+"""
+function reset_mounts!(dvis::AbstractObservationTable, overrides)
+    tarr = arrayconfig(dvis).tarr
+    for i in eachindex(tarr.sites)
+        ov = get(overrides, tarr.sites[i], nothing)
+        ov === nothing && continue
+        haskey(ov, :SEFD1)          && (tarr.SEFD1[i] = ov[:SEFD1])
+        haskey(ov, :SEFD2)          && (tarr.SEFD2[i] = ov[:SEFD2])
+        haskey(ov, :fr_parallactic) && (tarr.fr_parallactic[i] = ov[:fr_parallactic])
+        haskey(ov, :fr_elevation)   && (tarr.fr_elevation[i] = ov[:fr_elevation])
+        haskey(ov, :fr_offset)      && (tarr.fr_offset[i] = ov[:fr_offset])
+    end
+    return dvis
+end
+
+function reset_mounts!(dvis::AbstractObservationTable, file::AbstractString)
+    overrides = load_array_txt(file)
+    return reset_mounts!(dvis, overrides)
+end
 
 function add_fractional_noise!(dvis::EHTObservationTable{<:EHTCoherencyDatum}, ferr)
     map!(dvis[:noise], dvis[:noise], dvis[:measurement]) do e, m
@@ -11,7 +48,7 @@ function add_fractional_noise!(dvis::EHTObservationTable{<:EHTCoherencyDatum}, f
         else
             err = tr(m) / 2
         end
-        fe = sqrt.(e .^ 2 .+ ferr .^ 2 * abs2(err))
+        fe = @. sqrt(e^2 + ferr^2 * abs2(err))
         return fe
     end
     return dvis

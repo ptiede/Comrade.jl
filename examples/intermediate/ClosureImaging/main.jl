@@ -34,9 +34,9 @@ close(pkg_io) #hide
 # To get started, we will load Comrade
 using Comrade
 
-# Pyehtim loads eht-imaging using PythonCall this is necessary to load uvfits files
-# currently.
-using Pyehtim
+# VLBIFiles is a pure-Julia uvfits reader; it re-exports VLBIData, so the
+# `VLBI` averaging namespace is in scope too.
+using VLBIFiles
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
@@ -45,18 +45,21 @@ rng = StableRNG(123)
 
 # ## Load the Data
 # To download the data visit https://doi.org/10.25739/g85n-f134
-# To load the eht-imaging obsdata object we do:
-obs = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
+uvd = VLBIFiles.load(
+    VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
+)
 
-# Now we do some minor preprocessing:
-#   - Scan average the data since the data have been preprocessed so that the gain phases
-#      are coherent.
-#   - Add 2% systematic noise to deal with calibration issues such as leakage.
-obs = scan_average(obs).add_fractional_noise(0.02)
-
-# Now, we extract our closure quantities from the EHT data set. We flag now SNR points since
-# the closure likelihood we use is only applicable to high SNR data.
-dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3), ClosurePhases(; snrcut = 3))
+# Now we extract closure quantities. We scan-average via the `time_average` keyword (the data
+# have been preprocessed so gain phases are coherent within a scan) and inflate the
+# uncertainties by 2% to deal with calibration issues such as leakage.
+dlcamp, dcphase = extract_table(
+    uvd,
+    LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()),
+    ClosurePhases(; time_average = VLBI.GapBasedScans()),
+)
+add_fractional_noise!(dlcamp, 0.02)
+add_fractional_noise!(dcphase, 0.02)
 
 # !!! note
 #     Fitting low SNR closure data is complicated and requires a more sophisticated likelihood.
@@ -100,7 +103,7 @@ grid = imagepixels(fovxy, fovxy, npix, npix)
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
 imgpr = intensitymap(mpr, grid)
-mimg = imgpr ./ flux(imgpr);
+mimg = imgpr ./ Comrade.flux(imgpr);
 
 
 # Now we can finally form our image prior. For this we use a heirarchical prior where the

@@ -52,8 +52,7 @@ function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r:
         end
         sites = Tuple(st.sites[inds])
         @assert length(sites) <= length(sefd) "Error in reference site generation. Too many sites"
-        sp = select(sefd, sites)
-        _, ind = findmin(values(sp))
+        _, ind = findmin(map(s -> sefd[s], sites))
         push!(fixedinds, inds[ind])
     end
     return fixedinds, Fill(r.value, length(fixedinds))

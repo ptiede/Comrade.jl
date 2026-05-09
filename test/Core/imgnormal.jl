@@ -14,7 +14,7 @@ using Distributions
     # Test with a simple reduction function (total flux)
     @testset "Total Flux Measurement" begin
         # Create reduction function for total flux
-        reduction = flux
+        reduction = Comrade.flux
 
         # Get a sample image to create mock measurement
         x0 = prior_sample(base_post)
@@ -22,7 +22,7 @@ using Distributions
         img0 = intensitymap(m0, g)
 
         # Create mock measurement with noise
-        true_flux = flux(img0)
+        true_flux = Comrade.flux(img0)
         measurement = [true_flux]
         noise = [0.1]
 
@@ -47,7 +47,7 @@ using Distributions
 
         # Test that likelihood is higher when image flux matches measurement
         # Create image with exact flux
-        img_exact = img0 .* (measurement[1] / flux(img0))
+        img_exact = img0 .* (measurement[1] / Comrade.flux(img0))
         lp_exact = logdensityof(ℓ, img_exact)
 
         # The exact match should have higher likelihood
@@ -94,7 +94,7 @@ using Distributions
     @testset "Multiple Measurements" begin
         # Create reduction function that returns multiple quantities
         reduction = img -> begin
-            f = flux(img)
+            f = Comrade.flux(img)
             cx, cy = centroid(img)
             return [f, cx, cy]
         end
@@ -105,7 +105,7 @@ using Distributions
         img0 = intensitymap(m0, g)
 
         # Create mock measurements
-        f0 = flux(img0)
+        f0 = Comrade.flux(img0)
         cx0, cy0 = centroid(img0)
         measurement = [f0, cx0, cy0]
         noise = [0.1, μas2rad(5.0), μas2rad(5.0)]
@@ -132,7 +132,7 @@ using Distributions
 
     @testset "Combining ImgNormalData with VLBI data" begin
         # Create image measurement data
-        reduction = flux
+        reduction = Comrade.flux
         measurement = [1.0]
         noise = [0.1]
         imgdata = ImgNormalData(reduction, measurement, noise)

@@ -11,45 +11,50 @@ close(pkg_io) #hide
 
 # The VLBI field does not have a standardized data format, and the EHT uses a
 # particular uvfits format similar to the optical interferometry oifits format.
-# As a result, we reuse the excellent `eht-imaging` package to load data into `Comrade`.
+# In Comrade we read uvfits with the pure-Julia [`VLBIFiles.jl`](https://github.com/JuliaAstro/VLBIFiles.jl)
+# package, which avoids any Python dependency.
 
 # Once the data is loaded, we then convert the data into the tabular format `Comrade`
-# expects. Note that this may change to a Julia package as the Julia radio
-# astronomy group grows.
+# expects.
 
-# To get started, we will load `Comrade` and `Plots` to enable visualizations of the data
+# To get started, we will load `Comrade` and `CairoMakie` to enable visualizations of the data.
 using Comrade
 using CairoMakie
 
-# We also load Pyehtim since it loads eht-imaging into Julia using PythonCall and exports
-# the variable ehtim
-using Pyehtim
+# We also load `VLBIFiles` to read the uvfits file. `VLBIFiles` re-exports
+# `VLBIData`, so all of the data-table types (`uvtable`, `Antenna`, …) and the
+# `VLBI` averaging namespace come along for free.
+using VLBIFiles
 
-# To load the data we will use `eht-imaging`. We will use the 2017 public M87 data which can be downloaded from
+# We will use the 2017 public M87 data which can be downloaded from
 # [cyverse](https://datacommons.cyverse.org/browse/iplant/home/shared/commons_repo/curated/EHTC_FirstM87Results_Apr2019)
-
-obseht = ehtim.obsdata.load_uvfits(joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits"))
-# Now we will average the data over telescope scans. Note that the EHT data has been pre-calibrated so this averaging
-# doesn't induce large coherence losses.
-obs = Pyehtim.scan_average(obseht)
-# !!! warning
-#     We use a custom scan-averaging function to ensure that the scan-times are homogenized.
-#-
-# We can now extract data products that `Comrade` can use
-vis = extract_table(obs, Visibilities()) ## complex visibilites
-amp = extract_table(obs, VisibilityAmplitudes()) ## visibility amplitudes
-cphase = extract_table(obs, ClosurePhases(; snrcut = 3.0)) ## extract minimal set of closure phases
-lcamp = extract_table(obs, LogClosureAmplitudes(; snrcut = 3.0)) ## extract minimal set of log-closure amplitudes
-
-# For polarization we first load the data in the cirular polarization basis
-# Additionally, we load the array table at the same time to load the telescope mounts.
-obseht = Pyehtim.load_uvfits_and_array(
-    joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits"),
-    joinpath(__DIR, "..", "..", "Data", "array.txt"),
-    polrep = "circ"
+uvd = VLBIFiles.load(
+    VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
 )
-obs = Pyehtim.scan_average(obseht)
-coh = extract_table(obs, Coherencies())
+
+# We average the data over telescope scans by passing a `time_average` strategy on the data
+# product. Note that the EHT data has been pre-calibrated so this averaging doesn't induce
+# large coherence losses.
+scan_avg = VLBI.GapBasedScans()
+vis = extract_table(uvd, Visibilities(; time_average = scan_avg))                         # complex visibilities
+amp = extract_table(uvd, VisibilityAmplitudes(; time_average = scan_avg))                 # visibility amplitudes
+cphase = extract_table(uvd, ClosurePhases(; time_average = scan_avg))                        # minimal closure phases
+lcamp = extract_table(uvd, LogClosureAmplitudes(; time_average = scan_avg))                 # minimal log-closure amplitudes
+
+# For polarization we load the file the same way; circular polarization is detected from the
+# antenna feed types in the FITS table. We pass the antenna text file via `arrayfile=` so
+# the telescope mount info is set correctly for the `Coherencies` extraction.
+uvdp = VLBIFiles.load(
+    VLBIFiles.UVData,
+    joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits")
+)
+coh = extract_table(
+    uvdp, Coherencies(;
+        time_average = scan_avg,
+        arrayfile = joinpath(__DIR, "..", "..", "Data", "array.txt"),
+    )
+)
 
 
 # !!! warning
