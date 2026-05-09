@@ -235,6 +235,7 @@ function _prep_uvtable(
         uvtbl;
         time_average = nothing, frequency_average = true
     )
+    scan_table = VLBIData.scan_intervals(time_average, uvtbl)
     rows = uvtbl
     if frequency_average !== nothing && frequency_average !== false
         rows = VLBI.average_data(VLBI.ByFrequency(), rows)
@@ -243,7 +244,6 @@ function _prep_uvtable(
         rows = VLBI.average_data(time_average, rows)
     end
 
-    scan_table = VLBIData.scan_intervals(time_average, uvtbl)
 
     return rows, scan_table
 end
@@ -339,11 +339,12 @@ infinite uncertainty.
 function Comrade.extract_coherency(
         uvtbl::AbstractArray{<:NamedTuple};
         antarray, source = (; name = "UNKNOWN", ra = 0.0, dec = 0.0),
+        scan_table = nothing,
         kwargs...
     )
 
     coherency = VLBIData.uvtable_values_to(CoherencyMatrix, uvtbl)
-    config = _arrayconfig(coherency, uvtbl; antarray, source)
+    config = _arrayconfig(coherency, uvtbl; antarray, source, scan_table)
 
     cohmat = StructArray{SMatrix{2, 2, ComplexF64, 4}}(undef, length(coherency))
     errmat = StructArray{SMatrix{2, 2, Float64, 4}}(undef, length(coherency))
