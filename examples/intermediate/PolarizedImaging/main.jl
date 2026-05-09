@@ -168,22 +168,16 @@ using VLBIImagePriors
     ## about some mean image `mimg`. We also compute the total flux of the Stokes I image
     ## for normalization purposes below.
     bpmap = baseimage(pmap)
-    bpmapI = stokes(bpmap, :I)
-    bpmapQ = stokes(bpmap, :Q)
-    bpmapU = stokes(bpmap, :U)
-    bpmapV = stokes(bpmap, :V)
+    ft = zero(ftot)
+    for i in eachindex(bpmap)
+        bpmap[i] = mimg[i] * bpmap[i]
+        ft += bpmap[i].I
+    end
 
-    bpmapI .*= baseimage(mimg)
-    bpmapQ .*= baseimage(mimg)
-    bpmapU .*= baseimage(mimg)
-    bpmapV .*= baseimage(mimg)
-
-    ft = sum(bpmapI)
-
-    bpmapI .*= ftot / ft
-    bpmapQ .*= ftot / ft
-    bpmapU .*= ftot / ft
-    bpmapV .*= ftot / ft
+    ## Renormlize to get the correct total flux.
+    for i in eachindex(bpmap)
+        bpmap[i] *= ftot / ft
+    end
 
     m = ContinuousImage(pmap, BSplinePulse{3}())
     x, y = centroid(pmap)
@@ -284,15 +278,15 @@ J = JonesSandwich(js, G, D, R)
 # on some time segment. The current time segments are
 #  - `ScanSeg()` which specifies each scan has an independent value
 #  - `TrackSeg()` which says that the value is constant over the track.
-#  - `IntegSeg()` which says that the value changes each integration time
+#  - `ScanSeg()` which says that the value changes each integration time
 # For the released EHT data, the calibration procedure makes gains stable over each scan
 # so we use `ScanSeg` for those quantities. The d-terms are typically stable over the track
 # so we use `TrackSeg` for those.
 intprior = (
-    lgR = ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), Normal(0.0, 1.0))),
-    lgrat = ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 0.1))),
-    gpR = ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
-    gprat = ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true),
+    lgR = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+    gpR = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+    gprat = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true),
     dRx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dRy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
     dLx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
