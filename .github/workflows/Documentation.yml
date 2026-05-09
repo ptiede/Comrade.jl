@@ -98,6 +98,7 @@ jobs:
         with:
           pattern: tutorial-*
           merge-multiple: true
+          path: docs/src/tutorials/
       - name: Build and deploy docs
         uses: julia-actions/julia-docdeploy@v1
         env:
