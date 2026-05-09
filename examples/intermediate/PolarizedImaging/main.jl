@@ -174,7 +174,7 @@ using VLBIImagePriors
         ft += bpmap[i].I
     end
 
-    # Renormlize to get the correct total flux. This is necessary since the total flux is degenerate with an overall shift in the gain amplitudes and we want to fix the total flux to 0.6 Jy.
+    ## Renormlize to get the correct total flux.
     for i in eachindex(bpmap)
         bpmap[i] *= ftot / ft
     end
