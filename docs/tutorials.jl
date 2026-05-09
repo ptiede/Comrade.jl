@@ -25,8 +25,8 @@ already has the docs environment loaded.
 function build_tutorial(rel_path)
     p = get_example_path(rel_path)
     parts = rsplit(rel_path, "/")
-    area = parts[1]
-    name = parts[2]
+    area = String(parts[1])
+    name = String(parts[2])
     preprocess(s) = replace(s, "__DIR = @__DIR__" => "__DIR = \"$(dirname(p))\"")
     return Literate.markdown(
         p, joinpath(OUTPUT, area);
