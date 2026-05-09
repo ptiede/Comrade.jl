@@ -1,13 +1,8 @@
-using Pkg; Pkg.activate(@__DIR__)
+using Pkg
+Pkg.activate(@__DIR__)
 using Literate
 
-preprocess(path, str) = replace(str, "__DIR = @__DIR__" => "__DIR = \"$(dirname(path))\"")
-
-get_example_path(p) = joinpath(@__DIR__, "..", "examples", p)
-OUTPUT = joinpath(@__DIR__, "src", "tutorials")
-
-
-TUTORIALS = [
+const TUTORIALS = [
     "beginner/LoadingData/main.jl",
     "beginner/GeometricModeling/main.jl",
     "intermediate/ClosureImaging/main.jl",
@@ -17,24 +12,40 @@ TUTORIALS = [
     "advanced/FitPS/main.jl",
 ]
 
-withenv("JULIA_DEBUG" => "Literate") do
-    for (d, paths) in (("", TUTORIALS),),
-            (i, p) in enumerate(paths)
-        name = "$((rsplit(p, "/")[2]))"
-        d = "$((rsplit(p, "/")[1]))"
-        p_ = get_example_path(p)
-        @info p_
-        jl_expr = "using Literate;" *
-            "preprocess(path, str) = replace(str, \"__DIR = @__DIR__\" => \"__DIR = \\\"\$(dirname(path))\\\"\");" *
-            "Literate.markdown(\"$(p_)\", \"$(joinpath(OUTPUT, d))\";" *
-            "name=\"$name\", execute=true, flavor=Literate.DocumenterFlavor()," *
-            "preprocess=Base.Fix1(preprocess, \"$(p_)\"))"
-        cm = `julia --project=$(@__DIR__) -e $(jl_expr)`
-        try
-            run(cm)
-        catch e
-            @warn "there was an issue with $cm\n $e"
-        end
+const OUTPUT = joinpath(@__DIR__, "src", "tutorials")
+get_example_path(p) = joinpath(@__DIR__, "..", "examples", p)
 
+"""
+    build_tutorial(rel_path)
+
+Render a single tutorial (e.g. `"beginner/LoadingData/main.jl"`) to markdown
+under `docs/src/tutorials/<area>/<name>.md`. Runs in-process so the caller
+already has the docs environment loaded.
+"""
+function build_tutorial(rel_path)
+    p = get_example_path(rel_path)
+    parts = rsplit(rel_path, "/")
+    area = parts[1]
+    name = parts[2]
+    preprocess(s) = replace(s, "__DIR = @__DIR__" => "__DIR = \"$(dirname(p))\"")
+    return Literate.markdown(
+        p, joinpath(OUTPUT, area);
+        name = name,
+        execute = true,
+        flavor = Literate.DocumenterFlavor(),
+        preprocess = preprocess,
+    )
+end
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    withenv("JULIA_DEBUG" => "Literate") do
+        for p in TUTORIALS
+            @info "Building $p"
+            try
+                build_tutorial(p)
+            catch e
+                @warn "Failed to build $p" exception = e
+            end
+        end
     end
 end

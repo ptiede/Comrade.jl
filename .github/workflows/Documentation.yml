@@ -6,11 +6,8 @@ on:
       - main
     tags: '*'
   pull_request:
-  
   workflow_dispatch:
 
-
-  
 concurrency:
   # Skip intermediate builds: always.
   # Cancel intermediate builds: only if it is a pull request build.
@@ -18,34 +15,89 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 jobs:
-  build:
-    permissions:
-      contents: write
-      pages: write
-      id-token: write
-      statuses: write
+  build-tutorial:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tutorial:
+          - beginner/LoadingData
+          - beginner/GeometricModeling
+          - intermediate/ClosureImaging
+          - intermediate/StokesIImaging
+          - intermediate/PolarizedImaging
+          - advanced/Hibi
+          - advanced/FitPS
     steps:
-      - name: Install Libs
+      - name: Install system libs
         run: |
           sudo apt-get update
-          sudo apt-get install libhdf5-dev
-          sudo apt-get install --reinstall libxcb-xinerama0
-          sudo apt-get install qtbase5-dev
+          sudo apt-get install -y libhdf5-dev libxcb-xinerama0 qtbase5-dev
       - uses: actions/checkout@v6
-      - name: Setup python
-        uses: actions/setup-python@v6
+      - uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
-          architecture: ${{ matrix.arch }}
+          python-version: '3.11'
       - uses: julia-actions/setup-julia@v3
         with:
           version: '1.10'
       - uses: julia-actions/cache@v3
       - name: Install docs dependencies
-        run: julia --project=docs -e 'using Pkg; Pkg.develop([PackageSpec(path=pwd())]); Pkg.instantiate()'
-      - name: Build Tutorials
-        run: julia --project=docs -e 'include(joinpath(pwd(), "docs", "tutorials.jl"))'
+        run: |
+          julia --project=docs -e '
+            using Pkg
+            Pkg.develop(PackageSpec(path=pwd()))
+            Pkg.instantiate()'
+      - name: Build ${{ matrix.tutorial }}
+        env:
+          DATADEPS_ALWAYS_ACCEPT: "true"
+          GKSwstype: "100"
+          JULIA_DEBUG: "Literate"
+        run: |
+          julia --project=docs -e '
+            include(joinpath(pwd(), "docs", "tutorials.jl"))
+            build_tutorial("${{ matrix.tutorial }}/main.jl")'
+      - name: Sanitize artifact name
+        id: aname
+        run: echo "name=$(echo '${{ matrix.tutorial }}' | tr '/' '-')" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tutorial-${{ steps.aname.outputs.name }}
+          path: docs/src/tutorials/
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    needs: build-tutorial
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+      statuses: write
+    steps:
+      - name: Install system libs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhdf5-dev libxcb-xinerama0 qtbase5-dev
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.10'
+      - uses: julia-actions/cache@v3
+      - name: Install docs dependencies
+        run: |
+          julia --project=docs -e '
+            using Pkg
+            Pkg.develop(PackageSpec(path=pwd()))
+            Pkg.instantiate()'
+      - name: Download tutorial markdown
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tutorial-*
+          merge-multiple: true
       - name: Build and deploy docs
         uses: julia-actions/julia-docdeploy@v1
         env:
@@ -53,4 +105,4 @@ jobs:
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # For authentication with SSH deploy key
           GKSwstype: "100" # for Plots.jl plots (if you have them)
           JULIA_DEBUG: "Documenter"
-          DATADEPS_ALWAYS_ACCEPT: true
+          DATADEPS_ALWAYS_ACCEPT: "true"
