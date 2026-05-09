@@ -107,6 +107,7 @@ visibilities.
 A Stokes I example is
 ```julia-repl
 julia> G = SingleStokesGain(x->exp(complex(x.lg, x.pg)))
+julia> G = SingleStokesGain(x->exp(complex(x.lg, x.pg)))
 julia> intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
             pg = ArrayPrior(IIDSitePrior(ScanSeg(), DiagVonMises(0.0, inv(π^2))))
             )
@@ -117,6 +118,8 @@ julia> intm = InstrumentModel(G, intprior)
 A standard polarized example is
 ```julia-repl
 julia> G = JonesG() do
+        gR = exp.(complex(x.lgr, x.gpr))
+        gL = gr*exp.(complex(x.lgrat, x.gprat))
         gR = exp.(complex(x.lgr, x.gpr))
         gL = gr*exp.(complex(x.lgrat, x.gprat))
         return gR, gL
@@ -145,6 +148,7 @@ is the *response matrix* that controls how the site responds to the ideal visibi
 basis.
 """
 function InstrumentModel(jones::AbstractJonesMatrix, prior::NamedTuple{N}; refbasis = CirBasis()) where {N}
+function InstrumentModel(jones::AbstractJonesMatrix, prior::NamedTuple{N}; refbasis = CirBasis()) where {N}
     return InstrumentModel(jones, prior, refbasis)
 end
 
@@ -169,6 +173,7 @@ function set_array(int::IdealInstrumentModel, ::AbstractArrayConfiguration)
     return (int, NamedDist((;)))
 end
 
+struct BaselineSiteLookup{V <: AbstractArray}
 struct BaselineSiteLookup{V <: AbstractArray}
     indices_1::V
     indices_2::V
@@ -210,13 +215,28 @@ end
 @inline intout(vis::AbstractArray{T}) where {T} = similar(vis, complex(T))
 @inline intout(vis::AbstractArray{<:CoherencyMatrix{A, B, T}}) where {A, B, T} = similar(vis, SMatrix{2, 2, complex(T), 4})
 @inline intout(vis::StructArray{<:StokesParams{T}}) where {T} = StructArray{SMatrix{2, 2, complex(T), 4}}((similar(vis.I), similar(vis.Q), similar(vis.U), similar(vis.V)))
+@inline intout(vis::AbstractArray{<:StokesParams{T}}) where {T} = similar(vis, SMatrix{2, 2, complex(T), 4})
+@inline intout(vis::AbstractArray{T}) where {T} = similar(vis, complex(T))
+@inline intout(vis::AbstractArray{<:CoherencyMatrix{A, B, T}}) where {A, B, T} = similar(vis, SMatrix{2, 2, complex(T), 4})
+@inline intout(vis::StructArray{<:StokesParams{T}}) where {T} = StructArray{SMatrix{2, 2, complex(T), 4}}((similar(vis.I), similar(vis.Q), similar(vis.U), similar(vis.V)))
 
 @inline function apply_instrument(vis, J::ObservedInstrumentModel, x)
     vout = parent(intout(vis))
     # Grab parent arrary so we don't trace through SiteArray since that stuff is constant
+    vout = parent(intout(vis))
+    # Grab parent arrary so we don't trace through SiteArray since that stuff is constant
     xint = map(parent, x.instrument)
     _apply_instrument!(vout, parent(vis), J, xint)
+    _apply_instrument!(vout, parent(vis), J, xint)
     return vout
+end
+
+
+function _apply_instrument!(vout::AbstractArray, vis, J::ObservedInstrumentModel, xint)
+    for i in eachindex(vout)
+        vout[i] = apply_jones(vis[i], i, J, xint)
+    end
+    return
 end
 
 
@@ -259,6 +279,9 @@ end
 @inline get_indices(bsitemaps, index, ::Val{1}) = map(x -> rgetindex(x.indices_1, index), bsitemaps)
 @inline get_indices(bsitemaps, index, ::Val{2}) = map(x -> rgetindex(x.indices_2, index), bsitemaps)
 @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map(rgetindex, values(x), values(indices)))
+@inline get_indices(bsitemaps, index, ::Val{1}) = map(x -> rgetindex(x.indices_1, index), bsitemaps)
+@inline get_indices(bsitemaps, index, ::Val{2}) = map(x -> rgetindex(x.indices_2, index), bsitemaps)
+@inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map(rgetindex, values(x), values(indices)))
 # @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(ntuple(i->getindex(x[i], indices[i]), Val(length(N))))
 
 # We need this because Enzyme seems to crash when generating code for this
@@ -270,9 +293,13 @@ Base.@propagate_inbounds function apply_jones(v, index::Int, J::ObservedInstrume
     # First lhs station
     indices1 = map(x -> rgetindex(x.indices_1, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
     params1 = NamedTuple{N}(map(rgetindex, values(x), values(indices1)))
+    indices1 = map(x -> rgetindex(x.indices_1, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
+    params1 = NamedTuple{N}(map(rgetindex, values(x), values(indices1)))
     j1 = jonesmatrix(instrument(J), params1, index, Val(1))
 
     # Second RHS station
+    indices2 = map(x -> rgetindex(x.indices_2, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
+    params2 = NamedTuple{N}(map(rgetindex, values(x), values(indices2)))
     indices2 = map(x -> rgetindex(x.indices_2, index), sitelookup(J)) #get_indices(sitelookup(J), index, Val(N))
     params2 = NamedTuple{N}(map(rgetindex, values(x), values(indices2)))
     j2 = jonesmatrix(instrument(J), params2, index, Val(2))
