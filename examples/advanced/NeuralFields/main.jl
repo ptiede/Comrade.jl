@@ -130,12 +130,31 @@ function sky(θ, metadata)
 end
 
 
-# We assume that the prior is a IID standard normal on the neural network weights and biases. To set
-# this we use `Lux.setup` to get the parameter layout of the network and then use `Comrade.rmap` to
-# map each parameter to a standard normal prior.
+# For the prior on the network parameters we use the so-called *NNGP parameterization* of
+# [Neal (1996)](@cite) and [Lee et al. (2018)](@cite). For a `Dense` layer with weight
+# matrix `W ∈ ℝ^{out × in}` and bias `b ∈ ℝ^{out}` we use
+#
+#   W_{ij} ∼ 𝒩(0, σ_w² / fan_in),   b_i ∼ 𝒩(0, σ_b²)
+#
+# i.e. the weight variance is scaled by the inverse fan-in. With this scaling the pre-activation
+# variance is independent of the layer width, and as the hidden widths are taken to infinity the
+# network output converges to a well-defined Gaussian process (the NNGP). With unit-variance
+# `StdNormal` priors on every parameter the pre-activation variance grows linearly with width and
+# no proper GP limit exists, so this scaling is the principled choice for a Bayesian neural field.
+# We use `Lux.setup` to get the parameter layout of the network and then use `Comrade.rmap` to
+# walk the parameter tree, dispatching on parameter rank: rank-2 arrays are weight matrices (with
+# fan-in equal to `size(W, 2)`) and rank-1 arrays are biases.
 using Random
 ps, st = Lux.setup(Random.default_rng(), nnmodel)
-nnprior = Comrade.rmap(x -> VLBIImagePriors.StdNormal(size(x)), ps)
+function nngp_prior(x::AbstractArray)
+    if ndims(x) == 2
+        fan_in = size(x, 2)
+        return VLBIGaussian(zero(eltype(x)), inv(sqrt(eltype(x)(fan_in))), size(x))
+    else
+        return VLBIImagePriors.StdNormal(size(x))
+    end
+end
+nnprior = Comrade.rmap(nngp_prior, ps)
 
 # Similar to the RF models we will use a so-called `mean image`. Note that in this case is isn't
 # actually clean what the mean image is, but this will help with centroid drift so we include it.
