@@ -1,5 +1,6 @@
 module Comrade
 
+using Adapt
 using AbstractMCMC
 using Accessors: @set
 using ArgCheck: @argcheck
@@ -29,6 +30,8 @@ using Tables
 import TransformVariables as TV
 using ComradeBase: AbstractDomain, AbstractSingleDomain, AbstractRectiGrid
 using VLBISkyModels: FourierTransform, FourierDualDomain
+using ReactantCore
+using ComradeBase: rgetindex, rsetindex!
 
 # Reexport the core libraries for Comrade
 @reexport using VLBISkyModels

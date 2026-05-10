@@ -7,7 +7,8 @@ ascube(t::AbstractInstrumentTransform) = t
 function TV.transform_with(flag::TV.LogJacFlag, m::AbstractInstrumentTransform, x, index)
     y, ℓ, index = _instrument_transform_with(flag, m, x, index)
     sm = site_map(m)
-    return SiteArray(y, sm), ℓ, index
+    sa = SiteArray(y, sm)
+    return sa, ℓ, index
 end
 
 EnzymeRules.inactive_type(::Type{AbstractArray{<:IntegrationTime}}) = true

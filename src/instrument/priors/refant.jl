@@ -36,7 +36,7 @@ SEFDReference(val::Number) = SEFDReference(val, 0)
 reference_indices(::AbstractArrayConfiguration, st::SiteLookup, ::NoReference) = [], nothing
 function reference_indices(::AbstractArrayConfiguration, st::SiteLookup, p::SingleReference)
     inds = findall(==(p.site), st.sites)
-    return inds, Fill(p.value, length(inds))
+    return inds, fill(p.value, length(inds))
 end
 
 function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r::SEFDReference)
@@ -55,5 +55,5 @@ function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r:
         _, ind = findmin(map(s -> sefd[s], sites))
         push!(fixedinds, inds[ind])
     end
-    return fixedinds, Fill(r.value, length(fixedinds))
+    return fixedinds, fill(r.value, length(fixedinds))
 end

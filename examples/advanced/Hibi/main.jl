@@ -97,7 +97,9 @@ end
 #   - Gain amplitudes which are typically known to 10-20%, except for LMT, which has amplitudes closer to 50-100%.
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
-fgain(x) = exp(x.lg + 1im * x.gp)
+using VLBIImagePriors
+using Distributions
+fgain(x) = exp(complex(x.lg, x.gp))
 G = SingleStokesGain(fgain)
 
 intpr = (

@@ -49,7 +49,7 @@ struct ObservedArrayPrior{D, S} <: Distributions.ContinuousMultivariateDistribut
 end
 Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)
-Dists._logpdf(d::ObservedArrayPrior, x::AbstractArray{<:Real}) = Dists.logpdf(d.dists, parent(x))
+Dists.logpdf(d::ObservedArrayPrior, x::AbstractVector{<:Number}) = Dists.logpdf(d.dists, parent(x))
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
 function asflat(d::ObservedArrayPrior)
     d.phase && MarkovInstrumentTransform(asflat(d.dists), d.sitemap)
@@ -69,6 +69,7 @@ function build_sitemap(d::ArrayPrior, array)
     T = array[:Ti]
     F = array[:Fr]
 
+
     # Ok to so this we are going to construct the schema first over sites.
     # At the end we may re-order depending on the schema ordering we want
     # to use.
@@ -76,7 +77,7 @@ function build_sitemap(d::ArrayPrior, array)
         seg = segmentation(sites_prior[s])
         # get all the indices where this site is present
         inds_s = findall(x -> ((x[1] == s)||x[2] == s), array[:sites])
-        # Get all the unique times
+        # Get all the times and frequencies for that site
         ts = T[inds_s]
         fs = F[inds_s]
         tfs = zip(ts, fs)
@@ -141,7 +142,7 @@ function TV.transform_with(flag::TV.LogJacFlag, t::PartiallyFixedTransform, x, i
     y, ℓ, index = TV.transform_with(flag, t.transform, x, index)
     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
     yfv[t.variate_index] = y
-    yfv[t.fixed_index] .= t.fixed_values
+    yfv[t.fixed_index] = t.fixed_values
     return yfv, ℓ, index
 end
 
@@ -154,7 +155,7 @@ function HypercubeTransform._step_transform(t::PartiallyFixedTransform, x, index
     y, index = HypercubeTransform._step_transform(t.transform, x, index)
     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
     yfv[t.variate_index] = y
-    yfv[t.fixed_index] .= t.fixed_values
+    yfv[t.fixed_index] = t.fixed_values
     return yfv, index
 end
 
@@ -179,7 +180,7 @@ Base.eltype(d::PartiallyConditionedDist) = eltype(d.dist)
 
 Distributions.sampler(d::PartiallyConditionedDist) = d
 
-function Distributions._logpdf(d::PartiallyConditionedDist, x)
+function Distributions.logpdf(d::PartiallyConditionedDist, x::AbstractVector)
     xv = @view parent(x)[d.variate_index]
     return Dists.logpdf(d.dist, xv)
 end
