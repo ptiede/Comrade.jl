@@ -22,9 +22,7 @@ close(pkg_io) #hide
 using Comrade
 using LinearAlgebra
 LinearAlgebra.BLAS.set_num_threads(16)
-# Pyehtim loads eht-imaging using PythonCall this is necessary to load uvfits files
-# currently.
-using Pyehtim
+using VLBIFiles
 using NonuniformFFTs
 using Lux
 
