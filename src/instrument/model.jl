@@ -246,8 +246,8 @@ end
 #     return nothing
 # end
 
-@inline get_indices(bsitemaps, index, ::Val{1}) = map(Base.Fix2(rgetindex, index)∘Base.Fix2(getproperty, :indices_1), bsitemaps)
-@inline get_indices(bsitemaps, index, ::Val{2}) = map(Base.Fix2(rgetindex, index)∘Base.Fix2(getproperty, :indices_2), bsitemaps)
+@inline get_indices(bsitemaps, index, ::Val{1}) = map(Base.Fix2(rgetindex, index) ∘ Base.Fix2(getproperty, :indices_1), bsitemaps)
+@inline get_indices(bsitemaps, index, ::Val{2}) = map(Base.Fix2(rgetindex, index) ∘ Base.Fix2(getproperty, :indices_2), bsitemaps)
 @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map(rgetindex, values(x), values(indices)))
 # @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(ntuple(i->getindex(x[i], indices[i]), Val(length(N))))
 

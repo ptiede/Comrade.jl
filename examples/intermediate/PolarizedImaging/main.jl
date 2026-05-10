@@ -124,7 +124,7 @@ dvis = extract_table(
 )
 
 # Often the EHT does not take into acount feed offsets. To load those we read in the standard
-# ehtim style array.txt files. 
+# ehtim style array.txt files.
 Comrade.reset_mounts!(dvis, Comrade.load_array_txt(joinpath(__DIR, "../../Data/array.txt")))
 # Inflate noise by 1% and drop short (uvdist < 0.1 Gλ) baselines.
 add_fractional_noise!(dvis, 0.01)
