@@ -229,7 +229,7 @@ end
 EnzymeRules.inactive_type(::Type{<:ObservedInstrumentModel}) = true
 
 
-@inline function apply_instrument(vis, J::ObservedInstrumentModel{<:Union{JonesR, JonesF}}, x)
+@inline function apply_instrument(vis, J::ObservedInstrumentModel{<:JonesConst}, x)
     vout = intout(parent(vis))
     vout .= apply_jones.(vis, eachindex(vis), Ref(J), Ref((;)))
     return vout
@@ -259,15 +259,15 @@ EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 
 Base.@propagate_inbounds function apply_jones(v, index::Int, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
     # First lhs station
-    indices1 = get_indices(sitelookup(J), index, Val(N))
+    indices1 = get_indices(sitelookup(J), index, Val(1))
     params1 = NamedTuple{N}(map(rgetindex, values(x), values(indices1)))
     j1 = jonesmatrix(instrument(J), params1, index, Val(1))
 
     # Second RHS station
-    indices2 = get_indices(sitelookup(J), index, Val(N))
+    indices2 = get_indices(sitelookup(J), index, Val(2))
     params2 = NamedTuple{N}(map(rgetindex, values(x), values(indices2)))
-
     j2 = jonesmatrix(instrument(J), params2, index, Val(2))
+
     vout = _apply_jones(v, j1, j2, refbasis(J))
     return vout
 end

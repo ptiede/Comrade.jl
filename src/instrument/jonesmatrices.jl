@@ -116,11 +116,10 @@ Base.@propagate_inbounds construct_jones(::GenericJones, x::NTuple{4, T}, index,
 
 
 struct JonesConst{M} <: AbstractJonesMatrix
-    m1::M
-    m2::M
+    matrices::M
 end
-Base.@propagate_inbounds construct_jones(J::JonesConst, x, index, ::Val{1}) = rgetindex(J.m1, index)
-Base.@propagate_inbounds construct_jones(J::JonesConst, x, index, ::Val{2}) = rgetindex(J.m2, index)
+JonesConst(m1, m2) = JonesConst((m1, m2))
+Base.@propagate_inbounds construct_jones(J::JonesConst, x, index, ::Val{N}) where {N} = rgetindex(J.matrices[N], index)
 param_map(::JonesConst, x) = x
 
 
