@@ -23,7 +23,7 @@ recommend setting it to false currently.*
 # Example
 
 ```julia
-p = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0, 0.1)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)) refant=SEFDReference())
+p = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0, 0.1)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)) refant=SEFDReference())
 ```
 
 means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM which is mean

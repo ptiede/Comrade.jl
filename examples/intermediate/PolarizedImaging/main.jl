@@ -154,7 +154,7 @@ dvis = flag(d -> hypot(d.baseline.U, d.baseline.V) < 0.1e9, dvis)
 using Distributions
 using VLBIImagePriors
 @sky function sky(grid; mimg, ftot, cprior)
-    σs ~ ntuple(Returns(truncated(Normal(0.0, 0.5); lower = 0.0)), 4)
+    σs ~ ntuple(Returns(VLBITruncated(VLBIGaussian(0.0, 0.5); lower = 0.0)), 4)
     as ~ ntuple(Returns(cprior), 4)
     ## Build the stokes I model
     δs = ntuple(Val(4)) do i
@@ -283,14 +283,14 @@ J = JonesSandwich(js, G, D, R)
 # so we use `ScanSeg` for those quantities. The d-terms are typically stable over the track
 # so we use `TrackSeg` for those.
 intprior = (
-    lgR = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+    lgR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
     gpR = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
     gprat = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true),
-    dRx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dRy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dLx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dLy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    dRx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+    dRy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+    dLx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+    dLy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
 )
 
 # Finally, we can build our instrument model which takes a model for the Jones matrix `J`

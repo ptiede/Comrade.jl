@@ -51,12 +51,12 @@ function sky(θ, metadata)
     return m
 end
 
-skyprior = (r = Uniform(μas2rad(10.0), μas2rad(30.0)), a = Uniform(1.0, 10.0))
+skyprior = (r = VLBIUniform(μas2rad(10.0), μas2rad(30.0)), a = VLBIUniform(1.0, 10.0))
 g  = imagepixels(μas2rad(100.0), μas2rad(100.0), 256, 256)
 skym = SkyModel(sky, skyprior, g)
 
 G = SingleStokesGain(x->exp(complex(x.lg, x.pg)))
-intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
             pg = ArrayPrior(IIDSitePrior(ScanSeg(), DiagVonMises(0.0, inv(π^2))))
             )
 intmodel = InstrumentModel(G, intprior, array)

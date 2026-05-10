@@ -22,8 +22,8 @@ julia> site_tuple(sites, ScanSeg(); AA = FixedSeg(1.0))
 (AA = FixedSeg(1.0), AP = ScanSeg(), LM = ScanSeg(), PV = ScanSeg())
 julia> site_tuple(sites, ScanSeg(); AA = FixedSeg(1.0), PV = TrackSeg())
 (AA = FixedSeg(1.0), AP = ScanSeg(), LM = ScanSeg(), PV = TrackSeg())
-julia> site_tuple(sites, Normal(0.0, 0.1); reference=:AA, LM = Normal(0.0, 1.0))
-(AP = Normal(0.0, 0.1), LM = Normal(0.0, 1.0), PV = Normal(0.0, 0.1))
+julia> site_tuple(sites, VLBIGaussian(0.0, 0.1); reference=:AA, LM = VLBIGaussian(0.0, 1.0))
+(AP = VLBIGaussian(0.0, 0.1), LM = VLBIGaussian(0.0, 1.0), PV = VLBIGaussian(0.0, 0.1))
 ```
 """
 function site_tuple(sites::NTuple{N, Symbol}, default; kwargs...) where {N}

@@ -107,7 +107,7 @@ visibilities.
 A Stokes I example is
 ```julia-repl
 julia> G = SingleStokesGain(x->exp(complex(x.lg, x.pg)))
-julia> intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+julia> intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
             pg = ArrayPrior(IIDSitePrior(ScanSeg(), DiagVonMises(0.0, inv(π^2))))
             )
 
@@ -128,14 +128,14 @@ julia> D = JonesD() do
     end
 julia> R = JonesR()
 julia> J = JonesSandwich(G, D, R)
-julia> intprior = (lgr = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)),
+julia> intprior = (lgr = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)),
                     gpr = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))),
-                    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)),
+                    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)),
                     gprat = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))),
-                    dRre = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)),
-                    dRim = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)),
-                    dLre = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)),
-                    dLim = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1))
+                    dRre = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.1)),
+                    dRim = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.1)),
+                    dLre = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.1)),
+                    dLim = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.1))
                     )
 julia> intm = InstrumentModel(J, intprior)
 ```

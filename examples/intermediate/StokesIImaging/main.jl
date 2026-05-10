@@ -59,8 +59,8 @@ using VLBIImagePriors
 using Distributions
 @sky function sky(grid; ftot, mimg, cprior)
     c ~ cprior
-    σimg ~ truncated(Normal(0.0, 0.5); lower = 0.0)
-    fg ~ Uniform(0.0, 1.0)
+    σimg ~ VLBITruncated(VLBIGaussian(0.0, 0.5); lower = 0.0)
+    fg ~ VLBIUniform(0.0, 1.0)
     ## Apply the GMRF fluctuations to the image
     rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
     pimg = parent(rast)
@@ -118,7 +118,7 @@ gain(x) = exp(complex(x.lg, x.gp))
 G = SingleStokesGain(gain)
 
 intpr = (
-    lg = ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), Normal(0.0, 1.0))),
+    lg = ArrayPrior(IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 1.0))),
     gp = ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
 )
 intmodel = InstrumentModel(G, intpr)

@@ -60,15 +60,15 @@ function model(θ, p)
     return ring + g
 end
 prior = (
-          rad = Uniform(10.0, 30.0),
-          wid = Uniform(1.0, 10.0),
-          a = Uniform(-0.5, 0.5), b = Uniform(-0.5, 0.5),
-          f = Uniform(0.0, 1.0),
-          sig = Uniform((1.0), (60.0)),
-          asy = Uniform(0.0, 0.9),
-          pa = Uniform(0.0, 1π),
-          x = Uniform(-(80.0), (80.0)),
-          y = Uniform(-(80.0), (80.0))
+          rad = VLBIUniform(10.0, 30.0),
+          wid = VLBIUniform(1.0, 10.0),
+          a = VLBIUniform(-0.5, 0.5), b = VLBIUniform(-0.5, 0.5),
+          f = VLBIUniform(0.0, 1.0),
+          sig = VLBIUniform((1.0), (60.0)),
+          asy = VLBIUniform(0.0, 0.9),
+          pa = VLBIUniform(0.0, 1π),
+          x = VLBIUniform(-(80.0), (80.0)),
+          y = VLBIUniform(-(80.0), (80.0))
         )
 # Now form the posterior
 skym = SkyModel(model, prior, imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128))

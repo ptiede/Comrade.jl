@@ -199,8 +199,8 @@ end
 
         G = SingleStokesGain(x -> exp(x.lg + 1im * x.gp))
         intprior = (
-            lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0)),
+            lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0)),
         )
 
         intm = InstrumentModel(G, intprior)
@@ -248,8 +248,8 @@ end
 
         G = SingleStokesGain(x -> exp(x.lg + 1im * x.gp))
         intprior = (
-            lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0)),
+            lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0)),
         )
 
         intm = InstrumentModel(G, intprior)
@@ -339,20 +339,20 @@ end
 
 
         intprior = (
-            lgR = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-            gpR = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); phase = true, refant = SEFDReference(0.0)),
-            lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase = false),
-            gprat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), refant = SingleReference(:AA, 0.0)),
-            dRx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-            dRy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-            dLx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-            dLy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+            lgR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+            gpR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); phase = true, refant = SEFDReference(0.0)),
+            lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), phase = false),
+            gprat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), refant = SingleReference(:AA, 0.0)),
+            dRx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+            dRy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+            dLx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+            dLy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
         )
 
 
         intm = InstrumentModel(J, intprior)
         intm2 = InstrumentModel(J2, intprior)
-        intjg = InstrumentModel(JG, (; lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)))))
+        intjg = InstrumentModel(JG, (; lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))))
         show(IOBuffer(), MIME"text/plain"(), intm)
 
 
@@ -523,14 +523,14 @@ end
         F = JonesF()
 
         intprior = (
-            lgR = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-            gpR = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); phase = true, refant = SEFDReference(0.0)),
-            lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)), phase = false),
-            gprat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-            dRx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-            dRy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-            dLx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-            dLy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+            lgR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+            gpR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); phase = true, refant = SEFDReference(0.0)),
+            lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), phase = false),
+            gprat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+            dRx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+            dRy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+            dLx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+            dLy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
         )
 
 
@@ -650,13 +650,13 @@ end
 
         @testset "standard" begin
             intprior = (
-                lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-                gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0)),
+                lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+                gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0)),
             )
 
             intprior_mar = (
-                lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-                gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+                lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+                gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
             )
 
 
@@ -678,8 +678,8 @@ end
         @testset "markov" begin
 
             intprior = (
-                lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
-                gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
+                lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+                gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
             )
 
             intm = InstrumentModel(G, intprior)

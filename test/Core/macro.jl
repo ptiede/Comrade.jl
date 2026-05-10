@@ -9,16 +9,16 @@ using VLBIImagePriors
     @testset "parity with hand-written SkyModel" begin
         # Macro form
         @sky function macro_gauss(grid; flo = μas2rad(1.0), fhi = μas2rad(40.0))
-            σ ~ Uniform(flo, fhi)
-            τ ~ Uniform(0.35, 0.65)
+            σ ~ VLBIUniform(flo, fhi)
+            τ ~ VLBIUniform(0.35, 0.65)
             return stretched(Gaussian(), σ * τ, σ)
         end
 
         # Hand-written equivalent
         manual_f(θ, meta) = stretched(Gaussian(), θ.σ * θ.τ, θ.σ)
         manual_prior = (
-            σ = Uniform(μas2rad(1.0), μas2rad(40.0)),
-            τ = Uniform(0.35, 0.65),
+            σ = VLBIUniform(μas2rad(1.0), μas2rad(40.0)),
+            τ = VLBIUniform(0.35, 0.65),
         )
 
         m_macro = macro_gauss(g)
@@ -41,7 +41,7 @@ using VLBIImagePriors
 
     @testset "metadata flow and grid in metadata" begin
         @sky function with_grid(grid; ftot = 1.0)
-            σ ~ Uniform(μas2rad(1.0), μas2rad(40.0))
+            σ ~ VLBIUniform(μas2rad(1.0), μas2rad(40.0))
             return ftot * stretched(Gaussian(), σ, σ)
         end
         m = with_grid(g; ftot = 2.5)
@@ -55,7 +55,7 @@ using VLBIImagePriors
 
     @testset "kwarg without default is required" begin
         @sky function needs_kw(grid; ftot)
-            σ ~ Uniform(μas2rad(1.0), μas2rad(40.0))
+            σ ~ VLBIUniform(μas2rad(1.0), μas2rad(40.0))
             return ftot * stretched(Gaussian(), σ, σ)
         end
         @test_throws UndefKeywordError needs_kw(g)
@@ -65,11 +65,11 @@ using VLBIImagePriors
 
     @testset "tuple-of-IID priors via ntuple" begin
         @sky function ntuple_prior(grid; n = 3, lo = 0.01, hi = 10.0)
-            ρs ~ ntuple(Returns(Uniform(lo, hi)), n)
+            ρs ~ ntuple(Returns(VLBIUniform(lo, hi)), n)
             return stretched(Gaussian(), ρs[1], ρs[2])
         end
         m = ntuple_prior(g)
-        @test m.prior.ρs isa NTuple{3, <:Uniform}
+        @test m.prior.ρs isa NTuple{3, <:VLBIImagePriors.AffineDistribution}
         x = rand(Comrade.HypercubeTransform.NamedDist(m.prior))
         @test x.ρs isa NTuple{3, Float64}
     end
@@ -80,7 +80,7 @@ using VLBIImagePriors
 
         @sky function hier_imager(grid; cprior, σscale = 0.1)
             c ~ cprior
-            σimg ~ Exponential(σscale)
+            σimg ~ VLBIExponential(σscale)
             rast = to_simplex(CenteredLR(), σimg .* c.params)
             return ContinuousImage(rast, grid, BSplinePulse{3}())
         end
@@ -93,9 +93,9 @@ using VLBIImagePriors
 
     @testset "VLBIPosterior compatibility" begin
         @sky function gauss2(grid)
-            σ ~ Uniform(μas2rad(1.0), μas2rad(40.0))
-            τ ~ Uniform(0.35, 0.65)
-            f1 ~ Uniform(0.8, 1.2)
+            σ ~ VLBIUniform(μas2rad(1.0), μas2rad(40.0))
+            τ ~ VLBIUniform(0.35, 0.65)
+            f1 ~ VLBIUniform(0.8, 1.2)
             return f1 * stretched(Gaussian(), σ * τ, σ)
         end
         m = gauss2(g)
@@ -114,20 +114,20 @@ using VLBIImagePriors
         # Tilde nested inside another expression is rejected
         @test_throws LoadError @eval @sky function nested_tilde(grid)
             if true
-                σ ~ Uniform(0.0, 1.0)
+                σ ~ VLBIUniform(0.0, 1.0)
             end
             return Gaussian()
         end
 
         # Name clash between sampled param and kwarg
         @test_throws LoadError @eval @sky function clash(grid; σ = 1.0)
-            σ ~ Uniform(0.0, 1.0)
+            σ ~ VLBIUniform(0.0, 1.0)
             return stretched(Gaussian(), σ, σ)
         end
 
         # Name clash with positional grid name
         @test_throws LoadError @eval @sky function gridclash(grid)
-            grid ~ Uniform(0.0, 1.0)
+            grid ~ VLBIUniform(0.0, 1.0)
             return Gaussian()
         end
 
@@ -138,14 +138,14 @@ using VLBIImagePriors
 
         # Multiple positional args rejected
         @test_throws LoadError @eval @sky function twopos(grid, extra)
-            σ ~ Uniform(0.0, 1.0)
+            σ ~ VLBIUniform(0.0, 1.0)
             return Gaussian()
         end
 
         # Duplicate tilde names
         @test_throws LoadError @eval @sky function dupes(grid)
-            σ ~ Uniform(0.0, 1.0)
-            σ ~ Uniform(0.0, 2.0)
+            σ ~ VLBIUniform(0.0, 1.0)
+            σ ~ VLBIUniform(0.0, 2.0)
             return Gaussian()
         end
     end

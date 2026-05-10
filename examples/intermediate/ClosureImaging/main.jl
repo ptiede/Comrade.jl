@@ -75,8 +75,8 @@ add_fractional_noise!(dcphase, 0.02)
 using VLBIImagePriors, Distributions
 @sky function sky(grid; mimg, cprior)
     c ~ cprior
-    σimg ~ Exponential(0.1)
-    fg ~ Uniform(0.0, 1.0)
+    σimg ~ VLBIExponential(0.1)
+    fg ~ VLBIUniform(0.0, 1.0)
     ## Apply the GMRF fluctuations to the image
     rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
     m = ContinuousImage(((1 - fg)) .* rast, BSplinePulse{3}())

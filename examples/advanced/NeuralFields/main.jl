@@ -152,8 +152,8 @@ using Distributions
 # for the standard deviation and a Uniform(0, 1) prior for constant background flux ratio.
 prior = (;
     nn = nnprior,
-    fb = Uniform(0.0, 1.0),
-    σ = Exponential(0.25),
+    fb = VLBIUniform(0.0, 1.0),
+    σ = VLBIExponential(0.25),
 )
 
 # We can then define our sky model.
