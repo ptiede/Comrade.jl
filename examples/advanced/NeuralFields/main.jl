@@ -37,17 +37,21 @@ rng = StableRNG(123)
 # For this tutorial we will image publicly available VLBA data of the AGN
 # 1308+326 observed on 2021/03/19 at 43 GHz as part of the Boston University blazar monitoring program.
 file = Base.download("https://www.bu.edu/blazars/VLBA_GLAST/1308/1308+326Q.2021-03-19.UVP.gz")
-obs0 = ehtim.obsdata.load_uvfits(file)
+uvd = VLBIFiles.load(
+    VLBIFiles.UVData,
+    file
+)
 
-# Now we do some minor preprocessing:
-#   - Scan average the data since the data have been preprocessed so that the gain phases
-#      are coherent.
-#   - Add 0.5% systematic noise to deal with calibration issues such as leakage.
-obs = scan_average(obs0).add_fractional_noise(0.005)
 
 # For this tutorial we will only use closure quantities to reconstruct the image however, polarized
 # or complex visibilities can also be used with instrumental models following the other tutorials.
-dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(; snrcut = 3), ClosurePhases(; snrcut = 3))
+dlcamp, dcphase = extract_table(
+    uvd,
+    LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()),
+    ClosurePhases(; time_average = VLBI.GapBasedScans()),
+)
+add_fractional_noise!(dlcamp, 0.005)
+add_fractional_noise!(dcphase, 0.005)
 
 
 # ## Build the Model/Posterior
