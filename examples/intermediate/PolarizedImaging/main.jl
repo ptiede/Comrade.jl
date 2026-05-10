@@ -161,21 +161,30 @@ using VLBIImagePriors
         σs[i] .* as[i].params
     end
 
-    ## Convert hyperbolic polarization basis to Stokes basis
+    ## Convert hyperbolic polarization parameterization to Stokes parameters.
     pmap = VLBISkyModels.PolExp2Map!(δs..., axisdims(mimg))
 
     ## We now add a mean image. Namely, we assume that `pmap` are multiplicative fluctuations
     ## about some mean image `mimg`. We also compute the total flux of the Stokes I image
     ## for normalization purposes below.
     bpmap = baseimage(pmap)
+    bmimg = baseimage(mimg)
     ft = zero(ftot)
-    for i in eachindex(bpmap)
-        bpmap[i] = mimg[i] * bpmap[i]
-        ft += bpmap[i].I
+    bpmapI = stokes(bpmap, :I)
+    bpmapQ = stokes(bpmap, :Q)
+    bpmapU = stokes(bpmap, :U)
+    bpmapV = stokes(bpmap, :V)
+
+    @inbounds for i in eachindex(bpmap, bmimg)
+        bpmapI[i] = bmimg[i] * bpmapI[i]
+        bpmapQ[i] = bmimg[i] * bpmapQ[i]
+        bpmapU[i] = bmimg[i] * bpmapU[i]
+        bpmapV[i] = bmimg[i] * bpmapV[i]
+        ft += bpmapI[i]
     end
 
     ## Renormlize to get the correct total flux.
-    for i in eachindex(bpmap)
+    @inbounds for i in eachindex(bpmap)
         bpmap[i] *= ftot / ft
     end
 
@@ -259,7 +268,7 @@ R = JonesR(; add_fr = true)
 # first argument is a function that specifies how to combine each Jones matrix. In this case
 # we will use the standard decomposition J = adjoint(R)*G*D*R, where we need to apply the adjoint
 # of the feed rotaion matrix `R` because the data has feed rotation calibration.
-js(g, d, r) = adjoint(r) * g * d * r
+@inline js(g, d, r) = adjoint(r) * g * d * r
 J = JonesSandwich(js, G, D, R)
 
 # !!! note

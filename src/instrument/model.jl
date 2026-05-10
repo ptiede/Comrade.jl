@@ -219,9 +219,9 @@ end
 end
 
 
-function _apply_instrument!(vout::AbstractArray, vis, J::ObservedInstrumentModel, xint)
+@inline function _apply_instrument!(vout::AbstractArray, vis, J::ObservedInstrumentModel, xint)
     @inbounds for i in eachindex(vout, vis)
-        vout[i] = apply_jones(vis[i], i, J, xint)
+        vout[i] = @inline apply_jones(vis[i], i, J, xint)
     end
     return
 end
@@ -246,9 +246,8 @@ end
 #     return nothing
 # end
 
-
-@inline get_indices(bsitemaps, index, ::Val{1}) = map(x -> rgetindex(x.indices_1, index), bsitemaps)
-@inline get_indices(bsitemaps, index, ::Val{2}) = map(x -> rgetindex(x.indices_2, index), bsitemaps)
+@inline get_indices(bsitemaps, index, ::Val{1}) = map(Base.Fix2(rgetindex, index)∘Base.Fix2(getproperty, :indices_1), bsitemaps)
+@inline get_indices(bsitemaps, index, ::Val{2}) = map(Base.Fix2(rgetindex, index)∘Base.Fix2(getproperty, :indices_2), bsitemaps)
 @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(map(rgetindex, values(x), values(indices)))
 # @inline get_params(x::NamedTuple{N}, indices::NamedTuple{N}) where {N} = NamedTuple{N}(ntuple(i->getindex(x[i], indices[i]), Val(length(N))))
 
@@ -260,12 +259,12 @@ EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 Base.@propagate_inbounds function apply_jones(v, index::Int, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
     # First lhs station
     indices1 = get_indices(sitelookup(J), index, Val(1))
-    params1 = NamedTuple{N}(map(rgetindex, values(x), values(indices1)))
+    params1 = NamedTuple{N}(map(@inline(rgetindex), values(x), values(indices1)))
     j1 = jonesmatrix(instrument(J), params1, index, Val(1))
 
     # Second RHS station
     indices2 = get_indices(sitelookup(J), index, Val(2))
-    params2 = NamedTuple{N}(map(rgetindex, values(x), values(indices2)))
+    params2 = NamedTuple{N}(map(@inline(rgetindex), values(x), values(indices2)))
     j2 = jonesmatrix(instrument(J), params2, index, Val(2))
 
     vout = _apply_jones(v, j1, j2, refbasis(J))
