@@ -21,10 +21,19 @@ close(pkg_io) #hide
 # To get started, we will load Comrade
 using Comrade
 using LinearAlgebra
-LinearAlgebra.BLAS.set_num_threads(16)
 using VLBIFiles
-using NonuniformFFTs
 using Lux
+
+# We will accelerate the optimization by tracing the forward+gradient through MLIR/XLA
+# with [Reactant.jl](https://github.com/EnzymeAD/Reactant.jl). Reactant precompiles a single
+# loss-and-gradient step into an XLA program, which is then re-used for every iteration of
+# our optimizer.
+using Reactant
+using VLBISkyModels: ReactantNUFFTAlg
+using ComradeBase: ReactantEx
+## Force the CPU backend so this example runs in CI/docs without a GPU.
+## Comment this out (or set to "cuda"/"tpu") if you have an accelerator available.
+Reactant.set_default_backend("cpu")
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
@@ -173,28 +182,86 @@ prior = (;
     σ = VLBIExponential(0.25),
 )
 
-# We can then define our sky model.
-skym = SkyModel(sky, prior, grid; metadata = skymeta)
+# We can then define our sky model. We pass `algorithm = ReactantAlg()` so the non-uniform
+# FFT used to evaluate visibilities runs through Reactant's XLA-traced NUFT plan rather
+# than the default CPU `NFFTAlg()`.
+skym = SkyModel(sky, prior, grid; algorithm = ReactantAlg(), metadata = skymeta)
 
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
 post = VLBIPosterior(skym, dlcamp, dcphase)
 
+# Move every array Reactant cares about (sky-model grid + metadata, data tables, etc.)
+# onto the Reactant device. `prepare_device` walks the posterior tree and replaces the
+# concrete arrays with `Reactant.RArray`s, leaving priors and the (empty) instrument
+# model untouched.
+post = Comrade.prepare_device(post, ReactantEx())
+
 # ## Reconstructing the Image
 
-# To optimize our posterior `Comrade` provides the `comrade_opt` function. To use this
-# functionality a user first needs to import `Optimization.jl` and the optimizer of choice.
-# In this tutorial we will use the AdamW optimizer although others can be used as well.
-# We also need to import Enzyme to allow for automatic differentiation.
-using Optimization, OptimizationOptimisers
-xinit = prior_sample(rng, post) ## draw initial parameters from the prior to reproducible results
-imageviz(parent(skymodel(post, xinit)); colorscale = log10, colorrange = (1.0e-8, 1.0e-4), size = (500, 400)) |> DisplayAs.PNG |> DisplayAs.Text
-xopt, sol = comrade_opt(post, AdamW(3.0e-4); maxiters = 5000, initial_params = xinit)
+# Because the optimizer needs to traverse the entire parameter space (network weights +
+# `σ`, `fb`) we work on the unconstrained-flat representation produced by `asflat`. This
+# wraps the posterior in a `TransformedVLBIPosterior` whose log-density takes a flat
+# `Vector{Float64}` and includes the log-Jacobian of the bijection.
+tpost = asflat(post)
 
-# !!! note
-#     We are currently working on making Comrade utilize MLIR and XLA through Reactant. This
-#     will greatly speed up these neural models.
+# Draw initial parameters from the prior, push them through the inverse transform to get a
+# flat vector, and visualize the corresponding initial image. `skymodel` traces through
+# Reactant because `post` lives on the device, so we `@jit` the call and then materialize
+# the underlying raster back onto the host before handing it to Makie.
+xinit_nt = prior_sample(rng, post) ## NamedTuple in the original parameter space
+xinit_flat = HypercubeTransform.inverse(tpost, xinit_nt)
+init_img_r = @jit parent(skymodel(post, xinit_nt))
+init_img = IntensityMap(Array(parent(init_img_r)), axisdims(init_img_r))
+imageviz(init_img; colorscale = log10, colorrange = (1.0e-8, 1.0e-4), size = (500, 400)) |> DisplayAs.PNG |> DisplayAs.Text
+
+# Move the parameter vector onto the Reactant device.
+xinit_r = Reactant.to_rarray(xinit_flat)
+
+# We use [Optimisers.jl](https://github.com/FluxML/Optimisers.jl) directly (rather than the
+# `comrade_opt` wrapper) because Reactant compiles the whole step — including the optimizer
+# update — into a single XLA program. AdamW with a learning rate of `3.0e-4` matches the
+# Enzyme/CPU version of this tutorial.
+using Optimisers
+opt = Optimisers.AdamW(3.0e-4)
+opt_state = Optimisers.setup(opt, xinit_r)
+
+# A single training step: compute the negative log-density and its Enzyme reverse-mode
+# gradient, then apply one Optimisers.jl update. Reactant traces this whole function once
+# and reuses the compiled XLA program for every iteration.
+function step(tpost, x, opt_state)
+    dx = Enzyme.make_zero(x)
+    _, primal = Enzyme.autodiff(
+        Enzyme.WithPrimal(Enzyme.set_runtime_activity(Enzyme.Reverse)),
+        Comrade.logdensityof, Active, Const(tpost), Duplicated(x, dx)
+    )
+    ## Optimisers expects gradients of the loss we are *minimising*; logdensityof returns
+    ## the log-posterior so we negate.
+    grads = -1 .* dx
+    new_state, new_x = Optimisers.update(opt_state, x, grads)
+    return new_state, new_x, -primal
+end
+
+# Compile the step. The first call is the (slow) MLIR/XLA compile; every subsequent call is
+# a single dispatched program.
+step_jit = @compile sync = true step(tpost, xinit_r, opt_state)
+
+# Run the optimizer. We log the loss every 250 steps so the docs build still shows
+# convergence without flooding stdout.
+xcur = xinit_r
+state_cur = opt_state
+maxiters = 5000
+for i in 1:maxiters
+    state_cur, xcur, loss = step_jit(tpost, xcur, state_cur)
+    if i == 1 || i % 250 == 0 || i == maxiters
+        @info "iter $i  -logdensity = $(Reactant.@allowscalar Float64(loss))"
+    end
+end
+
+# Pull the optimized parameters back to the host as a NamedTuple in the original space.
+xopt_flat = Array(xcur)
+xopt = HypercubeTransform.transform(tpost, xopt_flat)
 
 using CairoMakie
 using DisplayAs #hide
