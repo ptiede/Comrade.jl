@@ -101,7 +101,7 @@ using Lux
 # We only use 1 Fourier feature embedding here for simplicity and because VLBI practioners typically
 # prefer very smooth images. However, more Fourier features can be used to model
 # finer scale structures.
-ff = fourierfeature(grid; m =4)
+ff = fourierfeature(grid; m = 2)
 
 
 # For the neural field we use a very simple MLP with 3 hidden layers of 64 units each
@@ -109,11 +109,11 @@ ff = fourierfeature(grid; m =4)
 # and to ensure smoothness in the image. Also be disable the bias in the last layer since
 # in some sense is prefers zero mean output which is desirable for fluctuation modeling.
 nnmodel = Chain(
-    Dense(size(ff, 1) => 128, Lux.tanh_fast),
-    Dense(128 => 128, Lux.tanh_fast),
-    Dense(128 => 128, Lux.tanh_fast),
-    Dense(128 => 128, Lux.tanh_fast),
-    Dense(128 => 1, use_bias = false),
+    Dense(size(ff, 1) => 64, Lux.tanh_fast),
+    Dense(64 => 64, Lux.tanh_fast),
+    Dense(64 => 64, Lux.tanh_fast),
+    Dense(64 => 64, Lux.tanh_fast),
+    Dense(64 => 1, use_bias = false),
 )
 
 
@@ -156,7 +156,7 @@ ps, st = Lux.setup(Random.default_rng(), nnmodel) |> reactant_device()
 function nngp_prior(x::AbstractArray)
     if ndims(x) == 2
         fan_in = size(x, 1)
-        return VLBIGaussian(zero(eltype(x)), inv(sqrt(fan_in)), size(x))
+        return VLBIGaussian(zero(eltype(x)), one(eltype(x)), size(x))
     else
         return VLBIImagePriors.StdNormal(size(x))
     end
@@ -179,7 +179,7 @@ using Distributions
 prior = (;
     nn = nnprior,
     fb = VLBIUniform(0.0, 1.0),
-    σ = VLBIExponential(3.0),
+    σ = VLBIExponential(0.5),
     ftot = VLBIUniform(0.1, 10.0)
 )
 
@@ -209,13 +209,13 @@ intmodel = InstrumentModel(G, intpr)
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis)
+post_cpu = VLBIPosterior(skym, intmodel, dvis)
 
 # Move every array Reactant cares about (sky-model grid + metadata, data tables, etc.)
 # onto the Reactant device. `prepare_device` walks the posterior tree and replaces the
 # concrete arrays with `Reactant.RArray`s, leaving priors and the (empty) instrument
 # model untouched.
-post = Comrade.prepare_device(post, ComradeBase.ReactantEx())
+post = Comrade.prepare_device(post_cpu, ComradeBase.ReactantEx())
 
 # ## Reconstructing the Image
 
@@ -233,7 +233,7 @@ using CairoMakie, DisplayAs
 xinit_nt = prior_sample(rng, post) ## NamedTuple in the original parameter space
 init_img_r = @jit skymodel(post, Reactant.to_rarray(xinit_nt))
 init_img = Comrade.Adapt.adapt(Array, init_img_r.img)
-imageviz(init_img, size = (500, 400), colorscale=log10, colorrange=(1e-9, 1e-2)) |> DisplayAs.PNG |> DisplayAs.Text
+imageviz(init_img, size = (500, 400), colorscale=log10, colorrange=(1e-6, 1e-4)) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Move the parameter vector onto the Reactant device.
 xinit_r = Reactant.to_rarray(Comrade.inverse(tpost, xinit_nt))
@@ -252,7 +252,7 @@ opt_state = @jit Optimisers.setup(opt, xinit_r)
 function step(tpost, x, opt_state)
     dx = Enzyme.make_zero(x)
     _, primal = Enzyme.autodiff(
-        Enzyme.WithPrimal(Enzyme.Reverse),
+        Enzyme.WithPrimal(Enzyme.set_strong_zero(Enzyme.Reverse)),
         Comrade.logdensityof, Active, Const(tpost), Duplicated(x, dx)
     )
     ## Optimisers expects gradients of the loss we are *minimising*; logdensityof returns
@@ -279,23 +279,23 @@ for i in 1:maxiters
 end
 
 # Pull the optimized parameters back to the host as a NamedTuple in the original space.
-xopt_flat = Array(xcur)
-xopt = Comrade.transform(tpost, xopt_flat)
+xopt = @jit Comrade.transform(tpost, xcur);
 
 using CairoMakie
 using DisplayAs #hide
 # We can plot the MAP image using `imageviz`.
-imgmap = parent(skymodel(post, xopt))
-crange = (1.0e-8, 1.0e-4)
-fig = imageviz(imgmap, colorscale = log10, colorrange = crange, size = (650, 500));
+imgmap = parent(@jit skymodel(post, xopt));
+crange = (1.0e-6, 1.0e-4)
+fig = imageviz(Comrade.Adapt.adapt(Array, imgmap), colorscale = log10, colorrange = crange, size = (650, 500));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
 # To see how well the MAP estimate fits the data we can plot the residuals.
-res = Comrade.residuals(post, xopt)
+xopt_cpu = Comrade.transform(asflat(post_cpu), Array(xcur))
+res = @jit(Comrade.residuals(post, xopt))[1]
+res_cpu = Comrade.Adapt.adapt(Array, res)
 fig = Figure(; size = (800, 300))
-plotfields!(fig[1, 1], res[1], :uvdist, :res);
-plotfields!(fig[1, 2], res[2], :uvdist, :res);
+plotfields!(fig[1, 1], res_cpu, uvdist, :res);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 
@@ -307,7 +307,7 @@ cleanf = Base.download("https://www.bu.edu/blazars/VLBA_GLAST/1308/1308+326Q.202
 # By default this will load the clean components with the beam defined in the FITS header.
 mcl = load_clean_components(cleanf)
 # We can also choose the load the clean components with a user-defined beam.
-mcl_25 = load_clean_components(cleanf, modify(Gaussian(), Stretch(beamsize(dlcamp) / 4 / fwhmfac)))
+mcl_25 = load_clean_components(cleanf, modify(Gaussian(), Stretch(beamsize(dvis) / 4 / fwhmfac)))
 
 # Now we can produce the CLEAN images on the same grid as our Comrade reconstruction.
 cleanimg = intensitymap(mcl, grid)
@@ -316,7 +316,7 @@ cleanimg25 = intensitymap(mcl_25, grid)
 fig = Figure(; size = (900, 350));
 axs = [Axis(fig[1, j], xreversed = true, aspect = DataAspect()) for j in 1:3]
 crange = (1.0e-6, 1.0e-1)
-image!(axs[1], imgmap, colormap = :afmhot, colorscale = log10, colorrange = crange); axs[1].title = "Comrade Neural Field"
+image!(axs[1], Comrade.Adapt.adapt(Array, imgmap), colormap = :afmhot, colorscale = log10, colorrange = crange); axs[1].title = "Comrade Neural Field"
 image!(axs[2], max.(cleanimg, 1.0e-20), colormap = :afmhot, colorscale = log10, colorrange = crange); axs[2].title = "CLEAN (Nominal beam)"
 image!(axs[3], max.(cleanimg25, 1.0e-20), colormap = :afmhot, colorscale = log10, colorrange = crange); axs[3].title = "CLEAN (25% beam)"
 hidedecorations!.(axs)

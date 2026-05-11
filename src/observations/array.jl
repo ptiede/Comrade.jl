@@ -151,6 +151,14 @@ Base.@kwdef struct EHTArrayConfiguration{A <: AbstractBaselineDatum, F, T, S, D 
     datatable::D
 end
 
+function Adapt.adapt_structure(to, c::EHTArrayConfiguration)
+    tarr = adapt(to, c.tarr)
+    scans = adapt(to, c.scans)
+    datatable = adapt(to, c.datatable)
+    return EHTArrayConfiguration(c.bandwidth, tarr, scans, c.mjd, c.ra, c.dec, c.source, c.timetype, datatable)
+end
+
+
 function Base.show(io::IO, config::EHTArrayConfiguration)
     println(io, "EHTArrayConfiguration:")
     println(io, "  source:      ", config.source)

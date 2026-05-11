@@ -49,3 +49,10 @@ Base.getindex(data::AbstractVLBITable, i::Int) = build_datum(data, i)
 function VLBISkyModels.rebuild(config::AbstractVLBITable, table)
     throw(MethodError(rebuild, config, table))
 end
+
+function Adapt.adapt_structure(to, x::EHTObservationTable{T}) where {T}
+    m = adapt(to, x.measurement)
+    n = adapt(to, x.noise)
+    c = adapt(to, x.config)
+    return EHTObservationTable{T}(m, n, c)
+end
