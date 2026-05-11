@@ -112,7 +112,6 @@ nnmodel = Chain(
     Dense(size(ff, 1) => 64, Lux.tanh_fast),
     Dense(64 => 64, Lux.tanh_fast),
     Dense(64 => 64, Lux.tanh_fast),
-    Dense(64 => 64, Lux.tanh_fast),
     Dense(64 => 1, use_bias = false),
 )
 
@@ -155,7 +154,7 @@ using Random
 ps, st = Lux.setup(Random.default_rng(), nnmodel) |> reactant_device()
 function nngp_prior(x::AbstractArray)
     if ndims(x) == 2
-        fan_in = size(x, 1)
+        fan_in = size(x, 2)
         return VLBIGaussian(zero(eltype(x)), one(eltype(x)), size(x))
     else
         return VLBIImagePriors.StdNormal(size(x))
@@ -243,7 +242,7 @@ xinit_r = Reactant.to_rarray(Comrade.inverse(tpost, xinit_nt))
 # update — into a single XLA program. AdamW with a learning rate of `3.0e-4` matches the
 # Enzyme/CPU version of this tutorial.
 using Optimisers
-opt = Optimisers.AdamW(3.0e-4)
+opt = Optimisers.AdamW(3.0e-3)
 opt_state = @jit Optimisers.setup(opt, xinit_r)
 
 # A single training step: compute the negative log-density and its Enzyme reverse-mode
@@ -270,7 +269,7 @@ step_jit = @compile sync = true step(tpost, xinit_r, opt_state)
 # convergence without flooding stdout.
 xcur = xinit_r
 state_cur = opt_state
-maxiters = 5000
+maxiters = 10_000
 for i in 1:maxiters
     state_cur, xcur, loss = step_jit(tpost, xcur, state_cur)
     if i == 1 || i % 250 == 0 || i == maxiters
@@ -285,7 +284,7 @@ using CairoMakie
 using DisplayAs #hide
 # We can plot the MAP image using `imageviz`.
 imgmap = parent(@jit skymodel(post, xopt));
-crange = (1.0e-6, 1.0e-4)
+crange = (1.0e-7, 1.0e-3)
 fig = imageviz(Comrade.Adapt.adapt(Array, imgmap), colorscale = log10, colorrange = crange, size = (650, 500));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
@@ -315,7 +314,7 @@ cleanimg25 = intensitymap(mcl_25, grid)
 
 fig = Figure(; size = (900, 350));
 axs = [Axis(fig[1, j], xreversed = true, aspect = DataAspect()) for j in 1:3]
-crange = (1.0e-6, 1.0e-1)
+crange = (1.0e-4, 1.0e-1)
 image!(axs[1], Comrade.Adapt.adapt(Array, imgmap), colormap = :afmhot, colorscale = log10, colorrange = crange); axs[1].title = "Comrade Neural Field"
 image!(axs[2], max.(cleanimg, 1.0e-20), colormap = :afmhot, colorscale = log10, colorrange = crange); axs[2].title = "CLEAN (Nominal beam)"
 image!(axs[3], max.(cleanimg25, 1.0e-20), colormap = :afmhot, colorscale = log10, colorrange = crange); axs[3].title = "CLEAN (25% beam)"
