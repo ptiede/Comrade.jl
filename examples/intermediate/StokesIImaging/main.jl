@@ -128,7 +128,7 @@ intmodel = InstrumentModel(G, intpr)
 # gradients of the posterior we also need to load `Enzyme.jl`. Under the hood, Comrade will use
 # Enzyme to compute the gradients of the posterior.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis)
+post = VLBIPosterior(skym, intmodel, dvis);
 
 # ## Optimization and Sampling
 
@@ -186,7 +186,7 @@ plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 # instrument modeling as we are able to solve for the gain amplitudes and get a reasonable
 # image.
 
-
+# # Why we should Sample from the Posterior
 # One problem with the MAP estimate is that it does not provide uncertainties on the image.
 # That is we are unable to statistically assess which components of the image are certain.
 # Comrade is really a Bayesian imaging and calibration package for VLBI. Therefore, our

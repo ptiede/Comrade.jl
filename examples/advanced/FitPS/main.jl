@@ -123,7 +123,7 @@ skym = sky(grid; mimg, pl, cprior, ρmax = max(size(grid)...))
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
-post = VLBIPosterior(skym, dlcamp, dcphase)
+post = VLBIPosterior(skym, dlcamp, dcphase);
 
 # ## Reconstructing the Image
 

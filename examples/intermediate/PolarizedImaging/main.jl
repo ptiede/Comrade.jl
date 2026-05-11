@@ -313,14 +313,14 @@ intmodel = InstrumentModel(J, intprior)
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling, and specifying to use Enzyme.Reverse with runtime activity for AD.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis)
+post = VLBIPosterior(skym, intmodel, dvis);
 
 # ## Reconstructing the Image and Instrument Effects
 
 # To sample from this posterior, it is convenient to move from our constrained parameter space
 # to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This transformation is
 # done using the `asflat` function.
-tpost = asflat(post)
+tpost = asflat(post);
 
 # We can also query the dimension of our posterior or the number of parameters we will sample.
 # !!! warning

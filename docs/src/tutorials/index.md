@@ -6,8 +6,8 @@ const beginner = [
   {
     href: "beginner/LoadingData", 
     src: "../vis.png",
-    caption: "Loading Data with Pyehtim",
-    desc: "How to load data using standard eht-imaging in Julia." 
+    caption: "Loading Data with VLBIFiles",
+    desc: "How to load data into the Comrade format" 
   },
   {
     href: "beginner/GeometricModeling", 

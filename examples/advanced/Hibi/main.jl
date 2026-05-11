@@ -125,7 +125,7 @@ skym = sky(g; ftot = 1.1, cprior)
 # This is everything we need to specify our posterior distribution, which our is the main
 # object of interest in image reconstructions when using Bayesian inference.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis)
+post = VLBIPosterior(skym, intmodel, dvis);
 
 # We can sample from the prior to see what the model looks like
 using DisplayAs #hide
