@@ -56,7 +56,6 @@ dvis = extract_table(
 add_fractional_noise!(dvis, 0.005)
 
 
-
 # ## Build the Model/Posterior
 # For our model we will use a neural field to model the log image fluctuations. That is our model
 # will look like
@@ -128,10 +127,10 @@ function sky(θ, metadata)
 
     ## Compute the neural field
     δ = reshape(first(Lux.apply(nnmodel, ff, nn, st)), size(mimg))
-    δ .*= σ 
+    δ .*= σ
     mδ = maximum(δ)
     rast = @. exp(δ - mδ) * mb
-    rast .*= ftot/sum(rast)
+    rast .*= ftot / sum(rast)
     return ContinuousImage(rast, axisdims(mimg), DeltaPulse{Float64}())
 end
 
@@ -179,7 +178,7 @@ prior = (;
     nn = nnprior,
     fb = VLBIUniform(0.0, 1.0),
     σ = VLBIExponential(0.5),
-    ftot = VLBIUniform(0.1, 10.0)
+    ftot = VLBIUniform(0.1, 10.0),
 )
 
 # We can then define our sky model. We pass `algorithm = ReactantAlg()` so the non-uniform
@@ -192,17 +191,16 @@ skym = SkyModel(sky, prior, grid; algorithm = VLBISkyModels.ReactantNUFFTAlg(), 
 g(x) = exp(complex(x.lg, x.gp))
 G = SingleStokesGain(g)
 intpr = (
-    lg=ArrayPrior(
-        IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.5));
+    lg = ArrayPrior(
+        IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.5))
     ),
-    gp=ArrayPrior(
+    gp = ArrayPrior(
         IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(0.5^2)));
-        refant=SEFDReference(0.0),
-        phase=true,
+        refant = SEFDReference(0.0),
+        phase = true,
     ),
 )
 intmodel = InstrumentModel(G, intpr)
-
 
 
 # Since we are fitting closures we do not need to include an instrument model, since
@@ -232,7 +230,7 @@ using CairoMakie, DisplayAs
 xinit_nt = prior_sample(rng, post) ## NamedTuple in the original parameter space
 init_img_r = @jit skymodel(post, Reactant.to_rarray(xinit_nt))
 init_img = Comrade.Adapt.adapt(Array, init_img_r.img)
-imageviz(init_img, size = (500, 400), colorscale=log10, colorrange=(1e-6, 1e-4)) |> DisplayAs.PNG |> DisplayAs.Text
+imageviz(init_img, size = (500, 400), colorscale = log10, colorrange = (1.0e-6, 1.0e-4)) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Move the parameter vector onto the Reactant device.
 xinit_r = Reactant.to_rarray(Comrade.inverse(tpost, xinit_nt))
@@ -328,13 +326,3 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 #
 # A disclaimer is that we have not made any attempt to optimize the neural network architecture or hyperparameters here.
 # For a more thorough and insightful analysis a paper by Foschi et al is in preparation.
-
-
-
-
-
-
-
-
-
-

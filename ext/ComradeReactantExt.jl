@@ -84,6 +84,6 @@ function Comrade.prepare_device(grid::VLBISkyModels.FourierDualDomain, ex::React
     gimr = @jit identity(grid.imgdomain)
     guvr = Reactant.to_rarray(grid.visdomain)
     alg = grid.algorithm
-    return VLBISkyModels.FourierDualDomain(gimr, guvr,  alg)
+    return VLBISkyModels.FourierDualDomain(gimr, guvr, alg)
 end
 end

@@ -49,4 +49,3 @@ Base.getindex(data::AbstractVLBITable, i::Int) = build_datum(data, i)
 function VLBISkyModels.rebuild(config::AbstractVLBITable, table)
     throw(MethodError(rebuild, config, table))
 end
-

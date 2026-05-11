@@ -256,7 +256,7 @@ end
 EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 
 @inline function unrollmap(x::NTuple{N}, inds::NTuple{N}) where {N}
-    return ntuple(Val(N)) do k 
+    return ntuple(Val(N)) do k
         Base.@_inline_meta
         @inbounds getindex(x[k], inds[k])
     end
