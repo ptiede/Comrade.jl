@@ -30,10 +30,7 @@ using Lux
 # our optimizer.
 using Reactant
 using VLBISkyModels: ReactantNUFFTAlg
-using ComradeBase: ReactantEx
-## Force the CPU backend so this example runs in CI/docs without a GPU.
-## Comment this out (or set to "cuda"/"tpu") if you have an accelerator available.
-Reactant.set_default_backend("cpu")
+using Comrade: ReactantEx
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
@@ -52,13 +49,12 @@ uvd = VLBIFiles.load(
 
 # For this tutorial we will only use closure quantities to reconstruct the image however, polarized
 # or complex visibilities can also be used with instrumental models following the other tutorials.
-dlcamp, dcphase = extract_table(
+dvis = extract_table(
     uvd,
-    LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()),
-    ClosurePhases(; time_average = VLBI.GapBasedScans()),
+    Visibilities(; time_average = VLBI.GapBasedScans()),
 )
-add_fractional_noise!(dlcamp, 0.005)
-add_fractional_noise!(dcphase, 0.005)
+add_fractional_noise!(dvis, 0.005)
+
 
 
 # ## Build the Model/Posterior
@@ -105,7 +101,7 @@ using Lux
 # We only use 1 Fourier feature embedding here for simplicity and because VLBI practioners typically
 # prefer very smooth images. However, more Fourier features can be used to model
 # finer scale structures.
-ff = fourierfeature(grid; m = 2)
+ff = fourierfeature(grid; m =4)
 
 
 # For the neural field we use a very simple MLP with 3 hidden layers of 64 units each
@@ -115,6 +111,8 @@ ff = fourierfeature(grid; m = 2)
 nnmodel = Chain(
     Dense(size(ff, 1) => 128, Lux.tanh_fast),
     Dense(128 => 128, Lux.tanh_fast),
+    Dense(128 => 128, Lux.tanh_fast),
+    Dense(128 => 128, Lux.tanh_fast),
     Dense(128 => 1, use_bias = false),
 )
 
@@ -123,17 +121,19 @@ nnmodel = Chain(
 # and hyperparameters `fb, σ` and returns a `ContinuousImage` representing the sky brightness distribution.
 # This should look similar to essentially every other imaging model in the Comrade tutorials.
 function sky(θ, metadata)
-    (; nn, σ, fb) = θ
+    (; nn, σ, fb, ftot) = θ
     (; nnmodel, mimg, ff, st) = metadata
     fbn = fb / length(mimg)
-    mb = mimg .* (1 - fb) .+ fbn
+    bimg = baseimage(mimg)
+    mb = bimg .* (1 - fb) .+ fbn
 
     ## Compute the neural field
     δ = reshape(first(Lux.apply(nnmodel, ff, nn, st)), size(mimg))
-    δ .*= σ
-    rast = apply_fluctuations(CenteredLR(), mb, δ)
-    m = ContinuousImage(rast, BSplinePulse{3}())
-    return m
+    δ .*= σ 
+    mδ = maximum(δ)
+    rast = @. exp(δ - mδ) * mb
+    rast .*= ftot/sum(rast)
+    return ContinuousImage(rast, axisdims(mimg), DeltaPulse{Float64}())
 end
 
 
@@ -152,11 +152,11 @@ end
 # walk the parameter tree, dispatching on parameter rank: rank-2 arrays are weight matrices (with
 # fan-in equal to `size(W, 2)`) and rank-1 arrays are biases.
 using Random
-ps, st = Lux.setup(Random.default_rng(), nnmodel)
+ps, st = Lux.setup(Random.default_rng(), nnmodel) |> reactant_device()
 function nngp_prior(x::AbstractArray)
     if ndims(x) == 2
-        fan_in = size(x, 2)
-        return VLBIGaussian(zero(eltype(x)), inv(sqrt(eltype(x)(fan_in))), size(x))
+        fan_in = size(x, 1)
+        return VLBIGaussian(zero(eltype(x)), inv(sqrt(fan_in)), size(x))
     else
         return VLBIImagePriors.StdNormal(size(x))
     end
@@ -168,7 +168,7 @@ nnprior = Comrade.rmap(nngp_prior, ps)
 # We will use a symmetric Gaussian with a FWHM equal to the approximate
 # beamsize of the array. This models the fact that we expect the AGN core to be compact.
 fwhmfac = 2 * sqrt(2 * log(2))
-mpr = modify(TBlob(4.0), Stretch(beamsize(dlcamp) / 3 / fwhmfac))
+mpr = modify(TBlob(4.0), Stretch(beamsize(dvis) / 3 / fwhmfac))
 imgpr = intensitymap(mpr, grid)
 skymeta = (; mimg = imgpr ./ sum(imgpr), nnmodel, ff, st);
 
@@ -179,24 +179,43 @@ using Distributions
 prior = (;
     nn = nnprior,
     fb = VLBIUniform(0.0, 1.0),
-    σ = VLBIExponential(0.25),
+    σ = VLBIExponential(3.0),
+    ftot = VLBIUniform(0.1, 10.0)
 )
 
 # We can then define our sky model. We pass `algorithm = ReactantAlg()` so the non-uniform
 # FFT used to evaluate visibilities runs through Reactant's XLA-traced NUFT plan rather
 # than the default CPU `NFFTAlg()`.
-skym = SkyModel(sky, prior, grid; algorithm = ReactantAlg(), metadata = skymeta)
+skym = SkyModel(sky, prior, grid; algorithm = VLBISkyModels.ReactantNUFFTAlg(), metadata = skymeta)
+
+
+# Now we will fit gains since our data product are complex visibilities
+g(x) = exp(complex(x.lg, x.gp))
+G = SingleStokesGain(g)
+intpr = (
+    lg=ArrayPrior(
+        IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.5));
+    ),
+    gp=ArrayPrior(
+        IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(0.5^2)));
+        refant=SEFDReference(0.0),
+        phase=true,
+    ),
+)
+intmodel = InstrumentModel(G, intpr)
+
+
 
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
-post = VLBIPosterior(skym, dlcamp, dcphase)
+post = VLBIPosterior(skym, intmodel, dvis)
 
 # Move every array Reactant cares about (sky-model grid + metadata, data tables, etc.)
 # onto the Reactant device. `prepare_device` walks the posterior tree and replaces the
 # concrete arrays with `Reactant.RArray`s, leaving priors and the (empty) instrument
 # model untouched.
-post = Comrade.prepare_device(post, ReactantEx())
+post = Comrade.prepare_device(post, ComradeBase.ReactantEx())
 
 # ## Reconstructing the Image
 
@@ -210,14 +229,14 @@ tpost = asflat(post)
 # flat vector, and visualize the corresponding initial image. `skymodel` traces through
 # Reactant because `post` lives on the device, so we `@jit` the call and then materialize
 # the underlying raster back onto the host before handing it to Makie.
+using CairoMakie, DisplayAs
 xinit_nt = prior_sample(rng, post) ## NamedTuple in the original parameter space
-xinit_flat = HypercubeTransform.inverse(tpost, xinit_nt)
-init_img_r = @jit parent(skymodel(post, xinit_nt))
-init_img = IntensityMap(Array(parent(init_img_r)), axisdims(init_img_r))
-imageviz(init_img; colorscale = log10, colorrange = (1.0e-8, 1.0e-4), size = (500, 400)) |> DisplayAs.PNG |> DisplayAs.Text
+init_img_r = @jit skymodel(post, Reactant.to_rarray(xinit_nt))
+init_img = Comrade.Adapt.adapt(Array, init_img_r.img)
+imageviz(init_img, size = (500, 400), colorscale=log10, colorrange=(1e-9, 1e-2)) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Move the parameter vector onto the Reactant device.
-xinit_r = Reactant.to_rarray(xinit_flat)
+xinit_r = Reactant.to_rarray(Comrade.inverse(tpost, xinit_nt))
 
 # We use [Optimisers.jl](https://github.com/FluxML/Optimisers.jl) directly (rather than the
 # `comrade_opt` wrapper) because Reactant compiles the whole step — including the optimizer
@@ -225,7 +244,7 @@ xinit_r = Reactant.to_rarray(xinit_flat)
 # Enzyme/CPU version of this tutorial.
 using Optimisers
 opt = Optimisers.AdamW(3.0e-4)
-opt_state = Optimisers.setup(opt, xinit_r)
+opt_state = @jit Optimisers.setup(opt, xinit_r)
 
 # A single training step: compute the negative log-density and its Enzyme reverse-mode
 # gradient, then apply one Optimisers.jl update. Reactant traces this whole function once
@@ -233,7 +252,7 @@ opt_state = Optimisers.setup(opt, xinit_r)
 function step(tpost, x, opt_state)
     dx = Enzyme.make_zero(x)
     _, primal = Enzyme.autodiff(
-        Enzyme.WithPrimal(Enzyme.set_runtime_activity(Enzyme.Reverse)),
+        Enzyme.WithPrimal(Enzyme.Reverse),
         Comrade.logdensityof, Active, Const(tpost), Duplicated(x, dx)
     )
     ## Optimisers expects gradients of the loss we are *minimising*; logdensityof returns
@@ -261,7 +280,7 @@ end
 
 # Pull the optimized parameters back to the host as a NamedTuple in the original space.
 xopt_flat = Array(xcur)
-xopt = HypercubeTransform.transform(tpost, xopt_flat)
+xopt = Comrade.transform(tpost, xopt_flat)
 
 using CairoMakie
 using DisplayAs #hide
@@ -310,3 +329,13 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 #
 # A disclaimer is that we have not made any attempt to optimize the neural network architecture or hyperparameters here.
 # For a more thorough and insightful analysis a paper by Foschi et al is in preparation.
+
+
+
+
+
+
+
+
+
+

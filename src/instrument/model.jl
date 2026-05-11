@@ -262,7 +262,7 @@ EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
     end
 end
 
-Base.@propagate_inbounds function apply_jones(v, index::Int, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
+Base.@propagate_inbounds function apply_jones(v, index, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
     # First lhs station
     indices1 = get_indices(sitelookup(J), index, Val(1))
     params1 = NamedTuple{N}(unrollmap(values(x), values(indices1)))
