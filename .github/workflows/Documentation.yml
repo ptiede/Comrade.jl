@@ -59,7 +59,7 @@ jobs:
       - name: Sanitize artifact name
         id: aname
         run: echo "name=$(echo '${{ matrix.tutorial }}' | tr '/' '-')" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tutorial-${{ steps.aname.outputs.name }}
           path: docs/src/tutorials/
