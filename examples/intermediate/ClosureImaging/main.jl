@@ -84,27 +84,27 @@ using VLBIImagePriors, Distributions
     g = modify(Gaussian(), Stretch(μas2rad(250.0), μas2rad(250.0)), Renormalize(fg))
     return m + g
 end
-# Let's explain this model a bit. In general Comrade aims to provide an extremely flexible set of 
-# possible image models to consider. The basic image model is `ContinuousImage`, which is a raster of point sources 
-# convolved with some kernel or pulse. The parameters of the model are the fluxes of the point sources, 
+# Let's explain this model a bit. In general Comrade aims to provide an extremely flexible set of
+# possible image models to consider. The basic image model is `ContinuousImage`, which is a raster of point sources
+# convolved with some kernel or pulse. The parameters of the model are the fluxes of the point sources,
 # which are given by `c.params` in the code above. This is essentially identical for every imaging model we consider.
-# The only difference between different image models is then the prior we place on the pixel fluxes. 
+# The only difference between different image models is then the prior we place on the pixel fluxes.
 # Other tutorials will consider a vast array of different image priors, from Gaussian processes like Matern kernels to
-# neural fields. In this tutorial we will a very simple Gaussian Markov random field (GMRF) prior, which is a type of 
+# neural fields. In this tutorial we will a very simple Gaussian Markov random field (GMRF) prior, which is a type of
 # Gaussian process that is very fast to sample from and evaluate. Note that our prior actually lives in the log-ratio space.
 # We do this to 1 ensure positivity of the image and 2 ensure that the total flux is fixed to some value. This ensures that
 # we have more directly control over a classic VLBI degeneracy the total flux of the image, which actually is not constrained
-# by closures. 
+# by closures.
 
 
-# To define the GMRF we first specify our grid on which the GMRF is defined. 
+# To define the GMRF we first specify our grid on which the GMRF is defined.
 # Given that M87* is compact and the EHT is not very sensitive in 2018 we use
 # a small FOV
 npix = 32
 fovxy = μas2rad(150.0)
 grid = imagepixels(fovxy, fovxy, npix, npix)
 
-# Given this grid we can now define our GMRF prior called `cprior` above. 
+# Given this grid we can now define our GMRF prior called `cprior` above.
 # For this we use a heirarchical prior where the
 # direct log-ratio image prior is a Gaussian Markov Random Field. The correlation length
 # of the GMRF is a hyperparameter that is fit during imaging. We pass the data to the prior
@@ -114,11 +114,11 @@ grid = imagepixels(fovxy, fovxy, npix, npix)
 cprior = corr_image_prior(grid, dlcamp)
 
 # The other aspect of the image model is the mean image. By mean image we mean the image structure
-# about which the kind of fluctuations occur. In this case we can view the GMRF flucations `c` as a 
-# kind of multiplicative turbulence aboue our apriori mean structure. For the EHT we will follow the 
+# about which the kind of fluctuations occur. In this case we can view the GMRF flucations `c` as a
+# kind of multiplicative turbulence aboue our apriori mean structure. For the EHT we will follow the
 # original publications and essentially assume that this mean structure is a Gaussian. For simplicitly in
 # in this tutorial we assume that the Gaussian is symmetric with a FWHM of 50 μas which is rougly twice
-# the beam of the EHT. In reality we could also easily fit for the size of this Gaussian. 
+# the beam of the EHT. In reality we could also easily fit for the size of this Gaussian.
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
 imgpr = intensitymap(mpr, grid)
@@ -129,7 +129,7 @@ mimg = imgpr ./ Comrade.flux(imgpr);
 skym = sky(grid; mimg, cprior)
 
 # At this point since we are fitting closures we have essentially finished our model specification and can form
-# our VLBIPosterior. 
+# our VLBIPosterior.
 using Enzyme
 post = VLBIPosterior(skym, dlcamp, dcphase);
 

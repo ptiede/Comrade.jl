@@ -42,7 +42,7 @@ uvd = VLBIFiles.load(
 )
 
 # Since the gains in this dataset are coherent across a scan, we extract scan-averaged
-# closures. Since uvfits aren't guaranteed to have the scan table we use a gap-based 
+# closures. Since uvfits aren't guaranteed to have the scan table we use a gap-based
 # scan averaging scheme.
 dlcamp, dcphase = extract_table(
     uvd,
@@ -92,20 +92,20 @@ using Distributions, VLBIImagePriors
     return ring + g
 end
 
-# The syntax here follows standard probablisitic notation. Namely `~` denotes that the 
+# The syntax here follows standard probablisitic notation. Namely `~` denotes that the
 # parameter on the left is distributed according to the distribution on the right.
-# These are essentially the parameters of our model. For example, `radius` is the radius 
+# These are essentially the parameters of our model. For example, `radius` is the radius
 # of the ring and is distributed according to a uniform distribution between 10 and 30 μas.
-# Other variables like `α` and `β` are deterministic functions of the parameters on the left-hand side of 
-# the `~`. The model function must return an object that implements the `VLBISkyModel` interface. 
+# Other variables like `α` and `β` are deterministic functions of the parameters on the left-hand side of
+# the `~`. The model function must return an object that implements the `VLBISkyModel` interface.
 # In this case, we return a sum of a smoothed MRing and a Gaussian.
 
-# The `@sky` macro then transforms this into a function called `sky` that we can then use to 
+# The `@sky` macro then transforms this into a function called `sky` that we can then use to
 # initialize or construct our sky model for some given grid.
 skym = sky(imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128))
 
 
-# Since we are fitting closures this is essentialy the entire model. In other tutorials we will 
+# Since we are fitting closures this is essentialy the entire model. In other tutorials we will
 # show how to model the instrument directly, e.g., gains.
 post = VLBIPosterior(skym, dlcamp, dcphase);
 
@@ -161,8 +161,8 @@ p = prior_sample(rng, post)
 logdensityof(cpost, Comrade.inverse(cpost, p))
 logdensityof(fpost, Comrade.inverse(fpost, p))
 
-# note that the log densit is not the same since the transformation has causes a 
-# jacobian to ensure volume is preserved. Note that this is rather critical because it 
+# note that the log densit is not the same since the transformation has causes a
+# jacobian to ensure volume is preserved. Note that this is rather critical because it
 # means that the maximum a posteriori (MAP) estimate in bother of these examples will differ.
 # In general, the MAP estimate is parameterization dependent. This is not the case for estimates
 # that are derived from expectations of the posterior, e.g., the mean image.
