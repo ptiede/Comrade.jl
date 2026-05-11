@@ -255,16 +255,22 @@ end
 # TODO try to find MWE and post to Enzyme.jl
 EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
 
+@inline function unrollmap(x::NTuple{N}, inds::NTuple{N}) where {N}
+    return ntuple(Val(N)) do k 
+        Base.@_inline_meta
+        @inbounds getindex(x[k], inds[k])
+    end
+end
 
 Base.@propagate_inbounds function apply_jones(v, index::Int, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
     # First lhs station
     indices1 = get_indices(sitelookup(J), index, Val(1))
-    params1 = NamedTuple{N}(map(@inline(rgetindex), values(x), values(indices1)))
+    params1 = NamedTuple{N}(unrollmap(values(x), values(indices1)))
     j1 = jonesmatrix(instrument(J), params1, index, Val(1))
 
     # Second RHS station
     indices2 = get_indices(sitelookup(J), index, Val(2))
-    params2 = NamedTuple{N}(map(@inline(rgetindex), values(x), values(indices2)))
+    params2 = NamedTuple{N}(unrollmap(values(x), values(indices2)))
     j2 = jonesmatrix(instrument(J), params2, index, Val(2))
 
     vout = _apply_jones(v, j1, j2, refbasis(J))
