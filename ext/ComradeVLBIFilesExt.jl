@@ -160,8 +160,8 @@ function _arrayconfig(
     Ti = Vector{Float64}(undef, n)
     Fr = Vector{Float64}(undef, n)
     sites_v = Vector{Tuple{Symbol, Symbol}}(undef, n)
-    elevation = Vector{Tuple{Float64, Float64}}(undef, n)
-    parallactic = Vector{Tuple{Float64, Float64}}(undef, n)
+    elevation = StructVector{Tuple{Float64, Float64}}(undef, n)
+    parallactic = StructVector{Tuple{Float64, Float64}}(undef, n)
 
     # caches built from antenna metadata
     site_xyz = Dict{Symbol, NTuple{3, Float64}}()
@@ -235,7 +235,7 @@ function _prep_uvtable(
         uvtbl;
         time_average = nothing, frequency_average = true
     )
-    scan_table = VLBIData.scan_intervals(time_average, uvtbl)
+    scan_table = VLBIData.scan_intervals(VLBI.GapBasedScans(), uvtbl)
     rows = uvtbl
     if frequency_average !== nothing && frequency_average !== false
         rows = VLBI.average_data(VLBI.ByFrequency(), rows)
@@ -243,7 +243,6 @@ function _prep_uvtable(
     if time_average !== nothing && time_average !== false
         rows = VLBI.average_data(time_average, rows)
     end
-
 
     return rows, scan_table
 end

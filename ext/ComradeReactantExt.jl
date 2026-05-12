@@ -61,7 +61,6 @@ function Comrade.prepare_device(post::VLBIPosterior, ex::ReactantEx)
     ## TODO add Sharding and other options here
     for p in propertynames(post)
         p == :prior && continue
-        p == :instrumentmodel && continue
         post = Accessors.set(post, PropertyLens(p), Comrade.prepare_device(getproperty(post, p), ex))
     end
     return post
@@ -77,7 +76,7 @@ function Comrade.prepare_device(m::Comrade.ObservedSkyModel, ex::ReactantEx)
 end
 
 function Comrade.prepare_device(m::Comrade.ObservedInstrumentModel, ex::ReactantEx)
-    return Comrade.ObservedInstrumentModel(m.instrument, m.refbasis, Reactant.to_rarray(m.metadata))
+    return Comrade.ObservedInstrumentModel(Reactant.to_rarray(m.instrument), m.refbasis, m.bsitelookup)
 end
 
 function Comrade.prepare_device(grid::VLBISkyModels.FourierDualDomain, ex::ReactantEx)
