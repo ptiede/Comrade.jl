@@ -27,6 +27,11 @@ function Adapt.parent_type(::Type{<:Comrade.SiteArray{T, N, A}}) where {T, N, A}
     return A
 end
 
+function Adapt.adapt(to, x::SiteArray)
+    data = Adapt.adapt(to, parent(x))
+    return SiteArray(data, x.times, x.frequencies, x.sites)
+end
+
 
 # function ChainRulesCore.rrule(::Type{SiteArray}, data::AbstractArray, args...)
 #     s = SiteArray(data, args...)
