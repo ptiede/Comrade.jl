@@ -13,9 +13,10 @@ using PolarizedTypes
         J::Comrade.ObservedInstrumentModel,
         xint
     )
-    return Reactant.@allowscalar @trace track_numbers = false for i in eachindex(vis)
+    Reactant.@allowscalar @trace track_numbers = false for i in eachindex(vis)
         vout[i] = Comrade.apply_jones(vis[i], i, J, xint)
     end
+    return vout
 end
 
 function StructArrays.createinstance(::Type{<:StokesParams}, args...)
@@ -82,7 +83,11 @@ end
 function Comrade.prepare_device(grid::VLBISkyModels.FourierDualDomain, ex::ReactantEx)
     gimr = @jit identity(grid.imgdomain)
     guvr = Reactant.to_rarray(grid.visdomain)
-    alg = grid.algorithm
-    return VLBISkyModels.FourierDualDomain(gimr, guvr, alg)
+    if grid.algorithm isa VLBISkyModels.ReactantNUFFTAlg
+        algr = grid.algorithm
+    else
+        algr = VLBISkyModels.ReactantNUFFTAlg(eltype(grid.imgdomain))
+    end
+    return VLBISkyModels.FourierDualDomain(gimr, guvr, algr)
 end
 end
