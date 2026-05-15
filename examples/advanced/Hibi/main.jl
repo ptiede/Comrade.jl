@@ -77,10 +77,10 @@ using VLBIImagePriors
 using Distributions
 @sky function sky(grid; ftot, cprior)
     c ~ cprior
-    σimg ~ truncated(Normal(0.0, 0.5); lower = 0.0)
-    r ~ Uniform(μas2rad(10.0), μas2rad(40.0))
-    ain ~ Uniform(1.0, 20.0)
-    aout ~ Uniform(1.0, 20.0)
+    σimg ~ VLBITruncated(VLBIGaussian(0.0, 0.5); lower = 0.0)
+    r ~ VLBIUniform(μas2rad(10.0), μas2rad(40.0))
+    ain ~ VLBIUniform(1.0, 20.0)
+    aout ~ VLBIUniform(1.0, 20.0)
     ## Form the image model
     mb = RingTemplate(RadialDblPower(ain, aout), AzimuthalUniform())
     mr = modify(mb, Stretch(r))
@@ -97,11 +97,13 @@ end
 #   - Gain amplitudes which are typically known to 10-20%, except for LMT, which has amplitudes closer to 50-100%.
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
-fgain(x) = exp(x.lg + 1im * x.gp)
+using VLBIImagePriors
+using Distributions
+fgain(x) = exp(complex(x.lg, x.gp))
 G = SingleStokesGain(fgain)
 
 intpr = (
-    lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
+    lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
     gp = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0)),
 )
 intmodel = InstrumentModel(G, intpr)
@@ -123,7 +125,7 @@ skym = sky(g; ftot = 1.1, cprior)
 # This is everything we need to specify our posterior distribution, which our is the main
 # object of interest in image reconstructions when using Bayesian inference.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis)
+post = VLBIPosterior(skym, intmodel, dvis);
 
 # We can sample from the prior to see what the model looks like
 using DisplayAs #hide

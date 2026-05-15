@@ -53,10 +53,10 @@ end
 
 function test_prior2()
     return (
-        f = Uniform(0.8, 1.2),
-        r = Uniform(μas2rad(5.0), μas2rad(30.0)),
-        τ = Uniform(0.0, 0.5),
-        α = Uniform(2.0, 8.0),
+        f = VLBIUniform(0.8, 1.2),
+        r = VLBIUniform(μas2rad(5.0), μas2rad(30.0)),
+        τ = VLBIUniform(0.0, 0.5),
+        α = VLBIUniform(2.0, 8.0),
     )
 end
 
@@ -70,7 +70,7 @@ end
 
 function testimg_prior(grid)
     cprior = corr_image_prior(grid, μas2rad(20.0))
-    prior = (c = cprior, σimg = Exponential(0.1))
+    prior = (c = cprior, σimg = VLBIExponential(0.1))
     return prior
 end
 
@@ -85,22 +85,22 @@ end
 
 function testimg_add_prior(grid)
     cprior = corr_image_prior(grid, μas2rad(20.0))
-    prior = (c = cprior, σimg = Exponential(0.1), fg = Uniform(0.0, 1.0))
+    prior = (c = cprior, σimg = VLBIExponential(0.1), fg = VLBIUniform(0.0, 1.0))
     return prior
 end
 
 
 function test_prior()
     return (
-        f1 = Uniform(0.8, 1.2),
-        σ1 = Uniform(μas2rad(1.0), μas2rad(40.0)),
-        τ1 = Uniform(0.35, 0.65),
-        ξ1 = Uniform(-π / 2, π / 2),
-        f2 = Uniform(0.3, 0.7),
-        σ2 = Uniform(μas2rad(1.0), μas2rad(40.0)),
-        τ2 = Uniform(0.35, 0.65),
-        ξ2 = Uniform(-π / 2, π / 2),
-        x = Uniform(-μas2rad(40.0), μas2rad(40.0)),
-        y = Uniform(-μas2rad(40.0), μas2rad(40.0)),
+        f1 = VLBIUniform(0.8, 1.2),
+        σ1 = VLBIUniform(μas2rad(1.0), μas2rad(40.0)),
+        τ1 = VLBIUniform(0.35, 0.65),
+        ξ1 = VLBIUniform(-π / 2, π / 2),
+        f2 = VLBIUniform(0.3, 0.7),
+        σ2 = VLBIUniform(μas2rad(1.0), μas2rad(40.0)),
+        τ2 = VLBIUniform(0.35, 0.65),
+        ξ2 = VLBIUniform(-π / 2, π / 2),
+        x = VLBIUniform(-μas2rad(40.0), μas2rad(40.0)),
+        y = VLBIUniform(-μas2rad(40.0), μas2rad(40.0)),
     )
 end

@@ -77,9 +77,9 @@ using Distributions
 # arguments and are in scope inside both the prior expressions and the body.
 @sky function sky(grid; mimg, pl, cprior, ρmax)
     c ~ cprior
-    ρs ~ ntuple(Returns(Uniform(0.01, ρmax)), 3)
-    σimg ~ Exponential(2.0)
-    fb ~ Uniform(0.0, 1.0)
+    ρs ~ ntuple(Returns(VLBIUniform(0.01, ρmax)), 3)
+    σimg ~ VLBIExponential(2.0)
+    fb ~ VLBIUniform(0.0, 1.0)
     ## Apply the GMRF fluctuations to the image
     x = genfield(StationaryRandomField(MarkovPS(ρs), pl), c)
     x .= σimg .* x
@@ -123,7 +123,7 @@ skym = sky(grid; mimg, pl, cprior, ρmax = max(size(grid)...))
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
-post = VLBIPosterior(skym, dlcamp, dcphase)
+post = VLBIPosterior(skym, dlcamp, dcphase);
 
 # ## Reconstructing the Image
 

@@ -59,8 +59,8 @@ using VLBIImagePriors
 using Distributions
 @sky function sky(grid; ftot, mimg, cprior)
     c ~ cprior
-    σimg ~ truncated(Normal(0.0, 0.5); lower = 0.0)
-    fg ~ Uniform(0.0, 1.0)
+    σimg ~ VLBITruncated(VLBIGaussian(0.0, 0.5); lower = 0.0)
+    fg ~ VLBIUniform(0.0, 1.0)
     ## Apply the GMRF fluctuations to the image
     rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
     pimg = parent(rast)
@@ -114,11 +114,11 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 #   - Gain amplitudes which are typically known to 10-20%, except for LMT, which has amplitudes closer to 50-100%.
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
-gain(x) = exp(x.lg + 1im * x.gp)
+gain(x) = exp(complex(x.lg, x.gp))
 G = SingleStokesGain(gain)
 
 intpr = (
-    lg = ArrayPrior(IIDSitePrior(IntegSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), Normal(0.0, 1.0))),
+    lg = ArrayPrior(IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 1.0))),
     gp = ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
 )
 intmodel = InstrumentModel(G, intpr)
@@ -128,7 +128,7 @@ intmodel = InstrumentModel(G, intpr)
 # gradients of the posterior we also need to load `Enzyme.jl`. Under the hood, Comrade will use
 # Enzyme to compute the gradients of the posterior.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis)
+post = VLBIPosterior(skym, intmodel, dvis);
 
 # ## Optimization and Sampling
 
@@ -186,7 +186,7 @@ plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 # instrument modeling as we are able to solve for the gain amplitudes and get a reasonable
 # image.
 
-
+# # Why we should Sample from the Posterior
 # One problem with the MAP estimate is that it does not provide uncertainties on the image.
 # That is we are unable to statistically assess which components of the image are certain.
 # Comrade is really a Bayesian imaging and calibration package for VLBI. Therefore, our

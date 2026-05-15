@@ -182,9 +182,9 @@ this to plug in pre-built compound priors:
 ```julia
 @sky function imager(grid; ftot, mimg, cprior)
     c    ~ cprior                                       # e.g. HierarchicalPrior or corr_image_prior
-    σimg ~ truncated(Normal(0.0, 0.5); lower = 0.0)
-    fg   ~ Uniform(0.0, 1.0)
-    ρs   ~ ntuple(Returns(Uniform(0.01, 10.0)), 3)      # tuple-of-IID priors
+    σimg ~ VLBITruncated(VLBIGaussian(0.0, 0.5); lower = 0.0)
+    fg   ~ VLBIUniform(0.0, 1.0)
+    ρs   ~ ntuple(Returns(VLBIUniform(0.01, 10.0)), 3)  # tuple-of-IID priors
     rast = apply_fluctuations(CenteredLR(), mimg, σimg .* c.params)
     pimg = parent(rast)
     @. pimg = (ftot * (1 - fg)) * pimg

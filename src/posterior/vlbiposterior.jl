@@ -20,7 +20,7 @@ end
 """
     VLBIPosterior(skymodel::SkyModel, instumentmodel::InstrumentModel, 
                   dataproducts::EHTObservationTable...; 
-                  admode=set_runtime_activity(Reverse))
+                  admode=set_runtime_activity(set_strong_zero(Reverse)))
 
 Creates a VLBILikelihood using the `skymodel` its related metadata `skymeta`
 and the `instrumentmodel` and its metadata `instumentmeta`. The `model` is a 
@@ -51,12 +51,12 @@ function sky(θ, metadata)
     return m
 end
 
-skyprior = (r = Uniform(μas2rad(10.0), μas2rad(30.0)), a = Uniform(1.0, 10.0))
+skyprior = (r = VLBIUniform(μas2rad(10.0), μas2rad(30.0)), a = VLBIUniform(1.0, 10.0))
 g  = imagepixels(μas2rad(100.0), μas2rad(100.0), 256, 256)
 skym = SkyModel(sky, skyprior, g)
 
-G = SingleStokesGain(x->exp(x.lg + 1im*x.pg))
-intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+G = SingleStokesGain(x->exp(complex(x.lg, x.pg)))
+intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
             pg = ArrayPrior(IIDSitePrior(ScanSeg(), DiagVonMises(0.0, inv(π^2))))
             )
 intmodel = InstrumentModel(G, intprior, array)
@@ -69,7 +69,7 @@ post = VLBIPosterior(skym, intmodel, dlcamp, dcphase)
         instrumentmodel::AbstractInstrumentModel,
         dataproducts::EHTObservationTable...;
         imgdata = nothing,
-        admode = EnzymeCore.set_runtime_activity(EnzymeCore.Reverse)
+        admode = EnzymeCore.set_runtime_activity(EnzymeCore.set_strong_zero(EnzymeCore.Reverse))
     )
 
 
@@ -93,7 +93,7 @@ end
 
 VLBIPosterior(
     skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...;
-    admode = EnzymeCore.set_runtime_activity(EnzymeCore.Reverse), kwargs...
+    admode = EnzymeCore.set_runtime_activity(EnzymeCore.set_strong_zero(EnzymeCore.Reverse)), kwargs...
 ) =
     VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...; admode, kwargs...)
 

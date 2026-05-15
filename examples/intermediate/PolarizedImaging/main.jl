@@ -122,6 +122,9 @@ dvis = extract_table(
         time_average = VLBI.GapBasedScans(),
     )
 )
+
+# Often the EHT does not take into acount feed offsets. To load those we read in the standard
+# ehtim style array.txt files.
 Comrade.reset_mounts!(dvis, Comrade.load_array_txt(joinpath(__DIR, "../../Data/array.txt")))
 # Inflate noise by 1% and drop short (uvdist < 0.1 Gλ) baselines.
 add_fractional_noise!(dvis, 0.01)
@@ -154,28 +157,37 @@ dvis = flag(d -> hypot(d.baseline.U, d.baseline.V) < 0.1e9, dvis)
 using Distributions
 using VLBIImagePriors
 @sky function sky(grid; mimg, ftot, cprior)
-    σs ~ ntuple(Returns(truncated(Normal(0.0, 0.5); lower = 0.0)), 4)
+    σs ~ ntuple(Returns(VLBITruncated(VLBIGaussian(0.0, 0.5); lower = 0.0)), 4)
     as ~ ntuple(Returns(cprior), 4)
     ## Build the stokes I model
     δs = ntuple(Val(4)) do i
         σs[i] .* as[i].params
     end
 
-    ## Convert hyperbolic polarization basis to Stokes basis
+    ## Convert hyperbolic polarization parameterization to Stokes parameters.
     pmap = VLBISkyModels.PolExp2Map!(δs..., axisdims(mimg))
 
     ## We now add a mean image. Namely, we assume that `pmap` are multiplicative fluctuations
     ## about some mean image `mimg`. We also compute the total flux of the Stokes I image
     ## for normalization purposes below.
     bpmap = baseimage(pmap)
+    bmimg = baseimage(mimg)
     ft = zero(ftot)
-    for i in eachindex(bpmap)
-        bpmap[i] = mimg[i] * bpmap[i]
-        ft += bpmap[i].I
+    bpmapI = stokes(bpmap, :I)
+    bpmapQ = stokes(bpmap, :Q)
+    bpmapU = stokes(bpmap, :U)
+    bpmapV = stokes(bpmap, :V)
+
+    @inbounds for i in eachindex(bpmap, bmimg)
+        bpmapI[i] = bmimg[i] * bpmapI[i]
+        bpmapQ[i] = bmimg[i] * bpmapQ[i]
+        bpmapU[i] = bmimg[i] * bpmapU[i]
+        bpmapV[i] = bmimg[i] * bpmapV[i]
+        ft += bpmapI[i]
     end
 
     ## Renormlize to get the correct total flux.
-    for i in eachindex(bpmap)
+    @inbounds for i in eachindex(bpmap)
         bpmap[i] *= ftot / ft
     end
 
@@ -230,8 +242,8 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # The first element of the tuple is the gain for the first polarization feed (R) and the
 # second is the gain for the second polarization feed (L).
 function fgain(x)
-    gR = exp(x.lgR + 1im * x.gpR)
-    gL = gR * exp(x.lgrat + 1im * x.gprat)
+    gR = exp(complex(x.lgR, x.gpR))
+    gL = gR * exp(complex(x.lgrat, x.gprat))
     return gR, gL
 end
 G = JonesG(fgain)
@@ -259,7 +271,7 @@ R = JonesR(; add_fr = true)
 # first argument is a function that specifies how to combine each Jones matrix. In this case
 # we will use the standard decomposition J = adjoint(R)*G*D*R, where we need to apply the adjoint
 # of the feed rotaion matrix `R` because the data has feed rotation calibration.
-js(g, d, r) = adjoint(r) * g * d * r
+@inline js(g, d, r) = adjoint(r) * g * d * r
 J = JonesSandwich(js, G, D, R)
 
 # !!! note
@@ -283,14 +295,14 @@ J = JonesSandwich(js, G, D, R)
 # so we use `ScanSeg` for those quantities. The d-terms are typically stable over the track
 # so we use `TrackSeg` for those.
 intprior = (
-    lgR = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+    lgR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
     gpR = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
     gprat = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true),
-    dRx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dRy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dLx = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
-    dLy = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.2))),
+    dRx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+    dRy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+    dLx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
+    dLy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
 )
 
 # Finally, we can build our instrument model which takes a model for the Jones matrix `J`
@@ -301,14 +313,14 @@ intmodel = InstrumentModel(J, intprior)
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling, and specifying to use Enzyme.Reverse with runtime activity for AD.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis)
+post = VLBIPosterior(skym, intmodel, dvis);
 
 # ## Reconstructing the Image and Instrument Effects
 
 # To sample from this posterior, it is convenient to move from our constrained parameter space
 # to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This transformation is
 # done using the `asflat` function.
-tpost = asflat(post)
+tpost = asflat(post);
 
 # We can also query the dimension of our posterior or the number of parameters we will sample.
 # !!! warning

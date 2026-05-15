@@ -182,3 +182,10 @@ function Base.view(obs::EHTObservationTable{F}, i::AbstractVector) where {F <: C
     s = @view noise(obs)[i, i]
     return EHTObservationTable{F}(m, s, conf)
 end
+
+function Adapt.adapt_structure(to, x::EHTObservationTable{T}) where {T}
+    m = adapt(to, x.measurement)
+    n = adapt(to, x.noise)
+    c = adapt(to, x.config)
+    return EHTObservationTable{T}(m, n, c)
+end

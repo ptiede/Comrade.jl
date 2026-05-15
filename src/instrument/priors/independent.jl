@@ -14,7 +14,7 @@ segmentation is. The `dist` argument is the distribution of the site prior.
 ## Example
 
 ```julia
-A = IIDSitePrior(ScanSeg(), Normal(0, 1))
+A = IIDSitePrior(ScanSeg(), VLBIGaussian(0, 1))
 ```
 
 creates a site prior that is constant across scans and each scan has a unit Normal prior.

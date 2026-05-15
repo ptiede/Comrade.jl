@@ -144,11 +144,11 @@ using FiniteDifferences
     @test gz ≈ gfd
 
     R = JonesR()
-    Gp = JonesG(x -> (exp(x.lg + 1im * x.gp), exp(x.lg + 1im * x.gp)))
+    Gp = JonesG(x -> (exp(complex(x.lg, x.gp)), exp(complex(x.lg, x.gp))))
     J = JonesSandwich(Gp, R)
     pr = (
-        lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-        gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+        lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
     )
     intm_coh = InstrumentModel(J, pr)
     skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
@@ -174,11 +174,11 @@ end
     post_lc = VLBIPosterior(skym, lcamp)
     post_vis = VLBIPosterior(skym, vis)
 
-    G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
+    G = SingleStokesGain(x -> exp(complex(x.lg, x.gp)))
     intm = InstrumentModel(
         G, (
-            lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+            lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
         )
     )
     post_gvis = VLBIPosterior(skym, vis)
@@ -242,8 +242,8 @@ end
     G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
     intm = InstrumentModel(
         G, (
-            lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+            lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
         )
     )
 
@@ -275,8 +275,8 @@ end
     G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
     intm = InstrumentModel(
         G, (
-            lg = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+            lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
         )
     )
 
