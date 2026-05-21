@@ -86,7 +86,7 @@ function Comrade.prepare_device(grid::VLBISkyModels.FourierDualDomain, ex::React
     if grid.algorithm isa VLBISkyModels.ReactantNUFFTAlg
         algr = grid.algorithm
     else
-        algr = VLBISkyModels.ReactantNUFFTAlg(eltype(grid.imgdomain))
+        algr = VLBISkyModels.ReactantNUFFTAlg(eltype(grid.imgdomain); eps=1e-16)
     end
     return VLBISkyModels.FourierDualDomain(gimr, guvr, algr)
 end
