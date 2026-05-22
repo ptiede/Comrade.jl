@@ -40,7 +40,7 @@ EnzymeRules.inactive(::typeof(_checknorm), args...) = nothing
 
 function _fastsum(x)
     tot = zero(eltype(x))
-    @simd for i in eachindex(x)
+    @trace for i in eachindex(x)
         tot += x[i]
     end
     return tot
@@ -92,10 +92,8 @@ function apply_fluctuations!(t::VLBIImagePriors.LogRatioTransform, out::Intensit
     to_simplex!(t, bout, baseimage(δ))
 
     bmimg = baseimage(mimg)
-    for i in eachindex(bout, bmimg)
-        bout[i] *= bmimg[i]
-    end
-    fi = _fastsum(bout)
+    bout .*= bmimg
+    fi = sum(bout)
 
     bout .*= inv(fi)
     return nothing
