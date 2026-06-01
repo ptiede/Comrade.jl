@@ -29,4 +29,3 @@ function Comrade.branchcut(x::Reactant.TracedRNumber)
     xmod = mod(x, oftype(x, 2π))
     return ifelse(xmod > π, xmod - oftype(x, 2π), xmod)
 end
-

@@ -30,7 +30,7 @@ function _stan_windows(num_warmup::Int, init_buffer::Int, term_buffer::Int, base
     num_warmup > 0 || throw(ArgumentError("n_adapts must be positive"))
     if init_buffer + base_window + term_buffer > num_warmup
         ib = round(Int, 0.15 * num_warmup)
-        tb = round(Int, 0.10 * num_warmup)
+        tb = round(Int, 0.1 * num_warmup)
         w = num_warmup - ib - tb
         return ib, [w], tb
     end
@@ -107,15 +107,19 @@ function _open_sink(store::DiskStore, _tpost, _nsamples, _nscans, stride; append
         prev = deserialize(pf).params
         iter0, nsamples0 = prev.nfiles, prev.nsamples
     end
-    return _DiskSink(store.name, joinpath(store.name, "samples", "output_scan_"),
-        store.stride, iter0, nsamples0)
+    return _DiskSink(
+        store.name, joinpath(store.name, "samples", "output_scan_"),
+        store.stride, iter0, nsamples0
+    )
 end
 function _write_sink!(sink::_DiskSink, ::DiskStore, chunk)
     sink.iter += 1
     sink.nsamples_done += length(chunk.chain)
     ps = PosteriorSamples(chunk.chain, (; numerical_error = chunk.numerical_error))
-    serialize(sink.outbase * Printf.@sprintf("%05d.jls", sink.iter),
-        (samples = Comrade.postsamples(ps), stats = Comrade.samplerstats(ps)))
+    serialize(
+        sink.outbase * Printf.@sprintf("%05d.jls", sink.iter),
+        (samples = Comrade.postsamples(ps), stats = Comrade.samplerstats(ps))
+    )
     # resumable MCMC state checkpoint (latest wins)
     ProbProg.save_state(joinpath(sink.outdir, "state.jls"), chunk.state)
     # update parameters.jls every chunk so a crash mid-run leaves it current and
@@ -155,7 +159,7 @@ end
 Default `warmup_callback`: log one line and return the per-round step size.
 """
 function default_warmup_callback(info)
-    @info "warmup round $(info.round)/$(info.nrounds)" phase=info.phase num_warmup=info.num_warmup step_size=info.step_size
+    @info "warmup round $(info.round)/$(info.nrounds)" phase = info.phase num_warmup = info.num_warmup step_size = info.step_size
     return (; info.round, info.phase, info.num_warmup, info.step_size)
 end
 
@@ -166,7 +170,7 @@ Default `sample_callback`: log one line and return the per-chunk divergence coun
 """
 function default_sample_callback(info)
     ndiv = count(info.numerical_error)
-    @info "sampling round $(info.round)/$(info.nrounds)" num_samples=info.num_samples step_size=info.step_size n_divergences=ndiv
+    @info "sampling round $(info.round)/$(info.nrounds)" num_samples = info.num_samples step_size = info.step_size n_divergences = ndiv
     return (; info.round, info.num_samples, info.step_size, n_divergences = ndiv)
 end
 
@@ -181,7 +185,7 @@ Build the per-round `(phase, num_warmup, adapt_step_size, adapt_mass_matrix)` sc
 """
 function _build_schedule(sampler::ReactantNUTS)
     init_buffer, windows, term_buffer = warmup_schedule(sampler)
-    schedule = Tuple{Symbol,Int,Bool,Bool}[]
+    schedule = Tuple{Symbol, Int, Bool, Bool}[]
     init_buffer > 0 && push!(schedule, (:init, init_buffer, true, false))
     for W in windows
         W > 0 && push!(schedule, (:window, W, true, true))
@@ -214,10 +218,12 @@ Pass `resume_state` (non-`nothing`) + `resume_round` to continue from the round
 *after* `resume_round`, using `resume_schedule` (must be identical to the original).
 `x0` is unused in resume mode.
 """
-function warmup_windowed(rng, ldf, x0, tpost, sampler::ReactantNUTS;
+function warmup_windowed(
+        rng, ldf, x0, tpost, sampler::ReactantNUTS;
         callback = default_warmup_callback, checkpoint = nothing,
         resume_state = nothing, resume_round::Int = 0,
-        resume_schedule = nothing, resume_history = Any[])
+        resume_schedule = nothing, resume_history = Any[]
+    )
 
     # Round schedule: (phase, num_warmup, adapt_step_size, adapt_mass_matrix),
     # derived from n_adapts (Stan-style) unless the sampler overrides `windows`.
@@ -231,8 +237,10 @@ function warmup_windowed(rng, ldf, x0, tpost, sampler::ReactantNUTS;
     # On a fresh run with a checkpoint path, persist the schedule up front so
     # restart knows the original adaptation plan even if no round has finished.
     if !isnothing(checkpoint) && isnothing(resume_state) && resume_round == 0
-        serialize(_warmup_status_path(checkpoint),
-            (; schedule, round_done = 0, complete = false, history = Any[]))
+        serialize(
+            _warmup_status_path(checkpoint),
+            (; schedule, round_done = 0, complete = false, history = Any[])
+        )
     end
 
     T = eltype(x0)
@@ -246,24 +254,28 @@ function warmup_windowed(rng, ldf, x0, tpost, sampler::ReactantNUTS;
     # the warmup samples anyway, so the choice of >=2 here is purely a workaround.
     run_round = function (state_or_nothing, nw, adapt_ss, adapt_mm)
         if state_or_nothing === nothing
-            return ProbProg.mcmc_logpdf(rng, ldf, x0, tpost;
+            return ProbProg.mcmc_logpdf(
+                rng, ldf, x0, tpost;
                 algorithm = :NUTS, num_warmup = nw, num_samples = 2,
                 step_size = step0, inverse_mass_matrix = mass0,
                 max_tree_depth = sampler.max_tree_depth,
                 max_delta_energy = sampler.max_delta_energy,
                 adapt_step_size = adapt_ss, adapt_mass_matrix = adapt_mm,
-                strong_zero = sampler.strong_zero)
+                strong_zero = sampler.strong_zero
+            )
         else
-            return ProbProg.mcmc_logpdf(state_or_nothing, ldf, tpost;
+            return ProbProg.mcmc_logpdf(
+                state_or_nothing, ldf, tpost;
                 algorithm = :NUTS, num_warmup = nw, num_samples = 2,
                 max_tree_depth = sampler.max_tree_depth,
                 max_delta_energy = sampler.max_delta_energy,
                 adapt_step_size = adapt_ss, adapt_mass_matrix = adapt_mm,
-                strong_zero = sampler.strong_zero)
+                strong_zero = sampler.strong_zero
+            )
         end
     end
 
-    compiled = Dict{Tuple{Bool,Int,Bool,Bool},Any}()
+    compiled = Dict{Tuple{Bool, Int, Bool, Bool}, Any}()
     state = resume_state
     history = copy(resume_history)
 
@@ -273,25 +285,31 @@ function warmup_windowed(rng, ldf, x0, tpost, sampler::ReactantNUTS;
         key = (is_first, nw, adapt_ss, adapt_mm)
         cfn = get!(compiled, key) do
             arg = is_first ? nothing : state
-            Reactant.Compiler.compile(run_round, (arg, nw, adapt_ss, adapt_mm);
-                optimize = :probprog)
+            Reactant.Compiler.compile(
+                run_round, (arg, nw, adapt_ss, adapt_mm);
+                optimize = :probprog
+            )
         end
         samples, diagnostics, _, state = is_first ?
             cfn(nothing, nw, adapt_ss, adapt_mm) :
             cfn(state, nw, adapt_ss, adapt_mm)
 
-        info = (; round, nrounds, phase,
+        info = (;
+            round, nrounds, phase,
             num_warmup = nw, adapt_step_size = adapt_ss, adapt_mass_matrix = adapt_mm,
             step_size = only(Array(state.step_size)),
-            state, samples = Array(samples), diagnostics = Array(diagnostics))
+            state, samples = Array(samples), diagnostics = Array(diagnostics),
+        )
         push!(history, callback(info))
 
         # Checkpoint the post-round state + warmup progress so a crashed warmup
         # can resume from the *next* round with the same schedule.
         if !isnothing(checkpoint)
             ProbProg.save_state(checkpoint, state)
-            serialize(_warmup_status_path(checkpoint),
-                (; schedule, round_done = round, complete = (round == nrounds), history))
+            serialize(
+                _warmup_status_path(checkpoint),
+                (; schedule, round_done = round, complete = (round == nrounds), history)
+            )
         end
     end
 
@@ -310,10 +328,12 @@ Comrade layout). `out` is a `PosteriorSamples` (memory) or `Comrade.DiskOutput`
   round, nrounds, num_samples, step_size, state, samples (raw flat matrix),
   chain (transformed Vector), numerical_error (Vector{Bool}).
 """
-function sample_chunked(state, ldf, tpost, sampler::ReactantNUTS;
+function sample_chunked(
+        state, ldf, tpost, sampler::ReactantNUTS;
         num_samples::Int, saveto = MemoryStore(), chunk_size::Int = 100,
         append::Bool = false,
-        callback = default_sample_callback, metadata = Dict{Symbol,Any}())
+        callback = default_sample_callback, metadata = Dict{Symbol, Any}()
+    )
 
     num_samples > 0 || throw(ArgumentError("num_samples must be positive"))
     chunk = saveto isa DiskStore ? saveto.stride : chunk_size
@@ -327,23 +347,27 @@ function sample_chunked(state, ldf, tpost, sampler::ReactantNUTS;
         sizes[end - 1] += 1
         pop!(sizes)
     elseif length(sizes) == 1 && sizes[1] == 1
-        throw(ArgumentError(
-            "num_samples=1 currently hits a Reactant mcmc_logpdf MLIR bug; " *
-            "request at least 2 samples.",
-        ))
+        throw(
+            ArgumentError(
+                "num_samples=1 currently hits a Reactant mcmc_logpdf MLIR bug; " *
+                    "request at least 2 samples.",
+            )
+        )
     end
     nrounds = length(sizes)
 
     run_chunk = function (st, ns)
-        return ProbProg.mcmc_logpdf(st, ldf, tpost;
+        return ProbProg.mcmc_logpdf(
+            st, ldf, tpost;
             algorithm = :NUTS, num_warmup = 0, num_samples = ns,
             max_tree_depth = sampler.max_tree_depth,
             max_delta_energy = sampler.max_delta_energy,
             adapt_step_size = false, adapt_mass_matrix = false,
-            strong_zero = sampler.strong_zero)
+            strong_zero = sampler.strong_zero
+        )
     end
 
-    compiled = Dict{Int,Any}()
+    compiled = Dict{Int, Any}()
     sink = _open_sink(saveto, tpost, num_samples, nrounds, chunk; append)
     history = Any[]
 
@@ -357,15 +381,17 @@ function sample_chunked(state, ldf, tpost, sampler::ReactantNUTS;
         chain = [transform(tpost, r) for r in eachrow(raw)]
         numerical_error = .!Array(diagnostics)   # diagnostics: true == NO divergence
 
-        chunk_nt = (; round, nrounds, num_samples = ns,
+        chunk_nt = (;
+            round, nrounds, num_samples = ns,
             step_size = only(Array(state.step_size)),
-            state, samples = raw, chain, numerical_error)
+            state, samples = raw, chain, numerical_error,
+        )
         _write_sink!(sink, saveto, chunk_nt)
         push!(history, callback(chunk_nt))
     end
 
     meta = merge(
-        Dict{Symbol,Any}(:nsamples => num_samples, :sample_history => history),
+        Dict{Symbol, Any}(:nsamples => num_samples, :sample_history => history),
         metadata,
     )
     return state, _close_sink(sink, saveto, meta), history
@@ -420,13 +446,15 @@ and new chunks are numbered *after* them and appended (with `parameters.jls` gro
 to the cumulative total). If the requested `nsamples` is already on disk, nothing is
 drawn.
 """
-function AbstractMCMC.sample(rng::Reactant.ReactantRNG, post, sampler::ReactantNUTS,
+function AbstractMCMC.sample(
+        rng::Reactant.ReactantRNG, post, sampler::ReactantNUTS,
         nsamples::Int;
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
         chunk_size::Int = 100,
         ldf = _default_ldf, host_rng = Random.default_rng(),
         warmup_callback = default_warmup_callback,
-        sample_callback = default_sample_callback)
+        sample_callback = default_sample_callback
+    )
 
     tpost = asflat(post)
 
@@ -445,8 +473,10 @@ function AbstractMCMC.sample(rng::Reactant.ReactantRNG, post, sampler::ReactantN
         warmup_ckpt = saveto isa DiskStore ?
             (mkpath(saveto.name); joinpath(saveto.name, "state.jls")) : nothing
         @info "ReactantNUTS warmup" n_adapts = n_adapts(sampler) schedule = warmup_schedule(sampler)
-        state, warmup_history = warmup_windowed(rng, ldf, x0, tpost, sampler;
-            callback = warmup_callback, checkpoint = warmup_ckpt)
+        state, warmup_history = warmup_windowed(
+            rng, ldf, x0, tpost, sampler;
+            callback = warmup_callback, checkpoint = warmup_ckpt
+        )
     else
         # Restart path: consult warmup_status.jls to decide whether warmup is done
         # or needs to be resumed in its remaining windows.
@@ -470,10 +500,12 @@ function AbstractMCMC.sample(rng::Reactant.ReactantRNG, post, sampler::ReactantN
                 # length/eltype seed the unused-but-constructed step0/mass0 arrays.
                 T0 = eltype(Array(loaded_state.position))
                 x0_dummy = Reactant.to_rarray(zeros(T0, HypercubeTransform.dimension(tpost)))
-                state, warmup_history = warmup_windowed(rng, ldf, x0_dummy, tpost, sampler;
+                state, warmup_history = warmup_windowed(
+                    rng, ldf, x0_dummy, tpost, sampler;
                     callback = warmup_callback, checkpoint = warmup_ckpt,
                     resume_state = loaded_state, resume_round = status.round_done,
-                    resume_schedule = status.schedule, resume_history = status.history)
+                    resume_schedule = status.schedule, resume_history = status.history
+                )
             end
         end
     end
@@ -490,14 +522,16 @@ function AbstractMCMC.sample(rng::Reactant.ReactantRNG, post, sampler::ReactantN
         @info "Appending $remaining samples to existing chain of $done" total = nsamples
     end
 
-    metadata = Dict{Symbol,Any}(
+    metadata = Dict{Symbol, Any}(
         :sampler => :ReactantNUTS,
         :warmup_history => warmup_history,
         :final_state => state,
     )
-    state, out, _ = sample_chunked(state, ldf, tpost, sampler;
+    state, out, _ = sample_chunked(
+        state, ldf, tpost, sampler;
         num_samples = remaining, saveto, chunk_size, append = restart,
-        callback = sample_callback, metadata)
+        callback = sample_callback, metadata
+    )
     # sample_history is already merged into metadata by sample_chunked, so it lives
     # in samplerinfo(out) for MemoryStore and in metadata.jls for DiskStore.
     return out

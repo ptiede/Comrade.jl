@@ -73,8 +73,10 @@ const CRX = Base.get_extension(Comrade, :ComradeReactantExt)
     let p = joinpath(dir2, "warmup_status.jls")
         st = open(deserialize, p)
         # Pretend only the first round finished.
-        forged = (; st.schedule, round_done = 1, complete = false,
-                  history = st.history[1:min(1, length(st.history))])
+        forged = (;
+            st.schedule, round_done = 1, complete = false,
+            history = st.history[1:min(1, length(st.history))],
+        )
         open(io -> serialize(io, forged), p, "w")
     end
     out3 = sample(post, s, 100; saveto = DiskStore(name = dir2, stride = 25), restart = true)

@@ -43,4 +43,3 @@ Base.@kwdef struct ReactantNUTS{W}
     base_window::Int = 25
     windows::W = nothing
 end
-
