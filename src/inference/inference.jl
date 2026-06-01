@@ -3,9 +3,10 @@ using Serialization
 
 include("optimization.jl")
 include("posteriorsamples.jl")
+include("reactant.jl")
 
 
-export MemoryStore, DiskStore, load_samples
+export MemoryStore, DiskStore, load_samples, ReactantNUTS
 
 """
     MemoryStore
