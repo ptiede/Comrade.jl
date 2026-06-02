@@ -10,6 +10,7 @@ using Test
 using LinearAlgebra
 using CairoMakie
 import Plots
+using Serialization
 
 #using PyCall
 
