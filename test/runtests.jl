@@ -10,6 +10,7 @@ using Test
 using LinearAlgebra
 using CairoMakie
 import Plots
+using Serialization
 
 #using PyCall
 
@@ -23,4 +24,5 @@ include(joinpath(@__DIR__, "test_util.jl"))
     include(joinpath(@__DIR__, "ext/comradepigeons.jl"))
     include(joinpath(@__DIR__, "ext/comradedynesty.jl"))
     include(joinpath(@__DIR__, "ext/comradenested.jl"))
+    include(joinpath(@__DIR__, "ext/comradereactant.jl"))
 end

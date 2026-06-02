@@ -159,6 +159,7 @@ Comrade.resample_equal
 Comrade.residual
 Comrade.residual_data
 Comrade.chi2
+Comrade.ReactantNUTS
 ```
 
 ## Misc
