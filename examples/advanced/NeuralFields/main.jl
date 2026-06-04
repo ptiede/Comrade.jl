@@ -40,7 +40,7 @@ rng = StableRNG(123)
 # ## Load the Data
 # For this tutorial we will image publicly available VLBA data of the AGN
 # 1308+326 observed on 2021/03/19 at 43 GHz as part of the Boston University blazar monitoring program.
-file = Base.download("https://www.bu.edu/blazars/VLBA_GLAST/1308/1308+326Q.2021-03-19.UVP.gz")
+file = Base.download("https://github.com/ptiede/ComradeTestData/releases/download/Data/1308+326Q.2021-03-19.UVP")
 uvd = VLBIFiles.load(
     VLBIFiles.UVData,
     file
@@ -300,7 +300,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # with neural fields is highly challenging so we skip that step here.
 
 # We can also compare the Comrade neural field reconstruction to the CLEAN reconstruction of the same data.
-cleanf = Base.download("https://www.bu.edu/blazars/VLBA_GLAST/1308/1308+326Q.2021-03-19.IMAP.gz")
+cleanf = Base.download("https://github.com/ptiede/ComradeTestData/releases/download/Data/1308+326Q.2021-03-19.IMAP.gz")
 # By default this will load the clean components with the beam defined in the FITS header.
 mcl = load_clean_components(cleanf)
 # We can also choose the load the clean components with a user-defined beam.
