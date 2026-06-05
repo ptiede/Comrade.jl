@@ -13,16 +13,33 @@ end
 (post::TransformedVLBIPosterior)(θ) = logdensityof(post, θ)
 admode(post::TransformedVLBIPosterior) = admode(post.lpost)
 
+# Is the transformed posterior over the unit hypercube ([0,1]^n, i.e. `ascube`)?
+_is_cube(t::TransportedDistribution{<:Any, <:Any, <:StdUniform}) = true
+_is_cube(::TransportedDistribution) = false
+_is_cube(post::TransformedVLBIPosterior) = _is_cube(post.transform)
+
 function prior_sample(rng, tpost::TransformedVLBIPosterior, args...)
-    inv = Base.Fix1(HypercubeTransform.inverse, tpost)
+    inv = Base.Fix1(pullback, tpost)
     return map(inv, prior_sample(rng, tpost.lpost, args...))
 end
 function prior_sample(rng, tpost::TransformedVLBIPosterior)
-    inv = Base.Fix1(HypercubeTransform.inverse, tpost)
+    inv = Base.Fix1(pullback, tpost)
     return inv(prior_sample(rng, tpost.lpost))
 end
 
-HypercubeTransform.dimension(post::TransformedVLBIPosterior) = dimension(post.transform)
+dimension(post::TransformedVLBIPosterior) = dimension(post.transform)
+
+
+"""
+    transport_to(post::VLBIPosterior, space)
+
+Build a [`TransformedVLBIPosterior`](@ref) whose parameters live in the latent `space`
+(`StdFlat()` for unconstrained ℝⁿ, `StdUniform()` for the unit hypercube). The
+[`asflat`](@ref asflat) / [`ascube`](@ref ascube) helpers call this with the respective
+spaces.
+"""
+PT.transport_to(post::VLBIPosterior, space) =
+    TransformedVLBIPosterior(post, transport_to(post.prior, space))
 
 
 """
@@ -31,20 +48,22 @@ HypercubeTransform.dimension(post::TransformedVLBIPosterior) = dimension(post.tr
 Transforms the value `x` from the transformed space (e.g. unit hypercube if using [`ascube`](@ref ascube))
 to parameter space which is usually encoded as a `NamedTuple`.
 
-For the inverse transform see [`inverse`](@ref HypercubeTransform.inverse)
+For the inverse transform see [`inverse`](@ref inverse)
 """
-HypercubeTransform.transform(p::TransformedVLBIPosterior, x) = transform(p.transform, x)
+PT.transport(p::TransformedVLBIPosterior, x) = transport(p.transform, x)
+transform(p::TransformedVLBIPosterior, x) = transport(p, x)
 
 
 """
     inverse(posterior::TransformedVLBIPosterior, x)
 
-Transforms the value `y` from parameter space to the transformed space
+Transforms the value `x` from parameter space to the transformed space
 (e.g. unit hypercube if using [`ascube`](@ref ascube)).
 
-For the inverse transform see [`transform`](@ref HypercubeTransform.transform)
+For the forward transform see [`transform`](@ref transform)
 """
-HypercubeTransform.inverse(p::TransformedVLBIPosterior, y) = HypercubeTransform.inverse(p.transform, y)
+PT.pullback(p::TransformedVLBIPosterior, x) = pullback(p.transform, x)
+inverse(p::TransformedVLBIPosterior, x) = pullback(p, x)
 
 """
     asflat(post::VLBIPosterior)
@@ -58,7 +77,7 @@ includes the terms log-jacobian terms of the transformation.
 
 # Example
 ```julia-repl
-julia> tpost = ascube(post)
+julia> tpost = asflat(post)
 julia> x0 = prior_sample(tpost)
 julia> logdensityof(tpost, x0)
 ```
@@ -66,74 +85,8 @@ julia> logdensityof(tpost, x0)
 # Notes
 This is the transform that should be used if using typical MCMC methods, i.e. NUTS.
 For the transformation to the unit hypercube see [`ascube`](@ref ascube)
-
 """
-function HypercubeTransform.asflat(post::VLBIPosterior)
-    pr = post.prior
-    tr = asflat(pr)
-    return TransformedVLBIPosterior(post, tr)
-end
-
-function Base.show(io::IO, mime::MIME"text/plain", post::TransformedVLBIPosterior{P, T}) where {P, T <: TV.AbstractTransform}
-    println(io, "TransformedVLBIPosterior(")
-    show(io, mime, post.lpost)
-    println(io, "Transform: Params to ℝ^$(dimension(post))")
-    return print(io, ")")
-end
-
-# @noinline function _refed_transform_and_logprior(t::TV.AbstractTransform, prior, x)
-#     # @info "HERE"
-#     p, logjac = transform_and_logjac(t, x)
-#     logpr = logdensityof(prior, p)
-#     return p, logpr + logjac
-# end
-
-# @noinline function _refered_transform_and_logprior!(y, t, prior, x)
-#     out = _refed_transform_and_logprior(t, prior, x)
-#     y[] = out
-#     nothing
-# end
-
-# function ChainRulesCore.rrule(::typeof(_refed_transform_and_logprior), t::TV.AbstractTransform, prior, x)
-#     out = _refed_transform_and_logprior(t, prior, x)
-#     px = ProjectTo(x)
-#     function _refed_transform_and_logprior_pullback(Δ)
-#         # @info typeof(Δ)
-#         Δout = make_sensitivity(out, Δ)
-#         @info Δout
-#         # @info typeof(out)
-#         Δoutr = Ref(Δout)
-#         outr = Ref(ntzero(out))
-#         dx = zero(x)
-#         autodiff(Reverse, _refered_transform_and_logprior!, Duplicated(outr, Δoutr), Const(t), Const(prior), Duplicated(x, dx))
-#         return NoTangent(), NoTangent(), NoTangent(), px(dx)
-#     end
-#     return out, _refed_transform_and_logprior_pullback
-# end
-
-# function make_sensitivity(out::NTuple{N, Any}, Δ::Tangent) where {N}
-#     # @info typeof(Δ)
-#     return ntuple(i->make_sensitivity(out[i], Δ[i]), Val(N))
-# end
-
-# function make_sensitivity(out::NamedTuple{N}, Δ::Tangent) where {N}
-#     # @info typeof(Δ)
-#     return NamedTuple{N}(map(N) do N
-#         return make_sensitivity(out[N], Δ[N])
-#     end)
-# end
-
-# make_sensitivity(out, Δ::Tangent) = throw(ArgumentError("wtf $(typeof(Δ))"))
-# make_sensitivity(out, Δ) = (Δ)
-# make_sensitivity(out, ::AbstractZero) = zero(out)
-
-
-@inline function DensityInterface.logdensityof(post::TransformedVLBIPosterior{P, T}, x::AbstractArray) where {P, T <: TV.AbstractTransform}
-    p, logjac = transform_and_logjac(post.transform, x)
-    lp = post.lpost
-    return logdensityof(lp, p) + logjac
-end
-
+asflat(post::VLBIPosterior) = transport_to(post, StdFlat())
 
 """
     ascube(post::VLBIPosterior)
@@ -156,25 +109,28 @@ julia> logdensityof(tpost, x0)
 This is the transform that should be used if using typical NestedSampling methods,
 i.e. `ComradeNested`. For the transformation to unconstrained space see [`asflat`](@ref asflat)
 """
-function HypercubeTransform.ascube(post::VLBIPosterior)
-    pr = post.prior
-    tr = ascube(pr)
-    return TransformedVLBIPosterior(post, tr)
-end
+ascube(post::VLBIPosterior) = transport_to(post, StdUniform())
 
-function Base.show(io::IO, post::TransformedVLBIPosterior{P, T}) where {P, T <: HypercubeTransform.AbstractHypercubeTransform}
+
+function Base.show(io::IO, mime::MIME"text/plain", post::TransformedVLBIPosterior)
     println(io, "TransformedVLBIPosterior(")
-    println(io, post.lpost)
-    println(io, "Transform: Params to [0,1]^$(dimension(post))")
+    show(io, mime, post.lpost)
+    if _is_cube(post)
+        println(io, "Transform: Params to [0,1]^$(dimension(post))")
+    else
+        println(io, "Transform: Params to ℝ^$(dimension(post))")
+    end
     return print(io, ")")
 end
 
-function DensityInterface.logdensityof(tpost::TransformedVLBIPosterior{P, T}, x::AbstractArray) where {P, T <: HypercubeTransform.AbstractHypercubeTransform}
-    # Check that x really is in the unit hypercube. If not return -Inf
-    for xx in x
-        (xx > 1 || xx < 0) && return -Inf
-    end
-    p = transform(tpost.transform, x)
-    post = tpost.lpost
-    return loglikelihood(post, p)
+
+# A single log-density covers both the flat (`StdFlat`) and cube (`StdUniform`) cases.
+# `transport_and_logdensity` returns the transported point `p` together with the
+# pulled-back *prior* log-density `ℓ`:
+#   * flat:  ℓ = logpdf(prior, p) + logjac  ⇒  full posterior with the likelihood;
+#   * cube:  ℓ = logpdf(StdUniform, x) = 0 inside [0,1]^n and -Inf outside ⇒ the prior
+#            is absorbed by the map, so only the likelihood (bounds-checked) remains.
+@inline function DensityInterface.logdensityof(post::TransformedVLBIPosterior, x::AbstractArray)
+    p, ℓ = transport_and_logdensity(post.transform, x)
+    return loglikelihood(post.lpost, p) + ℓ
 end

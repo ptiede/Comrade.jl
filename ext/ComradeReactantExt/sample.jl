@@ -1,7 +1,6 @@
 using AbstractMCMC
 using Serialization
 using Random
-using HypercubeTransform
 using Printf
 using Reactant: ProbProg
 
@@ -405,7 +404,7 @@ function _initial_position(rng, tpost, initial_params)
     x = if isnothing(initial_params)
         prior_sample(rng, tpost)
     else
-        HypercubeTransform.inverse(tpost, initial_params)
+        Comrade.inverse(tpost, initial_params)
     end
     return Reactant.to_rarray(x)
 end
@@ -499,7 +498,7 @@ function AbstractMCMC.sample(
                 # x0 is unused in resume mode (state carries position/metric/step), but
                 # length/eltype seed the unused-but-constructed step0/mass0 arrays.
                 T0 = eltype(Array(loaded_state.position))
-                x0_dummy = Reactant.to_rarray(zeros(T0, HypercubeTransform.dimension(tpost)))
+                x0_dummy = Reactant.to_rarray(zeros(T0, Comrade.dimension(tpost)))
                 state, warmup_history = warmup_windowed(
                     rng, ldf, x0_dummy, tpost, sampler;
                     callback = warmup_callback, checkpoint = warmup_ckpt,
