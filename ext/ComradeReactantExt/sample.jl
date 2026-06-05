@@ -150,6 +150,43 @@ function _existing_disk_samples(store::DiskStore)
 end
 
 # ===========================================================================
+# Host-side state view shared by both callback paths
+# ===========================================================================
+
+"""
+    _current_state(state, tpost) -> NamedTuple
+
+Plot-friendly, host-side view of a ProbProg `MCMCState`. Materializes the Reactant
+arrays back to the host and transforms the current (unconstrained, flattened)
+`position` into the constrained model parameters via `tpost`. This lets a callback
+inspect or plot the *current* draw directly, e.g.
+
+```julia
+sample_callback = info -> plot(skymodel(post, info.params.sky))
+```
+
+Fields:
+  - `position::Vector`            current position in unconstrained, flattened space
+  - `params`                      `transform(tpost, position)` — the constrained
+                                  parameter `NamedTuple` (`(; sky[, instrument])`)
+  - `potential_energy::Real`      potential energy at `position`
+  - `gradient::Vector`            gradient of the log-density at `position`
+  - `step_size::Real`             current leapfrog step size
+  - `inverse_mass_matrix::Vector` current (diagonal) inverse mass matrix
+"""
+function _current_state(state, tpost)
+    position = Array(state.position)
+    return (;
+        position,
+        params = transform(tpost, position),
+        potential_energy = only(Array(state.potential_energy)),
+        gradient = Array(state.gradient),
+        step_size = only(Array(state.step_size)),
+        inverse_mass_matrix = Array(state.inverse_mass_matrix),
+    )
+end
+
+# ===========================================================================
 # Default callbacks (called between rounds; return value is collected into history)
 # ===========================================================================
 
@@ -206,7 +243,12 @@ Run the sampler's Stan-style windowed warmup. `ldf(x, tpost)` is the log-density
 Returns the final `MCMCState` and the vector of `callback` returns (one per round).
 The `info` NamedTuple passed to `callback` has fields:
   round, nrounds, phase (:init|:window|:term), num_warmup, adapt_step_size,
-  adapt_mass_matrix, step_size, state, samples, diagnostics.
+  adapt_mass_matrix, step_size, position, params, potential_energy, gradient,
+  inverse_mass_matrix, state, samples, diagnostics.
+`state` is the raw Reactant `MCMCState`; `position`/`params`/`potential_energy`/
+`gradient`/`inverse_mass_matrix` are the host-side, plot-friendly view of it
+(`params` is the *current* draw transformed into constrained model space) — see
+[`_current_state`](@ref).
 
 If `checkpoint` is a path, the post-round `MCMCState` is written there via
 `ProbProg.save_state` after every window AND a `warmup_status.jls` is written next
@@ -294,10 +336,14 @@ function warmup_windowed(
             cfn(nothing, nw, adapt_ss, adapt_mm) :
             cfn(state, nw, adapt_ss, adapt_mm)
 
+        cur = _current_state(state, tpost)
         info = (;
             round, nrounds, phase,
             num_warmup = nw, adapt_step_size = adapt_ss, adapt_mass_matrix = adapt_mm,
-            step_size = only(Array(state.step_size)),
+            step_size = cur.step_size,
+            position = cur.position, params = cur.params,
+            potential_energy = cur.potential_energy, gradient = cur.gradient,
+            inverse_mass_matrix = cur.inverse_mass_matrix,
             state, samples = Array(samples), diagnostics = Array(diagnostics),
         )
         push!(history, callback(info))
@@ -325,8 +371,12 @@ adaptation OFF (frozen metric + step size). Each chunk is transformed to constra
 space and routed to `saveto` (`MemoryStore` -> accumulate; `DiskStore` -> write
 Comrade layout). `out` is a `PosteriorSamples` (memory) or `Comrade.DiskOutput`
 (disk). `callback` runs after EVERY chunk; the `info` it receives has fields:
-  round, nrounds, num_samples, step_size, state, samples (raw flat matrix),
+  round, nrounds, num_samples, step_size, position, params, potential_energy,
+  gradient, inverse_mass_matrix, state, samples (raw flat matrix),
   chain (transformed Vector), numerical_error (Vector{Bool}).
+`state` is the raw Reactant `MCMCState`; `position`/`params`/`potential_energy`/
+`gradient`/`inverse_mass_matrix` are its host-side, plot-friendly view (`params` is
+the chunk's last draw in constrained model space) — see [`_current_state`](@ref).
 """
 function sample_chunked(
         state, ldf, tpost, sampler::ReactantNUTS;
@@ -381,9 +431,13 @@ function sample_chunked(
         chain = [transform(tpost, r) for r in eachrow(raw)]
         numerical_error = .!Array(diagnostics)   # diagnostics: true == NO divergence
 
+        cur = _current_state(state, tpost)
         chunk_nt = (;
             round, nrounds, num_samples = ns,
-            step_size = only(Array(state.step_size)),
+            step_size = cur.step_size,
+            position = cur.position, params = cur.params,
+            potential_energy = cur.potential_energy, gradient = cur.gradient,
+            inverse_mass_matrix = cur.inverse_mass_matrix,
             state, samples = raw, chain, numerical_error,
         )
         _write_sink!(sink, saveto, chunk_nt)
@@ -421,13 +475,17 @@ _default_ldf(x, tpost) = logdensityof(tpost, x)
 
 Warm up (Stan-style windowed) then draw `nsamples` post-warmup samples from the
 Reactant posterior `post` using ProbProg NUTS. Structured like the AdvancedHMC
-extension's `sample`, and returns the standard Comrade output:
+extension's `sample`.
 
-  - `saveto::MemoryStore` -> a `PosteriorSamples` (chain transformed to constrained
-    space; `samplerstats` carries per-sample `numerical_error`; warmup/sample
-    history + final state in the metadata).
+Returns a `NamedTuple` `(; out, state)` where `state` is the final ProbProg
+`MCMCState` (held in memory, ready to inspect, plot via [`_current_state`](@ref), or
+thread into a follow-up `sample_chunked`) and `out` is the standard Comrade output:
+
+  - `saveto::MemoryStore` -> `out` is a `PosteriorSamples` (chain transformed to
+    constrained space; `samplerstats` carries per-sample `numerical_error`;
+    warmup/sample history + final state in the metadata).
   - `saveto::DiskStore` -> writes per-chunk `PosteriorSamples` to `saveto.name` in
-    Comrade's on-disk layout and returns the `Comrade.DiskOutput` handle. Read the
+    Comrade's on-disk layout; `out` is the `Comrade.DiskOutput` handle. Read the
     chain back with `Comrade.load_samples(out)` or `Comrade.load_samples(saveto.name)`.
     A resumable `MCMCState` is checkpointed to `<name>/state.jls` after each sampling
     chunk and after each warmup window.
@@ -517,7 +575,8 @@ function AbstractMCMC.sample(
         remaining = nsamples - done
         if remaining <= 0
             @warn "Requested $nsamples samples but $done already on disk; nothing to do."
-            return deserialize(joinpath(saveto.name, "parameters.jls")).params
+            out = deserialize(joinpath(saveto.name, "parameters.jls")).params
+            return (; out, state)
         end
         @info "Appending $remaining samples to existing chain of $done" total = nsamples
     end
@@ -534,7 +593,7 @@ function AbstractMCMC.sample(
     )
     # sample_history is already merged into metadata by sample_chunked, so it lives
     # in samplerinfo(out) for MemoryStore and in metadata.jls for DiskStore.
-    return out
+    return (; out, state)
 end
 
 """
