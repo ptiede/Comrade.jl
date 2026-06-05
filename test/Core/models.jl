@@ -415,9 +415,9 @@ end
             @inferred logpdf(printm2, rand(printm2))
             x = rand(printm)
             @test logpdf(printm, x) ≈ logpdf(printm2, x)
-            @test asflat(printm) isa TV.AbstractTransform
+            @test Comrade.transport_node(printm, Comrade.StdFlat()) isa TV.AbstractTransform
             p = rand(printm)
-            t = asflat(printm)
+            t = Comrade.transport_node(printm, Comrade.StdFlat())
             pout = TV.transform(t, TV.inverse(t, p))
             dp = ntequal(p, pout)
             @test dp.lgR
@@ -581,8 +581,8 @@ end
         ointmf, printmf = Comrade.set_array(intm, arrayconfig(dcohmf))
 
         @testset "Site lookup" begin
-            trsi = asflat(printsi)
-            trmf = asflat(printmf)
+            trsi = Comrade.transport_node(printsi, Comrade.StdFlat())
+            trmf = Comrade.transport_node(printmf, Comrade.StdFlat())
 
             lsi = trsi.lgR.site_map.lookup
             lmf = trmf.lgR.site_map.lookup

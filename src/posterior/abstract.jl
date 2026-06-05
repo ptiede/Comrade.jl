@@ -57,7 +57,7 @@ skymodel(d::AbstractVLBIPosterior) = getfield(d, :skymodel)
 Returns the instrument model of the posterior `d`.
 """
 instrumentmodel(d::AbstractVLBIPosterior) = getfield(d, :instrumentmodel)
-HypercubeTransform.dimension(d::AbstractVLBIPosterior) = length(d.prior)
+dimension(d::AbstractVLBIPosterior) = length(d.prior)
 EnzymeRules.inactive(::typeof(instrumentmodel), args...) = nothing
 
 

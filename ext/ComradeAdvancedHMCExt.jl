@@ -9,7 +9,6 @@ using AbstractMCMC: Sample
 using Accessors
 using ArgCheck
 using DocStringExtensions
-using HypercubeTransform
 using LogDensityProblems
 using Printf
 using Random
@@ -19,7 +18,7 @@ using Serialization
 
 function initialize_params(rng, tpost, initial_params)
     isnothing(initial_params) && return prior_sample(rng, tpost)
-    return HypercubeTransform.inverse(tpost, initial_params)
+    return Comrade.inverse(tpost, initial_params)
 end
 
 # internal method that makes the HMCSampler

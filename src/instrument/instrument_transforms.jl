@@ -1,8 +1,22 @@
+# Instrument-model parameter transforms.
+#
+# These map between a flat parameter vector and a `SiteArray` of instrument
+# parameters. There are two families, one per latent space:
+#
+#   * the flat (`StdFlat`/NUTS) path is a `TV.VectorTransform` so the whole flat
+#     prior tree is a single TransformVariables transform (which threads the
+#     Jacobian); and
+#   * the Std-space (`StdUniform`/`StdNormal`, e.g. nested sampling) path is a
+#     `ProbabilityTransports.AbstractTransport` node, whose `transport_step` /
+#     `pullback_step!` mirror the flat `transform_with` / `inverse_at!` but carry
+#     no Jacobian (the transport is exact in those spaces).
+
+# ----- flat (TransformVariables) instrument transforms ---------------------
+
 abstract type AbstractInstrumentTransform <: TV.VectorTransform end
 site_map(t::AbstractInstrumentTransform) = t.site_map
 EnzymeRules.inactive(::typeof(site_map), args...) = nothing
 inner_transform(t::AbstractInstrumentTransform) = t.inner_transform
-ascube(t::AbstractInstrumentTransform) = t
 
 function TV.transform_with(flag::TV.LogJacFlag, m::AbstractInstrumentTransform, x, index)
     y, ℓ, index = _instrument_transform_with(flag, m, x, index)
@@ -17,17 +31,6 @@ EnzymeRules.inactive_type(::Type{AbstractArray{<:FrequencyChannel}}) = true
 function TV.inverse_at!(x::AbstractArray, index, t::AbstractInstrumentTransform, y::SiteArray)
     itrf = inner_transform(t)
     return TV.inverse_at!(x, index, itrf, parent(y))
-end
-
-function HypercubeTransform._step_inverse!(y::AbstractVector, index, t::AbstractInstrumentTransform, x)
-    itrf = inner_transform(t)
-    return HypercubeTransform._step_inverse!(y, index, itrf, parent(x))
-end
-
-function HypercubeTransform._step_transform(m::AbstractInstrumentTransform, x, index)
-    y, index = _hc_instrument_transform_with(m, x, index)
-    sm = site_map(m)
-    return SiteArray(y, sm), index
 end
 
 
@@ -54,11 +57,6 @@ TV.dimension(m::AbstractInstrumentTransform) = TV.dimension(inner_transform(m))
     return TV.transform_with(flag, itrf, x, index)
 end
 
-@inline function _hc_instrument_transform_with(m::InstrumentTransform, x, index)
-    itrf = inner_transform(m)
-    return HypercubeTransform._step_transform(itrf, x, index)
-end
-
 
 function branchcut(x::T) where {T}
     xmod = mod2pi(x)
@@ -73,50 +71,67 @@ end
     return yout, ℓ, index
 end
 
-@inline function _hc_instrument_transform_with(m::MarkovInstrumentTransform, x, index)
-    (; inner_transform, site_map) = m
-    y, index = HypercubeTransform._step_transform(inner_transform, x, index)
-    yout = site_sum(y, site_map)
-    yout .= branchcut.(yout)
-    return yout, index
+
+# ----- Std-space (ProbabilityTransports) instrument transforms -------------
+
+abstract type AbstractStdInstrumentTransform <: PT.AbstractTransport end
+site_map(t::AbstractStdInstrumentTransform) = t.site_map
+inner_transform(t::AbstractStdInstrumentTransform) = t.inner_transform
+
+PT.dimension(m::AbstractStdInstrumentTransform) = PT.dimension(inner_transform(m))
+PT.pullback_eltype(m::AbstractStdInstrumentTransform, ::Type{T}) where {T} =
+    PT.pullback_eltype(inner_transform(m), T)
+
+
+struct StdInstrumentTransform{T, L <: SiteLookup} <: AbstractStdInstrumentTransform
+    inner_transform::T
+    site_map::L
 end
 
+struct StdMarkovInstrumentTransform{T, L <: SiteLookup} <: AbstractStdInstrumentTransform
+    inner_transform::T
+    site_map::L
+end
+
+function PT.transport_step(m::StdInstrumentTransform, x, index)
+    y, index = PT.transport_step(inner_transform(m), x, index)
+    return SiteArray(y, site_map(m)), index
+end
+
+function PT.transport_step(m::StdMarkovInstrumentTransform, x, index)
+    y, index = PT.transport_step(inner_transform(m), x, index)
+    yout = site_sum(y, site_map(m))
+    yout .= branchcut.(yout)
+    return SiteArray(yout, site_map(m)), index
+end
+
+function PT.pullback_step!(y::AbstractVector, index, m::StdInstrumentTransform, x::SiteArray)
+    return PT.pullback_step!(y, index, inner_transform(m), parent(x))
+end
+
+function PT.pullback_step!(y::AbstractVector, index, m::StdMarkovInstrumentTransform, x::SiteArray)
+    yd = copy(x)
+    site_diff!(yd, site_map(m))
+    return PT.pullback_step!(y, index, inner_transform(m), parent(yd))
+end
+
+
+# ----- shared site-mapping helpers ----------------------------------------
 
 EnzymeRules.inactive_type(::Type{<:SiteLookup}) = true
 
 @inline function site_sum(y, site_map::SiteLookup)
-    # yout = similar(y)
     vals = values(lookup(site_map))
     @inbounds for site in vals
-        # i0 = site[begin]
-        # yout[i0] = y[i0]
         acc = zero(eltype(y))
         @inbounds ys = @view y[site]
         for i in eachindex(ys)
             acc += ys[i]
             ys[i] = acc
         end
-        # ys = @view y[site]
-        # y should never alias so we should be fine here.
-        # youts = @view yout[site]
-        # cumsum!(ys, ys)
     end
     return y
 end
-
-# function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_instrument_transform_with), flag, m::MarkovInstrumentTransform, x, index)
-#     (y, ℓ, index2), dt = rrule_via_ad(config, TV.transform_with, flag, m.inner_transform, x, index)
-#     site_sum!(y, m.site_map)
-#     py = ProjectTo(y)
-#     function _markov_transform_pullback(Δ)
-#         Δy  = similar(y)
-#         Δy .= py(unthunk(Δ[1]))
-#         autodiff(Reverse, site_sum!, Const, Duplicated(y, Δy), Const(m.site_map))
-#         din = dt((Δy, Δ[2], NoTangent()))
-#         return din
-#     end
-#     return (y, ℓ, index2), _markov_transform_pullback
-# end
 
 
 function site_diff!(y, site_map::SiteLookup)
@@ -126,12 +141,6 @@ function site_diff!(y, site_map::SiteLookup)
     end
     return nothing
 end
-
-# function simplediff(x::AbstractVector)
-#     y = zero(x)
-#     simplediff!(y, x)
-#     return y
-# end
 
 function simplediff!(y::AbstractVector, x::AbstractVector)
     y[begin] = x[begin]

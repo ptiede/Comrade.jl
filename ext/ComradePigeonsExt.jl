@@ -6,9 +6,12 @@ using Pigeons
 using AbstractMCMC
 using EnzymeCore
 using LogDensityProblems
-using HypercubeTransform
-using TransformVariables
 using Random
+
+# Latent-space tags for the wrapped `TransportedDistribution`: `StdFlat` (unconstrained
+# ℝⁿ, `asflat`) has `stop === nothing`; the unit hypercube (`ascube`) carries a `StdUniform`.
+const FlatTransport = Comrade.TransportedDistribution{<:Any, <:Any, Nothing}
+const CubeTransport = Comrade.TransportedDistribution{<:Any, <:Any, <:Comrade.StdUniform}
 
 
 Pigeons.initialization(tpost::Comrade.TransformedVLBIPosterior, rng::Random.AbstractRNG, ::Int) = prior_sample(rng, tpost)
@@ -18,22 +21,18 @@ struct PriorRef{P, T}
     transform::T
 end
 
-function (p::PriorRef{P, <:TransformVariables.AbstractTransform})(x) where {P}
-    y, lj = TransformVariables.transform_and_logjac(p.transform, x)
-    return logdensityof(p.model, y) + lj
+# The Pigeons reference is the prior. `transport_and_logdensity` returns the pulled-back
+# *prior* log-density directly: `logpdf(prior, y) + logjac` in the flat space and
+# `logpdf(StdUniform, x)` (0 inside the cube, -Inf outside) in the cube space — so a single
+# expression covers both references.
+function (p::PriorRef)(x)
+    return last(Comrade.transport_and_logdensity(p.transform, x))
 end
 
-function (p::PriorRef{P, <:HypercubeTransform.AbstractHypercubeTransform})(x) where {P}
-    for xx in x
-        (xx > 1 || xx < 0) && return convert(eltype(x), -Inf)
-    end
-    return zero(eltype(x))
-end
-
-Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P, <:HypercubeTransform.AbstractHypercubeTransform}) where {P} =
+Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P, <:CubeTransport}) where {P} =
     SliceSampler()
 
-Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P, <:TransformVariables.AbstractTransform}) where {P} =
+Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P, <:FlatTransport}) where {P} =
     Pigeons.AutoMALA(; default_autodiff_backend = :Enzyme)
 
 function Pigeons.default_reference(tpost::Comrade.TransformedVLBIPosterior)
@@ -46,11 +45,11 @@ function Pigeons.sample_iid!(target::Comrade.TransformedVLBIPosterior, replica, 
     return replica.state = Pigeons.initialization(target, replica.rng, replica.replica_index)
 end
 
-function Pigeons.sample_iid!(target::PriorRef{P, <:TransformVariables.AbstractTransform}, replica, shared) where {P}
+function Pigeons.sample_iid!(target::PriorRef{P, <:FlatTransport}, replica, shared) where {P}
     return replica.state .= Comrade.inverse(target.transform, rand(replica.rng, target.model))
 end
 
-function Pigeons.sample_iid!(::PriorRef{P, <:HypercubeTransform.AbstractHypercubeTransform}, replica, shared) where {P}
+function Pigeons.sample_iid!(::PriorRef{P, <:CubeTransport}, replica, shared) where {P}
     return rand!(replica.rng, replica.state)
 end
 

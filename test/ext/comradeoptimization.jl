@@ -1,12 +1,12 @@
 using Comrade, Optimization
 using Pyehtim, OptimizationLBFGSB, Distributions, VLBIImagePriors
 using OptimizationBBO, OptimizationGCMAES, OptimizationOptimisers
-using HypercubeTransform
 using Enzyme
 using Test
 
 const COExt = Base.get_extension(Comrade, :ComradeOptimizationExt)
-const Ahyper = HypercubeTransform.AbstractHypercubeTransform
+# The cube (`ascube`) transform is a `TransportedDistribution` over a `StdUniform` latent.
+const Ahyper = Comrade.TransportedDistribution{<:Any, <:Any, <:Comrade.StdUniform}
 
 
 @testset "ComradeOptimizationExt" begin

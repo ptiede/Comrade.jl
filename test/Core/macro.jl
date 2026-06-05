@@ -35,7 +35,7 @@ using VLBIImagePriors
 
         # Same model output on a fixed θ
         rng = Random.Xoshiro(42)
-        x = rand(rng, Comrade.HypercubeTransform.NamedDist(m_macro.prior))
+        x = rand(rng, Comrade.NamedDist(m_macro.prior))
         @test m_macro.f(x, m_macro.metadata) == m_manual.f(x, m_manual.metadata)
     end
 
@@ -70,7 +70,7 @@ using VLBIImagePriors
         end
         m = ntuple_prior(g)
         @test m.prior.ρs isa NTuple{3, <:VLBIImagePriors.AffineDistribution}
-        x = rand(Comrade.HypercubeTransform.NamedDist(m.prior))
+        x = rand(Comrade.NamedDist(m.prior))
         @test x.ρs isa NTuple{3, Float64}
     end
 
@@ -86,7 +86,7 @@ using VLBIImagePriors
         end
         m = hier_imager(g; cprior = cprior)
         @test m.prior.c === cprior
-        x = rand(Comrade.HypercubeTransform.NamedDist(m.prior))
+        x = rand(Comrade.NamedDist(m.prior))
         @test haskey(x, :c) && haskey(x, :σimg)
         @test m.f(x, m.metadata) isa ContinuousImage
     end
