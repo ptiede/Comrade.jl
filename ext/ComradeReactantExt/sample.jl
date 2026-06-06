@@ -178,7 +178,7 @@ function _current_state(state, tpost)
     position = Array(state.position)
     return (;
         position,
-        params = transform(tpost, position),
+        params = transform(tpost, vec(position)),
         potential_energy = only(Array(state.potential_energy)),
         gradient = Array(state.gradient),
         step_size = only(Array(state.step_size)),
