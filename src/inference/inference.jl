@@ -6,7 +6,7 @@ include("posteriorsamples.jl")
 include("reactant.jl")
 
 
-export MemoryStore, DiskStore, load_samples, ReactantNUTS
+export MemoryStore, DiskStore, default_disk_callback, load_samples, ReactantNUTS
 
 """
     MemoryStore
@@ -17,14 +17,53 @@ struct MemoryStore end
 
 
 """
-    DiskStore(;name::String = "Results", stride::Int = 100)
+    default_disk_callback(info) -> NamedTuple
+
+Default per-batch callback used by [`DiskStore`](@ref). It logs one summary line for the
+batch just written to disk and returns a small `NamedTuple` (collected into the sampler's
+`sample_history` metadata).
+
+`info` is a `NamedTuple` describing the batch. The fields **guaranteed by every sampler
+backend** (AdvancedHMC's `sample` and `ReactantNUTS`) — i.e. the ones this default callback
+uses — are:
+
+  - `round::Int`                    : batch index (1-based)
+  - `nrounds::Int`                  : total number of batches
+  - `num_samples::Int`              : draws in this batch
+  - `time::Real`                    : wall-clock seconds spent drawing this batch
+  - `numerical_error::Vector{Bool}` : per-draw divergence flags
+  - `params`                        : last draw, as the constrained `(; sky[, instrument])` `NamedTuple`
+  - `step_size::Real`               : current leapfrog step size
+  - `extras::NamedTuple`            : backend-specific data — present on every backend, but
+                                      its CONTENTS are NOT guaranteed to match across backends
+
+`info.extras` is where each backend exposes whatever it can cheaply provide (AdvancedHMC's
+`samplerstats`, ReactantNUTS's host-side `MCMCState` view, ...). A callback that reaches into
+`extras` is therefore backend-specific; the fields are documented on the corresponding
+`sample` method (AdvancedHMC's `sample` and `ReactantNUTS`'s `sample`).
+
+A custom callback can do anything with `info`, e.g. plot the current draw:
+
+```julia
+DiskStore(; name = "Results", callback = info -> display(imageviz(intensitymap(skymodel(post, info.params.sky), g))))
+```
+"""
+function default_disk_callback(info)
+    ndiv = count(info.numerical_error)
+    @info "sampling batch $(info.round)/$(info.nrounds)" num_samples = info.num_samples time = info.time step_size = info.step_size n_divergences = "$(ndiv)/$(info.num_samples)"
+    return (; info.round, info.num_samples, info.step_size, n_divergences = ndiv)
+end
+
+
+"""
+    DiskStore(;name::String = "Results", stride::Int = 100, callback = default_disk_callback)
 
 Type that specifies to save the samples results to disk.
 
 # Fields
 $(FIELDS)
 """
-Base.@kwdef struct DiskStore
+Base.@kwdef struct DiskStore{C}
     """
     Path of the directory where the results will be saved. If the path does not exist
     it will be automatically created.
@@ -34,8 +73,18 @@ Base.@kwdef struct DiskStore
     The output stride, i.e. every `stride` steps the MCMC output will be dumped to disk.
     """
     stride::Int = 100
+    """
+    A callback `info -> ...` run after every batch is written to disk. Shared by the
+    AdvancedHMC and `ReactantNUTS` disk-sampling paths; see [`default_disk_callback`](@ref)
+    for the fields of `info`. The default logs a one-line summary per batch.
+    """
+    callback::C = default_disk_callback
 end
-DiskStore(name::String) = DiskStore(name, 100)
+# Positional convenience constructors that preserve the pre-`callback` API. Adding the
+# `callback` field made the `@kwdef`-generated positional constructor 3-arg, so restore the
+# 1- and 2-arg forms explicitly (they default the callback).
+DiskStore(name::String) = DiskStore(name, 100, default_disk_callback)
+DiskStore(name::String, stride::Int) = DiskStore(name, stride, default_disk_callback)
 
 struct DiskOutput
     filename::String
