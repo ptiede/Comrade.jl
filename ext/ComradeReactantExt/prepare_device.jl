@@ -13,7 +13,7 @@ end
 
 function Comrade.prepare_device(m::Comrade.ObservedSkyModel, ex::ReactantEx)
     grid = Comrade.prepare_device(m.grid, ex)
-    return Comrade.ObservedSkyModel(m.f, grid, Reactant.to_rarray(m.metadata))
+    return Comrade.ObservedSkyModel(Comrade.prepare_device(m.f, ex), grid, Reactant.to_rarray(m.metadata))
 end
 
 function Comrade.prepare_device(m::Comrade.ObservedInstrumentModel, ex::ReactantEx)
