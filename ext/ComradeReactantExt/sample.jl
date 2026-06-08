@@ -68,7 +68,12 @@ end
 # ===========================================================================
 # Sample-retention backends (reuse Comrade's MemoryStore / DiskStore configs)
 # Both deal in transformed PosteriorSamples. A "sink" is driven by:
-#   _open_sink -> create   _write_sink! -> stash a chunk PS   _close_sink -> finalize
+#   _open_sink -> create
+#   _write_sink!(sink, store, chain, numerical_error, state) -> persist one chunk
+#   _close_sink -> finalize
+# The sink takes only the data it needs to persist (chain, numerical_error, state); the
+# richer callback `info` is built separately in `sample_chunked` (mirroring the AdvancedHMC
+# path, where serialization and the callback `info` are distinct steps).
 # ===========================================================================
 
 # --- MemoryStore: accumulate transformed chains + stats, build one PS at close ---
@@ -78,9 +83,9 @@ mutable struct _MemorySink
 end
 _open_sink(::MemoryStore, _tpost, _nsamples, _nscans, _stride; append::Bool = false) =
     _MemorySink(Any[], Any[])
-function _write_sink!(sink::_MemorySink, ::MemoryStore, chunk)
-    push!(sink.chains, chunk.chain)
-    push!(sink.nerr, chunk.numerical_error)
+function _write_sink!(sink::_MemorySink, ::MemoryStore, chain, numerical_error, state)
+    push!(sink.chains, chain)
+    push!(sink.nerr, numerical_error)
     return nothing
 end
 function _close_sink(sink::_MemorySink, ::MemoryStore, metadata)
@@ -112,18 +117,18 @@ function _open_sink(store::DiskStore, _tpost, _nsamples, _nscans, stride; append
         store.stride, iter0, nsamples0
     )
 end
-function _write_sink!(sink::_DiskSink, ::DiskStore, chunk)
+function _write_sink!(sink::_DiskSink, ::DiskStore, chain, numerical_error, state)
     sink.iter += 1
-    sink.nsamples_done += length(chunk.chain)
-    ps = PosteriorSamples(chunk.chain, (; numerical_error = chunk.numerical_error))
+    sink.nsamples_done += length(chain)
+    ps = PosteriorSamples(chain, (; numerical_error))
     serialize(
         sink.outbase * Printf.@sprintf("%05d.jls", sink.iter),
         (samples = Comrade.postsamples(ps), stats = Comrade.samplerstats(ps))
     )
     # resumable MCMC state checkpoint (latest wins)
-    ProbProg.save_state(joinpath(sink.outdir, "state.jls"), chunk.state)
+    ProbProg.save_state(joinpath(sink.outdir, "state.jls"), state)
     # update parameters.jls every chunk so a crash mid-run leaves it current and
-    # consistent with the files on disk (AHMC checkpoints its counter every scan).
+    # consistent with the files on disk (AHMC checkpoints its counter every batch).
     out = Comrade.DiskOutput(abspath(sink.outdir), sink.iter, sink.stride, sink.nsamples_done)
     serialize(joinpath(sink.outdir, "parameters.jls"), (; params = out))
     return nothing
@@ -162,7 +167,7 @@ arrays back to the host and transforms the current (unconstrained, flattened)
 inspect or plot the *current* draw directly, e.g.
 
 ```julia
-sample_callback = info -> plot(skymodel(post, info.params.sky))
+DiskStore(; name = "Results", callback = info -> plot(skymodel(post, info.params.sky)))
 ```
 
 Fields:
@@ -200,16 +205,9 @@ function default_warmup_callback(info)
     return (; info.round, info.phase, info.num_warmup, info.step_size)
 end
 
-"""
-    default_sample_callback(info) -> NamedTuple
-
-Default `sample_callback`: log one line and return the per-chunk divergence count.
-"""
-function default_sample_callback(info)
-    ndiv = count(info.numerical_error)
-    @info "sampling round $(info.round)/$(info.nrounds)" num_samples = info.num_samples step_size = info.step_size n_divergences = ndiv
-    return (; info.round, info.num_samples, info.step_size, n_divergences = ndiv)
-end
+# The post-warmup (sampling) callback is the shared `Comrade.default_disk_callback`, used
+# for both the `MemoryStore` and `DiskStore` paths — see its docstring for the `info`
+# fields. Only warmup needs a ReactantNUTS-specific default (its `info` carries `phase`).
 
 # ===========================================================================
 # Engine: windowed warmup + chunked sampling
@@ -363,27 +361,28 @@ function warmup_windowed(
 end
 
 """
-    sample_chunked(state, ldf, tpost, sampler::ReactantNUTS; num_samples, saveto, chunk_size, callback)
+    sample_chunked(state, ldf, tpost, sampler::ReactantNUTS; num_samples, saveto, chunk_size)
         -> (state, out, history)
 
 Draw `num_samples` post-warmup samples in chunks, threading `state` forward with
 adaptation OFF (frozen metric + step size). Each chunk is transformed to constrained
 space and routed to `saveto` (`MemoryStore` -> accumulate; `DiskStore` -> write
 Comrade layout). `out` is a `PosteriorSamples` (memory) or `Comrade.DiskOutput`
-(disk). `callback` runs after EVERY chunk; the `info` it receives has fields:
-  round, nrounds, num_samples, step_size, position, params, potential_energy,
-  gradient, inverse_mass_matrix, state, samples (raw flat matrix),
-  chain (transformed Vector), numerical_error (Vector{Bool}).
-`state` is the raw Reactant `MCMCState`; `position`/`params`/`potential_energy`/
-`gradient`/`inverse_mass_matrix` are its host-side, plot-friendly view (`params` is
-the chunk's last draw in constrained model space) — see [`_current_state`](@ref).
+(disk). After EVERY chunk the per-batch callback runs: `saveto.callback` for a `DiskStore`,
+otherwise [`Comrade.default_disk_callback`](@ref). The `info` it receives is the same
+`NamedTuple` documented under the `ReactantNUTS` [`sample`](@ref) method (common fields in
+[`Comrade.default_disk_callback`](@ref), with the host-side `MCMCState` view from
+[`_current_state`](@ref) under `info.extras`).
 """
 function sample_chunked(
         state, ldf, tpost, sampler::ReactantNUTS;
         num_samples::Int, saveto = MemoryStore(), chunk_size::Int = 100,
-        append::Bool = false,
-        callback = default_sample_callback, metadata = Dict{Symbol, Any}()
+        append::Bool = false, metadata = Dict{Symbol, Any}()
     )
+
+    # The per-batch callback is configured solely on the DiskStore; MemoryStore just logs
+    # with the default.
+    callback = saveto isa DiskStore ? saveto.callback : Comrade.default_disk_callback
 
     num_samples > 0 || throw(ArgumentError("num_samples must be positive"))
     chunk = saveto isa DiskStore ? saveto.stride : chunk_size
@@ -425,23 +424,32 @@ function sample_chunked(
         cfn = get!(compiled, ns) do
             Reactant.Compiler.compile(run_chunk, (state, ns); optimize = :probprog)
         end
-        samples, diagnostics, _, state = cfn(state, ns)
+        t = @elapsed begin
+            samples, diagnostics, _, state = cfn(state, ns)
+        end
 
         raw = Array(samples)
         chain = [transform(tpost, r) for r in eachrow(raw)]
         numerical_error = .!Array(diagnostics)   # diagnostics: true == NO divergence
 
+        # Persist the chunk first (serialization / accumulation), then build the callback
+        # `info` and fire the callback — the same ordering the AdvancedHMC path uses.
+        _write_sink!(sink, saveto, chain, numerical_error, state)
+
         cur = _current_state(state, tpost)
-        chunk_nt = (;
-            round, nrounds, num_samples = ns,
-            step_size = cur.step_size,
-            position = cur.position, params = cur.params,
-            potential_energy = cur.potential_energy, gradient = cur.gradient,
-            inverse_mass_matrix = cur.inverse_mass_matrix,
-            state, samples = raw, chain, numerical_error,
+        info = (;
+            round, nrounds, num_samples = ns, time = t,
+            step_size = cur.step_size, params = cur.params, numerical_error,
+            # Backend-specific, NOT part of the cross-backend contract — see `extras` in
+            # `Comrade.default_disk_callback`. Here it's the host-side `MCMCState` view.
+            extras = (;
+                position = cur.position, gradient = cur.gradient,
+                potential_energy = cur.potential_energy,
+                inverse_mass_matrix = cur.inverse_mass_matrix,
+                state, samples = raw,
+            ),
         )
-        _write_sink!(sink, saveto, chunk_nt)
-        push!(history, callback(chunk_nt))
+        push!(history, callback(info))
     end
 
     meta = merge(
@@ -470,8 +478,7 @@ _default_ldf(x, tpost) = logdensityof(tpost, x)
     sample(rng, post, sampler::ReactantNUTS, nsamples;
            saveto=MemoryStore(), initial_params=nothing, restart=false,
            chunk_size=100, ldf=_default_ldf, host_rng=Random.default_rng(),
-           warmup_callback=default_warmup_callback,
-           sample_callback=default_sample_callback)
+           warmup_callback=default_warmup_callback)
 
 Warm up (Stan-style windowed) then draw `nsamples` post-warmup samples from the
 Reactant posterior `post` using ProbProg NUTS. Structured like the AdvancedHMC
@@ -489,6 +496,27 @@ thread into a follow-up `sample_chunked`) and `out` is the standard Comrade outp
     chain back with `Comrade.load_samples(out)` or `Comrade.load_samples(saveto.name)`.
     A resumable `MCMCState` is checkpointed to `<name>/state.jls` after each sampling
     chunk and after each warmup window.
+
+## Callbacks
+
+The per-batch callback is configured solely through the `DiskStore`: `saveto.callback` runs
+after every batch when `saveto::DiskStore`, otherwise (for `MemoryStore`) the default
+[`Comrade.default_disk_callback`](@ref) logger is used. The `info` it receives has the
+common fields documented in [`Comrade.default_disk_callback`](@ref) plus an `extras`
+`NamedTuple` of backend-specific data (not part of the cross-backend contract). On this
+`ReactantNUTS` path `info.extras` is the host-side view of the current `MCMCState` (see
+[`_current_state`](@ref)):
+
+  - `extras.position`            : current draw in unconstrained, flattened space
+  - `extras.gradient`            : gradient of the log-density at `position`
+  - `extras.potential_energy`    : potential energy at `position`
+  - `extras.inverse_mass_matrix` : current (diagonal) inverse mass matrix
+  - `extras.state`               : the raw Reactant `MCMCState` (resumable checkpoint)
+  - `extras.samples`             : the raw, unconstrained sample matrix for the batch
+
+`warmup_callback` runs once per warmup round; its `info` instead carries the warmup-specific
+fields `phase`, `num_warmup`, `adapt_step_size`, and `adapt_mass_matrix` alongside the
+host-side state view (see [`default_warmup_callback`](@ref) and [`warmup_windowed`](@ref)).
 
 `restart=true` (only with a `DiskStore`) continues an interrupted run, matching
 AdvancedHMC's `restart`. The on-disk `warmup_status.jls` records whether warmup
@@ -510,8 +538,7 @@ function AbstractMCMC.sample(
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
         chunk_size::Int = 100,
         ldf = _default_ldf, host_rng = Random.default_rng(),
-        warmup_callback = default_warmup_callback,
-        sample_callback = default_sample_callback
+        warmup_callback = default_warmup_callback
     )
 
     tpost = asflat(post)
@@ -588,8 +615,7 @@ function AbstractMCMC.sample(
     )
     state, out, _ = sample_chunked(
         state, ldf, tpost, sampler;
-        num_samples = remaining, saveto, chunk_size, append = restart,
-        callback = sample_callback, metadata
+        num_samples = remaining, saveto, chunk_size, append = restart, metadata
     )
     # sample_history is already merged into metadata by sample_chunked, so it lives
     # in samplerinfo(out) for MemoryStore and in metadata.jls for DiskStore.

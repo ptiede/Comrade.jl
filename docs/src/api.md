@@ -160,6 +160,7 @@ Comrade.residual
 Comrade.residual_data
 Comrade.chi2
 Comrade.ReactantNUTS
+Comrade.default_disk_callback
 ```
 
 ## Misc
