@@ -18,7 +18,7 @@ end
     yout = similar(y)
     vals = values(lookup(site_map))
     #unroll this?
-    @trace track_numbers = false for site in vals
+    for site in vals
         ys = y[site]
         yout[site] = cumsum(ys)
     end

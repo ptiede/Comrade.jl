@@ -1,7 +1,7 @@
 function Comrade.prepare_device(post::VLBIPosterior, ex::ReactantEx)
     ## TODO add Sharding and other options here
     for p in propertynames(post)
-        p == :prior && continue
+        # p == :prior && continue
         post = Accessors.set(post, PropertyLens(p), Comrade.prepare_device(getproperty(post, p), ex))
     end
     return post
