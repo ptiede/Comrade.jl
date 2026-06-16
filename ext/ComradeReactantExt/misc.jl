@@ -17,8 +17,11 @@ end
 @inline function Comrade.site_sum(y::Reactant.AnyTracedRArray, site_map::Comrade.SiteLookup)
     yout = similar(y)
     vals = values(lookup(site_map))
-    #unroll this?
-    @trace track_numbers = false for site in vals
+    # `vals` is a Tuple of per-site index vectors (one entry per site), known at trace
+    # time, so we unroll it with a plain `for` — a `@trace` loop expects a numeric range
+    # and would call `step(::Tuple)`. Each `y[site]`/`yout[site] = …` is a gather/scatter
+    # over the site's index vector, which traces.
+    for site in vals
         ys = y[site]
         yout[site] = cumsum(ys)
     end
