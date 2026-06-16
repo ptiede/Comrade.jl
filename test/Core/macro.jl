@@ -69,7 +69,7 @@ using VLBIImagePriors
             return stretched(Gaussian(), ρs[1], ρs[2])
         end
         m = ntuple_prior(g)
-        @test m.prior.ρs isa NTuple{3, <:VLBIImagePriors.AffineDistribution}
+        @test m.prior.ρs isa NTuple{3, <:VLBIImagePriors.PushforwardDistribution}
         x = rand(Comrade.NamedDist(m.prior))
         @test x.ρs isa NTuple{3, Float64}
     end

@@ -3,12 +3,12 @@
 # These map between a flat parameter vector and a `SiteArray` of instrument
 # parameters. There are two families, one per latent space:
 #
-#   * the flat (`StdFlat`/NUTS) path is a `TV.VectorTransform` so the whole flat
+#   * the flat (`TVFlat`/NUTS) path is a `TV.VectorTransform` so the whole flat
 #     prior tree is a single TransformVariables transform (which threads the
 #     Jacobian); and
 #   * the Std-space (`StdUniform`/`StdNormal`, e.g. nested sampling) path is a
-#     `ProbabilityTransports.AbstractTransport` node, whose `transport_step` /
-#     `pullback_step!` mirror the flat `transform_with` / `inverse_at!` but carry
+#     `ProbabilityTransports.AbstractTransport` node, whose `pfwd_step` /
+#     `pback_step!` mirror the flat `transform_with` / `inverse_at!` but carry
 #     no Jacobian (the transport is exact in those spaces).
 
 # ----- flat (TransformVariables) instrument transforms ---------------------
@@ -79,8 +79,8 @@ site_map(t::AbstractStdInstrumentTransform) = t.site_map
 inner_transform(t::AbstractStdInstrumentTransform) = t.inner_transform
 
 PT.dimension(m::AbstractStdInstrumentTransform) = PT.dimension(inner_transform(m))
-PT.pullback_eltype(m::AbstractStdInstrumentTransform, ::Type{T}) where {T} =
-    PT.pullback_eltype(inner_transform(m), T)
+PT.pback_eltype(m::AbstractStdInstrumentTransform) =
+    PT.pback_eltype(inner_transform(m))
 
 
 struct StdInstrumentTransform{T, L <: SiteLookup} <: AbstractStdInstrumentTransform
@@ -93,26 +93,26 @@ struct StdMarkovInstrumentTransform{T, L <: SiteLookup} <: AbstractStdInstrument
     site_map::L
 end
 
-function PT.transport_step(m::StdInstrumentTransform, x, index)
-    y, index = PT.transport_step(inner_transform(m), x, index)
+function PT.pfwd_step(m::StdInstrumentTransform, x, index)
+    y, index = PT.pfwd_step(inner_transform(m), x, index)
     return SiteArray(y, site_map(m)), index
 end
 
-function PT.transport_step(m::StdMarkovInstrumentTransform, x, index)
-    y, index = PT.transport_step(inner_transform(m), x, index)
+function PT.pfwd_step(m::StdMarkovInstrumentTransform, x, index)
+    y, index = PT.pfwd_step(inner_transform(m), x, index)
     yout = site_sum(y, site_map(m))
     yout .= branchcut.(yout)
     return SiteArray(yout, site_map(m)), index
 end
 
-function PT.pullback_step!(y::AbstractVector, index, m::StdInstrumentTransform, x::SiteArray)
-    return PT.pullback_step!(y, index, inner_transform(m), parent(x))
+function PT.pback_step!(y::AbstractVector, index, m::StdInstrumentTransform, x::SiteArray)
+    return PT.pback_step!(y, index, inner_transform(m), parent(x))
 end
 
-function PT.pullback_step!(y::AbstractVector, index, m::StdMarkovInstrumentTransform, x::SiteArray)
+function PT.pback_step!(y::AbstractVector, index, m::StdMarkovInstrumentTransform, x::SiteArray)
     yd = copy(x)
     site_diff!(yd, site_map(m))
-    return PT.pullback_step!(y, index, inner_transform(m), parent(yd))
+    return PT.pback_step!(y, index, inner_transform(m), parent(yd))
 end
 
 

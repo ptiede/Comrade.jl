@@ -19,11 +19,11 @@ _is_cube(::TransportedDistribution) = false
 _is_cube(post::TransformedVLBIPosterior) = _is_cube(post.transform)
 
 function prior_sample(rng, tpost::TransformedVLBIPosterior, args...)
-    inv = Base.Fix1(pullback, tpost)
+    inv = Base.Fix1(latent_pback, tpost)
     return map(inv, prior_sample(rng, tpost.lpost, args...))
 end
 function prior_sample(rng, tpost::TransformedVLBIPosterior)
-    inv = Base.Fix1(pullback, tpost)
+    inv = Base.Fix1(latent_pback, tpost)
     return inv(prior_sample(rng, tpost.lpost))
 end
 
@@ -34,12 +34,18 @@ dimension(post::TransformedVLBIPosterior) = dimension(post.transform)
     transport_to(post::VLBIPosterior, space)
 
 Build a [`TransformedVLBIPosterior`](@ref) whose parameters live in the latent `space`
-(`StdFlat()` for unconstrained ℝⁿ, `StdUniform()` for the unit hypercube). The
+(`TVFlat()` for unconstrained ℝⁿ, `StdUniform()` for the unit hypercube). The
 [`asflat`](@ref asflat) / [`ascube`](@ref ascube) helpers call this with the respective
 spaces.
+
+The space argument is typed (rather than left as `::Any`) so these methods stay strictly
+more specific than ProbabilityTransports' own `transport_to(dist, ::AbstractStdDist)` /
+`transport_to(dist, ::TVFlat)` and don't collide with them by ambiguity.
 """
-PT.transport_to(post::VLBIPosterior, space) =
+_transport_to_post(post::VLBIPosterior, space) =
     TransformedVLBIPosterior(post, transport_to(post.prior, space))
+PT.transport_to(post::VLBIPosterior, space::PT.AbstractStdDist) = _transport_to_post(post, space)
+PT.transport_to(post::VLBIPosterior, space::PT.TVFlat) = _transport_to_post(post, space)
 
 
 """
@@ -50,8 +56,8 @@ to parameter space which is usually encoded as a `NamedTuple`.
 
 For the inverse transform see [`inverse`](@ref inverse)
 """
-PT.transport(p::TransformedVLBIPosterior, x) = transport(p.transform, x)
-transform(p::TransformedVLBIPosterior, x) = transport(p, x)
+PT.latent_pfwd(p::TransformedVLBIPosterior, x) = latent_pfwd(p.transform, x)
+transform(p::TransformedVLBIPosterior, x) = latent_pfwd(p, x)
 
 
 """
@@ -62,8 +68,8 @@ Transforms the value `x` from parameter space to the transformed space
 
 For the forward transform see [`transform`](@ref transform)
 """
-PT.pullback(p::TransformedVLBIPosterior, x) = pullback(p.transform, x)
-inverse(p::TransformedVLBIPosterior, x) = pullback(p, x)
+PT.latent_pback(p::TransformedVLBIPosterior, x) = latent_pback(p.transform, x)
+inverse(p::TransformedVLBIPosterior, x) = latent_pback(p, x)
 
 """
     asflat(post::VLBIPosterior)
@@ -86,7 +92,7 @@ julia> logdensityof(tpost, x0)
 This is the transform that should be used if using typical MCMC methods, i.e. NUTS.
 For the transformation to the unit hypercube see [`ascube`](@ref ascube)
 """
-asflat(post::VLBIPosterior) = transport_to(post, StdFlat())
+asflat(post::VLBIPosterior) = transport_to(post, TVFlat())
 
 """
     ascube(post::VLBIPosterior)
@@ -124,13 +130,13 @@ function Base.show(io::IO, mime::MIME"text/plain", post::TransformedVLBIPosterio
 end
 
 
-# A single log-density covers both the flat (`StdFlat`) and cube (`StdUniform`) cases.
-# `transport_and_logdensity` returns the transported point `p` together with the
+# A single log-density covers both the flat (`TVFlat`) and cube (`StdUniform`) cases.
+# `latent_pfwd_and_logdensity` returns the transported point `p` together with the
 # pulled-back *prior* log-density `ℓ`:
 #   * flat:  ℓ = logpdf(prior, p) + logjac  ⇒  full posterior with the likelihood;
 #   * cube:  ℓ = logpdf(StdUniform, x) = 0 inside [0,1]^n and -Inf outside ⇒ the prior
 #            is absorbed by the map, so only the likelihood (bounds-checked) remains.
 @inline function DensityInterface.logdensityof(post::TransformedVLBIPosterior, x::AbstractArray)
-    p, ℓ = transport_and_logdensity(post.transform, x)
+    p, ℓ = latent_pfwd_and_logdensity(post.transform, x)
     return loglikelihood(post.lpost, p) + ℓ
 end

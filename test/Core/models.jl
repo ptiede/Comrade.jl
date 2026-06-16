@@ -415,9 +415,9 @@ end
             @inferred logpdf(printm2, rand(printm2))
             x = rand(printm)
             @test logpdf(printm, x) ≈ logpdf(printm2, x)
-            @test Comrade.transport_node(printm, Comrade.StdFlat()) isa TV.AbstractTransform
+            @test Comrade.transport_node(printm, Comrade.TVFlat()) isa TV.AbstractTransform
             p = rand(printm)
-            t = Comrade.transport_node(printm, Comrade.StdFlat())
+            t = Comrade.transport_node(printm, Comrade.TVFlat())
             pout = TV.transform(t, TV.inverse(t, p))
             dp = ntequal(p, pout)
             @test dp.lgR
@@ -427,6 +427,30 @@ end
             @test dp.dRy
             @test dp.dLx
             @test dp.dLy
+        end
+
+        @testset "ObservedArrayPrior std-space transports" begin
+            # The StdUniform/StdNormal (cube/normal) path uses the ProbabilityTransports
+            # node interface (`pfwd_step`/`pback_step!`, Jacobian-free), as opposed to the
+            # TVFlat TransformVariables path tested above. The phase priors (`gpR`/`gprat`)
+            # route through `StdMarkovInstrumentTransform`, the rest through
+            # `StdInstrumentTransform`. Verify the forward/backward transports round-trip a
+            # parameter draw through both.
+            for space in (Comrade.StdUniform(), Comrade.PT.StdNormal())
+                t = Comrade.transport_node(printm, space)
+                p = rand(printm)
+                u = Comrade.latent_pback(t, p)
+                @test length(u) == Comrade.PT.dimension(t)
+                pout = Comrade.latent_pfwd(t, u)
+                dp = ntequal(p, pout)
+                @test dp.lgR
+                @test dp.lgrat
+                @test dp.gprat
+                @test dp.dRx
+                @test dp.dRy
+                @test dp.dLx
+                @test dp.dLy
+            end
         end
 
         pintm, _ = Comrade.set_array(InstrumentModel(JonesR(; add_fr = true)), arrayconfig(dcoh))
@@ -581,8 +605,8 @@ end
         ointmf, printmf = Comrade.set_array(intm, arrayconfig(dcohmf))
 
         @testset "Site lookup" begin
-            trsi = Comrade.transport_node(printsi, Comrade.StdFlat())
-            trmf = Comrade.transport_node(printmf, Comrade.StdFlat())
+            trsi = Comrade.transport_node(printsi, Comrade.TVFlat())
+            trmf = Comrade.transport_node(printmf, Comrade.TVFlat())
 
             lsi = trsi.lgR.site_map.lookup
             lmf = trmf.lgR.site_map.lookup

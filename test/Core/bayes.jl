@@ -299,6 +299,16 @@ end
 
         logdensityof(tpostf, xf)
         logdensityof(tpostc, xc)
+
+        # The transports must round-trip end-to-end through the instrument model. The
+        # flat path exercises the TVFlat instrument transform, the cube path the new
+        # `StdMarkovInstrumentTransform` (`pfwd_step`/`pback_step!`). `xf`/`xc` come from
+        # a prior draw (in-range phases), so the forward map's branch cut is the identity
+        # and `inverse ∘ transform` recovers the latent point.
+        @test inverse(tpostf, transform(tpostf, xf)) ≈ xf
+        @test inverse(tpostc, transform(tpostc, xc)) ≈ xc
+        @test dimension(tpostf) == length(xf)
+        @test dimension(tpostc) == length(xc)
     end
 
     @testset "No Instrument Model" begin
