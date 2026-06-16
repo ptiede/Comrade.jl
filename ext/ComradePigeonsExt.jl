@@ -8,7 +8,7 @@ using EnzymeCore
 using LogDensityProblems
 using Random
 
-# Latent-space tags for the wrapped `TransportedDistribution`: `StdFlat` (unconstrained
+# Latent-space tags for the wrapped `TransportedDistribution`: `TVFlat` (unconstrained
 # ℝⁿ, `asflat`) has `stop === nothing`; the unit hypercube (`ascube`) carries a `StdUniform`.
 const FlatTransport = Comrade.TransportedDistribution{<:Any, <:Any, Nothing}
 const CubeTransport = Comrade.TransportedDistribution{<:Any, <:Any, <:Comrade.StdUniform}
@@ -21,12 +21,12 @@ struct PriorRef{P, T}
     transform::T
 end
 
-# The Pigeons reference is the prior. `transport_and_logdensity` returns the pulled-back
+# The Pigeons reference is the prior. `latent_pfwd_and_logdensity` returns the pulled-back
 # *prior* log-density directly: `logpdf(prior, y) + logjac` in the flat space and
 # `logpdf(StdUniform, x)` (0 inside the cube, -Inf outside) in the cube space — so a single
 # expression covers both references.
 function (p::PriorRef)(x)
-    return last(Comrade.transport_and_logdensity(p.transform, x))
+    return last(Comrade.latent_pfwd_and_logdensity(p.transform, x))
 end
 
 Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P, <:CubeTransport}) where {P} =

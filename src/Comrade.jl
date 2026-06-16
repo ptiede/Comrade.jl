@@ -15,14 +15,14 @@ using IntervalSets
 using LogDensityProblems
 using LinearAlgebra
 import ProbabilityTransports as PT
-import ProbabilityTransports: transport_node, transport_step, pullback_step!,
-    pullback_eltype, dimension, transport, pullback, transport_and_logdensity,
-    transport_to, StdFlat, StdUniform, TransportedDistribution
+import ProbabilityTransports: transport_node, pfwd_step, pback_step!,
+    pback_eltype, latent_pfwd, latent_pback, latent_pfwd_and_logdensity,
+    transport_to, TVFlat, StdUniform, TransportedDistribution
 # `asflat`/`ascube`/`transform`/`inverse` come from VLBIImagePriors' compat shim
 # (which delegates to ProbabilityTransports). Import them so Comrade *extends* the
 # same bindings on its posterior types (rather than creating shadowing copies that
 # would clash with VLBIImagePriors under `using Comrade, VLBIImagePriors`).
-import TransformVariables: transform, inverse
+import TransformVariables: transform, inverse, dimension
 import VLBIImagePriors: asflat, ascube
 #using MappedArrays: mappedarray
 using Measurements

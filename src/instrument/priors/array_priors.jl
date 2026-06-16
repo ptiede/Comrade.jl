@@ -51,9 +51,9 @@ Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)
 Dists.logpdf(d::ObservedArrayPrior, x::AbstractVector{<:Number}) = Dists.logpdf(d.dists, parent(x))
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
-# Flat (`StdFlat`) path: a TransformVariables instrument transform wrapping the raw
+# Flat (`TVFlat`) path: a TransformVariables instrument transform wrapping the raw
 # TV node of the inner distribution, so it slots into the single flat TV tree.
-function PT.transport_node(d::ObservedArrayPrior, space::PT.StdFlat)
+function PT.transport_node(d::ObservedArrayPrior, space::PT.TVFlat)
     inner = PT.transport_node(d.dists, space)
     d.phase && return MarkovInstrumentTransform(inner, d.sitemap)
     return InstrumentTransform(inner, d.sitemap)
@@ -135,7 +135,7 @@ function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
 end
 
 
-# Flat (`StdFlat`) form: a TransformVariables transform that fixes some indices.
+# Flat (`TVFlat`) form: a TransformVariables transform that fixes some indices.
 struct PartiallyFixedTransform{T, I, F} <: TV.AbstractTransform
     transform::T
     variate_index::I
@@ -172,20 +172,20 @@ end
 
 PT.dimension(t::StdPartiallyFixedTransform) = PT.dimension(t.transform)
 
-function PT.transport_step(t::StdPartiallyFixedTransform, x, index)
-    y, index = PT.transport_step(t.transform, x, index)
+function PT.pfwd_step(t::StdPartiallyFixedTransform, x, index)
+    y, index = PT.pfwd_step(t.transform, x, index)
     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
     yfv[t.variate_index] = y
     yfv[t.fixed_index] .= t.fixed_values
     return yfv, index
 end
 
-function PT.pullback_step!(y::AbstractVector, index, t::StdPartiallyFixedTransform, x)
-    return PT.pullback_step!(y, index, t.transform, x[t.variate_index])
+function PT.pback_step!(y::AbstractVector, index, t::StdPartiallyFixedTransform, x)
+    return PT.pback_step!(y, index, t.transform, x[t.variate_index])
 end
 
-PT.pullback_eltype(t::StdPartiallyFixedTransform, ::Type{T}) where {T} =
-    PT.pullback_eltype(t.transform, T)
+PT.pback_eltype(t::StdPartiallyFixedTransform) =
+    PT.pback_eltype(t.transform)
 
 
 struct PartiallyConditionedDist{D <: Distributions.ContinuousMultivariateDistribution, I, F} <: Distributions.ContinuousMultivariateDistribution
@@ -213,7 +213,7 @@ function Distributions._rand!(rng::AbstractRNG, d::PartiallyConditionedDist, x::
     return x
 end
 
-function PT.transport_node(t::PartiallyConditionedDist, space::PT.StdFlat)
+function PT.transport_node(t::PartiallyConditionedDist, space::PT.TVFlat)
     return PartiallyFixedTransform(
         PT.transport_node(t.dist, space), t.variate_index, t.fixed_index, t.fixed_values
     )
