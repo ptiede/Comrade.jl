@@ -320,8 +320,9 @@ end
         # `product_distribution` over an empty collection, throwing
         # "reducing over an empty collection is not allowed".
         dvis2 = deepcopy(dvis)
-        dvis2.config[:Fr] .= 345.0e9
-        # offset the times so the merged unique times are interleaved/unsorted
+        # put the second dataset at a *lower* frequency and *earlier* times so that
+        # the merged config is unsorted in both frequency and time
+        dvis2.config[:Fr] ./= 2
         dvis2.config[:Ti] .-= 0.5 / 3600
         dvismf = build_mfvis(dvis, dvis2)
         arr = arrayconfig(dvismf)
@@ -331,6 +332,13 @@ end
         # ... but the inferred integration windows must still have a positive width
         ts = Comrade.timestamps(IntegSeg(), arr)
         @test all(t -> t.dt > 0, ts)
+
+        # likewise the merged frequencies are unsorted, but the channels must come
+        # back ordered by frequency with a monotonic channel index
+        @test !issorted(arr[:Fr])
+        fchan = Comrade.freqchannels(Comrade.SpectralWindow(), arr)
+        @test issorted(fchan)
+        @test [Comrade.channel(f) for f in fchan] == 1:length(fchan)
 
         gp = ArrayPrior(
             IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2)));

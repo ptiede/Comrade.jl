@@ -94,8 +94,9 @@ struct SpectralWindow <: FrequencySegmentation end
 
 
 function freqchannels(::SpectralWindow, array)
-    Fr = unique(array[:Fr])
+    Fr = sort(unique(array[:Fr]))
     if length(Fr) > 1
+        # nudge the highest channel so its half-open upper edge includes the max frequency
         Fr[end] = nextfloat(Fr[end])
     end
     return FrequencyChannel.(Fr, array.bandwidth, 1:length(Fr))
