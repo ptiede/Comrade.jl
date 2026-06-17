@@ -133,7 +133,15 @@ function _sky_impl(fexpr)
     prior_fn = Expr(:function, prior_sig, Expr(:block, Expr(:return, prior_nt)))
 
     ctor_sig = Expr(:call, name, Expr(:parameters, kw_args...), grid_arg)
-    metadata_nt = Expr(:tuple, Expr(:parameters, kw_names..., grid_arg))
+    # Only keyword arguments actually referenced by the model body belong in
+    # `metadata`; kwargs used solely on `~` lines are priors and are consumed by
+    # the prior builder. Storing them in metadata needlessly duplicates them and
+    # breaks device transfer for objects Reactant cannot trace (e.g. the
+    # SparseMatrixCSC inside a GMRF `corr_image_prior`). `used_meta` may already
+    # contain `grid_arg`, so drop it before re-appending to avoid a duplicate
+    # NamedTuple field.
+    used_meta_kw = Symbol[n for n in used_meta if n != grid_arg]
+    metadata_nt = Expr(:tuple, Expr(:parameters, used_meta_kw..., grid_arg))
     prior_call = Expr(
         :call, prior_fn_name,
         Expr(:parameters, [Expr(:kw, n, n) for n in prior_required_kwargs]...)
