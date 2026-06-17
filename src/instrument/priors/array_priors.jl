@@ -206,7 +206,7 @@ function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroi
         vals = values(centroid_station)
         centroid1 = findfirst(==(centstat[1]), ss)
         centroid2 = findfirst(==(centstat[2]), ss)
-        centroid === nothing && throw(ArgumentError("Centroid station not found in site list"))
+        (centroid1 === nothing || centroid2 === nothing) && throw(ArgumentError("Centroid station not found in site list"))
         append!(fixedinds, [centroid1, centroid2])
         vals = append!(collect(vals), [vals[1], vals[2]])
     end

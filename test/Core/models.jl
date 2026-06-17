@@ -311,6 +311,38 @@ end
     end
 
 
+    @testset "Multifrequency IntegSeg referencing" begin
+        # Regression test: merging datasets taken at different frequencies produces a
+        # config whose integration times are not monotonically sorted. `IntegSeg`
+        # inferred the integration width from `diff(unique(array[:Ti]))`, which went
+        # negative on the unsorted times. That made every integration window empty,
+        # so the site map came back empty and the phase prior ended up calling
+        # `product_distribution` over an empty collection, throwing
+        # "reducing over an empty collection is not allowed".
+        dvis2 = deepcopy(dvis)
+        dvis2.config[:Fr] .= 345.0e9
+        # offset the times so the merged unique times are interleaved/unsorted
+        dvis2.config[:Ti] .-= 0.5 / 3600
+        dvismf = build_mfvis(dvis, dvis2)
+        arr = arrayconfig(dvismf)
+
+        # the merged times are deliberately unsorted ...
+        @test !issorted(arr[:Ti])
+        # ... but the inferred integration windows must still have a positive width
+        ts = Comrade.timestamps(IntegSeg(), arr)
+        @test all(t -> t.dt > 0, ts)
+
+        gp = ArrayPrior(
+            IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2)));
+            refant = SEFDReference(0.0), phase = true,
+        )
+        smap = Comrade.build_sitemap(gp, arr)
+        @test !isempty(smap.sites)
+        # this used to throw when building the (empty) phase prior
+        @test Comrade.ObservedArrayPrior(gp, arr) isa Comrade.ObservedArrayPrior
+    end
+
+
     @testset "Coherencies" begin
         vis = CoherencyMatrix.(Comrade.measurement(dcoh), Ref(CirBasis()))
         G = JonesG() do x

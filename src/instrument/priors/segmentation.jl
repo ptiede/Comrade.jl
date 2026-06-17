@@ -63,7 +63,7 @@ end
 
 
 function timestamps(::IntegSeg, array)
-    ts = unique(array[:Ti])
+    ts = sort(unique(array[:Ti]))
     mjd = array.mjd
 
     # TODO build in the dt into the data format
