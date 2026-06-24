@@ -138,11 +138,21 @@ end
 
 TV.dimension(t::PartiallyFixedTransform) = TV.dimension(t.transform)
 
+# Scatter the variate `y` and the fixed (reference) `fixed_values` back into the full
+# parameter vector. Under Reactant this `setindex!`/broadcast lowers to a `stablehlo.scatter`,
+# but the bounds check iterates the index vector with scalar `getindex`, which is disallowed
+# while tracing. ComradeReactantExt overloads this for traced arrays to wrap it in
+# `@allowscalar`. See https://github.com/EnzymeAD/Reactant.jl/issues/2960.
+function fill_partially_fixed!(yfv, variate_index, fixed_index, y, fixed_values)
+    yfv[variate_index] = y
+    yfv[fixed_index] .= fixed_values
+    return yfv
+end
+
 function TV.transform_with(flag::TV.LogJacFlag, t::PartiallyFixedTransform, x, index)
     y, ℓ, index = TV.transform_with(flag, t.transform, x, index)
     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
-    yfv[t.variate_index] = y
-    yfv[t.fixed_index] .= t.fixed_values
+    fill_partially_fixed!(yfv, t.variate_index, t.fixed_index, y, t.fixed_values)
     return yfv, ℓ, index
 end
 
@@ -154,8 +164,7 @@ end
 function HypercubeTransform._step_transform(t::PartiallyFixedTransform, x, index)
     y, index = HypercubeTransform._step_transform(t.transform, x, index)
     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
-    yfv[t.variate_index] = y
-    yfv[t.fixed_index] .= t.fixed_values
+    fill_partially_fixed!(yfv, t.variate_index, t.fixed_index, y, t.fixed_values)
     return yfv, index
 end
 

@@ -1,8 +1,41 @@
 using Reactant
 using Random
 using Serialization
+using Distributions
+import TransformVariables as TV
 
 const ReactantEx = Comrade.ComradeBase.ReactantEx
+
+# Reference-antenna gains fix some sites to a constant value. Rebuilding the full
+# parameter vector used to scatter those constants into a freshly-allocated array
+# (`yfv[fixed_index] .= fixed_values`), which forces scalar indexing and fails to
+# trace under Reactant. This checks the gather-based path traces and matches the CPU
+# result for both the flat and cube transforms.
+@testset "PartiallyFixedTransform under Reactant" begin
+    dist = product_distribution([Normal(0.0, 1.0), Normal(0.0, 1.0), Normal(0.0, 1.0)])
+    variate_index = [1, 2, 4]
+    fixed_index = [3, 5]
+    fixed_values = [7.0, 9.0]
+    pcd = Comrade.PartiallyConditionedDist(dist, variate_index, fixed_index, fixed_values)
+
+    # flat path (the gradient path NUTS uses): TV.transform_with
+    let t = asflat(pcd)
+        x = rand(TV.dimension(t))
+        y, _, _ = TV.transform_with(TV.LogJac(), t, x, firstindex(x))
+        @test y[fixed_index] == fixed_values
+        f(xx) = sum(first(TV.transform_with(TV.LogJac(), t, xx, 1)))
+        @test convert(Float64, @jit f(Reactant.to_rarray(x))) ≈ sum(y)
+    end
+
+    # cube path: HypercubeTransform._step_transform must still place the fixed
+    # values correctly on the CPU. (The inner cube transform itself is not yet
+    # Reactant-traceable, independent of this fix, so only the flat path is jit'd.)
+    let t = ascube(pcd)
+        u = rand(TV.dimension(t))
+        y, _ = HypercubeTransform._step_transform(t, u, firstindex(u))
+        @test y[fixed_index] == fixed_values
+    end
+end
 
 @testset "ComradeReactantExt" begin
 
