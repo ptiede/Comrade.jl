@@ -98,3 +98,58 @@ end
 
     rm(dir, recursive = true)
 end
+
+@testset "ReactantNUTS warmup checkpoint/resume" begin
+    ext = Base.get_extension(Comrade, :ComradeReactantExt)
+    ProbProg = Reactant.ProbProg
+
+    # Gaussian (StdNormal) priors so the prior logdensity traces under Reactant — the bounded
+    # StdUniform path is not relevant here. Warmup correctness is independent of the prior.
+    gprior = (
+        f1 = VLBIGaussian(1.0, 0.1), σ1 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ1 = VLBIGaussian(0.5, 0.05), ξ1 = VLBIGaussian(0.0, 0.3),
+        f2 = VLBIGaussian(0.5, 0.1), σ2 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ2 = VLBIGaussian(0.5, 0.05), ξ2 = VLBIGaussian(0.0, 0.3),
+        x = VLBIGaussian(0.0, μas2rad(20.0)), y = VLBIGaussian(0.0, μas2rad(20.0)),
+    )
+
+    _, vis, _, _, _ = load_data()
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 12, 12)
+    skym = SkyModel(test_model, gprior, g)
+    post = Comrade.prepare_device(VLBIPosterior(skym, vis; admode = nothing), ReactantEx())
+    tpost = asflat(post)
+    ldf = ext._default_ldf
+
+    na = 30
+    sampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01)
+    x0 = Reactant.to_rarray(prior_sample(Random.default_rng(), tpost))
+    freshrng() = Reactant.ReactantRNG(Reactant.to_rarray(UInt64[1, 5]))
+    quiet = _ -> nothing
+
+    # Chunked warmup is bit-identical to a single fused warmup (windows are anchored to the
+    # global warmup length via total_warmup/warmup_offset).
+    s_single, _ = ext.warmup_chunked(freshrng(), ldf, x0, tpost, sampler; chunk = na, callback = quiet)
+    s_multi, _ = ext.warmup_chunked(freshrng(), ldf, x0, tpost, sampler; chunk = 10, callback = quiet)
+    @test Array(s_single.step_size) == Array(s_multi.step_size)
+    @test Array(s_single.inverse_mass_matrix) == Array(s_multi.inverse_mass_matrix)
+    @test Array(s_single.position) == Array(s_multi.position)
+
+    # Mid-warmup checkpoint (captured through the warmup callback) round-trips through
+    # save_state/load_state carrying the adaptation accumulators, and resuming from it
+    # reproduces the full-warmup state exactly.
+    ckpt = tempname()
+    capture = info -> (info.step == 20 && ProbProg.save_state(ckpt, info.state); nothing)
+    ext.warmup_chunked(freshrng(), ldf, x0, tpost, sampler; chunk = 10, callback = capture)
+    @test isfile(ckpt)
+    loaded = ProbProg.load_state(ckpt)
+    rm(ckpt; force = true)
+    @test loaded.adaptation !== nothing
+
+    s_resume, _ = ext.warmup_chunked(
+        freshrng(), ldf, nothing, tpost, sampler;
+        chunk = 10, resume_state = loaded, warmup_done = 20, callback = quiet,
+    )
+    @test Array(s_resume.step_size) == Array(s_single.step_size)
+    @test Array(s_resume.inverse_mass_matrix) == Array(s_single.inverse_mass_matrix)
+    @test Array(s_resume.position) == Array(s_single.position)
+end
