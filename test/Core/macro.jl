@@ -150,7 +150,7 @@ using VLBIImagePriors
         end
     end
 end
-      
+
 @testset "@instrument macro" begin
     _, dvis, _, _, _, dcoh = load_data()
 
