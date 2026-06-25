@@ -7,11 +7,10 @@ Like AdvancedHMC's `NUTS`, all sampler configuration lives in the struct.
 Warmup runs Stan's windowed adaptation: fixed `init_buffer = 75`, `term_buffer = 50`,
 base window `25`, doubling, with the same 15%/10% fallback when the buffers don't fit —
 one continuous Nesterov dual-averaging step-size process (γ=0.05, t₀=10, κ=0.75, target
-accept 0.8) plus a Welford diagonal mass matrix updated at window ends. This is
-algorithmically identical to AdvancedHMC's NUTS with its `StanHMCAdaptor`.
+accept 0.8) plus a Welford diagonal mass matrix updated at window ends.
 
 Warmup is executed in chunks of the *same* size used for sampling (`saveto.stride` for a
-`DiskStore`, otherwise the `chunk_size` passed to [`sample`](@ref)). The ProbProg backend
+`DiskStore`, otherwise the `chunk_size` passed to `sample`). The ProbProg backend
 anchors the windowed schedule to the global warmup length (`total_warmup`/`warmup_offset`),
 so chunking is bit-identical to one fused warmup. When sampling to a `DiskStore`, the
 adaptation state is checkpointed after every warmup chunk, so an interrupted warmup can be
