@@ -315,15 +315,6 @@ end
 
 Define an [`InstrumentModel`](@ref) constructor in a single block, mirroring [`@sky`](@ref).
 Each `name ~ ArrayPrior(...)` line contributes an entry to the instrument prior
-`NamedTuple`; everything else becomes the body that builds the Jones matrix. The macro
-emits the following definitions in the calling module:
-
-  - `_<name>_pmap_<k>(x)` / `_<name>_fn_<k>(...)` — named functions for the `param_map`s
-    and combination functions found in the body (see below).
-  - `_<name>_jones(; kwargs...)` — builds and returns the composed `AbstractJonesMatrix`.
-  - `_<name>_prior(; kwargs...)` — builds the prior `NamedTuple` of [`ArrayPrior`](@ref)s.
-  - `<name>(; refbasis = CirBasis(), kwargs...)` — the user-facing constructor, returning
-    an `InstrumentModel`.
 
 The instrument model takes no positional arguments. Keyword arguments are tunable
 constants in scope for both the prior RHS expressions and the Jones body. `refbasis` is
@@ -332,14 +323,7 @@ if not listed. Any number of Jones terms is supported: just build and compose th
 with [`JonesSandwich`](@ref)) and `return` the result. Unlike `@sky`, `~` lines are
 optional, so a parameter-free response model is allowed.
 
-# Writing `param_map`s
-
-For the param-bearing Jones matrices ([`SingleStokesGain`](@ref), [`JonesG`](@ref),
-[`JonesD`](@ref), [`GenericJones`](@ref)) you can reference the sampled-parameter names
-directly. Both a bare expression and a zero-argument `do` block work. The macro lifts
-each `param_map` (and the `JonesSandwich` combination function) to a *named* top-level
-function — anonymous closures have gensym'd types that do not serialize reliably:
-
+Example:
 ```julia
 @instrument function fullpol(; refbasis = CirBasis(), gain_std = 0.1, dterm_std = 0.2)
     lgR   ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gain_std)))
@@ -376,11 +360,6 @@ A Stokes-I example:
     return SingleStokesGain(exp(complex(lg, gp)))
 end
 ```
-
-A function that captures a construction-time `kwarg` or a body-local is kept as a closure
-(so the capture still works) rather than lifted. The explicit `x -> ...` form is also
-accepted and is required for custom `AbstractJonesMatrix` types the macro does not know
-about, e.g. `SingleStokesGain(x -> exp(complex(x.lg, x.gp)))`.
 """
 macro instrument(fexpr)
     return esc(_instrument_impl(fexpr))
