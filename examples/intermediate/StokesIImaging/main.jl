@@ -114,14 +114,17 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 #   - Gain amplitudes which are typically known to 10-20%, except for LMT, which has amplitudes closer to 50-100%.
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
-gain(x) = exp(complex(x.lg, x.gp))
-G = SingleStokesGain(gain)
-
-intpr = (
-    lg = ArrayPrior(IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 1.0))),
-    gp = ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
-)
-intmodel = InstrumentModel(G, intpr)
+# Just like the sky model, we use the `@instrument` macro to bundle the Jones matrix and
+# its priors in one block. Each `name ~ ArrayPrior(...)` line adds an entry to the
+# instrument prior; everything else builds the Jones matrix that is returned.
+@instrument function instrument()
+    lg ~ ArrayPrior(IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 1.0)))
+    gp ~ ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
+    ## The gain math references the sampled parameters directly; the macro lifts it into a
+    ## named `param_map` function for us (no dummy `x`).
+    return SingleStokesGain(exp(complex(lg, gp)))
+end
+intmodel = instrument()
 
 
 # To form the posterior we just combine the skymodel, instrument model and the data. To utilize

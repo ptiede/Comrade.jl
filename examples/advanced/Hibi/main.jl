@@ -99,14 +99,17 @@ end
 
 using VLBIImagePriors
 using Distributions
-fgain(x) = exp(complex(x.lg, x.gp))
-G = SingleStokesGain(fgain)
-
-intpr = (
-    lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-    gp = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0)),
-)
-intmodel = InstrumentModel(G, intpr)
+# We use the `@instrument` macro to bundle the Jones matrix and its priors in one block.
+# Each `name ~ ArrayPrior(...)` line adds an entry to the instrument prior; everything
+# else builds the Jones matrix that is returned.
+@instrument function instrument()
+    lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
+    gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0))
+    ## The gain math references the sampled parameters directly; the macro lifts it into a
+    ## named `param_map` function for us (no dummy `x`).
+    return SingleStokesGain(exp(complex(lg, gp)))
+end
+intmodel = instrument()
 
 # Now let's define our grid and the data-dependent prior, then build the sky model.
 fovxy = μas2rad(150.0)

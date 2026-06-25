@@ -150,3 +150,176 @@ using VLBIImagePriors
         end
     end
 end
+      
+@testset "@instrument macro" begin
+    _, dvis, _, _, _, dcoh = load_data()
+
+    @testset "parity with hand-written InstrumentModel (StokesI)" begin
+        # New syntax: reference the sampled-parameter names directly (no dummy `x`).
+        @instrument function macro_stokesi(; refbasis = CirBasis(), gpstd = inv(π^2))
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gpstd)); refant = SEFDReference(0.0))
+            return SingleStokesGain(exp(lg + 1im * gp))
+        end
+
+        G = SingleStokesGain(x -> exp(x.lg + 1im * x.gp))
+        manual_prior = (
+            lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0)),
+        )
+
+        m_macro = macro_stokesi()
+        m_manual = InstrumentModel(G, manual_prior)
+
+        @test m_macro isa InstrumentModel
+        @test keys(m_macro.prior) == keys(m_manual.prior)
+        for k in keys(m_macro.prior)
+            @test typeof(m_macro.prior[k]) == typeof(m_manual.prior[k])
+        end
+
+        # The synthesized param_map must be a named (serializable) function, not a closure
+        @test !occursin("#", string(nameof(m_macro.jones.param_map)))
+
+        # Same forward model on a shared parameter draw
+        vis = Comrade.measurement(dvis)
+        ointm, printm = Comrade.set_array(m_macro, arrayconfig(dvis))
+        ointman, _ = Comrade.set_array(m_manual, arrayconfig(dvis))
+        x = rand(printm)
+        vout_macro = Comrade.apply_instrument(vis, ointm, (; instrument = x))
+        vout_manual = Comrade.apply_instrument(vis, ointman, (; instrument = x))
+        @test vout_macro ≈ vout_manual
+
+        # Identity params round-trip back to the input visibilities
+        x.lg .= 0
+        x.gp .= 0
+        @test Comrade.apply_instrument(vis, ointm, (; instrument = x)) ≈ vis
+    end
+
+    @testset "refbasis and kwarg flow" begin
+        @instrument function with_kw(; refbasis = CirBasis(), gstd = 0.1)
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gstd)))
+            return SingleStokesGain(exp(lg))
+        end
+        @test with_kw().refbasis isa CirBasis
+        @test with_kw(; refbasis = LinBasis()).refbasis isa LinBasis
+        # kwarg without a default is required
+        @instrument function needs_kw(; gstd)
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gstd)))
+            return SingleStokesGain(exp(lg))
+        end
+        @test_throws UndefKeywordError needs_kw()
+        @test needs_kw(; gstd = 0.2) isa InstrumentModel
+    end
+
+    @testset "parity with hand-written InstrumentModel (Coherencies)" begin
+        @instrument function macro_pol(; refbasis = CirBasis())
+            lgR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            gpR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); phase = true, refant = SEFDReference(0.0))
+            lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), phase = false)
+            gprat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), refant = SingleReference(:AA, 0.0))
+            dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+            dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+            dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+            dLy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+
+            # zero-arg do-block (multi-line) and bare expression (one-liner), no dummy `x`
+            G = JonesG() do
+                gR = exp(lgR + 1im * gpR)
+                gL = gR * exp(lgrat + 1im * gprat)
+                return gR, gL
+            end
+            D = JonesD((complex(dRx, dRy), complex(dLx, dLy)))
+            R = JonesR(; add_fr = true)
+            return JonesSandwich(G, D, R) do g, d, r
+                return g * d * r
+            end
+        end
+
+        m_macro = macro_pol()
+        @test m_macro isa InstrumentModel
+        @test keys(m_macro.prior) == (:lgR, :gpR, :lgrat, :gprat, :dRx, :dRy, :dLx, :dLy)
+
+        # Both param_maps and the combination function must be named (serializable)
+        @test !occursin("#", string(nameof(m_macro.jones.matrices[1].param_map)))
+        @test !occursin("#", string(nameof(m_macro.jones.matrices[2].param_map)))
+        @test !occursin("#", string(nameof(m_macro.jones.jones_map)))
+
+        vis = CoherencyMatrix.(Comrade.measurement(dcoh), Ref(CirBasis()))
+        ointm, printm = Comrade.set_array(m_macro, arrayconfig(dcoh))
+        pintm, _ = Comrade.set_array(InstrumentModel(JonesR(; add_fr = true)), arrayconfig(dcoh))
+
+        x = rand(printm)
+        x.lgR .= 0; x.gpR .= 0; x.lgrat .= 0; x.gprat .= 0
+        x.dRx .= 0; x.dRy .= 0; x.dLx .= 0; x.dLy .= 0
+        vout = Comrade.apply_instrument(vis, ointm, (; instrument = x))
+        vper = Comrade.apply_instrument(vis, pintm, (; instrument = NamedTuple()))
+        @test vout ≈ vper
+    end
+
+    @testset "zero-tilde response-only model" begin
+        @instrument function responseonly(; refbasis = CirBasis())
+            return JonesR(; add_fr = true)
+        end
+        m = responseonly()
+        @test m isa InstrumentModel
+        @test keys(m.prior) == ()
+        ointm, printm = Comrade.set_array(m, arrayconfig(dcoh))
+        @test ointm isa Comrade.ObservedInstrumentModel
+    end
+
+    @testset "explicit closure escape hatch and kwarg capture" begin
+        # Explicit `x -> ...` is left untouched (required for custom Jones types)
+        @instrument function explicit_x(; refbasis = CirBasis())
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            return SingleStokesGain(exp(lg))
+        end
+        mx = explicit_x()
+        @test mx isa InstrumentModel
+        vis = Comrade.measurement(dvis)
+        ointx, printx = Comrade.set_array(mx, arrayconfig(dvis))
+        xx = rand(printx)
+        xx.lg .= 0
+        @test Comrade.apply_instrument(vis, ointx, (; instrument = xx)) ≈ vis
+
+        # A param_map that captures a construction-time kwarg stays a closure but still works
+        @instrument function capture_kw(; refbasis = CirBasis(), off = 0.0)
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            return SingleStokesGain(exp(lg + off))
+        end
+        mk = capture_kw(; off = 0.0)
+        @test mk isa InstrumentModel
+        ointk, printk = Comrade.set_array(mk, arrayconfig(dvis))
+        xk = rand(printk)
+        xk.lg .= 0
+        @test Comrade.apply_instrument(vis, ointk, (; instrument = xk)) ≈ vis
+    end
+
+    @testset "macro-expansion errors" begin
+        # Positional argument is rejected
+        @test_throws LoadError @eval @instrument function haspos(array)
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            return SingleStokesGain(exp(lg))
+        end
+
+        # Tilde nested inside another expression is rejected
+        @test_throws LoadError @eval @instrument function nested(; refbasis = CirBasis())
+            if true
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            end
+            return SingleStokesGain(exp(lg))
+        end
+
+        # Duplicate tilde names
+        @test_throws LoadError @eval @instrument function dupes(; refbasis = CirBasis())
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)))
+            return SingleStokesGain(exp(lg))
+        end
+
+        # Name clash between sampled param and kwarg
+        @test_throws LoadError @eval @instrument function clash(; refbasis = CirBasis(), lg = 1.0)
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            return SingleStokesGain(exp(lg))
+        end
+    end
+end
