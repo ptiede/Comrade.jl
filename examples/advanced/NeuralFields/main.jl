@@ -200,8 +200,7 @@ skym = SkyModel(sky, prior, grid; algorithm = VLBISkyModels.ReactantNUFFTAlg(), 
         refant = SEFDReference(0.0),
         phase = true,
     )
-    ## The gain math references the sampled parameters directly; the macro lifts it into a
-    ## named `param_map` function for us (no dummy `x`).
+    ## SingleStokesGain is a single complex gain for each site. The gain math references the sampled parameters directly;
     return SingleStokesGain(exp(complex(lg, gp)))
 end
 intmodel = instrument()
