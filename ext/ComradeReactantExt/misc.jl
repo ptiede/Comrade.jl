@@ -14,6 +14,19 @@ function StructArrays.createinstance(::Type{<:StokesParams}, args...)
     return StokesParams(args...)
 end
 
+# The indexed assignment lowers to `stablehlo.scatter`, but its bounds check iterates the
+# index vector with scalar `getindex`, which is disallowed while tracing. Allowing scalar
+# indexing here lets the trace through. See https://github.com/EnzymeAD/Reactant.jl/issues/2960.
+@inline function Comrade.fill_partially_fixed!(
+        yfv::Reactant.AnyTracedRArray, variate_index, fixed_index, y, fixed_values
+    )
+    Reactant.@allowscalar begin
+        yfv[variate_index] = y
+        yfv[fixed_index] .= fixed_values
+    end
+    return yfv
+end
+
 @inline function Comrade.site_sum(y::Reactant.AnyTracedRArray, site_map::Comrade.SiteLookup)
     yout = similar(y)
     vals = values(lookup(site_map))
