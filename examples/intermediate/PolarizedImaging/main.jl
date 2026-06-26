@@ -237,10 +237,10 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 
 # We bundle the whole instrument model — the Jones matrices and their priors — in a single
 # block with the `@instrument` macro. Each `name ~ ArrayPrior(...)` line adds an entry to
-# the instrument prior; the rest of the body builds and returns the full Jones matrix. The
-# `param_map`s reference the sampled-parameter names directly (no dummy `x`), and the macro
-# lifts each one — and the combination function — into a named function for us (named
-# functions, unlike closures, serialize reliably).
+# the instrument prior; the rest of the body builds and returns the full Jones matrix. Each
+# `param_map` is written as a zero-argument `do`-block that references the sampled-parameter
+# names directly, and the macro lifts each one — and the combination function — into a named
+# function for us (named functions, unlike closures, serialize reliably).
 #
 # The individual Jones matrices are:
 #   - `JonesG` — the complex gains, in an amplitude/phase decomposition. The gain matrix is
@@ -279,7 +279,9 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
         return gR, gL
     end
     ## Leakage/d-terms (re-im parameterization), returning (dR, dL).
-    D = JonesD((complex(dRx, dRy), complex(dLx, dLy)))
+    D = JonesD() do
+        return (complex(dRx, dRy), complex(dLx, dLy))
+    end
     ## The ideal response (basis transform + feed rotation); no free parameters.
     R = JonesR(; add_fr = true)
     ## Combine into the full Jones matrix J = adjoint(R)*G*D*R.

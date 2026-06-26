@@ -61,6 +61,7 @@ import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
     logclosure_amplitude, logclosure_amplitudemap,
     visibility, amplitude,
     amplitudemap
+include("macro_utils.jl")
 include("observations/observations.jl")
 include("instrument/instrument.jl")
 include("skymodels/abstract.jl")

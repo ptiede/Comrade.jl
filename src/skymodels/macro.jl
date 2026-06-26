@@ -1,7 +1,7 @@
 export @sky
 
-
-_kwname(x) = x isa Symbol ? x : x.args[1]
+# `_kwname` and `_contains_tilde` are shared with the `@instrument` macro; see
+# src/macro_utils.jl.
 
 function _scan_used_names(stmts, candidates::Vector{Symbol})
     used = Set{Symbol}()
@@ -23,16 +23,6 @@ function _scan_used_names(stmts, candidates::Vector{Symbol})
         walk(s)
     end
     return Symbol[n for n in candidates if n in used]
-end
-
-function _contains_tilde(node)
-    if Meta.isexpr(node, :call) && length(node.args) ≥ 1 && node.args[1] === :~
-        return true
-    end
-    if node isa Expr
-        return any(_contains_tilde, node.args)
-    end
-    return false
 end
 
 function _sky_impl(fexpr)

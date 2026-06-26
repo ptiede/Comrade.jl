@@ -120,8 +120,11 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 @instrument function instrument()
     lg ~ ArrayPrior(IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 1.0)))
     gp ~ ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
-    ## SingleStokesGain is a single complex gain for each site.
-    return SingleStokesGain(exp(complex(lg, gp)))
+    ## SingleStokesGain is a single complex gain for each site. The param_map is a zero-arg
+    ## function referencing the sampled parameters directly.
+    return SingleStokesGain() do
+        exp(complex(lg, gp))
+    end
 end
 intmodel = instrument()
 

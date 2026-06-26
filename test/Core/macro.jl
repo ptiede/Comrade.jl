@@ -151,15 +151,25 @@ using VLBIImagePriors
     end
 end
 
+# A user-defined param-bearing Jones type. The `@instrument` macro must treat it exactly like
+# the built-ins (`JonesG`, `JonesD`, ...) — it identifies param_maps by arity, never by the
+# constructor's name — so a zero-arg param_map on this type is lifted and destructured too.
+struct _MacroTestJones{F} <: Comrade.AbstractJonesMatrix
+    param_map::F
+end
+
 @testset "@instrument macro" begin
     _, dvis, _, _, _, dcoh = load_data()
 
     @testset "parity with hand-written InstrumentModel (StokesI)" begin
-        # New syntax: reference the sampled-parameter names directly (no dummy `x`).
+        # New syntax: the param_map is a zero-arg function referencing the sampled-parameter
+        # names directly (no dummy `x`).
         @instrument function macro_stokesi(; refbasis = CirBasis(), gpstd = inv(π^2))
             lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
             gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gpstd)); refant = SEFDReference(0.0))
-            return SingleStokesGain(exp(lg + 1im * gp))
+            return SingleStokesGain() do
+                exp(lg + 1im * gp)
+            end
         end
 
         G = SingleStokesGain(x -> exp(x.lg + 1im * x.gp))
@@ -198,14 +208,14 @@ end
     @testset "refbasis and kwarg flow" begin
         @instrument function with_kw(; refbasis = CirBasis(), gstd = 0.1)
             lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gstd)))
-            return SingleStokesGain(exp(lg))
+            return SingleStokesGain(() -> exp(lg))
         end
         @test with_kw().refbasis isa CirBasis
         @test with_kw(; refbasis = LinBasis()).refbasis isa LinBasis
         # kwarg without a default is required
         @instrument function needs_kw(; gstd)
             lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gstd)))
-            return SingleStokesGain(exp(lg))
+            return SingleStokesGain(() -> exp(lg))
         end
         @test_throws UndefKeywordError needs_kw()
         @test needs_kw(; gstd = 0.2) isa InstrumentModel
@@ -222,13 +232,13 @@ end
             dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
             dLy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
 
-            # zero-arg do-block (multi-line) and bare expression (one-liner), no dummy `x`
+            # zero-arg do-block (multi-line) and zero-arg `() ->` (one-liner), no dummy `x`
             G = JonesG() do
                 gR = exp(lgR + 1im * gpR)
                 gL = gR * exp(lgrat + 1im * gprat)
                 return gR, gL
             end
-            D = JonesD((complex(dRx, dRy), complex(dLx, dLy)))
+            D = JonesD(() -> (complex(dRx, dRy), complex(dLx, dLy)))
             R = JonesR(; add_fr = true)
             return JonesSandwich(G, D, R) do g, d, r
                 return g * d * r
@@ -267,24 +277,47 @@ end
         @test ointm isa Comrade.ObservedInstrumentModel
     end
 
-    @testset "explicit closure escape hatch and kwarg capture" begin
-        # Explicit `x -> ...` is left untouched (required for custom Jones types)
+    @testset "explicit closure (escape hatch) is lifted, not left raw" begin
+        # An explicit `x -> f(x.lg)` closure (the way to parameterize a Jones type that bare
+        # syntax cannot express) is recognised by its ≥1 args, lifted verbatim to a *named*
+        # top-level function, and still applied correctly.
         @instrument function explicit_x(; refbasis = CirBasis())
             lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            return SingleStokesGain(exp(lg))
+            return SingleStokesGain(x -> exp(x.lg))
         end
         mx = explicit_x()
         @test mx isa InstrumentModel
+        @test !occursin("#", string(nameof(mx.jones.param_map)))  # lifted to a named function
         vis = Comrade.measurement(dvis)
         ointx, printx = Comrade.set_array(mx, arrayconfig(dvis))
         xx = rand(printx)
         xx.lg .= 0
         @test Comrade.apply_instrument(vis, ointx, (; instrument = xx)) ≈ vis
+    end
 
+    @testset "name-agnostic: user-defined param-bearing Jones type" begin
+        # No constructor-name list: a zero-arg param_map on a user-defined `AbstractJonesMatrix`
+        # is lifted and destructured exactly like the built-ins.
+        @instrument function customjones(; refbasis = CirBasis())
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            return _MacroTestJones() do
+                exp(lg)
+            end
+        end
+        m = customjones()
+        @test m isa InstrumentModel
+        @test m.jones isa _MacroTestJones
+        @test keys(m.prior) == (:lg,)
+        # The param_map was lifted to a named (serializable) function, not left a closure
+        @test !occursin("#", string(nameof(m.jones.param_map)))
+    end
+
+    @testset "kwarg / body-local capture keeps a closure" begin
+        vis = Comrade.measurement(dvis)
         # A param_map that captures a construction-time kwarg stays a closure but still works
         @instrument function capture_kw(; refbasis = CirBasis(), off = 0.0)
             lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            return SingleStokesGain(exp(lg + off))
+            return SingleStokesGain(() -> exp(lg + off))
         end
         mk = capture_kw(; off = 0.0)
         @test mk isa InstrumentModel
@@ -292,13 +325,83 @@ end
         xk = rand(printk)
         xk.lg .= 0
         @test Comrade.apply_instrument(vis, ointk, (; instrument = xk)) ≈ vis
+
+        # A param_map that captures a body-local (here introduced with `local`, which the
+        # plain top-level `=` scan would miss) must stay a closure, not be lifted to a
+        # top-level function — otherwise the local goes out of scope at runtime.
+        @instrument function capture_local(; refbasis = CirBasis())
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            local off = 0.0
+            return SingleStokesGain(() -> exp(lg + off))
+        end
+        ml = capture_local()
+        @test ml isa InstrumentModel
+        @test occursin("#", string(nameof(ml.jones.param_map)))  # kept as a closure
+        ointl, printl = Comrade.set_array(ml, arrayconfig(dvis))
+        xl = rand(printl)
+        xl.lg .= 0
+        @test Comrade.apply_instrument(vis, ointl, (; instrument = xl)) ≈ vis
+    end
+
+    @testset "in-param_map shadowing is Julia's job" begin
+        # Inside a param_map ordinary Julia scoping applies, so a nested closure may freely
+        # reuse a sampled-parameter name: the outer `lg` is the destructured param and the
+        # inner `lg -> lg` is the nested closure's argument.
+        @instrument function nested_closure(; refbasis = CirBasis())
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            return SingleStokesGain(() -> exp(lg) * first(map(lg -> lg, [1.0])))
+        end
+        mn = nested_closure()
+        @test mn isa InstrumentModel
+        @test !occursin("#", string(nameof(mn.jones.param_map)))  # lifted to a named function
+
+        # A keyword-argument KEY inside a param_map that matches a parameter name is fine: the
+        # param `digits` is destructured and used in `exp(digits)`, while the `digits = 2`
+        # keyword key is plain Julia syntax, untouched.
+        @instrument function kwkey(; refbasis = CirBasis())
+            digits ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            return SingleStokesGain(() -> round(exp(digits); digits = 2))
+        end
+        @test kwkey() isa InstrumentModel
+    end
+
+    @testset "param_map capturing an enclosing let-local" begin
+        # A param_map nested inside a `let` that references a let-local must stay a closure
+        # (so the capture works); lifting it to a top-level function would leave the local
+        # undefined at runtime.
+        @instrument function let_capture(; refbasis = CirBasis())
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            J = let off = 0.0
+                SingleStokesGain(() -> exp(lg + off))
+            end
+            return J
+        end
+        ml = let_capture()
+        @test ml isa InstrumentModel
+        @test occursin("#", string(nameof(ml.jones.param_map)))  # kept as a closure
+        vis = Comrade.measurement(dvis)
+        ointl, printl = Comrade.set_array(ml, arrayconfig(dvis))
+        xl = rand(printl)
+        xl.lg .= 0
+        @test Comrade.apply_instrument(vis, ointl, (; instrument = xl)) ≈ vis
+    end
+
+    @testset "closure-capture serialization warning" begin
+        # A param_map that captures a construction-time kwarg is kept as a closure and warns
+        # that it may not serialize reliably.
+        @test_logs (:warn, r"closure") (
+            @eval @instrument function warns_capture(; refbasis = CirBasis(), off = 0.0)
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return SingleStokesGain(() -> exp(lg + off))
+            end
+        )
     end
 
     @testset "macro-expansion errors" begin
         # Positional argument is rejected
         @test_throws LoadError @eval @instrument function haspos(array)
             lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            return SingleStokesGain(exp(lg))
+            return SingleStokesGain(() -> exp(lg))
         end
 
         # Tilde nested inside another expression is rejected
@@ -306,20 +409,55 @@ end
             if true
                 lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
             end
-            return SingleStokesGain(exp(lg))
+            return SingleStokesGain(() -> exp(lg))
         end
 
         # Duplicate tilde names
         @test_throws LoadError @eval @instrument function dupes(; refbasis = CirBasis())
             lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
             lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)))
-            return SingleStokesGain(exp(lg))
+            return SingleStokesGain(() -> exp(lg))
         end
 
         # Name clash between sampled param and kwarg
         @test_throws LoadError @eval @instrument function clash(; refbasis = CirBasis(), lg = 1.0)
             lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            return SingleStokesGain(() -> exp(lg))
+        end
+
+        # A sampled parameter used as a bare value outside any param_map (here directly as a
+        # Jones constructor argument instead of inside a function) leaks a bare name into the
+        # generated body and must be rejected.
+        @test_throws LoadError @eval @instrument function bare_leak(; refbasis = CirBasis())
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
             return SingleStokesGain(exp(lg))
+        end
+
+        # A sampled parameter reused as a binder in the STATIC body (outside any param_map) is
+        # forbidden: parameter names are reserved there (a comprehension loop variable here).
+        @test_throws LoadError @eval @instrument function comp_shadow(; refbasis = CirBasis())
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            _ = [lg for lg in 1:2]
+            return SingleStokesGain(() -> 1.0)
+        end
+
+        # A sampled parameter referenced in the `JonesSandwich` combination function (a ≥1-arg
+        # function, where params are not in scope) leaks and must be rejected.
+        @test_throws LoadError @eval @instrument function comb_leak(; refbasis = CirBasis())
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            G = JonesG(() -> (exp(lg), exp(lg)))
+            R = JonesR(; add_fr = true)
+            return JonesSandwich(G, R) do g, r
+                g * r * lg
+            end
+        end
+
+        # A sampled parameter referenced in another parameter's prior RHS would leak —
+        # unbound — into the generated prior function, and must be rejected.
+        @test_throws LoadError @eval @instrument function prior_leak(; refbasis = CirBasis())
+            a ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            b ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(a, 0.1)))
+            return SingleStokesGain(() -> exp(a + b))
         end
     end
 end
