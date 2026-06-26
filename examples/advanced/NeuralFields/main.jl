@@ -188,22 +188,21 @@ skym = SkyModel(sky, prior, grid; algorithm = VLBISkyModels.ReactantNUFFTAlg(), 
 
 
 # Now we will fit gains since our data product are complex visibilities. We use the
-# `@instrument` macro to bundle the Jones matrix and its priors in one block. Each
-# `name ~ ArrayPrior(...)` line adds an entry to the instrument prior; everything else
-# builds the Jones matrix that is returned.
+# `@instrument` macro to bundle the Jones matrices and their priors in one block. Each Jones
+# term is a `@jones` block whose `name ~ ArrayPrior(...)` lines are its priors and whose body
+# builds and returns the Jones matrix.
 @instrument function instrument()
-    lg ~ ArrayPrior(
-        IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.5))
-    )
-    gp ~ ArrayPrior(
-        IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(0.5^2)));
-        refant = SEFDReference(0.0),
-        phase = true,
-    )
-    ## SingleStokesGain is a single complex gain for each site. The param_map is a zero-arg
-    ## function referencing the sampled parameters directly.
-    return SingleStokesGain() do
-        exp(complex(lg, gp))
+    return @jones begin
+        lg ~ ArrayPrior(
+            IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.5))
+        )
+        gp ~ ArrayPrior(
+            IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(0.5^2)));
+            refant = SEFDReference(0.0),
+            phase = true,
+        )
+        ## SingleStokesGain is a single complex gain for each site.
+        return SingleStokesGain(exp(complex(lg, gp)))
     end
 end
 intmodel = instrument()

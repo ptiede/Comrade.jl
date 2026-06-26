@@ -114,16 +114,15 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 #   - Gain amplitudes which are typically known to 10-20%, except for LMT, which has amplitudes closer to 50-100%.
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
-# Just like the sky model, we use the `@instrument` macro to bundle the Jones matrix and
-# its priors in one block. Each `name ~ ArrayPrior(...)` line adds an entry to the
-# instrument prior; everything else builds the Jones matrix that is returned.
+# Just like the sky model, we use the `@instrument` macro to bundle the Jones matrices and
+# their priors in one block. Each Jones term is a `@jones` block whose `name ~ ArrayPrior(...)`
+# lines are its priors and whose body builds and returns the Jones matrix.
 @instrument function instrument()
-    lg ~ ArrayPrior(IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 1.0)))
-    gp ~ ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
-    ## SingleStokesGain is a single complex gain for each site. The param_map is a zero-arg
-    ## function referencing the sampled parameters directly.
-    return SingleStokesGain() do
-        exp(complex(lg, gp))
+    return @jones begin
+        lg ~ ArrayPrior(IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 1.0)))
+        gp ~ ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
+        ## SingleStokesGain is a single complex gain for each site.
+        return SingleStokesGain(exp(complex(lg, gp)))
     end
 end
 intmodel = instrument()

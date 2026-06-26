@@ -1,29 +1,7 @@
 export @sky
 
-# `_kwname` and `_contains_tilde` are shared with the `@instrument` macro; see
-# src/macro_utils.jl.
-
-function _scan_used_names(stmts, candidates::Vector{Symbol})
-    used = Set{Symbol}()
-    candset = Set(candidates)
-    walk(::Any) = nothing
-    function walk(node::Symbol)
-        if node in candset
-            push!(used, node)
-        end
-        return nothing
-    end
-    function walk(node::Expr)
-        for a in node.args
-            walk(a)
-        end
-        return nothing
-    end
-    for s in stmts
-        walk(s)
-    end
-    return Symbol[n for n in candidates if n in used]
-end
+# `_kwname`, `_contains_tilde`, `_scan_used_names`, and `_split_tildes` are shared with the
+# `@instrument` / `@jones` macros; see src/macro_utils.jl.
 
 function _sky_impl(fexpr)
     Meta.isexpr(fexpr, :function) ||
@@ -54,25 +32,7 @@ function _sky_impl(fexpr)
             error("@sky: keyword arguments must be plain names (no type annotations); got $(k)")
     end
 
-    tilde_names = Symbol[]
-    tilde_exprs = Any[]
-    body_stmts = Any[]
-    for stmt in body.args
-        if stmt isa LineNumberNode
-            push!(body_stmts, stmt)
-        elseif Meta.isexpr(stmt, :call) && length(stmt.args) ≥ 3 && stmt.args[1] === :~
-            lhs, rhs = stmt.args[2], stmt.args[3]
-            lhs isa Symbol || error("@sky: LHS of `~` must be a symbol, got $(lhs)")
-            push!(tilde_names, lhs)
-            push!(tilde_exprs, rhs)
-        else
-            _contains_tilde(stmt) && error(
-                "@sky: `~` must appear at the top level of the function body, " *
-                    "not nested inside another expression"
-            )
-            push!(body_stmts, stmt)
-        end
-    end
+    tilde_names, tilde_exprs, body_stmts = _split_tildes(body.args, "@sky")
 
     isempty(tilde_names) &&
         error("@sky: at least one `name ~ distribution` line is required")

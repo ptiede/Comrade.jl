@@ -162,13 +162,13 @@ end
     _, dvis, _, _, _, dcoh = load_data()
 
     @testset "parity with hand-written InstrumentModel (StokesI)" begin
-        # New syntax: the param_map is a zero-arg function referencing the sampled-parameter
-        # names directly (no dummy `x`).
+        # New syntax: one `@jones` block; the body builds and returns the Jones term, with its
+        # priors as `~` lines. The natural `Ctor(entries)` form is used.
         @instrument function macro_stokesi(; refbasis = CirBasis(), gpstd = inv(π^2))
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gpstd)); refant = SEFDReference(0.0))
-            return SingleStokesGain() do
-                exp(lg + 1im * gp)
+            return @jones begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gpstd)); refant = SEFDReference(0.0))
+                return SingleStokesGain(exp(lg + 1im * gp))
             end
         end
 
@@ -207,15 +207,19 @@ end
 
     @testset "refbasis and kwarg flow" begin
         @instrument function with_kw(; refbasis = CirBasis(), gstd = 0.1)
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gstd)))
-            return SingleStokesGain(() -> exp(lg))
+            return @jones begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gstd)))
+                return SingleStokesGain(exp(lg))
+            end
         end
         @test with_kw().refbasis isa CirBasis
         @test with_kw(; refbasis = LinBasis()).refbasis isa LinBasis
         # kwarg without a default is required
         @instrument function needs_kw(; gstd)
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gstd)))
-            return SingleStokesGain(() -> exp(lg))
+            return @jones begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gstd)))
+                return SingleStokesGain(exp(lg))
+            end
         end
         @test_throws UndefKeywordError needs_kw()
         @test needs_kw(; gstd = 0.2) isa InstrumentModel
@@ -223,23 +227,25 @@ end
 
     @testset "parity with hand-written InstrumentModel (Coherencies)" begin
         @instrument function macro_pol(; refbasis = CirBasis())
-            lgR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            gpR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); phase = true, refant = SEFDReference(0.0))
-            lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), phase = false)
-            gprat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), refant = SingleReference(:AA, 0.0))
-            dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-            dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-            dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-            dLy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-
-            # zero-arg do-block (multi-line) and zero-arg `() ->` (one-liner), no dummy `x`
-            G = JonesG() do
+            G = @jones :gain begin
+                lgR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                gpR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); phase = true, refant = SEFDReference(0.0))
+                lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), phase = false)
+                gprat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), refant = SingleReference(:AA, 0.0))
                 gR = exp(lgR + 1im * gpR)
                 gL = gR * exp(lgrat + 1im * gprat)
-                return gR, gL
+                return JonesG((gR, gL))
             end
-            D = JonesD(() -> (complex(dRx, dRy), complex(dLx, dLy)))
-            R = JonesR(; add_fr = true)
+            D = @jones :dterms begin
+                dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+                dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+                dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+                dLy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+                return JonesD((complex(dRx, dRy), complex(dLx, dLy)))
+            end
+            R = @jones begin
+                return JonesR(; add_fr = true)
+            end
             return JonesSandwich(G, D, R) do g, d, r
                 return g * d * r
             end
@@ -247,6 +253,7 @@ end
 
         m_macro = macro_pol()
         @test m_macro isa InstrumentModel
+        # Priors are flat (v1) and ordered by block, then by `~` line within each block.
         @test keys(m_macro.prior) == (:lgR, :gpR, :lgrat, :gprat, :dRx, :dRy, :dLx, :dLy)
 
         # Both param_maps and the combination function must be named (serializable)
@@ -268,7 +275,9 @@ end
 
     @testset "zero-tilde response-only model" begin
         @instrument function responseonly(; refbasis = CirBasis())
-            return JonesR(; add_fr = true)
+            return @jones begin
+                return JonesR(; add_fr = true)
+            end
         end
         m = responseonly()
         @test m isa InstrumentModel
@@ -277,31 +286,14 @@ end
         @test ointm isa Comrade.ObservedInstrumentModel
     end
 
-    @testset "explicit closure (escape hatch) is lifted, not left raw" begin
-        # An explicit `x -> f(x.lg)` closure (the way to parameterize a Jones type that bare
-        # syntax cannot express) is recognised by its ≥1 args, lifted verbatim to a *named*
-        # top-level function, and still applied correctly.
-        @instrument function explicit_x(; refbasis = CirBasis())
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            return SingleStokesGain(x -> exp(x.lg))
-        end
-        mx = explicit_x()
-        @test mx isa InstrumentModel
-        @test !occursin("#", string(nameof(mx.jones.param_map)))  # lifted to a named function
-        vis = Comrade.measurement(dvis)
-        ointx, printx = Comrade.set_array(mx, arrayconfig(dvis))
-        xx = rand(printx)
-        xx.lg .= 0
-        @test Comrade.apply_instrument(vis, ointx, (; instrument = xx)) ≈ vis
-    end
-
     @testset "name-agnostic: user-defined param-bearing Jones type" begin
-        # No constructor-name list: a zero-arg param_map on a user-defined `AbstractJonesMatrix`
-        # is lifted and destructured exactly like the built-ins.
+        # No constructor-name list: the macro identifies the param_map structurally (the single
+        # positional argument of the returned constructor), so a user-defined `AbstractJonesMatrix`
+        # is handled exactly like the built-ins.
         @instrument function customjones(; refbasis = CirBasis())
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            return _MacroTestJones() do
-                exp(lg)
+            return @jones begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return _MacroTestJones(exp(lg))
             end
         end
         m = customjones()
@@ -312,44 +304,34 @@ end
         @test !occursin("#", string(nameof(m.jones.param_map)))
     end
 
-    @testset "kwarg / body-local capture keeps a closure" begin
+    @testset "kwarg capture: param_map stays named and still captures" begin
         vis = Comrade.measurement(dvis)
-        # A param_map that captures a construction-time kwarg stays a closure but still works
+        # The param_map is lifted to a *named inner function* of `_<name>_jones`, so it can
+        # reference a construction-time kwarg (`off`) and remain a named, serializable function.
         @instrument function capture_kw(; refbasis = CirBasis(), off = 0.0)
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            return SingleStokesGain(() -> exp(lg + off))
+            return @jones begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return SingleStokesGain(exp(lg + off))
+            end
         end
         mk = capture_kw(; off = 0.0)
         @test mk isa InstrumentModel
+        @test !occursin("#", string(nameof(mk.jones.param_map)))  # named, not a gensym closure
         ointk, printk = Comrade.set_array(mk, arrayconfig(dvis))
         xk = rand(printk)
         xk.lg .= 0
         @test Comrade.apply_instrument(vis, ointk, (; instrument = xk)) ≈ vis
-
-        # A param_map that captures a body-local (here introduced with `local`, which the
-        # plain top-level `=` scan would miss) must stay a closure, not be lifted to a
-        # top-level function — otherwise the local goes out of scope at runtime.
-        @instrument function capture_local(; refbasis = CirBasis())
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            local off = 0.0
-            return SingleStokesGain(() -> exp(lg + off))
-        end
-        ml = capture_local()
-        @test ml isa InstrumentModel
-        @test occursin("#", string(nameof(ml.jones.param_map)))  # kept as a closure
-        ointl, printl = Comrade.set_array(ml, arrayconfig(dvis))
-        xl = rand(printl)
-        xl.lg .= 0
-        @test Comrade.apply_instrument(vis, ointl, (; instrument = xl)) ≈ vis
     end
 
     @testset "in-param_map shadowing is Julia's job" begin
-        # Inside a param_map ordinary Julia scoping applies, so a nested closure may freely
+        # Inside a `@jones` block ordinary Julia scoping applies, so a nested closure may freely
         # reuse a sampled-parameter name: the outer `lg` is the destructured param and the
         # inner `lg -> lg` is the nested closure's argument.
         @instrument function nested_closure(; refbasis = CirBasis())
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            return SingleStokesGain(() -> exp(lg) * first(map(lg -> lg, [1.0])))
+            return @jones begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return SingleStokesGain(exp(lg) * first(map(lg -> lg, [1.0])))
+            end
         end
         mn = nested_closure()
         @test mn isa InstrumentModel
@@ -359,105 +341,153 @@ end
         # param `digits` is destructured and used in `exp(digits)`, while the `digits = 2`
         # keyword key is plain Julia syntax, untouched.
         @instrument function kwkey(; refbasis = CirBasis())
-            digits ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            return SingleStokesGain(() -> round(exp(digits); digits = 2))
+            return @jones begin
+                digits ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return SingleStokesGain(round(exp(digits); digits = 2))
+            end
         end
         @test kwkey() isa InstrumentModel
     end
 
-    @testset "param_map capturing an enclosing let-local" begin
-        # A param_map nested inside a `let` that references a let-local must stay a closure
-        # (so the capture works); lifting it to a top-level function would leave the local
-        # undefined at runtime.
-        @instrument function let_capture(; refbasis = CirBasis())
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            J = let off = 0.0
-                SingleStokesGain(() -> exp(lg + off))
+    @testset "nested anonymous function in the combination function keeps its scope" begin
+        # A lambda nested inside the lifted `JonesSandwich` combination function may close over
+        # the combinator's own arguments. The lifted (named) outer function must keep that nested
+        # lambda inline; hoisting it to a sibling named function would drop `g`/`d` from scope and
+        # crash at evaluation time.
+        @instrument function nested_combiner(; refbasis = CirBasis())
+            G = @jones begin
+                lgR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return JonesG((exp(lgR), exp(lgR)))
             end
-            return J
+            D = @jones begin
+                dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+                dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+                dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+                dLy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+                return JonesD((complex(dRx, dRy), complex(dLx, dLy)))
+            end
+            R = @jones begin
+                return JonesR(; add_fr = true)
+            end
+            # The `map(x -> g * x, ...)` lambda closes over `g`, an argument of the do-block.
+            return JonesSandwich(G, D, R) do g, d, r
+                return first(map(x -> g * x, (d,))) * r
+            end
         end
-        ml = let_capture()
-        @test ml isa InstrumentModel
-        @test occursin("#", string(nameof(ml.jones.param_map)))  # kept as a closure
-        vis = Comrade.measurement(dvis)
-        ointl, printl = Comrade.set_array(ml, arrayconfig(dvis))
-        xl = rand(printl)
-        xl.lg .= 0
-        @test Comrade.apply_instrument(vis, ointl, (; instrument = xl)) ≈ vis
+        m = nested_combiner()
+        @test m isa InstrumentModel
+        # Combination function is still named (serializable)
+        @test !occursin("#", string(nameof(m.jones.jones_map)))
+        # Directly exercise the lifted combination function: the nested `x -> g * x` lambda
+        # captures `g`, the do-block's argument. Before the fix this lambda was hoisted to a
+        # sibling named function and threw UndefVarError(:g) on the first call. `JonesSandwich`
+        # wraps the combinator in `Base.Splat`, so it is called with a single tuple of matrices.
+        jm = m.jones.jones_map
+        @test jm((2.0, 3.0, 5.0)) == (2.0 * 3.0) * 5.0
     end
 
-    @testset "closure-capture serialization warning" begin
-        # A param_map that captures a construction-time kwarg is kept as a closure and warns
-        # that it may not serialize reliably.
-        @test_logs (:warn, r"closure") (
-            @eval @instrument function warns_capture(; refbasis = CirBasis(), off = 0.0)
+    @testset "`~` as an operator inside a body is not a misplaced prior" begin
+        # `~` used as an ordinary (unary) operator in a body statement must not be misdetected as
+        # a stray prior tilde — only the binary `lhs ~ rhs` form is a prior.
+        @instrument function tilde_op(; refbasis = CirBasis())
+            return @jones begin
                 lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-                return SingleStokesGain(() -> exp(lg + off))
+                bits = ~0x0f                       # bitwise NOT, not a prior
+                scale = float(bits & 0x01)
+                return SingleStokesGain(exp(lg) * (1.0 + 0.0 * scale))
             end
-        )
+        end
+        @test tilde_op() isa InstrumentModel
+
+        # Same for `@sky`: a body statement using `~` must be accepted.
+        g = imagepixels(μas2rad(150.0), μas2rad(150.0), 32, 32)
+        @sky function tilde_sky(grid)
+            σ ~ VLBIUniform(μas2rad(1.0), μas2rad(40.0))
+            bits = ~0x0f
+            return (1.0 + 0.0 * (bits & 0x01)) * stretched(Gaussian(), σ, σ)
+        end
+        @test tilde_sky(g) isa SkyModel
+    end
+
+    @testset "standalone @jones builds a parameter-free Jones term" begin
+        # A param-free `@jones` block is a valid standalone way to build a named Jones term.
+        R = @jones begin
+            return JonesR(; add_fr = true)
+        end
+        @test R isa JonesR
+        # A standalone `@jones` with `~` priors is an error (priors have nowhere to go).
+        @test_throws LoadError @eval @jones begin
+            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+            return SingleStokesGain(exp(lg))
+        end
     end
 
     @testset "macro-expansion errors" begin
-        # Positional argument is rejected
+        # Positional argument on the instrument is rejected
         @test_throws LoadError @eval @instrument function haspos(array)
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            return SingleStokesGain(() -> exp(lg))
-        end
-
-        # Tilde nested inside another expression is rejected
-        @test_throws LoadError @eval @instrument function nested(; refbasis = CirBasis())
-            if true
+            return @jones begin
                 lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return SingleStokesGain(exp(lg))
             end
-            return SingleStokesGain(() -> exp(lg))
         end
 
-        # Duplicate tilde names
-        @test_throws LoadError @eval @instrument function dupes(; refbasis = CirBasis())
+        # `~` at the top level of the instrument body (outside a `@jones` block) is rejected
+        @test_throws LoadError @eval @instrument function toplevel_tilde(; refbasis = CirBasis())
             lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)))
-            return SingleStokesGain(() -> exp(lg))
+            return @jones begin
+                return JonesR(; add_fr = true)
+            end
+        end
+
+        # `~` nested inside another expression within a `@jones` block is rejected
+        @test_throws LoadError @eval @instrument function nested(; refbasis = CirBasis())
+            return @jones begin
+                if true
+                    lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                end
+                return SingleStokesGain(exp(lg))
+            end
+        end
+
+        # Duplicate tilde names within a block
+        @test_throws LoadError @eval @instrument function dupes(; refbasis = CirBasis())
+            return @jones begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)))
+                return SingleStokesGain(exp(lg))
+            end
+        end
+
+        # Duplicate parameter name across two `@jones` blocks
+        @test_throws LoadError @eval @instrument function dup_across(; refbasis = CirBasis())
+            G = @jones begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return JonesG((exp(lg), exp(lg)))
+            end
+            D = @jones begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)))
+                return JonesD((exp(lg), exp(lg)))
+            end
+            return JonesSandwich(G, D) do g, d
+                return g * d
+            end
         end
 
         # Name clash between sampled param and kwarg
         @test_throws LoadError @eval @instrument function clash(; refbasis = CirBasis(), lg = 1.0)
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            return SingleStokesGain(() -> exp(lg))
-        end
-
-        # A sampled parameter used as a bare value outside any param_map (here directly as a
-        # Jones constructor argument instead of inside a function) leaks a bare name into the
-        # generated body and must be rejected.
-        @test_throws LoadError @eval @instrument function bare_leak(; refbasis = CirBasis())
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            return SingleStokesGain(exp(lg))
-        end
-
-        # A sampled parameter reused as a binder in the STATIC body (outside any param_map) is
-        # forbidden: parameter names are reserved there (a comprehension loop variable here).
-        @test_throws LoadError @eval @instrument function comp_shadow(; refbasis = CirBasis())
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            _ = [lg for lg in 1:2]
-            return SingleStokesGain(() -> 1.0)
-        end
-
-        # A sampled parameter referenced in the `JonesSandwich` combination function (a ≥1-arg
-        # function, where params are not in scope) leaks and must be rejected.
-        @test_throws LoadError @eval @instrument function comb_leak(; refbasis = CirBasis())
-            lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            G = JonesG(() -> (exp(lg), exp(lg)))
-            R = JonesR(; add_fr = true)
-            return JonesSandwich(G, R) do g, r
-                g * r * lg
+            return @jones begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return SingleStokesGain(exp(lg))
             end
         end
 
-        # A sampled parameter referenced in another parameter's prior RHS would leak —
-        # unbound — into the generated prior function, and must be rejected.
-        @test_throws LoadError @eval @instrument function prior_leak(; refbasis = CirBasis())
-            a ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-            b ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(a, 0.1)))
-            return SingleStokesGain(() -> exp(a + b))
+        # A parameterized `@jones` block whose final statement is not a single-positional-arg
+        # constructor call (here a bare tuple — the `JonesG` wrapper was forgotten) is rejected.
+        @test_throws LoadError @eval @instrument function not_a_ctor(; refbasis = CirBasis())
+            return @jones begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return (exp(lg), exp(lg))
+            end
         end
     end
 end

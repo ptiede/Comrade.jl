@@ -95,6 +95,7 @@ Comrade.skymodel(::Comrade.AbstractVLBIPosterior, ::Any)
 
 ```@docs
 Comrade.@instrument
+Comrade.@jones
 Comrade.CalTable
 Comrade.caltable(::Comrade.SiteArray)
 Comrade.sites(::Comrade.CalTable)

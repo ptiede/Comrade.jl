@@ -236,19 +236,18 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # to specific parameterization f the jones matrices.
 
 # We bundle the whole instrument model — the Jones matrices and their priors — in a single
-# block with the `@instrument` macro. Each `name ~ ArrayPrior(...)` line adds an entry to
-# the instrument prior; the rest of the body builds and returns the full Jones matrix. Each
-# `param_map` is written as a zero-argument `do`-block that references the sampled-parameter
-# names directly, and the macro lifts each one — and the combination function — into a named
-# function for us (named functions, unlike closures, serialize reliably).
+# block with the `@instrument` macro. Each Jones term is its own `@jones` block: the
+# `name ~ ArrayPrior(...)` lines inside are that term's priors, and the block builds and
+# returns the Jones matrix. The macro lifts each `@jones` body — and the combination function —
+# into a named function for us (named functions, unlike closures, serialize reliably).
 #
 # The individual Jones matrices are:
 #   - `JonesG` — the complex gains, in an amplitude/phase decomposition. The gain matrix is
-#     diagonal, so the `param_map` returns a 2-tuple (R feed, L feed).
+#     diagonal, so it returns a 2-tuple (R feed, L feed).
 #   - `JonesD` — the leakage (d-)terms in the small-leakage limit `[1 d1; d2 1]`, using a
 #     re-im parameterization, returning a 2-tuple.
 #   - `JonesR` — the response matrix (basis transform plus feed rotation). It has no free
-#     parameters.
+#     parameters, so its `@jones` block has no `~` lines.
 # We combine them with `JonesSandwich` using the standard `J = adjoint(R)*G*D*R`.
 
 # !!! note
@@ -263,27 +262,28 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # and `IntegSeg()` (changes each integration time). For released EHT data the gains are
 # stable over a scan, while the d-terms are stable over the track.
 @instrument function instrument()
-    lgR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
-    lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-    gpR ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
-    gprat ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true)
-    dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-    dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-    dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-    dLy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-
     ## Complex gains: amplitude/phase decomposition, returning (gR, gL).
-    G = JonesG() do
+    G = @jones :gain begin
+        lgR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
+        lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+        gpR ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
+        gprat ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true)
         gR = exp(complex(lgR, gpR))
         gL = gR * exp(complex(lgrat, gprat))
-        return gR, gL
+        return JonesG((gR, gL))
     end
     ## Leakage/d-terms (re-im parameterization), returning (dR, dL).
-    D = JonesD() do
-        return (complex(dRx, dRy), complex(dLx, dLy))
+    D = @jones :dterms begin
+        dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        dLy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        return JonesD((complex(dRx, dRy), complex(dLx, dLy)))
     end
     ## The ideal response (basis transform + feed rotation); no free parameters.
-    R = JonesR(; add_fr = true)
+    R = @jones begin
+        return JonesR(; add_fr = true)
+    end
     ## Combine into the full Jones matrix J = adjoint(R)*G*D*R.
     return JonesSandwich(G, D, R) do g, d, r
         return adjoint(r) * g * d * r
