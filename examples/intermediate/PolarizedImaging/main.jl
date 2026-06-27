@@ -263,7 +263,7 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # stable over a scan, while the d-terms are stable over the track.
 @instrument function instrument()
     ## Complex gains: amplitude/phase decomposition, returning (gR, gL).
-    G = @jones :gain begin
+    G = @jones begin
         lgR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
         lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
         gpR ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
@@ -273,7 +273,7 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
         return JonesG((gR, gL))
     end
     ## Leakage/d-terms (re-im parameterization), returning (dR, dL).
-    D = @jones :dterms begin
+    D = @jones begin
         dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
         dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
         dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))

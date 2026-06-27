@@ -31,7 +31,7 @@ function _emit_fn!(defs, base, suffix, counter, argsig, body)
     return fname
 end
 
-# Expand one `@jones [group] begin ... end` block. Returns a NamedTuple:
+# Expand one `@jones begin ... end` block. Returns a NamedTuple:
 #   `jones`  — the expression that builds the `AbstractJonesMatrix` (referencing the lifted
 #              param_map by name),
 #   `fndefs` — the generated param_map function definition(s),
@@ -44,15 +44,9 @@ end
 # name is consulted, so custom `AbstractJonesMatrix` types work automatically. A param-free
 # block (no `~` lines) is emitted verbatim — its value is the Jones matrix.
 function _jones_impl(args, base::Symbol, counter::Base.RefValue{Int})
-    if length(args) == 1
-        block = args[1]
-    elseif length(args) == 2
-        # args[1] is the optional group name. Accepted but unused in v1 (the parameter
-        # NamedTuple is flat); reserved for future nested grouping.
-        block = args[2]
-    else
-        error("@jones: expected `@jones [groupname] begin ... end`, got $(length(args)) arguments")
-    end
+    length(args) == 1 ||
+        error("@jones: expected `@jones begin ... end`, got $(length(args)) arguments")
+    block = args[1]
     Meta.isexpr(block, :block) ||
         error("@jones: expected a `begin ... end` block body, got `$(block)`")
 
@@ -275,19 +269,14 @@ function _instrument_impl(fexpr)
 end
 
 """
-    @jones [groupname] begin
+    @jones begin
         param₁ ~ ArrayPrior(...)
         # ... statements building the matrix entries from the params ...
-        return Ctor(entries)
+        return JonesG(entries)
     end
 
 Build one Jones term inside an [`@instrument`](@ref) block. Each `name ~ ArrayPrior(...)` line
-is a prior for this term; the rest of the block is its `param_map`. The block must end in a
-constructor call taking a single positional argument — the param_map — and the macro lifts the
-preceding statements plus that argument into a named function of the per-site parameter
-NamedTuple. Because the construction is purely structural (the constructor name is never
-inspected), any [`AbstractJonesMatrix`](@ref) that takes a `param_map` works, including
-user-defined ones.
+is a prior for this term; the rest of the block is how the we paraemeterized the Jones matrix.
 
 A block with no `~` lines is parameter-free and is emitted verbatim (e.g. `JonesR`):
 
@@ -296,9 +285,6 @@ R = @jones begin
     return JonesR(; add_fr = true)
 end
 ```
-
-The optional `groupname` (e.g. `:gain`) is accepted but currently a no-op: the instrument
-parameter NamedTuple is flat. It is reserved for future grouping of parameter names.
 
 `@jones` is only meaningful inside [`@instrument`](@ref) (its `~` priors have nowhere else to
 go); using it standalone with `~` lines is an error.
@@ -315,8 +301,8 @@ end
 
 """
     @instrument function name(; refbasis = CirBasis(), kwargs...)
-        G = @jones [group] begin ... end
-        D = @jones [group] begin ... end
+        G = @jones begin ... end
+        D = @jones begin ... end
         # ... build and compose the Jones terms ...
         return AbstractJonesMatrix
     end
@@ -338,7 +324,7 @@ functions, unlike closures, serialize reliably).
 Example:
 ```julia
 @instrument function fullpol(; refbasis = CirBasis(), gain_std = 0.1, dterm_std = 0.2)
-    G = @jones :gain begin
+    G = @jones begin
         lgR   ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gain_std)))
         gpR   ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2)));
                            refant = SEFDReference(0.0), phase = true)
@@ -348,7 +334,7 @@ Example:
         gL = gR * exp(complex(lgrat, gprat))
         return JonesG((gR, gL))
     end
-    D = @jones :dterms begin
+    D = @jones begin
         dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, dterm_std)))
         dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, dterm_std)))
         dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, dterm_std)))

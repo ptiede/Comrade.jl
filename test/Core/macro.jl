@@ -227,7 +227,7 @@ end
 
     @testset "parity with hand-written InstrumentModel (Coherencies)" begin
         @instrument function macro_pol(; refbasis = CirBasis())
-            G = @jones :gain begin
+            G = @jones begin
                 lgR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
                 gpR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); phase = true, refant = SEFDReference(0.0))
                 lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), phase = false)
@@ -236,7 +236,7 @@ end
                 gL = gR * exp(lgrat + 1im * gprat)
                 return JonesG((gR, gL))
             end
-            D = @jones :dterms begin
+            D = @jones begin
                 dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
                 dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
                 dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
