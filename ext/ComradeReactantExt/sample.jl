@@ -486,25 +486,6 @@ function AbstractMCMC.sample(
         else
             @info "ReactantNUTS restart: warmup complete, skipping" dir = saveto.name
             warmup_history = nothing
-        else
-            status = deserialize(status_path)
-            if status.complete
-                @info "ReactantNUTS restart: warmup complete, skipping" dir = saveto.name round_done = status.round_done
-                state = loaded_state
-                warmup_history = status.history
-            else
-                @info "ReactantNUTS restart: resuming warmup" dir = saveto.name resume_from = status.round_done + 1 nrounds = length(status.schedule)
-                # x0 is unused in resume mode (state carries position/metric/step), but
-                # length/eltype seed the unused-but-constructed step0/mass0 arrays.
-                T0 = eltype(Array(loaded_state.position))
-                x0_dummy = Reactant.to_rarray(zeros(T0, Comrade.dimension(tpost)))
-                state, warmup_history = warmup_windowed(
-                    rng, ldf, x0_dummy, tpost, sampler;
-                    callback = warmup_callback, checkpoint = warmup_ckpt,
-                    resume_state = loaded_state, resume_round = status.round_done,
-                    resume_schedule = status.schedule, resume_history = status.history
-                )
-            end
         end
     end
 
