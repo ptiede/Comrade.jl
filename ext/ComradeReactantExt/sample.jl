@@ -437,14 +437,14 @@ drawn.
 function AbstractMCMC.sample(
         rng::Reactant.ReactantRNG, post, sampler::ReactantNUTS,
         nsamples::Int;
-        transport_method = TVFlat,
+        transport_method = TVFlat(),
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
         chunk_size::Int = 100,
         ldf = _default_ldf, host_rng = Random.default_rng(),
         warmup_callback = default_warmup_callback
     )
 
-    tpost = transport_to(post, transport_method)
+    tpost = maybe_flatten(post, transport_method)
 
     # Checkpoint paths (DiskStore only): the resumable MCMCState and the warmup step counter.
     # Warmup is chunked at the same size as sampling.
@@ -519,6 +519,9 @@ function AbstractMCMC.sample(
     # in samplerinfo(out) for MemoryStore and in metadata.jls for DiskStore.
     return (; out, state)
 end
+
+maybe_flatten(post::Comrade.VLBIPosterior, transport_method) = transport_t0(post, transport_method)
+maybe_flatten(post::Comrade.TransformedVLBIPosterior, transport_method) = post
 
 """
     sample(post, sampler::ReactantNUTS, nsamples; kwargs...)
