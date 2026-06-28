@@ -3,6 +3,9 @@ using Serialization
 using Random
 using Printf
 using Reactant: ProbProg
+using Comrade 
+using ProbabilityTransports
+using TransformVariables
 
 # ===========================================================================
 # Sample-retention backends (reuse Comrade's MemoryStore / DiskStore configs)
@@ -434,13 +437,14 @@ drawn.
 function AbstractMCMC.sample(
         rng::Reactant.ReactantRNG, post, sampler::ReactantNUTS,
         nsamples::Int;
+        transport_method = TVFlat,
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
         chunk_size::Int = 100,
         ldf = _default_ldf, host_rng = Random.default_rng(),
         warmup_callback = default_warmup_callback
     )
 
-    tpost = asflat(post)
+    tpost = transport_to(post, transport_method)
 
     # Checkpoint paths (DiskStore only): the resumable MCMCState and the warmup step counter.
     # Warmup is chunked at the same size as sampling.
