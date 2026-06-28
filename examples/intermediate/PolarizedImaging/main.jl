@@ -235,79 +235,63 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # each Jones matrix requires the user to specify a function that converts from parameters
 # to specific parameterization f the jones matrices.
 
-# For the complex gain matrix, we used the `JonesG` jones matrix. The first argument is now
-# a function that converts from the parameters to the complex gain matrix. In this case, we
-# will use a amplitude and phase decomposition of the complex gain matrix. Note that since
-# the gain matrix is a diagonal 2x2 matrix the function must return a 2-element tuple.
-# The first element of the tuple is the gain for the first polarization feed (R) and the
-# second is the gain for the second polarization feed (L).
-function fgain(x)
-    gR = exp(complex(x.lgR, x.gpR))
-    gL = gR * exp(complex(x.lgrat, x.gprat))
-    return gR, gL
-end
-G = JonesG(fgain)
-
-
-# Similarly we provide a `JonesD` function for the leakage terms. Since we assume that we
-# are in the small leakage limit, we will use the decomposition
-# 1 d1
-# d2 1
-# Therefore, there are 2 free parameters for the JonesD our parameterization function
-# must return a 2-element tuple. For d-terms we will use a re-im parameterization.
-function fdterms(x)
-    dR = complex(x.dRx, x.dRy)
-    dL = complex(x.dLx, x.dLy)
-    return dR, dL
-end
-D = JonesD(fdterms)
-
-# Finally we define our response Jones matrix. This matrix is a basis transform matrix
-# plus the feed rotation angle for each station. These are typically set by the telescope
-# so there are no free parameters, so no parameterization is necessary.
-R = JonesR(; add_fr = true)
-
-# Finally, we build our total Jones matrix by using the `JonesSandwich` function. The
-# first argument is a function that specifies how to combine each Jones matrix. In this case
-# we will use the standard decomposition J = adjoint(R)*G*D*R, where we need to apply the adjoint
-# of the feed rotaion matrix `R` because the data has feed rotation calibration.
-@inline js(g, d, r) = adjoint(r) * g * d * r
-J = JonesSandwich(js, G, D, R)
+# We bundle the whole instrument model — the Jones matrices and their priors — in a single
+# block with the `@instrument` macro. Each Jones term is its own `@jones` block: the
+# `name ~ ArrayPrior(...)` lines inside are that term's priors, and the block builds and
+# returns the Jones matrix. The macro lifts each `@jones` body — and the combination function —
+# into a named function for us (named functions, unlike closures, serialize reliably).
+#
+# The individual Jones matrices are:
+#   - `JonesG` — the complex gains, in an amplitude/phase decomposition. The gain matrix is
+#     diagonal, so it returns a 2-tuple (R feed, L feed).
+#   - `JonesD` — the leakage (d-)terms in the small-leakage limit `[1 d1; d2 1]`, using a
+#     re-im parameterization, returning a 2-tuple.
+#   - `JonesR` — the response matrix (basis transform plus feed rotation). It has no free
+#     parameters, so its `@jones` block has no `~` lines.
+# We combine them with `JonesSandwich` using the standard `J = adjoint(R)*G*D*R`.
 
 # !!! note
-#     This is a general note that for arrays with non-zero leakage, feed rotation calibration
-#     does not remove the impact of feed rotations on the instrument model. That is,
-#     when modeling feed rotation must be taken into account. This is because
-#     the R and D matrices are not commutative. Therefore, to recover the correct instrumental
-#     terms we must include the feed rotation calibration in the instrument model. This is not
-#     ideal when doing polarized modeling, especially for interferometers using a mixture of linear
-#     and circular feeds. For linear feeds R does not commute with G or D and applying feed rotation
-#     calibration before solving for gains can mix gains and leakage with feed rotation calibration terms
-#     breaking many of the typical assumptions about the stabilty of different instrument effects.
+#     For arrays with non-zero leakage, feed rotation calibration does not remove the impact
+#     of feed rotations on the instrument model: the `R` and `D` matrices do not commute, so
+#     feed rotation must be modelled. This is why we keep `add_fr = true` and apply
+#     `adjoint(R)` in the composition. This is especially important for interferometers
+#     using a mixture of linear and circular feeds.
 
-# For the instrument prior, we will use a simple IID prior for the complex gains and d-terms.
-# The `IIDSitePrior` function specifies that each site has the same prior and each value is independent
-# on some time segment. The current time segments are
-#  - `ScanSeg()` which specifies each scan has an independent value
-#  - `TrackSeg()` which says that the value is constant over the track.
-#  - `ScanSeg()` which says that the value changes each integration time
-# For the released EHT data, the calibration procedure makes gains stable over each scan
-# so we use `ScanSeg` for those quantities. The d-terms are typically stable over the track
-# so we use `TrackSeg` for those.
-intprior = (
-    lgR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-    lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
-    gpR = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
-    gprat = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true),
-    dRx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
-    dRy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
-    dLx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
-    dLy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
-)
+# For the instrument prior we use IID priors for the gains and d-terms. The `IIDSitePrior`
+# segments are `ScanSeg()` (independent per scan), `TrackSeg()` (constant over the track),
+# and `IntegSeg()` (changes each integration time). For released EHT data the gains are
+# stable over a scan, while the d-terms are stable over the track.
+@instrument function instrument()
+    ## Complex gains: amplitude/phase decomposition, returning (gR, gL).
+    G = @jones begin
+        lgR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
+        lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+        gpR ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
+        gprat ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true)
+        gR = exp(complex(lgR, gpR))
+        gL = gR * exp(complex(lgrat, gprat))
+        return JonesG((gR, gL))
+    end
+    ## Leakage/d-terms (re-im parameterization), returning (dR, dL).
+    D = @jones begin
+        dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        dLy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        return JonesD((complex(dRx, dRy), complex(dLx, dLy)))
+    end
+    ## The ideal response (basis transform + feed rotation); no free parameters.
+    R = @jones begin
+        return JonesR(; add_fr = true)
+    end
+    ## Combine into the full Jones matrix J = adjoint(R)*G*D*R.
+    return JonesSandwich(G, D, R) do g, d, r
+        return adjoint(r) * g * d * r
+    end
+end
 
-# Finally, we can build our instrument model which takes a model for the Jones matrix `J`
-# and priors for each term in the Jones matrix.
-intmodel = InstrumentModel(J, intprior)
+# Building the instrument model is now a single call.
+intmodel = instrument()
 
 # intmodel = InstrumentModel(JonesR(;add_fr=true))
 # Putting it all together, we form our likelihood and posterior objects for optimization and
