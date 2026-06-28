@@ -13,7 +13,7 @@ using Enzyme
     @test eltype(dc) == eltype(d)
     @test length(dc) == 20
 
-    t = asflat(dc)
+    t = Comrade.transport_node(dc, Comrade.TVFlat())
     @test t isa Comrade.PartiallyFixedTransform
 
     @testset "PartiallyFixedTransform" begin

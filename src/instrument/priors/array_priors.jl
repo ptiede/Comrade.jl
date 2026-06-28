@@ -51,14 +51,20 @@ Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)
 Dists.logpdf(d::ObservedArrayPrior, x::AbstractVector{<:Number}) = Dists.logpdf(d.dists, parent(x))
 Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:Real}) = SiteArray(Dists._rand!(rng, d.dists, x), d.sitemap)
-function asflat(d::ObservedArrayPrior)
-    d.phase && MarkovInstrumentTransform(asflat(d.dists), d.sitemap)
-    return InstrumentTransform(asflat(d.dists), d.sitemap)
+# Flat (`TVFlat`) path: a TransformVariables instrument transform wrapping the raw
+# TV node of the inner distribution, so it slots into the single flat TV tree.
+function PT.transport_node(d::ObservedArrayPrior, space::PT.TVFlat)
+    inner = PT.transport_node(d.dists, space)
+    d.phase && return MarkovInstrumentTransform(inner, d.sitemap)
+    return InstrumentTransform(inner, d.sitemap)
 end
 
-function ascube(d::ObservedArrayPrior)
-    d.phase && return MarkovInstrumentTransform(ascube(d.dists), d.sitemap)
-    return InstrumentTransform(ascube(d.dists), d.sitemap)
+# Std-space (`StdUniform`/`StdNormal`) path: a ProbabilityTransports node wrapping the
+# PT node of the inner distribution.
+function PT.transport_node(d::ObservedArrayPrior, space)
+    inner = PT.transport_node(d.dists, space)
+    d.phase && return StdMarkovInstrumentTransform(inner, d.sitemap)
+    return StdInstrumentTransform(inner, d.sitemap)
 end
 
 function build_sitemap(d::ArrayPrior, array)
@@ -129,6 +135,7 @@ function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
 end
 
 
+# Flat (`TVFlat`) form: a TransformVariables transform that fixes some indices.
 struct PartiallyFixedTransform{T, I, F} <: TV.AbstractTransform
     transform::T
     variate_index::I
@@ -161,19 +168,33 @@ function TV.inverse_at!(x::AbstractArray, index, t::PartiallyFixedTransform, y)
     return TV.inverse_at!(x, index, t.transform, y[t.variate_index])
 end
 
-function HypercubeTransform._step_transform(t::PartiallyFixedTransform, x, index)
-    y, index = HypercubeTransform._step_transform(t.transform, x, index)
+TV.inverse_eltype(t::PartiallyFixedTransform, y::Type) = TV.inverse_eltype(t.transform, y)
+
+
+# Std-space (`StdUniform`/`StdNormal`) form: a ProbabilityTransports node that fixes
+# some indices. Mirrors the flat form but carries no Jacobian.
+struct StdPartiallyFixedTransform{T, I, F} <: PT.AbstractTransport
+    transform::T
+    variate_index::I
+    fixed_index::I
+    fixed_values::F
+end
+
+PT.dimension(t::StdPartiallyFixedTransform) = PT.dimension(t.transform)
+
+function PT.pfwd_step(t::StdPartiallyFixedTransform, x, index)
+    y, index = PT.pfwd_step(t.transform, x, index)
     yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
     fill_partially_fixed!(yfv, t.variate_index, t.fixed_index, y, t.fixed_values)
     return yfv, index
 end
 
-function HypercubeTransform._step_inverse!(y::AbstractVector, index, t::PartiallyFixedTransform, x)
-    return HypercubeTransform._step_inverse!(y, index, t.transform, x[t.variate_index])
+function PT.pback_step!(y::AbstractVector, index, t::StdPartiallyFixedTransform, x)
+    return PT.pback_step!(y, index, t.transform, x[t.variate_index])
 end
 
-
-TV.inverse_eltype(t::PartiallyFixedTransform, y::Type) = TV.inverse_eltype(t.transform, y)
+PT.pback_eltype(t::StdPartiallyFixedTransform) =
+    PT.pback_eltype(t.transform)
 
 
 struct PartiallyConditionedDist{D <: Distributions.ContinuousMultivariateDistribution, I, F} <: Distributions.ContinuousMultivariateDistribution
@@ -201,8 +222,16 @@ function Distributions._rand!(rng::AbstractRNG, d::PartiallyConditionedDist, x::
     return x
 end
 
-HypercubeTransform.asflat(t::PartiallyConditionedDist) = PartiallyFixedTransform(asflat(t.dist), t.variate_index, t.fixed_index, t.fixed_values)
-HypercubeTransform.ascube(t::PartiallyConditionedDist) = PartiallyFixedTransform(ascube(t.dist), t.variate_index, t.fixed_index, t.fixed_values)
+function PT.transport_node(t::PartiallyConditionedDist, space::PT.TVFlat)
+    return PartiallyFixedTransform(
+        PT.transport_node(t.dist, space), t.variate_index, t.fixed_index, t.fixed_values
+    )
+end
+function PT.transport_node(t::PartiallyConditionedDist, space)
+    return StdPartiallyFixedTransform(
+        PT.transport_node(t.dist, space), t.variate_index, t.fixed_index, t.fixed_values
+    )
+end
 
 function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroid_station)
     ts = smap.times
