@@ -82,7 +82,7 @@ ComradeBase = "0.9.13"
 DelimitedFiles = "1"
 DensityInterface = "0.4"
 DimensionalData = "0.30"
-Distributions = "0.25"
+Distributions = "^0.25.129"
 DocStringExtensions = "0.8, 0.9"
 Dynesty = "0.4"
 Enzyme = "0.13 - 0.13.104, 0.13.109 - 0.13.111, ^0.13.139"
@@ -124,11 +124,10 @@ Dynesty = "eb527566-0f3e-4aab-bb5f-9d2e403dba70"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
-Pigeons = "0eb8d820-af6a-4919-95ae-11206f830c31"
 Pyehtim = "3d61700d-6e5b-419a-8e22-9c066cf00468"
 Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 VLBIFiles = "c1ebf4c8-f9d4-409a-8daf-7009448f4e6e"
 
 [targets]
-test = ["Test", "AdvancedHMC", "Dynesty", "Enzyme", "Makie", "Optimization", "Pigeons", "Pyehtim", "VLBIFiles", "Reactant"]
+test = ["Test", "AdvancedHMC", "Dynesty", "Enzyme", "Makie", "Optimization", "Pyehtim", "VLBIFiles", "Reactant"]
