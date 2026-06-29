@@ -1,7 +1,7 @@
 name = "Comrade"
 uuid = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
-authors = ["Paul Tiede <ptiede91@gmail.com>"]
 version = "0.11.32"
+authors = ["Paul Tiede <ptiede91@gmail.com>"]
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -70,9 +70,9 @@ ComradeReactantExt = "Reactant"
 ComradeVLBIFilesExt = "VLBIFiles"
 
 [compat]
-Adapt = "4"
 AbstractMCMC = "3, 4, 5"
 Accessors = "0.1"
+Adapt = "4"
 AdvancedHMC = "0.6, 0.7, 0.8"
 ArgCheck = "2"
 AstroLib = "0.4"
@@ -82,7 +82,7 @@ ComradeBase = "0.9.13"
 DelimitedFiles = "1"
 DensityInterface = "0.4"
 DimensionalData = "0.30"
-Distributions = "0.25.0 - 0.25.127"
+Distributions = "0.25.0 - 0.25.127, 0.25"
 DocStringExtensions = "0.8, 0.9"
 Dynesty = "0.4"
 Enzyme = "0.13 - 0.13.104, 0.13.109 - 0.13.111, ^0.13.139"
