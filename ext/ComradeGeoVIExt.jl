@@ -46,4 +46,17 @@ function forwardmodel(tpost, ξ)
     return last(forward_model(tpost.lpost, transform(tpost, ξ)))
 end
 
+# A default starting latent for the `geovi_likelihood` composed likelihood, so GeoVI's
+# `init`/`fit` can be called without an explicit `ξ0`. Size = `dimension(tpost)`; the array
+# TYPE (host vs Reactant device) is taken from the data-likelihood's variance array `Σ`, so the
+# returned zero latent matches the problem's backend. Dispatch keys on the forward being
+# Comrade's `forwardmodel`, so this only fires for `geovi_likelihood`-built likelihoods.
+function GeoVI.default_latent(
+        lh::GeoVI.ComposedLikelihood{L, F, LIN, AD, AO},
+    ) where {L <: CVL, F <: Base.Fix1{typeof(forwardmodel)}, LIN, AD, AO}
+    tpost = lh.forward.x
+    Σ = lh.likelihood.Σ
+    return fill!(similar(Σ, real(eltype(Σ)), Comrade.dimension(tpost)), false)
+end
+
 end # module
