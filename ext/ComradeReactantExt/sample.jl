@@ -520,7 +520,7 @@ function AbstractMCMC.sample(
     return (; out, state)
 end
 
-maybe_flatten(post::Comrade.VLBIPosterior, transport_method) = transport_t0(post, transport_method)
+maybe_flatten(post::Comrade.VLBIPosterior, transport_method) = transport_to(post, transport_method)
 maybe_flatten(post::Comrade.TransformedVLBIPosterior, transport_method) = post
 
 """
