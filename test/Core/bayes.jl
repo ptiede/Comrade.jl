@@ -318,3 +318,70 @@ end
 
 
 end
+
+@testset "Visibility regrouping" begin
+    _, vis, amp, lcamp, cphase = load_data()
+    gxy = imagepixels(μas2rad(150.0), μas2rad(150.0), 32, 32)
+    g3 = RectiGrid((; X = gxy.X, Y = gxy.Y, Fr = [220.0e9, 230.0e9, 240.0e9]))
+    g4 = RectiGrid((; X = gxy.X, Y = gxy.Y, Ti = [0.0, 1.0], Fr = [220.0e9, 230.0e9]))
+    skym2 = SkyModel(test_model, test_prior(), gxy)
+    skym3 = SkyModel(test_model, test_prior(), g3)
+    skym4 = SkyModel(test_model, test_prior(), g4)
+
+    # grouping axes come from the image grid's non-spatial dims, in regular Julia (fastest-first) order
+    @test Comrade._grouping_axes(skym2) == ()
+    @test Comrade._grouping_axes(skym3) == (:Fr,)
+    @test Comrade._grouping_axes(skym4) == (:Ti, :Fr)
+
+    # fake a multifrequency dataset by cycling shuffled frequencies onto the real visibility points
+    vismf = deepcopy(vis)
+    n = length(vismf)
+    frs = [220.0e9, 230.0e9, 240.0e9]
+    arrayconfig(vismf)[:Fr] .= [frs[(i % 3) + 1] for i in 0:(n - 1)]
+    @test !issorted(arrayconfig(vismf)[:Fr])
+
+    dp = Comrade._regroup_dataproducts(skym3, (vismf,))
+    @test issorted(arrayconfig(dp[1])[:Fr])
+    # measurement / config are permuted by the same Fr-sorting permutation (kept aligned)
+    p = sortperm(collect(arrayconfig(vismf)[:Fr]); alg = Base.Sort.DEFAULT_STABLE)
+    @test measurement(dp[1]) == measurement(vismf)[p]
+    @test arrayconfig(dp[1])[:U] == arrayconfig(vismf)[:U][p]
+
+    # no-op for a plain X/Y image (nothing to group) -> same object returned
+    @test Comrade._regroup_dataproducts(skym2, (vismf,)) === (vismf,)
+
+    # closure products short-circuit: a 3D grid would otherwise regroup the vis, but the presence of
+    # a closure product leaves everything untouched
+    mixed = (vismf, cphase)
+    @test Comrade._regroup_dataproducts(skym3, mixed) === mixed
+
+    # the constructor wires it in: the posterior's stored data is Fr-contiguous
+    post3 = VLBIPosterior(skym3, vismf; admode = nothing)
+    @test issorted(arrayconfig(dataproducts(post3)[begin])[:Fr])
+
+    # non-ascending grid: the data must follow the grid's STORED plane order (matching the NUFFT's
+    # `DimPoints` enumeration), NOT ascending value — otherwise the data blocks would not co-locate
+    # with their image planes under sharding. Here the grid is descending, so the regrouped data is too.
+    gdesc = RectiGrid((; X = gxy.X, Y = gxy.Y, Fr = [240.0e9, 230.0e9, 220.0e9]))
+    skymdesc = SkyModel(test_model, test_prior(), gdesc)
+    dpd = Comrade._regroup_dataproducts(skymdesc, (vismf,))
+    frd = collect(arrayconfig(dpd[1])[:Fr])
+    @test issorted(frd; rev = true)                 # blocks in grid order [240, 230, 220] => descending
+    @test frd != sort(frd)                          # an ascending sort would NOT match the grid here
+    # explicit: measurement follows the position-within-grid ranking (the fix), not the value sort
+    posd = Dict(v => i for (i, v) in enumerate([240.0e9, 230.0e9, 220.0e9]))
+    pd = sortperm([posd[v] for v in collect(arrayconfig(vismf)[:Fr])]; alg = Base.Sort.DEFAULT_STABLE)
+    @test measurement(dpd[1]) == measurement(vismf)[pd]
+
+    # floating-point round-off in the data frequencies still matches the grid plane (isapprox lookup),
+    # rather than routing every point to the absent-coordinate fallback and silently skipping regrouping
+    visfp = deepcopy(vismf)
+    arrayconfig(visfp)[:Fr] .= collect(arrayconfig(vismf)[:Fr]) .* (1 + 1.0e-12)
+    dpfp = Comrade._regroup_dataproducts(skym3, (visfp,))
+    @test issorted(collect(arrayconfig(dpfp[1])[:Fr]))
+    @test measurement(dpfp[1]) == measurement(visfp)[p]
+
+    # differing-length non-closure products cannot share one permutation -> clear error, not a silent
+    # row-drop or BoundsError
+    @test_throws ArgumentError Comrade._regroup_dataproducts(skym3, (vismf, vismf[1:(n - 2)]))
+end
