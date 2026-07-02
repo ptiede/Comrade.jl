@@ -28,10 +28,18 @@ function that converts from parameters `θ` to a Comrade
 AbstractModel which can be used to compute [`visibilitymap`](@ref) and a set of
 `metadata` that is used by `model` to compute the model.
 
-To enable automatic differentiation, the `admode` keyword argument can be set to any `EnzymeCore.Mode` type 
-of if no AD is desired then `nothing`. The default is `Enzyme.set_runtime_activity(Enzyme.Reverse)` 
-which should work for essentially every problem. Note that runtime activity does have a perfomance cost, 
+To enable automatic differentiation, the `admode` keyword argument can be set to any `EnzymeCore.Mode` type
+of if no AD is desired then `nothing`. The default is `Enzyme.set_runtime_activity(Enzyme.Reverse)`
+which should work for essentially every problem. Note that runtime activity does have a perfomance cost,
 and as Enzyme and Comrade matures we expect this to not need runtime activity.
+
+!!! note
+    When the sky model is defined over a multi-frequency/multi-time image grid (one carrying `Ti`/`Fr`
+    dimensions), the visibility data products are automatically reordered at construction so that each
+    `Ti`/`Fr` plane's visibilities form a contiguous block matching the image's layout. This improves
+    locality for the multidomain Fourier transform and enables sharding across devices. The reordering is
+    a permutation, so the posterior is unchanged, but `measurement(post.data[i])` will be in this
+    regrouped order rather than the input order.
 
 # Warning
 
@@ -72,6 +80,10 @@ post = VLBIPosterior(skym, intmodel, dlcamp, dcphase)
         admode = EnzymeCore.set_runtime_activity(EnzymeCore.set_strong_zero(EnzymeCore.Reverse))
     )
 
+    # Sort the visibility data into contiguous Ti/Fr blocks matching the sky image's non-spatial
+    # dimensions (see [`_regroup_dataproducts`](@ref)). This improves locality for the per-block
+    # multidomain NUFFT and is the precondition for cleanly sharding those blocks across devices.
+    dataproducts = _regroup_dataproducts(skymodel, dataproducts)
 
     array = arrayconfig(dataproducts[begin])
     int, intprior = set_array(instrumentmodel, array)
@@ -96,6 +108,60 @@ VLBIPosterior(
     admode = EnzymeCore.set_runtime_activity(EnzymeCore.set_strong_zero(EnzymeCore.Reverse)), kwargs...
 ) =
     VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...; admode, kwargs...)
+
+
+# The non-spatial image axes (`Ti`/`Fr` today, any additional plane axis in future) over which
+# `skymodel`'s image is laid out, in regular Julia (column-major) indexing order — fastest image dim
+# first, slowest last. These are exactly the grid's `dims[3:end]`, the same non-spatial axes the
+# multidomain NUFFT planner iterates, so the two definitions cannot drift apart. A plain `X`/`Y` image
+# has none, so grouping is a no-op there.
+_grouping_axes(::AbstractSkyModel) = ()
+function _grouping_axes(m::Union{SkyModel, FixedSkyModel})
+    m.grid isa AbstractRectiGrid || return ()
+    return keys(m.grid)[3:end]
+end
+
+_isclosuredata(::EHTObservationTable{<:ClosureProducts}) = true
+_isclosuredata(::AbstractObservationTable) = false
+
+"""
+    _regroup_dataproducts(skymodel, dataproducts)
+
+Reorder each visibility/coherency `dataproduct` so that `Ti` and `Fr` are grouped into contiguous blocks.
+The ordering is determined by the image grid in `skymodel` when it has dimensions of `Ti` and `Fr`. 
+When the image doesn't have `Ti` or `Fr` dimensions this returns the original array. In the future,
+we may regroup the data so that visibilities are group in `Ti` or `Fr`. However, in this case
+we will probably rely on the nature cube structure of VLBI data to handle that when you have spectral
+windows or multiple scans. 
+
+!!! note
+    We currently do not support regrouping of closure products. This will be addressed in the future.
+    Visibilities and Coherencies are re-grouped automatically.
+
+!!! note
+    A consequence is that `measurement(post.data[i])` is in the regrouped (not input) order. Everything
+    derived from the posterior (residuals, simulated data, ...) is self-consistent in that same order.
+"""
+function _regroup_dataproducts(skymodel::AbstractSkyModel, dataproducts::Tuple)
+    axes = _grouping_axes(skymodel)
+    (isempty(axes) || isempty(dataproducts)) && return dataproducts
+    any(_isclosuredata, dataproducts) && return dataproducts
+    # All non-closure products share a single array configuration in Comrade's one-model-visibility
+    # architecture, so the permutation derived from the first is applied to every product. Guard that
+    # they really are the same length rather than silently dropping rows / throwing a `BoundsError`.
+    n = length(dataproducts[begin])
+    all(dp -> length(dp) == n, dataproducts) || throw(
+        ArgumentError(
+            "cannot regroup visibility/coherency data products of differing length " *
+                "$(map(length, dataproducts)); they must share one array configuration"
+        )
+    )
+    # The plane ordering lives entirely in `ComradeBase.regroup(domain, grid)`; it derives its axes
+    # from the grid's `dims[3:end]` and ranks by grid position, matching the NUFFT's plane enumeration.
+    _, perm = ComradeBase.regroup(domain(dataproducts[begin]), skymodel.grid)
+    issorted(perm) && return dataproducts
+    return map(dp -> dp[perm], dataproducts)
+end
 
 function combine_prior(skyprior, instrumentmodelprior)
     return NamedDist((sky = skyprior, instrument = instrumentmodelprior))
