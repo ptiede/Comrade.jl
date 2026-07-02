@@ -138,11 +138,12 @@ end
 """
     default_warmup_callback(info) -> NamedTuple
 
-Default `warmup_callback`: log one line after warmup and return the adapted step size.
+Default `warmup_callback`: log one line per warmup chunk and return its progress + the
+current adapted step size.
 """
 function default_warmup_callback(info)
-    @info "ReactantNUTS warmup complete" num_warmup = info.num_warmup step_size = info.step_size
-    return (; info.num_warmup, info.step_size)
+    @info "ReactantNUTS warmup" step = info.step total = info.total step_size = info.step_size
+    return (; info.step, info.total, info.step_size)
 end
 
 # The post-warmup (sampling) callback is the shared `Comrade.default_disk_callback`, used
@@ -153,75 +154,111 @@ end
 # Engine: single fused warmup + chunked sampling
 # ===========================================================================
 
+# Compile a warmup kernel that advances an `MCMCState` by `nsteps` adaptation steps,
+# threading the dual-averaging/Welford `adaptation` carried on the state. `total` and the
+# runtime `warmup_offset` anchor Stan's windowed schedule to the *global* warmup length, so
+# chopping warmup into chunks is bit-identical to one fused warmup (this is exactly what
+# Reactant's own `run_chain` does — see EnzymeAD/Reactant.jl#2964). The offset is a runtime
+# argument so one compiled kernel serves every chunk of a given length.
+function _compile_warmup_kernel(state, ldf, tpost, nsteps::Int, total::Int, sampler::ReactantNUTS)
+    fn = function (st::ProbProg.MCMCState, lf, off)
+        _, _, _, st_out = ProbProg._infer(
+            st, lf, tpost;
+            algorithm = :NUTS, num_warmup = nsteps, num_samples = 0,
+            adapt_step_size = true, adapt_mass_matrix = true,
+            total_warmup = total, warmup_offset = off,
+            max_tree_depth = sampler.max_tree_depth,
+            max_delta_energy = sampler.max_delta_energy,
+            strong_zero = sampler.strong_zero,
+        )
+        return st_out
+    end
+    return Reactant.Compiler.compile(
+        fn, (state, ldf, ConcreteRNumber(Int64(0))); optimize = :probprog
+    )
+end
+
 """
-    warmup_single(rng, ldf, x0, tpost, sampler::ReactantNUTS; callback, checkpoint)
-        -> (state, history)
+    warmup_chunked(rng, ldf, x0, tpost, sampler; chunk, callback, checkpoint,
+                   progress_checkpoint, resume_state, warmup_done) -> (state, history)
 
-Run warmup as a **single** `mcmc_logpdf` call over `sampler.n_adapts` steps. The
-ProbProg NUTS pass performs Stan's windowed adaptation internally (init/term buffers,
-doubling windows, one continuous dual-averaging step size + Welford diagonal mass
-matrix), which is algorithmically identical to AdvancedHMC's `StanHMCAdaptor`. This is
-deliberately *not* re-windowed on the host: chopping warmup into per-window
-`mcmc_logpdf` calls restarts dual averaging (and re-inflates its prox-center to
-`10*ϵ`) every window, so the step size never converges and the chain diverges.
+Run Stan-windowed warmup over `sampler.n_adapts` steps, advancing the `MCMCState` (and the
+dual-averaging/Welford `adaptation` it carries) in chunks of `chunk` steps. Each chunk runs
+through a compiled `_infer` kernel with `total_warmup`/`warmup_offset` set to the *global*
+warmup length and the steps already done, so the windowed schedule is unaffected by the
+chunk boundaries — chunked warmup is bit-identical to one fused warmup.
 
-`ldf(x, tpost)` is the log-density. Returns the post-warmup `MCMCState` and the
-single `callback` return value. The `info` NamedTuple passed to `callback` has fields:
-  num_warmup, step_size, position, params, potential_energy, gradient,
-  inverse_mass_matrix, state, samples, diagnostics.
-`state` is the raw Reactant `MCMCState`; `position`/`params`/`potential_energy`/
-`gradient`/`inverse_mass_matrix` are the host-side, plot-friendly view of it
-(`params` is the *current* draw transformed into constrained model space) — see
-[`_current_state`](@ref).
+`ldf(x, tpost)` is the log-density. Returns the post-warmup `MCMCState` and the vector of
+per-chunk `callback` return values. The `info` passed to `callback` carries `step`, `total`,
+`num_warmup` (== `total`), `step_size`, the host-side view (`position`/`params`/
+`potential_energy`/`gradient`/`inverse_mass_matrix`, see [`_current_state`](@ref)), and the
+raw `state`.
 
-If `checkpoint` is a path, the post-warmup `MCMCState` is written there via
-`ProbProg.save_state`, so `sample(...; restart=true)` can skip warmup and continue
-sampling. Mid-warmup resume is not supported (warmup is one fused call, and
-`MCMCState` does not carry the dual-averaging/Welford accumulators needed to resume
-adaptation correctly).
+If `checkpoint` is a path, the `MCMCState` is written there with `ProbProg.save_state` after
+*every* chunk (it persists the adaptation accumulators for Reactant ≥ 0.2.267), and the step
+count is recorded to `progress_checkpoint`. Together these let `sample(...; restart=true)`
+resume an interrupted warmup from the last completed chunk. To resume, pass the loaded state
+as `resume_state` and the recorded step count as `warmup_done`.
 """
-function warmup_single(
+function warmup_chunked(
         rng, ldf, x0, tpost, sampler::ReactantNUTS;
-        callback = default_warmup_callback, checkpoint = nothing
+        chunk::Int, callback = default_warmup_callback,
+        checkpoint = nothing, progress_checkpoint = nothing,
+        resume_state = nothing, warmup_done::Int = 0,
     )
 
     na = sampler.n_adapts
     na > 0 || throw(ArgumentError("n_adapts must be positive"))
+    chunk > 0 || throw(ArgumentError("warmup chunk length must be positive"))
 
-    T = eltype(x0)
-    step0 = ConcreteRNumber(T(sampler.init_step_size))
-    mass0 = Reactant.to_rarray(ones(T, length(x0)))
-
-    # NOTE: `num_samples = 2` (not 1) sidesteps a Reactant 0.2 mcmc_logpdf MLIR
-    # bug where the diagnostics result is declared scalar `tensor<i1>` but the
-    # body produces `tensor<1xi1>` — function verification fails. We discard
-    # these post-warmup samples anyway, so the choice of >=2 here is a workaround.
-    run = function (x0, step0, mass0)
-        return ProbProg.mcmc_logpdf(
-            rng, ldf, x0, tpost;
-            algorithm = :NUTS, num_warmup = na, num_samples = 2,
-            step_size = step0, inverse_mass_matrix = mass0,
-            max_tree_depth = sampler.max_tree_depth,
-            max_delta_energy = sampler.max_delta_energy,
-            adapt_step_size = true, adapt_mass_matrix = true,
-            strong_zero = sampler.strong_zero
-        )
+    if isnothing(resume_state)
+        T = eltype(x0)
+        step0 = ConcreteRNumber(T(sampler.init_step_size))
+        mass0 = Reactant.to_rarray(ones(T, length(x0)))
+        # gradient/potential_energy start as `nothing` (computed on the first chunk) and there
+        # are no adaptation accumulators yet. The `config` is left at its default — every NUTS
+        # parameter is passed explicitly to `_infer`/`mcmc_logpdf`, so the stored config is
+        # never read on this path.
+        state = ProbProg.MCMCState(x0, nothing, nothing, step0, mass0, rng.seed, nothing)
+        done = 0
+    else
+        state = resume_state
+        done = warmup_done
     end
-    cfn = Reactant.Compiler.compile(run, (x0, step0, mass0); optimize = :probprog)
-    samples, diagnostics, _, state = cfn(x0, step0, mass0)
 
-    cur = _current_state(state, tpost)
-    info = (;
-        num_warmup = na,
-        step_size = cur.step_size,
-        position = cur.position, params = cur.params,
-        potential_energy = cur.potential_energy, gradient = cur.gradient,
-        inverse_mass_matrix = cur.inverse_mass_matrix,
-        state, samples = Array(samples), diagnostics = Array(diagnostics),
-    )
-    history = callback(info)
+    history = Any[]
+    kernel = nothing
+    kernel_key = nothing
+    while done < na
+        nsteps = min(chunk, na - done)
+        # Recompile when the chunk length changes or when the state gains its gradient (and
+        # adaptation) after the very first chunk — mirrors Reactant's `_run_chain_chunked`.
+        key = (nsteps, isnothing(state.gradient))
+        if key != kernel_key
+            kernel = _compile_warmup_kernel(state, ldf, tpost, nsteps, na, sampler)
+            kernel_key = key
+        end
+        state = kernel(state, ldf, ConcreteRNumber(Int64(done)))
+        done += nsteps
 
-    isnothing(checkpoint) || ProbProg.save_state(checkpoint, state)
+        # Checkpoint AFTER the chunk so a crash resumes from completed work.
+        if !isnothing(checkpoint)
+            ProbProg.save_state(checkpoint, state)
+            isnothing(progress_checkpoint) ||
+                serialize(progress_checkpoint, (; warmup_done = done, n_adapts = na))
+        end
+
+        cur = _current_state(state, tpost)
+        info = (;
+            step = done, total = na, num_warmup = na,
+            step_size = cur.step_size,
+            position = cur.position, params = cur.params,
+            potential_energy = cur.potential_energy, gradient = cur.gradient,
+            inverse_mass_matrix = cur.inverse_mass_matrix,
+            state,
+        )
+        push!(history, callback(info))
+    end
     return state, history
 end
 
@@ -345,9 +382,9 @@ _default_ldf(x, tpost) = logdensityof(tpost, x)
            chunk_size=100, ldf=_default_ldf, host_rng=Random.default_rng(),
            warmup_callback=default_warmup_callback)
 
-Warm up (single fused Stan-windowed adaptation, run internally by the ProbProg NUTS
-pass — see [`warmup_single`](@ref)) then draw `nsamples` post-warmup samples from the
-Reactant posterior `post`. Structured like the AdvancedHMC extension's `sample`, and
+Warm up (Stan-windowed adaptation run in chunks of the sampling size — see
+[`warmup_chunked`](@ref)) then draw `nsamples` post-warmup samples from the Reactant
+posterior `post`. Structured like the AdvancedHMC extension's `sample`, and
 algorithmically identical to AdvancedHMC's NUTS adaptation.
 
 Returns a `NamedTuple` `(; out, state)` where `state` is the final ProbProg
@@ -360,8 +397,8 @@ thread into a follow-up `sample_chunked`) and `out` is the standard Comrade outp
   - `saveto::DiskStore` -> writes per-chunk `PosteriorSamples` to `saveto.name` in
     Comrade's on-disk layout; `out` is the `Comrade.DiskOutput` handle. Read the
     chain back with `Comrade.load_samples(out)` or `Comrade.load_samples(saveto.name)`.
-    A resumable `MCMCState` is checkpointed to `<name>/state.jls` after warmup
-    completes and after each sampling chunk.
+    A resumable `MCMCState` is checkpointed to `<name>/state.jls` after every warmup
+    chunk and after each sampling chunk (warmup progress in `<name>/warmup_progress.jls`).
 
 ## Callbacks
 
@@ -380,15 +417,15 @@ common fields documented in [`Comrade.default_disk_callback`](@ref) plus an `ext
   - `extras.state`               : the raw Reactant `MCMCState` (resumable checkpoint)
   - `extras.samples`             : the raw, unconstrained sample matrix for the batch
 
-`warmup_callback` runs once, after warmup completes; its `info` carries the
-warmup-specific field `num_warmup` alongside the host-side state view (see
-[`default_warmup_callback`](@ref) and [`warmup_single`](@ref)).
+`warmup_callback` runs once per warmup chunk; its `info` carries `step`/`total`/
+`num_warmup` alongside the host-side state view (see [`default_warmup_callback`](@ref)
+and [`warmup_chunked`](@ref)).
 
 `restart=true` (only with a `DiskStore`) continues an interrupted run, matching
-AdvancedHMC's `restart`. Because warmup is a single fused call, it cannot be resumed
-mid-warmup; `restart` therefore requires a completed-warmup `state.jls` checkpoint
-(written once warmup finishes) and continues from the sampling phase, appending to
-the chain already on disk.
+AdvancedHMC's `restart`. Warmup is checkpointed after every chunk, so an interruption
+*during* warmup resumes from the last completed chunk (the persisted adaptation state is
+threaded back in); an interruption during sampling resumes from the last sampling chunk,
+appending to the chain already on disk. Requires Reactant ≥ 0.2.267.
 
 `nsamples` is the TOTAL target chain length, samples already on disk are counted,
 and new chunks are numbered *after* them and appended (with `parameters.jls` grown
@@ -406,33 +443,51 @@ function AbstractMCMC.sample(
 
     tpost = asflat(post)
 
+    # Checkpoint paths (DiskStore only): the resumable MCMCState and the warmup step counter.
+    # Warmup is chunked at the same size as sampling.
+    state_ckpt, progress_ckpt = if saveto isa DiskStore
+        mkpath(saveto.name)
+        (joinpath(saveto.name, "state.jls"), joinpath(saveto.name, "warmup_progress.jls"))
+    else
+        (nothing, nothing)
+    end
+    warmup_chunk = saveto isa DiskStore ? saveto.stride : chunk_size
+
     if restart
         saveto isa DiskStore ||
             throw(ArgumentError("restart=true requires saveto::DiskStore"))
-        ckpt = joinpath(saveto.name, "state.jls")
-        isfile(ckpt) ||
-            throw(ArgumentError("cannot restart: no state checkpoint at $ckpt"))
+        isfile(state_ckpt) ||
+            throw(ArgumentError("cannot restart: no state checkpoint at $state_ckpt"))
     end
 
-    # Warmup state comes either from a fresh single fused warmup, or (on restart)
-    # from the completed-warmup checkpoint — warmup is never resumed mid-flight.
     if !restart
         x0 = _initial_position(host_rng, tpost, initial_params)
-        # Checkpoint the post-warmup state when saving to disk so sampling is resumable.
-        warmup_ckpt = saveto isa DiskStore ?
-            (mkpath(saveto.name); joinpath(saveto.name, "state.jls")) : nothing
-        @info "ReactantNUTS warmup" n_adapts = sampler.n_adapts
-        state, warmup_history = warmup_single(
+        @info "ReactantNUTS warmup" n_adapts = sampler.n_adapts chunk = warmup_chunk
+        state, warmup_history = warmup_chunked(
             rng, ldf, x0, tpost, sampler;
-            callback = warmup_callback, checkpoint = warmup_ckpt
+            chunk = warmup_chunk, callback = warmup_callback,
+            checkpoint = state_ckpt, progress_checkpoint = progress_ckpt,
         )
     else
-        # Restart path: warmup already completed; load the checkpointed state (the
-        # latest sampling state if any chunks ran, else the post-warmup state) and
-        # continue sampling.
-        @info "ReactantNUTS restart: loading checkpoint, skipping warmup" dir = saveto.name
-        state = ProbProg.load_state(joinpath(saveto.name, "state.jls"))
-        warmup_history = nothing
+        # Restart: load the checkpoint. If warmup did not finish (recorded step count <
+        # n_adapts) resume it from the last completed chunk, threading the persisted
+        # adaptation accumulators; otherwise skip straight to sampling. `warmup_progress.jls`
+        # is absent for already-completed warmups, so default to "complete".
+        state = ProbProg.load_state(state_ckpt)
+        warmup_done = isfile(progress_ckpt) ?
+            deserialize(progress_ckpt).warmup_done : sampler.n_adapts
+        if warmup_done < sampler.n_adapts
+            @info "ReactantNUTS restart: resuming warmup" done = warmup_done n_adapts = sampler.n_adapts
+            state, warmup_history = warmup_chunked(
+                rng, ldf, nothing, tpost, sampler;
+                chunk = warmup_chunk, callback = warmup_callback,
+                checkpoint = state_ckpt, progress_checkpoint = progress_ckpt,
+                resume_state = state, warmup_done = warmup_done,
+            )
+        else
+            @info "ReactantNUTS restart: warmup complete, skipping" dir = saveto.name
+            warmup_history = nothing
+        end
     end
 
     # On restart, `nsamples` is the TOTAL target: append only what's left on disk.
