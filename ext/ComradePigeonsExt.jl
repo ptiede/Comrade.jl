@@ -8,10 +8,8 @@ using EnzymeCore
 using LogDensityProblems
 using Random
 
-# Latent-space tags for the wrapped `TransportedDistribution`: `TVFlat` (unconstrained
-# ℝⁿ, `asflat`) has `stop === nothing`; the unit hypercube (`ascube`) carries a `StdUniform`.
-const FlatTransport = Comrade.TransportedDistribution{<:Any, <:Any, Nothing}
-const CubeTransport = Comrade.TransportedDistribution{<:Any, <:Any, <:Comrade.StdUniform}
+const FlatTransport = Comrade.FlatTransport
+const CubeTransport = Comrade.CubeTransport
 
 
 Pigeons.initialization(tpost::Comrade.TransformedVLBIPosterior, rng::Random.AbstractRNG, ::Int) = prior_sample(rng, tpost)
@@ -21,13 +19,10 @@ struct PriorRef{P, T}
     transform::T
 end
 
-# The Pigeons reference is the prior. `latent_pfwd_and_logdensity` returns the pulled-back
-# *prior* log-density directly: `logpdf(prior, y) + logjac` in the flat space and
-# `logpdf(StdUniform, x)` (0 inside the cube, -Inf outside) in the cube space — so a single
-# expression covers both references.
-function (p::PriorRef)(x)
-    return last(Comrade.latent_pfwd_and_logdensity(p.transform, x))
-end
+# The Pigeons reference is the prior: `logpdf(::TransportedDistribution, x)` is the
+# pulled-back prior log-density in the flat space and the (transport-free) `StdUniform`
+# reference density in the cube space.
+(p::PriorRef)(x) = Comrade.Dists.logpdf(p.transform, x)
 
 Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P, <:CubeTransport}) where {P} =
     SliceSampler()
@@ -46,7 +41,8 @@ function Pigeons.sample_iid!(target::Comrade.TransformedVLBIPosterior, replica, 
 end
 
 function Pigeons.sample_iid!(target::PriorRef{P, <:FlatTransport}, replica, shared) where {P}
-    return replica.state .= Comrade.inverse(target.transform, rand(replica.rng, target.model))
+    Comrade.PT.latent_pback!(replica.state, target.transform, rand(replica.rng, target.model))
+    return replica.state
 end
 
 function Pigeons.sample_iid!(::PriorRef{P, <:CubeTransport}, replica, shared) where {P}

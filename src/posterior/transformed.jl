@@ -13,9 +13,14 @@ end
 (post::TransformedVLBIPosterior)(θ) = logdensityof(post, θ)
 admode(post::TransformedVLBIPosterior) = admode(post.lpost)
 
+# Latent-space tags for a `TransportedDistribution`: `TVFlat` (unconstrained ℝⁿ, `asflat`)
+# has `stop === nothing`; the unit hypercube (`ascube`) carries a `StdUniform`. These are the
+# single place that encodes PT's type-parameter layout — dispatch on them, don't respell them.
+const FlatTransport = TransportedDistribution{<:Any, <:Any, Nothing}
+const CubeTransport = TransportedDistribution{<:Any, <:Any, <:StdUniform}
+
 # Is the transformed posterior over the unit hypercube ([0,1]^n, i.e. `ascube`)?
-_is_cube(t::TransportedDistribution{<:Any, <:Any, <:StdUniform}) = true
-_is_cube(::TransportedDistribution) = false
+_is_cube(t::TransportedDistribution) = t isa CubeTransport
 _is_cube(post::TransformedVLBIPosterior) = _is_cube(post.transform)
 
 function prior_sample(rng, tpost::TransformedVLBIPosterior, args...)
@@ -30,6 +35,9 @@ end
 dimension(post::TransformedVLBIPosterior) = dimension(post.transform)
 
 
+_transport_to_post(post::VLBIPosterior, space) =
+    TransformedVLBIPosterior(post, transport_to(post.prior, space))
+
 """
     transport_to(post::VLBIPosterior, space)
 
@@ -42,8 +50,6 @@ The space argument is typed (rather than left as `::Any`) so these methods stay 
 more specific than ProbabilityTransports' own `transport_to(dist, ::AbstractStdDist)` /
 `transport_to(dist, ::TVFlat)` and don't collide with them by ambiguity.
 """
-_transport_to_post(post::VLBIPosterior, space) =
-    TransformedVLBIPosterior(post, transport_to(post.prior, space))
 PT.transport_to(post::VLBIPosterior, space::PT.AbstractStdDist) = _transport_to_post(post, space)
 PT.transport_to(post::VLBIPosterior, space::PT.TVFlat) = _transport_to_post(post, space)
 
@@ -139,4 +145,15 @@ end
 @inline function DensityInterface.logdensityof(post::TransformedVLBIPosterior, x::AbstractArray)
     p, ℓ = latent_pfwd_and_logdensity(post.transform, x)
     return loglikelihood(post.lpost, p) + ℓ
+end
+
+# Cube specialization: check the bounds (`logpdf(StdUniform, x)`, no transport) *before*
+# running the transport and forward model, so out-of-cube proposals (e.g. slice-sampler
+# expansion steps) short-circuit to -Inf instead of evaluating the full likelihood.
+@inline function DensityInterface.logdensityof(
+        post::TransformedVLBIPosterior{P, <:CubeTransport}, x::AbstractArray
+    ) where {P <: VLBIPosterior}
+    ℓ = Dists.logpdf(post.transform, x)
+    isfinite(ℓ) || return ℓ
+    return loglikelihood(post.lpost, latent_pfwd(post.transform, x)) + ℓ
 end

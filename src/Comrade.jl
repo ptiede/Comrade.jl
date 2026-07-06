@@ -15,9 +15,10 @@ using IntervalSets
 using LogDensityProblems
 using LinearAlgebra
 import ProbabilityTransports as PT
-import ProbabilityTransports: transport_node, pfwd_step, pback_step!,
-    pback_eltype, latent_pfwd, latent_pback, latent_pfwd_and_logdensity,
-    transport_to, TVFlat, StdUniform, TransportedDistribution
+# Only the names used unqualified below; node-protocol methods (`pfwd_step` etc.) are
+# always extended `PT.`-qualified.
+import ProbabilityTransports: transport_node, latent_pfwd, latent_pback,
+    latent_pfwd_and_logdensity, transport_to, TVFlat, StdUniform, TransportedDistribution
 # `asflat`/`ascube`/`transform`/`inverse` come from VLBIImagePriors' compat shim
 # (which delegates to ProbabilityTransports). Import them so Comrade *extends* the
 # same bindings on its posterior types (rather than creating shadowing copies that

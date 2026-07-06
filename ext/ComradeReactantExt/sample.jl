@@ -3,9 +3,7 @@ using Serialization
 using Random
 using Printf
 using Reactant: ProbProg
-using Comrade 
 using ProbabilityTransports
-using TransformVariables
 
 # ===========================================================================
 # Sample-retention backends (reuse Comrade's MemoryStore / DiskStore configs)

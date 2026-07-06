@@ -61,7 +61,7 @@ end
 
 # Std-space (`StdUniform`/`StdNormal`) path: a ProbabilityTransports node wrapping the
 # PT node of the inner distribution.
-function PT.transport_node(d::ObservedArrayPrior, space)
+function PT.transport_node(d::ObservedArrayPrior, space::PT.AbstractStdDist)
     inner = PT.transport_node(d.dists, space)
     d.phase && return StdMarkovInstrumentTransform(inner, d.sitemap)
     return StdInstrumentTransform(inner, d.sitemap)
@@ -156,11 +156,16 @@ function fill_partially_fixed!(yfv, variate_index, fixed_index, y, fixed_values)
     return yfv
 end
 
+# Shared by the flat and Std transforms: allocate the full parameter vector and scatter
+# the variate and fixed values into it.
+function expand_partially_fixed(t, y)
+    yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
+    return fill_partially_fixed!(yfv, t.variate_index, t.fixed_index, y, t.fixed_values)
+end
+
 function TV.transform_with(flag::TV.LogJacFlag, t::PartiallyFixedTransform, x, index)
     y, ℓ, index = TV.transform_with(flag, t.transform, x, index)
-    yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
-    fill_partially_fixed!(yfv, t.variate_index, t.fixed_index, y, t.fixed_values)
-    return yfv, ℓ, index
+    return expand_partially_fixed(t, y), ℓ, index
 end
 
 
@@ -184,13 +189,11 @@ PT.dimension(t::StdPartiallyFixedTransform) = PT.dimension(t.transform)
 
 function PT.pfwd_step(t::StdPartiallyFixedTransform, x, index)
     y, index = PT.pfwd_step(t.transform, x, index)
-    yfv = similar(y, length(t.variate_index) + length(t.fixed_index))
-    fill_partially_fixed!(yfv, t.variate_index, t.fixed_index, y, t.fixed_values)
-    return yfv, index
+    return expand_partially_fixed(t, y), index
 end
 
 function PT.pback_step!(y::AbstractVector, index, t::StdPartiallyFixedTransform, x)
-    return PT.pback_step!(y, index, t.transform, x[t.variate_index])
+    return PT.pback_step!(y, index, t.transform, @view(x[t.variate_index]))
 end
 
 PT.pback_eltype(t::StdPartiallyFixedTransform) =
@@ -227,7 +230,7 @@ function PT.transport_node(t::PartiallyConditionedDist, space::PT.TVFlat)
         PT.transport_node(t.dist, space), t.variate_index, t.fixed_index, t.fixed_values
     )
 end
-function PT.transport_node(t::PartiallyConditionedDist, space)
+function PT.transport_node(t::PartiallyConditionedDist, space::PT.AbstractStdDist)
     return StdPartiallyFixedTransform(
         PT.transport_node(t.dist, space), t.variate_index, t.fixed_index, t.fixed_values
     )
