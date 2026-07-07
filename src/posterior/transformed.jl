@@ -46,12 +46,40 @@ Build a [`TransformedVLBIPosterior`](@ref) whose parameters live in the latent `
 [`asflat`](@ref asflat) / [`ascube`](@ref ascube) helpers call this with the respective
 spaces.
 
+Also accepts an already-transformed posterior: it is returned unchanged when it already
+lives in `space`, and rebuilt from the underlying `VLBIPosterior` otherwise — an explicit
+space request is always honored.
+
 The space argument is typed (rather than left as `::Any`) so these methods stay strictly
 more specific than ProbabilityTransports' own `transport_to(dist, ::AbstractStdDist)` /
 `transport_to(dist, ::TVFlat)` and don't collide with them by ambiguity.
 """
 PT.transport_to(post::VLBIPosterior, space::PT.AbstractStdDist) = _transport_to_post(post, space)
 PT.transport_to(post::VLBIPosterior, space::PT.TVFlat) = _transport_to_post(post, space)
+
+# Does the transported distribution already live in `space`? Matched by latent family
+# (`StdUniform` vs `StdNormal` vs flat), ignoring eltype/dimension parameters — hence the
+# comparison against the space's unparameterized wrapper type.
+_same_latent(t::TransportedDistribution, ::PT.TVFlat) = t isa FlatTransport
+_same_latent(t::TransportedDistribution, space::PT.AbstractStdDist) =
+    getfield(t, :stop) isa Base.typename(typeof(space)).wrapper
+
+_retransport(tpost::TransformedVLBIPosterior, space) =
+    _same_latent(tpost.transform, space) ? tpost : transport_to(tpost.lpost, space)
+PT.transport_to(tpost::TransformedVLBIPosterior, space::PT.AbstractStdDist) = _retransport(tpost, space)
+PT.transport_to(tpost::TransformedVLBIPosterior, space::PT.TVFlat) = _retransport(tpost, space)
+
+"""
+    maybe_transport(post, space)
+
+Backend helper for a sampler's `transport_method`-style keyword. `space === nothing` means
+"use the backend default": `asflat` for a raw [`VLBIPosterior`](@ref), pass-through for an
+already-transformed posterior. An explicit `space` is always honored via
+[`transport_to`](@ref transport_to), including re-transporting a `TransformedVLBIPosterior`.
+"""
+maybe_transport(post::VLBIPosterior, ::Nothing) = asflat(post)
+maybe_transport(tpost::TransformedVLBIPosterior, ::Nothing) = tpost
+maybe_transport(post::AbstractVLBIPosterior, space) = transport_to(post, space)
 
 
 """

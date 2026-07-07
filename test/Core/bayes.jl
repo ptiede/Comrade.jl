@@ -36,6 +36,21 @@ using Enzyme
     x = prior_sample(tpostc)
     @test logdensityof(tpostc, x) == tpostc(x)
 
+    # transport_to on an already-transformed posterior: identity when the latent space
+    # matches, rebuild from the underlying posterior when it doesn't.
+    @test Comrade.transport_to(tpostf, Comrade.TVFlat()) === tpostf
+    @test Comrade.transport_to(tpostc, Comrade.StdUniform()) === tpostc
+    @test Comrade._is_cube(Comrade.transport_to(tpostf, Comrade.StdUniform()))
+    @test !Comrade._is_cube(Comrade.transport_to(tpostc, Comrade.TVFlat()))
+    tpostn = Comrade.transport_to(tpostc, Comrade.PT.StdNormal())
+    @test !Comrade._is_cube(tpostn)
+    @test isfinite(logdensityof(tpostn, prior_sample(tpostn)))
+
+    # maybe_transport: `nothing` flattens a raw posterior but keeps a transformed one.
+    @test Comrade.maybe_transport(post, nothing).transform isa Comrade.FlatTransport
+    @test Comrade.maybe_transport(tpostc, nothing) === tpostc
+    @test Comrade._is_cube(Comrade.maybe_transport(tpostf, Comrade.StdUniform()))
+
     @test dataproducts(post) == (post.data)
 
 

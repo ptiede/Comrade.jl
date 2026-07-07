@@ -3,7 +3,6 @@ using Serialization
 using Random
 using Printf
 using Reactant: ProbProg
-using ProbabilityTransports
 
 # ===========================================================================
 # Sample-retention backends (reuse Comrade's MemoryStore / DiskStore configs)
@@ -378,6 +377,7 @@ _default_ldf(x, tpost) = logdensityof(tpost, x)
 
 """
     sample(rng, post, sampler::ReactantNUTS, nsamples;
+           transport_method=nothing,
            saveto=MemoryStore(), initial_params=nothing, restart=false,
            chunk_size=100, ldf=_default_ldf, host_rng=Random.default_rng(),
            warmup_callback=default_warmup_callback)
@@ -386,6 +386,11 @@ Warm up (Stan-windowed adaptation run in chunks of the sampling size — see
 [`warmup_chunked`](@ref)) then draw `nsamples` post-warmup samples from the Reactant
 posterior `post`. Structured like the AdvancedHMC extension's `sample`, and
 algorithmically identical to AdvancedHMC's NUTS adaptation.
+
+`transport_method` picks the latent space (see `Comrade.maybe_transport`): the default
+(`nothing`) flattens a raw `VLBIPosterior` with `asflat` and keeps an already-transformed
+posterior as-is, while an explicit space (e.g. `TVFlat()`, `StdNormal()`) is always
+honored, re-transporting if needed.
 
 Returns a `NamedTuple` `(; out, state)` where `state` is the final ProbProg
 `MCMCState` (held in memory, ready to inspect, plot via [`_current_state`](@ref), or
@@ -435,14 +440,14 @@ drawn.
 function AbstractMCMC.sample(
         rng::Reactant.ReactantRNG, post, sampler::ReactantNUTS,
         nsamples::Int;
-        transport_method = TVFlat(),
+        transport_method = nothing,
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
         chunk_size::Int = 100,
         ldf = _default_ldf, host_rng = Random.default_rng(),
         warmup_callback = default_warmup_callback
     )
 
-    tpost = maybe_flatten(post, transport_method)
+    tpost = Comrade.maybe_transport(post, transport_method)
 
     # Checkpoint paths (DiskStore only): the resumable MCMCState and the warmup step counter.
     # Warmup is chunked at the same size as sampling.
@@ -517,9 +522,6 @@ function AbstractMCMC.sample(
     # in samplerinfo(out) for MemoryStore and in metadata.jls for DiskStore.
     return (; out, state)
 end
-
-maybe_flatten(post::Comrade.VLBIPosterior, transport_method) = transport_to(post, transport_method)
-maybe_flatten(post::Comrade.TransformedVLBIPosterior, transport_method) = post
 
 """
     sample(post, sampler::ReactantNUTS, nsamples; kwargs...)
