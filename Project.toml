@@ -48,6 +48,7 @@ VLBILikelihoods = "90db92cd-0007-4c0a-8e51-dbf0782ce592"
 VLBISkyModels = "d6343c73-7174-4e0f-bb64-562643efbeca"
 
 [weakdeps]
+ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
 AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
 Dynesty = "eb527566-0f3e-4aab-bb5f-9d2e403dba70"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
@@ -64,12 +65,13 @@ ComradeDynestyExt = "Dynesty"
 ComradeEnzymeExt = "Enzyme"
 ComradeMakieExt = "Makie"
 ComradeOptimizationExt = "Optimization"
-ComradePigeonsExt = "Pigeons"
+ComradePigeonsExt = ["ADTypes", "Pigeons"]
 ComradePyehtimExt = "Pyehtim"
 ComradeReactantExt = "Reactant"
 ComradeVLBIFilesExt = "VLBIFiles"
 
 [compat]
+ADTypes = "1"
 Adapt = "4"
 AbstractMCMC = "3, 4, 5"
 Accessors = "0.1"

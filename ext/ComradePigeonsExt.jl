@@ -4,6 +4,7 @@ using Comrade
 
 using Pigeons
 using AbstractMCMC
+using ADTypes: AutoEnzyme
 using EnzymeCore
 using LogDensityProblems
 using Random
@@ -84,12 +85,11 @@ LogDensityProblems.capabilities(::Type{<:PriorRef}) = LogDensityProblems.LogDens
 # `ReverseWithPrimal`, which lacks the runtime activity Comrade posteriors need — so a raw
 # `AutoEnzyme` there errors. Dispatch on the Comrade types (more specific than PigeonsEnzymeExt's
 # generic method) to route both the target posterior and the prior reference through Comrade's
-# configured Enzyme mode instead.
-const ADTypes = Pigeons.ADTypes
-
-Pigeons.LogDensityProblemsAD.ADgradient(::ADTypes.AutoEnzyme, lp::Comrade.AbstractVLBIPosterior, buffers::Pigeons.Augmentation) =
+# configured Enzyme mode instead. (`AutoEnzyme` comes from `ADTypes`, a co-trigger of this
+# extension — `Pigeons.ADTypes` is not reliably reachable across Julia/Pigeons versions.)
+Pigeons.LogDensityProblemsAD.ADgradient(::AutoEnzyme, lp::Comrade.AbstractVLBIPosterior, buffers::Pigeons.Augmentation) =
     Pigeons.BufferedAD(lp, buffers)
-Pigeons.LogDensityProblemsAD.ADgradient(::ADTypes.AutoEnzyme, lp::PriorRef, buffers::Pigeons.Augmentation) =
+Pigeons.LogDensityProblemsAD.ADgradient(::AutoEnzyme, lp::PriorRef, buffers::Pigeons.Augmentation) =
     Pigeons.BufferedAD(lp, buffers)
 
 # Reverse-mode gradient of `logdensity(ℓ, x)` into `buffer`, using the given Enzyme `mode` (which
