@@ -217,7 +217,7 @@ function sample_to_disk(
         output_stride = nsamples
     end
 
-    tpost = Comrade.maybe_transport(post, transport_method)
+    tpost = Comrade.resolve_disk_transport(post, outdir, restart, transport_method)
     nscans = nsamples ÷ output_stride + (nsamples % output_stride != 0 ? 1 : 0)
     mkpath(joinpath(outdir, "samples"))
     outbase = joinpath(outdir, "samples", "output_scan_")

@@ -447,7 +447,11 @@ function AbstractMCMC.sample(
         warmup_callback = default_warmup_callback
     )
 
-    tpost = Comrade.maybe_transport(post, transport_method)
+    # Persist/reload the latent space (DiskStore only) so a restart resumes in the same space
+    # it was launched in instead of silently defaulting; MemoryStore just honors the kwarg.
+    tpost = Comrade.resolve_disk_transport(
+        post, saveto isa DiskStore ? saveto.name : nothing, restart, transport_method
+    )
 
     # Checkpoint paths (DiskStore only): the resumable MCMCState and the warmup step counter.
     # Warmup is chunked at the same size as sampling.

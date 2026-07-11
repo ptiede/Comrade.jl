@@ -8,7 +8,6 @@ using EnzymeCore
 using LogDensityProblems
 using Random
 
-const FlatTransport = Comrade.FlatTransport
 const CubeTransport = Comrade.CubeTransport
 
 
@@ -24,10 +23,12 @@ end
 # reference density in the cube space.
 (p::PriorRef)(x) = Comrade.Dists.logpdf(p.transform, x)
 
+# The cube ([0,1]^n) reference is bounded, so use a slice sampler; every other latent space
+# (flat ℝⁿ, StdNormal, …) is unbounded and differentiable, so use gradient-based AutoMALA.
 Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P, <:CubeTransport}) where {P} =
     SliceSampler()
 
-Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P, <:FlatTransport}) where {P} =
+Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior) =
     Pigeons.AutoMALA(; default_autodiff_backend = :Enzyme)
 
 function Pigeons.default_reference(tpost::Comrade.TransformedVLBIPosterior)
@@ -40,13 +41,16 @@ function Pigeons.sample_iid!(target::Comrade.TransformedVLBIPosterior, replica, 
     return replica.state = Pigeons.initialization(target, replica.rng, replica.replica_index)
 end
 
-function Pigeons.sample_iid!(target::PriorRef{P, <:FlatTransport}, replica, shared) where {P}
-    Comrade.PT.latent_pback!(replica.state, target.transform, rand(replica.rng, target.model))
-    return replica.state
-end
-
+# Cube reference: iid draws are just uniforms on [0,1]^n. Every other latent space (flat,
+# StdNormal, …) has the pulled-back prior as its reference, so draw from the prior and pull
+# it back into the latent space.
 function Pigeons.sample_iid!(::PriorRef{P, <:CubeTransport}, replica, shared) where {P}
     return rand!(replica.rng, replica.state)
+end
+
+function Pigeons.sample_iid!(target::PriorRef, replica, shared)
+    Comrade.PT.latent_pback!(replica.state, target.transform, rand(replica.rng, target.model))
+    return replica.state
 end
 
 

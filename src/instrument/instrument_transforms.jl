@@ -120,7 +120,9 @@ EnzymeRules.inactive_type(::Type{<:SiteLookup}) = true
     return yout
 end
 
-# The section of `markov_accumulate!`: recover the raw per-site increments.
+# The inverse of `markov_accumulate!`'s cumulative sum: recover the raw per-site increments.
+# One `copy` guards the caller's input; `site_diff!` then differences in place (no per-site
+# temporaries).
 function markov_difference(y, site_map::SiteLookup)
     yd = copy(y)
     site_diff!(yd, site_map)
@@ -143,16 +145,18 @@ end
 
 function site_diff!(y, site_map::SiteLookup)
     map(site_map.lookup) do site
-        ys = @view y[site]
-        simplediff!(ys, copy(ys))
+        simplediff!(@view y[site])
     end
     return nothing
 end
 
-function simplediff!(y::AbstractVector, x::AbstractVector)
-    y[begin] = x[begin]
-    y[(begin + 1):end] .= @views x[(begin + 1):end] .- @views x[begin:(end - 1)]
-    return nothing
+# In-place first difference: `x[i] -> x[i] - x[i-1]`, leaving `x[begin]` untouched. Iterating
+# from the end keeps each `x[i-1]` at its original value when it is used, so no copy is needed.
+function simplediff!(x::AbstractVector)
+    @inbounds for i in reverse((firstindex(x) + 1):lastindex(x))
+        x[i] -= x[i - 1]
+    end
+    return x
 end
 
 function TV.inverse_at!(x::AbstractArray, index, t::MarkovInstrumentTransform, y::SiteArray)

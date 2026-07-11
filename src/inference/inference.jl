@@ -86,6 +86,35 @@ end
 DiskStore(name::String) = DiskStore(name, 100, default_disk_callback)
 DiskStore(name::String, stride::Int) = DiskStore(name, stride, default_disk_callback)
 
+"""
+    resolve_disk_transport(post, outdir, restart, transport_method) -> TransformedVLBIPosterior
+
+Resolve the latent-space posterior for a disk-backed sampler run while keeping its latent
+space consistent across restarts.
+
+On a fresh run the effective space is persisted to `<outdir>/transport.jls`. On a `restart`
+that space is reloaded and reused, so a resumed chain stays in the space it was launched in
+rather than silently falling back to the `transport_method` default (a non-`nothing`
+`transport_method` on restart is warned as ignored). Runs whose checkpoint predates this file,
+and non-disk (`outdir === nothing`) runs, fall back to `maybe_transport(post, transport_method)`.
+"""
+function resolve_disk_transport(post, outdir, restart, transport_method)
+    isnothing(outdir) && return maybe_transport(post, transport_method)
+    spacefile = joinpath(outdir, "transport.jls")
+    if restart && isfile(spacefile)
+        space = deserialize(spacefile)
+        isnothing(transport_method) || @warn(
+            "Ignoring `transport_method` on restart; resuming in the latent space the run was started in.",
+            stored = space,
+        )
+        return maybe_transport(post, space)
+    end
+    tpost = maybe_transport(post, transport_method)
+    mkpath(outdir)
+    serialize(spacefile, transport_space(tpost))
+    return tpost
+end
+
 struct DiskOutput
     filename::String
     nfiles::Int

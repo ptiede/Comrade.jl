@@ -13,11 +13,14 @@ end
 (post::TransformedVLBIPosterior)(θ) = logdensityof(post, θ)
 admode(post::TransformedVLBIPosterior) = admode(post.lpost)
 
-# Latent-space tags for a `TransportedDistribution`: `TVFlat` (unconstrained ℝⁿ, `asflat`)
-# has `stop === nothing`; the unit hypercube (`ascube`) carries a `StdUniform`. These are the
-# single place that encodes PT's type-parameter layout — dispatch on them, don't respell them.
+# Latent-space tags for a `TransportedDistribution`, keyed on the third type parameter (the
+# `stop` space): `TVFlat` (unconstrained ℝⁿ, `asflat`) has `stop === nothing`; the unit
+# hypercube (`ascube`) carries a `StdUniform`; a standard-normal latent carries a `StdNormal`.
+# These consts are the single place that encodes PT's type-parameter layout — dispatch on
+# them, don't respell them.
 const FlatTransport = TransportedDistribution{<:Any, <:Any, Nothing}
 const CubeTransport = TransportedDistribution{<:Any, <:Any, <:StdUniform}
+const NormalTransport = TransportedDistribution{<:Any, <:Any, <:SStdNormal}
 
 # Is the transformed posterior over the unit hypercube ([0,1]^n, i.e. `ascube`)?
 _is_cube(t::TransportedDistribution) = t isa CubeTransport
@@ -58,11 +61,14 @@ PT.transport_to(post::VLBIPosterior, space::PT.AbstractStdDist) = _transport_to_
 PT.transport_to(post::VLBIPosterior, space::PT.TVFlat) = _transport_to_post(post, space)
 
 # Does the transported distribution already live in `space`? Matched by latent family
-# (`StdUniform` vs `StdNormal` vs flat), ignoring eltype/dimension parameters — hence the
-# comparison against the space's unparameterized wrapper type.
+# (flat vs `StdUniform` vs `StdNormal`), ignoring eltype/dimension parameters — the latent
+# consts above match any parametrization. Dispatch on the concrete space type so this uses no
+# private field access; an unrecognized `AbstractStdDist` falls through to `false` (which just
+# forces a — safe — re-transport rather than mis-classifying it).
 _same_latent(t::TransportedDistribution, ::PT.TVFlat) = t isa FlatTransport
-_same_latent(t::TransportedDistribution, space::PT.AbstractStdDist) =
-    getfield(t, :stop) isa Base.typename(typeof(space)).wrapper
+_same_latent(t::TransportedDistribution, ::StdUniform) = t isa CubeTransport
+_same_latent(t::TransportedDistribution, ::PT.StdNormal) = t isa NormalTransport
+_same_latent(::TransportedDistribution, ::PT.AbstractStdDist) = false
 
 _retransport(tpost::TransformedVLBIPosterior, space) =
     _same_latent(tpost.transform, space) ? tpost : transport_to(tpost.lpost, space)
@@ -80,6 +86,21 @@ already-transformed posterior. An explicit `space` is always honored via
 maybe_transport(post::VLBIPosterior, ::Nothing) = asflat(post)
 maybe_transport(tpost::TransformedVLBIPosterior, ::Nothing) = tpost
 maybe_transport(post::AbstractVLBIPosterior, space) = transport_to(post, space)
+
+"""
+    transport_space(tpost::TransformedVLBIPosterior)
+
+Return the latent space `tpost` lives in as a value that reconstructs it via
+[`maybe_transport`](@ref)/[`transport_to`](@ref): `nothing` for the flat (`asflat`) space,
+`StdUniform()` for the cube (`ascube`), `StdNormal()` for a standard-normal latent.
+
+This is what disk-backed samplers persist so a `restart` resumes in the *same* space it was
+launched in, rather than silently falling back to the `transport_method` default.
+"""
+transport_space(tpost::TransformedVLBIPosterior) = transport_space(tpost.transform)
+transport_space(::FlatTransport) = nothing
+transport_space(::CubeTransport) = StdUniform()
+transport_space(::NormalTransport) = PT.StdNormal()
 
 
 """
