@@ -20,7 +20,7 @@ admode(post::TransformedVLBIPosterior) = admode(post.lpost)
 # them, don't respell them.
 const FlatTransport = TransportedDistribution{<:Any, <:Any, Nothing}
 const CubeTransport = TransportedDistribution{<:Any, <:Any, <:StdUniform}
-const NormalTransport = TransportedDistribution{<:Any, <:Any, <:SStdNormal}
+const NormalTransport = TransportedDistribution{<:Any, <:Any, <:StdNormal}
 
 # Is the transformed posterior over the unit hypercube ([0,1]^n, i.e. `ascube`)?
 _is_cube(t::TransportedDistribution) = t isa CubeTransport
