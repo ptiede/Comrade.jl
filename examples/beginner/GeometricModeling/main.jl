@@ -143,24 +143,27 @@ logdensityof(
 # of our model given our observed data.
 
 # Currently, `post` is in **parameter** space. Often optimization and sampling algorithms
-# want it in some modified space. For example, nested sampling algorithms want the
-# parameters in the unit hypercube. To transform the posterior to the unit hypercube, we
-# can use the `ascube` function
+# want it in some modified *latent* space. Comrade uses
+# [`ProbabilityTransports`](https://github.com/ptiede/ProbabilityTransports.jl) to move a
+# posterior into a latent space with `transport_to(post, space)`. For example, nested
+# sampling algorithms want the parameters in the unit hypercube, which is the `StdUniform()`
+# latent space:
 
-cpost = ascube(post);
+cpost = transport_to(post, StdUniform());
 
-# If we want to flatten the parameter space and move from constrained parameters to (-∞, ∞)
-# support we can use the `asflat` function
+# To instead flatten the parameter space and move from constrained parameters to unconstrained
+# (-∞, ∞) support (what gradient samplers like NUTS use) we transport to the `TVFlat()` space:
 
-fpost = asflat(post);
+fpost = transport_to(post, TVFlat());
 
-# These transformed posterior expect a vector of parameters. For example, we can draw from the
+# These transported posteriors expect a vector of parameters. For example, we can draw from the
 # prior in our usual parameter space
 p = prior_sample(rng, post)
 
-# and then transform it to transformed space using T
-logdensityof(cpost, Comrade.inverse(cpost, p))
-logdensityof(fpost, Comrade.inverse(fpost, p))
+# and then pull it back into each latent space with `latent_pback` (the inverse of the
+# transport; `latent_pfwd` maps the other way, latent → parameters)
+logdensityof(cpost, latent_pback(cpost, p))
+logdensityof(fpost, latent_pback(fpost, p))
 
 # note that the log densit is not the same since the transformation has causes a
 # jacobian to ensure volume is preserved. Note that this is rather critical because it
