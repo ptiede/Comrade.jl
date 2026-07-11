@@ -46,7 +46,6 @@ jobs:
           julia --project=docs -e '
             using Pkg
             Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.add(PackageSpec(url="https://github.com/ptiede/VLBIImagePriors.jl", rev="main"))
             Pkg.instantiate()'
       - name: Build ${{ matrix.tutorial }}
         env:
@@ -93,7 +92,6 @@ jobs:
           julia --project=docs -e '
             using Pkg
             Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.add(PackageSpec(url="https://github.com/ptiede/VLBIImagePriors.jl", rev="main"))
             Pkg.instantiate()'
       - name: Download tutorial markdown
         uses: actions/download-artifact@v8
