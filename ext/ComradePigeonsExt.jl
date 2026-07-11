@@ -4,7 +4,6 @@ using Comrade
 
 using Pigeons
 using AbstractMCMC
-using ADTypes: AutoEnzyme
 using EnzymeCore
 using LogDensityProblems
 using Random
@@ -79,17 +78,28 @@ LogDensityProblems.logdensity(t::PriorRef, x) = t(x)
 LogDensityProblems.capabilities(::Type{<:PriorRef}) = LogDensityProblems.LogDensityOrder{0}()
 
 # --- gradient interface for AutoMALA / gradient-based explorers -------------------------------
-# Pigeons translates the AutoMALA backend Symbol (`:Enzyme`) into an `ADTypes.AutoEnzyme` before
-# it builds a gradient wrapper for each log-potential (the interpolated potential wraps a target
-# and a reference gradient). Its default Enzyme path (`PigeonsEnzymeExt`) hardcodes
-# `ReverseWithPrimal`, which lacks the runtime activity Comrade posteriors need — so a raw
-# `AutoEnzyme` there errors. Dispatch on the Comrade types (more specific than PigeonsEnzymeExt's
-# generic method) to route both the target posterior and the prior reference through Comrade's
-# configured Enzyme mode instead. (`AutoEnzyme` comes from `ADTypes`, a co-trigger of this
-# extension — `Pigeons.ADTypes` is not reliably reachable across Julia/Pigeons versions.)
-Pigeons.LogDensityProblemsAD.ADgradient(::AutoEnzyme, lp::Comrade.AbstractVLBIPosterior, buffers::Pigeons.Augmentation) =
+# Pigeons builds a gradient wrapper for each log-potential (the interpolated potential wraps a
+# target and a reference gradient), and its default Enzyme path uses a plain `ReverseWithPrimal`,
+# which lacks the runtime activity Comrade posteriors need. Route both the target posterior and
+# the prior reference through Comrade's configured Enzyme mode instead, by overriding `ADgradient`
+# on the Comrade types (more specific than Pigeons' generic method); the `logdensity_and_gradient`
+# methods below are backend-agnostic (they key off the wrapped potential type) and carry the
+# runtime-activity mode.
+#
+# Pigeons dispatches the AD backend differently across versions, and the version is pinned by the
+# Julia version: Pigeons ≤ 0.4.10 — the newest installable on Julia 1.10 (LTS) — passes it as a
+# `Symbol` (`:Enzyme`); Pigeons ≥ 0.4.11 (Julia ≥ 1.11) passes an `ADTypes.AutoEnzyme`. Pick the
+# right dispatch type at precompile time (and only depend on `ADTypes` where it is used).
+@static if pkgversion(Pigeons) >= v"0.4.11"
+    using ADTypes: AutoEnzyme
+    const ADKind = AutoEnzyme
+else
+    const ADKind = Symbol
+end
+
+Pigeons.LogDensityProblemsAD.ADgradient(::ADKind, lp::Comrade.AbstractVLBIPosterior, buffers::Pigeons.Augmentation) =
     Pigeons.BufferedAD(lp, buffers)
-Pigeons.LogDensityProblemsAD.ADgradient(::AutoEnzyme, lp::PriorRef, buffers::Pigeons.Augmentation) =
+Pigeons.LogDensityProblemsAD.ADgradient(::ADKind, lp::PriorRef, buffers::Pigeons.Augmentation) =
     Pigeons.BufferedAD(lp, buffers)
 
 # Reverse-mode gradient of `logdensity(ℓ, x)` into `buffer`, using the given Enzyme `mode` (which
