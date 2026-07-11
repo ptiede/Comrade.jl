@@ -92,27 +92,28 @@ DiskStore(name::String, stride::Int) = DiskStore(name, stride, default_disk_call
 Resolve the latent-space posterior for a disk-backed sampler run while keeping its latent
 space consistent across restarts.
 
-On a fresh run the effective space is persisted to `<outdir>/transport.jls`. On a `restart`
-that space is reloaded and reused, so a resumed chain stays in the space it was launched in
-rather than silently falling back to the `transport_method` default (a non-`nothing`
-`transport_method` on restart is warned as ignored). Runs whose checkpoint predates this file,
-and non-disk (`outdir === nothing`) runs, fall back to `maybe_transport(post, transport_method)`.
+On a fresh run the `transport_method` argument is persisted to `<outdir>/transport.jls`. On a
+`restart` it is reloaded and replayed through `maybe_transport`, so — because `post` is the
+same — the resumed chain reconstructs the exact same latent space rather than silently falling
+back to the default (a non-`nothing` `transport_method` on restart is warned as ignored).
+Persisting the argument itself (not a recovered space) keeps this robust to any space value.
+Runs whose checkpoint predates this file, and non-disk (`outdir === nothing`) runs, fall back
+to `maybe_transport(post, transport_method)`.
 """
 function resolve_disk_transport(post, outdir, restart, transport_method)
     isnothing(outdir) && return maybe_transport(post, transport_method)
     spacefile = joinpath(outdir, "transport.jls")
     if restart && isfile(spacefile)
-        space = deserialize(spacefile)
+        launched = deserialize(spacefile)
         isnothing(transport_method) || @warn(
             "Ignoring `transport_method` on restart; resuming in the latent space the run was started in.",
-            stored = space,
+            launched,
         )
-        return maybe_transport(post, space)
+        return maybe_transport(post, launched)
     end
-    tpost = maybe_transport(post, transport_method)
     mkpath(outdir)
-    serialize(spacefile, transport_space(tpost))
-    return tpost
+    serialize(spacefile, transport_method)
+    return maybe_transport(post, transport_method)
 end
 
 struct DiskOutput

@@ -51,28 +51,23 @@ using Enzyme
     @test Comrade.maybe_transport(tpostc, nothing) === tpostc
     @test Comrade._is_cube(Comrade.maybe_transport(tpostf, Comrade.StdUniform()))
 
-    # transport_space round-trips through maybe_transport for each latent family.
-    @test Comrade.transport_space(tpostf) === nothing
-    @test Comrade._is_cube(Comrade.maybe_transport(post, Comrade.transport_space(tpostc)))
-    @test Comrade.maybe_transport(post, Comrade.transport_space(tpostn)).transform isa
-        Comrade.NormalTransport
-
     # resolve_disk_transport: a disk restart must resume in the space the run was launched in,
     # not silently fall back to the `transport_method` default (regression for the
     # AHMC/Reactant restart bug).
     @testset "resolve_disk_transport restart preserves space" begin
         for space in (nothing, Comrade.StdUniform(), Comrade.PT.StdNormal())
+            latent = something(space, Comrade.TVFlat())
             dir = mktempdir()
             # Fresh run persists the launch space and honors it.
             t0 = Comrade.resolve_disk_transport(post, dir, false, space)
             @test isfile(joinpath(dir, "transport.jls"))
-            @test Comrade._same_latent(t0.transform, something(space, Comrade.TVFlat()))
+            @test Comrade._same_latent(t0.transform, latent)
             # Restart with NO transport_method: must recover the launch space, not asflat.
             t1 = Comrade.resolve_disk_transport(post, dir, true, nothing)
-            @test Comrade._same_latent(t1.transform, something(space, Comrade.TVFlat()))
+            @test Comrade._same_latent(t1.transform, latent)
             # Restart with a *conflicting* transport_method: still resumes in the launch space.
             t2 = Comrade.resolve_disk_transport(post, dir, true, Comrade.StdUniform())
-            @test Comrade._same_latent(t2.transform, something(space, Comrade.TVFlat()))
+            @test Comrade._same_latent(t2.transform, latent)
         end
         # No disk dir (MemoryStore) just honors the kwarg without persisting.
         @test Comrade.resolve_disk_transport(post, nothing, false, nothing).transform isa

@@ -60,13 +60,12 @@ more specific than ProbabilityTransports' own `transport_to(dist, ::AbstractStdD
 PT.transport_to(post::VLBIPosterior, space::PT.AbstractStdDist) = _transport_to_post(post, space)
 PT.transport_to(post::VLBIPosterior, space::PT.TVFlat) = _transport_to_post(post, space)
 
-# Does the transported distribution already live in `space`? Matched by latent family
-# (flat vs `StdUniform` vs `StdNormal`), ignoring eltype/dimension parameters — the latent
-# consts above match any parametrization. Dispatch on the concrete space type so this uses no
-# private field access; an unrecognized `AbstractStdDist` falls through to `false` (which just
-# forces a — safe — re-transport rather than mis-classifying it).
+# Does the transported distribution already live in `space`? Dispatch on the concrete space
+# type against the latent consts above (which ignore eltype/dimension) — no private field
+# access. An unrecognized `AbstractStdDist` falls through to `false`, forcing a safe
+# re-transport rather than a misclassification.
 _same_latent(t::TransportedDistribution, ::PT.TVFlat) = t isa FlatTransport
-_same_latent(t::TransportedDistribution, ::StdUniform) = t isa CubeTransport
+_same_latent(t::TransportedDistribution, ::StdUniform) = _is_cube(t)
 _same_latent(t::TransportedDistribution, ::PT.StdNormal) = t isa NormalTransport
 _same_latent(::TransportedDistribution, ::PT.AbstractStdDist) = false
 
@@ -86,21 +85,6 @@ already-transformed posterior. An explicit `space` is always honored via
 maybe_transport(post::VLBIPosterior, ::Nothing) = asflat(post)
 maybe_transport(tpost::TransformedVLBIPosterior, ::Nothing) = tpost
 maybe_transport(post::AbstractVLBIPosterior, space) = transport_to(post, space)
-
-"""
-    transport_space(tpost::TransformedVLBIPosterior)
-
-Return the latent space `tpost` lives in as a value that reconstructs it via
-[`maybe_transport`](@ref)/[`transport_to`](@ref): `nothing` for the flat (`asflat`) space,
-`StdUniform()` for the cube (`ascube`), `StdNormal()` for a standard-normal latent.
-
-This is what disk-backed samplers persist so a `restart` resumes in the *same* space it was
-launched in, rather than silently falling back to the `transport_method` default.
-"""
-transport_space(tpost::TransformedVLBIPosterior) = transport_space(tpost.transform)
-transport_space(::FlatTransport) = nothing
-transport_space(::CubeTransport) = StdUniform()
-transport_space(::NormalTransport) = PT.StdNormal()
 
 
 """
