@@ -13,9 +13,10 @@ const CubeTransport = Comrade.CubeTransport
 
 Pigeons.initialization(tpost::Comrade.TransformedVLBIPosterior, rng::Random.AbstractRNG, ::Int) = prior_sample(rng, tpost)
 
-struct PriorRef{P, T}
+struct PriorRef{P, T, M}
     model::P
     transform::T
+    admode::M
 end
 
 # The Pigeons reference is the prior: `logpdf(::TransportedDistribution, x)` is the
@@ -25,7 +26,10 @@ end
 
 # The cube ([0,1]^n) reference is bounded, so use a slice sampler; every other latent space
 # (flat ℝⁿ, StdNormal, …) is unbounded and differentiable, so use gradient-based AutoMALA.
-Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P, <:CubeTransport}) where {P} =
+# `P` must be constrained to `VLBIPosterior` (matching the struct's own bound) so this stays
+# strictly more specific than the unparametrized method below — an unbounded `where {P}` is
+# instead *ambiguous* with it (more specific in the transport, less specific in `P`).
+Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior{P, <:CubeTransport}) where {P <: Comrade.VLBIPosterior} =
     SliceSampler()
 
 Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior) =
@@ -34,7 +38,9 @@ Pigeons.default_explorer(::Comrade.TransformedVLBIPosterior) =
 function Pigeons.default_reference(tpost::Comrade.TransformedVLBIPosterior)
     t = tpost.transform
     p = tpost.lpost.prior
-    return PriorRef(p, t)
+    # Carry the posterior's AD mode so the reference (prior) gradient uses the same
+    # runtime-activity Enzyme configuration as the target on the tempered chains.
+    return PriorRef(p, t, Comrade.admode(tpost))
 end
 
 function Pigeons.sample_iid!(target::Comrade.TransformedVLBIPosterior, replica, shared)
@@ -71,20 +77,35 @@ LogDensityProblems.dimension(t::PriorRef) = Comrade.dimension(t.transform)
 LogDensityProblems.logdensity(t::PriorRef, x) = t(x)
 LogDensityProblems.capabilities(::Type{<:PriorRef}) = LogDensityProblems.LogDensityOrder{0}()
 
-Pigeons.LogDensityProblemsAD.ADgradient(kind::Val, log_potential::Comrade.AbstractVLBIPosterior, replica::Pigeons.Replica) =
-    Pigeons.BufferedAD(log_potential, replica.recorders.buffers, Ref(0.0), Ref{Cstring}())
+# --- gradient interface for AutoMALA / gradient-based explorers -------------------------------
+# Pigeons translates the AutoMALA backend Symbol (`:Enzyme`) into an `ADTypes.AutoEnzyme` before
+# it builds a gradient wrapper for each log-potential (the interpolated potential wraps a target
+# and a reference gradient). Its default Enzyme path (`PigeonsEnzymeExt`) hardcodes
+# `ReverseWithPrimal`, which lacks the runtime activity Comrade posteriors need — so a raw
+# `AutoEnzyme` there errors. Dispatch on the Comrade types (more specific than PigeonsEnzymeExt's
+# generic method) to route both the target posterior and the prior reference through Comrade's
+# configured Enzyme mode instead.
+const ADTypes = Pigeons.ADTypes
 
+Pigeons.LogDensityProblemsAD.ADgradient(::ADTypes.AutoEnzyme, lp::Comrade.AbstractVLBIPosterior, buffers::Pigeons.Augmentation) =
+    Pigeons.BufferedAD(lp, buffers)
+Pigeons.LogDensityProblemsAD.ADgradient(::ADTypes.AutoEnzyme, lp::PriorRef, buffers::Pigeons.Augmentation) =
+    Pigeons.BufferedAD(lp, buffers)
 
-function LogDensityProblems.logdensity_and_gradient(log_potential::Pigeons.BufferedAD{<:Comrade.AbstractVLBIPosterior}, x)
-    m = log_potential.enclosed
-    b = log_potential.buffer
-    ∂ℓ_∂x = fill!(b, zero(eltype(b))) # NB: Enzyme gives erroneous answer if buffer is not zeroed first
-    mode = EnzymeCore.WithPrimal(Comrade.admode(m))
+# Reverse-mode gradient of `logdensity(ℓ, x)` into `buffer`, using the given Enzyme `mode` (which
+# carries Comrade's runtime-activity setting).
+function _enzyme_logdensity_and_gradient(mode, ℓ, x, buffer)
+    ∂ℓ_∂x = fill!(buffer, zero(eltype(buffer))) # NB: Enzyme gives an erroneous answer if the buffer is not zeroed first
     _, y = EnzymeCore.autodiff(
-        mode, LogDensityProblems.logdensity, EnzymeCore.Active,
-        EnzymeCore.Const(m), EnzymeCore.Duplicated(x, ∂ℓ_∂x)
+        EnzymeCore.WithPrimal(mode), LogDensityProblems.logdensity, EnzymeCore.Active,
+        EnzymeCore.Const(ℓ), EnzymeCore.Duplicated(x, ∂ℓ_∂x)
     )
     return y, ∂ℓ_∂x
 end
+
+LogDensityProblems.logdensity_and_gradient(b::Pigeons.BufferedAD{<:Comrade.AbstractVLBIPosterior}, x) =
+    _enzyme_logdensity_and_gradient(Comrade.admode(b.enclosed), b.enclosed, x, b.buffer)
+LogDensityProblems.logdensity_and_gradient(b::Pigeons.BufferedAD{<:PriorRef}, x) =
+    _enzyme_logdensity_and_gradient(b.enclosed.admode, b.enclosed, x, b.buffer)
 
 end
