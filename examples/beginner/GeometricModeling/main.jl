@@ -156,6 +156,12 @@ cpost = transport_to(post, StdUniform());
 
 fpost = transport_to(post, TVFlat());
 
+# A third option is the standard-normal latent space `StdNormal()`, which standardizes the
+# prior into an unconstrained ℝⁿ Gaussian. It is also a good target for gradient-based samplers
+# and is often better conditioned than the plain flat space:
+
+npost = transport_to(post, StdNormal());
+
 # These transported posteriors expect a vector of parameters. For example, we can draw from the
 # prior in our usual parameter space
 p = prior_sample(rng, post)
@@ -164,10 +170,11 @@ p = prior_sample(rng, post)
 # transport; `latent_pfwd` maps the other way, latent → parameters)
 logdensityof(cpost, latent_pback(cpost, p))
 logdensityof(fpost, latent_pback(fpost, p))
+logdensityof(npost, latent_pback(npost, p))
 
-# note that the log densit is not the same since the transformation has causes a
-# jacobian to ensure volume is preserved. Note that this is rather critical because it
-# means that the maximum a posteriori (MAP) estimate in bother of these examples will differ.
+# note that the log density is not the same across the three spaces, since each transport
+# introduces a Jacobian to ensure volume is preserved. This is rather critical because it
+# means that the maximum a posteriori (MAP) estimate differs between these latent spaces.
 # In general, the MAP estimate is parameterization dependent. This is not the case for estimates
 # that are derived from expectations of the posterior, e.g., the mean image.
 
