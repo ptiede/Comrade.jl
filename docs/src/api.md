@@ -141,10 +141,10 @@ Comrade.simulate_observation
 Comrade.residuals
 Comrade.TransformedVLBIPosterior
 Comrade.ImgNormalData
-HypercubeTransform.transform(::Comrade.TransformedVLBIPosterior, ::Any)
-HypercubeTransform.inverse(::Comrade.TransformedVLBIPosterior, ::Any)
-HypercubeTransform.ascube(::Comrade.VLBIPosterior)
-HypercubeTransform.asflat(::Comrade.VLBIPosterior)
+Comrade.transform(::Comrade.TransformedVLBIPosterior, ::Any)
+Comrade.inverse(::Comrade.TransformedVLBIPosterior, ::Any)
+Comrade.ascube(::Comrade.VLBIPosterior)
+Comrade.asflat(::Comrade.VLBIPosterior)
 ```
 
 ### Inference

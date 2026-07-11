@@ -27,12 +27,12 @@ const ReactantEx = Comrade.ComradeBase.ReactantEx
         @test convert(Float64, @jit f(Reactant.to_rarray(x))) ≈ sum(y)
     end
 
-    # cube path: HypercubeTransform._step_transform must still place the fixed
-    # values correctly on the CPU. (The inner cube transform itself is not yet
-    # Reactant-traceable, independent of this fix, so only the flat path is jit'd.)
+    # cube path: the forward transport must still place the fixed values correctly
+    # on the CPU. (The inner cube transform itself is not yet Reactant-traceable,
+    # independent of this fix, so only the flat path is jit'd.)
     let t = ascube(pcd)
         u = rand(TV.dimension(t))
-        y, _ = HypercubeTransform._step_transform(t, u, firstindex(u))
+        y = Comrade.latent_pfwd(t, u)
         @test y[fixed_index] == fixed_values
     end
 end
