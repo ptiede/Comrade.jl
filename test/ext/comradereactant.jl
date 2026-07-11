@@ -18,8 +18,10 @@ const ReactantEx = Comrade.ComradeBase.ReactantEx
     fixed_values = [7.0, 9.0]
     pcd = Comrade.PartiallyConditionedDist(dist, variate_index, fixed_index, fixed_values)
 
-    # flat path (the gradient path NUTS uses): TV.transform_with
-    let t = asflat(pcd)
+    # flat path (the gradient path NUTS uses): the raw TransformVariables node, on which
+    # `TV.transform_with` runs directly. `asflat` now returns a `TransportedDistribution`
+    # wrapper (no `transform_with` method), so grab the node via `transport_node`.
+    let t = Comrade.transport_node(pcd, Comrade.TVFlat())
         x = rand(TV.dimension(t))
         y, _, _ = TV.transform_with(TV.LogJac(), t, x, firstindex(x))
         @test y[fixed_index] == fixed_values
