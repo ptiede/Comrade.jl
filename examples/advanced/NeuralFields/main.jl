@@ -222,13 +222,14 @@ post = Comrade.prepare_device(post_cpu, ComradeBase.ReactantEx())
 # ## Reconstructing the Image
 
 # Because the optimizer needs to traverse the entire parameter space (network weights +
-# `σ`, `fb`) we work on the unconstrained-flat representation produced by `asflat`. This
-# wraps the posterior in a `TransformedVLBIPosterior` whose log-density takes a flat
-# `Vector{Float64}` and includes the log-Jacobian of the bijection.
-tpost = asflat(post)
+# `σ`, `fb`) we work on the unconstrained-flat representation produced by
+# `transport_to(post, TVFlat())`. This wraps the posterior in a `TransformedVLBIPosterior`
+# whose log-density takes a flat `Vector{Float64}` and includes the log-Jacobian of the
+# transport.
+tpost = transport_to(post, TVFlat())
 
-# Draw initial parameters from the prior, push them through the inverse transform to get a
-# flat vector, and visualize the corresponding initial image. `skymodel` traces through
+# Draw initial parameters from the prior, pull them back through the transport (`latent_pback`)
+# to get a flat vector, and visualize the corresponding initial image. `skymodel` traces through
 # Reactant because `post` lives on the device, so we `@jit` the call and then materialize
 # the underlying raster back onto the host before handing it to Makie.
 using CairoMakie, DisplayAs
@@ -238,7 +239,7 @@ init_img = Comrade.Adapt.adapt(Array, init_img_r.img)
 imageviz(init_img, size = (500, 400), colorscale = log10, colorrange = (1.0e-6, 1.0e-4)) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Move the parameter vector onto the Reactant device.
-xinit_r = Reactant.to_rarray(Comrade.inverse(tpost, xinit_nt))
+xinit_r = Reactant.to_rarray(latent_pback(tpost, xinit_nt))
 
 # We use [Optimisers.jl](https://github.com/FluxML/Optimisers.jl) directly (rather than the
 # `comrade_opt` wrapper) because Reactant compiles the whole step — including the optimizer
@@ -281,7 +282,7 @@ for i in 1:maxiters
 end
 
 # Pull the optimized parameters back to the host as a NamedTuple in the original space.
-xopt = @jit Comrade.transform(tpost, xcur);
+xopt = @jit latent_pfwd(tpost, xcur);
 
 using CairoMakie
 using DisplayAs #hide
@@ -293,7 +294,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
 # To see how well the MAP estimate fits the data we can plot the residuals.
-xopt_cpu = Comrade.transform(asflat(post_cpu), Array(xcur))
+xopt_cpu = latent_pfwd(transport_to(post_cpu, TVFlat()), Array(xcur))
 res = @jit(Comrade.residuals(post, xopt))[1]
 res_cpu = Comrade.Adapt.adapt(Array, res)
 fig = Figure(; size = (800, 300))

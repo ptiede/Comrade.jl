@@ -7,7 +7,7 @@ using DocumenterVitepress
 using Comrade, ComradeBase, AdvancedHMC, Dynesty, Optimization,
     PolarizedTypes
 using Pyehtim, VLBISkyModels, InteractiveUtils
-using AbstractMCMC, Random, HypercubeTransform
+using AbstractMCMC, Random
 using CairoMakie
 
 const ComradeMakieExt = Base.get_extension(Comrade, :ComradeMakieExt)

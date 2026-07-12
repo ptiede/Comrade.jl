@@ -26,6 +26,9 @@ using Enzyme
     s1 = NUTS(0.65)
     hchain = sample(post, s1, 1_000; n_adapts = 500, progress = false)
     hchain = sample(post, s1, 1_000; n_adapts = 500, progress = false, initial_params = x0)
+    # Sample in a standard-normal latent space instead of the default `asflat`
+    hchain_std = sample(post, s1, 500; n_adapts = 250, progress = false, transport_method = StdNormal(), initial_params = x0)
+    @test Comrade.samplerinfo(hchain_std)[:post].transform.stop isa StdNormal
     out = sample(post, s1, 1_000; n_adapts = 500, saveto = DiskStore(name = joinpath(@__DIR__, "Test")), initial_params = x0)
     out = sample(post, s1, 1_200; n_adapts = 500, saveto = DiskStore(name = joinpath(@__DIR__, "Test")), initial_params = x0, restart = true)
 

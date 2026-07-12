@@ -302,9 +302,10 @@ post = VLBIPosterior(skym, intmodel, dvis);
 # ## Reconstructing the Image and Instrument Effects
 
 # To sample from this posterior, it is convenient to move from our constrained parameter space
-# to an unconstrained one (i.e., the support of the transformed posterior is (-∞, ∞)). This transformation is
-# done using the `asflat` function.
-tpost = asflat(post);
+# to an unconstrained one (i.e., the support of the transported posterior is (-∞, ∞)). We do this
+# with `transport_to(post, TVFlat())`, which maps the posterior into the flat (`TVFlat`) latent
+# space.
+tpost = transport_to(post, TVFlat());
 
 # We can also query the dimension of our posterior or the number of parameters we will sample.
 # !!! warning

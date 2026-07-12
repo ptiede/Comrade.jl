@@ -142,28 +142,38 @@ logdensityof(
 # of our model given our observed data.
 
 # Currently, `post` is in **parameter** space. Often optimization and sampling algorithms
-# want it in some modified space. For example, nested sampling algorithms want the
-# parameters in the unit hypercube. To transform the posterior to the unit hypercube, we
-# can use the `ascube` function
+# want it in some modified *latent* space. Comrade uses
+# [`ProbabilityTransports`](https://github.com/ptiede/ProbabilityTransports.jl) to move a
+# posterior into a latent space with `transport_to(post, space)`. For example, nested
+# sampling algorithms want the parameters in the unit hypercube, which is the `StdUniform()`
+# latent space:
 
-cpost = ascube(post);
+cpost = transport_to(post, StdUniform());
 
-# If we want to flatten the parameter space and move from constrained parameters to (-∞, ∞)
-# support we can use the `asflat` function
+# To instead flatten the parameter space and move from constrained parameters to unconstrained
+# (-∞, ∞) support (what gradient samplers like NUTS use) we transport to the `TVFlat()` space:
 
-fpost = asflat(post);
+fpost = transport_to(post, TVFlat());
 
-# These transformed posterior expect a vector of parameters. For example, we can draw from the
+# A third option is the standard-normal latent space `StdNormal()`, which standardizes the
+# prior into an unconstrained ℝⁿ Gaussian. It is also a good target for gradient-based samplers
+# and is often better conditioned than the plain flat space:
+
+npost = transport_to(post, StdNormal());
+
+# These transported posteriors expect a vector of parameters. For example, we can draw from the
 # prior in our usual parameter space
 p = prior_sample(rng, post)
 
-# and then transform it to transformed space using T
-logdensityof(cpost, Comrade.inverse(cpost, p))
-logdensityof(fpost, Comrade.inverse(fpost, p))
+# and then pull it back into each latent space with `latent_pback` (the inverse of the
+# transport; `latent_pfwd` maps the other way, latent → parameters)
+logdensityof(cpost, latent_pback(cpost, p))
+logdensityof(fpost, latent_pback(fpost, p))
+logdensityof(npost, latent_pback(npost, p))
 
-# note that the log densit is not the same since the transformation has causes a
-# jacobian to ensure volume is preserved. Note that this is rather critical because it
-# means that the maximum a posteriori (MAP) estimate in bother of these examples will differ.
+# note that the log density is not the same across the three spaces, since each transport
+# introduces a Jacobian to ensure volume is preserved. This is rather critical because it
+# means that the maximum a posteriori (MAP) estimate differs between these latent spaces.
 # In general, the MAP estimate is parameterization dependent. This is not the case for estimates
 # that are derived from expectations of the posterior, e.g., the mean image.
 

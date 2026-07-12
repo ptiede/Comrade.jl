@@ -9,7 +9,6 @@ using AbstractMCMC: Sample
 using Accessors
 using ArgCheck
 using DocStringExtensions
-using HypercubeTransform
 using LogDensityProblems
 using Printf
 using Random
@@ -19,7 +18,7 @@ using Serialization
 
 function initialize_params(rng, tpost, initial_params)
     isnothing(initial_params) && return prior_sample(rng, tpost)
-    return HypercubeTransform.inverse(tpost, initial_params)
+    return Comrade.inverse(tpost, initial_params)
 end
 
 # internal method that makes the HMCSampler
@@ -60,6 +59,11 @@ saved to disk. If `initial_params` is not `nothing` then the sampler will start 
 
  - `saveto`: If a DiskStore, the samples will be saved to disk, if [`MemoryStore`](@ref) the samples will be stored in memory/ram.
  - `initial_params`: The initial parameters to start the sampler from. If `nothing` then the sampler will start from a random point in the prior.
+ - `transport_method`: The latent space to sample in. The default (`nothing`) uses the
+    unconstrained flat space, i.e. `asflat`. Pass e.g. `StdNormal()` (re-exported from
+    ProbabilityTransports) to sample a standard-normal–standardized posterior instead. Note
+    that HMC needs an unbounded latent space, so the unit hypercube (`StdUniform`) is not a
+    good choice here.
  - `kwargs`: Additional keyword arguments to pass to the sampler. Examples include `n_adapts` which is the total number of samples to use for adaptation.
     To see the others see the AdvancedHMC documentation.
 
@@ -80,18 +84,16 @@ generic default.
 function AbstractMCMC.sample(
         rng::Random.AbstractRNG, post::Comrade.VLBIPosterior,
         sampler::AbstractHMCSampler, nsamples, args...;
-        saveto = MemoryStore(), initial_params = nothing, kwargs...
+        saveto = MemoryStore(), initial_params = nothing, transport_method = nothing, kwargs...
     )
 
-    saveto isa DiskStore && return sample_to_disk(rng, post, sampler, nsamples, args...; outdir = saveto.name, output_stride = min(saveto.stride, nsamples), callback = saveto.callback, initial_params, kwargs...)
+    saveto isa DiskStore && return sample_to_disk(rng, post, sampler, nsamples, args...; outdir = saveto.name, output_stride = min(saveto.stride, nsamples), callback = saveto.callback, initial_params, transport_method, kwargs...)
 
     if isnothing(Comrade.admode(post))
         throw(ArgumentError("You must specify an automatic differentiation type in VLBIPosterior with admode kwarg"))
-    else
-        tpost = asflat(post)
     end
 
-    tpost = asflat(post)
+    tpost = Comrade.maybe_transport(post, transport_method)
     θ0 = initialize_params(rng, tpost, initial_params)
     model, smplr = make_sampler(rng, tpost, sampler, θ0)
 
@@ -202,6 +204,7 @@ function sample_to_disk(
         restart = false,
         output_stride = min(100, nsamples),
         callback = Comrade.default_disk_callback,
+        transport_method = nothing,
         kwargs...
     )
 
@@ -214,7 +217,7 @@ function sample_to_disk(
         output_stride = nsamples
     end
 
-    tpost = asflat(post)
+    tpost = Comrade.resolve_disk_transport(post, outdir, restart, transport_method)
     nscans = nsamples ÷ output_stride + (nsamples % output_stride != 0 ? 1 : 0)
     mkpath(joinpath(outdir, "samples"))
     outbase = joinpath(outdir, "samples", "output_scan_")

@@ -14,8 +14,17 @@ using FillArrays: Fill
 using IntervalSets
 using LogDensityProblems
 using LinearAlgebra
-import HypercubeTransform: ascube, asflat, NamedDist, NamedDist, transform, inverse
-using HypercubeTransform
+import ProbabilityTransports as PT
+# Only the names used unqualified below; node-protocol methods (`pfwd_step` etc.) are
+# always extended `PT.`-qualified.
+import ProbabilityTransports: transport_node, latent_pfwd, latent_pback,
+    latent_pfwd_and_logdensity, transport_to, TVFlat, StdUniform, TransportedDistribution
+# `asflat`/`ascube`/`transform`/`inverse` come from VLBIImagePriors' compat shim
+# (which delegates to ProbabilityTransports). Import them so Comrade *extends* the
+# same bindings on its posterior types (rather than creating shadowing copies that
+# would clash with VLBIImagePriors under `using Comrade, VLBIImagePriors`).
+import TransformVariables: transform, inverse, dimension
+import VLBIImagePriors: asflat, ascube
 #using MappedArrays: mappedarray
 using Measurements
 using Printf

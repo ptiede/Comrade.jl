@@ -5,7 +5,6 @@ using Comrade
 using Optimization
 using Distributions
 using LinearAlgebra
-using HypercubeTransform
 using LogDensityProblems
 using Optimization: SciMLBase
 
@@ -93,7 +92,7 @@ function Comrade.comrade_opt(post::VLBIPosterior, opt, args...; initial_params =
     lbt = nothing
     ubt = nothing
 
-    if tpost.transform isa HypercubeTransform.AbstractHypercubeTransform
+    if Comrade._is_cube(tpost)
         lbt = fill(0.0001, dimension(tpost))
         ubt = fill(0.9999, dimension(tpost))
     end
