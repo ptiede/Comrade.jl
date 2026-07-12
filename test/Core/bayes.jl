@@ -36,6 +36,16 @@ using Enzyme
     x = prior_sample(tpostc)
     @test logdensityof(tpostc, x) == tpostc(x)
 
+    # multi-sample form: `prior_sample(tpost, dims...)` maps `latent_pback` over a batch of prior
+    # draws, returning a `dims`-shaped array of valid latent-space vectors.
+    for tp in (tpostf, tpostc)
+        xs = prior_sample(tp, 5)
+        @test length(xs) == 5
+        @test all(x -> length(x) == dimension(tp), xs)
+        @test all(x -> isfinite(logdensityof(tp, x)), xs)
+        @test size(prior_sample(tp, 2, 3)) == (2, 3)
+    end
+
     # transport_to on an already-transformed posterior: identity when the latent space
     # matches, rebuild from the underlying posterior when it doesn't.
     @test Comrade.transport_to(tpostf, Comrade.TVFlat()) === tpostf
