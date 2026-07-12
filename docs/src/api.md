@@ -145,6 +145,7 @@ Comrade.transform(::Comrade.TransformedVLBIPosterior, ::Any)
 Comrade.inverse(::Comrade.TransformedVLBIPosterior, ::Any)
 Comrade.ascube(::Comrade.VLBIPosterior)
 Comrade.asflat(::Comrade.VLBIPosterior)
+Comrade.transport_to(::Comrade.VLBIPosterior, ::Comrade.PT.AbstractStdDist)
 ```
 
 ### Inference

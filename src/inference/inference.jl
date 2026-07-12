@@ -86,20 +86,16 @@ end
 DiskStore(name::String) = DiskStore(name, 100, default_disk_callback)
 DiskStore(name::String, stride::Int) = DiskStore(name, stride, default_disk_callback)
 
-"""
-    resolve_disk_transport(post, outdir, restart, transport_method) -> TransformedVLBIPosterior
-
-Resolve the latent-space posterior for a disk-backed sampler run while keeping its latent
-space consistent across restarts.
-
-On a fresh run the `transport_method` argument is persisted to `<outdir>/transport.jls`. On a
-`restart` it is reloaded and replayed through `maybe_transport`, so — because `post` is the
-same — the resumed chain reconstructs the exact same latent space rather than silently falling
-back to the default (a non-`nothing` `transport_method` on restart is warned as ignored).
-Persisting the argument itself (not a recovered space) keeps this robust to any space value.
-Runs whose checkpoint predates this file, and non-disk (`outdir === nothing`) runs, fall back
-to `maybe_transport(post, transport_method)`.
-"""
+# Internal: resolve the latent-space posterior for a disk-backed sampler run while keeping its
+# latent space consistent across restarts.
+#
+# On a fresh run the `transport_method` argument is persisted to `<outdir>/transport.jls`. On a
+# `restart` it is reloaded and replayed through `maybe_transport`, so — because `post` is the
+# same — the resumed chain reconstructs the exact same latent space rather than silently falling
+# back to the default (a non-`nothing` `transport_method` on restart is warned as ignored).
+# Persisting the argument itself (not a recovered space) keeps this robust to any space value.
+# Runs whose checkpoint predates this file, and non-disk (`outdir === nothing`) runs, fall back
+# to `maybe_transport(post, transport_method)`.
 function resolve_disk_transport(post, outdir, restart, transport_method)
     isnothing(outdir) && return maybe_transport(post, transport_method)
     spacefile = joinpath(outdir, "transport.jls")

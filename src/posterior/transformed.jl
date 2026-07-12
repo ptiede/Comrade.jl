@@ -74,18 +74,16 @@ _retransport(tpost::TransformedVLBIPosterior, space) =
 PT.transport_to(tpost::TransformedVLBIPosterior, space::PT.AbstractStdDist) = _retransport(tpost, space)
 PT.transport_to(tpost::TransformedVLBIPosterior, space::PT.TVFlat) = _retransport(tpost, space)
 
-"""
-    maybe_transport(post, space)
-
-Backend helper for a sampler's `transport_method`-style keyword. `space === nothing` means
-"use the backend default": `asflat` for a raw [`VLBIPosterior`](@ref), pass-through for an
-already-transformed posterior. An explicit `space` is always honored via
-[`transport_to`](@ref transport_to), including re-transporting a `TransformedVLBIPosterior`.
-"""
+# Internal backend helper for a sampler's `transport_method`-style keyword. `space === nothing`
+# means "use the backend default": `asflat` for a raw `VLBIPosterior`, pass-through for an
+# already-transformed posterior. An explicit `space` is always honored via `transport_to`,
+# including re-transporting a `TransformedVLBIPosterior`.
 maybe_transport(post::VLBIPosterior, ::Nothing) = asflat(post)
 maybe_transport(tpost::TransformedVLBIPosterior, ::Nothing) = tpost
 maybe_transport(post::AbstractVLBIPosterior, space) = transport_to(post, space)
 
+
+PT.latent_pfwd(p::TransformedVLBIPosterior, x) = latent_pfwd(p.transform, x)
 
 """
     transform(posterior::TransformedVLBIPosterior, x)
@@ -95,9 +93,10 @@ to parameter space which is usually encoded as a `NamedTuple`.
 
 For the inverse transform see [`inverse`](@ref inverse)
 """
-PT.latent_pfwd(p::TransformedVLBIPosterior, x) = latent_pfwd(p.transform, x)
 transform(p::TransformedVLBIPosterior, x) = latent_pfwd(p, x)
 
+
+PT.latent_pback(p::TransformedVLBIPosterior, x) = latent_pback(p.transform, x)
 
 """
     inverse(posterior::TransformedVLBIPosterior, x)
@@ -107,7 +106,6 @@ Transforms the value `x` from parameter space to the transformed space
 
 For the forward transform see [`transform`](@ref transform)
 """
-PT.latent_pback(p::TransformedVLBIPosterior, x) = latent_pback(p.transform, x)
 inverse(p::TransformedVLBIPosterior, x) = latent_pback(p, x)
 
 """
