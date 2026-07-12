@@ -87,12 +87,13 @@ LogDensityProblems.capabilities(::Type{<:PriorRef}) = LogDensityProblems.LogDens
 # runtime-activity mode.
 #
 # Pigeons dispatches the AD backend differently across versions, and the version is pinned by the
-# Julia version: Pigeons ≤ 0.4.10 — the newest installable on Julia 1.10 (LTS) — passes it as a
-# `Symbol` (`:Enzyme`); Pigeons ≥ 0.4.11 (Julia ≥ 1.11) passes an `ADTypes.AutoEnzyme`. Pick the
-# right dispatch type at precompile time (and only depend on `ADTypes` where it is used).
-@static if pkgversion(Pigeons) >= v"0.4.11"
-    using ADTypes: AutoEnzyme
-    const ADKind = AutoEnzyme
+# Julia version: on Julia 1.10 (LTS) only Pigeons ≤ 0.4.10 is installable, which passes the backend
+# as a `Symbol` (`:Enzyme`); Julia ≥ 1.11 gets Pigeons ≥ 0.4.11, which passes an
+# `ADTypes.AutoEnzyme`. Branch on the Julia version (a genuine compile-time constant) and, on the
+# newer path, get `AutoEnzyme` from `Pigeons.ADTypes` — reachable there only on the newer Pigeons,
+# which is why it must sit behind the `@static` guard and needs no `ADTypes` dependency of our own.
+@static if VERSION >= v"1.11"
+    const ADKind = Pigeons.ADTypes.AutoEnzyme
 else
     const ADKind = Symbol
 end
