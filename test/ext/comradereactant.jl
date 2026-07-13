@@ -155,3 +155,45 @@ end
     @test Array(s_resume.inverse_mass_matrix) == Array(s_single.inverse_mass_matrix)
     @test Array(s_resume.position) == Array(s_single.position)
 end
+
+# GaussMarkov (time-correlated) instrument priors trace through the flat path with no
+# Reactant-specific code: the `@trace`d chain logpdf and the branchless whitened coloring
+# only need `rgetindex`/`rsetindex!` for the scalar-indexing opt-in (Reactant promotes
+# the captured static chain tables itself). Pointwise-evaluated distributions
+# (hyperpriors, IID overrides) must accept `::Number`, so use the VLBI*/PT distributions.
+@testset "GaussMarkov priors under Reactant" begin
+    using Enzyme
+
+    _, vis, _, _, _ = load_data()
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 12, 12)
+    skym = SkyModel(test_model, test_prior(), g)
+
+    @instrument function gmint_reactant()
+        return @jones begin
+            lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(0.1), τ = VLBIExponential(2.0))))
+            gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = VLBIInverseGamma(3.0, 6.0))); refant = SEFDReference(0.0))
+            return SingleStokesGain(exp(complex(lg, gp)))
+        end
+    end
+
+    post_cpu = VLBIPosterior(skym, gmint_reactant(), vis; admode = nothing)
+    tpost_cpu = asflat(post_cpu)
+    x0 = prior_sample(Random.Xoshiro(31), tpost_cpu)
+
+    post = Comrade.prepare_device(post_cpu, ReactantEx())
+    tpost = asflat(post)
+    x0_r = Reactant.to_rarray(x0)
+
+    # value matches the CPU path (whitened hierarchical transform + chain logpdf + refant
+    # conditioning all traced)
+    ld = @jit logdensityof(tpost, x0_r)
+    @test convert(Float64, ld) ≈ logdensityof(tpost_cpu, x0) rtol = 1.0e-10
+
+    # gradient (what the compiled NUTS kernels differentiate) matches CPU Enzyme
+    fgrad(x, tp) = Enzyme.gradient(
+        Enzyme.set_runtime_activity(Enzyme.Reverse), Const(Base.Fix1(logdensityof, tp)), x
+    )[1]
+    g_r = convert(Vector{Float64}, @jit fgrad(x0_r, tpost))
+    g_c = fgrad(x0, tpost_cpu)
+    @test g_r ≈ g_c rtol = 1.0e-8
+end

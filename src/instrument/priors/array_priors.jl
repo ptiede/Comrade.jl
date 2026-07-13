@@ -12,7 +12,8 @@ end
 
 Construct a prior for an entire array of sites.
 
- - The `default_dist` is the default distribution for all sites. Currently only `IIDSitePrior` is supported.
+ - The `default_dist` is the default distribution for all sites. This may be an
+[`IIDSitePrior`](@ref) or a time-correlated [`GaussMarkovSitePrior`](@ref).
  - Different priors for specified sites can be set using kwargs.
  - The `refant`  set the reference antennae to be used and is typically only done for priors that
 correspond to gain phases.
@@ -130,6 +131,10 @@ end
 function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
     smap = build_sitemap(d, array)
     site_dists = site_tuple(array, d.default_dist; d.override_dist...)
+    # Time-correlated site priors need per-chain machinery rather than a product
+    # distribution; see gauss_markov.jl.
+    any(Base.Fix2(isa, GaussMarkovSitePrior), values(site_dists)) &&
+        return build_markov_observed(d, site_dists, smap, array)
     dists = build_dist(site_dists, smap, array, d.refant, d.centroid_station)
     return ObservedArrayPrior(dists, smap, d.phase)
 end

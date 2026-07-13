@@ -2,7 +2,7 @@ module Comrade
 
 using Adapt
 using AbstractMCMC
-using Accessors: @set
+using Accessors: @set, getproperties, setproperties
 using ArgCheck: @argcheck
 using DensityInterface
 import Distributions as Dists

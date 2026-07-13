@@ -98,8 +98,16 @@ Comrade.@instrument
 Comrade.@jones
 Comrade.CalTable
 Comrade.caltable(::Comrade.SiteArray)
+Comrade.getparams
 Comrade.sites(::Comrade.CalTable)
 Comrade.IIDSitePrior
+Comrade.GaussMarkovSitePrior
+Comrade.AbstractGaussMarkovProcess
+Comrade.OrnsteinUhlenbeck
+Comrade.stationary_moments
+Comrade.transition_moments
+Comrade.hyperprior
+Comrade.materialize
 Comrade.ArrayPrior
 Comrade.Segmentation
 Comrade.IntegSeg

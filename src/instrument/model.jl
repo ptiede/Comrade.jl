@@ -160,7 +160,7 @@ function set_array(int::InstrumentModel, array::AbstractArrayConfiguration)
     prior_obs = NamedDist(map(x -> ObservedArrayPrior(x, array), prior))
     # 3. construct the baseline site map for each prior
     x = rand(prior_obs)
-    bsitemaps = map(x -> _construct_baselinemap(array, x), x)
+    bsitemaps = map(x -> _construct_baselinemap(array, getparams(x)), x)
     intobs = ObservedInstrumentModel(Jpre, refbasis, bsitemaps)
     return intobs, prior_obs
 end
@@ -212,8 +212,9 @@ end
 
 @inline function apply_instrument(vis, J::ObservedInstrumentModel, x)
     vout = parent(intout(vis))
-    # Grab parent arrary so we don't trace through SiteArray since that stuff is constant
-    xint = map(parent, x.instrument)
+    # Grab parent arrary so we don't trace through SiteArray since that stuff is constant.
+    # `getparams` strips the hyperparameters from hierarchical samples first.
+    xint = map(parent ∘ getparams, x.instrument)
     _apply_instrument!(vout, parent(vis), J, xint)
     return vout
 end

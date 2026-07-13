@@ -615,5 +615,7 @@ end
 
 prepare_caltable(gt::Comrade.CalTable) = gt
 prepare_caltable(gt::Comrade.SiteArray) = caltable(gt)
+# hierarchical instrument samples (e.g. GaussMarkovSitePrior with fitted hyperparameters)
+prepare_caltable(gt::NamedTuple{(:params, :hyperparams)}) = caltable(gt)
 
 end

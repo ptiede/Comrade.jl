@@ -21,7 +21,10 @@ struct PosteriorSamples{T, N, C <: AbstractArray{T, N}, S, M} <: AbstractArray{T
 end
 
 
-_convert2structarr(x::Union{<:NamedTuple, <:AbstractArray}) = StructArray(x, unwrap = (T -> (T <: Union{NamedTuple, Tuple})))
+# Don't unwrap zero-field types: StructArrays refuses them ("only eltypes with fields are
+# supported"), and an empty group (e.g. the sky's `gauss` when no extra Gaussian is fit)
+# is fine as a plain column of empty NamedTuples.
+_convert2structarr(x::Union{<:NamedTuple, <:AbstractArray}) = StructArray(x, unwrap = (T -> (T <: Union{NamedTuple, Tuple}) && fieldcount(T) > 0))
 _convert2structarr(x::StructArray) = x
 
 
