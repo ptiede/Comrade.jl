@@ -88,7 +88,7 @@ tpost = asflat(post)
 
 ndim = dimension(tpost)
 f = OptimizationFunction(tpost, Optimization.AutoForwardDiff())
-x0 = Comrade.HypercubeTransform.inverse(tpost, rand(post.prior))
+x0 = Comrade.inverse(tpost, rand(post.prior))
 
 using OptimizationOptimJL
 prob = OptimizationProblem(f, rand(ndim) .- 0.5, nothing)

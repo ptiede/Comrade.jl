@@ -6,7 +6,7 @@ using Test
 
 const COExt = Base.get_extension(Comrade, :ComradeOptimizationExt)
 # The cube (`ascube`) transform is a `TransportedDistribution` over a `StdUniform` latent.
-const Ahyper = Comrade.TransportedDistribution{<:Any, <:Any, <:Comrade.StdUniform}
+const Ahyper = Comrade.CubeTransport
 
 
 @testset "ComradeOptimizationExt" begin

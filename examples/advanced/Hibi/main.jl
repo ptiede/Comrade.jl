@@ -47,14 +47,14 @@ using VLBIFiles
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(42)
+rng = StableRNG(2)
 
 
 # To download the data visit https://doi.org/10.25739/g85n-f134
 uvd = VLBIFiles.load(
     VLBIFiles.UVData,
     joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
-)
+);
 
 # For this tutorial we will once again fit complex visibilities since they
 # provide the most information once the telescope/instrument model are taken
@@ -78,9 +78,9 @@ using Distributions
 @sky function sky(grid; ftot, cprior)
     c ~ cprior
     σimg ~ VLBITruncated(VLBIGaussian(0.0, 0.5); lower = 0.0)
-    r ~ VLBIUniform(μas2rad(10.0), μas2rad(40.0))
-    ain ~ VLBIUniform(1.0, 20.0)
-    aout ~ VLBIUniform(1.0, 20.0)
+    r ~ VLBIUniform(μas2rad(10.0), μas2rad(30.0))
+    ain ~ VLBIUniform(0.0, 10.0)
+    aout ~ VLBIUniform(1.0, 10.0)
     ## Form the image model
     mb = RingTemplate(RadialDblPower(ain, aout), AzimuthalUniform())
     mr = modify(mb, Stretch(r))
@@ -105,7 +105,7 @@ using Distributions
 @instrument function instrument()
     return @jones begin
         lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
-        gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0))
+        gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
         ## SingleStokesGain is a single complex gain for each site.
         return SingleStokesGain(exp(complex(lg, gp)))
     end

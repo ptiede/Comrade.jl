@@ -133,7 +133,6 @@ post = VLBIPosterior(skym, dlcamp, dcphase);
 # In this tutorial we will use the Adam optimizer.
 # We also need to import Enzyme to allow for automatic differentiation.
 using Optimization, OptimizationLBFGSB
-# tpost = asflat(post)
 xopt, sol = comrade_opt(post, LBFGSB(); initial_params = prior_sample(rng, post), maxiters = 5000)
 
 using CairoMakie
@@ -170,7 +169,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # by using the keyword argument `restart=true` in the `sample` function.
 using AdvancedHMC
 mc = sample(
-    rng, post, AdvancedHMC.NUTS(0.8), 300 + 400, n_adapts = 400,
+    rng, post, NUTS(0.8), 300 + 400, n_adapts = 400,
     initial_params = xopt, saveto = DiskStore(; stride = 10, name = "VLBA_2025")
 );
 chain = load_samples(mc)

@@ -30,9 +30,17 @@ end
 (post::TransformedVLBIPosterior)(θ) = logdensityof(post, θ)
 admode(post::TransformedVLBIPosterior) = admode(post.lpost)
 
+# Latent-space tags for a `TransportedDistribution`, keyed on the third type parameter (the
+# `stop` space): `TVFlat` (unconstrained ℝⁿ, `asflat`) has `stop === nothing`; the unit
+# hypercube (`ascube`) carries a `StdUniform`; a standard-normal latent carries a `StdNormal`.
+# These consts are the single place that encodes PT's type-parameter layout — dispatch on
+# them, don't respell them.
+const FlatTransport = TransportedDistribution{<:Any, <:Any, Nothing}
+const CubeTransport = TransportedDistribution{<:Any, <:Any, <:StdUniform}
+const NormalTransport = TransportedDistribution{<:Any, <:Any, <:StdNormal}
+
 # Is the transformed posterior over the unit hypercube ([0,1]^n, i.e. `ascube`)?
-_is_cube(t::TransportedDistribution{<:Any, <:Any, <:StdUniform}) = true
-_is_cube(::TransportedDistribution) = false
+_is_cube(t::TransportedDistribution) = t isa CubeTransport
 _is_cube(post::TransformedVLBIPosterior) = _is_cube(post.transform)
 
 function prior_sample(rng, tpost::TransformedVLBIPosterior, args...)
@@ -47,6 +55,9 @@ end
 dimension(post::TransformedVLBIPosterior) = dimension(post.transform)
 
 
+_transport_to_post(post::VLBIPosterior, space) =
+    TransformedVLBIPosterior(post, transport_to(post.prior, space))
+
 """
     transport_to(post::VLBIPosterior, space)
 
@@ -55,15 +66,41 @@ Build a [`TransformedVLBIPosterior`](@ref) whose parameters live in the latent `
 [`asflat`](@ref asflat) / [`ascube`](@ref ascube) helpers call this with the respective
 spaces.
 
+Also accepts an already-transformed posterior: it is returned unchanged when it already
+lives in `space`, and rebuilt from the underlying `VLBIPosterior` otherwise — an explicit
+space request is always honored.
+
 The space argument is typed (rather than left as `::Any`) so these methods stay strictly
 more specific than ProbabilityTransports' own `transport_to(dist, ::AbstractStdDist)` /
 `transport_to(dist, ::TVFlat)` and don't collide with them by ambiguity.
 """
-_transport_to_post(post::VLBIPosterior, space) =
-    TransformedVLBIPosterior(post, transport_to(post.prior, space))
 PT.transport_to(post::VLBIPosterior, space::PT.AbstractStdDist) = _transport_to_post(post, space)
 PT.transport_to(post::VLBIPosterior, space::PT.TVFlat) = _transport_to_post(post, space)
 
+# Does the transported distribution already live in `space`? Dispatch on the concrete space
+# type against the latent consts above (which ignore eltype/dimension) — no private field
+# access. An unrecognized `AbstractStdDist` falls through to `false`, forcing a safe
+# re-transport rather than a misclassification.
+_same_latent(t::TransportedDistribution, ::PT.TVFlat) = t isa FlatTransport
+_same_latent(t::TransportedDistribution, ::StdUniform) = _is_cube(t)
+_same_latent(t::TransportedDistribution, ::PT.StdNormal) = t isa NormalTransport
+_same_latent(::TransportedDistribution, ::PT.AbstractStdDist) = false
+
+_retransport(tpost::TransformedVLBIPosterior, space) =
+    _same_latent(tpost.transform, space) ? tpost : transport_to(tpost.lpost, space)
+PT.transport_to(tpost::TransformedVLBIPosterior, space::PT.AbstractStdDist) = _retransport(tpost, space)
+PT.transport_to(tpost::TransformedVLBIPosterior, space::PT.TVFlat) = _retransport(tpost, space)
+
+# Internal backend helper for a sampler's `transport_method`-style keyword. `space === nothing`
+# means "use the backend default": `asflat` for a raw `VLBIPosterior`, pass-through for an
+# already-transformed posterior. An explicit `space` is always honored via `transport_to`,
+# including re-transporting a `TransformedVLBIPosterior`.
+maybe_transport(post::VLBIPosterior, ::Nothing) = asflat(post)
+maybe_transport(tpost::TransformedVLBIPosterior, ::Nothing) = tpost
+maybe_transport(post::AbstractVLBIPosterior, space) = transport_to(post, space)
+
+
+PT.latent_pfwd(p::TransformedVLBIPosterior, x) = latent_pfwd(p.transform, x)
 
 """
     transform(posterior::TransformedVLBIPosterior, x)
@@ -73,9 +110,10 @@ to parameter space which is usually encoded as a `NamedTuple`.
 
 For the inverse transform see [`inverse`](@ref inverse)
 """
-PT.latent_pfwd(p::TransformedVLBIPosterior, x) = latent_pfwd(p.transform, x)
 transform(p::TransformedVLBIPosterior, x) = latent_pfwd(p, x)
 
+
+PT.latent_pback(p::TransformedVLBIPosterior, x) = latent_pback(p.transform, x)
 
 """
     inverse(posterior::TransformedVLBIPosterior, x)
@@ -85,7 +123,6 @@ Transforms the value `x` from parameter space to the transformed space
 
 For the forward transform see [`transform`](@ref transform)
 """
-PT.latent_pback(p::TransformedVLBIPosterior, x) = latent_pback(p.transform, x)
 inverse(p::TransformedVLBIPosterior, x) = latent_pback(p, x)
 
 """
@@ -156,4 +193,15 @@ end
 @inline function DensityInterface.logdensityof(post::TransformedVLBIPosterior, x::AbstractArray)
     p, ℓ = latent_pfwd_and_logdensity(post.transform, x)
     return loglikelihood(post.lpost, p) + ℓ
+end
+
+# Cube specialization: check the bounds (`logpdf(StdUniform, x)`, no transport) *before*
+# running the transport and forward model, so out-of-cube proposals (e.g. slice-sampler
+# expansion steps) short-circuit to -Inf instead of evaluating the full likelihood.
+@inline function DensityInterface.logdensityof(
+        post::TransformedVLBIPosterior{P, <:CubeTransport}, x::AbstractArray
+    ) where {P <: VLBIPosterior}
+    ℓ = Dists.logpdf(post.transform, x)
+    isfinite(ℓ) || return ℓ
+    return loglikelihood(post.lpost, latent_pfwd(post.transform, x)) + ℓ
 end

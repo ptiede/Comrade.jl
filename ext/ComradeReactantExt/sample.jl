@@ -380,6 +380,7 @@ _default_ldf(x, tpost) = logdensityof(tpost, x)
 
 """
     sample(rng, post, sampler::ReactantNUTS, nsamples;
+           transport_method=nothing,
            saveto=MemoryStore(), initial_params=nothing, restart=false,
            chunk_size=100, ldf=_default_ldf, host_rng=Random.default_rng(),
            warmup_callback=default_warmup_callback)
@@ -388,6 +389,11 @@ Warm up (Stan-windowed adaptation run in chunks of the sampling size — see
 [`warmup_chunked`](@ref)) then draw `nsamples` post-warmup samples from the Reactant
 posterior `post`. Structured like the AdvancedHMC extension's `sample`, and
 algorithmically identical to AdvancedHMC's NUTS adaptation.
+
+`transport_method` picks the latent space (see `Comrade.maybe_transport`): the default
+(`nothing`) flattens a raw `VLBIPosterior` with `asflat` and keeps an already-transformed
+posterior as-is, while an explicit space (e.g. `TVFlat()`, `StdNormal()`) is always
+honored, re-transporting if needed.
 
 Returns a `NamedTuple` `(; out, state)` where `state` is the final ProbProg
 `MCMCState` (held in memory, ready to inspect, plot via [`_current_state`](@ref), or
@@ -437,14 +443,18 @@ drawn.
 function AbstractMCMC.sample(
         rng::Reactant.ReactantRNG, post, sampler::ReactantNUTS,
         nsamples::Int;
-        transport_method = TVFlat(),
+        transport_method = nothing,
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
         chunk_size::Int = 100,
         ldf = _default_ldf, host_rng = Random.default_rng(),
         warmup_callback = default_warmup_callback
     )
 
-    tpost = maybe_flatten(post, transport_method)
+    # Persist/reload the latent space (DiskStore only) so a restart resumes in the same space
+    # it was launched in instead of silently defaulting; MemoryStore just honors the kwarg.
+    tpost = Comrade.resolve_disk_transport(
+        post, saveto isa DiskStore ? saveto.name : nothing, restart, transport_method
+    )
 
     # Checkpoint paths (DiskStore only): the resumable MCMCState and the warmup step counter.
     # Warmup is chunked at the same size as sampling.
