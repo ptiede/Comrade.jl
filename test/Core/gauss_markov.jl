@@ -121,9 +121,11 @@ end
         s = prior_sample(rng, post)
         @test s.instrument.lg isa NamedTuple{(:params, :hyperparams)}
         @test s.instrument.lg.params isa Comrade.SiteArray
-        @test keys(s.instrument.lg.hyperparams) == (:σ, :τ)
+        # every site gets its own hyperparameters, nested under the site name
+        @test keys(s.instrument.lg.hyperparams) == Tuple(Comrade.sites(dvis))
+        @test all(h -> keys(h) == (:σ, :τ), values(s.instrument.lg.hyperparams))
         # gp fits only τ; σ is fixed
-        @test keys(s.instrument.gp.hyperparams) == (:τ,)
+        @test all(h -> keys(h) == (:τ,), values(s.instrument.gp.hyperparams))
         @test isfinite(logdensityof(post, s))
         @inferred logdensityof(post, s)
 
@@ -195,7 +197,9 @@ end
         end
         post = VLBIPosterior(skym, gmint_iidover(), dvis)
         s = prior_sample(rng, post)
-        @test keys(s.instrument.lg.hyperparams) == (:σ,)
+        # the IID-override site carries no hyperparameters; the GM sites each get their own
+        @test :LM ∉ keys(s.instrument.lg.hyperparams)
+        @test all(h -> keys(h) == (:σ,), values(s.instrument.lg.hyperparams))
         @test isfinite(logdensityof(post, s))
         tp = asflat(post)
         @test isfinite(logdensityof(tp, prior_sample(rng, tp)))
@@ -212,7 +216,9 @@ end
         end
         post = VLBIPosterior(skym, gmint_gmover(), dvis)
         s = prior_sample(rng, post)
-        @test keys(s.instrument.lg.hyperparams) == (:σ, :τ, :LM)
+        @test keys(s.instrument.lg.hyperparams) == Tuple(Comrade.sites(dvis))
+        @test keys(s.instrument.lg.hyperparams.AA) == (:σ, :τ)
+        # the override site fixes τ, so only σ is fitted there
         @test keys(s.instrument.lg.hyperparams.LM) == (:σ,)
         @test isfinite(logdensityof(post, s))
         tp = asflat(post)
@@ -225,7 +231,8 @@ end
         # flat log-density by exactly −Δ‖z‖²/2. This pins down both the coloring map and
         # its Jacobian, including the hyperparameter coupling and refant conditioning.
         post = VLBIPosterior(skym, gmint_fitted(), dvis)
-        for (name, nhp) in ((:lg, 2), (:gp, 1))  # number of hyperparameter coordinates
+        nsite = length(Comrade.sites(dvis))
+        for (name, nhp) in ((:lg, 2nsite), (:gp, nsite))  # number of hyperparameter coordinates
             obsprior = getproperty(post.prior.instrument, name)
             node = Comrade.transport_node(obsprior, Comrade.TVFlat())
             dim = TV.dimension(node)
@@ -277,8 +284,8 @@ end
         end
         yd = map(_ -> rand(rng, obsprior), 1:N)
         # hyperparameter and gain moments agree between the cube pushforward and rand
-        @test mean(y -> y.hyperparams.σ, ys) ≈ mean(y -> y.hyperparams.σ, yd) rtol = 0.1
-        @test mean(y -> y.hyperparams.τ, ys) ≈ mean(y -> y.hyperparams.τ, yd) rtol = 0.1
+        @test mean(y -> y.hyperparams.AA.σ, ys) ≈ mean(y -> y.hyperparams.AA.σ, yd) rtol = 0.1
+        @test mean(y -> y.hyperparams.AA.τ, ys) ≈ mean(y -> y.hyperparams.AA.τ, yd) rtol = 0.1
         @test mean(y -> std(parent(y.params)), ys) ≈ mean(y -> std(parent(y.params)), yd) rtol = 0.1
     end
 
@@ -341,20 +348,22 @@ end
         end
         post0 = VLBIPosterior(skym, gmint_rec(), dvis)
         σtrue, τtrue = 0.15, 1.5
+        # every site has its own hyperparameters; use the same truth for all of them
+        hpof(σ, τ) = site_tuple(dvis, (σ = σ, τ = τ))
         obsprior = post0.prior.instrument.lg
         xg = Vector{Float64}(undef, length(obsprior.dists))
-        Comrade._rand_chains!(rrng, xg, obsprior.dists, (σ = σtrue, τ = τtrue))
+        Comrade._rand_chains!(rrng, xg, obsprior.dists, hpof(σtrue, τtrue))
         gtruth = Comrade.SiteArray(xg, obsprior.sitemap)
         θtrue = (
             sky = (f1 = 1.0, σ1 = μas2rad(40.0)),
-            instrument = (lg = (params = gtruth, hyperparams = (σ = σtrue, τ = τtrue)),),
+            instrument = (lg = (params = gtruth, hyperparams = hpof(σtrue, τtrue)),),
         )
         @test isfinite(logdensityof(post0, θtrue))
         obs = simulate_observation(rrng, post0, θtrue)
         post = VLBIPosterior(skym, gmint_rec(), obs[1])
         condld(σ, τ) = logdensityof(
             post,
-            (sky = θtrue.sky, instrument = (lg = (params = gtruth, hyperparams = (σ = σ, τ = τ)),))
+            (sky = θtrue.sky, instrument = (lg = (params = gtruth, hyperparams = hpof(σ, τ)),))
         )
         σs = range(0.05, 0.4; length = 40)
         τs = range(0.2, 6.0; length = 40)
@@ -362,6 +371,72 @@ end
         imax = argmax(L)
         @test 0.5σtrue < σs[imax[1]] < 2σtrue
         @test 0.3τtrue < τs[imax[2]] < 3τtrue
+    end
+
+    @testset "anchored chains" begin
+        # anchored = true conditions every site's chain to zero at its first time, killing
+        # the level redundancy with a separate (circular) offset term
+        @instrument function gmint_anch()
+            return @jones begin
+                gp0 ~ ArrayPrior(IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2))))
+                dgp ~ ArrayPrior(
+                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); anchored = true);
+                    refant = SEFDReference(0.0)
+                )
+                return SingleStokesGain(exp(1im * (gp0 + dgp)))
+            end
+        end
+        post = VLBIPosterior(skym, gmint_anch(), dvis)
+        s = prior_sample(rng, post)
+        chinds = Comrade.lookup(post.prior.instrument.dgp.sitemap)
+        # every site's first point is exactly zero, in rand and through the transform
+        @test all(inds -> iszero(parent(s.instrument.dgp.params)[first(inds)]), chinds)
+        @test isfinite(logdensityof(post, s))
+        tp = asflat(post)
+        xf = prior_sample(rng, tp)
+        @test isfinite(logdensityof(tp, xf))
+        y = Comrade.transform(tp, xf)
+        @test Comrade.inverse(tp, y) ≈ xf
+        @test all(inds -> iszero(parent(y.instrument.dgp.params)[first(inds)]), chinds)
+
+        # anchored chains are whitened like any other; ascube works (checked without the
+        # circular offset term, which correctly refuses Std transport)
+        @instrument function gmint_anchonly()
+            return @jones begin
+                dgp ~ ArrayPrior(
+                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); anchored = true);
+                    refant = SEFDReference(0.0)
+                )
+                return SingleStokesGain(exp(1im * dgp))
+            end
+        end
+        postc = VLBIPosterior(skym, gmint_anchonly(), dvis)
+        tpc = ascube(postc)
+        xc = prior_sample(rng, tpc)
+        @test isfinite(logdensityof(tpc, xc))
+        yc = Comrade.transform(tpc, xc)
+        @test Comrade.inverse(tpc, yc) ≈ xc
+
+        # anchored + centered + fitted hyperparameters (the recommended phase setup)
+        @instrument function gmint_anchcent()
+            return @jones begin
+                dgp ~ ArrayPrior(
+                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); anchored = true, centered = true);
+                    refant = SEFDReference(0.0)
+                )
+                return SingleStokesGain(exp(1im * dgp))
+            end
+        end
+        postcc = VLBIPosterior(skym, gmint_anchcent(), dvis)
+        scc = prior_sample(rng, postcc)
+        chindscc = Comrade.lookup(postcc.prior.instrument.dgp.sitemap)
+        @test all(inds -> iszero(parent(scc.instrument.dgp.params)[first(inds)]), chindscc)
+        tpcc = asflat(postcc)
+        xcc = prior_sample(rng, tpcc)
+        @test isfinite(logdensityof(tpcc, xcc))
+        ycc = Comrade.transform(tpcc, xcc)
+        @test Comrade.inverse(tpcc, ycc) ≈ xcc
+        @test all(inds -> iszero(parent(ycc.instrument.dgp.params)[first(inds)]), chindscc)
     end
 
     @testset "phase=true errors" begin

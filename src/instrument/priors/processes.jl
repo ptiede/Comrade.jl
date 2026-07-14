@@ -68,8 +68,7 @@ numeric process. Fields of `p` that are `Distributions.Distribution`s are replac
 is the identity.
 """
 materialize(p::AbstractGaussMarkovProcess, ::NamedTuple{()}) = p
-# Subset `hp` to the fitted fields first: chains reading the default hyperparameters are
-# handed the whole merged NamedTuple, which may also carry per-site override entries.
+# Subset `hp` to the fitted fields so extra entries are ignored rather than an error.
 materialize(p::AbstractGaussMarkovProcess, hp::NamedTuple) = setproperties(p, hp[keys(hyperprior(p))])
 
 """

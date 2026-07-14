@@ -1,7 +1,7 @@
 export GaussMarkovSitePrior
 
 """
-    GaussMarkovSitePrior(seg::TimeSegmentation, process::AbstractGaussMarkovProcess; centered = false)
+    GaussMarkovSitePrior(seg::TimeSegmentation, process::AbstractGaussMarkovProcess; centered = false, anchored = false)
 
 A site prior that is correlated in time, following the continuous-time Gauss-Markov
 `process` (e.g. [`OrnsteinUhlenbeck`](@ref)) sampled at the times implied by the
@@ -13,11 +13,12 @@ has multiple frequency channels each (site, channel) pair is an independent chai
 Process fields that are `Distributions.Distribution`s are *fitted* hyperparameters. When
 any are present the prior sample is a `NamedTuple` `(params = SiteArray, hyperparams =
 NamedTuple)`, mirroring `HierarchicalPrior`; when all fields are numbers the sample is a
-plain `SiteArray` like other site priors. Hyperparameters are shared across all sites
-that use the same `ArrayPrior` default; a per-site override (via the usual `ArrayPrior`
-kwargs) with fitted fields gets its own hyperparameters nested under the site's name.
-`caltable`/`plotcaltable` accept the hierarchical sample directly; for elementwise
-postprocessing (e.g. `exp.(...)` of log-gains) use the `params` field, i.e.
+plain `SiteArray` like other site priors. Every site gets its *own* hyperparameters: the
+process passed to `ArrayPrior` acts as a per-site template, and each site's fitted fields
+are nested under the site's name (e.g. `x.instrument.lg.hyperparams.AA.σ`). Per-site
+overrides via the usual `ArrayPrior` kwargs change the template (or the prior entirely)
+for that site. `caltable`/`plotcaltable` accept the hierarchical sample directly; for
+elementwise postprocessing (e.g. `exp.(...)` of log-gains) use the `params` field, i.e.
 `exp.(x.instrument.lg.params)`.
 
 By default the prior is *whitened* (non-centered): each free point's latent coordinate is
@@ -35,21 +36,34 @@ prior: `phase` must be `false`. Reference stations (`refant`) are handled by exa
 conditioning of the chain on the fixed values, which works with scattered fixed indices
 such as those produced by `SEFDReference`.
 
+Setting `anchored = true` additionally conditions each site's chain to be exactly zero at
+its first time, so the prior describes the *evolution* of a quantity relative to its
+starting value (the continuous-time analogue of the cumulative `phase=true`
+parameterization). This is important when the chain models an unwrapped phase fluctuation
+on top of a separate offset term: without anchoring the chain's overall level trades off
+against the offset, and the likelihood's `2π` periodicity turns that redundancy into
+spurious posterior modes at `2π`-shifted levels. Anchoring removes the level freedom
+entirely, so the wrap ambiguity lives only in the (circular) offset while genuine
+continuous drift is still expressed by the chain.
+
 # Example
 
 ```julia
 lg ~ ArrayPrior(GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
 gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 3.0, τ = 1.0)); refant = SEFDReference(0.0))
+## phase-fluctuation term meant to be combined with a circular per-track offset
+dgp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = 1.0); anchored = true); refant = SEFDReference(0.0))
 ```
 """
 struct GaussMarkovSitePrior{S <: TimeSegmentation, P <: AbstractGaussMarkovProcess} <: AbstractSitePrior
     seg::S
     process::P
     centered::Bool
+    anchored::Bool
 end
 
-function GaussMarkovSitePrior(seg::TimeSegmentation, process::AbstractGaussMarkovProcess; centered = false)
-    return GaussMarkovSitePrior(seg, process, centered)
+function GaussMarkovSitePrior(seg::TimeSegmentation, process::AbstractGaussMarkovProcess; centered = false, anchored = false)
+    return GaussMarkovSitePrior(seg, process, centered, anchored)
 end
 
 # ----- per-(site, freq) chain specifications --------------------------------
@@ -59,7 +73,7 @@ end
 
 struct MarkovChainSpec{P <: AbstractGaussMarkovProcess, K, V <: AbstractVector{<:Integer}, T <: AbstractVector, F <: NamedTuple, G <: NamedTuple}
     process::P     # template; fitted fields are Distribution placeholders
-    hpsel::Val{K}  # which hyperparameters this chain reads: :default, an override-site name, or nothing
+    hpsel::Val{K}  # the site whose hyperparameters this chain reads, or nothing if fully fixed
     inds::V        # flat indices into the full parameter vector, ascending in time
     ts::T          # chain times in hours (strictly increasing)
     centered::Bool # coordinates are raw values (centered) or whitened standard variates
@@ -93,7 +107,6 @@ EnzymeRules.inactive_type(::Type{<:MarkovChainSpec}) = true
 EnzymeRules.inactive_type(::Type{<:IIDChainSpec}) = true
 
 @inline _selecthp(hp::NamedTuple, ::Val{nothing}) = (;)
-@inline _selecthp(hp::NamedTuple, ::Val{:default}) = hp
 @inline _selecthp(hp::NamedTuple, ::Val{K}) where {K} = getproperty(hp, K)
 
 # ----- the chain log-density -------------------------------------------------
@@ -656,12 +669,12 @@ function _chain_times(times, inds)
     return ts
 end
 
-function _chainspec(sp::GaussMarkovSitePrior, site, inds, ts, fixedpos, isoverride)
-    hpk = isempty(hyperprior(sp.process)) ? nothing : (isoverride ? site : :default)
+function _chainspec(sp::GaussMarkovSitePrior, site, inds, ts, fixedpos)
+    hpk = isempty(hyperprior(sp.process)) ? nothing : site
     return MarkovChainSpec(sp.process, Val(hpk), inds, ts, fixedpos, sp.centered)
 end
 
-function _chainspec(sp::IIDSitePrior, site, inds, ts, fixedpos, isoverride)
+function _chainspec(sp::IIDSitePrior, site, inds, ts, fixedpos)
     free = isempty(fixedpos) ? copy(inds) : inds[setdiff(eachindex(inds), fixedpos)]
     return IIDChainSpec(sp.dist, free)
 end
@@ -682,31 +695,36 @@ function build_markov_observed(d::ArrayPrior, site_dists::NamedTuple, smap::Site
     fixedinds = collect(Int, finds)
     fixedvals = vals === nothing ? Float64[] : collect(float.(vals))
 
-    oksites = keys(site_dists)
-    # :default is the hyperparameter-routing sentinel in `_selecthp`; a site with that
-    # name would silently read the top-level hyperparameters instead of its own.
-    @argcheck :default ∉ keys(d.override_dist) "An ArrayPrior site override may not be named :default with GaussMarkovSitePrior"
+    # Anchored chains are exactly conditioned to zero at each site's first time, on top of
+    # any reference-fixed indices (see the `anchored` docs of `GaussMarkovSitePrior`).
+    for inds in lookup(smap)
+        sp = getproperty(site_dists, smap.sites[first(inds)])
+        (sp isa GaussMarkovSitePrior && sp.anchored) || continue
+        i1 = first(inds)
+        i1 ∈ fixedinds && continue
+        push!(fixedinds, i1)
+        push!(fixedvals, 0.0)
+    end
+
     chains = map(lookup(smap)) do inds
         s = smap.sites[first(inds)]
         sp = getproperty(site_dists, s)
         ts = _chain_times(smap.times, inds)
         fixedpos = findall(in(fixedinds), inds)
-        return _chainspec(sp, s, collect(Int, inds), ts, fixedpos, s ∈ keys(d.override_dist))
+        return _chainspec(sp, s, collect(Int, inds), ts, fixedpos)
     end
 
-    # Assemble the merged hyperprior: the default process's fitted fields live at the top
-    # level, each override site's fitted fields nest under the site name.
-    usesdefault = any(s -> (s ∉ keys(d.override_dist)) && site_dists[s] isa GaussMarkovSitePrior, oksites)
-    hpdef = (d.default_dist isa GaussMarkovSitePrior && usesdefault) ? hyperprior(d.default_dist.process) : (;)
-    hpover = (;)
-    for (s, sp) in pairs(d.override_dist)
-        (s ∈ oksites && sp isa GaussMarkovSitePrior) || continue
+    # Assemble the merged hyperprior: every site gets its own hyperparameters, nested
+    # under the site name. The process in the ArrayPrior default is a per-site template,
+    # so its fitted fields are replicated for each site that uses it. Multi-frequency
+    # chains of the same site share that site's hyperparameters.
+    hp = (;)
+    for (s, sp) in pairs(site_dists)
+        sp isa GaussMarkovSitePrior || continue
         h = hyperprior(sp.process)
         isempty(h) && continue
-        hpover = merge(hpover, NamedTuple{(s,)}((h,)))
+        hp = merge(hp, NamedTuple{(s,)}((h,)))
     end
-    @argcheck isempty(intersect(keys(hpdef), keys(hpover))) "A site name collides with a hyperparameter name in a GaussMarkovSitePrior ArrayPrior"
-    hp = merge(hpdef, hpover)
 
     dists = GaussMarkovChainDist(chains, fixedinds, fixedvals, length(smap.times))
     isempty(hp) && return ObservedArrayPrior(dists, smap, false)
