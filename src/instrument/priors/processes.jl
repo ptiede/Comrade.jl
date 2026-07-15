@@ -114,6 +114,10 @@ end
 @inline stationary_moments(p::OrnsteinUhlenbeck) = (p.μ, p.σ^2)
 
 @inline function transition_moments(p::OrnsteinUhlenbeck, Δt)
-    Φ = exp(-Δt / p.τ)
+    # Keep Φ strictly below 1 so that Q and the conditional (bridge) variances downstream
+    # stay positive even when Δt/τ underflows, e.g. during a fitted-τ warmup excursion.
+    # Otherwise the chain log-density is NaN instead of merely very negative, and the
+    # whitening transform divides by zero.
+    Φ = min(exp(-Δt / p.τ), prevfloat(1.0))
     return Φ, p.σ^2 * (1 - Φ^2)
 end

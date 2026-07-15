@@ -147,7 +147,8 @@ end
     B = Base.Fix1(Dists.logpdf, spec.dist)
     G = Base.Fix1(rgetindex, x)
     F = B ∘ G
-    return sum(F, spec.freeinds)
+    # `init`: `freeinds` is empty when every point of the site is reference-fixed
+    return sum(F, spec.freeinds; init = zero(eltype(x)))
 end
 
 # ----- the full-vector distribution ------------------------------------------

@@ -60,6 +60,19 @@ end
         @inferred Comrade._gm_chain_logpdf(p, x, inds, ts)
     end
 
+    @testset "extreme correlation time stays finite" begin
+        # regression: Δt/τ underflow rounded Φ to exactly 1, so Q = σ²(1-Φ²) was 0 and
+        # the chain logpdf was NaN (0/0 + log 0) while the whitening divided by s = 0
+        pext = Comrade.OrnsteinUhlenbeck(σ = 0.3, τ = 1.0e20, μ = 0.0)
+        Φ, Q = Comrade.transition_moments(pext, 1.0e-3)
+        @test Φ < 1
+        @test Q > 0
+        @test !isnan(Comrade._gm_chain_logpdf(pext, x, inds, ts))
+        m, s = Comrade._bridge_moments(0.0, 0.3^2, Φ, 0.1, Φ, -0.2)
+        @test isfinite(m)
+        @test s > 0
+    end
+
     @testset "exact conditioning identity" begin
         # scattered, consecutive, endpoints, and fully fixed subsets
         for fp in ([2, 5, 6, 10], [1, 10], [1, 2], [9, 10], collect(1:n))
@@ -220,6 +233,24 @@ end
         @test keys(s.instrument.lg.hyperparams.AA) == (:σ, :τ)
         # the override site fixes τ, so only σ is fitted there
         @test keys(s.instrument.lg.hyperparams.LM) == (:σ,)
+        @test isfinite(logdensityof(post, s))
+        tp = asflat(post)
+        @test isfinite(logdensityof(tp, prior_sample(rng, tp)))
+
+        # regression: an IID override on the reference site has every point fixed, so its
+        # chain term is a sum over an empty index set (previously threw an ArgumentError)
+        @instrument function gmint_iidrefover()
+            return @jones begin
+                gp ~ ArrayPrior(
+                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0));
+                    AA = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)),
+                    refant = SingleReference(:AA, 0.0)
+                )
+                return SingleStokesGain(exp(1im * gp))
+            end
+        end
+        post = VLBIPosterior(skym, gmint_iidrefover(), dvis)
+        s = prior_sample(rng, post)
         @test isfinite(logdensityof(post, s))
         tp = asflat(post)
         @test isfinite(logdensityof(tp, prior_sample(rng, tp)))
