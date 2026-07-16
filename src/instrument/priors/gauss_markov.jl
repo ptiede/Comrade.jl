@@ -365,9 +365,8 @@ function _color_chain_flat!(flag, y, x, index, spec::MarkovChainSpec, hp)
     ℓ0 = TV.logjac_zero(flag, eltype(x))
     n == 0 && return ℓ0, index
     if spec.centered
-        @trace track_numbers = false for k in 1:n
-            rsetindex!(y, rgetindex(x, index + k - 1), rgetindex(free.tgt, k))
-        end
+        y[free.tgt] = @view(x[index:(index + n - 1)])
+        # rsetindex!(y, rgetindex(x, index:(index + n - 1)), free.tgt)
         return ℓ0, index + n
     end
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
@@ -401,10 +400,12 @@ end
 function _whiten_chain_flat!(x, index, y, spec::MarkovChainSpec, hp)
     free = spec.free
     if spec.centered
-        @inbounds for k in 1:_nfree(spec)
-            x[index + k - 1] = y[free.tgt[k]]
-        end
-        return index + _nfree(spec)
+        n = _nfree(spec)
+        # Vectorized gather (inverse of the coloring scatter): read the scattered chain values
+        # `y[free.tgt]` into the contiguous latent block. Avoids scalar indexing so this also
+        # raises if traced.
+        @view(x[index:(index + n - 1)]) .= @view(y[free.tgt])
+        return index + n
     end
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
     μ, P = stationary_moments(p)

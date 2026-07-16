@@ -22,7 +22,17 @@ end
     )
     Reactant.@allowscalar begin
         yfv[variate_index] = y
-        yfv[fixed_index] .= fixed_values
+        # `yfv[fixed_index] .= fixed_values` lowers to a `stablehlo.scatter` — the fast, vectorized
+        # ("raised") path — for length > 1, but its single-element case hits a Reactant bug that
+        # tries to assign a 1-element traced array into a scalar slot (`Float64(::TracedRArray)`),
+        # e.g. a TrackSeg offset referenced to one antenna has exactly one fixed index. `fixed_index`
+        # is a concrete host vector, so this length branch is resolved at trace time (no traced
+        # branch) and only the length-1 case falls back to a scalar store. See EnzymeAD/Reactant.jl#2960.
+        if length(fixed_index) == 1
+            yfv[fixed_index[begin]] = fixed_values[begin]
+        else
+            yfv[fixed_index] .= fixed_values
+        end
     end
     return yfv
 end
