@@ -17,7 +17,12 @@ function Comrade.prepare_device(m::Comrade.ObservedSkyModel, ex::ReactantEx)
 end
 
 function Comrade.prepare_device(m::Comrade.ObservedInstrumentModel, ex::ReactantEx)
-    return Comrade.ObservedInstrumentModel(Reactant.to_rarray(m.instrument), m.refbasis, m.bsitelookup)
+    # vismeta stays on the host: the Ti/Fr reads inside the traced loop are gathers from
+    # constant plain arrays (like the bsitelookup indices), and the site Symbols cannot
+    # be device arrays at all (`_sitepoint` gives `site = nothing` under tracing).
+    return Comrade.ObservedInstrumentModel(
+        Reactant.to_rarray(m.instrument), m.refbasis, m.bsitelookup, m.vismeta
+    )
 end
 
 function Comrade.prepare_device(grid::VLBISkyModels.FourierDualDomain, ex::ReactantEx)

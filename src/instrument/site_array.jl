@@ -1,4 +1,27 @@
-export SiteArray, site, time_interval
+export SiteArray, site
+
+"""
+    CodedAxis(axis, code)
+
+A lazy dimension-coded vector: element `i` is `axis[code[i]]`. The instrument metadata
+(times, frequencies, sites) stores the handful of unique axis values once and a compact
+integer code per point, instead of repeating full values; views/subsets slice the codes.
+This is a dedicated type rather than `view(axis, code)` so the whole family can be marked
+`EnzymeRules.inactive_type` (metadata is never differentiated).
+"""
+struct CodedAxis{T, X <: AbstractVector{T}, C <: AbstractArray{<:Integer}} <: AbstractVector{T}
+    axis::X
+    code::C
+end
+
+Base.size(a::CodedAxis) = size(a.code)
+Base.IndexStyle(::Type{<:CodedAxis}) = Base.IndexLinear()
+Base.@propagate_inbounds Base.getindex(a::CodedAxis, i::Int) = a.axis[a.code[i]]
+Base.@propagate_inbounds Base.getindex(a::CodedAxis, I::AbstractArray) = CodedAxis(a.axis, a.code[I])
+Base.@propagate_inbounds Base.view(a::CodedAxis, I...) = CodedAxis(a.axis, view(a.code, I...))
+Base.similar(a::CodedAxis, ::Type{S}, dims::Dims) where {S} = similar(a.axis, S, dims)
+
+EnzymeRules.inactive_type(::Type{<:CodedAxis}) = true
 
 """
     SiteArray(data, times, frequencies, sites)
@@ -16,7 +39,7 @@ which will grab the first 10 time and frequency points for the ALMA site.
 Otherwise indexing into the array will return an element whose time, frequency, and site are
 the element of the `times`, `frequencies`, and `sites` arrays respectively.
 """
-struct SiteArray{T, N, A <: AbstractArray{T, N}, Ti <: AbstractArray{<:IntegrationTime, N}, Fr <: AbstractArray{<:FrequencyChannel, N}, Sy <: AbstractArray{<:Any, N}} <: AbstractArray{T, N}
+struct SiteArray{T, N, A <: AbstractArray{T, N}, Ti <: AbstractArray{<:Number, N}, Fr <: AbstractArray{<:Number, N}, Sy <: AbstractArray{<:Any, N}} <: AbstractArray{T, N}
     data::A
     times::Ti
     frequencies::Fr
@@ -132,47 +155,123 @@ function frequency(arr::SiteArray, a::Union{AbstractInterval, Real})
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
-_equalorin(x::T, y::T) where {T} = x == y
-_equalorin(x::Real, y) = x ∈ y
-_equalorin(x, y::Real) = y ∈ x
-_equalorin(x, y) = y ∈ x
-_equalorin(x, ::typeof(Base.Colon())) = true
-_equalorin(::typeof(Base.Colon()), x) = true
+# Does the stored metadata value match the user's selector? Directional (selector first,
+# stored value second): stored values are always scalars (Real centers or site Symbols),
+# selectors may be a scalar, a collection/interval, or Colon.
+_selmatch(::typeof(Base.Colon()), stored) = true
+_selmatch(sel::Real, stored::Real) = sel == stored
+_selmatch(sel::Symbol, stored::Symbol) = sel === stored
+_selmatch(sel, stored) = stored ∈ sel
 const Indexable = Union{Integer, AbstractArray{<:Integer}, BitArray}
 
 function Base.getindex(arr::SiteArray; Fr = Base.Colon(), S = Base.Colon(), Ti = Base.Colon())
     Fr2 = isa(Fr, Indexable) ? unique(arr.frequencies)[Fr] : Fr
     S2 = isa(S, Indexable) ? unique(arr.sites)[S] : S
     Ti2 = isa(Ti, Indexable) ? unique(arr.times)[Ti] : Ti
-    inds = findall(i -> (_equalorin(S2, Comrade.sites(arr)[i])&&_equalorin(Ti2, Comrade.times(arr)[i])&&_equalorin(Fr2, Comrade.frequencies(arr)[i])), eachindex(arr))
+    inds = findall(i -> (_selmatch(S2, Comrade.sites(arr)[i])&&_selmatch(Ti2, Comrade.times(arr)[i])&&_selmatch(Fr2, Comrade.frequencies(arr)[i])), eachindex(arr))
     nd = view(parent(arr), inds)
     return SiteArray(nd, view(times(arr), inds), view(frequencies(arr), inds), view(sites(arr), inds))
 end
 
 
-struct SiteLookup{L <: NamedTuple, N, Ti <: AbstractArray{<:IntegrationTime, N}, Fr <: AbstractArray{<:FrequencyChannel, N}, Sy <: AbstractArray{<:Any, N}}
-    lookup::L
-    times::Ti
-    frequencies::Fr
-    sites::Sy
+"""
+    SiteFreqChain
+
+The observed points of one (site, frequency-channel) pair: the flat indices into the
+parameter storage (`inds`, ascending in time), the codes of each point into the parent
+lookup's time axis (`tcodes`, ascending), and the code of the chain's frequency channel
+(`fcode`). Only observed (time, frequency) combinations are represented — sites that
+join/leave the array or observe a subset of the channels contribute exactly the points
+they observed. Use [`chaintimes`](@ref Comrade.chaintimes)/[`chainfreq`](@ref
+Comrade.chainfreq) to read the axis values.
+"""
+struct SiteFreqChain{V <: AbstractVector{<:Integer}, C <: AbstractVector{<:Integer}, I <: Integer}
+    inds::V
+    tcodes::C
+    fcode::I
 end
 
-times(s::SiteLookup) = s.times
-sites(s::SiteLookup) = s.sites
-frequencies(s::SiteLookup) = s.frequencies
-lookup(s::SiteLookup) = s.lookup
+Base.length(c::SiteFreqChain) = length(c.inds)
+
+"""
+    SiteLookup
+
+The instrument-parameter metadata in dimension-coded form: the unique time/frequency/site
+axis values (with the segment edges of the time and frequency axes, used only when
+mapping data onto parameter slots), compact per-point integer codes into those axes, and
+the per-(site, frequency-channel) chain structure ([`sitechains`](@ref
+Comrade.sitechains)). Time centers are in the same units as `array[:Ti]` (UTC hours) and
+frequency centers in Hz; no per-point segment objects are stored.
+"""
+struct SiteLookup{L <: NamedTuple, N, TA <: AbstractVector{<:Real}, FA <: AbstractVector{<:Real}, SA <: AbstractVector{Symbol}, C <: AbstractArray{<:Integer, N}}
+    chains::L
+    taxis::TA  # unique time centers (sorted)
+    tlo::TA    # segment edges per time-axis entry (construction/search only)
+    thi::TA
+    faxis::FA  # unique frequency centers (sorted)
+    flo::FA
+    fhi::FA
+    saxis::SA  # unique sites (sorted)
+    tcode::C   # per-point codes into the axes
+    fcode::C
+    scode::C
+end
+
+times(s::SiteLookup) = CodedAxis(s.taxis, s.tcode)
+sites(s::SiteLookup) = CodedAxis(s.saxis, s.scode)
+frequencies(s::SiteLookup) = CodedAxis(s.faxis, s.fcode)
+
+"""
+    chaintimes(s::SiteLookup, c::SiteFreqChain)
+    chainfreq(s::SiteLookup, c::SiteFreqChain)
+
+The time-axis values of a chain's points, and the chain's frequency-channel center.
+"""
+chaintimes(s::SiteLookup, c::SiteFreqChain) = s.taxis[c.tcodes]
+chainfreq(s::SiteLookup, c::SiteFreqChain) = s.faxis[c.fcode]
+
+"""
+    sitechains(s::SiteLookup)
+    sitechains(s::SiteLookup, site::Symbol)
+
+The per-site chain structure of the lookup: a `NamedTuple` keyed by the *real* site
+symbols, whose entries are tuples of [`SiteFreqChain`](@ref Comrade.SiteFreqChain), one
+per frequency channel the site observed (ascending in frequency). The two-argument form
+returns a single site's tuple.
+"""
+sitechains(s::SiteLookup) = s.chains
+sitechains(s::SiteLookup, site::Symbol) = getproperty(s.chains, site)
+
+"""
+    siteindices(s::SiteLookup, site::Symbol)
+
+All flat storage indices belonging to `site`, concatenated across its frequency chains.
+"""
+siteindices(s::SiteLookup, site::Symbol) =
+    reduce(vcat, map(c -> c.inds, sitechains(s, site)))
+
+"""
+    npoints(s::SiteLookup)
+
+The total number of parameter points (the length of the flat storage).
+"""
+npoints(s::SiteLookup) = length(s.tcode)
 
 EnzymeRules.inactive(::typeof(times), ::SiteLookup) = nothing
 EnzymeRules.inactive(::typeof(frequencies), ::SiteLookup) = nothing
 EnzymeRules.inactive(::typeof(sites), ::SiteLookup) = nothing
-EnzymeRules.inactive(::typeof(lookup), ::SiteLookup) = nothing
+EnzymeRules.inactive(::typeof(sitechains), args...) = nothing
+EnzymeRules.inactive(::typeof(siteindices), args...) = nothing
 
 function sitemap!(f, out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
-    return map(lookup(slook)) do site
-        ysite = @view gains[site]
-        outsite = @view out[site]
-        outsite .= f.(ysite)
+    foreach(values(sitechains(slook))) do chs
+        foreach(chs) do c
+            ysite = @view gains[c.inds]
+            outsite = @view out[c.inds]
+            outsite .= f.(ysite)
+        end
     end
+    return out
 end
 
 function sitemap(f, gains::AbstractArray{T}, slook::SiteLookup) where {T}
@@ -181,48 +280,26 @@ function sitemap(f, gains::AbstractArray{T}, slook::SiteLookup) where {T}
     return out
 end
 
-function sitemap!(::typeof(cumsum), out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
-    map(lookup(slook)) do site
-        ys = @view gains[site]
-        outs = @view out[site]
-        cumsum!(outs, ys)
-        nothing
-    end
-    return out
-end
-
-"""
-    SiteLookup(s::SiteArray)
-
-Construct a site lookup dictionary for a site array.
-"""
-function SiteLookup(s::SiteArray)
-    return SiteLookup(times(s), frequencies(s), sites(s))
-end
-
-function SiteLookup(times::AbstractVector, frequencies::AbstractArray, sites::AbstractArray)
-    slist = sort(unique(sites))
-    flist = sort(unique(frequencies))
-    if length(flist) == 1
-        return SiteLookup(NamedTuple{Tuple(slist)}(map(p -> findall(==(p), sites), slist)), times, frequencies, sites)
-    else
-        # Find sites first
-        sflist = Symbol[]
-        inds = Vector{Int}[]
-        for s in slist
-            sinds = findall(==(s), sites)
-            for (i, f) in enumerate(flist)
-                finds = findall(==(f), @view(frequencies[sinds]))
-                if !isempty(finds)
-                    ss = Symbol(s, i)
-                    push!(sflist, ss)
-                    push!(inds, sinds[finds])
-                end
+# Assemble the chain structure from the axes + per-point codes: per (site, channel), the
+# point positions sorted ascending in (axis) time.
+function _build_sitelookup(taxis, tlo, thi, faxis, flo, fhi, saxis, tcode, fcode, scode)
+    chains = map(eachindex(saxis)) do si
+        sinds = findall(==(si), scode)
+        fcs = sort!(unique(fcode[sinds]))
+        Tuple(
+            map(fcs) do fc
+                finds = sinds[findall(==(fc), fcode[sinds])]
+                # ascending in time; `sortperm` is stable so ties keep storage order
+                perm = sortperm(tcode[finds])
+                inds = finds[perm]
+                SiteFreqChain(inds, tcode[inds], fc)
             end
-        end
-        lookup = NamedTuple{Tuple(sflist)}(Tuple(inds))
-        return SiteLookup(lookup, times, frequencies, sites)
+        )
     end
+    return SiteLookup(
+        NamedTuple{Tuple(saxis)}(Tuple(chains)),
+        taxis, tlo, thi, faxis, flo, fhi, saxis, tcode, fcode, scode
+    )
 end
 
 """
@@ -237,8 +314,8 @@ end
 
 function SiteArray(
         data::SiteArray{T, N},
-        times::AbstractArray{<:IntegrationTime, N},
-        frequencies::AbstractArray{<:FrequencyChannel, N},
+        times::AbstractArray{<:Number, N},
+        frequencies::AbstractArray{<:Number, N},
         sites::AbstractArray{<:Any, N}
     ) where {T, N}
     return data

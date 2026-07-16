@@ -4,39 +4,30 @@ import Distributions
 using Statistics
 using PrettyTables
 
-struct IntegrationTime{I <: Integer, T}
-    mjd::I
-    t0::T
-    dt::T
+"""
+    Segment(lo, hi)
+
+A half-open axis segment `[lo, hi)` (time in UTC hours, or frequency in Hz): the
+construction-time currency of the segmentation layer ([`timestamps`](@ref) and
+`freqchannels` return grids of these). Only the explicit edges are stored — the center
+is derived — so datum→segment membership never depends on reconstructing edges from
+center/width arithmetic. Segments are transient: the parameter store keeps their centers
+and edges as plain axis vectors (see `SiteLookup`).
+"""
+struct Segment{T <: Real}
+    lo::T
+    hi::T
 end
 
-mjd(ts::IntegrationTime) = ts.mjd
-interval(ts::IntegrationTime) = (ts.t0 - ts.dt / 2) .. (ts.t0 + ts.dt / 2)
-Base.in(t::Number, ts::IntegrationTime) = (ts.t0 - ts.dt / 2) ≤ t < (ts.t0 + ts.dt / 2)
-Base.isless(t::IntegrationTime, ts::IntegrationTime) = t.t0 < ts.t0
-Base.isless(s::Number, t::IntegrationTime) = s < (t.t0 - t.dt / 2)
-Base.isless(t::IntegrationTime, s::Number) = (t.t0 + t.dt / 2) < s
-Base.Broadcast.broadcastable(ts::IntegrationTime) = Ref(ts)
-
-_center(ts::IntegrationTime) = ts.t0
-_region(ts::IntegrationTime) = ts.dt
-
-struct FrequencyChannel{T, I <: Integer}
-    central::T
-    bandwidth::T
-    channel::I
-end
-channel(fs::FrequencyChannel) = fs.channel
-interval(fs::FrequencyChannel) = (fs.central - fs.bandwidth / 2) .. (fs.central + fs.bandwidth / 2)
-Base.in(f::Number, fs::FrequencyChannel) = (fs.central - fs.bandwidth / 2) ≤ f < (fs.central + fs.bandwidth / 2)
-Base.isless(t::FrequencyChannel, ts::FrequencyChannel) = _center(t) < _center(ts)
-Base.isless(s::Number, t::FrequencyChannel) = s < (_center(t) - _region(t) / 2)
-Base.isless(t::FrequencyChannel, s::Number) = (_center(t) + _region(t) / 2) < s
-Base.Broadcast.broadcastable(fs::FrequencyChannel) = Ref(fs)
-
-
-_center(fs::FrequencyChannel) = fs.central
-_region(fs::FrequencyChannel) = fs.bandwidth
+_center(s::Segment) = (s.lo + s.hi) / 2
+_width(s::Segment) = s.hi - s.lo
+Base.in(x::Number, s::Segment) = s.lo ≤ x < s.hi
+Base.isless(a::Segment, b::Segment) = a.lo < b.lo
+Base.isless(x::Number, s::Segment) = x < s.lo
+# a segment sorts before `x` iff it lies entirely below it (half-open, so `hi ≤ x`);
+# `searchsortedfirst(segments, x)` then lands on the first segment that can contain `x`
+Base.isless(s::Segment, x::Number) = s.hi ≤ x
+Base.Broadcast.broadcastable(s::Segment) = Ref(s)
 
 
 include("site_array.jl")

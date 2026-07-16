@@ -55,7 +55,7 @@ skyprior = (r = VLBIUniform(μas2rad(10.0), μas2rad(30.0)), a = VLBIUniform(1.0
 g  = imagepixels(μas2rad(100.0), μas2rad(100.0), 256, 256)
 skym = SkyModel(sky, skyprior, g)
 
-G = SingleStokesGain(x->exp(complex(x.lg, x.pg)))
+G = SingleStokesGain((x, p)->exp(complex(x.lg, x.pg)))
 intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
             pg = ArrayPrior(IIDSitePrior(ScanSeg(), DiagVonMises(0.0, inv(π^2))))
             )

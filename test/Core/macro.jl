@@ -172,7 +172,7 @@ end
             end
         end
 
-        G = SingleStokesGain(x -> exp(x.lg + 1im * x.gp))
+        G = SingleStokesGain((x, p) -> exp(x.lg + 1im * x.gp))
         manual_prior = (
             lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
             gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0)),
@@ -229,8 +229,8 @@ end
         @instrument function macro_pol(; refbasis = CirBasis())
             G = @jones begin
                 lgR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-                gpR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); phase = true, refant = SEFDReference(0.0))
-                lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), phase = false)
+                gpR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0))
+                lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
                 gprat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), refant = SingleReference(:AA, 0.0))
                 gR = exp(lgR + 1im * gpR)
                 gL = gR * exp(lgrat + 1im * gprat)
@@ -271,6 +271,64 @@ end
         vout = Comrade.apply_instrument(vis, ointm, (; instrument = x))
         vper = Comrade.apply_instrument(vis, pintm, (; instrument = NamedTuple()))
         @test vout ≈ vper
+    end
+
+    @testset "metadata binding (@jones p)" begin
+        @instrument function macro_fdep(; ν0 = 230.0e9)
+            return @jones p begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                α ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 1.0)))
+                return SingleStokesGain(exp(lg + α * log(p.Fr / ν0)))
+            end
+        end
+        m_macro = macro_fdep()
+        @test m_macro isa InstrumentModel
+        # the generated param_map is named and two-argument
+        @test !occursin("#", string(nameof(m_macro.jones.param_map)))
+
+        G = SingleStokesGain((x, p) -> exp(x.lg + x.α * log(p.Fr / 230.0e9)))
+        manual_prior = (
+            lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+            α = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 1.0))),
+        )
+        m_manual = InstrumentModel(G, manual_prior)
+
+        vis = Comrade.measurement(dvis)
+        ointm, printm = Comrade.set_array(m_macro, arrayconfig(dvis))
+        ointman, _ = Comrade.set_array(m_manual, arrayconfig(dvis))
+        x = rand(printm)
+        @test Comrade.apply_instrument(vis, ointm, (; instrument = x)) ≈
+            Comrade.apply_instrument(vis, ointman, (; instrument = x))
+    end
+
+    @testset "metadata binding errors" begin
+        # binding cannot be `x` (reserved for the parameter NamedTuple)
+        @test_throws LoadError @eval @instrument function badbind_x()
+            return @jones x begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return SingleStokesGain(exp(lg))
+            end
+        end
+        # binding cannot collide with a sampled-parameter name
+        @test_throws LoadError @eval @instrument function badbind_clash()
+            return @jones lg begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return SingleStokesGain(exp(lg))
+            end
+        end
+        # a param-free block has no param_map to accept the binding
+        @test_throws LoadError @eval @instrument function badbind_paramfree()
+            return @jones p begin
+                return JonesR(; add_fr = true)
+            end
+        end
+        # the binding must be a plain symbol
+        @test_throws LoadError @eval @instrument function badbind_notsym()
+            return @jones p.q begin
+                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                return SingleStokesGain(exp(lg))
+            end
+        end
     end
 
     @testset "zero-tilde response-only model" begin

@@ -10,6 +10,15 @@
     return vout
 end
 
+# Inside the traced loop the datum index is a TracedRNumber: the Ti/Fr reads are gathers
+# from constant host vectors (which trace), but a Symbol cannot be gathered, so the
+# JonesPoint's site is `nothing` under compilation (documented on `JonesPoint`).
+@inline function Comrade._sitepoint(::Val{N}, meta, i::Reactant.TracedRNumber) where {N}
+    return Comrade.JonesPoint{N}(
+        Comrade.rgetindex(meta.Ti, i), Comrade.rgetindex(meta.Fr, i), nothing, i
+    )
+end
+
 function StructArrays.createinstance(::Type{<:StokesParams}, args...)
     return StokesParams(args...)
 end
@@ -27,21 +36,14 @@ end
     return yfv
 end
 
-@inline function Comrade.site_sum(y::Reactant.AnyTracedRArray, site_map::Comrade.SiteLookup)
-    yout = similar(y)
-    vals = values(lookup(site_map))
-    # `vals` is a Tuple of per-site index vectors (one entry per site), known at trace
-    # time, so we unroll it with a plain `for` — a `@trace` loop expects a numeric range
-    # and would call `step(::Tuple)`. Each `y[site]`/`yout[site] = …` is a gather/scatter
-    # over the site's index vector, which traces.
-    for site in vals
-        ys = y[site]
-        yout[site] = cumsum(ys)
-    end
-    return yout
+# Chained-prior gather/scatter between the flat storage and per-chain vectors: views
+# with vector indices do not trace, so materialize a `stablehlo.gather`/`scatter`. The
+# `@allowscalar` is for the bounds check, as in `fill_partially_fixed!` above.
+@inline function Comrade.rgather(x::Reactant.AnyTracedRArray, inds)
+    return Reactant.@allowscalar x[inds]
+end
+@inline function Comrade.rscatter!(y::Reactant.AnyTracedRArray, inds, vals)
+    Reactant.@allowscalar y[inds] = vals
+    return y
 end
 
-function Comrade.branchcut(x::Reactant.TracedRNumber)
-    xmod = mod(x, oftype(x, 2π))
-    return ifelse(xmod > π, xmod - oftype(x, 2π), xmod)
-end

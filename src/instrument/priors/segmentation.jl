@@ -1,4 +1,4 @@
-export ScanSeg, IntegSeg, TrackSeg
+export ScanSeg, IntegSeg, TrackSeg, SpectralWindow, FullBand
 
 """
     $(TYPEDEF)
@@ -44,27 +44,15 @@ struct IntegSeg <: TimeSegmentation end
 """
     timestamps(seg::TimeSegmentation, array::AbstractArrayConfiguration)
 
-Return the time stamps or really a vector of integration time regions for a
-given segmentation scheme `seg` and array configuration `array`.
+Return the grid of half-open time [`Segment`](@ref Comrade.Segment)s implied by the
+segmentation scheme `seg` and array configuration `array`.
 """
 function timestamps end
 
-function timestamps(::ScanSeg, array)
-    st = array.scans
-    mjd = array.mjd
-    # Shift the central time to the middle of the scan
-    dt = (st.stop .- st.start)
-    t0 = st.start .+ dt ./ 2
-
-    return IntegrationTime.(mjd, t0, dt)
-end
-
-# getscan(scans, t) = findfirst(i->scans.start[i]≤t<scans.stop[i], 1:length(scans))
-
+timestamps(::ScanSeg, array) = Segment.(array.scans.start, array.scans.stop)
 
 function timestamps(::IntegSeg, array)
     ts = sort(unique(array[:Ti]))
-    mjd = array.mjd
 
     # TODO build in the dt into the data format
     if length(ts) <= 1
@@ -73,31 +61,56 @@ function timestamps(::IntegSeg, array)
     else
         dt = minimum(diff(ts))
     end
-    return IntegrationTime.(mjd, ts, dt)
+    return Segment.(ts .- dt / 2, ts .+ dt / 2)
 end
 
 function timestamps(::TrackSeg, array)
-    mjd = array.mjd
-
-    tstart, tend = extrema(array[:Ti])
-    tend = tend + 1
-    dt = 2 * (tend - tstart)
-    if iszero(dt)
-        dt = 2 * 1 / 3600
+    # A track must contain every finer segmentation, and a scan brackets its (averaged)
+    # datum times — so span the scan table as well as the data, otherwise a ScanSeg
+    # segment (and its center) can start before the track does and segment-membership
+    # matching across the two segmentations fails.
+    tstart, tend = float.(extrema(array[:Ti]))
+    scans = array.scans
+    if !isempty(scans)
+        tstart = min(tstart, float(minimum(scans.start)))
+        tend = max(tend, float(maximum(scans.stop)))
     end
-    # TODO build in the dt into the data format
-    return (IntegrationTime(mjd, (tend - tstart) / 2 + tstart, dt),)
+    return (Segment(tstart, nextfloat(tend)),)
 end
 
 
+"""
+    $(TYPEDEF)
+
+Frequency segmentation with one independent parameter per observed frequency channel.
+This is the default `freqseg` of the site priors.
+"""
 struct SpectralWindow <: FrequencySegmentation end
 
 
 function freqchannels(::SpectralWindow, array)
-    Fr = sort(unique(array[:Fr]))
-    if length(Fr) > 1
-        # nudge the highest channel so its half-open upper edge includes the max frequency
-        Fr[end] = nextfloat(Fr[end])
-    end
-    return FrequencyChannel.(Fr, array.bandwidth, 1:length(Fr))
+    Fr = float.(sort(unique(array[:Fr])))
+    bw = float(array.bandwidth)
+    # a channel is centered on its observed frequency; guard the half-open upper edge for
+    # degenerate (zero) bandwidths
+    return Segment.(Fr .- bw / 2, max.(Fr .+ bw / 2, nextfloat.(Fr)))
+end
+
+"""
+    $(TYPEDEF)
+
+Frequency segmentation with a single parameter shared across the whole observed band:
+one channel covering every observed frequency. Use as the `freqseg` of a site prior for
+quantities that do not vary across IFs, e.g.
+`IIDSitePrior(ScanSeg(), dist; freqseg = FullBand())` gives one gain per scan shared by
+all frequency channels. A frequency-dependent `param_map` still sees each *datum's*
+frequency, so spectral gain laws compose with a `FullBand` gain. Reference-antenna
+selection treats a band-spanning parameter as a candidate in every per-channel reference
+group it overlaps.
+"""
+struct FullBand <: FrequencySegmentation end
+
+function freqchannels(::FullBand, array)
+    lo, hi = float.(extrema(array[:Fr]))
+    return (Segment(lo, nextfloat(hi)),)
 end

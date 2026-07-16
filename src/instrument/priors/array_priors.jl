@@ -2,13 +2,12 @@ struct ArrayPrior{D, A, R, C}
     default_dist::D
     override_dist::A
     refant::R
-    phase::Bool
     centroid_station::C
 end
 
 
 """
-    ArrayPrior(default_dist; refant=NoReference(), phase=false, kwargs...)
+    ArrayPrior(default_dist; refant=NoReference(), kwargs...)
 
 Construct a prior for an entire array of sites.
 
@@ -17,9 +16,6 @@ Construct a prior for an entire array of sites.
  - Different priors for specified sites can be set using kwargs.
  - The `refant`  set the reference antennae to be used and is typically only done for priors that
 correspond to gain phases.
- - The `phase` argument is a boolean that specifies if
-the prior is for a `phase` or not. *The phase argument is experimental and we
-recommend setting it to false currently.*
 
 # Example
 
@@ -30,11 +26,15 @@ p = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0, 0.1)); LM = IIDSitePrior(
 means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM which is mean
 zero and unit std. dev. Finally the refant is using the [`SEFDReference`](@ref) scheme.
 """
-function ArrayPrior(dist; refant = NoReference(), phase = false, kwargs...)
-    # if centroid_station isa Tuple{<:Symbol, <:Symbol}
-    #     centroid_station = NamedTuple{centroid_station}((0.0, 0.0))
-    # end
-    return ArrayPrior(dist, kwargs, refant, phase, nothing)
+function ArrayPrior(dist; refant = NoReference(), phase = nothing, kwargs...)
+    phase === nothing || phase === false || throw(
+        ArgumentError(
+            "the `phase=true` cumulative reparameterization has been removed. Model phases " *
+                "as unwrapped reals with a time-correlated prior instead, e.g. " *
+                "`GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = ..., τ = ...); anchored = true)`."
+        )
+    )
+    return ArrayPrior(dist, kwargs, refant, nothing)
 end
 
 
@@ -46,7 +46,6 @@ end
 struct ObservedArrayPrior{D, S} <: Distributions.ContinuousMultivariateDistribution
     dists::D
     sitemap::S
-    phase::Bool
 end
 Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)
@@ -56,7 +55,6 @@ Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:
 # TV node of the inner distribution, so it slots into the single flat TV tree.
 function PT.transport_node(d::ObservedArrayPrior, space::PT.TVFlat)
     inner = PT.transport_node(d.dists, space)
-    d.phase && return MarkovInstrumentTransform(inner, d.sitemap)
     return InstrumentTransform(inner, d.sitemap)
 end
 
@@ -64,7 +62,6 @@ end
 # PT node of the inner distribution.
 function PT.transport_node(d::ObservedArrayPrior, space::PT.AbstractStdDist)
     inner = PT.transport_node(d.dists, space)
-    d.phase && return StdMarkovInstrumentTransform(inner, d.sitemap)
     return StdInstrumentTransform(inner, d.sitemap)
 end
 
@@ -72,71 +69,81 @@ function build_sitemap(d::ArrayPrior, array)
     # construct the site by site prior
     sites_prior = site_tuple(array, d.default_dist; d.override_dist...)
 
-    # Now we need all possible times to make sure we have all combinations
     T = array[:Ti]
     F = array[:Fr]
+    bls = array[:sites]
 
-
-    # Ok to so this we are going to construct the schema first over sites.
-    # At the end we may re-order depending on the schema ordering we want
-    # to use.
-    lists = map(keys(sites_prior)) do s
-        seg = segmentation(sites_prior[s])
-        # get all the indices where this site is present
-        inds_s = findall(x -> ((x[1] == s)||x[2] == s), array[:sites])
-        # Get all the times and frequencies for that site
+    # Per site, find the observed (time-segment, channel) pairs of its segmentation
+    # grids by binning each of the site's data points into its containing cell
+    # (O(n log nseg); segments within one grid are disjoint, so the binary search over
+    # the sorted grid is valid). The `Segment`s are construction-transient: their
+    # explicit half-open (lo, hi) edges are the keys here and go straight into the
+    # lookup's axes.
+    tkeys = Tuple{Float64, Float64}[]
+    fkeys = Tuple{Float64, Float64}[]
+    slist = Symbol[]
+    for s in keys(sites_prior)
+        sp = sites_prior[s]
+        inds_s = findall(x -> ((x[1] == s) || (x[2] == s)), bls)
         ts = T[inds_s]
         fs = F[inds_s]
-        tfs = zip(ts, fs)
-        # Now makes the acceptable time stamps given the segmentation
-        tstamp = timestamps(seg, array)
-        fchan = freqchannels(SpectralWindow(), array)
-        # Now we find commonalities
-        tf = Tuple{eltype(tstamp), eltype(fchan)}[]
-        for f in fchan, t in tstamp
-            if any(x -> (x[1] ∈ t && x[2] ∈ f), tfs) && ((!((t, f) ∈ tf)))
-                push!(tf, (t, f))
-            end
+        # merged multifrequency configs can repeat and unsort scan rows: sort for the
+        # binary search (duplicated segments dedup through the key set)
+        tseg = sort!(collect(timestamps(segmentation(sp), array)))
+        fseg = sort!(collect(freqchannels(freqseg(sp), array)))
+        seen = Set{NTuple{4, Float64}}()
+        for k in eachindex(ts, fs)
+            jt = searchsortedfirst(tseg, ts[k])
+            (jt ≤ lastindex(tseg) && ts[k] ∈ tseg[jt]) || continue
+            jf = searchsortedfirst(fseg, fs[k])
+            (jf ≤ lastindex(fseg) && fs[k] ∈ fseg[jf]) || continue
+            tk = (float(tseg[jt].lo), float(tseg[jt].hi))
+            fk = (float(fseg[jf].lo), float(fseg[jf].hi))
+            key = (tk..., fk...)
+            key ∈ seen && continue
+            push!(seen, key)
+            push!(tkeys, tk)
+            push!(fkeys, fk)
+            push!(slist, s)
         end
-        return first.(tf), last.(tf)
     end
-    tlists = first.(lists)
-    flists = last.(lists)
-    # construct the schema
-    slist = mapreduce((t, s) -> fill(s, length(t)), vcat, tlists, keys(sites_prior))
-    tlist = reduce(vcat, tlists)
-    flist = reduce(vcat, flists)
 
+    # unique axes sorted by the segment edges
+    tuni = sort!(unique(tkeys))
+    funi = sort!(unique(fkeys))
+    saxis = sort!(unique(slist))
+    tc0 = Int.(indexin(tkeys, tuni))
+    fc0 = Int.(indexin(fkeys, funi))
+    sc0 = Int.(indexin(slist, saxis))
 
-    tlistre = similar(tlist)
-    slistre = similar(slist)
-    flistre = similar(flist)
-    # Now rearrange so we have frquency, time, site ordering (sites are the fastest changing)
-    tuni = sort(unique((tlist)))
-    funi = sort(unique((flist)))
-    ind0 = 1
-    for f in funi, t in tuni
-        ind = (f .== flist) .& (t .== tlist)
-        vtlist = @view tlist[ind]
-        vslist = @view slist[ind]
-        vflist = @view flist[ind]
-        tlistre[ind0:(ind0 + length(vtlist) - 1)] .= vtlist
-        slistre[ind0:(ind0 + length(vtlist) - 1)] .= vslist
-        flistre[ind0:(ind0 + length(vtlist) - 1)] .= vflist
-        ind0 += length(vtlist)
-    end
-    return SiteLookup(tlistre, flistre, slistre)
+    # order the flat storage (frequency, time, site) with sites fastest changing — the
+    # layout the transports and reference-fixing assume
+    ord = sortperm(collect(zip(fc0, tc0, sc0)))
+    tcode = tc0[ord]
+    fcode = fc0[ord]
+    scode = sc0[ord]
+
+    tlo = first.(tuni)
+    thi = last.(tuni)
+    flo = first.(funi)
+    fhi = last.(funi)
+    return _build_sitelookup(
+        (tlo .+ thi) ./ 2, tlo, thi,
+        (flo .+ fhi) ./ 2, flo, fhi,
+        saxis, tcode, fcode, scode
+    )
 end
 
 function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
     smap = build_sitemap(d, array)
     site_dists = site_tuple(array, d.default_dist; d.override_dist...)
-    # Time-correlated site priors need per-chain machinery rather than a product
-    # distribution; see gauss_markov.jl.
-    any(Base.Fix2(isa, GaussMarkovSitePrior), values(site_dists)) &&
-        return build_markov_observed(d, site_dists, smap, array)
+    # Route on the site-prior interface (see independent.jl): all-product priors use the
+    # fast vectorized product distribution; any chained prior (e.g. time-correlated
+    # Gauss-Markov) switches every site to the per-chain machinery in gauss_markov.jl.
+    all(sp -> structure(sp) isa ProductStructure, values(site_dists)) ||
+        return build_chain_observed(d, site_dists, smap, array)
     dists = build_dist(site_dists, smap, array, d.refant, d.centroid_station)
-    return ObservedArrayPrior(dists, smap, d.phase)
+    return ObservedArrayPrior(dists, smap)
 end
 
 
@@ -242,9 +249,8 @@ function PT.transport_node(t::PartiallyConditionedDist, space::PT.AbstractStdDis
 end
 
 function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroid_station)
-    ts = smap.times
-    ss = smap.sites
-    # fs = smap.frequencies
+    ts = times(smap)
+    ss = sites(smap)
     fixedinds, vals = reference_indices(array, smap, refants)
 
     if !(centroid_station isa Nothing)

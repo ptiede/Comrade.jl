@@ -192,11 +192,11 @@ using FiniteDifferences
     @test gz ≈ gfd
 
     R = JonesR()
-    Gp = JonesG(x -> (exp(complex(x.lg, x.gp)), exp(complex(x.lg, x.gp))))
+    Gp = JonesG((x, p) -> (exp(complex(x.lg, x.gp)), exp(complex(x.lg, x.gp))))
     J = JonesSandwich(Gp, R)
     pr = (
         lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0)),
     )
     intm_coh = InstrumentModel(J, pr)
     skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
@@ -222,11 +222,11 @@ end
     post_lc = VLBIPosterior(skym, lcamp)
     post_vis = VLBIPosterior(skym, vis)
 
-    G = SingleStokesGain(x -> exp(complex(x.lg, x.gp)))
+    G = SingleStokesGain((x, p) -> exp(complex(x.lg, x.gp)))
     intm = InstrumentModel(
         G, (
             lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0)),
         )
     )
     post_gvis = VLBIPosterior(skym, vis)
@@ -273,7 +273,7 @@ end
 
 
     R = JonesR()
-    Gp = JonesG(x -> (exp(x.lg + 1im * x.gp), exp(x.lg + 1im * x.gp)))
+    Gp = JonesG((x, p) -> (exp(x.lg + 1im * x.gp), exp(x.lg + 1im * x.gp)))
     J = JonesSandwich(Gp, R)
     intm_coh = InstrumentModel(J, intm.prior)
     skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
@@ -287,11 +287,11 @@ end
 
     mfd = central_fdm(5, 1)
 
-    G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
+    G = SingleStokesGain((x, p) -> exp(x.lg + 1im .* x.gp))
     intm = InstrumentModel(
         G, (
             lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0)),
         )
     )
 
@@ -320,11 +320,11 @@ end
 @testset "FixedSkyModel" begin
     _, vis, amp, lcamp, cphase = load_data()
 
-    G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
+    G = SingleStokesGain((x, p) -> exp(x.lg + 1im .* x.gp))
     intm = InstrumentModel(
         G, (
             lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0)),
         )
     )
 
@@ -349,17 +349,10 @@ end
         logdensityof(tpostc, xc)
 
         # The transports must round-trip end-to-end through the instrument model. The
-        # flat path exercises the TVFlat instrument transform, the cube path the new
-        # `StdMarkovInstrumentTransform` (`pfwd_step`/`pback_step!`). The phase (Markov)
-        # transform applies a 2π branch cut, so `transform` is a bijection onto its
-        # *canonical* image rather than the identity (a prior draw here can have phases
-        # outside (-π, π]). After one round-trip the latent point is canonical, so
-        # `inverse ∘ transform` is idempotent there — verify that, which exercises both
-        # the forward (`pfwd_step`) and backward (`pback_step!`) transports.
-        xf1 = inverse(tpostf, transform(tpostf, xf))
-        @test inverse(tpostf, transform(tpostf, xf1)) ≈ xf1
-        xc1 = inverse(tpostc, transform(tpostc, xc))
-        @test inverse(tpostc, transform(tpostc, xc1)) ≈ xc1
+        # flat path exercises the TVFlat instrument transform, the cube path the Std
+        # instrument transform (`pfwd_step`/`pback_step!`).
+        @test inverse(tpostf, transform(tpostf, xf)) ≈ xf
+        @test inverse(tpostc, transform(tpostc, xc)) ≈ xc
         @test dimension(tpostf) == length(xf)
         @test dimension(tpostc) == length(xc)
     end

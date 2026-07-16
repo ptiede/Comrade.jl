@@ -31,7 +31,7 @@ function _emit_fn!(defs, base, suffix, counter, argsig, body)
     return fname
 end
 
-# Expand one `@jones begin ... end` block. Returns a NamedTuple:
+# Expand one `@jones [p] begin ... end` block. Returns a NamedTuple:
 #   `jones`  — the expression that builds the `AbstractJonesMatrix` (referencing the lifted
 #              param_map by name),
 #   `fndefs` — the generated param_map function definition(s),
@@ -39,20 +39,38 @@ end
 #
 # The block's `~` lines are its priors; the rest is its param_map. A parameterized block must
 # end in a constructor call `Ctor(posarg; kws...)` with exactly one positional argument: the
-# preceding statements plus that argument become `Ctor`'s param_map, a named function of the
-# per-site parameter NamedTuple `x` with a leading `(; used...) = x` destructure. No constructor
+# preceding statements plus that argument become `Ctor`'s param_map, a named two-argument
+# function `(x, p)` of the per-site parameter NamedTuple `x` (with a leading
+# `(; used...) = x` destructure) and the gain point's `JonesPoint`. The optional first
+# macro argument declares the name the body uses for the metadata (`@jones p begin ... end`);
+# without it the metadata argument is `_` and the body cannot reference it. No constructor
 # name is consulted, so custom `AbstractJonesMatrix` types work automatically. A param-free
 # block (no `~` lines) is emitted verbatim — its value is the Jones matrix.
 function _jones_impl(args, base::Symbol, counter::Base.RefValue{Int})
-    length(args) == 1 ||
-        error("@jones: expected `@jones begin ... end`, got $(length(args)) arguments")
-    block = args[1]
+    1 ≤ length(args) ≤ 2 || error(
+        "@jones: expected `@jones begin ... end` or `@jones p begin ... end`, " *
+            "got $(length(args)) arguments"
+    )
+    pbind = nothing
+    if length(args) == 2
+        pbind = args[1]
+        pbind isa Symbol || error(
+            "@jones: the first argument must be the metadata binding name (a plain symbol), " *
+                "e.g. `@jones p begin ... end`; got `$(pbind)`"
+        )
+        pbind === :x &&
+            error("@jones: the metadata binding cannot be named `x` (reserved for the parameter NamedTuple)")
+    end
+    block = args[end]
     Meta.isexpr(block, :block) ||
         error("@jones: expected a `begin ... end` block body, got `$(block)`")
 
     names, exprs, stmts = _split_tildes(block.args, "@jones")
     allunique(names) ||
         error("@jones: duplicate sampled-parameter names: $(names)")
+    pbind !== nothing && pbind in names && error(
+        "@jones: the metadata binding `$(pbind)` collides with a sampled-parameter name"
+    )
 
     realidx = findlast(s -> !(s isa LineNumberNode), stmts)
     realidx === nothing && error("@jones: empty block body")
@@ -61,6 +79,10 @@ function _jones_impl(args, base::Symbol, counter::Base.RefValue{Int})
     # Param-free block: run the body verbatim (stripping a trailing `return`, which would
     # otherwise return from the enclosing `_<name>_jones`). Its value is the Jones matrix.
     if isempty(names)
+        pbind === nothing || error(
+            "@jones: a metadata binding (`@jones $(pbind) begin ... end`) needs sampled " *
+                "parameters (`~` lines); a parameter-free block has no param_map to pass it to"
+        )
         value = Meta.isexpr(finalstmt, :return) ? finalstmt.args[1] : finalstmt
         blk = Expr(:block, stmts[1:(realidx - 1)]..., value)
         return (jones = blk, fndefs = Any[], priors = Pair{Symbol, Any}[])
@@ -99,7 +121,8 @@ function _jones_impl(args, base::Symbol, counter::Base.RefValue{Int})
     push!(pmbody, posarg)
 
     fndefs = Any[]
-    pmname = _emit_fn!(fndefs, base, "_pmap_", counter, (:x,), Expr(:block, pmbody...))
+    parg = pbind === nothing ? :_ : pbind
+    pmname = _emit_fn!(fndefs, base, "_pmap_", counter, (:x, parg), Expr(:block, pmbody...))
 
     newargs = Any[ctor]
     params_expr === nothing || push!(newargs, params_expr)
@@ -269,7 +292,7 @@ function _instrument_impl(fexpr)
 end
 
 """
-    @jones begin
+    @jones [p] begin
         param₁ ~ ArrayPrior(...)
         # ... statements building the matrix entries from the params ...
         return JonesG(entries)
@@ -277,6 +300,21 @@ end
 
 Build one Jones term inside an [`@instrument`](@ref) block. Each `name ~ ArrayPrior(...)` line
 is a prior for this term; the rest of the block is how the we paraemeterized the Jones matrix.
+
+The optional first argument declares the name the body uses for the gain point's
+[`JonesPoint`](@ref) metadata — its time `Ti`, frequency `Fr`, and site — enabling e.g.
+frequency-dependent gain laws:
+
+```julia
+G = @jones p begin
+    lg0 ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+    α   ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 1.0)))
+    return SingleStokesGain(exp(lg0 + α * log(p.Fr / 230.0e9)))
+end
+```
+
+Without the binding the body cannot reference the metadata. The binding must be a plain
+symbol distinct from `x` and from every sampled-parameter name.
 
 A block with no `~` lines is parameter-free and is emitted verbatim (e.g. `JonesR`):
 
@@ -327,7 +365,7 @@ Example:
     G = @jones begin
         lgR   ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gain_std)))
         gpR   ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2)));
-                           refant = SEFDReference(0.0), phase = true)
+                           refant = SEFDReference(0.0))
         lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gain_std)))
         gprat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
         gR = exp(complex(lgR, gpR))

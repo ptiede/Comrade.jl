@@ -105,7 +105,7 @@ using Distributions
 @instrument function instrument()
     return @jones begin
         lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
-        gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
+        gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0))
         ## SingleStokesGain is a single complex gain for each site.
         return SingleStokesGain(exp(complex(lg, gp)))
     end

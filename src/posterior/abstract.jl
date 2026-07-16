@@ -131,8 +131,7 @@ Returns the instrument model of a posterior using the parameter values `θ`.
 The output will be a `SiteArray` of the Jones matrices for each site, time, and frequency.
 """
 function instrumentmodel(post::AbstractVLBIPosterior, θ)
-    J = instrumentmodel(post)
-    return forward_jones(J.instrument, map(getparams, θ.instrument))
+    return forward_jones(instrumentmodel(post), map(getparams, θ.instrument))
 end
 
 

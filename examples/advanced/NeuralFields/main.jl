@@ -199,7 +199,6 @@ skym = SkyModel(sky, prior, grid; algorithm = VLBISkyModels.ReactantNUFFTAlg(), 
         gp ~ ArrayPrior(
             IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(0.5^2)));
             refant = SEFDReference(0.0),
-            phase = true,
         )
         ## SingleStokesGain is a single complex gain for each site.
         return SingleStokesGain(exp(complex(lg, gp)))

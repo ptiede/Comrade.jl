@@ -184,6 +184,16 @@ end
     @test img7 ≈ img5
 end
 
+# site-prior interface error tests (see "site-prior interface errors" testset): one type
+# implementing nothing, one declaring ProductStructure but not chaindist
+struct DummyNoInterfaceSitePrior <: Comrade.AbstractSitePrior
+    seg::ScanSeg
+end
+struct DummyProductOnlySitePrior <: Comrade.AbstractSitePrior
+    seg::ScanSeg
+end
+Comrade.structure(::DummyProductOnlySitePrior) = Comrade.ProductStructure()
+
 function FiniteDifferences.to_vec(k::SiteArray)
     v, b = to_vec(parent(k))
     back(x) = SiteArray(b(x), k.times, k.frequencies, k.sites)
@@ -197,7 +207,7 @@ end
 
     @testset "SiteArray" begin
 
-        G = SingleStokesGain(x -> exp(x.lg + 1im * x.gp))
+        G = SingleStokesGain((x, p) -> exp(x.lg + 1im * x.gp))
         intprior = (
             lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
             gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0)),
@@ -207,7 +217,7 @@ end
         ointm, printm = Comrade.set_array(intm, arrayconfig(dvis))
         show(IOBuffer(), MIME"text/plain"(), ointm)
         x = rand(printm)
-        sl = Comrade.SiteLookup(x.lg)
+        sl = printm.lg.sitemap
 
         @test sl isa Comrade.SiteLookup
         s2 = SiteArray(parent(x.lg), sl)
@@ -217,7 +227,6 @@ end
         @test Comrade.sites(s2) == Comrade.sites(x.lg)
 
         @test Comrade.sitemap(exp, parent(x.lg), sl) ≈ exp.(x.lg)
-        Comrade.sitemap(cumsum, parent(x.lg), sl)
 
         @test x.lg[1] == parent(x.lg)[1]
         x.lg[1] = 1.0
@@ -246,7 +255,7 @@ end
     @testset "StokesI" begin
         vis = Comrade.measurement(dvis)
 
-        G = SingleStokesGain(x -> exp(x.lg + 1im * x.gp))
+        G = SingleStokesGain((x, p) -> exp(x.lg + 1im * x.gp))
         intprior = (
             lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
             gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0)),
@@ -331,35 +340,80 @@ end
         @test !issorted(arr[:Ti])
         # ... but the inferred integration windows must still have a positive width
         ts = Comrade.timestamps(IntegSeg(), arr)
-        @test all(t -> t.dt > 0, ts)
+        @test all(t -> Comrade._width(t) > 0, ts)
 
         # likewise the merged frequencies are unsorted, but the channels must come
-        # back ordered by frequency with a monotonic channel index
+        # back ordered by frequency
         @test !issorted(arr[:Fr])
         fchan = Comrade.freqchannels(Comrade.SpectralWindow(), arr)
         @test issorted(fchan)
-        @test [Comrade.channel(f) for f in fchan] == 1:length(fchan)
+        @test issorted(Comrade._center.(fchan))
 
         gp = ArrayPrior(
             IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2)));
-            refant = SEFDReference(0.0), phase = true,
+            refant = SEFDReference(0.0),
         )
         smap = Comrade.build_sitemap(gp, arr)
-        @test !isempty(smap.sites)
-        # this used to throw when building the (empty) phase prior
+        @test !isempty(Comrade.sites(smap))
         @test Comrade.ObservedArrayPrior(gp, arr) isa Comrade.ObservedArrayPrior
+    end
+
+    @testset "site-prior interface errors" begin
+        # a site prior type that doesn't implement the interface fails with a
+        # descriptive error instead of a bare MethodError
+        pr = ArrayPrior(DummyNoInterfaceSitePrior(ScanSeg()))
+        err = try
+            Comrade.ObservedArrayPrior(pr, arrayconfig(dvis))
+            nothing
+        catch e
+            e
+        end
+        @test err isa ArgumentError
+        @test occursin("Comrade.structure", err.msg)
+
+        # declaring the structure but not chaindist also gives instructions when the
+        # prior is mixed with a chained one
+        pr2 = ArrayPrior(
+            GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = 1.0));
+            AA = DummyProductOnlySitePrior(ScanSeg())
+        )
+        err2 = try
+            Comrade.ObservedArrayPrior(pr2, arrayconfig(dvis))
+            nothing
+        catch e
+            e
+        end
+        @test err2 isa ArgumentError
+        @test occursin("Comrade.chaindist", err2.msg)
+    end
+
+    @testset "one-argument param_map migration error" begin
+        pr = (; lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))))
+        err = try
+            InstrumentModel(SingleStokesGain(x -> exp(x.lg)), pr)
+            nothing
+        catch e
+            e
+        end
+        @test err isa ArgumentError
+        @test occursin("(x, p)", err.msg)
+        # sandwiches are checked member-wise
+        J = JonesSandwich(JonesG(x -> (exp(x.lg), exp(x.lg))), JonesR())
+        @test_throws ArgumentError InstrumentModel(J, pr)
+        # two-argument maps pass
+        @test InstrumentModel(SingleStokesGain((x, p) -> exp(x.lg)), pr) isa InstrumentModel
     end
 
 
     @testset "Coherencies" begin
         vis = CoherencyMatrix.(Comrade.measurement(dcoh), Ref(CirBasis()))
-        G = JonesG() do x
+        G = JonesG() do x, p
             gR = exp(x.lgR + 1im * x.gpR)
             gL = gR * exp(x.lgrat + 1im * x.gprat)
             return gR, gL
         end
 
-        D = JonesD() do x
+        D = JonesD() do x, p
             dR = complex(x.dRx, x.dRy)
             dL = complex(x.dLx, x.dLy)
             return dR, dL
@@ -375,13 +429,13 @@ end
 
         F = JonesF()
 
-        JG = GenericJones(x -> (x.lg, x.lg, x.lg, x.lg))
+        JG = GenericJones((x, p) -> (x.lg, x.lg, x.lg, x.lg))
 
 
         intprior = (
             lgR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
-            gpR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); phase = true, refant = SEFDReference(0.0)),
-            lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), phase = false),
+            gpR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0)),
+            lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
             gprat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), refant = SingleReference(:AA, 0.0)),
             dRx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
             dRy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
@@ -421,6 +475,7 @@ end
             pout = TV.transform(t, TV.inverse(t, p))
             dp = ntequal(p, pout)
             @test dp.lgR
+            @test dp.gpR
             @test dp.lgrat
             @test dp.gprat
             @test dp.dRx
@@ -432,10 +487,8 @@ end
         @testset "ObservedArrayPrior std-space transports" begin
             # The StdUniform/StdNormal (cube/normal) path uses the ProbabilityTransports
             # node interface (`pfwd_step`/`pback_step!`, Jacobian-free), as opposed to the
-            # TVFlat TransformVariables path tested above. The phase priors (`gpR`/`gprat`)
-            # route through `StdMarkovInstrumentTransform`, the rest through
-            # `StdInstrumentTransform`. Verify the forward/backward transports round-trip a
-            # parameter draw through both.
+            # TVFlat TransformVariables path tested above. Verify the forward/backward
+            # transports round-trip a parameter draw.
             for space in (Comrade.StdUniform(), Comrade.PT.StdNormal())
                 t = Comrade.transport_node(printm, space)
                 p = rand(printm)
@@ -444,6 +497,7 @@ end
                 pout = Comrade.latent_pfwd(t, u)
                 dp = ntequal(p, pout)
                 @test dp.lgR
+                @test dp.gpR
                 @test dp.lgrat
                 @test dp.gprat
                 @test dp.dRx
@@ -569,13 +623,13 @@ end
         dcohmf = build_mfvis(dcoh, dcoh2)
         vissi = CoherencyMatrix.(Comrade.measurement(dcoh), Ref(CirBasis()))
         vismf = CoherencyMatrix.(Comrade.measurement(dcohmf), Ref(CirBasis()))
-        G = JonesG() do x
+        G = JonesG() do x, p
             gR = exp(x.lgR + 1im * x.gpR)
             gL = gR * exp(x.lgrat + 1im * x.gprat)
             return gR, gL
         end
 
-        D = JonesD() do x
+        D = JonesD() do x, p
             dR = complex(x.dRx, x.dRy)
             dL = complex(x.dLx, x.dLy)
             return dR, dL
@@ -588,8 +642,8 @@ end
 
         intprior = (
             lgR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
-            gpR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); phase = true, refant = SEFDReference(0.0)),
-            lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)), phase = false),
+            gpR = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0)),
+            lgrat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
             gprat = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
             dRx = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
             dRy = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2))),
@@ -608,19 +662,24 @@ end
             trsi = Comrade.transport_node(printsi, Comrade.TVFlat())
             trmf = Comrade.transport_node(printmf, Comrade.TVFlat())
 
-            lsi = trsi.lgR.site_map.lookup
-            lmf = trmf.lgR.site_map.lookup
-            l = length(trsi.lgR.site_map.frequencies)
-            for s in keys(lsi)
-                s1 = Symbol(string(s, 1))
-                s2 = Symbol(string(s, 2))
-                @test lsi[s] == lmf[s1] # make sure these match
-                @test lsi[s] == lmf[s2] .- l # should be a mirror but offset by the total length
+            csi = Comrade.sitechains(trsi.lgR.site_map)
+            cmf = Comrade.sitechains(trmf.lgR.site_map)
+            l = length(Comrade.frequencies(trsi.lgR.site_map))
+            @test keys(csi) == keys(cmf) # real site symbols, no pseudo-sites
+            for s in keys(csi)
+                @test length(csi[s]) == 1 # one frequency channel
+                @test length(cmf[s]) == 2 # two frequency channels, ascending
+                @test cmf[s][1].fcode < cmf[s][2].fcode
+                @test csi[s][1].inds == cmf[s][1].inds # make sure these match
+                @test csi[s][1].inds == cmf[s][2].inds .- l # mirror offset by the total length
+                @test Comrade.siteindices(trmf.lgR.site_map, s) ==
+                    vcat(cmf[s][1].inds, cmf[s][2].inds)
             end
 
             # Check that both have complete coverage
-            @test reduce(vcat, lsi) |> sort == 1:l
-            @test reduce(vcat, lmf) |> sort == 1:2l
+            allinds(c) = reduce(vcat, [ch.inds for chs in values(c) for ch in chs])
+            @test allinds(csi) |> sort == 1:l
+            @test allinds(cmf) |> sort == 1:2l
 
         end
 
@@ -710,40 +769,12 @@ end
 
     @testset "Hypercube Instrument" begin
         _, dvis, amp, lcamp, cphase, dcoh = load_data()
-        G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
+        G = SingleStokesGain((x, p) -> exp(x.lg + 1im .* x.gp))
 
         @testset "standard" begin
             intprior = (
                 lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
                 gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0)),
-            )
-
-            intprior_mar = (
-                lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
-                gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
-            )
-
-
-            intm = InstrumentModel(G, intprior)
-            skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256))
-            post = VLBIPosterior(skym, intm, dvis)
-
-            cpost = ascube(post)
-            x = prior_sample(cpost)
-            p = Comrade.transform(cpost, x)
-            @test all(x -> 0 < x < 1, x)
-
-            l1 = logdensityof(cpost, x)
-            l2 = Comrade.loglikelihood(post, p)
-
-            @test l1 ≈ l2
-        end
-
-        @testset "markov" begin
-
-            intprior = (
-                lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
-                gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true),
             )
 
             intm = InstrumentModel(G, intprior)
@@ -771,22 +802,19 @@ end
         @test length(tt) < length(ts) ≤ length(ti)
     end
 
-    @testset "IntegrationTime" begin
-        ti = Comrade.IntegrationTime(10, 5.0, 0.1)
-        @test Comrade.mjd(ti) == ti.mjd
-        @test ti.t0 ∈ Comrade.interval(ti)
-        @test Comrade._center(ti) == ti.t0
-        @test Comrade._region(ti) == 0.1
-    end
-
-    @testset "FrequencyChannel" begin
-        fc = Comrade.FrequencyChannel(230.0e9, 8.0e9, 1)
-        @test Comrade.channel(fc) == 1
-        @test fc.central ∈ Comrade.interval(fc)
-        @test Comrade._center(fc) == fc.central
-        @test Comrade._region(fc) == 8.0e9
-        @test 86.0e9 < fc
-        @test fc < 345.0e9
+    @testset "Segment" begin
+        seg = Comrade.Segment(226.0e9, 234.0e9)
+        @test Comrade._center(seg) == 230.0e9
+        @test Comrade._width(seg) == 8.0e9
+        # membership is half-open [lo, hi)
+        @test seg.lo ∈ seg
+        @test Comrade._center(seg) ∈ seg
+        @test seg.hi ∉ seg
+        # number/segment ordering brackets the segment for searchsorted binning
+        @test 86.0e9 < seg
+        @test seg < 345.0e9
+        @test !(seg < seg.hi - 1.0) && !(seg.hi - 1.0 < seg)
+        @test seg < Comrade.Segment(235.0e9, 240.0e9)
     end
 
 

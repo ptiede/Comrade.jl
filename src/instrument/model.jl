@@ -43,7 +43,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::InstrumentModel)
 end
 
 
-struct ObservedInstrumentModel{I <: AbstractJonesMatrix, PB <: PolBasis, B} <: AbstractInstrumentModel
+struct ObservedInstrumentModel{I <: AbstractJonesMatrix, PB <: PolBasis, B, M <: NamedTuple} <: AbstractInstrumentModel
     """
     The abstract instrument model
     """
@@ -57,6 +57,10 @@ struct ObservedInstrumentModel{I <: AbstractJonesMatrix, PB <: PolBasis, B} <: A
     The baseline site lookup for the instrument model
     """
     bsitelookup::B
+    """
+    Per-visibility metadata (Ti, Fr, and per-slot site vectors) used to build each `JonesPoint`
+    """
+    vismeta::M
 end
 
 # Site lookup is const so we add a method so we can signal
@@ -64,9 +68,11 @@ end
 sitelookup(x::ObservedInstrumentModel) = x.bsitelookup
 instrument(x::ObservedInstrumentModel) = x.instrument
 refbasis(x::ObservedInstrumentModel) = x.refbasis
+vismeta(x::ObservedInstrumentModel) = x.vismeta
 EnzymeRules.inactive(::typeof(sitelookup), args...) = nothing
 EnzymeRules.inactive(::typeof(instrument), args...) = nothing
 EnzymeRules.inactive(::typeof(refbasis), args...) = nothing
+EnzymeRules.inactive(::typeof(vismeta), args...) = nothing
 
 function Base.show(io::IO, mime::MIME"text/plain", m::ObservedInstrumentModel)
     printstyled(io, "ObservedInstrumentModel"; bold = true, color = :light_cyan)
@@ -106,7 +112,7 @@ visibilities.
 
 A Stokes I example is
 ```julia-repl
-julia> G = SingleStokesGain(x->exp(complex(x.lg, x.pg)))
+julia> G = SingleStokesGain((x, p)->exp(complex(x.lg, x.pg)))
 julia> intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
             pg = ArrayPrior(IIDSitePrior(ScanSeg(), DiagVonMises(0.0, inv(π^2))))
             )
@@ -116,12 +122,12 @@ julia> intm = InstrumentModel(G, intprior)
 
 A standard polarized example is
 ```julia-repl
-julia> G = JonesG() do
+julia> G = JonesG() do x, p
         gR = exp.(complex(x.lgr, x.gpr))
         gL = gr*exp.(complex(x.lgrat, x.gprat))
         return gR, gL
     end
-julia> D = JonesD() do
+julia> D = JonesD() do x, p
         dR = complex.(x.dRre, x.dRim)
         dL = complex.(x.dLre, x.dLim)
         return gR, gL
@@ -144,7 +150,32 @@ which construct the gain matrix from R and ratios, and D is the small leakage ma
 is the *response matrix* that controls how the site responds to the ideal visibility in the reference
 basis.
 """
+# Every param_map takes (x, p::JonesPoint) as of Comrade 0.12. A one-argument function
+# would only fail deep inside the likelihood with a MethodError, so check at construction
+# time and point at the migration. Composite/parameter-free types dispatch; the fallback
+# checks any `param_map` field of user-defined Jones types.
+_check_param_map_arity(j::JonesSandwich) = foreach(_check_param_map_arity, j.matrices)
+_check_param_map_arity(::Union{JonesF, JonesR, JonesConst}) = nothing
+function _check_param_map_arity(j::AbstractJonesMatrix)
+    hasfield(typeof(j), :param_map) || return nothing
+    f = getfield(j, :param_map)
+    f isa Function || return nothing
+    ms = methods(f)
+    isempty(ms) && return nothing
+    # nargs counts the function itself, so a two-argument method has nargs == 3
+    any(m -> m.nargs == 3 || m.isva, ms) && return nothing
+    throw(
+        ArgumentError(
+            "the `param_map` of $(nameof(typeof(j))) must take two arguments `(x, p)` as of " *
+                "Comrade 0.12: `x` holds the sampled parameter values and `p::JonesPoint` the " *
+                "gain point's metadata (`p.Ti`, `p.Fr`, `p.site`). Update e.g. " *
+                "`SingleStokesGain(x -> exp(x.lg))` to `SingleStokesGain((x, p) -> exp(x.lg))`."
+        )
+    )
+end
+
 function InstrumentModel(jones::AbstractJonesMatrix, prior::NamedTuple{N}; refbasis = CirBasis()) where {N}
+    _check_param_map_arity(jones)
     return InstrumentModel(jones, prior, refbasis)
 end
 
@@ -157,11 +188,19 @@ function set_array(int::InstrumentModel, array::AbstractArrayConfiguration)
     # 1. preallocate and jones matrices
     Jpre = preallocate_jones(jones, array, refbasis)
     # 2. construct the prior with the array you have
-    prior_obs = NamedDist(map(x -> ObservedArrayPrior(x, array), prior))
-    # 3. construct the baseline site map for each prior
-    x = rand(prior_obs)
-    bsitemaps = map(x -> _construct_baselinemap(array, getparams(x)), x)
-    intobs = ObservedInstrumentModel(Jpre, refbasis, bsitemaps)
+    obs = map(x -> ObservedArrayPrior(x, array), prior)
+    prior_obs = NamedDist(obs)
+    # 3. construct the baseline site map for each prior from its sitemap
+    bsitemaps = map(d -> _construct_baselinemap(array, d.sitemap), obs)
+    # 4. per-visibility metadata for the JonesPoints (plain vectors: zero lookup cost;
+    #    the site columns are indexed by antenna slot)
+    bl = array[:sites]
+    meta = (
+        Ti = float.(array[:Ti]),
+        Fr = float.(array[:Fr]),
+        s = (first.(bl), last.(bl)),
+    )
+    intobs = ObservedInstrumentModel(Jpre, refbasis, bsitemaps, meta)
     return intobs, prior_obs
 end
 
@@ -174,32 +213,60 @@ struct BaselineSiteLookup{V <: AbstractArray}
     indices_2::V
 end
 
-function _construct_baselinemap(array::EHTArrayConfiguration, x::SiteArray)
+function _construct_baselinemap(array::EHTArrayConfiguration, smap::SiteLookup)
     T = array[:Ti]
     F = array[:Fr]
     bl = array[:sites]
-    return _construct_baselinemap(T, F, bl, x)
+    return _construct_baselinemap(T, F, bl, smap)
 end
 
-function _construct_baselinemap(T, F, bl, x::SiteArray)
-    tcal = times(x)
-    scal = sites(x)
-    fcal = frequencies(x)
-    tsf = StructArray((tcal, scal, fcal))
+# The position of the (unique) point of chain `c` whose half-open time segment
+# [tlo, thi) contains `t`, plus the number of matching points (overlapping segments are
+# a data error). The chain's segments are ascending, so a binary search over the segment
+# ends replaces the old per-datum linear scan.
+@inline function _chain_time_index(smap::SiteLookup, c::SiteFreqChain, t)
+    codes = c.tcodes
+    ends = CodedAxis(smap.thi, codes)
+    j = searchsortedfirst(ends, t)  # first point whose segment end is ≥ t
+    idx = 0
+    nmatch = 0
+    k = j
+    @inbounds while k ≤ lastindex(codes) && smap.tlo[codes[k]] ≤ t
+        if t < smap.thi[codes[k]]
+            nmatch += 1
+            idx == 0 && (idx = k)
+        end
+        k += 1
+    end
+    return idx, nmatch
+end
+
+function _sitefreqindex(smap::SiteLookup, s, t, f)
+    haskey(sitechains(smap), s) ||
+        throw(AssertionError("$t, $f, $((s)) not found in SiteArray"))
+    idx = 0
+    nmatch = 0
+    for c in sitechains(smap, s)
+        (smap.flo[c.fcode] ≤ f < smap.fhi[c.fcode]) || continue
+        j, n = _chain_time_index(smap, c, t)
+        n == 0 && continue
+        idx = c.inds[j]
+        nmatch += n
+    end
+    nmatch > 1 && throw(AssertionError("Multiple indices found for $t, $((s)) in SiteArray"))
+    nmatch == 0 && throw(AssertionError("$t, $f, $((s)) not found in SiteArray"))
+    return idx
+end
+
+function _construct_baselinemap(T, F, bl, smap::SiteLookup)
     ind1 = similar(T, Int)
     ind2 = similar(T, Int)
     for i in eachindex(T, F, bl, ind1, ind2)
         t = T[i]
         f = F[i]
         s1, s2 = bl[i]
-        i1 = findall(x -> (t ∈ x[1])&&(x[2] == s1)&&(f ∈ x[3]), tsf)
-        i2 = findall(x -> (t ∈ x[1])&&(x[2] == s2)&&(f ∈ x[3]), tsf)
-        length(i1) > 1 && throw(AssertionError("Multiple indices found for $t, $((s1)) in SiteArray"))
-        length(i2) > 1 && throw(AssertionError("Multiple indices found for $t, $((s2)) in SiteArray"))
-        (isnothing(i1) | isempty(i1)) && throw(AssertionError("$t, $f, $((s1)) not found in SiteArray"))
-        (isnothing(i2) | isempty(i2)) && throw(AssertionError("$t, $f, $((s2)) not found in SiteArray"))
-        ind1[i] = i1[begin]
-        ind2[i] = i2[begin]
+        ind1[i] = _sitefreqindex(smap, s1, t, f)
+        ind2[i] = _sitefreqindex(smap, s2, t, f)
     end
     return BaselineSiteLookup(ind1, ind2)
 end
@@ -263,19 +330,67 @@ EnzymeRules.inactive(::typeof(get_indices), args...) = nothing
     end
 end
 
-Base.@propagate_inbounds function apply_jones(v, index, J::ObservedInstrumentModel, x::NamedTuple{N}) where {N}
-    # First lhs station
-    indices1 = get_indices(sitelookup(J), index, Val(1))
-    params1 = NamedTuple{N}(unrollmap(values(x), values(indices1)))
-    j1 = jonesmatrix(instrument(J), params1, index, Val(1))
+# Build the JonesPoint of one antenna slot of datum `i`. Overloaded in the Reactant
+# extension for traced indices, where the site Symbol cannot be gathered and is `nothing`.
+Base.@propagate_inbounds _sitepoint(::Val{N}, meta, i::Integer) where {N} =
+    JonesPoint{N}(meta.Ti[i], meta.Fr[i], meta.s[N][i], i)
 
-    # Second RHS station
-    indices2 = get_indices(sitelookup(J), index, Val(2))
-    params2 = NamedTuple{N}(unrollmap(values(x), values(indices2)))
-    j2 = jonesmatrix(instrument(J), params2, index, Val(2))
+# The Jones matrix of antenna slot `S` (1 = lhs, 2 = rhs station) of datum `index`:
+# gather each parameter's value through the exact per-datum index maps built at
+# `set_array` time. Shared by the likelihood hot path (`apply_jones`) and the
+# diagnostic forward model (`forward_jones(::ObservedInstrumentModel, xs)`), so what
+# you inspect is what corrupts the visibilities.
+Base.@propagate_inbounds function slot_jones(J::ObservedInstrumentModel, x::NamedTuple{N}, ::Val{S}, index) where {N, S}
+    indices = get_indices(sitelookup(J), index, Val(S))
+    params = NamedTuple{N}(unrollmap(values(x), values(indices)))
+    p = _sitepoint(Val(S), vismeta(J), index)
+    return jonesmatrix(instrument(J), params, p)
+end
 
+Base.@propagate_inbounds function apply_jones(v, index, J::ObservedInstrumentModel, x::NamedTuple)
+    j1 = slot_jones(J, x, Val(1), index)
+    j2 = slot_jones(J, x, Val(2), index)
     vout = _apply_jones(v, j1, j2, refbasis(J))
     return vout
+end
+
+"""
+    forward_jones(J::ObservedInstrumentModel, xs::NamedTuple)
+
+Construct the Jones matrices of the observed gain model `J` at every point of the densest
+element of `xs`, associating the parameters through the exact per-datum index maps built
+at `set_array` time — the same lookups the likelihood uses, so mixed segmentations need
+no matching. Each output point is evaluated at a representative datum it contains, which
+is well defined whenever the coarser parameters are constant across the point's segment
+(the usual nested segmentations). This is what [`instrumentmodel(post, θ)`](@ref) calls.
+"""
+function forward_jones(J::ObservedInstrumentModel, xs::NamedTuple)
+    ib = argmax(map(length ∘ times, values(xs)))
+    xb = values(xs)[ib]
+    bmap = values(sitelookup(J))[ib]
+    # representative (datum, antenna slot) of every output point; every point of the
+    # lookup's grid contains at least one datum by construction
+    repi = zeros(Int, length(xb))
+    reps = zeros(Int, length(xb))
+    for i in eachindex(bmap.indices_1, bmap.indices_2)
+        j1 = bmap.indices_1[i]
+        if repi[j1] == 0
+            repi[j1] = i
+            reps[j1] = 1
+        end
+        j2 = bmap.indices_2[i]
+        if repi[j2] == 0
+            repi[j2] = i
+            reps[j2] = 2
+        end
+    end
+    vs = [_rep_jones(J, xs, repi[j], reps[j]) for j in eachindex(repi)]
+    return SiteArray(vs, times(xb), frequencies(xb), sites(xb))
+end
+
+function _rep_jones(J::ObservedInstrumentModel, xs::NamedTuple, i, s)
+    s == 1 && return slot_jones(J, xs, Val(1), i)
+    return slot_jones(J, xs, Val(2), i)
 end
 
 

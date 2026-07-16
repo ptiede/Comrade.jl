@@ -35,25 +35,37 @@ SEFDReference(val::Number) = SEFDReference(val, 0)
 
 reference_indices(::AbstractArrayConfiguration, st::SiteLookup, ::NoReference) = [], nothing
 function reference_indices(::AbstractArrayConfiguration, st::SiteLookup, p::SingleReference)
-    inds = findall(==(p.site), st.sites)
+    inds = findall(==(p.site), sites(st))
     return inds, fill(p.value, length(inds))
 end
 
 function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r::SEFDReference)
     tarr = array.tarr
-    t = unique(st.times)
-    f = unique(st.frequencies)
     sefd = NamedTuple{Tuple(tarr.sites)}(Tuple(tarr.SEFD1 .+ tarr.SEFD2))
-    fixedinds = Int[]
-    for i in eachindex(t), j in eachindex(f)
-        inds = findall(x -> ((st.times[x] == t[i])&&(st.frequencies[x] == f[j])), eachindex(st.times))
-        if isempty(inds)
-            continue
+    # A reference group is a (time entry, frequency entry) cell of the lookup's axes.
+    # Time membership is by code; frequency membership is by channel *overlap* with the
+    # cell's frequency entry, so band-spanning parameters (`freqseg = FullBand()`)
+    # compete in every per-channel cell they cover instead of forming their own group.
+    # For uniform frequency segmentations overlap reduces to code equality — the classic
+    # per-(scan, channel) fixing. A parameter that wins several cells is fixed once.
+    best = Dict{Tuple{Int, Int}, Int}()
+    order = Tuple{Int, Int}[] # first-seen (storage) order, for deterministic output
+    for i in eachindex(st.tcode)
+        s = sefd[st.saxis[st.scode[i]]]
+        qlo = st.flo[st.fcode[i]]
+        qhi = st.fhi[st.fcode[i]]
+        for fe in eachindex(st.faxis)
+            (st.flo[fe] < qhi && st.fhi[fe] > qlo) || continue
+            key = (Int(st.tcode[i]), fe)
+            b = get(best, key, 0)
+            if b == 0
+                best[key] = i
+                push!(order, key)
+            elseif s < sefd[st.saxis[st.scode[b]]]
+                best[key] = i
+            end
         end
-        sites = Tuple(st.sites[inds])
-        @assert length(sites) <= length(sefd) "Error in reference site generation. Too many sites"
-        _, ind = findmin(map(s -> sefd[s], sites))
-        push!(fixedinds, inds[ind])
     end
+    fixedinds = unique!([best[k] for k in order])
     return fixedinds, fill(r.value, length(fixedinds))
 end

@@ -173,7 +173,7 @@ end
     #else
     #    ylims --> inv.(lims)[end:-1:begin]
     #end
-    t = getproperty.(gt[:Ti], :t0)
+    t = float.(gt[:Ti])
     xlims --> (t[begin], t[end] + 0.01 * abs(t[end]))
     for (i, s) in enumerate(sites)
         T = nonmissingtype(eltype(gt[s]))
@@ -185,7 +185,7 @@ end
                 if i == length(sites)
                     xguide --> "Time (UTC)"
                 end
-                label = "$(round(f.central / 1.0e9, digits = 1)) GHz"
+                label = "$(round(f / 1.0e9, digits = 1)) GHz"
                 if i == length(sites)
                     label --> label
                 else
@@ -218,15 +218,15 @@ function Base.show(io::IO, ct::CalTable)
 end
 
 function _ctab_formatter(v, i, j)
-    j == 1 && return "$(round(v.t0, digits = 2)) hr"
-    j == 2 && return "$(round(v.central, digits = 2) / 1.0e9) GHz"
+    j == 1 && return "$(round(v, digits = 2)) hr"
+    j == 2 && return "$(round(v / 1.0e9, digits = 2)) GHz"
     return round(v, digits = 3)
 end
 
 
 # Hierarchical instrument samples (e.g. GaussMarkovSitePrior with fitted hyperparameters)
 # carry the gains in `params`; the caltable only shows the gains.
-caltable(x::NamedTuple{(:params, :hyperparams)}) = caltable(x.params)
+caltable(x::HierarchicalSample) = caltable(getparams(x))
 
 """
     caltable(s::SiteArray)

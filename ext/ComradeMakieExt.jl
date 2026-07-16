@@ -531,8 +531,10 @@ function plotcaltable(
 
     gt = map(prepare_caltable, (tables...,))
     sitelist = sites(argmax(x -> length(sites(x)), gt))
-    tup = maximum(maximum.(x -> x[:Ti].t0 + x[:Ti].dt / 2, gt))
-    tlo = minimum(minimum.(x -> x[:Ti].t0 - x[:Ti].dt / 2, gt))
+    exts = map(x -> extrema(x[:Ti]), gt)
+    tlo0, tup0 = minimum(first, exts), maximum(last, exts)
+    tpad = 0.01 * (tup0 - tlo0)
+    tlo, tup = tlo0 - tpad, tup0 + tpad
 
     lims = get(axis_kwargs, :limits, ((tlo, tup), nothing))
     lims = isnothing(lims[1]) ? ((tlo, tup), lims[2]) : lims
@@ -569,9 +571,9 @@ function plotcaltable(
             νlist = unique(gi.Fr)
             for (j, ν) in pairs(νlist)
                 νind = findall(==(ν), gi.Fr)
-                x = getproperty.(gi.Ti, :t0)[νind]
+                x = gi.Ti[νind]
                 y = getproperty(gi, site)[νind]
-                label = string(labels[k], " ", frequencylabel(round(ν.central, digits = 2)))
+                label = string(labels[k], " ", frequencylabel(round(ν, digits = 2)))
                 marker = markers[j]
                 if eltype(y) >: Float64
                     scatter!(
@@ -616,6 +618,6 @@ end
 prepare_caltable(gt::Comrade.CalTable) = gt
 prepare_caltable(gt::Comrade.SiteArray) = caltable(gt)
 # hierarchical instrument samples (e.g. GaussMarkovSitePrior with fitted hyperparameters)
-prepare_caltable(gt::NamedTuple{(:params, :hyperparams)}) = caltable(gt)
+prepare_caltable(gt::Comrade.HierarchicalSample) = caltable(gt)
 
 end
