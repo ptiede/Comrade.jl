@@ -196,10 +196,12 @@ skym = SkyModel(sky, prior, grid; algorithm = VLBISkyModels.ReactantNUFFTAlg(), 
         lg ~ ArrayPrior(
             IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.5))
         )
+        ## Circular random-walk phases: ≈ 0.5 rad drift per 10 s integration
+        ## (D = 90 rad²/hr), starting uniform on the circle so no separate offset
+        ## term is needed. Wrapped chains require the centered parameterization.
         gp ~ ArrayPrior(
-            IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(0.5^2)));
+            GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = 90.0); init = UniformInit(), centered = true);
             refant = SEFDReference(0.0),
-            phase = true,
         )
         ## SingleStokesGain is a single complex gain for each site.
         return SingleStokesGain(exp(complex(lg, gp)))

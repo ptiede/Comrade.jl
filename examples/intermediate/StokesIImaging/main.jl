@@ -115,27 +115,30 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
 # Rather than treating every integration as independent, we will use the time-correlated
-# [`GaussMarkovSitePrior`](@ref): each site's gain series is a stationary
-# [`OrnsteinUhlenbeck`](@ref) process (the continuous-time AR(1) process) whose marginal
-# standard deviation `σ` and correlation time `τ` (in hours) can either be fixed numbers or
-# hyperparameters that are fit alongside the gains — pass a `Distribution` to fit a
-# hyperparameter with that prior.
+# [`GaussMarkovSitePrior`](@ref). For the gain *amplitudes* each site's log-gain series is
+# a stationary [`OrnsteinUhlenbeck`](@ref) process (the continuous-time AR(1) process)
+# whose marginal standard deviation `σ` and correlation time `τ` (in hours) can either be
+# fixed numbers or hyperparameters that are fit alongside the gains — pass a
+# `Distribution` to fit a hyperparameter with that prior.
 
-# The gain *phases* need a little care. The likelihood only sees a phase through `exp(iθ)`,
-# so a wide Gaussian prior on an unwrapped phase creates spurious posterior modes at 2π
-# shifts. We therefore split the phase into a constant-in-time offset per site, which uses
-# a circular (von Mises) distribution and hence has no wrap ambiguity, plus a zero-mean
-# Ornstein-Uhlenbeck fluctuation about that. To remove trivial degeneracies, we pin one
-# sites offset and residual phases to zero. 
+# The gain *phases* live on the circle: the likelihood only sees a phase through `exp(iθ)`,
+# so a real-line (Gaussian) prior on a phase creates spurious posterior modes at 2π shifts.
+# We therefore use the circular process [`WrappedBrownian`](@ref), whose wrapped-normal
+# transitions make the prior exactly 2π-periodic — all wrapped modes are equivalent, and
+# the fitted diffusion coefficient `D` is unbiased by phase wraps. In the visibility
+# domain the process decorrelates as `exp(-D*Δt/2)`, so `2/D` is the phase coherence time
+# in hours. Starting each chain uniformly on the circle (`init = UniformInit()`) absorbs
+# the per-track phase offset, so no separate offset term is needed. To remove the trivial
+# station-phase degeneracy we pin one site's phases to zero.
 
-
-# We also set `centered = true` to use a centered parameterization for the OU process. 
-# This can help with mixing/divergences in HMC sampling. 
+# We set `centered = true` for both processes: for the amplitude chains it can help with
+# mixing/divergences in HMC sampling, and wrapped chains require it (a circular chain has
+# no whitened parameterization).
 
 # To reduce repetition we define small helpers that build the amplitude and phase
 # processes,
 ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1)*0.1)); centered=true)
-ou_phase() = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(0.5), τ = VLBIInverseGamma(1.0, -log(0.1)*0.1)); anchored = true, centered = true)
+wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(10.0)); init = UniformInit(), centered = true)
 
 # Just like the sky model, we use the `@instrument` macro to bundle the Jones matrices and
 # their priors in one block. Each Jones term is a `@jones` block whose `name ~ ArrayPrior(...)`
@@ -144,10 +147,9 @@ ou_phase() = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponen
     return @jones begin
         lg0 ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 1.0)))
         lg ~ ArrayPrior(ou_amp(0.2); LM = ou_amp(0.5))
-        gp0 ~ ArrayPrior(IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SingleReference(:AA, 0.0))
-        dgp ~ ArrayPrior(ou_phase(); refant = SingleReference(:AA, 0.0))
+        gp ~ ArrayPrior(wb_phase(); refant = SingleReference(:AA, 0.0))
         ## SingleStokesGain is a single complex gain for each site.
-        return SingleStokesGain(exp(complex(lg0 + lg, gp0 + dgp)))
+        return SingleStokesGain(exp(complex(lg0 + lg, gp)))
     end
 end
 intmodel = instrument()
@@ -220,8 +222,8 @@ plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 # holding the process hyperparameters, nested under each site's name. Let's look at the
 # fitted amplitude variability `σ` and correlation time `τ` (in hours) for each site,
 xopt.instrument.lg.hyperparams
-# and the per-site phase-stability timescales
-xopt.instrument.dgp.hyperparams
+# and the per-site phase diffusion coefficients (`2/D` is the phase coherence time in hours)
+xopt.instrument.gp.hyperparams
 # !!! warning
 #     Joint MAP estimates of hierarchical hyperparameters are systematically biased: the
 #     mode prefers smaller `σ` and longer `τ` than the truth. Use the posterior samples

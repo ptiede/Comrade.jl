@@ -56,8 +56,24 @@ end
     x = randn(rng, n)
 
     @testset "chain logpdf vs dense" begin
-        @test Comrade._gm_chain_logpdf(p, x, inds, ts) ≈ logpdf(dmv, x)
-        @inferred Comrade._gm_chain_logpdf(p, x, inds, ts)
+        @test Comrade._gm_chain_logpdf(p, StationaryInit(), x, inds, ts) ≈ logpdf(dmv, x)
+        @inferred Comrade._gm_chain_logpdf(p, StationaryInit(), x, inds, ts)
+    end
+
+    @testset "initial priors" begin
+        @test_throws ArgumentError GaussianInit(0.0, -1.0)
+        @test_throws ArgumentError GaussianInit(0.0, 0.0)
+        gi = GaussianInit(0.5, 2.0)
+        @test Comrade.initial_moments(gi, p) == (0.5, 4.0)
+        @test Comrade.initial_moments(StationaryInit(), p) == Comrade.stationary_moments(p)
+        @test FixedInit(0.3).value == 0.3
+        # marginal propagation: init moments flow through the transition law
+        Φ, Q = Comrade.transition_moments(p, 0.7)
+        m, P = Comrade.marginal_moments(gi, p, 0.7)
+        @test m ≈ 0.2 + Φ * (0.5 - 0.2)
+        @test P ≈ Φ^2 * 4.0 + Q
+        @test Comrade.marginal_moments(gi, p, 0.0) == (0.5, 4.0)
+        @test Comrade.marginal_moments(StationaryInit(), p, 0.7) == Comrade.stationary_moments(p)
     end
 
     @testset "extreme correlation time stays finite" begin
@@ -67,8 +83,8 @@ end
         Φ, Q = Comrade.transition_moments(pext, 1.0e-3)
         @test Φ < 1
         @test Q > 0
-        @test !isnan(Comrade._gm_chain_logpdf(pext, x, inds, ts))
-        m, s = Comrade._bridge_moments(0.0, 0.3^2, Φ, 0.1, Φ, -0.2)
+        @test !isnan(Comrade._gm_chain_logpdf(pext, StationaryInit(), x, inds, ts))
+        m, s = Comrade._bridge_moments(0.0, Φ * 0.1, Q, Φ, -0.2, Q)
         @test isfinite(m)
         @test s > 0
     end
@@ -77,8 +93,8 @@ end
         # scattered, consecutive, endpoints, and fully fixed subsets
         for fp in ([2, 5, 6, 10], [1, 10], [1, 2], [9, 10], collect(1:n))
             frp = setdiff(1:n, fp)
-            ℓc = Comrade._gm_chain_logpdf(p, x, inds, ts) -
-                Comrade._gm_chain_logpdf(p, x, inds[fp], ts[fp])
+            ℓc = Comrade._gm_chain_logpdf(p, StationaryInit(), x, inds, ts) -
+                Comrade._gm_chain_logpdf(p, StationaryInit(), x, inds[fp], ts[fp], ts[fp[1]] - ts[1])
             if isempty(frp)
                 @test abs(ℓc) < 1.0e-12
             else
@@ -95,7 +111,7 @@ end
     @testset "conditional rand (bridge)" begin
         fixedpos = [2, 5, 6, 10]
         freepos = setdiff(1:n, fixedpos)
-        spec = Comrade.MarkovChainSpec(p, Val(nothing), inds, ts, fixedpos, false)
+        spec = Comrade.MarkovChainSpec(p, StationaryInit(), Val(nothing), inds, ts, fixedpos, false)
         d = Comrade.GaussMarkovChainDist((AA = spec,), fixedpos, x[fixedpos], n)
         N = 100_000
         draws = Matrix{Float64}(undef, n, N)
@@ -112,10 +128,179 @@ end
         @test isapprox(cov(draws[freepos, :], dims = 2), Matrix(Σc); atol = 1.0e-2)
 
         # unconditional rand/logpdf consistency
-        spec0 = Comrade.MarkovChainSpec(p, Val(nothing), inds, ts, Int[], false)
+        spec0 = Comrade.MarkovChainSpec(p, StationaryInit(), Val(nothing), inds, ts, Int[], false)
         d0 = Comrade.GaussMarkovChainDist((AA = spec0,), Int[], Float64[], n)
         z = rand(rng, d0)
         @test logpdf(d0, z) ≈ logpdf(dmv, z)
+    end
+
+    @testset "GaussianInit chain vs dense" begin
+        # dense reference for a nonstationary start: init N(m0, P0) propagated through
+        # the OU transition law, Cov(x_i, x_j) = Φ(|t_j − t_i|) Var(x_min(i,j)) with
+        # Var(x_i) = P + Φ(t_i − t_1)² (P0 − P)
+        init = GaussianInit(0.5, 2.0)
+        P, P0 = 0.3^2, 4.0
+        Φt(Δ) = exp(-Δ / 1.7)
+        Φ1 = Φt.(ts .- ts[1])
+        mg = 0.2 .+ Φ1 .* (0.5 - 0.2)
+        Σg = [
+            Φt(abs(ts[i] - ts[j])) * (P + Φ1[min(i, j)]^2 * (P0 - P))
+                for i in 1:n, j in 1:n
+        ]
+        dg = MvNormal(mg, Symmetric(Σg))
+        @test Comrade._gm_chain_logpdf(p, init, x, inds, ts) ≈ logpdf(dg, x)
+
+        # conditioning identity with a propagated first marginal (first point free)
+        fp = [3, 7]
+        frp = setdiff(1:n, fp)
+        ℓc = Comrade._gm_chain_logpdf(p, init, x, inds, ts) -
+            Comrade._gm_chain_logpdf(p, init, x, inds[fp], ts[fp], ts[fp[1]] - ts[1])
+        Sfx = Σg[frp, fp]
+        Sxx = Σg[fp, fp]
+        mc = mg[frp] .+ Sfx * (Sxx \ (x[fp] .- mg[fp]))
+        Sc = Symmetric(Σg[frp, frp] .- Sfx * (Sxx \ Sfx'))
+        @test ℓc ≈ logpdf(MvNormal(mc, Sc), x[frp])
+
+        # conditional rand exercises the init-marginal prior-from-the-left of the
+        # chain-opening free point
+        rng2 = Random.Xoshiro(11)
+        spec = Comrade.MarkovChainSpec(p, init, Val(nothing), inds, ts, fp, false)
+        d = Comrade.GaussMarkovChainDist((AA = spec,), fp, x[fp], n)
+        N = 100_000
+        draws = Matrix{Float64}(undef, n, N)
+        for k in 1:N
+            Comrade._rand_chains!(rng2, view(draws, :, k), d, (;))
+        end
+        @test isapprox(vec(mean(draws[frp, :], dims = 2)), mc; atol = 5.0e-2)
+        @test isapprox(cov(draws[frp, :], dims = 2), Matrix(Sc); atol = 1.0e-1)
+    end
+
+    @testset "BrownianMotion process" begin
+        @test_throws ArgumentError Comrade.BrownianMotion(D = -1.0)
+        @test_throws ArgumentError Comrade.BrownianMotion(D = 0.0)
+        pb = Comrade.BrownianMotion(D = 0.4)
+        @test !Comrade.isstationary(pb)
+        Φ, Q = Comrade.transition_moments(pb, 0.5)
+        @test Φ == 1
+        @test Q ≈ 0.4 * 0.5
+        @test_throws ArgumentError Comrade.stationary_moments(pb)
+        # a nonstationary process demands an explicit init
+        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pb)
+        @test keys(Comrade.hyperprior(Comrade.BrownianMotion(D = Exponential(1.0)))) == (:D,)
+
+        # dense reference: Cov(x_i, x_j) = P0 + D min(t_i − t_1, t_j − t_1)
+        init = GaussianInit(0.3, 1.5)
+        Σb = [1.5^2 + 0.4 * min(ts[i] - ts[1], ts[j] - ts[1]) for i in 1:n, j in 1:n]
+        mb = fill(0.3, n)
+        @test Comrade._gm_chain_logpdf(pb, init, x, inds, ts) ≈ logpdf(MvNormal(mb, Symmetric(Σb)), x)
+
+        # conditioning identity at Φ = 1 (Brownian bridge)
+        fp = [2, 6]
+        frp = setdiff(1:n, fp)
+        ℓc = Comrade._gm_chain_logpdf(pb, init, x, inds, ts) -
+            Comrade._gm_chain_logpdf(pb, init, x, inds[fp], ts[fp], ts[fp[1]] - ts[1])
+        Sfx = Σb[frp, fp]
+        Sxx = Σb[fp, fp]
+        mc = mb[frp] .+ Sfx * (Sxx \ (x[fp] .- mb[fp]))
+        Sc = Symmetric(Σb[frp, frp] .- Sfx * (Sxx \ Sfx'))
+        @test ℓc ≈ logpdf(MvNormal(mc, Sc), x[frp])
+
+        # conditional rand through the Φ = 1 bridge
+        rng3 = Random.Xoshiro(23)
+        spec = Comrade.MarkovChainSpec(pb, init, Val(nothing), inds, ts, fp, false)
+        d = Comrade.GaussMarkovChainDist((AA = spec,), fp, x[fp], n)
+        N = 100_000
+        draws = Matrix{Float64}(undef, n, N)
+        for k in 1:N
+            Comrade._rand_chains!(rng3, view(draws, :, k), d, (;))
+        end
+        @test isapprox(vec(mean(draws[frp, :], dims = 2)), mc; atol = 5.0e-2)
+        @test isapprox(cov(draws[frp, :], dims = 2), Matrix(Sc); atol = 1.0e-1)
+    end
+
+    @testset "WrappedBrownian process" begin
+        @test_throws ArgumentError Comrade.WrappedBrownian(D = -1.0)
+        pw = Comrade.WrappedBrownian(D = 0.8)
+        @test !Comrade.isstationary(pw)
+        @test Comrade.is_wrapped(pw)
+        @test_throws ArgumentError Comrade.stationary_moments(pw)
+
+        # construction rules
+        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit())    # centered required
+        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw; centered = true)         # StationaryInit invalid
+        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw; init = GaussianInit(0.0, 1.0), centered = true)
+        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), p; init = UniformInit())     # circular init on a real-line process
+        sp = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), centered = true)
+        @test sp.centered
+
+        # wrapped-normal density: matches a wide brute-force image sum in both regimes
+        for Q in (0.05, 0.5, 2.0, 3.9, 4.1, 8.0, 50.0), Δ in (-3.0, -0.4, 0.0, 1.1, 2.9, 7.0)
+            brute = log(sum(k -> exp(-abs2(Δ + 2π * k) / (2Q)), -200:200) / sqrt(2π * Q))
+            @test Comrade._wn_logpdf(Δ, Q) ≈ brute rtol = 1.0e-10
+        end
+
+        # transitions compose exactly: marginalizing the middle point over the circle
+        let Q1 = 0.7, Q2 = 1.3, Δ = 1.9
+            g(θm) = exp(Comrade._wn_logpdf(θm, Q1) + Comrade._wn_logpdf(Δ - θm, Q2))
+            θs = range(-π, π; length = 20_001)[1:(end - 1)]
+            quad = log(sum(g, θs) * step(θs))
+            @test quad ≈ Comrade._wn_logpdf(Δ, Q1 + Q2) atol = 1.0e-8
+        end
+
+        # exact 2π periodicity of the chain density — the property the wrap buys
+        ℓ0 = Comrade._gm_chain_logpdf(pw, UniformInit(), x, inds, ts)
+        for i in (1, 4, n)
+            xs = copy(x)
+            xs[i] += 2π
+            @test Comrade._gm_chain_logpdf(pw, UniformInit(), xs, inds, ts) ≈ ℓ0
+        end
+        @test Comrade._gm_chain_logpdf(pw, UniformInit(), x .+ 2π, inds, ts) ≈ ℓ0
+
+        # unconditional rand: range, uniform start, and the e^{-DΔ/2} coherence decay
+        rng4 = Random.Xoshiro(31)
+        spec0 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], true)
+        d0 = Comrade.GaussMarkovChainDist((AA = spec0,), Int[], Float64[], n)
+        N = 50_000
+        draws = Matrix{Float64}(undef, n, N)
+        for k in 1:N
+            Comrade._rand_chains!(rng4, view(draws, :, k), d0, (;))
+        end
+        @test all(abs.(draws) .<= π + 1.0e-8)
+        @test abs(mean(cis.(draws[1, :]))) < 0.02
+        for (i, j) in ((1, 2), (3, 7), (1, n))
+            coh = mean(cis.(draws[j, :] .- draws[i, :]))
+            @test abs(coh) ≈ exp(-0.8 * (ts[j] - ts[i]) / 2) atol = 2.0e-2
+            @test abs(imag(coh)) < 2.0e-2
+        end
+
+        # conditional rand: fixed values hit exactly, in range
+        fpw = [2, 6]
+        θf = [0.4, -2.9]
+        specf = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, fpw, true)
+        df = Comrade.GaussMarkovChainDist((AA = specf,), fpw, θf, n)
+        drawsf = Matrix{Float64}(undef, n, N)
+        for k in 1:N
+            Comrade._rand_chains!(rng4, view(drawsf, :, k), df, (;))
+        end
+        @test all(k -> drawsf[fpw, k] == θf, 1:200)
+        @test all(abs.(drawsf[setdiff(1:n, fpw), :]) .<= π + 1.0e-8)
+
+        # single-point bridge matches quadrature, including the winding mixture
+        inds3 = [1, 2, 3]
+        ts3 = [0.0, 0.4, 1.1]
+        θa, θb = 0.3, -2.8
+        spec3 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds3, ts3, [1, 3], true)
+        d3 = Comrade.GaussMarkovChainDist((AA = spec3,), [1, 3], [θa, θb], 3)
+        v = Vector{Float64}(undef, 3)
+        dm = map(1:N) do _
+            Comrade._rand_chains!(rng4, v, d3, (;))
+            v[2]
+        end
+        Q1, Q2 = 0.8 * 0.4, 0.8 * 0.7
+        h(θm) = exp(Comrade._wn_logpdf(θm - θa, Q1) + Comrade._wn_logpdf(θb - θm, Q2))
+        θgrid = range(-π, π; length = 4001)[1:(end - 1)]
+        cquad = sum(θ -> cis(θ) * h(θ), θgrid) / sum(h, θgrid)
+        @test abs(mean(cis.(dm)) - cquad) < 2.0e-2
     end
 
     dvis = _gm_test_data()
@@ -178,6 +363,63 @@ end
             @test ld ≈ f(xf)
             @test gld ≈ gfd rtol = 1.0e-5
         end
+    end
+
+    @testset "hierarchical PosteriorSamples postprocessing" begin
+        # Exercises the caltable/rmap/getparams path the StokesI example advertises:
+        # samples are `(params, hyperparams)` NamedTuples that must round-trip through
+        # PosteriorSamples' StructArray conversion and reduce with `rmap`.
+        post = VLBIPosterior(skym, gmint_fitted(), dvis)
+        samples = [prior_sample(rng, post) for _ in 1:20]
+        chain = Comrade.PosteriorSamples(samples, nothing; metadata = Dict(:sampler => :prior))
+        @test length(Comrade.postsamples(chain)) == 20
+
+        mchain = Comrade.rmap(mean, chain)
+        schain = Comrade.rmap(std, chain)
+        # the hierarchical instrument terms survive reduction as (params, hyperparams) tuples
+        @test mchain.instrument.lg.params isa Comrade.SiteArray
+        @test keys(mchain.instrument.lg.hyperparams) == Tuple(Comrade.sites(dvis))
+        @test Comrade.getparams(mchain.instrument.lg) === mchain.instrument.lg.params
+
+        # caltable strips the hyperparameters from the reduced chain
+        @test caltable(mchain.instrument.lg) isa Comrade.CalTable
+        @test caltable(abs.(mchain.instrument.lg.params)) isa Comrade.CalTable
+
+        # instrumentmodel accepts the reduced hierarchical chain (getparams strips hyperparams)
+        @test instrumentmodel(post, mchain) isa Comrade.SiteArray
+        # the example's mean/std combine: getparams unwraps both before the elementwise op
+        combined = map(
+            (x, y) -> Comrade.getparams(x) .+ Comrade.getparams(y),
+            mchain.instrument, schain.instrument,
+        )
+        @test instrumentmodel(post, (; instrument = combined)) isa Comrade.SiteArray
+    end
+
+    @testset "empty-group PosteriorSamples (zero-field StructArray guard)" begin
+        # regression: an empty NamedTuple leaf (e.g. a sky group with no fitted params)
+        # must not error in PosteriorSamples' StructArray conversion (fieldcount guard in
+        # `_convert2structarr`).
+        raw = [(a = i * 1.0, empty = NamedTuple()) for i in 1:5]
+        ps = Comrade.PosteriorSamples(raw, nothing)
+        @test length(Comrade.postsamples(ps)) == 5
+        @test ps[3].a == 3.0
+        @test ps[1].empty == NamedTuple()
+    end
+
+    @testset "derived element type" begin
+        # eltype is derived from the process/override parameters, not pinned to Float64
+        gmp(p) = GaussMarkovSitePrior(ScanSeg(), p)
+        @test Comrade._working_type((a = gmp(Comrade.OrnsteinUhlenbeck(σ = 0.1, τ = 2.0)),)) === Float64
+        @test Comrade._working_type((a = gmp(Comrade.OrnsteinUhlenbeck(σ = 0.1f0, τ = 2.0f0, μ = 0.0f0)),)) === Float32
+        # fitted (Distribution) fields contribute their own eltype
+        @test Comrade._working_type((a = gmp(Comrade.OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0)),)) === Float64
+        # the init contributes to the working type as well
+        @test Comrade._working_type(
+            (a = GaussMarkovSitePrior(ScanSeg(), Comrade.OrnsteinUhlenbeck(σ = 0.1f0, τ = 2.0f0, μ = 0.0f0); init = FixedInit(0.0)),)
+        ) === Float64
+        post = VLBIPosterior(skym, gmint_fitted(), dvis)
+        @test eltype(post.prior.instrument.lg) === Float64
+        @test eltype(parent(prior_sample(rng, post).instrument.lg.params)) === Float64
     end
 
     @testset "fixed hyperparameters degrade to plain prior" begin
@@ -404,14 +646,14 @@ end
         @test 0.3τtrue < τs[imax[2]] < 3τtrue
     end
 
-    @testset "anchored chains" begin
-        # anchored = true conditions every site's chain to zero at its first time, killing
+    @testset "FixedInit chains" begin
+        # FixedInit(0.0) conditions every site's chain to zero at its first time, killing
         # the level redundancy with a separate (circular) offset term
         @instrument function gmint_anch()
             return @jones begin
                 gp0 ~ ArrayPrior(IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2))))
                 dgp ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); anchored = true);
+                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0));
                     refant = SEFDReference(0.0)
                 )
                 return SingleStokesGain(exp(1im * (gp0 + dgp)))
@@ -430,12 +672,12 @@ end
         @test Comrade.inverse(tp, y) ≈ xf
         @test all(inds -> iszero(parent(y.instrument.dgp.params)[first(inds)]), chinds)
 
-        # anchored chains are whitened like any other; ascube works (checked without the
+        # FixedInit chains are whitened like any other; ascube works (checked without the
         # circular offset term, which correctly refuses Std transport)
         @instrument function gmint_anchonly()
             return @jones begin
                 dgp ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); anchored = true);
+                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0));
                     refant = SEFDReference(0.0)
                 )
                 return SingleStokesGain(exp(1im * dgp))
@@ -448,11 +690,11 @@ end
         yc = Comrade.transform(tpc, xc)
         @test Comrade.inverse(tpc, yc) ≈ xc
 
-        # anchored + centered + fitted hyperparameters (the recommended phase setup)
+        # FixedInit + centered + fitted hyperparameters (the recommended phase setup)
         @instrument function gmint_anchcent()
             return @jones begin
                 dgp ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); anchored = true, centered = true);
+                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0), centered = true);
                     refant = SEFDReference(0.0)
                 )
                 return SingleStokesGain(exp(1im * dgp))
@@ -468,6 +710,141 @@ end
         ycc = Comrade.transform(tpcc, xcc)
         @test Comrade.inverse(tpcc, ycc) ≈ xcc
         @test all(inds -> iszero(parent(ycc.instrument.dgp.params)[first(inds)]), chindscc)
+    end
+
+    @testset "FixedInit value and refant conflict" begin
+        # a nonzero init value propagates exactly through rand and the transform
+        @instrument function gmint_fixval()
+            return @jones begin
+                lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 0.5, τ = 2.0); init = FixedInit(0.3)))
+                return SingleStokesGain(exp(lg))
+            end
+        end
+        post = VLBIPosterior(skym, gmint_fixval(), dvis)
+        s = prior_sample(rng, post)
+        chinds = Comrade.lookup(post.prior.instrument.lg.sitemap)
+        @test all(inds -> parent(s.instrument.lg)[first(inds)] == 0.3, chinds)
+        @test isfinite(logdensityof(post, s))
+        tp = asflat(post)
+        y = Comrade.transform(tp, prior_sample(rng, tp))
+        @test all(inds -> parent(y.instrument.lg)[first(inds)] == 0.3, chinds)
+
+        # a reference scheme that fixes a chain's first point to a different value than
+        # FixedInit is a conflict, not a silent precedence
+        @instrument function gmint_conflict()
+            return @jones begin
+                gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0); init = FixedInit(0.3)); refant = SEFDReference(0.0))
+                return SingleStokesGain(exp(1im * gp))
+            end
+        end
+        @test_throws ArgumentError VLBIPosterior(skym, gmint_conflict(), dvis)
+
+        # agreeing values compose: the reference chain's first point is fixed by both
+        @instrument function gmint_agree()
+            return @jones begin
+                gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0); init = FixedInit(0.0)); refant = SEFDReference(0.0))
+                return SingleStokesGain(exp(1im * gp))
+            end
+        end
+        post2 = VLBIPosterior(skym, gmint_agree(), dvis)
+        @test isfinite(logdensityof(post2, prior_sample(rng, post2)))
+    end
+
+    @testset "GaussianInit posterior" begin
+        # wide explicit start together with a fitted hyperparameter
+        @instrument function gmint_ginit()
+            return @jones begin
+                lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0); init = GaussianInit(0.0, 1.0)))
+                return SingleStokesGain(exp(lg))
+            end
+        end
+        post = VLBIPosterior(skym, gmint_ginit(), dvis)
+        s = prior_sample(rng, post)
+        @test isfinite(logdensityof(post, s))
+        tp = asflat(post)
+        xf = prior_sample(rng, tp)
+        @test isfinite(logdensityof(tp, xf))
+        y = Comrade.transform(tp, xf)
+        @test Comrade.inverse(tp, y) ≈ xf
+        tpc = ascube(post)
+        xc = prior_sample(rng, tpc)
+        @test isfinite(logdensityof(tpc, xc))
+        yc = Comrade.transform(tpc, xc)
+        @test Comrade.inverse(tpc, yc) ≈ xc
+    end
+
+    @testset "BrownianMotion posterior" begin
+        # random-walk drift from a fixed start with a fitted diffusion coefficient
+        @instrument function gmint_bm()
+            return @jones begin
+                lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), BrownianMotion(D = Exponential(0.1)); init = FixedInit(0.0)))
+                return SingleStokesGain(exp(lg))
+            end
+        end
+        post = VLBIPosterior(skym, gmint_bm(), dvis)
+        s = prior_sample(rng, post)
+        chinds = Comrade.lookup(post.prior.instrument.lg.sitemap)
+        @test all(inds -> iszero(parent(s.instrument.lg.params)[first(inds)]), chinds)
+        @test all(h -> keys(h) == (:D,), values(s.instrument.lg.hyperparams))
+        @test isfinite(logdensityof(post, s))
+        tp = asflat(post)
+        xf = prior_sample(rng, tp)
+        @test isfinite(logdensityof(tp, xf))
+        y = Comrade.transform(tp, xf)
+        @test Comrade.inverse(tp, y) ≈ xf
+        tpc = ascube(post)
+        xc = prior_sample(rng, tpc)
+        @test isfinite(logdensityof(tpc, xc))
+
+        @testset "Enzyme gradient" begin
+            f = let tp = tp
+                x -> logdensityof(tp, x)
+            end
+            gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(f), xf)
+            gfd, = grad(central_fdm(5, 1), f, xf)
+            @test gz ≈ gfd rtol = 1.0e-5
+        end
+    end
+
+    @testset "WrappedBrownian phase posterior" begin
+        # a fully circular phase prior: UniformInit absorbs the per-track offset, so no
+        # separate circular offset term is needed
+        @instrument function gmint_wb()
+            return @jones begin
+                gp ~ ArrayPrior(
+                    GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = Exponential(1.0)); init = UniformInit(), centered = true);
+                    refant = SEFDReference(0.0)
+                )
+                return SingleStokesGain(exp(1im * gp))
+            end
+        end
+        post = VLBIPosterior(skym, gmint_wb(), dvis)
+        s = prior_sample(rng, post)
+        @test all(h -> keys(h) == (:D,), values(s.instrument.gp.hyperparams))
+        @test isfinite(logdensityof(post, s))
+
+        # exactly invariant under a 2π shift of any single free phase
+        freeinds = setdiff(1:length(post.prior.instrument.gp.dists), post.prior.instrument.gp.dists.fixedinds)
+        s2 = deepcopy(s)
+        parent(s2.instrument.gp.params)[first(freeinds)] += 2π
+        @test logdensityof(post, s2) ≈ logdensityof(post, s)
+
+        tp = asflat(post)
+        xf = prior_sample(rng, tp)
+        @test isfinite(logdensityof(tp, xf))
+        y = Comrade.transform(tp, xf)
+        @test Comrade.inverse(tp, y) ≈ xf
+        # centered chains refuse the Std transports
+        @test_throws ArgumentError ascube(post)
+
+        @testset "Enzyme gradient" begin
+            f = let tp = tp
+                x -> logdensityof(tp, x)
+            end
+            gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(f), xf)
+            gfd, = grad(central_fdm(5, 1), f, xf)
+            @test gz ≈ gfd rtol = 1.0e-5
+        end
     end
 
     @testset "phase=true errors" begin

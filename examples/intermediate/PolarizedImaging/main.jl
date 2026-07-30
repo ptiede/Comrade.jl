@@ -257,7 +257,12 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 #     `adjoint(R)` in the composition. This is especially important for interferometers
 #     using a mixture of linear and circular feeds.
 
-# For the instrument prior we use IID priors for the gains and d-terms. The `IIDSitePrior`
+# For the instrument prior we use IID priors for the gain amplitudes and d-terms, and
+# circular [`WrappedBrownian`](@ref) random walks for the gain phases. The R-feed phase
+# starts uniform on the circle (`UniformInit()`), which absorbs the per-track phase
+# offset; the R/L phase ratio is physically close to zero, so its chain starts pinned
+# there (`FixedInit(0.0)`) and drifts slowly (small diffusion `D`; `2/D` is the coherence
+# time in hours). Wrapped chains require the centered parameterization. The `IIDSitePrior`
 # segments are `ScanSeg()` (independent per scan), `TrackSeg()` (constant over the track),
 # and `IntegSeg()` (changes each integration time). For released EHT data the gains are
 # stable over a scan, while the d-terms are stable over the track.
@@ -266,8 +271,8 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
     G = @jones begin
         lgR ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
         lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
-        gpR ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
-        gprat ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0), phase = true)
+        gpR ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = 20.0); init = UniformInit(), centered = true); refant = SEFDReference(0.0))
+        gprat ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = 0.02); init = FixedInit(0.0), centered = true); refant = SingleReference(:AA, 0.0))
         gR = exp(complex(lgR, gpR))
         gL = gR * exp(complex(lgrat, gprat))
         return JonesG((gR, gL))

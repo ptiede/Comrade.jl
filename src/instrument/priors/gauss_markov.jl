@@ -1,7 +1,7 @@
 export GaussMarkovSitePrior
 
 """
-    GaussMarkovSitePrior(seg::TimeSegmentation, process::AbstractGaussMarkovProcess; centered = false, anchored = false)
+    GaussMarkovSitePrior(seg::TimeSegmentation, process::AbstractGaussMarkovProcess; init = StationaryInit(), centered = false)
 
 A site prior that is correlated in time, following the continuous-time Gauss-Markov
 `process` (e.g. [`OrnsteinUhlenbeck`](@ref)) sampled at the times implied by the
@@ -29,41 +29,68 @@ transport to the Std spaces exact, so both `asflat` and `ascube` work. Set
 parameterization), which can mix better when every point is strongly data-constrained;
 centered priors support `asflat` only.
 
-This prior is intended for both gain amplitudes and phases. Phases are modeled as
-*unwrapped* reals (the likelihood only uses `exp(iθ)`, so wrapping is a display concern),
-and the `phase=true` cumulative reparameterization of `ArrayPrior` is superseded by this
-prior: `phase` must be `false`. Reference stations (`refant`) are handled by exact
-conditioning of the chain on the fixed values, which works with scattered fixed indices
-such as those produced by `SEFDReference`.
+This prior is intended for both gain amplitudes and phases. For phases the preferred
+process is [`WrappedBrownian`](@ref) with `init = UniformInit()`: the prior is then
+exactly `2π`-periodic, needs no separate circular offset term, and its diffusion
+posterior is unbiased by phase wraps. A real-line process (e.g. `OrnsteinUhlenbeck` with
+`init = FixedInit(0.0)` on top of a circular offset) models the phase as an *unwrapped*
+real and is appropriate when the excursions stay well below `2π` — beyond that, the
+likelihood's periodicity in `exp(iθ)` produces spurious `2π`-shifted modes that only the
+wrapped process removes. In all cases the `phase=true` cumulative reparameterization of
+`ArrayPrior` is superseded by this prior: `phase` must be `false`. Reference stations
+(`refant`) are handled by exact conditioning of the chain on the fixed values, which
+works with scattered fixed indices such as those produced by `SEFDReference`.
 
-Setting `anchored = true` additionally conditions each site's chain to be exactly zero at
-its first time, so the prior describes the *evolution* of a quantity relative to its
-starting value (the continuous-time analogue of the cumulative `phase=true`
-parameterization). This is important when the chain models an unwrapped phase fluctuation
-on top of a separate offset term: without anchoring the chain's overall level trades off
-against the offset, and the likelihood's `2π` periodicity turns that redundancy into
-spurious posterior modes at `2π`-shifted levels. Anchoring removes the level freedom
-entirely, so the wrap ambiguity lives only in the (circular) offset while genuine
-continuous drift is still expressed by the chain.
+The initial distribution of each chain — how its first time stamp is treated — is set by
+`init` (see [`AbstractInitialPrior`](@ref)). [`StationaryInit`](@ref) (the default)
+starts the chain in the process's stationary marginal. [`GaussianInit`](@ref) uses an
+explicit `N(μ0, σ0²)` first marginal, e.g. an intentionally wide one so the starting
+value is essentially fit freely. [`FixedInit`](@ref) conditions the chain to an exact
+value at its first time, the continuous-time analogue of the cumulative `phase=true`
+parameterization: when the chain models an unwrapped phase fluctuation on top of a
+separate (circular) offset term, `FixedInit(0.0)` removes the level freedom that would
+otherwise trade off against the offset and, through the likelihood's `2π` periodicity,
+produce spurious posterior modes at `2π`-shifted levels. A referencing scheme that
+already fixes a chain's first point must agree with the `FixedInit` value; a conflict is
+an error.
 
 # Example
 
 ```julia
-lg ~ ArrayPrior(GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
+lg ~ ArrayPrior(GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(0.1), τ = VLBIExponential(2.0))))
 gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 3.0, τ = 1.0)); refant = SEFDReference(0.0))
 ## phase-fluctuation term meant to be combined with a circular per-track offset
-dgp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = 1.0); anchored = true); refant = SEFDReference(0.0))
+dgp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = 1.0); init = FixedInit(0.0)); refant = SEFDReference(0.0))
 ```
+
+!!! note
+    When any hyperparameters are fitted the example above uses the `VLBI*` distributions
+    (`VLBIExponential`, `VLBIInverseGamma`, ...). These accept a scalar traced argument and
+    so work on both the CPU and GPU/`Reactant` backends; the plain `Distributions.jl` types
+    only work on the CPU.
 """
-struct GaussMarkovSitePrior{S <: TimeSegmentation, P <: AbstractGaussMarkovProcess} <: AbstractSitePrior
+struct GaussMarkovSitePrior{S <: TimeSegmentation, P <: AbstractGaussMarkovProcess, I <: AbstractInitialPrior} <: AbstractSitePrior
     seg::S
     process::P
+    init::I
     centered::Bool
-    anchored::Bool
 end
 
-function GaussMarkovSitePrior(seg::TimeSegmentation, process::AbstractGaussMarkovProcess; centered = false, anchored = false)
-    return GaussMarkovSitePrior(seg, process, centered, anchored)
+function GaussMarkovSitePrior(
+        seg::TimeSegmentation, process::AbstractGaussMarkovProcess;
+        init::AbstractInitialPrior = StationaryInit(), centered = false
+    )
+    _check_init(init, process)
+    if is_wrapped(process) && !centered
+        throw(
+            ArgumentError(
+                "$(nameof(typeof(process))) requires centered = true: a wrapped chain " *
+                    "has no Gaussian conditionals, so the whitened (non-centered) " *
+                    "parameterization does not exist. Centered chains support asflat only."
+            )
+        )
+    end
+    return GaussMarkovSitePrior(seg, process, init, centered)
 end
 
 # ----- per-(site, freq) chain specifications --------------------------------
@@ -71,8 +98,9 @@ end
 # Built once at `set_array` time; everything in a spec is constant during sampling
 # (indices, times, and the process *template* whose fitted fields are placeholders).
 
-struct MarkovChainSpec{P <: AbstractGaussMarkovProcess, K, V <: AbstractVector{<:Integer}, T <: AbstractVector, F <: NamedTuple, G <: NamedTuple}
+struct MarkovChainSpec{P <: AbstractGaussMarkovProcess, I <: AbstractInitialPrior, K, V <: AbstractVector{<:Integer}, T <: AbstractVector, F <: NamedTuple, G <: NamedTuple}
     process::P     # template; fitted fields are Distribution placeholders
+    init::I        # initial distribution of the chain's first time stamp
     hpsel::Val{K}  # the site whose hyperparameters this chain reads, or nothing if fully fixed
     inds::V        # flat indices into the full parameter vector, ascending in time
     ts::T          # chain times in hours (strictly increasing)
@@ -82,10 +110,10 @@ struct MarkovChainSpec{P <: AbstractGaussMarkovProcess, K, V <: AbstractVector{<
 end
 
 function MarkovChainSpec(
-        process::AbstractGaussMarkovProcess, hpsel::Val, inds, ts, fixedpos, centered::Bool
+        process::AbstractGaussMarkovProcess, init::AbstractInitialPrior, hpsel::Val, inds, ts, fixedpos, centered::Bool
     )
     return MarkovChainSpec(
-        process, hpsel, inds, ts, centered,
+        process, init, hpsel, inds, ts, centered,
         _free_point_tables(inds, ts, fixedpos),
         (inds = inds[fixedpos], ts = ts[fixedpos]),
     )
@@ -111,36 +139,44 @@ EnzymeRules.inactive_type(::Type{<:IIDChainSpec}) = true
 
 # ----- the chain log-density -------------------------------------------------
 
-# Stationary start plus exact transition terms: O(n) and Enzyme-safe (sequential loop,
-# `site_sum` precedent). The previous point is *re-read* each iteration rather than
-# carried across iterations: the only loop-carried state is then the accumulator, which
-# lets Reactant raise the `@trace` loop to fused vector ops instead of a serialized
-# `stablehlo.while` (a carried value defeats the raising pass; see the Reactant issue
-# MRE). On the CPU the extra read is free. `track_numbers = false` keeps `@trace` from
-# promoting captured literals (e.g. `π`).
-function _gm_chain_logpdf(p::AbstractGaussMarkovProcess, x, inds, ts)
-    μ, P = stationary_moments(p)
-    ℓ = -(abs2(rgetindex(x, rgetindex(inds, firstindex(inds))) - μ) / P + log(2π * P)) / 2
+# Log-density of the chain's first point under the init marginal propagated a gap Δ0
+# from the chain start (Δ0 = 0 for the full chain; the first fixed time for the
+# conditioning subtraction in `chain_term`). For FixedInit the first point is always
+# reference-fixed, so its (delta) term appears identically in ℓ(all) and ℓ(fixed subset)
+# and is conventionally zero in both.
+@inline function _first_point_term(init::AbstractInitialPrior, p, x1, Δ0)
+    m1, P1 = marginal_moments(init, p, Δ0)
+    return -(abs2(x1 - m1) / P1 + log(2π * P1)) / 2
+end
+@inline _first_point_term(::FixedInit, p, x1, Δ0) = zero(abs2(x1))
+# Uniform on the circle, which is also invariant under the wrapped transitions, so the
+# same constant serves the propagated subset marginal at any Δ0.
+@inline _first_point_term(::UniformInit, p, x1, Δ0) = -log(oftype(abs2(x1), 2π))
+
+function _gm_chain_logpdf(p::AbstractGaussMarkovProcess, init::AbstractInitialPrior, x, inds, ts, Δ0 = zero(eltype(ts)))
+    x1 = rgetindex(x, rgetindex(inds, firstindex(inds)))
+    ℓ = _first_point_term(init, p, x1, Δ0)
+    μ = _process_mean(p)
     T2π = convert(eltype(x), 2π)
     @trace track_numbers = false for i in (firstindex(inds) + 1):lastindex(inds)
-        Φ, Q = transition_moments(p, rgetindex(ts, i) - rgetindex(ts, i - 1))
         xi = rgetindex(x, rgetindex(inds, i))
         xp = rgetindex(x, rgetindex(inds, i - 1))
-        ℓ -= (abs2(xi - μ - Φ * (xp - μ)) / Q + log(T2π * Q)) / 2
+        ℓ += _transition_logpdf(p, xi, xp, rgetindex(ts, i) - rgetindex(ts, i - 1), μ, T2π)
     end
     return ℓ
 end
 
 # Exact conditioning on the reference-fixed values: the restriction of an order-1 Markov
-# process to a subset of times is Markov with the same transition law over the larger
-# gaps, so log p(free | fixed) = ℓ(all) − ℓ(fixed subset). The subtracted term depends on
-# the hyperparameters even though the fixed values are constants — dropping it would bias
-# the hyperparameter posterior.
+# process to a subset of times is Markov with the composed transition law over the larger
+# gaps, and its first marginal is the init marginal propagated to the subset's first time
+# (`marginal_moments`). Hence log p(free | fixed) = ℓ(all) − ℓ(fixed subset). The
+# subtracted term depends on the hyperparameters even though the fixed values are
+# constants — dropping it would bias the hyperparameter posterior.
 @inline function chain_term(spec::MarkovChainSpec, x, hp)
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
-    ℓ = _gm_chain_logpdf(p, x, spec.inds, spec.ts)
+    ℓ = _gm_chain_logpdf(p, spec.init, x, spec.inds, spec.ts)
     isempty(spec.fsub.inds) && return ℓ
-    return ℓ - _gm_chain_logpdf(p, x, spec.fsub.inds, spec.fsub.ts)
+    return ℓ - _gm_chain_logpdf(p, spec.init, x, spec.fsub.inds, spec.fsub.ts, first(spec.fsub.ts) - first(spec.ts))
 end
 
 @inline function chain_term(spec::IIDChainSpec, x, hp)
@@ -169,7 +205,11 @@ struct GaussMarkovChainDist{C <: NamedTuple, I <: AbstractVector{<:Integer}, F} 
 end
 
 Base.length(d::GaussMarkovChainDist) = d.len
-Base.eltype(::GaussMarkovChainDist) = Float64
+# Sample element type follows the reference-fixed values, which `build_markov_observed`
+# allocates in the working precision derived from the process/override parameters (see
+# `_working_type`). This is `Float64` for the usual `Float64` inputs, but is no longer
+# pinned there.
+Base.eltype(d::GaussMarkovChainDist) = eltype(d.fixedvals)
 Dists.sampler(d::GaussMarkovChainDist) = d
 
 chainspecs(d::GaussMarkovChainDist) = d.chains
@@ -189,37 +229,48 @@ end
 #
 # Every per-point operation on a chain — the bridge sampler, the whitened coloring, its
 # inverse, and the Std-space transports — walks the *free points only* and needs the same
-# exact conditional moments: at free point `k`, condition on the previously realized
-# value (gap Δ₁ ⇒ Φ₁) and the *next reference-fixed* value (gap Δ₂ ⇒ Φ₂), which by the
-# Markov property is the exact conditional. In centered variables y = x − μ:
-#     mean = [Φ₁(1−Φ₂²) y_prev + Φ₂(1−Φ₁²) y_next] / (1 − Φ₁²Φ₂²)
-#     var  = P (1−Φ₁²)(1−Φ₂²) / (1 − Φ₁²Φ₂²)
-# with Φ = 0 when the neighbor is missing, which recovers the stationary and one-sided
-# conditionals. The walk is branchless over the static `spec.free` tables so the same
-# loop serves the CPU and, via `@trace`, compiles to a single while loop under Reactant
-# (the fixed-point skip logic of a sequential walk cannot be loop-carried in a traced
-# while).
+# exact conditional moments: at free point `k`, condition on a Gaussian prior-from-the-
+# left (the transition from the previously realized value, or the init marginal when the
+# point opens its chain) and the *next reference-fixed* value, which by the Markov
+# property is the exact conditional. In precision form, with prior N(μ + b₁, Q₁) and a
+# fixed-point transition (Φ₂, Q₂) to the centered value y₂:
+#     λ = 1/Q₁ + Φ₂²/Q₂,   mean = μ + (b₁/Q₁ + Φ₂ y₂/Q₂)/λ,   var = 1/λ
+# with Φ₂ = 0 when no fixed point follows, recovering the one-sided conditionals. The
+# (Φ, Q) form stays regular at Φ = 1, so nonstationary (random-walk) processes share the
+# loop; the (μ, P, Φ)-only stationary form is singular there. The walk is branchless over
+# the static `spec.free` tables so the same loop serves the CPU and, via `@trace`,
+# compiles to a single while loop under Reactant (the fixed-point skip logic of a
+# sequential walk cannot be loop-carried in a traced while).
 
-@inline function _bridge_moments(μ, P, Φ₁, y₁, Φ₂, y₂)
-    den = 1 - Φ₁^2 * Φ₂^2
-    m = μ + (Φ₁ * (1 - Φ₂^2) * y₁ + Φ₂ * (1 - Φ₁^2) * y₂) / den
-    s = sqrt(P * (1 - Φ₁^2) * (1 - Φ₂^2) / den)
+@inline function _bridge_moments(μ, b₁, Q₁, Φ₂, y₂, Q₂)
+    λ = inv(Q₁) + Φ₂^2 / Q₂
+    m = μ + (b₁ / Q₁ + Φ₂ * y₂ / Q₂) / λ
+    s = sqrt(inv(λ))
     return m, s
 end
 
 # Conditional moments of free point `k`, reading the realized values from `y`. The
 # `hasfix` branch is static (per chain), so chains without reference-fixed points skip
 # the Φ₂ transition entirely — halving the transcendental cost for refant-free priors —
-# while still compiling to a single traced loop.
-@inline function _free_moments(p, μ, P, y, free, k)
-    Φ₁ = rgetindex(free.mskl, k) * first(transition_moments(p, rgetindex(free.dtl, k)))
-    y₁ = rgetindex(y, rgetindex(free.lidx, k)) - μ
+# while still compiling to a single traced loop. Chain-opening points (left mask 0) take
+# the init marginal (m₀, P₀) as their prior-from-the-left; the dummy neighbor read is
+# scaled by the exact static zero mask, which requires `y`'s dummy slots to be
+# zero-initialized (see `_fill_fixed!`).
+@inline function _free_moments(p, μ, m₀, P₀, y, free, k)
+    Φl, Ql = transition_moments(p, rgetindex(free.dtl, k))
+    ml = rgetindex(free.mskl, k)
+    Φ₁ = ml * Φl
+    Q₁ = ml * Ql + (1 - ml) * P₀
+    b₁ = Φ₁ * (rgetindex(y, rgetindex(free.lidx, k)) - μ) + (1 - ml) * (m₀ - μ)
     if free.hasfix
-        Φ₂ = rgetindex(free.mskf, k) * first(transition_moments(p, rgetindex(free.dtf, k)))
+        Φf, Qf = transition_moments(p, rgetindex(free.dtf, k))
+        mf = rgetindex(free.mskf, k)
+        Φ₂ = mf * Φf
+        Q₂ = mf * Qf + (1 - mf)
         y₂ = rgetindex(y, rgetindex(free.fidx, k)) - μ
-        return _bridge_moments(μ, P, Φ₁, y₁, Φ₂, y₂)
+        return _bridge_moments(μ, b₁, Q₁, Φ₂, y₂, Q₂)
     end
-    return _bridge_moments(μ, P, Φ₁, y₁, zero(Φ₁), zero(y₁))
+    return μ + b₁, sqrt(Q₁)
 end
 
 # Zero-initialize the full parameter vector and scatter the reference-fixed values. The
@@ -301,11 +352,88 @@ end
 
 function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec, hp)
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
-    μ, P = stationary_moments(p)
+    μ = _process_mean(p)
+    m₀, P₀ = initial_moments(spec.init, p)
     free = spec.free
     @inbounds for k in 1:_nfree(spec)
-        m, s = _free_moments(p, μ, P, x, free, k)
+        m, s = _free_moments(p, μ, m₀, P₀, x, free, k)
         x[free.tgt[k]] = m + s * randn(rng, typeof(m))
+    end
+    return x
+end
+
+# Wrapped chains: no Gaussian conditionals, so the generic free-point bridge does not
+# apply. Sampling factors into circular random-walk segments around the fixed points:
+# a backward walk before the first fixed point (the uniform init makes the time-reversed
+# walk a walk again), a forward walk after the last, and, between consecutive fixed
+# points, a Brownian bridge whose total 2π winding is drawn exactly from the discrete
+# wrapped-normal mixture the wrap induces.
+function _sample_winding(rng::Random.AbstractRNG, Δθ, QT)
+    # windings beyond ~4 increment sds contribute negligible mass
+    W = max(3, ceil(Int, 4 * sqrt(QT) / (2π)))
+    wts = [exp(-abs2(Δθ + 2π * w) / (2QT)) for w in (-W):W]
+    u = rand(rng) * sum(wts)
+    c = zero(u)
+    for (m, wt) in enumerate(wts)
+        c += wt
+        u <= c && return m - W - 1
+    end
+    return W
+end
+
+function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:WrappedBrownian}, hp)
+    p = materialize(spec.process, _selecthp(hp, spec.hpsel))
+    D = p.D
+    inds = spec.inds
+    ts = spec.ts
+    T = float(eltype(x))
+
+    # positions of the fixed points, in chain order (`fsub.inds` preserves it)
+    fx = spec.fsub.inds
+    fixpos = Vector{Int}(undef, length(fx))
+    j = 1
+    @inbounds for i in eachindex(inds)
+        j > length(fx) && break
+        if inds[i] == fx[j]
+            fixpos[j] = i
+            j += 1
+        end
+    end
+
+    step_walk(prev, Δt) = _wrap_angle(prev + sqrt(D * Δt) * randn(rng, T))
+
+    if isempty(fixpos)
+        x[inds[1]] = T(π) * (2rand(rng, T) - 1)
+        @inbounds for i in 2:length(inds)
+            x[inds[i]] = step_walk(x[inds[i - 1]], ts[i] - ts[i - 1])
+        end
+        return x
+    end
+
+    # backward walk before the first fixed point
+    @inbounds for i in (fixpos[1] - 1):-1:1
+        x[inds[i]] = step_walk(x[inds[i + 1]], ts[i + 1] - ts[i])
+    end
+    # bridges between consecutive fixed points, with the winding drawn exactly
+    @inbounds for s in 1:(length(fixpos) - 1)
+        fa, fb = fixpos[s], fixpos[s + 1]
+        fb - fa == 1 && continue
+        ta, tb = ts[fa], ts[fb]
+        Δθ = _wrap_angle(x[inds[fb]] - x[inds[fa]])
+        w = _sample_winding(rng, Δθ, D * (tb - ta))
+        e = x[inds[fa]] + Δθ + 2π * w  # unwrapped endpoint of this segment
+        cur, tp = x[inds[fa]], ta
+        for i in (fa + 1):(fb - 1)
+            m = cur + (e - cur) * (ts[i] - tp) / (tb - tp)
+            v = D * (ts[i] - tp) * (tb - ts[i]) / (tb - tp)
+            cur = m + sqrt(v) * randn(rng, T)
+            x[inds[i]] = _wrap_angle(cur)
+            tp = ts[i]
+        end
+    end
+    # forward walk after the last fixed point
+    @inbounds for i in (fixpos[end] + 1):length(inds)
+        x[inds[i]] = step_walk(x[inds[i - 1]], ts[i] - ts[i - 1])
     end
     return x
 end
@@ -370,10 +498,11 @@ function _color_chain_flat!(flag, y, x, index, spec::MarkovChainSpec, hp)
         return ℓ0, index + n
     end
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
-    μ, P = stationary_moments(p)
+    μ = _process_mean(p)
+    m₀, P₀ = initial_moments(spec.init, p)
     ℓ = zero(eltype(x))
     @trace track_numbers = false for k in 1:n
-        m, s = _free_moments(p, μ, P, y, free, k)
+        m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
         rsetindex!(y, m + s * rgetindex(x, index + k - 1), rgetindex(free.tgt, k))
         ℓ += _maybe_logjac(flag, s)
     end
@@ -408,9 +537,10 @@ function _whiten_chain_flat!(x, index, y, spec::MarkovChainSpec, hp)
         return index + n
     end
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
-    μ, P = stationary_moments(p)
+    μ = _process_mean(p)
+    m₀, P₀ = initial_moments(spec.init, p)
     @inbounds for k in 1:_nfree(spec)
-        m, s = _free_moments(p, μ, P, y, free, k)
+        m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
         x[index + k - 1] = (y[free.tgt[k]] - m) / s
     end
     return index + _nfree(spec)
@@ -435,10 +565,11 @@ end
 function _color_chain_std!(y, x, index, spec::MarkovChainSpec, hp, space)
     # centered chains are rejected at node construction (`_check_std_transportable`)
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
-    μ, P = stationary_moments(p)
+    μ = _process_mean(p)
+    m₀, P₀ = initial_moments(spec.init, p)
     free = spec.free
     @inbounds for k in 1:_nfree(spec)
-        m, s = _free_moments(p, μ, P, y, free, k)
+        m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
         u = PT._clamp_unit(PT.space_cdf(space, x[index]))
         y[free.tgt[k]] = m + s * PT.space_quantile(PT.StdNormal(), u)
         index += 1
@@ -463,10 +594,11 @@ end
 
 function _whiten_chain_std!(x, index, y, spec::MarkovChainSpec, hp, space)
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
-    μ, P = stationary_moments(p)
+    μ = _process_mean(p)
+    m₀, P₀ = initial_moments(spec.init, p)
     free = spec.free
     @inbounds for k in 1:_nfree(spec)
-        m, s = _free_moments(p, μ, P, y, free, k)
+        m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
         u = PT._clamp_unit(PT.space_cdf(PT.StdNormal(), (y[free.tgt[k]] - m) / s))
         x[index] = PT.space_quantile(space, u)
         index += 1
@@ -563,7 +695,7 @@ struct ObservedHierarchicalArrayPrior{D <: GaussMarkovChainDist, H <: NamedDist,
 end
 
 Base.length(d::ObservedHierarchicalArrayPrior) = length(d.dists) + length(d.hyperprior)
-Base.eltype(::ObservedHierarchicalArrayPrior) = Float64
+Base.eltype(d::ObservedHierarchicalArrayPrior) = eltype(d.dists)
 
 function Dists.logpdf(d::ObservedHierarchicalArrayPrior, x::NamedTuple)
     return _chain_logpdf(d.dists, parent(x.params), x.hyperparams) +
@@ -572,7 +704,7 @@ end
 
 function Dists.rand(rng::Random.AbstractRNG, d::ObservedHierarchicalArrayPrior)
     hp = rand(rng, d.hyperprior)
-    x = Vector{Float64}(undef, length(d.dists))
+    x = Vector{eltype(d.dists)}(undef, length(d.dists))
     _rand_chains!(rng, x, d.dists, hp)
     return (params = SiteArray(x, d.sitemap), hyperparams = hp)
 end
@@ -673,12 +805,22 @@ end
 
 function _chainspec(sp::GaussMarkovSitePrior, site, inds, ts, fixedpos)
     hpk = isempty(hyperprior(sp.process)) ? nothing : site
-    return MarkovChainSpec(sp.process, Val(hpk), inds, ts, fixedpos, sp.centered)
+    return MarkovChainSpec(sp.process, sp.init, Val(hpk), inds, ts, fixedpos, sp.centered)
 end
 
 function _chainspec(sp::IIDSitePrior, site, inds, ts, fixedpos)
     free = isempty(fixedpos) ? copy(inds) : inds[setdiff(eachindex(inds), fixedpos)]
     return IIDChainSpec(sp.dist, free)
+end
+
+# Working float precision of the chains, derived from the process (and IID-override)
+# parameters so that the sample element type follows the inputs rather than a hardcoded
+# `Float64`. Fitted (Distribution) fields contribute their `eltype`.
+_site_paramtype(sp::GaussMarkovSitePrior) = promote_type(_paramtype(sp.process), _init_paramtype(sp.init))
+_site_paramtype(sp::IIDSitePrior) = float(eltype(sp.dist))
+function _working_type(site_dists::NamedTuple)
+    T = mapreduce(_site_paramtype, promote_type, values(site_dists); init = Union{})
+    return T === Union{} ? Float64 : T
 end
 
 function build_markov_observed(d::ArrayPrior, site_dists::NamedTuple, smap::SiteLookup, array)
@@ -693,19 +835,35 @@ function build_markov_observed(d::ArrayPrior, site_dists::NamedTuple, smap::Site
     d.centroid_station === nothing ||
         throw(ArgumentError("centroid_station is not supported with GaussMarkovSitePrior"))
 
+    T = _working_type(site_dists)
     finds, vals = reference_indices(array, smap, d.refant)
     fixedinds = collect(Int, finds)
-    fixedvals = vals === nothing ? Float64[] : collect(float.(vals))
+    fixedvals = vals === nothing ? T[] : collect(T, vals)
 
-    # Anchored chains are exactly conditioned to zero at each site's first time, on top of
-    # any reference-fixed indices (see the `anchored` docs of `GaussMarkovSitePrior`).
+    # FixedInit chains are exactly conditioned to the init value at each chain's first
+    # time, on top of any reference-fixed indices (see the `init` docs of
+    # `GaussMarkovSitePrior`). A referencing scheme that already fixes a chain's first
+    # point must agree with the init value; a silent precedence would break the
+    # documented FixedInit invariant.
     for inds in lookup(smap)
         sp = getproperty(site_dists, smap.sites[first(inds)])
-        (sp isa GaussMarkovSitePrior && sp.anchored) || continue
+        (sp isa GaussMarkovSitePrior && sp.init isa FixedInit) || continue
         i1 = first(inds)
-        i1 ∈ fixedinds && continue
-        push!(fixedinds, i1)
-        push!(fixedvals, 0.0)
+        v = convert(T, sp.init.value)
+        j = findfirst(==(i1), fixedinds)
+        if j === nothing
+            push!(fixedinds, i1)
+            push!(fixedvals, v)
+        elseif fixedvals[j] != v
+            throw(
+                ArgumentError(
+                    "Site $(smap.sites[i1]) has FixedInit($(sp.init.value)) but the " *
+                        "reference scheme already fixes its chain's first time stamp to " *
+                        "$(fixedvals[j]). Make the two values agree or drop one of the " *
+                        "constraints."
+                )
+            )
+        end
     end
 
     chains = map(lookup(smap)) do inds
