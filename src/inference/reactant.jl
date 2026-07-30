@@ -9,12 +9,13 @@ base window `25`, doubling, with the same 15%/10% fallback when the buffers don'
 one continuous Nesterov dual-averaging step-size process (γ=0.05, t₀=10, κ=0.75, target
 accept 0.8) plus a Welford diagonal mass matrix updated at window ends.
 
-Warmup is executed in chunks of the *same* size used for sampling (`saveto.stride` for a
-`DiskStore`, otherwise the `chunk_size` passed to `sample`). The ProbProg backend
-anchors the windowed schedule to the global warmup length (`total_warmup`/`warmup_offset`),
-so chunking is bit-identical to one fused warmup. When sampling to a `DiskStore`, the
-adaptation state is checkpointed after every warmup chunk, so an interrupted warmup can be
-resumed with `restart = true` (requires Reactant ≥ 0.2.267).
+Warmup is executed in chunks, by default the *same* size used for sampling (`saveto.stride`
+for a `DiskStore`, otherwise the `chunk_size` passed to `sample`; override with `sample`'s
+`warmup_chunk`). The ProbProg backend anchors the windowed schedule to the global warmup
+length (`total_warmup`/`warmup_offset`), so chunking is bit-identical to one fused warmup
+whatever the chunk length. When sampling to a `DiskStore`, the adaptation state is
+checkpointed after every warmup chunk, so an interrupted warmup can be resumed with
+`restart = true`, and one draw per chunk is logged to `<name>/warmup` for inspection.
 
 # Keyword arguments
   n_adapts = 1000          total warmup steps; the internal Stan windowed schedule

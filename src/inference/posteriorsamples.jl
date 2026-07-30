@@ -125,6 +125,15 @@ function rmap(f, x::StructArray{<:Tuple})
     return map(x -> rmap(f, x), StructArrays.components(x))
 end
 
+# A parameter group with no parameters (an optional model component that is switched off, e.g.
+# a sky model's `gauss` when no extra Gaussian is fitted) has nothing to reduce. StructArrays
+# cannot split it into component arrays, so it arrives here as a plain `Vector{@NamedTuple{}}`
+# and the generic `rmap(f, x) = f(x)` would call e.g. `mean` on it — which fails in `sum(...)/n`
+# with `no method matching /(::@NamedTuple{}, ::Int64)`. Skip `f` and return the empty group.
+# (The `StructArray` method resolves what would otherwise be an ambiguity with the two above.)
+rmap(::Any, ::AbstractArray{<:NamedTuple{(), Tuple{}}}) = NamedTuple()
+rmap(::Any, ::StructArray{<:NamedTuple{(), Tuple{}}}) = NamedTuple()
+
 
 function Base.show(io::IO, ::MIME"text/plain", s::PosteriorSamples)
     println(io, "PosteriorSamples")

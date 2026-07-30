@@ -202,7 +202,10 @@ end
 
 function load_samples(out::String, indices::Union{Base.Colon, UnitRange, StepRange} = Base.Colon(); table = :both)
     @assert isdir(abspath(out)) "$out is not a directory. This isn't where the HMC samples are stored"
-    @assert isfile(joinpath(abspath(out), "parameters.jls")) "parameters.jls "
+    @assert isfile(joinpath(abspath(out), "parameters.jls")) "no parameters.jls in $out — " *
+        "this directory holds no chain yet. If the run is still warming up, the sampling " *
+        "chain is not written until warmup finishes; the ReactantNUTS warmup log lives in " *
+        "$(joinpath(out, "warmup")) and can be loaded while warmup is in progress."
     p = deserialize(joinpath(abspath(out), "parameters.jls")).params
     if p.filename != abspath(out)
         @warn "filename stored in params does not equal what was passed\n" *

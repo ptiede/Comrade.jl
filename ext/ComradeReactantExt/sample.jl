@@ -81,6 +81,55 @@ function _close_sink(sink::_DiskSink, store::DiskStore, metadata)
     return out
 end
 
+# --- Warmup draw log: the adaptation chain, written as it goes ---
+# ProbProg collects no per-step warmup trace (its warmup kernel runs with `num_samples = 0`,
+# and asking for samples mid-warmup would inject non-adapting steps and break the
+# bit-identical-to-fused-warmup property). What *is* exact and free is the state at the end
+# of each warmup chunk, so that is what gets logged: one draw per chunk.
+#
+# The layout is Comrade's standard on-disk sample layout (`<dir>/samples/output_scan_%05d.jls`
+# + `parameters.jls`) with `stride = 1`, so the warmup chain reads back with a plain
+# `Comrade.load_samples(dir)`.
+mutable struct _WarmupLog
+    dir::String
+    outbase::String
+    iter::Int
+end
+
+function _open_warmup_log(dir::String; append::Bool = false)
+    sampdir = joinpath(dir, "samples")
+    mkpath(sampdir)
+    iter0 = 0
+    pf = joinpath(dir, "parameters.jls")
+    if append && isfile(pf)
+        iter0 = deserialize(pf).params.nfiles
+    elseif !append
+        # A fresh warmup invalidates any warmup chain already here; drop the stale scan
+        # files (only ones matching our own naming) so `load_samples` can't splice two
+        # different runs together. Sampling output lives elsewhere and is untouched.
+        for f in readdir(sampdir)
+            startswith(f, "output_scan_") && endswith(f, ".jls") &&
+                rm(joinpath(sampdir, f))
+        end
+    end
+    return _WarmupLog(dir, joinpath(sampdir, "output_scan_"), iter0)
+end
+
+# `params` is one constrained draw; `stats` is a column-oriented NamedTuple of length-1
+# vectors, matching the convention `_write_sink!` uses for the sampling chunks.
+function _write_warmup_draw!(log::_WarmupLog, params, stats)
+    log.iter += 1
+    ps = PosteriorSamples([params], stats)
+    serialize(
+        log.outbase * Printf.@sprintf("%05d.jls", log.iter),
+        (samples = Comrade.postsamples(ps), stats = Comrade.samplerstats(ps))
+    )
+    # Rewrite the index every draw so an interrupted warmup still leaves a loadable chain.
+    out = Comrade.DiskOutput(abspath(log.dir), log.iter, 1, log.iter)
+    serialize(joinpath(log.dir, "parameters.jls"), (; params = out))
+    return nothing
+end
+
 """
     _existing_disk_samples(store::DiskStore) -> (nfiles, nsamples)
 
@@ -137,12 +186,18 @@ end
 """
     default_warmup_callback(info) -> NamedTuple
 
-Default `warmup_callback`: log one line per warmup chunk and return its progress + the
-current adapted step size.
+Default `warmup_callback`: log one line per warmup chunk and return its progress, the
+current adapted step size, and the current draw (`params`).
+
+Return values are collected into `warmup_history`, which ends up in `samplerinfo(out)`
+(`MemoryStore`) or `metadata.jls` (`DiskStore`) — so keeping `params` here is what makes
+the warmup chain inspectable on the `MemoryStore` path, where there is no disk to log to.
+A `DiskStore` additionally writes the same draws to `<name>/warmup` as they are produced
+(see [`warmup_chunked`](@ref)).
 """
 function default_warmup_callback(info)
     @info "ReactantNUTS warmup" step = info.step total = info.total step_size = info.step_size
-    return (; info.step, info.total, info.step_size)
+    return (; info.step, info.total, info.step_size, info.params)
 end
 
 # The post-warmup (sampling) callback is the shared `Comrade.default_disk_callback`, used
@@ -161,7 +216,9 @@ end
 # argument so one compiled kernel serves every chunk of a given length.
 function _compile_warmup_kernel(state, ldf, tpost, nsteps::Int, total::Int, sampler::ReactantNUTS)
     fn = function (st::ProbProg.MCMCState, lf, off)
-        _, _, _, st_out = ProbProg._infer(
+        # `_infer` returns (trace, diagnostics, log_densities, traced_result, state). The
+        # `log_densities` slot was added in Reactant 0.2.275 — hence the compat lower bound.
+        _, _, _, _, st_out = ProbProg._infer(
             st, lf, tpost;
             algorithm = :NUTS, num_warmup = nsteps, num_samples = 0,
             adapt_step_size = true, adapt_mass_matrix = true,
@@ -194,15 +251,29 @@ per-chunk `callback` return values. The `info` passed to `callback` carries `ste
 raw `state`.
 
 If `checkpoint` is a path, the `MCMCState` is written there with `ProbProg.save_state` after
-*every* chunk (it persists the adaptation accumulators for Reactant ≥ 0.2.267), and the step
-count is recorded to `progress_checkpoint`. Together these let `sample(...; restart=true)`
+*every* chunk (it persists the adaptation accumulators), and the step count is recorded to
+`progress_checkpoint`. Together these let `sample(...; restart=true)`
 resume an interrupted warmup from the last completed chunk. To resume, pass the loaded state
 as `resume_state` and the recorded step count as `warmup_done`.
+
+If `draws_dir` is a path, the draw at the end of each chunk is appended there as it is
+produced, giving an inspectable warmup chain of `n_adapts ÷ chunk` draws:
+
+```julia
+warmup = Comrade.load_samples(joinpath("Results", "warmup"))   # PosteriorSamples
+Comrade.samplerstats(warmup).step_size                         # adaptation trace
+```
+
+Per-draw stats are `step` (global warmup step), `step_size`, and `potential_energy`. The
+cadence is the chunk length — ProbProg collects no per-step warmup trace, and forcing one
+would perturb the chain (see the note on `_WarmupLog`), so use a smaller `chunk` for a
+finer log. Passing `resume_state` appends to an existing log rather than restarting it.
 """
 function warmup_chunked(
         rng, ldf, x0, tpost, sampler::ReactantNUTS;
         chunk::Int, callback = default_warmup_callback,
         checkpoint = nothing, progress_checkpoint = nothing,
+        draws_dir = nothing,
         resume_state = nothing, warmup_done::Int = 0,
     )
 
@@ -224,6 +295,10 @@ function warmup_chunked(
         state = resume_state
         done = warmup_done
     end
+
+    # Append to the warmup chain when resuming, start a fresh one otherwise.
+    wlog = isnothing(draws_dir) ? nothing :
+        _open_warmup_log(draws_dir; append = !isnothing(resume_state))
 
     history = Any[]
     kernel = nothing
@@ -248,6 +323,15 @@ function warmup_chunked(
         end
 
         cur = _current_state(state, tpost)
+        # Log the draw before the callback so a throwing callback can't lose it.
+        isnothing(wlog) || _write_warmup_draw!(
+            wlog, cur.params,
+            (;
+                step = [done],
+                step_size = [cur.step_size],
+                potential_energy = [cur.potential_energy],
+            )
+        )
         info = (;
             step = done, total = na, num_warmup = na,
             step_size = cur.step_size,
@@ -326,12 +410,22 @@ function sample_chunked(
             Reactant.Compiler.compile(run_chunk, (state, ns); optimize = :probprog)
         end
         t = @elapsed begin
-            samples, diagnostics, _, state = cfn(state, ns)
+            # (trace, diagnostics, log_densities, traced_result, state) — the
+            # `log_densities` slot appeared in Reactant 0.2.275 (see the compat bound).
+            samples, diagnostics, _, _, state = cfn(state, ns)
         end
 
         raw = Array(samples)
         chain = [transform(tpost, r) for r in eachrow(raw)]
-        numerical_error = .!Array(diagnostics)   # diagnostics: true == NO divergence
+        # Reactant 0.2.275 widened `diagnostics` from a length-`ns` Bool vector to an `ns x 2`
+        # matrix. Column 1 is the old vector: the impulse dialect calls it a "placeholder for
+        # future expansion" and it reads `true` for every draw — including a chain frozen on a
+        # single point — so `.!col1` (what this used to compute) was uniformly `false` and
+        # never flagged anything. Column 2 is the actual per-draw divergence flag: it is 0 for
+        # a healthy chain, 1 when the trajectory blows past `max_delta_energy`, and takes
+        # intermediate values in between. That matches `numerical_error`'s cross-backend
+        # meaning (AdvancedHMC reports divergences here), so it is used directly, unnegated.
+        numerical_error = Array(diagnostics)[:, 2]
 
         # Persist the chunk first (serialization / accumulation), then build the callback
         # `info` and fire the callback — the same ordering the AdvancedHMC path uses.
@@ -379,11 +473,12 @@ _default_ldf(x, tpost) = logdensityof(tpost, x)
     sample(rng, post, sampler::ReactantNUTS, nsamples;
            transport_method=nothing,
            saveto=MemoryStore(), initial_params=nothing, restart=false,
-           chunk_size=100, ldf=_default_ldf, host_rng=Random.default_rng(),
+           chunk_size=100, warmup_chunk=0, ldf=_default_ldf,
+           host_rng=Random.default_rng(),
            warmup_callback=default_warmup_callback)
 
-Warm up (Stan-windowed adaptation run in chunks of the sampling size — see
-[`warmup_chunked`](@ref)) then draw `nsamples` post-warmup samples from the Reactant
+Warm up (Stan-windowed adaptation run in chunks of the sampling size, or of `warmup_chunk`
+if given — see [`warmup_chunked`](@ref)) then draw `nsamples` post-warmup samples from the Reactant
 posterior `post`. Structured like the AdvancedHMC extension's `sample`, and
 algorithmically identical to AdvancedHMC's NUTS adaptation.
 
@@ -405,6 +500,24 @@ thread into a follow-up `sample_chunked`) and `out` is the standard Comrade outp
     A resumable `MCMCState` is checkpointed to `<name>/state.jls` after every warmup
     chunk and after each sampling chunk (warmup progress in `<name>/warmup_progress.jls`).
 
+## Inspecting warmup
+
+The warmup (adaptation) chain is saved as it runs, so it can be looked at while the job is
+still going or after a crash:
+
+  - `saveto::DiskStore` -> one draw per warmup chunk is appended to `<name>/warmup` in the
+    same on-disk layout as the main chain, so it loads with
+    `Comrade.load_samples(joinpath(name, "warmup"))`. Per-draw `samplerstats` carry `step`
+    (global warmup step), `step_size`, and `potential_energy` — e.g.
+    `Comrade.samplerstats(warmup).step_size` is the step-size adaptation trace.
+  - `saveto::MemoryStore` -> the same draws come back in `warmup_history` (each entry has
+    `params`), reachable via `samplerinfo(out)[:warmup_history]`.
+
+The log has one draw per warmup chunk, not per step: ProbProg does not collect a per-step
+warmup trace, and making it do so would inject non-adapting steps into warmup and change
+the chain. Set `warmup_chunk` for a finer log (it defaults to the sampling chunk size);
+chunk length does not otherwise affect the chain.
+
 ## Callbacks
 
 The per-batch callback is configured solely through the `DiskStore`: `saveto.callback` runs
@@ -424,13 +537,14 @@ common fields documented in [`Comrade.default_disk_callback`](@ref) plus an `ext
 
 `warmup_callback` runs once per warmup chunk; its `info` carries `step`/`total`/
 `num_warmup` alongside the host-side state view (see [`default_warmup_callback`](@ref)
-and [`warmup_chunked`](@ref)).
+and [`warmup_chunked`](@ref)). Overriding it replaces what lands in `warmup_history`, so
+return `info.params` from a custom callback to keep the in-memory warmup chain.
 
 `restart=true` (only with a `DiskStore`) continues an interrupted run, matching
 AdvancedHMC's `restart`. Warmup is checkpointed after every chunk, so an interruption
 *during* warmup resumes from the last completed chunk (the persisted adaptation state is
 threaded back in); an interruption during sampling resumes from the last sampling chunk,
-appending to the chain already on disk. Requires Reactant ≥ 0.2.267.
+appending to the chain already on disk.
 
 `nsamples` is the TOTAL target chain length, samples already on disk are counted,
 and new chunks are numbered *after* them and appended (with `parameters.jls` grown
@@ -442,7 +556,7 @@ function AbstractMCMC.sample(
         nsamples::Int;
         transport_method = nothing,
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
-        chunk_size::Int = 100,
+        chunk_size::Int = 100, warmup_chunk::Int = 0,
         ldf = _default_ldf, host_rng = Random.default_rng(),
         warmup_callback = default_warmup_callback
     )
@@ -461,7 +575,17 @@ function AbstractMCMC.sample(
     else
         (nothing, nothing)
     end
-    warmup_chunk = saveto isa DiskStore ? saveto.stride : chunk_size
+    # Warmup chunking defaults to the sampling chunk size. It also sets the cadence of the
+    # warmup draw log (one draw per chunk), so `warmup_chunk` lets that be made finer
+    # without touching the sampling stride. Chunk size does not affect the chain itself —
+    # the windowed schedule is anchored to `total_warmup`/`warmup_offset`.
+    warmup_chunk = if warmup_chunk > 0
+        warmup_chunk
+    else
+        saveto isa DiskStore ? saveto.stride : chunk_size
+    end
+    # DiskStore: log the adaptation chain to `<name>/warmup` as it goes.
+    warmup_draws_dir = saveto isa DiskStore ? joinpath(saveto.name, "warmup") : nothing
 
     if restart
         saveto isa DiskStore ||
@@ -477,6 +601,7 @@ function AbstractMCMC.sample(
             rng, ldf, x0, tpost, sampler;
             chunk = warmup_chunk, callback = warmup_callback,
             checkpoint = state_ckpt, progress_checkpoint = progress_ckpt,
+            draws_dir = warmup_draws_dir,
         )
     else
         # Restart: load the checkpoint. If warmup did not finish (recorded step count <
@@ -492,6 +617,7 @@ function AbstractMCMC.sample(
                 rng, ldf, nothing, tpost, sampler;
                 chunk = warmup_chunk, callback = warmup_callback,
                 checkpoint = state_ckpt, progress_checkpoint = progress_ckpt,
+                draws_dir = warmup_draws_dir,
                 resume_state = state, warmup_done = warmup_done,
             )
         else
