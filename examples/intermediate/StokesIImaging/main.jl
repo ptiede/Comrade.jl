@@ -131,14 +131,17 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 # the per-track phase offset, so no separate offset term is needed. To remove the trivial
 # station-phase degeneracy we pin one site's phases to zero.
 
-# We set `centered = true` for both processes: for the amplitude chains it can help with
-# mixing/divergences in HMC sampling, and wrapped chains require it (a circular chain has
-# no whitened parameterization).
+# We set `centered = true` for the amplitude chains, which can help with mixing/
+# divergences in HMC sampling when every gain is strongly data-constrained. The wrapped
+# phase chains default to a circular angle embedding (two latent reals per phase), whose
+# flat coordinates carry no 2π ambiguity — the robust choice. When the data constrain
+# every phase tightly, adding `centered = true` to the phase prior as well (raw angles as
+# coordinates) halves the phase dimension and typically mixes better.
 
 # To reduce repetition we define small helpers that build the amplitude and phase
 # processes,
 ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1)*0.1)); centered=true)
-wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(10.0)); init = UniformInit(), centered = true)
+wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(4.0)); init = UniformInit())
 
 # Just like the sky model, we use the `@instrument` macro to bundle the Jones matrices and
 # their priors in one block. Each Jones term is a `@jones` block whose `name ~ ArrayPrior(...)`
@@ -246,7 +249,7 @@ xopt.instrument.gp.hyperparams
 # run.
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt)
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt, progress=false)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this

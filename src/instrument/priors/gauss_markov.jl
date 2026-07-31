@@ -27,7 +27,16 @@ This removes the hyperparameter-gain funnel when hyperparameters are fitted and 
 transport to the Std spaces exact, so both `asflat` and `ascube` work. Set
 `centered = true` to instead use the gain values themselves as coordinates (the centered
 parameterization), which can mix better when every point is strongly data-constrained;
-centered priors support `asflat` only.
+centered priors support `asflat` only. Wrapped (circular) processes default to a third
+parameterization: each free phase is embedded as two latent reals through the same angle
+transform used by `DiagonalVonMises`, so the flat coordinates carry no `2π` ambiguity (a
+phase wrap is a continuous winding of the latent point, never a jump) and HMC warmup
+adaptation is robust even for weakly constrained phases. The embedding doubles the phase
+dimension and its per-pair geometry is a rotated ellipse a diagonal mass matrix cannot
+capture, so when every phase is strongly data-constrained `centered = true` mixes better:
+it uses the raw angles as coordinates, at the cost of exactly `2π`-periodic flat
+coordinates — a sampler sheet-hop on a weakly constrained point can destabilize warmup
+variance adaptation. Wrapped chains support `asflat` only in either form.
 
 This prior is intended for both gain amplitudes and phases. For phases the preferred
 process is [`WrappedBrownian`](@ref) with `init = UniformInit()`: the prior is then
@@ -81,15 +90,6 @@ function GaussMarkovSitePrior(
         init::AbstractInitialPrior = StationaryInit(), centered = false
     )
     _check_init(init, process)
-    if is_wrapped(process) && !centered
-        throw(
-            ArgumentError(
-                "$(nameof(typeof(process))) requires centered = true: a wrapped chain " *
-                    "has no Gaussian conditionals, so the whitened (non-centered) " *
-                    "parameterization does not exist. Centered chains support asflat only."
-            )
-        )
-    end
     return GaussMarkovSitePrior(seg, process, init, centered)
 end
 
@@ -215,8 +215,15 @@ Dists.sampler(d::GaussMarkovChainDist) = d
 chainspecs(d::GaussMarkovChainDist) = d.chains
 EnzymeRules.inactive(::typeof(chainspecs), args...) = nothing
 
+struct _ChainFix{X, HP}
+    x::X
+    hp::HP
+end
+(hp::_ChainFix)(spec::Union{MarkovChainSpec, IIDChainSpec}) = chain_term(spec, hp.x, hp.hp)
+
 function _chain_logpdf(d::GaussMarkovChainDist, x::AbstractVector, hp::NamedTuple)
-    ls = map(spec -> chain_term(spec, x, hp), chainspecs(d))
+    fd = _ChainFix(x, hp)
+    ls = map(fd, values(chainspecs(d)))
     return sum(ls)
 end
 
@@ -450,7 +457,10 @@ end
 # per free point (its TV transform in flat space, its exact quantile transport in Std
 # spaces).
 
-_flat_dim(spec::MarkovChainSpec) = _nfree(spec)
+# Non-centered wrapped chains embed each free phase as two latent reals (AngleTransform);
+# centered ones use the raw angles.
+_flat_dim(spec::MarkovChainSpec) =
+    (is_wrapped(spec.process) && !spec.centered) ? 2 * _nfree(spec) : _nfree(spec)
 _flat_dim(spec::IIDChainSpec) = _nfree(spec) * TV.dimension(PT.transport_node(spec.dist, PT.TVFlat()))
 _flat_dim(d::GaussMarkovChainDist) = sum(_flat_dim, values(chainspecs(d)); init = 0)
 
@@ -458,15 +468,16 @@ _std_dim(spec::MarkovChainSpec, space) = _nfree(spec)
 _std_dim(spec::IIDChainSpec, space) = _nfree(spec) * PT.dimension(PT.transport_node(spec.dist, space))
 _std_dim(d::GaussMarkovChainDist, space) = sum(Base.Fix2(_std_dim, space), values(chainspecs(d)); init = 0)
 
-_std_transportable(spec::MarkovChainSpec) = !spec.centered
+_std_transportable(spec::MarkovChainSpec) = !spec.centered && !is_wrapped(spec.process)
 _std_transportable(::IIDChainSpec) = true
 function _check_std_transportable(d::GaussMarkovChainDist)
     all(_std_transportable, values(chainspecs(d))) || throw(
         ArgumentError(
-            "GaussMarkovSitePrior(...; centered = true) cannot be transported to the Std " *
-                "spaces (ascube/StdNormal): the centered parameterization needs the target " *
-                "log-density, which those transports never evaluate. Use the default " *
-                "whitened form (centered = false) or asflat()."
+            "This GaussMarkovSitePrior cannot be transported to the Std spaces " *
+                "(ascube/StdNormal): the centered parameterization needs the target " *
+                "log-density, which those transports never evaluate, and a wrapped " *
+                "(circular) chain has no measure-preserving map to the line. Use asflat() " *
+                "(or, for centered chains, the default whitened form)."
         )
     )
     return nothing
@@ -487,6 +498,30 @@ end
 @inline _maybe_logjac(::TV.NoLogJac, s) = zero(s)
 @inline _maybe_logjac(::TV.LogJac, s) = log(s)
 
+# Under NoLogJac the per-point logjac from `TV.transform_with` is the `NoLogJac` sentinel,
+# not a number; keep the traced accumulator real on both paths (cf. `_maybe_logjac`).
+@inline _acc_logjac(::TV.NoLogJac, ℓk, θ) = zero(θ)
+@inline _acc_logjac(::TV.LogJac, ℓk, θ) = ℓk
+
+# Wrapped chains: each free phase is embedded as two latent reals through the same
+# `AngleTransform` that backs the circular IID priors (`DiagonalVonMises`), so the flat
+# coordinates carry no 2π ambiguity. The chain density is still evaluated on the angles by
+# `chain_term`, so the exact refant conditioning is untouched, and the transform is
+# hyperparameter-independent, so the process is never materialized here.
+function _color_chain_wrapped!(flag, y, x, index, spec::MarkovChainSpec)
+    free = spec.free
+    n = _nfree(spec)
+    t = PT.angle_transform()
+    ℓ = zero(eltype(x))
+    @trace track_numbers = false for k in 1:n
+        θ, ℓk, _ = TV.transform_with(flag, t, x, index + 2 * (k - 1))
+        rsetindex!(y, θ, rgetindex(free.tgt, k))
+        ℓ += _acc_logjac(flag, ℓk, θ)
+    end
+    flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + 2n
+    return ℓ, index + 2n
+end
+
 function _color_chain_flat!(flag, y, x, index, spec::MarkovChainSpec, hp)
     free = spec.free
     n = _nfree(spec)
@@ -497,6 +532,7 @@ function _color_chain_flat!(flag, y, x, index, spec::MarkovChainSpec, hp)
         # rsetindex!(y, rgetindex(x, index:(index + n - 1)), free.tgt)
         return ℓ0, index + n
     end
+    is_wrapped(spec.process) && return _color_chain_wrapped!(flag, y, x, index, spec)
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
     μ = _process_mean(p)
     m₀, P₀ = initial_moments(spec.init, p)
@@ -528,6 +564,16 @@ end
 
 function _whiten_chain_flat!(x, index, y, spec::MarkovChainSpec, hp)
     free = spec.free
+    if is_wrapped(spec.process) && !spec.centered
+        # Inverse of the angle embedding, `(sin θ, cos θ)` (radius 1); the coloring's
+        # `atan` recovers θ exactly, so transform ∘ inverse is the identity on the angles
+        # even though inverse ∘ transform is not (the radius is not preserved).
+        t = PT.angle_transform()
+        @inbounds for k in 1:_nfree(spec)
+            index = TV.inverse_at!(x, index, t, y[free.tgt[k]])
+        end
+        return index
+    end
     if spec.centered
         n = _nfree(spec)
         # Vectorized gather (inverse of the coloring scatter): read the scattered chain values
@@ -563,7 +609,7 @@ end
 end
 
 function _color_chain_std!(y, x, index, spec::MarkovChainSpec, hp, space)
-    # centered chains are rejected at node construction (`_check_std_transportable`)
+    # centered and wrapped chains are rejected at node construction (`_check_std_transportable`)
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
     μ = _process_mean(p)
     m₀, P₀ = initial_moments(spec.init, p)

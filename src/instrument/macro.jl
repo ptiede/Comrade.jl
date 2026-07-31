@@ -23,10 +23,15 @@ _asblock(body) = (body isa Expr && body.head === :block) ? body : Expr(:block, b
 # Emit a fresh named function `_<base><suffix><k>(argsig...) = body` into `defs` and return its
 # name. Whether the definition ends up at top level or nested inside `_<name>_jones` is decided
 # later by `_partition_fndefs` — see the note there on why that distinction matters.
+# The body gets an inline meta (what `Base.@inline` lowers to): these functions are called
+# per-site/per-visibility in hot loops, and under Reactant a non-inlined call is an opaque
+# barrier to tracing.
 function _emit_fn!(defs, base, suffix, counter, argsig, body)
     counter[] += 1
     fname = Symbol("_", base, suffix, counter[])
-    push!(defs, Expr(:function, Expr(:call, fname, argsig...), _asblock(body)))
+    blk = _asblock(body)
+    inlined = Expr(:block, Expr(:meta, :inline), blk.args...)
+    push!(defs, Expr(:function, Expr(:call, fname, argsig...), inlined))
     return fname
 end
 

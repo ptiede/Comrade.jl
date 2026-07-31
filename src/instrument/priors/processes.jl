@@ -224,9 +224,15 @@ stationary law is uniform, so with [`UniformInit`](@ref) the chain also absorbs 
 per-track phase offset that would otherwise require a separate circular offset term.
 
 A wrapped chain has no Gaussian conditionals, so the whitened parameterization does not
-exist: `centered = true` is required and only `asflat` is supported. Reference stations
-(`refant`) are handled by exact conditioning, as for the Gaussian processes: wrapped
-normal transitions compose exactly (their variances add).
+exist. By default each free phase is embedded as two latent reals through the same angle
+transform used by `DiagonalVonMises`, so the flat coordinates are free of the `2π` sheet
+ambiguity a raw circular coordinate would have (a phase wrap is a continuous winding of
+the latent point), which keeps HMC warmup adaptation robust. When every phase is strongly
+data-constrained, `centered = true` (raw angles as coordinates) halves the phase
+dimension and mixes better — see [`GaussMarkovSitePrior`](@ref) for the trade-off. Only
+`asflat` is supported in either form. Reference stations (`refant`) are handled by exact
+conditioning, as for the Gaussian processes: wrapped normal transitions compose exactly
+(their variances add).
 
 # Arguments
 
@@ -238,7 +244,7 @@ normal transitions compose exactly (their variances add).
 
 ```julia
 gp ~ ArrayPrior(
-    GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit(), centered = true);
+    GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit());
     refant = SEFDReference(0.0)
 )
 ```

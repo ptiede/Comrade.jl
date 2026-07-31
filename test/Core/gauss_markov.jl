@@ -226,12 +226,14 @@ end
         @test_throws ArgumentError Comrade.stationary_moments(pw)
 
         # construction rules
-        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit())    # centered required
-        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw; centered = true)         # StationaryInit invalid
-        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw; init = GaussianInit(0.0, 1.0), centered = true)
+        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw)                          # StationaryInit invalid
+        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw; init = GaussianInit(0.0, 1.0))
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), p; init = UniformInit())     # circular init on a real-line process
-        sp = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), centered = true)
-        @test sp.centered
+        sp = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit())
+        @test !sp.centered
+        # centered = true opts back into raw-angle coordinates
+        spc = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), centered = true)
+        @test spc.centered
 
         # wrapped-normal density: matches a wide brute-force image sum in both regimes
         for Q in (0.05, 0.5, 2.0, 3.9, 4.1, 8.0, 50.0), Δ in (-3.0, -0.4, 0.0, 1.1, 2.9, 7.0)
@@ -258,7 +260,7 @@ end
 
         # unconditional rand: range, uniform start, and the e^{-DΔ/2} coherence decay
         rng4 = Random.Xoshiro(31)
-        spec0 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], true)
+        spec0 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], false)
         d0 = Comrade.GaussMarkovChainDist((AA = spec0,), Int[], Float64[], n)
         N = 50_000
         draws = Matrix{Float64}(undef, n, N)
@@ -276,7 +278,7 @@ end
         # conditional rand: fixed values hit exactly, in range
         fpw = [2, 6]
         θf = [0.4, -2.9]
-        specf = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, fpw, true)
+        specf = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, fpw, false)
         df = Comrade.GaussMarkovChainDist((AA = specf,), fpw, θf, n)
         drawsf = Matrix{Float64}(undef, n, N)
         for k in 1:N
@@ -289,7 +291,7 @@ end
         inds3 = [1, 2, 3]
         ts3 = [0.0, 0.4, 1.1]
         θa, θb = 0.3, -2.8
-        spec3 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds3, ts3, [1, 3], true)
+        spec3 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds3, ts3, [1, 3], false)
         d3 = Comrade.GaussMarkovChainDist((AA = spec3,), [1, 3], [θa, θb], 3)
         v = Vector{Float64}(undef, 3)
         dm = map(1:N) do _
@@ -301,6 +303,43 @@ end
         θgrid = range(-π, π; length = 4001)[1:(end - 1)]
         cquad = sum(θ -> cis(θ) * h(θ), θgrid) / sum(h, θgrid)
         @test abs(mean(cis.(dm)) - cquad) < 2.0e-2
+
+        # angle-embedding flat transport: two latents per free phase, angles from the
+        # atan pairs, and the per-point logjacs are exactly the AngleTransform's
+        specw = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], false)
+        dw = Comrade.GaussMarkovChainDist((AA = specw,), Int[], Float64[], n)
+        node = Comrade.PT.transport_node(dw, Comrade.PT.TVFlat())
+        @test TV.dimension(node) == 2n
+        z = randn(rng4, 2n)
+        θe, ℓe, _ = TV.transform_with(TV.LogJac(), node, z, 1)
+        @test θe ≈ [atan(z[2k - 1], z[2k]) for k in 1:n]
+        at = Comrade.PT.angle_transform()
+        ℓpair(v) = TV.transform_with(TV.LogJac(), at, v, 1)[2]
+        @test ℓe ≈ sum(k -> ℓpair(z[(2k - 1):(2k)]), 1:n)
+        # scaling the latents is pure radial freedom: the angles are unchanged
+        θs, ℓs, _ = TV.transform_with(TV.LogJac(), node, 2 .* z, 1)
+        @test θs ≈ θe
+        @test ℓs ≈ sum(k -> ℓpair(2 .* z[(2k - 1):(2k)]), 1:n)
+        # inverse embeds at unit radius; transform ∘ inverse is the identity on angles
+        zi = zeros(2n)
+        TV.inverse_at!(zi, 1, node, θe)
+        @test all(hypot(zi[2k - 1], zi[2k]) ≈ 1 for k in 1:n)
+        θr, _, _ = TV.transform_with(TV.LogJac(), node, zi, 1)
+        @test θr ≈ θe
+
+        # centered = true keeps the raw angles as flat coordinates (identity, zero
+        # Jacobian, one coordinate per free phase)
+        specc = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], true)
+        dc = Comrade.GaussMarkovChainDist((AA = specc,), Int[], Float64[], n)
+        nodec = Comrade.PT.transport_node(dc, Comrade.PT.TVFlat())
+        @test TV.dimension(nodec) == n
+        θin = 2π .* rand(rng4, n) .- π
+        θc, ℓcj, _ = TV.transform_with(TV.LogJac(), nodec, θin, 1)
+        @test θc ≈ θin
+        @test iszero(ℓcj)
+        zc = zeros(n)
+        TV.inverse_at!(zc, 1, nodec, θc)
+        @test zc ≈ θin
     end
 
     dvis = _gm_test_data()
@@ -812,7 +851,7 @@ end
         @instrument function gmint_wb()
             return @jones begin
                 gp ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = Exponential(1.0)); init = UniformInit(), centered = true);
+                    GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = Exponential(1.0)); init = UniformInit());
                     refant = SEFDReference(0.0)
                 )
                 return SingleStokesGain(exp(1im * gp))
@@ -830,11 +869,28 @@ end
         @test logdensityof(post, s2) ≈ logdensityof(post, s)
 
         tp = asflat(post)
+        # each free phase contributes two latent reals (angle embedding), plus one D per
+        # site and the sky's dimensions
+        dchain = post.prior.instrument.gp.dists
+        nfreew = length(dchain) - length(dchain.fixedinds)
+        nsites = length(keys(s.instrument.gp.hyperparams))
+        skydim = LogDensityProblems.dimension(asflat(VLBIPosterior(skym, dvis)))
+        @test LogDensityProblems.dimension(tp) == skydim + nsites + 2 * nfreew
+
         xf = prior_sample(rng, tp)
         @test isfinite(logdensityof(tp, xf))
         y = Comrade.transform(tp, xf)
-        @test Comrade.inverse(tp, y) ≈ xf
-        # centered chains refuse the Std transports
+        # the angle embedding is not injective (the latent radius is dropped on inverse),
+        # so the roundtrip identity holds through the constrained space, not the latent
+        y2 = Comrade.transform(tp, Comrade.inverse(tp, y))
+        @test parent(y2.instrument.gp.params) ≈ parent(y.instrument.gp.params)
+        @test all(
+            map(
+                (a, b) -> a.D ≈ b.D,
+                values(y2.instrument.gp.hyperparams), values(y.instrument.gp.hyperparams)
+            )
+        )
+        # wrapped chains refuse the Std transports
         @test_throws ArgumentError ascube(post)
 
         @testset "Enzyme gradient" begin
@@ -844,6 +900,43 @@ end
             gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(f), xf)
             gfd, = grad(central_fdm(5, 1), f, xf)
             @test gz ≈ gfd rtol = 1.0e-5
+        end
+
+        @testset "centered raw-angle option" begin
+            @instrument function gmint_wbc()
+                return @jones begin
+                    gp ~ ArrayPrior(
+                        GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = Exponential(1.0)); init = UniformInit(), centered = true);
+                        refant = SEFDReference(0.0)
+                    )
+                    return SingleStokesGain(exp(1im * gp))
+                end
+            end
+            postc = VLBIPosterior(skym, gmint_wbc(), dvis)
+            sc = prior_sample(rng, postc)
+            @test isfinite(logdensityof(postc, sc))
+            tpc = asflat(postc)
+            # one coordinate per free phase (no embedding), same D and sky dims
+            @test LogDensityProblems.dimension(tpc) == skydim + nsites + nfreew
+            xc = prior_sample(rng, tpc)
+            @test isfinite(logdensityof(tpc, xc))
+            # the centered transport is bijective, so the latent roundtrip is exact
+            yc = Comrade.transform(tpc, xc)
+            @test Comrade.inverse(tpc, yc) ≈ xc
+            # the flat coordinates are the angles themselves: exactly 2π-periodic in
+            # every free phase (the identity transport carries the shift through)
+            fic = setdiff(1:length(postc.prior.instrument.gp.dists), postc.prior.instrument.gp.dists.fixedinds)
+            yc2 = deepcopy(yc)
+            parent(yc2.instrument.gp.params)[first(fic)] += 2π
+            @test logdensityof(tpc, Comrade.inverse(tpc, yc2)) ≈ logdensityof(tpc, xc)
+            @test_throws ArgumentError ascube(postc)
+
+            fc = let tpc = tpc
+                x -> logdensityof(tpc, x)
+            end
+            gzc, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(fc), xc)
+            gfdc, = grad(central_fdm(5, 1), fc, xc)
+            @test gzc ≈ gfdc rtol = 1.0e-5
         end
     end
 
