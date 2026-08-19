@@ -289,7 +289,7 @@ _process_mean(p::WrappedBrownian) = zero(_paramtype(p))
         Base.@_inline_meta
         exp(-j^2 * Q / 2) * cos(j * Δw)
     end
-    sfour = 1 + 2 * sum(sfouri) 
+    sfour = 1 + 2 * sum(sfouri)
     lfour = log(max(sfour, eps(one(sfour)))) - log(T2π)
     return ifelse(Q < 4, limg, lfour)
 end

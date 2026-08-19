@@ -140,7 +140,7 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 
 # To reduce repetition we define small helpers that build the amplitude and phase
 # processes,
-ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1)*0.1)); centered=true)
+ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * 0.1)); centered = true)
 wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(4.0)); init = UniformInit())
 
 # Just like the sky model, we use the `@instrument` macro to bundle the Jones matrices and
@@ -249,7 +249,7 @@ xopt.instrument.gp.hyperparams
 # run.
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt, progress=false)
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt, progress = false)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this

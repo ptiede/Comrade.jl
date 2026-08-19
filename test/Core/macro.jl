@@ -546,9 +546,11 @@ end
     # Pin down what the marker actually distinguishes, so nothing below can pass vacuously.
     @testset "hoisted/closure probe" begin
         @test _is_hoisted(identity)
-        @test !_is_hoisted(let y = 1
+        @test !_is_hoisted(
+            let y = 1
                 z -> z + y
-            end)
+            end
+        )
     end
 
     @testset "capture-free param_map is hoisted to top level" begin
