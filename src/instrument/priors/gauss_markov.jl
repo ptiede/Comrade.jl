@@ -180,11 +180,12 @@ end
 end
 
 @inline function chain_term(spec::IIDChainSpec, x, hp)
-    B = Base.Fix1(Dists.logpdf, spec.dist)
-    G = Base.Fix1(rgetindex, x)
-    F = B ∘ G
     # `init`: `freeinds` is empty when every point of the site is reference-fixed
-    return sum(F, spec.freeinds; init = zero(eltype(x)))
+    ℓ = zero(eltype(x))
+    @trace track_numbers = false for k in eachindex(spec.freeinds)
+        ℓ += Dists.logpdf(spec.dist, rgetindex(x, rgetindex(spec.freeinds, k)))
+    end
+    return ℓ
 end
 
 # ----- the full-vector distribution ------------------------------------------
@@ -285,8 +286,8 @@ end
 # must not be uninitialized memory (0 * NaN = NaN).
 function _fill_fixed!(y, d::GaussMarkovChainDist)
     fill!(y, zero(eltype(y)))
-    @inbounds for (i, v) in zip(d.fixedinds, d.fixedvals)
-        rsetindex!(y, v, i)
+    @trace track_numbers = false for k in eachindex(d.fixedinds)
+        rsetindex!(y, rgetindex(d.fixedvals, k), rgetindex(d.fixedinds, k))
     end
     return y
 end
@@ -299,14 +300,15 @@ end
 # `Inf` gap would also zero the primal, but its τ-derivative is `0 * Inf = NaN` under
 # AD.)
 function _free_point_tables(inds, ts, fixedpos)
+    T = eltype(ts)
     nfix = length(fixedpos)
     tgt = Int[]
     lidx = Int[]
-    dtl = Float64[]
-    mskl = Float64[]
+    dtl = T[]
+    mskl = T[]
     fidx = Int[]
-    dtf = Float64[]
-    mskf = Float64[]
+    dtf = T[]
+    mskf = T[]
     jfix = 1
     for i in eachindex(inds)
         while jfix ≤ nfix && fixedpos[jfix] < i
@@ -317,21 +319,21 @@ function _free_point_tables(inds, ts, fixedpos)
         if i > firstindex(inds)
             push!(lidx, inds[i - 1])
             push!(dtl, ts[i] - ts[i - 1])
-            push!(mskl, 1.0)
+            push!(mskl, one(T))
         else
             push!(lidx, inds[i])
-            push!(dtl, 1.0)
-            push!(mskl, 0.0)
+            push!(dtl, one(T))
+            push!(mskl, zero(T))
         end
         if jfix ≤ nfix
             b = fixedpos[jfix]
             push!(fidx, inds[b])
             push!(dtf, ts[b] - ts[i])
-            push!(mskf, 1.0)
+            push!(mskf, one(T))
         else
             push!(fidx, inds[i])
-            push!(dtf, 1.0)
-            push!(mskf, 0.0)
+            push!(dtf, one(T))
+            push!(mskf, zero(T))
         end
     end
     return (; tgt, lidx, dtl, mskl, fidx, dtf, mskf, hasfix = nfix > 0)
@@ -344,15 +346,24 @@ _nfree(spec::IIDChainSpec) = length(spec.freeinds)
 # rand-only code, never in the logpdf hot path. `_fill_fixed!` zero-initializes, which
 # the masked dummy reads of `_free_moments` require.
 
+struct _ChainSpec{R, X, H}
+    rng::R
+    x::X
+    hp::H
+end
+
+(hp::_ChainSpec)(spec) = _rand_chain!(hp.rng, hp.x, spec, hp.hp)
+
 function _rand_chains!(rng::Random.AbstractRNG, x::AbstractVector, d::GaussMarkovChainDist, hp::NamedTuple)
     _fill_fixed!(x, d)
-    foreach(spec -> _rand_chain!(rng, x, spec, hp), chainspecs(d))
+    rc = _ChainSpec(rng, x, hp)
+    foreach(rc, chainspecs(d))
     return x
 end
 
 function _rand_chain!(rng::Random.AbstractRNG, x, spec::IIDChainSpec, hp)
-    @inbounds for i in spec.freeinds
-        x[i] = rand(rng, spec.dist)
+    @trace track_numbers = false for k in eachindex(spec.freeinds)
+        rsetindex!(x, rand(rng, spec.dist), rgetindex(spec.freeinds, k))
     end
     return x
 end
@@ -362,9 +373,9 @@ function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec, hp)
     μ = _process_mean(p)
     m₀, P₀ = initial_moments(spec.init, p)
     free = spec.free
-    @inbounds for k in 1:_nfree(spec)
+    @trace track_numbers = false for k in 1:_nfree(spec)
         m, s = _free_moments(p, μ, m₀, P₀, x, free, k)
-        x[free.tgt[k]] = m + s * randn(rng, typeof(m))
+        rsetindex!(x, m + s * randn(rng, typeof(m)), rgetindex(free.tgt, k))
     end
     return x
 end
@@ -528,8 +539,9 @@ function _color_chain_flat!(flag, y, x, index, spec::MarkovChainSpec, hp)
     ℓ0 = TV.logjac_zero(flag, eltype(x))
     n == 0 && return ℓ0, index
     if spec.centered
-        y[free.tgt] = @view(x[index:(index + n - 1)])
-        # rsetindex!(y, rgetindex(x, index:(index + n - 1)), free.tgt)
+        @trace track_numbers = false for k in 1:n
+            rsetindex!(y, rgetindex(x, index + k - 1), rgetindex(free.tgt, k))
+        end
         return ℓ0, index + n
     end
     is_wrapped(spec.process) && return _color_chain_wrapped!(flag, y, x, index, spec)
@@ -548,12 +560,13 @@ end
 
 function _color_chain_flat!(flag, y, x, index, spec::IIDChainSpec, hp)
     ℓ = TV.logjac_zero(flag, eltype(x))
-    @inbounds for i in spec.freeinds
-        yi, ℓi, index = TV.transform_with(flag, spec.fnode, x, index)
-        rsetindex!(y, yi, i)
+    dim = TV.dimension(spec.fnode)
+    @trace track_numbers = false for k in eachindex(spec.freeinds)
+        yi, ℓi, _ = TV.transform_with(flag, spec.fnode, x, index + (k - 1) * dim)
+        rsetindex!(y, yi, rgetindex(spec.freeinds, k))
         ℓ += ℓi
     end
-    return ℓ, index
+    return ℓ, index + _nfree(spec) * dim
 end
 
 @inline _whiten_specs_flat!(x, index, y, ::Tuple{}, hp) = index
@@ -569,34 +582,40 @@ function _whiten_chain_flat!(x, index, y, spec::MarkovChainSpec, hp)
         # `atan` recovers θ exactly, so transform ∘ inverse is the identity on the angles
         # even though inverse ∘ transform is not (the radius is not preserved).
         t = PT.angle_transform()
-        @inbounds for k in 1:_nfree(spec)
-            index = TV.inverse_at!(x, index, t, y[free.tgt[k]])
+        dim = TV.dimension(t)
+        @trace track_numbers = false for k in 1:_nfree(spec)
+            TV.inverse_at!(
+                x, index + (k - 1) * dim, t, rgetindex(y, rgetindex(free.tgt, k))
+            )
         end
-        return index
+        return index + _nfree(spec) * dim
     end
     if spec.centered
         n = _nfree(spec)
-        # Vectorized gather (inverse of the coloring scatter): read the scattered chain values
-        # `y[free.tgt]` into the contiguous latent block. Avoids scalar indexing so this also
-        # raises if traced.
-        @view(x[index:(index + n - 1)]) .= @view(y[free.tgt])
+        @trace track_numbers = false for k in 1:n
+            rsetindex!(x, rgetindex(y, rgetindex(free.tgt, k)), index + k - 1)
+        end
         return index + n
     end
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
     μ = _process_mean(p)
     m₀, P₀ = initial_moments(spec.init, p)
-    @inbounds for k in 1:_nfree(spec)
+    @trace track_numbers = false for k in 1:_nfree(spec)
         m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
-        x[index + k - 1] = (y[free.tgt[k]] - m) / s
+        rsetindex!(x, (rgetindex(y, rgetindex(free.tgt, k)) - m) / s, index + k - 1)
     end
     return index + _nfree(spec)
 end
 
 function _whiten_chain_flat!(x, index, y, spec::IIDChainSpec, hp)
-    @inbounds for i in spec.freeinds
-        index = TV.inverse_at!(x, index, spec.fnode, y[i])
+    dim = TV.dimension(spec.fnode)
+    @trace track_numbers = false for k in eachindex(spec.freeinds)
+        TV.inverse_at!(
+            x, index + (k - 1) * dim, spec.fnode,
+            rgetindex(y, rgetindex(spec.freeinds, k))
+        )
     end
-    return index
+    return index + _nfree(spec) * dim
 end
 
 # --- Std-space chain walkers: no Jacobian; the latent is converted to a standard
@@ -614,22 +633,25 @@ function _color_chain_std!(y, x, index, spec::MarkovChainSpec, hp, space)
     μ = _process_mean(p)
     m₀, P₀ = initial_moments(spec.init, p)
     free = spec.free
-    @inbounds for k in 1:_nfree(spec)
+    n = _nfree(spec)
+    @trace track_numbers = false for k in 1:n
         m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
-        u = PT._clamp_unit(PT.space_cdf(space, x[index]))
-        y[free.tgt[k]] = m + s * PT.space_quantile(PT.StdNormal(), u)
-        index += 1
+        u = PT._clamp_unit(PT.space_cdf(space, rgetindex(x, index + k - 1)))
+        rsetindex!(
+            y, m + s * PT.space_quantile(PT.StdNormal(), u), rgetindex(free.tgt, k)
+        )
     end
-    return index
+    return index + n
 end
 
 function _color_chain_std!(y, x, index, spec::IIDChainSpec, hp, space)
     tin = PT.transport_node(spec.dist, space)
-    @inbounds for i in spec.freeinds
-        yi, index = PT.pfwd_step(tin, x, index)
-        y[i] = yi
+    dim = PT.dimension(tin)
+    @trace track_numbers = false for k in eachindex(spec.freeinds)
+        yi, _ = PT.pfwd_step(tin, x, index + (k - 1) * dim)
+        rsetindex!(y, yi, rgetindex(spec.freeinds, k))
     end
-    return index
+    return index + _nfree(spec) * dim
 end
 
 @inline _whiten_specs_std!(x, index, y, ::Tuple{}, hp, space) = index
@@ -643,21 +665,26 @@ function _whiten_chain_std!(x, index, y, spec::MarkovChainSpec, hp, space)
     μ = _process_mean(p)
     m₀, P₀ = initial_moments(spec.init, p)
     free = spec.free
-    @inbounds for k in 1:_nfree(spec)
+    n = _nfree(spec)
+    @trace track_numbers = false for k in 1:n
         m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
-        u = PT._clamp_unit(PT.space_cdf(PT.StdNormal(), (y[free.tgt[k]] - m) / s))
-        x[index] = PT.space_quantile(space, u)
-        index += 1
+        u = PT._clamp_unit(
+            PT.space_cdf(PT.StdNormal(), (rgetindex(y, rgetindex(free.tgt, k)) - m) / s)
+        )
+        rsetindex!(x, PT.space_quantile(space, u), index + k - 1)
     end
-    return index
+    return index + n
 end
 
 function _whiten_chain_std!(x, index, y, spec::IIDChainSpec, hp, space)
     tin = PT.transport_node(spec.dist, space)
-    @inbounds for i in spec.freeinds
-        index = PT.pback_step!(x, index, tin, y[i])
+    dim = PT.dimension(tin)
+    @trace track_numbers = false for k in eachindex(spec.freeinds)
+        PT.pback_step!(
+            x, index + (k - 1) * dim, tin, rgetindex(y, rgetindex(spec.freeinds, k))
+        )
     end
-    return index
+    return index + _nfree(spec) * dim
 end
 
 # --- the transport nodes ---
