@@ -93,6 +93,8 @@ function GaussMarkovSitePrior(
     return GaussMarkovSitePrior(seg, process, init, centered)
 end
 
+needs_chain_machinery(::GaussMarkovSitePrior) = true
+
 # ----- per-(site, freq) chain specifications --------------------------------
 #
 # Built once at `set_array` time; everything in a spec is constant during sampling
@@ -173,6 +175,10 @@ end
 # subtracted term depends on the hyperparameters even though the fixed values are
 # constants — dropping it would bias the hyperparameter posterior.
 @inline function chain_term(spec::MarkovChainSpec, x, hp)
+    # A fully reference-fixed chain conditions on itself: the two logpdf passes below are
+    # identical and cancel exactly for any hyperparameters, so skip both (host-static
+    # branch — the index vectors are concrete).
+    length(spec.fsub.inds) == length(spec.inds) && return zero(eltype(x))
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
     ℓ = _gm_chain_logpdf(p, spec.init, x, spec.inds, spec.ts)
     isempty(spec.fsub.inds) && return ℓ
@@ -203,6 +209,22 @@ struct GaussMarkovChainDist{C <: NamedTuple, I <: AbstractVector{<:Integer}, F} 
     fixedinds::I
     fixedvals::F
     len::Int
+    # Concatenated `free.tgt` of the non-centered (scanning) Markov specs, in spec
+    # order: the flat/std coloring stages every such chain's `(a, c)` coefficients
+    # into one shared pair of vectors, resolves all recurrences with a SINGLE
+    # `affine_scan!`, and scatters once. Exact because each chain's first free point
+    # has `a = 0` (chain-opening or fixed-left), so the carry resets at every chain
+    # boundary of the concatenation.
+    scantgt::Vector{Int}
+end
+
+_scan_tgt(spec::MarkovChainSpec) =
+    (is_wrapped(spec.process) || spec.centered) ? Int[] : spec.free.tgt
+_scan_tgt(::IIDChainSpec) = Int[]
+
+function GaussMarkovChainDist(chains::NamedTuple, fixedinds, fixedvals, len::Int)
+    scantgt = reduce(vcat, map(_scan_tgt, collect(values(chains))); init = Int[])
+    return GaussMarkovChainDist(chains, fixedinds, fixedvals, len, scantgt)
 end
 
 Base.length(d::GaussMarkovChainDist) = d.len
@@ -250,46 +272,101 @@ end
 # compiles to a single while loop under Reactant (the fixed-point skip logic of a
 # sequential walk cannot be loop-carried in a traced while).
 
-@inline function _bridge_moments(μ, b₁, Q₁, Φ₂, y₂, Q₂)
+# Precision-form weights of the two-sided bridge conditional, N(μ + b₁, Q₁) from the
+# left and a fixed-point transition (Φ₂, Q₂) to the centered value y₂ on the right:
+# λ = 1/Q₁ + Φ₂²/Q₂, with `w` the weight on the left mean shift, `wf` the weight on the
+# fixed value, and `s` the conditional scale. The (Φ, Q) form stays regular at Φ = 1
+# and at extreme correlation times (see the transition_moments clamping tests).
+@inline function _bridge_weights(Q₁, Φ₂, Q₂)
     λ = inv(Q₁) + Φ₂^2 / Q₂
-    m = μ + (b₁ / Q₁ + Φ₂ * y₂ / Q₂) / λ
+    w = inv(Q₁ * λ)
+    wf = Φ₂ / (Q₂ * λ)
     s = sqrt(inv(λ))
-    return m, s
+    return w, wf, s
 end
 
-# Conditional moments of free point `k`, reading the realized values from `y`. The
-# `hasfix` branch is static (per chain), so chains without reference-fixed points skip
-# the Φ₂ transition entirely — halving the transcendental cost for refant-free priors —
-# while still compiling to a single traced loop. Chain-opening points (left mask 0) take
-# the init marginal (m₀, P₀) as their prior-from-the-left; the dummy neighbor read is
-# scaled by the exact static zero mask, which requires `y`'s dummy slots to be
-# zero-initialized (see `_fill_fixed!`).
-@inline function _free_moments(p, μ, m₀, P₀, y, free, k)
+@inline function _bridge_moments(μ, b₁, Q₁, Φ₂, y₂, Q₂)
+    w, wf, s = _bridge_weights(Q₁, Φ₂, Q₂)
+    return μ + w * b₁ + wf * y₂, s
+end
+
+# Conditional moments of free point `k` in AFFINE form: `m = a * y_prevfree + c` with
+# scale `s`, where `y_prevfree` is the realized value of the immediately preceding FREE
+# point (the loop-carried value of the coloring recurrence) and `c` collects everything
+# else — the init marginal, the next-reference-fixed bridge term, and left neighbors
+# that are reference-fixed constants (their masked gather from `y` reads values placed
+# by `_fill_fixed!`). Splitting on the static `free.lfree` mask is what lets the
+# coloring run as a vectorized first-order scan (`affine_scan!`) instead of a serialized
+# recurrence: `a` and `c` depend only on hyperparameters, tables, and fixed values.
+# The `hasfix` branch is static (per chain), so chains without reference-fixed points
+# skip the Φ₂ transition entirely — halving the transcendental cost for refant-free
+# priors. Chain-opening points (left mask 0) take the init marginal (m₀, P₀) as their
+# prior-from-the-left; the dummy neighbor reads are scaled by exact static zero masks,
+# which requires `y`'s dummy slots to be zero-initialized (see `_fill_fixed!`).
+@inline function _free_moments_affine(p, μ, m₀, P₀, y, free, k)
     Φl, Ql = transition_moments(p, rgetindex(free.dtl, k))
     ml = rgetindex(free.mskl, k)
     Φ₁ = ml * Φl
     Q₁ = ml * Ql + (1 - ml) * P₀
-    b₁ = Φ₁ * (rgetindex(y, rgetindex(free.lidx, k)) - μ) + (1 - ml) * (m₀ - μ)
+    b₀ = (1 - ml) * (m₀ - μ)
     if free.hasfix
         Φf, Qf = transition_moments(p, rgetindex(free.dtf, k))
         mf = rgetindex(free.mskf, k)
         Φ₂ = mf * Φf
         Q₂ = mf * Qf + (1 - mf)
         y₂ = rgetindex(y, rgetindex(free.fidx, k)) - μ
-        return _bridge_moments(μ, b₁, Q₁, Φ₂, y₂, Q₂)
+        w, wf, s = _bridge_weights(Q₁, Φ₂, Q₂)
+        γ = Φ₁ * w
+        c₀ = μ - γ * μ + w * b₀ + wf * y₂
+    else
+        γ = Φ₁
+        c₀ = μ - γ * μ + b₀
+        s = sqrt(Q₁)
     end
-    return μ + b₁, sqrt(Q₁)
+    lf = rgetindex(free.lfree, k)
+    a = γ * lf
+    c = c₀ + γ * (1 - lf) * rgetindex(y, rgetindex(free.lidx, k))
+    return a, c, s
+end
+
+# Conditional moments with the left value read from a fully realized `y` (whitening,
+# sampling, and the std walkers): `a * y[lidx] + c` is exact for both a free and a
+# reference-fixed left neighbor, since exactly one of `a` and the masked gather in `c`
+# is nonzero.
+@inline function _free_moments(p, μ, m₀, P₀, y, free, k)
+    a, c, s = _free_moments_affine(p, μ, m₀, P₀, y, free, k)
+    return a * rgetindex(y, rgetindex(free.lidx, k)) + c, s
 end
 
 # Zero-initialize the full parameter vector and scatter the reference-fixed values. The
 # zero fill matters: the branchless walk reads masked dummy neighbor positions, which
-# must not be uninitialized memory (0 * NaN = NaN).
+# must not be uninitialized memory (0 * NaN = NaN). `scatter_values!` keeps this a single
+# vectorized `stablehlo.scatter` under Reactant (the indices are static and unique) —
+# this runs on every logdensity/gradient evaluation, and an element-wise traced loop
+# would serialize into a stablehlo.while there.
 function _fill_fixed!(y, d::GaussMarkovChainDist)
     fill!(y, zero(eltype(y)))
-    @trace track_numbers = false for k in eachindex(d.fixedinds)
-        rsetindex!(y, rgetindex(d.fixedvals, k), rgetindex(d.fixedinds, k))
-    end
+    scatter_values!(y, d.fixedinds, d.fixedvals)
     return y
+end
+
+# First-order affine scan `c[k] ← a[k] * c[k-1] + c[k]` with implicit `c[0] = 0`,
+# overwriting `c` (both call sites pass discardable staging temps; the Reactant overload
+# shares this contract). The coloring coefficients are exactly zero at chain-opening and
+# fixed-left points (`a = γ·lfree` with static zero masks), so the carry resets at segment
+# boundaries with no special casing — and since the recurrence composes with plain
+# mul/add, those zeros also have exact gradients. Sequential on the CPU;
+# ComradeReactantExt overloads this with a log-depth doubling scan, because Reactant's
+# loop raising never vectorizes a loop-carried recurrence (it would serialize into a
+# `stablehlo.while` in every logdensity/gradient evaluation) and IntegSeg-scale chains
+# (10³-10⁴ points) rule out any O(n²) closed form.
+function affine_scan!(a, c)
+    acc = zero(eltype(c))
+    for k in eachindex(c)
+        acc = a[k] * acc + c[k]
+        c[k] = acc
+    end
+    return c
 end
 
 # Static per-free-point tables for a Markov chain, computed once at construction: for
@@ -306,6 +383,7 @@ function _free_point_tables(inds, ts, fixedpos)
     lidx = Int[]
     dtl = T[]
     mskl = T[]
+    lfree = T[]
     fidx = Int[]
     dtf = T[]
     mskf = T[]
@@ -320,10 +398,15 @@ function _free_point_tables(inds, ts, fixedpos)
             push!(lidx, inds[i - 1])
             push!(dtl, ts[i] - ts[i - 1])
             push!(mskl, one(T))
+            # 1 when the left chain point is itself free (i.e. the previously colored
+            # free point), 0 when it is reference-fixed: the affine-scan coloring needs
+            # to know statically which left reads are recurrence reads vs constants.
+            push!(lfree, (jfix > 1 && fixedpos[jfix - 1] == i - 1) ? zero(T) : one(T))
         else
             push!(lidx, inds[i])
             push!(dtl, one(T))
             push!(mskl, zero(T))
+            push!(lfree, zero(T))
         end
         if jfix ≤ nfix
             b = fixedpos[jfix]
@@ -336,7 +419,7 @@ function _free_point_tables(inds, ts, fixedpos)
             push!(mskf, zero(T))
         end
     end
-    return (; tgt, lidx, dtl, mskl, fidx, dtf, mskf, hasfix = nfix > 0)
+    return (; tgt, lidx, dtl, mskl, lfree, fidx, dtf, mskf, hasfix = nfix > 0)
 end
 
 _nfree(spec::MarkovChainSpec) = length(spec.free.tgt)
@@ -370,6 +453,16 @@ end
 
 function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec, hp)
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
+    # Wrapped processes have no Gaussian conditionals, so this bridge would silently draw
+    # unwrapped values ignoring winding. Each wrapped process registers its own sampler
+    # (dispatch, like `MarkovChainSpec{<:WrappedBrownian}` below); this guard makes a
+    # missing registration a loud error instead of wrong prior draws.
+    is_wrapped(p) && throw(
+        ArgumentError(
+            "no chain sampler registered for the wrapped process $(typeof(p).name.name); " *
+                "define `_rand_chain!(rng, x, spec::MarkovChainSpec{<:$(typeof(p).name.name)}, hp)`"
+        )
+    )
     μ = _process_mean(p)
     m₀, P₀ = initial_moments(spec.init, p)
     free = spec.free
@@ -389,7 +482,12 @@ end
 function _sample_winding(rng::Random.AbstractRNG, Δθ, QT)
     # windings beyond ~4 increment sds contribute negligible mass
     W = max(3, ceil(Int, 4 * sqrt(QT) / (2π)))
-    wts = [exp(-abs2(Δθ + 2π * w) / (2QT)) for w in (-W):W]
+    # Shift by the smallest exponent (w = 0, since |Δθ| ≤ π) so the dominant weight is
+    # exactly 1. Raw exp weights all underflow to 0 once Δθ²/(2QT) ≳ 745 (tight bridges),
+    # and the CDF walk over all-zero weights would then deterministically return -W —
+    # a spurious multi-turn bridge — instead of the dominant winding.
+    e0 = abs2(Δθ) / (2QT)
+    wts = [exp(e0 - abs2(Δθ + 2π * w) / (2QT)) for w in (-W):W]
     u = rand(rng) * sum(wts)
     c = zero(u)
     for (m, wt) in enumerate(wts)
@@ -497,11 +595,32 @@ end
 # --- flat (TransformVariables) chain walkers: thread (logjac, index) over the
 # heterogeneous spec tuple with `Base.tail` recursion (TV tuple-transform precedent).
 
-@inline _color_specs_flat!(flag, y, x, index, ::Tuple{}, hp) = TV.logjac_zero(flag, eltype(x)), index
-@inline function _color_specs_flat!(flag, y, x, index, specs::Tuple, hp)
-    ℓ1, index = _color_chain_flat!(flag, y, x, index, first(specs), hp)
-    ℓ2, index = _color_specs_flat!(flag, y, x, index, Base.tail(specs), hp)
-    return ℓ1 + ℓ2, index
+# `index` walks the flat latent vector; `sidx` walks the shared `(av, cv)` staging
+# buffers of the batched scan (see `GaussMarkovChainDist.scantgt`). Staging reads `y`
+# only at reference-fixed positions (placed by `_fill_fixed!`), never another spec's
+# colored values, so all scanning specs stage first and the caller scans+scatters once.
+@inline _color_specs_flat!(flag, y, x, index, sidx, av, cv, ::Tuple{}, hp) =
+    TV.logjac_zero(flag, eltype(x)), index, sidx
+@inline function _color_specs_flat!(flag, y, x, index, sidx, av, cv, specs::Tuple, hp)
+    ℓ1, index, sidx = _color_chain_flat!(flag, y, x, index, sidx, av, cv, first(specs), hp)
+    ℓ2, index, sidx = _color_specs_flat!(flag, y, x, index, sidx, av, cv, Base.tail(specs), hp)
+    return ℓ1 + ℓ2, index, sidx
+end
+
+# Shared prologue/epilogue of the flat and Std colorings: the `(a, c)` staging buffers
+# for the batched scan over `d.scantgt`, and the single scan+scatter that resolves them.
+_scan_buffers(y, d::GaussMarkovChainDist) =
+    (similar(y, length(d.scantgt)), similar(y, length(d.scantgt)))
+function _resolve_scan!(y, d::GaussMarkovChainDist, av, cv)
+    isempty(d.scantgt) || scatter_values!(y, d.scantgt, affine_scan!(av, cv))
+    return y
+end
+
+function _color_all_flat!(flag, y, x, index, d::GaussMarkovChainDist, hp)
+    av, cv = _scan_buffers(y, d)
+    ℓ, index, _ = _color_specs_flat!(flag, y, x, index, 1, av, cv, values(chainspecs(d)), hp)
+    _resolve_scan!(y, d, av, cv)
+    return ℓ, index
 end
 
 # Skip the `log` on the value-only path; dispatch is on the compile-time flag, so the
@@ -524,49 +643,69 @@ function _color_chain_wrapped!(flag, y, x, index, spec::MarkovChainSpec)
     n = _nfree(spec)
     t = PT.angle_transform()
     ℓ = zero(eltype(x))
+    # The iterations are independent, but a direct write to the scattered `free.tgt`
+    # positions serializes under Reactant's loop raising (a scattered-index scatter never
+    # raises; scattered gathers and contiguous writes do). Stage into a contiguous temp
+    # and finish with one vectorized `scatter_values!`.
+    θs = similar(y, n)
     @trace track_numbers = false for k in 1:n
         θ, ℓk, _ = TV.transform_with(flag, t, x, index + 2 * (k - 1))
-        rsetindex!(y, θ, rgetindex(free.tgt, k))
+        rsetindex!(θs, θ, k)
         ℓ += _acc_logjac(flag, ℓk, θ)
     end
+    scatter_values!(y, free.tgt, θs)
     flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + 2n
     return ℓ, index + 2n
 end
 
-function _color_chain_flat!(flag, y, x, index, spec::MarkovChainSpec, hp)
+function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::MarkovChainSpec, hp)
     free = spec.free
     n = _nfree(spec)
     ℓ0 = TV.logjac_zero(flag, eltype(x))
-    n == 0 && return ℓ0, index
+    n == 0 && return ℓ0, index, sidx
     if spec.centered
-        @trace track_numbers = false for k in 1:n
-            rsetindex!(y, rgetindex(x, index + k - 1), rgetindex(free.tgt, k))
-        end
-        return ℓ0, index + n
+        # A straight copy of a contiguous flat segment to the scattered chain positions:
+        # one vectorized scatter (a scattered-write loop would serialize under Reactant).
+        scatter_values!(y, free.tgt, view(x, index:(index + n - 1)))
+        return ℓ0, index + n, sidx
     end
-    is_wrapped(spec.process) && return _color_chain_wrapped!(flag, y, x, index, spec)
+    if is_wrapped(spec.process)
+        ℓw, index = _color_chain_wrapped!(flag, y, x, index, spec)
+        return ℓw, index, sidx
+    end
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
     μ = _process_mean(p)
     m₀, P₀ = initial_moments(spec.init, p)
     ℓ = zero(eltype(x))
+    # The recurrence `y[tgt[k]] = m(y[tgt[k-1]]) + s*x[k]` is affine in the previous
+    # free value, so split it: this loop computes the coefficients `(a, c)` — reading
+    # only tables, hyperparameters, and fixed values, with contiguous writes, so it
+    # raises under Reactant. The recurrence itself is resolved by the caller's single
+    # batched `affine_scan!` over all chains.
     @trace track_numbers = false for k in 1:n
-        m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
-        rsetindex!(y, m + s * rgetindex(x, index + k - 1), rgetindex(free.tgt, k))
+        a, c, s = _free_moments_affine(p, μ, m₀, P₀, y, free, k)
+        rsetindex!(av, a, sidx + k - 1)
+        rsetindex!(cv, c + s * rgetindex(x, index + k - 1), sidx + k - 1)
         ℓ += _maybe_logjac(flag, s)
     end
-    flag isa TV.NoLogJac && return ℓ0, index + n
-    return ℓ, index + n
+    flag isa TV.NoLogJac && return ℓ0, index + n, sidx + n
+    return ℓ, index + n, sidx + n
 end
 
-function _color_chain_flat!(flag, y, x, index, spec::IIDChainSpec, hp)
+function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::IIDChainSpec, hp)
     ℓ = TV.logjac_zero(flag, eltype(x))
     dim = TV.dimension(spec.fnode)
-    @trace track_numbers = false for k in eachindex(spec.freeinds)
+    n = _nfree(spec)
+    # Independent pointwise transforms; stage contiguously so the loop raises and the
+    # scattered write is a single vectorized scatter (see `_color_chain_wrapped!`).
+    ys = similar(y, n)
+    @trace track_numbers = false for k in 1:n
         yi, ℓi, _ = TV.transform_with(flag, spec.fnode, x, index + (k - 1) * dim)
-        rsetindex!(y, yi, rgetindex(spec.freeinds, k))
+        rsetindex!(ys, yi, k)
         ℓ += ℓi
     end
-    return ℓ, index + _nfree(spec) * dim
+    scatter_values!(y, spec.freeinds, ys)
+    return ℓ, index + n * dim, sidx
 end
 
 @inline _whiten_specs_flat!(x, index, y, ::Tuple{}, hp) = index
@@ -621,37 +760,51 @@ end
 # --- Std-space chain walkers: no Jacobian; the latent is converted to a standard
 # normal via the space's cdf (exact), mirroring PT's `ScalarTransport`.
 
-@inline _color_specs_std!(y, x, index, ::Tuple{}, hp, space) = index
-@inline function _color_specs_std!(y, x, index, specs::Tuple, hp, space)
-    index = _color_chain_std!(y, x, index, first(specs), hp, space)
-    return _color_specs_std!(y, x, index, Base.tail(specs), hp, space)
+# Same staging/batched-scan structure as the flat walker (see `_color_specs_flat!`).
+@inline _color_specs_std!(y, x, index, sidx, av, cv, ::Tuple{}, hp, space) = index, sidx
+@inline function _color_specs_std!(y, x, index, sidx, av, cv, specs::Tuple, hp, space)
+    index, sidx = _color_chain_std!(y, x, index, sidx, av, cv, first(specs), hp, space)
+    return _color_specs_std!(y, x, index, sidx, av, cv, Base.tail(specs), hp, space)
 end
 
-function _color_chain_std!(y, x, index, spec::MarkovChainSpec, hp, space)
+function _color_all_std!(y, x, index, d::GaussMarkovChainDist, hp, space)
+    av, cv = _scan_buffers(y, d)
+    index, _ = _color_specs_std!(y, x, index, 1, av, cv, values(chainspecs(d)), hp, space)
+    _resolve_scan!(y, d, av, cv)
+    return index
+end
+
+function _color_chain_std!(y, x, index, sidx, av, cv, spec::MarkovChainSpec, hp, space)
     # centered and wrapped chains are rejected at node construction (`_check_std_transportable`)
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
     μ = _process_mean(p)
     m₀, P₀ = initial_moments(spec.init, p)
     free = spec.free
     n = _nfree(spec)
+    # Same affine split as the flat coloring (see `_color_chain_flat!`): coefficients
+    # staged in a raisable loop; the caller's batched `affine_scan!` resolves them.
     @trace track_numbers = false for k in 1:n
-        m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
+        a, c, s = _free_moments_affine(p, μ, m₀, P₀, y, free, k)
         u = PT._clamp_unit(PT.space_cdf(space, rgetindex(x, index + k - 1)))
-        rsetindex!(
-            y, m + s * PT.space_quantile(PT.StdNormal(), u), rgetindex(free.tgt, k)
-        )
+        rsetindex!(av, a, sidx + k - 1)
+        rsetindex!(cv, c + s * PT.space_quantile(PT.StdNormal(), u), sidx + k - 1)
     end
-    return index + n
+    return index + n, sidx + n
 end
 
-function _color_chain_std!(y, x, index, spec::IIDChainSpec, hp, space)
+function _color_chain_std!(y, x, index, sidx, av, cv, spec::IIDChainSpec, hp, space)
     tin = PT.transport_node(spec.dist, space)
     dim = PT.dimension(tin)
-    @trace track_numbers = false for k in eachindex(spec.freeinds)
+    n = _nfree(spec)
+    # Independent pointwise transforms; stage contiguously so the loop raises and the
+    # scattered write is a single vectorized scatter (see `_color_chain_wrapped!`).
+    ys = similar(y, n)
+    @trace track_numbers = false for k in 1:n
         yi, _ = PT.pfwd_step(tin, x, index + (k - 1) * dim)
-        rsetindex!(y, yi, rgetindex(spec.freeinds, k))
+        rsetindex!(ys, yi, k)
     end
-    return index + _nfree(spec) * dim
+    scatter_values!(y, spec.freeinds, ys)
+    return index + n * dim, sidx
 end
 
 @inline _whiten_specs_std!(x, index, y, ::Tuple{}, hp, space) = index
@@ -702,7 +855,7 @@ function TV.transform_with(flag::TV.LogJacFlag, t::MarkovColorTransform, x, inde
     d = t.dists
     y = similar(x, length(d))
     _fill_fixed!(y, d)
-    ℓ, index = _color_specs_flat!(flag, y, x, index, values(chainspecs(d)), (;))
+    ℓ, index = _color_all_flat!(flag, y, x, index, d, (;))
     return y, ℓ, index
 end
 
@@ -727,7 +880,7 @@ function PT.pfwd_step(t::StdMarkovColorTransform, x, index)
     d = t.dists
     y = similar(x, float(eltype(x)), length(d))
     _fill_fixed!(y, d)
-    index = _color_specs_std!(y, x, index, values(chainspecs(d)), (;), t.space)
+    index = _color_all_std!(y, x, index, d, (;), t.space)
     return y, index
 end
 
@@ -804,7 +957,7 @@ function TV.transform_with(flag::TV.LogJacFlag, t::WhitenedHierarchicalTransform
     d = t.dists
     y = similar(x, length(d))
     _fill_fixed!(y, d)
-    ℓc, index = _color_specs_flat!(flag, y, x, index, values(chainspecs(d)), hp)
+    ℓc, index = _color_all_flat!(flag, y, x, index, d, hp)
     return (params = SiteArray(y, t.site_map), hyperparams = hp), ℓh + ℓc, index
 end
 
@@ -841,7 +994,7 @@ function PT.pfwd_step(t::StdWhitenedHierarchicalTransform, x, index)
     d = t.dists
     y = similar(x, float(eltype(x)), length(d))
     _fill_fixed!(y, d)
-    index = _color_specs_std!(y, x, index, values(chainspecs(d)), hp, t.space)
+    index = _color_all_std!(y, x, index, d, hp, t.space)
     return (params = SiteArray(y, t.site_map), hyperparams = hp), index
 end
 
@@ -939,11 +1092,14 @@ function build_markov_observed(d::ArrayPrior, site_dists::NamedTuple, smap::Site
         end
     end
 
+    # Set membership: `in(fixedinds)` over a Vector is O(|fixedinds|) per element, which
+    # at IntegSeg scale makes this loop quadratic in the number of time stamps.
+    fixedset = Set(fixedinds)
     chains = map(lookup(smap)) do inds
         s = smap.sites[first(inds)]
         sp = getproperty(site_dists, s)
         ts = _chain_times(smap.times, inds)
-        fixedpos = findall(in(fixedinds), inds)
+        fixedpos = findall(in(fixedset), inds)
         return _chainspec(sp, s, collect(Int, inds), ts, fixedpos)
     end
 

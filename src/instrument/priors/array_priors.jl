@@ -133,7 +133,7 @@ function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
     site_dists = site_tuple(array, d.default_dist; d.override_dist...)
     # Time-correlated site priors need per-chain machinery rather than a product
     # distribution; see gauss_markov.jl.
-    any(Base.Fix2(isa, GaussMarkovSitePrior), values(site_dists)) &&
+    any(needs_chain_machinery, values(site_dists)) &&
         return build_markov_observed(d, site_dists, smap, array)
     dists = build_dist(site_dists, smap, array, d.refant, d.centroid_station)
     return ObservedArrayPrior(dists, smap, d.phase)
@@ -150,14 +150,23 @@ end
 
 TV.dimension(t::PartiallyFixedTransform) = TV.dimension(t.transform)
 
+# Scatter `vals` into `y` at (static, host-side) `inds`. Under Reactant the broadcast
+# lowers to a single vectorized `stablehlo.scatter` — the fast, "raised" path — instead of
+# a serialized element-by-element traced loop; ComradeReactantExt overloads this for
+# traced arrays (the bounds check scalar-iterates the index vector, and the
+# single-element scatter hits a Reactant bug — see EnzymeAD/Reactant.jl#2960).
+function scatter_values!(y, inds, vals)
+    y[inds] .= vals
+    return y
+end
+
 # Scatter the variate `y` and the fixed (reference) `fixed_values` back into the full
-# parameter vector. Under Reactant this `setindex!`/broadcast lowers to a `stablehlo.scatter`,
-# but the bounds check iterates the index vector with scalar `getindex`, which is disallowed
-# while tracing. ComradeReactantExt overloads this for traced arrays to wrap it in
-# `@allowscalar`. See https://github.com/EnzymeAD/Reactant.jl/issues/2960.
+# parameter vector. Both scatters go through `scatter_values!`, which carries the traced
+# workarounds (ComradeReactantExt overloads it — see EnzymeAD/Reactant.jl#2960), so this
+# generic method serves both backends.
 function fill_partially_fixed!(yfv, variate_index, fixed_index, y, fixed_values)
-    yfv[variate_index] = y
-    yfv[fixed_index] .= fixed_values
+    scatter_values!(yfv, variate_index, y)
+    scatter_values!(yfv, fixed_index, fixed_values)
     return yfv
 end
 

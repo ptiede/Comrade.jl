@@ -280,11 +280,18 @@ _process_mean(p::WrappedBrownian) = zero(_paramtype(p))
 # selected with `ifelse` so the expression stays a single trace under Reactant; the dual
 # sum's truncation can go slightly negative for small Q, so it is floored before the log
 # (the floored branch is never the selected one there).
+#
+# The image sum is evaluated in log-sum-exp form with its k = 0 term factored out: since
+# |Δw| ≤ π, the k = 0 image is always the largest, so every ratio exponent is ≤ 0 and the
+# ratio sum lies in [1, 7]. A naive `log(sum(exp(...)))` underflows to `log(0) = -Inf`
+# (with a 0/0 = NaN gradient) once abs2(Δw)/(2Q) ≳ 745 — reachable for small-D chains on
+# short gaps — where the true log-density is a perfectly representable large negative
+# number.
 @inline function _wn_logpdf(Δ, Q)
     T2π = oftype(float(Δ), 2π)
     Δw = _wrap_angle(Δ)
-    simg = sum(k -> exp(-abs2(Δw + T2π * k) / (2Q)), -3:3)
-    limg = log(simg) - log(T2π * Q) / 2
+    sratio = sum(k -> exp(-(abs2(Δw + T2π * k) - abs2(Δw)) / (2Q)), -3:3)
+    limg = -abs2(Δw) / (2Q) + log(sratio) - log(T2π * Q) / 2
     sfouri = ntuple(Val(3)) do j
         Base.@_inline_meta
         exp(-j^2 * Q / 2) * cos(j * Δw)
@@ -415,7 +422,21 @@ end
 marginal_moments(::StationaryInit, p::AbstractGaussMarkovProcess, _) = stationary_moments(p)
 
 # Validity of an (init, process) pair, checked when the site prior is constructed.
+# Written against the `is_wrapped`/`isstationary` traits rather than concrete process
+# types, so a new process is fully covered by defining its traits — no per-process
+# `_check_init` registrations (which, when forgotten, would accept GaussianInit for a
+# wrapped process silently and reject UniformInit with the wrong message):
+#   - StationaryInit needs Gaussian stationary moments: stationary and not wrapped.
+#   - GaussianInit is a real-line marginal: invalid for wrapped processes.
+#   - UniformInit is the circular stationary law: only valid for wrapped processes.
+#   - FixedInit (the fallback) is the delta limit and valid everywhere.
 function _check_init(::StationaryInit, p::AbstractGaussMarkovProcess)
+    is_wrapped(p) && throw(
+        ArgumentError(
+            "$(nameof(typeof(p))) chains start uniform on the circle: use UniformInit(), " *
+                "or FixedInit(value) for an exact start"
+        )
+    )
     isstationary(p) || throw(
         ArgumentError(
             "StationaryInit requires a stationary process, but $(nameof(typeof(p))) has " *
@@ -425,23 +446,25 @@ function _check_init(::StationaryInit, p::AbstractGaussMarkovProcess)
     )
     return nothing
 end
+function _check_init(::GaussianInit, p::AbstractGaussMarkovProcess)
+    is_wrapped(p) && throw(
+        ArgumentError(
+            "GaussianInit is not supported for the wrapped process $(nameof(typeof(p))); " *
+                "use UniformInit() or FixedInit(value)"
+        )
+    )
+    return nothing
+end
+function _check_init(::UniformInit, p::AbstractGaussMarkovProcess)
+    is_wrapped(p) || throw(
+        ArgumentError(
+            "UniformInit is only valid for circular (wrapped) processes; " *
+                "$(nameof(typeof(p))) lives on the real line"
+        )
+    )
+    return nothing
+end
 _check_init(::AbstractInitialPrior, ::AbstractGaussMarkovProcess) = nothing
-_check_init(::UniformInit, p::AbstractGaussMarkovProcess) = throw(
-    ArgumentError(
-        "UniformInit is only valid for circular (wrapped) processes; " *
-            "$(nameof(typeof(p))) lives on the real line"
-    )
-)
-_check_init(::UniformInit, ::WrappedBrownian) = nothing
-_check_init(::StationaryInit, ::WrappedBrownian) = throw(
-    ArgumentError(
-        "WrappedBrownian chains start uniform on the circle: use UniformInit(), or " *
-            "FixedInit(value) for an exact start"
-    )
-)
-_check_init(::GaussianInit, ::WrappedBrownian) = throw(
-    ArgumentError("GaussianInit is not supported for WrappedBrownian; use UniformInit() or FixedInit(value)")
-)
 
 # Float type the init contributes to the chains' working precision (`_working_type`).
 _init_paramtype(::StationaryInit) = Union{}

@@ -41,21 +41,33 @@ _fndef_body(def) = def.args[2]
 
 # Every name the instrument body binds, so we can tell "closes over a local" from "refers to a
 # global". Over-collecting is harmless: it only forces a definition to stay nested, which is the
-# conservative (previous) behaviour.
+# conservative (previous) behaviour. Under-collecting is NOT harmless — a missed binding lets
+# `_partition_fndefs` hoist a definition that closes over it, breaking it at evaluation time —
+# so every binding form conservatively collects *every* symbol on its binding side
+# (`_collect_lhs_symbols!`). That over-approximates the bound names for destructures
+# (`(; a, b) = cfg`), splats (`a, b... = xs`), typed locals (`a::T = x`), indexed/field
+# assignment (`x[i] = v`), and function definitions in both short (`f(x) = 2x`) and long
+# (`function f(x) ... end`) form, all of which the old Symbol/tuple-only matcher missed.
+_collect_lhs_symbols!(out, s::Symbol) = (push!(out, s); out)
+function _collect_lhs_symbols!(out, e::Expr)
+    for a in e.args
+        _collect_lhs_symbols!(out, a)
+    end
+    return out
+end
+_collect_lhs_symbols!(out, ::Any) = out
+
+# Assignment heads: `=` plus the updating forms (`+=`, `-=`, `.=`, ...). Comparison operators
+# never appear as Expr *heads* (they parse as `:call`s), so the suffix test is unambiguous.
+_is_assignment_head(h::Symbol) = endswith(String(h), "=")
+
 function _collect_assigned!(out, node)
     node isa Expr || return out
-    if node.head === :(=)
-        lhs = node.args[1]
-        if lhs isa Symbol
-            push!(out, lhs)
-        elseif Meta.isexpr(lhs, :tuple)
-            for a in lhs.args
-                a isa Symbol && push!(out, a)
-            end
-        end
-    elseif node.head === :local
+    if _is_assignment_head(node.head) || node.head === :function || node.head === :macro
+        _collect_lhs_symbols!(out, node.args[1])
+    elseif node.head === :local || node.head === :global
         for a in node.args
-            a isa Symbol && push!(out, a)
+            _collect_lhs_symbols!(out, a)
         end
     end
     for a in node.args
@@ -83,19 +95,21 @@ end
 # combination function reference a param_map by name.
 function _partition_fndefs(fndefs, user_kw_names, body_stmts)
     isempty(fndefs) && return (Any[], Any[])
-    enclosing = Symbol[user_kw_names...]
-    push!(enclosing, :refbasis)
-    _collect_assigned!(enclosing, Expr(:block, body_stmts...))
+    # The blocker set only grows: seed it with the enclosing bindings and append each
+    # definition as it is forced to stay nested.
+    blockers = Symbol[user_kw_names...]
+    push!(blockers, :refbasis)
+    _collect_assigned!(blockers, Expr(:block, body_stmts...))
 
     nested = Set{Symbol}()
     while true
-        blockers = Symbol[enclosing..., nested...]
         grew = false
         for def in fndefs
             fname = _fndef_name(def)
             fname in nested && continue
             if !isempty(_scan_used_names([_fndef_body(def)], blockers))
                 push!(nested, fname)
+                push!(blockers, fname)
                 grew = true
             end
         end

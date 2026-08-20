@@ -4,6 +4,11 @@ abstract type AbstractSitePrior end
 
 segmentation(d::AbstractSitePrior) = getfield(d, :seg)
 
+# Whether this site prior's observed distribution needs the per-chain machinery of
+# gauss_markov.jl rather than a product distribution (see `ObservedArrayPrior`).
+# Time-correlated site-prior kinds opt in by overriding this.
+needs_chain_machinery(::AbstractSitePrior) = false
+
 """
     IIDSitePrior(seg::Segmentation, dist)
 

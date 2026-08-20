@@ -161,6 +161,9 @@ end
 # only need `rgetindex`/`rsetindex!` for the scalar-indexing opt-in (Reactant promotes
 # the captured static chain tables itself). Pointwise-evaluated distributions
 # (hyperpriors, IID overrides) must accept `::Number`, so use the VLBI*/PT distributions.
+# Each process stresses a different traced path: OU the fitted-hyperparameter coloring,
+# BrownianMotion+FixedInit the `scatter_values!` fixed-value fill, and WrappedBrownian
+# the angle-embedding transform plus the log-sum-exp wrapped-normal image sum.
 @testset "GaussMarkov priors under Reactant" begin
     using Enzyme
 
@@ -176,24 +179,64 @@ end
         end
     end
 
-    post_cpu = VLBIPosterior(skym, gmint_reactant(), vis; admode = nothing)
-    tpost_cpu = asflat(post_cpu)
-    x0 = prior_sample(Random.Xoshiro(31), tpost_cpu)
+    @instrument function gmint_reactant_bm()
+        return @jones begin
+            lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), BrownianMotion(D = VLBIExponential(0.1)); init = FixedInit(0.0)))
+            return SingleStokesGain(exp(lg))
+        end
+    end
 
-    post = Comrade.prepare_device(post_cpu, ReactantEx())
-    tpost = asflat(post)
-    x0_r = Reactant.to_rarray(x0)
-
-    # value matches the CPU path (whitened hierarchical transform + chain logpdf + refant
-    # conditioning all traced)
-    ld = @jit logdensityof(tpost, x0_r)
-    @test convert(Float64, ld) ≈ logdensityof(tpost_cpu, x0) rtol = 1.0e-10
+    @instrument function gmint_reactant_wb()
+        return @jones begin
+            gp ~ ArrayPrior(
+                GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit());
+                refant = SEFDReference(0.0)
+            )
+            return SingleStokesGain(exp(1im * gp))
+        end
+    end
 
     # gradient (what the compiled NUTS kernels differentiate) matches CPU Enzyme
     fgrad(x, tp) = Enzyme.gradient(
         Enzyme.set_runtime_activity(Enzyme.Reverse), Const(Base.Fix1(logdensityof, tp)), x
     )[1]
-    g_r = convert(Vector{Float64}, @jit fgrad(x0_r, tpost))
-    g_c = fgrad(x0, tpost_cpu)
-    @test g_r ≈ g_c rtol = 1.0e-8
+
+    nwhile(hlo) = length(collect(eachmatch(r"stablehlo\.while", repr(hlo))))
+
+    function check_matches_cpu(intm)
+        post_cpu = VLBIPosterior(skym, intm, vis; admode = nothing)
+        tpost_cpu = asflat(post_cpu)
+        x0 = prior_sample(Random.Xoshiro(31), tpost_cpu)
+
+        post = Comrade.prepare_device(post_cpu, ReactantEx())
+        tpost = asflat(post)
+        x0_r = Reactant.to_rarray(x0)
+
+        # regression guard: the whole flat path — coloring (staged writes + affine
+        # scan + scatter), chain logpdf (re-read-style gathers), fixed-value fill —
+        # must stay fully raised. A serialized `stablehlo.while` costs ~100-200 us of
+        # device latency per leapfrog step, doubled in the gradient.
+        @test nwhile(Reactant.@code_hlo optimize = true logdensityof(tpost, x0_r)) == 0
+        @test nwhile(Reactant.@code_hlo optimize = true fgrad(x0_r, tpost)) == 0
+
+        # value matches the CPU path (whitened hierarchical transform + chain logpdf +
+        # refant conditioning all traced)
+        ld = @jit logdensityof(tpost, x0_r)
+        @test convert(Float64, ld) ≈ logdensityof(tpost_cpu, x0) rtol = 1.0e-10
+
+        g_r = convert(Vector{Float64}, @jit fgrad(x0_r, tpost))
+        g_c = fgrad(x0, tpost_cpu)
+        @test g_r ≈ g_c rtol = 1.0e-8
+        return nothing
+    end
+
+    @testset "OrnsteinUhlenbeck" begin
+        check_matches_cpu(gmint_reactant())
+    end
+    @testset "BrownianMotion FixedInit" begin
+        check_matches_cpu(gmint_reactant_bm())
+    end
+    @testset "WrappedBrownian UniformInit refant" begin
+        check_matches_cpu(gmint_reactant_wb())
+    end
 end

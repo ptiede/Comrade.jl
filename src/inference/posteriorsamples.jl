@@ -130,9 +130,13 @@ end
 # cannot split it into component arrays, so it arrives here as a plain `Vector{@NamedTuple{}}`
 # and the generic `rmap(f, x) = f(x)` would call e.g. `mean` on it — which fails in `sum(...)/n`
 # with `no method matching /(::@NamedTuple{}, ::Int64)`. Skip `f` and return the empty group.
-# (The `StructArray` method resolves what would otherwise be an ambiguity with the two above.)
+# (The `StructArray` methods resolve what would otherwise be ambiguities with the ones above.)
+# Both empty-group shapes are covered — empty NamedTuples AND empty Tuples — mirroring the
+# `fieldcount(T) > 0` unwrap predicate in `_convert2structarr`, which deliberately admits both.
 rmap(::Any, ::AbstractArray{<:NamedTuple{(), Tuple{}}}) = NamedTuple()
 rmap(::Any, ::StructArray{<:NamedTuple{(), Tuple{}}}) = NamedTuple()
+rmap(::Any, ::AbstractArray{Tuple{}}) = ()
+rmap(::Any, ::StructArray{Tuple{}}) = ()
 
 
 function Base.show(io::IO, ::MIME"text/plain", s::PosteriorSamples)

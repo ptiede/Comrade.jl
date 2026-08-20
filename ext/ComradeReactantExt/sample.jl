@@ -43,33 +43,67 @@ mutable struct _DiskSink
     iter::Int
     nsamples_done::Int
 end
-function _open_sink(store::DiskStore, _tpost, _nsamples, _nscans, stride; append::Bool = false)
-    mkpath(joinpath(store.name, "samples"))
+
+# Open Comrade's on-disk sample layout in `dir` (creating `dir/samples`). This is the one
+# place the layout's open semantics live — the main chain and the warmup log both go
+# through it. On append, new chunks are numbered after the ones already indexed. On a
+# fresh open, any chain already in `dir` is dropped first — the scan files (only ones
+# matching our own naming) *and* the index. The index must go with the files: it is only
+# rewritten when the first chunk lands (behind the multi-minute kernel compile for the
+# warmup log), and until then `load_samples(dir)` — an advertised mid-run workflow —
+# would read the old run's index and crash on (or splice in) the files deleted here. It
+# also keeps a later `append` open from adopting the old run's counter as its start.
+function _open_disk_layout(dir::String, stride::Int; append::Bool = false)
+    sampdir = joinpath(dir, "samples")
+    mkpath(sampdir)
     iter0, nsamples0 = 0, 0
-    pf = joinpath(store.name, "parameters.jls")
+    pf = joinpath(dir, "parameters.jls")
     if append && isfile(pf)
         prev = deserialize(pf).params
         iter0, nsamples0 = prev.nfiles, prev.nsamples
+    elseif !append
+        for f in readdir(sampdir)
+            startswith(f, "output_scan_") && endswith(f, ".jls") &&
+                rm(joinpath(sampdir, f))
+        end
+        rm(pf; force = true)
     end
-    return _DiskSink(
-        store.name, joinpath(store.name, "samples", "output_scan_"),
-        store.stride, iter0, nsamples0
-    )
+    return _DiskSink(dir, joinpath(sampdir, "output_scan_"), stride, iter0, nsamples0)
 end
-function _write_sink!(sink::_DiskSink, ::DiskStore, chain, numerical_error, state)
+
+_open_sink(store::DiskStore, _tpost, _nsamples, _nscans, stride; append::Bool = false) =
+    _open_disk_layout(store.name, store.stride; append)
+
+# Serialize one chunk of constrained draws + their column-oriented stats as the next scan
+# file. The index is rewritten separately (`_write_index!`) so callers control the
+# crash-consistency ordering around it.
+function _write_scan_file!(sink::_DiskSink, chain, stats)
     sink.iter += 1
     sink.nsamples_done += length(chain)
-    ps = PosteriorSamples(chain, (; numerical_error))
+    ps = PosteriorSamples(chain, stats)
     serialize(
         sink.outbase * Printf.@sprintf("%05d.jls", sink.iter),
         (samples = Comrade.postsamples(ps), stats = Comrade.samplerstats(ps))
     )
+    return nothing
+end
+
+function _write_index!(sink::_DiskSink)
+    out = Comrade.DiskOutput(abspath(sink.outdir), sink.iter, sink.stride, sink.nsamples_done)
+    serialize(joinpath(sink.outdir, "parameters.jls"), (; params = out))
+    return nothing
+end
+
+function _write_sink!(sink::_DiskSink, ::DiskStore, chain, numerical_error, state)
+    _write_scan_file!(sink, chain, (; numerical_error))
     # resumable MCMC state checkpoint (latest wins)
     ProbProg.save_state(joinpath(sink.outdir, "state.jls"), state)
     # update parameters.jls every chunk so a crash mid-run leaves it current and
     # consistent with the files on disk (AHMC checkpoints its counter every batch).
-    out = Comrade.DiskOutput(abspath(sink.outdir), sink.iter, sink.stride, sink.nsamples_done)
-    serialize(joinpath(sink.outdir, "parameters.jls"), (; params = out))
+    # The state checkpoint deliberately lands *before* the index: a crash between the two
+    # leaves the index one chunk behind the state, and the restart then renumbers from the
+    # index and overwrites the orphaned scan — never duplicating a segment.
+    _write_index!(sink)
     return nothing
 end
 function _close_sink(sink::_DiskSink, store::DiskStore, metadata)
@@ -89,44 +123,18 @@ end
 #
 # The layout is Comrade's standard on-disk sample layout (`<dir>/samples/output_scan_%05d.jls`
 # + `parameters.jls`) with `stride = 1`, so the warmup chain reads back with a plain
-# `Comrade.load_samples(dir)`.
-mutable struct _WarmupLog
-    dir::String
-    outbase::String
-    iter::Int
-end
-
-function _open_warmup_log(dir::String; append::Bool = false)
-    sampdir = joinpath(dir, "samples")
-    mkpath(sampdir)
-    iter0 = 0
-    pf = joinpath(dir, "parameters.jls")
-    if append && isfile(pf)
-        iter0 = deserialize(pf).params.nfiles
-    elseif !append
-        # A fresh warmup invalidates any warmup chain already here; drop the stale scan
-        # files (only ones matching our own naming) so `load_samples` can't splice two
-        # different runs together. Sampling output lives elsewhere and is untouched.
-        for f in readdir(sampdir)
-            startswith(f, "output_scan_") && endswith(f, ".jls") &&
-                rm(joinpath(sampdir, f))
-        end
-    end
-    return _WarmupLog(dir, joinpath(sampdir, "output_scan_"), iter0)
-end
+# `Comrade.load_samples(dir)`. The log IS a `_DiskSink` — same layout, same open/write
+# helpers — so the two can never drift apart; a fresh open drops any previous warmup
+# chain (files + index) via `_open_disk_layout`. The MCMC state is checkpointed
+# separately (`<name>/state.jls` in `warmup_chunked`), so no state lands here.
+_open_warmup_log(dir::String; append::Bool = false) = _open_disk_layout(dir, 1; append)
 
 # `params` is one constrained draw; `stats` is a column-oriented NamedTuple of length-1
 # vectors, matching the convention `_write_sink!` uses for the sampling chunks.
-function _write_warmup_draw!(log::_WarmupLog, params, stats)
-    log.iter += 1
-    ps = PosteriorSamples([params], stats)
-    serialize(
-        log.outbase * Printf.@sprintf("%05d.jls", log.iter),
-        (samples = Comrade.postsamples(ps), stats = Comrade.samplerstats(ps))
-    )
+function _write_warmup_draw!(log::_DiskSink, params, stats)
+    _write_scan_file!(log, [params], stats)
     # Rewrite the index every draw so an interrupted warmup still leaves a loadable chain.
-    out = Comrade.DiskOutput(abspath(log.dir), log.iter, 1, log.iter)
-    serialize(joinpath(log.dir, "parameters.jls"), (; params = out))
+    _write_index!(log)
     return nothing
 end
 
@@ -186,19 +194,30 @@ end
 """
     default_warmup_callback(info) -> NamedTuple
 
-Default `warmup_callback`: log one line per warmup chunk and return its progress, the
-current adapted step size, and the current draw (`params`).
+Default `warmup_callback` on the `MemoryStore` path: log one line per warmup chunk and
+return its progress, the current adapted step size, and the current draw (`params`).
 
 Return values are collected into `warmup_history`, which ends up in `samplerinfo(out)`
 (`MemoryStore`) or `metadata.jls` (`DiskStore`) — so keeping `params` here is what makes
 the warmup chain inspectable on the `MemoryStore` path, where there is no disk to log to.
-A `DiskStore` additionally writes the same draws to `<name>/warmup` as they are produced
-(see [`warmup_chunked`](@ref)).
 """
 function default_warmup_callback(info)
     @info "ReactantNUTS warmup" step = info.step total = info.total step_size = info.step_size
     return (; info.step, info.total, info.step_size, info.params)
 end
+
+"""
+    default_warmup_callback_noparams(info) -> NamedTuple
+
+Default `warmup_callback` on the `DiskStore` path: [`default_warmup_callback`](@ref)
+without `params` in the return value. A `DiskStore` already streams every per-chunk draw
+to `<name>/warmup` as it is produced (see [`warmup_chunked`](@ref)), so also retaining
+each draw in `warmup_history` would hold the whole warmup chain in host memory for the
+entire run and serialize it a second time into `metadata.jls` — for large models and a
+fine `warmup_chunk`, potentially hundreds of MB of pure duplication.
+"""
+default_warmup_callback_noparams(info) =
+    Base.structdiff(default_warmup_callback(info), NamedTuple{(:params,)})
 
 # The post-warmup (sampling) callback is the shared `Comrade.default_disk_callback`, used
 # for both the `MemoryStore` and `DiskStore` paths — see its docstring for the `info`
@@ -266,7 +285,7 @@ Comrade.samplerstats(warmup).step_size                         # adaptation trac
 
 Per-draw stats are `step` (global warmup step), `step_size`, and `potential_energy`. The
 cadence is the chunk length — ProbProg collects no per-step warmup trace, and forcing one
-would perturb the chain (see the note on `_WarmupLog`), so use a smaller `chunk` for a
+would perturb the chain (see the warmup-log note above `_open_warmup_log`), so use a smaller `chunk` for a
 finer log. Passing `resume_state` appends to an existing log rather than restarting it.
 """
 function warmup_chunked(
@@ -475,7 +494,7 @@ _default_ldf(x, tpost) = logdensityof(tpost, x)
            saveto=MemoryStore(), initial_params=nothing, restart=false,
            chunk_size=100, warmup_chunk=0, ldf=_default_ldf,
            host_rng=Random.default_rng(),
-           warmup_callback=default_warmup_callback)
+           warmup_callback=nothing)
 
 Warm up (Stan-windowed adaptation run in chunks of the sampling size, or of `warmup_chunk`
 if given — see [`warmup_chunked`](@ref)) then draw `nsamples` post-warmup samples from the Reactant
@@ -537,8 +556,12 @@ common fields documented in [`Comrade.default_disk_callback`](@ref) plus an `ext
 
 `warmup_callback` runs once per warmup chunk; its `info` carries `step`/`total`/
 `num_warmup` alongside the host-side state view (see [`default_warmup_callback`](@ref)
-and [`warmup_chunked`](@ref)). Overriding it replaces what lands in `warmup_history`, so
-return `info.params` from a custom callback to keep the in-memory warmup chain.
+and [`warmup_chunked`](@ref)). The default (`nothing`) resolves per store: `MemoryStore`
+keeps each chunk's draw in `warmup_history` ([`default_warmup_callback`](@ref)), while
+`DiskStore` logs only scalars there ([`default_warmup_callback_noparams`](@ref)) since
+its draws already stream to `<name>/warmup`. Overriding it replaces what lands in
+`warmup_history`, so return `info.params` from a custom callback to keep the in-memory
+warmup chain.
 
 `restart=true` (only with a `DiskStore`) continues an interrupted run, matching
 AdvancedHMC's `restart`. Warmup is checkpointed after every chunk, so an interruption
@@ -558,8 +581,17 @@ function AbstractMCMC.sample(
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
         chunk_size::Int = 100, warmup_chunk::Int = 0,
         ldf = _default_ldf, host_rng = Random.default_rng(),
-        warmup_callback = default_warmup_callback
+        warmup_callback = nothing
     )
+
+    # Default warmup callback: `MemoryStore` keeps the per-chunk draw in `warmup_history`
+    # (its only record of the warmup chain); `DiskStore` drops it there because the same
+    # draws already stream to `<name>/warmup`, and duplicating them in host memory +
+    # `metadata.jls` is pure waste. An explicit `warmup_callback` always wins.
+    if isnothing(warmup_callback)
+        warmup_callback = saveto isa DiskStore ?
+            default_warmup_callback_noparams : default_warmup_callback
+    end
 
     # Persist/reload the latent space (DiskStore only) so a restart resumes in the same space
     # it was launched in instead of silently defaulting; MemoryStore just honors the kwarg.
