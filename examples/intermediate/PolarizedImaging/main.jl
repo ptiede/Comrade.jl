@@ -268,7 +268,7 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # and `IntegSeg()` (changes each integration time). For released EHT data the gains are
 # stable over a scan, while the d-terms are stable over the track.
 
-ou_amp(σ0, τ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBITruncated(VLBIInverseGamma(1.0, -log(0.1) * τ0); lower=0.1, upper=24.0)); centered = true)
+ou_amp(σ0, τ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBITruncated(VLBIInverseGamma(1.0, -log(0.1) * τ0); lower = 0.1, upper = 24.0)); centered = true)
 wb_phase(; dval = 1.0, init = UniformInit()) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(dval)); init = init, centered = true)
 
 # We apply the adjoint because the data has been feed rotation calibrated.
