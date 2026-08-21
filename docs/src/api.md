@@ -98,7 +98,7 @@ Comrade.@instrument
 Comrade.@jones
 Comrade.CalTable
 Comrade.caltable(::Comrade.SiteArray)
-Comrade.getparams
+Comrade.siteparams
 Comrade.sites(::Comrade.CalTable)
 Comrade.IIDSitePrior
 Comrade.GaussMarkovSitePrior

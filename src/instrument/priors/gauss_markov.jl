@@ -1,4 +1,4 @@
-export GaussMarkovSitePrior
+export GaussMarkovSitePrior, siteparams
 
 """
     GaussMarkovSitePrior(seg::TimeSegmentation, process::AbstractGaussMarkovProcess; init = StationaryInit(), centered = false)
@@ -196,14 +196,12 @@ end
 
 # ----- the full-vector distribution ------------------------------------------
 
-"""
-    GaussMarkovChainDist
-
-The observed distribution over the full instrument parameter vector implied by
-[`GaussMarkovSitePrior`](@ref): a set of independent per-(site, frequency) Gauss-Markov
-chains (plus IID terms for `IIDSitePrior` overrides), exactly conditioned on the
-reference-fixed indices. This is an internal type constructed by `ObservedArrayPrior`.
-"""
+#    GaussMarkovChainDist
+#
+#The observed distribution over the full instrument parameter vector implied by
+#[`GaussMarkovSitePrior`](@ref): a set of independent per-(site, frequency) Gauss-Markov
+#chains (plus IID terms for `IIDSitePrior` overrides), exactly conditioned on the
+#reference-fixed indices. This is an internal type constructed by `ObservedArrayPrior`.
 struct GaussMarkovChainDist{C <: NamedTuple, I <: AbstractVector{<:Integer}, F} <: Dists.ContinuousMultivariateDistribution
     chains::C
     fixedinds::I
@@ -896,24 +894,22 @@ end
 # ----- the hierarchical observed prior ----------------------------------------
 
 """
-    getparams(x)
+    siteparams(x)
 
 Extract the instrument parameter values from a single instrument-parameter sample. For
 hierarchical samples `(params = SiteArray, hyperparams = NamedTuple)` (produced by
 [`GaussMarkovSitePrior`](@ref) with fitted hyperparameters) this returns `x.params`;
 for plain `SiteArray` samples it is the identity.
 """
-@inline getparams(x) = x
-@inline getparams(x::NamedTuple{(:params, :hyperparams)}) = x.params
+@inline siteparams(x) = x
+@inline siteparams(x::NamedTuple{(:params, :hyperparams)}) = x.params
 
-"""
-    ObservedHierarchicalArrayPrior
-
-The observed prior produced by an `ArrayPrior` whose [`GaussMarkovSitePrior`](@ref)
-processes have fitted hyperparameters. Samples are NamedTuples
-`(params = SiteArray, hyperparams = NamedTuple)` and the log-density is the exact chain
-density of the parameters given the hyperparameters plus the hyperprior. Internal type.
-"""
+#    ObservedHierarchicalArrayPrior
+#
+#The observed prior produced by an `ArrayPrior` whose [`GaussMarkovSitePrior`](@ref)
+#processes have fitted hyperparameters. Samples are NamedTuples
+#`(params = SiteArray, hyperparams = NamedTuple)` and the log-density is the exact chain
+#density of the parameters given the hyperparameters plus the hyperprior. Internal type.
 struct ObservedHierarchicalArrayPrior{D <: GaussMarkovChainDist, H <: NamedDist, S <: SiteLookup} <: Dists.ContinuousMultivariateDistribution
     dists::D
     hyperprior::H

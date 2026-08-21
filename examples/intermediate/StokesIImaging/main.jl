@@ -275,12 +275,12 @@ schain = Comrade.rmap(std, chain);
 # Now we can use the measurements package to automatically plot everything with error bars.
 # First we create a `caltable` the same way but making sure all of our variables have errors
 # attached to them. For the hierarchical (Gauss-Markov) terms we only want the gain series,
-# so we unwrap the `(params, hyperparams)` named tuples with `Comrade.getparams`.
+# so we unwrap the `(params, hyperparams)` named tuples with `Comrade.siteparams`.
 using Measurements
 gmeas = instrumentmodel(
     post, (;
         instrument = map(
-            (x, y) -> Measurements.measurement.(Comrade.getparams(x), Comrade.getparams(y)),
+            (x, y) -> Measurements.measurement.(Comrade.siteparams(x), Comrade.siteparams(y)),
             mchain.instrument, schain.instrument
         ),
     )

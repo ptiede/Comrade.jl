@@ -405,7 +405,7 @@ end
     end
 
     @testset "hierarchical PosteriorSamples postprocessing" begin
-        # Exercises the caltable/rmap/getparams path the StokesI example advertises:
+        # Exercises the caltable/rmap/siteparams path the StokesI example advertises:
         # samples are `(params, hyperparams)` NamedTuples that must round-trip through
         # PosteriorSamples' StructArray conversion and reduce with `rmap`.
         post = VLBIPosterior(skym, gmint_fitted(), dvis)
@@ -418,17 +418,17 @@ end
         # the hierarchical instrument terms survive reduction as (params, hyperparams) tuples
         @test mchain.instrument.lg.params isa Comrade.SiteArray
         @test keys(mchain.instrument.lg.hyperparams) == Tuple(Comrade.sites(dvis))
-        @test Comrade.getparams(mchain.instrument.lg) === mchain.instrument.lg.params
+        @test Comrade.siteparams(mchain.instrument.lg) === mchain.instrument.lg.params
 
         # caltable strips the hyperparameters from the reduced chain
         @test caltable(mchain.instrument.lg) isa Comrade.CalTable
         @test caltable(abs.(mchain.instrument.lg.params)) isa Comrade.CalTable
 
-        # instrumentmodel accepts the reduced hierarchical chain (getparams strips hyperparams)
+        # instrumentmodel accepts the reduced hierarchical chain (siteparams strips hyperparams)
         @test instrumentmodel(post, mchain) isa Comrade.SiteArray
-        # the example's mean/std combine: getparams unwraps both before the elementwise op
+        # the example's mean/std combine: siteparams unwraps both before the elementwise op
         combined = map(
-            (x, y) -> Comrade.getparams(x) .+ Comrade.getparams(y),
+            (x, y) -> Comrade.siteparams(x) .+ Comrade.siteparams(y),
             mchain.instrument, schain.instrument,
         )
         @test instrumentmodel(post, (; instrument = combined)) isa Comrade.SiteArray
