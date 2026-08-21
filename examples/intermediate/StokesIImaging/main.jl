@@ -141,18 +141,17 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 # To reduce repetition we define small helpers that build the amplitude and phase
 # processes,
 ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * 0.1)); centered = true)
-wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(4.0)); init = UniformInit())
+wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit(), centered=true)
 
 # Just like the sky model, we use the `@instrument` macro to bundle the Jones matrices and
 # their priors in one block. Each Jones term is a `@jones` block whose `name ~ ArrayPrior(...)`
 # lines are its priors and whose body builds and returns the Jones matrix.
 @instrument function instrument()
     return @jones begin
-        lg0 ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 1.0)))
         lg ~ ArrayPrior(ou_amp(0.2); LM = ou_amp(0.5))
         gp ~ ArrayPrior(wb_phase(); refant = SingleReference(:AA, 0.0))
         ## SingleStokesGain is a single complex gain for each site.
-        return SingleStokesGain(exp(complex(lg0 + lg, gp)))
+        return SingleStokesGain(exp(complex(lg, gp)))
     end
 end
 intmodel = instrument()
@@ -249,7 +248,7 @@ xopt.instrument.gp.hyperparams
 # run.
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt, progress = false)
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = chain[end], progress = true)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this

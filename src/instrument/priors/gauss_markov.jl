@@ -153,7 +153,7 @@ end
 @inline _first_point_term(::FixedInit, p, x1, Δ0) = zero(abs2(x1))
 # Uniform on the circle, which is also invariant under the wrapped transitions, so the
 # same constant serves the propagated subset marginal at any Δ0.
-@inline _first_point_term(::UniformInit, p, x1, Δ0) = -log(oftype(abs2(x1), 2π))
+@inline _first_point_term(::UniformInit, p, x1, Δ0) = -log(oftype(x1, 2π))
 
 function _gm_chain_logpdf(p::AbstractGaussMarkovProcess, init::AbstractInitialPrior, x, inds, ts, Δ0 = zero(eltype(ts)))
     x1 = rgetindex(x, rgetindex(inds, firstindex(inds)))
@@ -242,7 +242,7 @@ struct _ChainFix{X, HP}
     x::X
     hp::HP
 end
-(hp::_ChainFix)(spec::Union{MarkovChainSpec, IIDChainSpec}) = chain_term(spec, hp.x, hp.hp)
+@inline (hp::_ChainFix)(spec::Union{MarkovChainSpec, IIDChainSpec}) = chain_term(spec, hp.x, hp.hp)
 
 function _chain_logpdf(d::GaussMarkovChainDist, x::AbstractVector, hp::NamedTuple)
     fd = _ChainFix(x, hp)
@@ -363,7 +363,7 @@ end
 function affine_scan!(a, c)
     acc = zero(eltype(c))
     for k in eachindex(c)
-        acc = a[k] * acc + c[k]
+        acc = muladd(a[k], acc, c[k])
         c[k] = acc
     end
     return c
