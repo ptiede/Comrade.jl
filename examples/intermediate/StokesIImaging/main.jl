@@ -248,7 +248,7 @@ xopt.instrument.gp.hyperparams
 # run.
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = chain[end], progress = true)
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt, progress = false)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this

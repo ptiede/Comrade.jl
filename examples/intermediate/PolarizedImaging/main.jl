@@ -104,7 +104,7 @@ using VLBIFiles
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(48)
+rng = StableRNG(11)
 
 
 # Now we will load some synthetic polarized data.
@@ -268,7 +268,7 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # and `IntegSeg()` (changes each integration time). For released EHT data the gains are
 # stable over a scan, while the d-terms are stable over the track.
 
-ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * 0.1)); centered = true)
+ou_amp(σ0, τ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBITruncated(VLBIInverseGamma(1.0, -log(0.1) * τ0); lower=0.1, upper=24.0)); centered = true)
 wb_phase(; dval = 1.0, init = UniformInit()) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(dval)); init = init, centered = true)
 
 # We apply the adjoint because the data has been feed rotation calibrated.
@@ -277,10 +277,10 @@ wb_phase(; dval = 1.0, init = UniformInit()) = GaussMarkovSitePrior(IntegSeg(), 
 @instrument function instrument()
     ## Complex gains: amplitude/phase decomposition, returning (gR, gL).
     G = @jones begin
-        lgR ~ ArrayPrior(ou_amp(0.2); LM = ou_amp(1.0))
-        lgrat ~ ArrayPrior(ou_amp(0.2))
+        lgR ~ ArrayPrior(ou_amp(0.2, 1.0); LM = ou_amp(1.0, 1.0))
+        lgrat ~ ArrayPrior(ou_amp(0.2, 12.0))
         gpR ~ ArrayPrior(wb_phase(dval = 1.0); refant = SEFDReference(0.0))
-        gprat ~ ArrayPrior(wb_phase(dval = 0.02); refant = SingleReference(:AA, 0.0))
+        gprat ~ ArrayPrior(wb_phase(dval = inv(12.0)); refant = SingleReference(:AA, 0.0))
         gR = exp(complex(lgR, gpR))
         gL = gR * exp(complex(lgrat, gprat))
         return JonesG((gR, gL))
@@ -331,7 +331,7 @@ tpost = transport_to(post, TVFlat());
 using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
     post, LBFGSB();
-    initial_params = prior_sample(rng, post), maxiters = 10_000
+    initial_params = prior_sample(rng, post), maxiters = 20_000
 )
 
 
