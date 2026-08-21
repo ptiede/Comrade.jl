@@ -269,7 +269,7 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # stable over a scan, while the d-terms are stable over the track.
 
 ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * 0.1)); centered = true)
-wb_phase(;dval = 1.0, init=UniformInit()) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(dval)); init = init, centered=true)
+wb_phase(; dval = 1.0, init = UniformInit()) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(dval)); init = init, centered = true)
 
 # We apply the adjoint because the data has been feed rotation calibrated.
 @inline jsand(g, d, r) = adjoint(r) * g * d * r
@@ -279,8 +279,8 @@ wb_phase(;dval = 1.0, init=UniformInit()) = GaussMarkovSitePrior(IntegSeg(), Wra
     G = @jones begin
         lgR ~ ArrayPrior(ou_amp(0.2); LM = ou_amp(1.0))
         lgrat ~ ArrayPrior(ou_amp(0.2))
-        gpR ~ ArrayPrior(wb_phase(dval=1.0); refant = SEFDReference(0.0))
-        gprat ~ ArrayPrior(wb_phase(dval=0.02); refant = SingleReference(:AA, 0.0))
+        gpR ~ ArrayPrior(wb_phase(dval = 1.0); refant = SEFDReference(0.0))
+        gprat ~ ArrayPrior(wb_phase(dval = 0.02); refant = SingleReference(:AA, 0.0))
         gR = exp(complex(lgR, gpR))
         gL = gR * exp(complex(lgrat, gprat))
         return JonesG((gR, gL))

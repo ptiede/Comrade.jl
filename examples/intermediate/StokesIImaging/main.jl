@@ -141,7 +141,7 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 # To reduce repetition we define small helpers that build the amplitude and phase
 # processes,
 ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * 0.1)); centered = true)
-wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit(), centered=true)
+wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit(), centered = true)
 
 # Just like the sky model, we use the `@instrument` macro to bundle the Jones matrices and
 # their priors in one block. Each Jones term is a `@jones` block whose `name ~ ArrayPrior(...)`
