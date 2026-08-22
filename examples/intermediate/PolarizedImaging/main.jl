@@ -280,7 +280,7 @@ wb_phase(; dval = 1.0, init = UniformInit()) = GaussMarkovSitePrior(IntegSeg(), 
         lgR ~ ArrayPrior(ou_amp(0.2, 1.0); LM = ou_amp(1.0, 1.0))
         lgrat ~ ArrayPrior(ou_amp(0.2, 12.0))
         gpR ~ ArrayPrior(wb_phase(dval = 1.0); refant = SEFDReference(0.0))
-        gprat ~ ArrayPrior(wb_phase(dval = inv(12.0)); refant = SingleReference(:AA, 0.0))
+        gprat ~ ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(0.1^2))); refant = SingleReference(:AA, 0.0))
         gR = exp(complex(lgR, gpR))
         gL = gR * exp(complex(lgrat, gprat))
         return JonesG((gR, gL))
