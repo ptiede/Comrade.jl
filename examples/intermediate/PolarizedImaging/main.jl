@@ -104,7 +104,7 @@ using VLBIFiles
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
-rng = StableRNG(11)
+rng = StableRNG(48)
 
 
 # Now we will load some synthetic polarized data.
@@ -160,13 +160,12 @@ using VLBIImagePriors
     σs ~ ntuple(Returns(VLBITruncated(VLBIGaussian(0.0, 0.5); lower = 0.0)), 4)
     as ~ ntuple(Returns(cprior), 4)
     ## Build the stokes I model
-    δa = σs[1] .* as[1].params
-    δb = σs[2] .* as[2].params
-    δc = σs[3] .* as[3].params
-    δd = σs[4] .* as[4].params
+    δs = ntuple(Val(4)) do i
+        σs[i] .* as[i].params
+    end
 
     ## Convert hyperbolic polarization parameterization to Stokes parameters.
-    pmap = VLBISkyModels.PolExp2Map!(δa, δb, δc, δd, axisdims(mimg))
+    pmap = VLBISkyModels.PolExp2Map!(δs..., axisdims(mimg))
 
     ## We now add a mean image. Namely, we assume that `pmap` are multiplicative fluctuations
     ## about some mean image `mimg`. We also compute the total flux of the Stokes I image
@@ -263,28 +262,24 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # starts uniform on the circle (`UniformInit()`), which absorbs the per-track phase
 # offset; the R/L phase ratio is physically close to zero, so its chain starts pinned
 # there (`FixedInit(0.0)`) and drifts slowly (small diffusion `D`; `2/D` is the coherence
-# time in hours). Wrapped chains are centered by default, i.e. the raw angles are the
-# coordinates; that lift is kept proper by sheet weights, so the 2π periodicity of a
-# phase does not turn into 2π-shifted copies of the posterior. The `IIDSitePrior`
+# time in hours). The `IIDSitePrior`
 # segments are `ScanSeg()` (independent per scan), `TrackSeg()` (constant over the track),
 # and `IntegSeg()` (changes each integration time). For released EHT data the gains are
 # stable over a scan, while the d-terms are stable over the track.
+ou_amp(σ0, τ0) = GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); centered = true)
+wb_phase(τ0; init=UniformInit()) = GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = VLBIInverseGamma(1.0, -log(0.1)*τ0)); init = init)
 
-ou_amp(σ0, τ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBITruncated(VLBIInverseGamma(1.0, -log(0.1) * τ0); lower = 0.1, upper = 24.0)); centered = true)
-wb_phase(; dval = 1.0, init = UniformInit()) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(dval)); init = init)
-
-# We apply the adjoint because the data has been feed rotation calibrated.
-@inline jsand(g, d, r) = adjoint(r) * g * d * r
 
 @instrument function instrument()
     ## Complex gains: amplitude/phase decomposition, returning (gR, gL).
     G = @jones begin
-        lgR ~ ArrayPrior(ou_amp(0.2, 1.0); LM = ou_amp(1.0, 1.0))
-        lgrat ~ ArrayPrior(ou_amp(0.2, 12.0))
-        gpR ~ ArrayPrior(wb_phase(dval = 1.0); refant = SEFDReference(0.0))
-        gprat ~ ArrayPrior(wb_phase(dval = inv(12.0)); refant = SingleReference(:AA, 0.0))
+        lgR ~ ArrayPrior(ou_amp(0.2, 0.5); LM = ou_amp(1.0, 0.5))
+        lgrat ~ ArrayPrior(ou_amp(0.2, 8.0))
+        gpR ~ ArrayPrior(wb_phase(0.5); refant = SEFDReference(0.0))
+        gprat ~ ArrayPrior(wb_phase(12.0; init=FixedInit(0.0)); refant = SingleReference(:AA, 0.0))
+        gprat0 ~ ArrayPrior(IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(0.2^2))); refant = SingleReference(:AA, 0.0))
         gR = exp(complex(lgR, gpR))
-        gL = gR * exp(complex(lgrat, gprat))
+        gL = gR * exp(complex(lgrat, gprat + gprat0))
         return JonesG((gR, gL))
     end
     ## Leakage/d-terms (re-im parameterization), returning (dR, dL).
@@ -300,7 +295,9 @@ wb_phase(; dval = 1.0, init = UniformInit()) = GaussMarkovSitePrior(IntegSeg(), 
         return JonesR(; add_fr = true)
     end
     ## Combine into the full Jones matrix J = adjoint(R)*G*D*R.
-    return JonesSandwich(jsand, G, D, R)
+    return JonesSandwich(G, D, R) do g, d, r
+        return adjoint(r) * g * d * r
+    end
 end
 
 # Building the instrument model is now a single call.
@@ -333,7 +330,7 @@ tpost = transport_to(post, TVFlat());
 using Optimization, OptimizationLBFGSB
 xopt, sol = comrade_opt(
     post, LBFGSB();
-    initial_params = prior_sample(rng, post), maxiters = 20_000
+    initial_params = prior_sample(rng, post), maxiters = 2_000
 )
 
 
@@ -368,7 +365,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # To grab the ratios and products we can use the `caltable` function which will return analyze the gprat array
 # and convert it to a uniform table. We can then plot the gain phases and amplitudes.
 gphase_ratio = caltable(xopt.instrument.gprat)
-gamp_ratio = caltable(exp.(xopt.instrument.lgrat.params))
+gamp_ratio = caltable(exp.(Comrade.siteparams(xopt.instrument.lgrat)))
 
 #-
 # Plotting the phases first, we see large trends in the righ circular polarization phase. This is expected
@@ -383,7 +380,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # Moving to the amplitudes we see largely stable gain amplitudes on the right circular polarization except for LMT which is
 # known and due to pointing issues during the 2017 observation. Again the gain ratios are stable and close to unity. Typically
 # we expect that apriori calibration should make the gain ratios close to unity.
-gampr = caltable(exp.(xopt.instrument.lgR.params))
+gampr = caltable(exp.(Comrade.siteparams(xopt.instrument.lgR)))
 fig = plotcaltable(gampr, gamp_ratio, labels = ["R Amp", "L/R Amp"], axis_kwargs = (; limits = (nothing, (0.6, 1.3))));
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
