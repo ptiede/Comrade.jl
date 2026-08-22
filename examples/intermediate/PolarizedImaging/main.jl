@@ -263,13 +263,15 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # starts uniform on the circle (`UniformInit()`), which absorbs the per-track phase
 # offset; the R/L phase ratio is physically close to zero, so its chain starts pinned
 # there (`FixedInit(0.0)`) and drifts slowly (small diffusion `D`; `2/D` is the coherence
-# time in hours). The `IIDSitePrior`
+# time in hours). Wrapped chains are centered by default, i.e. the raw angles are the
+# coordinates; that lift is kept proper by sheet weights, so the 2π periodicity of a
+# phase does not turn into 2π-shifted copies of the posterior. The `IIDSitePrior`
 # segments are `ScanSeg()` (independent per scan), `TrackSeg()` (constant over the track),
 # and `IntegSeg()` (changes each integration time). For released EHT data the gains are
 # stable over a scan, while the d-terms are stable over the track.
 
 ou_amp(σ0, τ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBITruncated(VLBIInverseGamma(1.0, -log(0.1) * τ0); lower = 0.1, upper = 24.0)); centered = true)
-wb_phase(; dval = 1.0, init = UniformInit()) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(dval)); init = init, centered = true)
+wb_phase(; dval = 1.0, init = UniformInit()) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(dval)); init = init)
 
 # We apply the adjoint because the data has been feed rotation calibrated.
 @inline jsand(g, d, r) = adjoint(r) * g * d * r
