@@ -162,8 +162,10 @@ end
 # the captured static chain tables itself). Pointwise-evaluated distributions
 # (hyperpriors, IID overrides) must accept `::Number`, so use the VLBI*/PT distributions.
 # Each process stresses a different traced path: OU the fitted-hyperparameter coloring,
-# BrownianMotion+FixedInit the `scatter_values!` fixed-value fill, and WrappedBrownian
-# the angle-embedding transform plus the log-sum-exp wrapped-normal image sum.
+# BrownianMotion+FixedInit the `scatter_values!` fixed-value fill, WrappedBrownian the
+# sheet-weight loop (whose anchor read is a table-driven index into the latent segment)
+# plus the log-sum-exp wrapped-normal image sum, and its `centered = false` form the
+# angle-embedding transform.
 @testset "GaussMarkov priors under Reactant" begin
     using Enzyme
 
@@ -190,6 +192,16 @@ end
         return @jones begin
             gp ~ ArrayPrior(
                 GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit());
+                refant = SEFDReference(0.0)
+            )
+            return SingleStokesGain(exp(1im * gp))
+        end
+    end
+
+    @instrument function gmint_reactant_wbe()
+        return @jones begin
+            gp ~ ArrayPrior(
+                GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit(), centered = false);
                 refant = SEFDReference(0.0)
             )
             return SingleStokesGain(exp(1im * gp))
@@ -236,7 +248,10 @@ end
     @testset "BrownianMotion FixedInit" begin
         check_matches_cpu(gmint_reactant_bm())
     end
-    @testset "WrappedBrownian UniformInit refant" begin
+    @testset "WrappedBrownian UniformInit refant (centered default)" begin
         check_matches_cpu(gmint_reactant_wb())
+    end
+    @testset "WrappedBrownian angle embedding" begin
+        check_matches_cpu(gmint_reactant_wbe())
     end
 end

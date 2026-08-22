@@ -224,13 +224,15 @@ stationary law is uniform, so with [`UniformInit`](@ref) the chain also absorbs 
 per-track phase offset that would otherwise require a separate circular offset term.
 
 A wrapped chain has no Gaussian conditionals, so the whitened parameterization does not
-exist. By default each free phase is embedded as two latent reals through the same angle
-transform used by `DiagonalVonMises`, so the flat coordinates are free of the `2π` sheet
-ambiguity a raw circular coordinate would have (a phase wrap is a continuous winding of
-the latent point), which keeps HMC warmup adaptation robust. When every phase is strongly
-data-constrained, `centered = true` (raw angles as coordinates) halves the phase
-dimension and mixes better — see [`GaussMarkovSitePrior`](@ref) for the trade-off. Only
-`asflat` is supported in either form. Reference stations (`refant`) are handled by exact
+exist. The default is therefore `centered = true`: the raw angles are the flat
+coordinates, one per free phase. That lift is kept *proper* — no `2π`-shifted copies of
+the posterior, which a raw circular coordinate would otherwise produce — by the sheet
+weights described below, which leave the circular model exactly unchanged. Passing
+`centered = false` instead embeds each free phase as two latent reals through the same
+angle transform used by `DiagonalVonMises`, which has no sheet structure at all but costs
+twice the phase dimension; it is the fallback if a fit ever does show sheet-related
+pathology. See [`GaussMarkovSitePrior`](@ref) for the trade-off. Only `asflat` is
+supported in either form. Reference stations (`refant`) are handled by exact
 conditioning, as for the Gaussian processes: wrapped normal transitions compose exactly
 (their variances add).
 
@@ -302,6 +304,77 @@ _process_mean(p::WrappedBrownian) = zero(_paramtype(p))
 end
 
 @inline _transition_logpdf(p::WrappedBrownian, xi, xp, Δt, μ, T2π) = _wn_logpdf(xi - xp, p.D * Δt)
+
+# ----- sheet weights: the proper flat lift of a wrapped chain -----------------
+#
+# A wrapped chain's density is exactly `2π`-periodic in every free angle, so lifting it
+# to the line by simply *calling* a real coordinate the angle (the centered
+# parameterization) gives an improper flat target: an infinite lattice of identical
+# modes spaced `2π` apart in every coordinate. HMC then drifts between sheets, warmup
+# variance adaptation blows up, and chains disagree on a quantity the likelihood cannot
+# even see.
+#
+# The lift is made proper by *reweighting the sheets*. A free angle gets the real
+# coordinate `φ`, the angle is `φ mod 2π`, and the flat density is multiplied by
+#
+#     w(φ) = N(φ − ref; 0, Q) / WN(φ − ref; Q)
+#
+# for a reference `ref` that does not itself depend on the sheet of `φ`. Because the
+# wrapped normal is by definition the periodic sum of the normal,
+# `Σₘ N(δ + 2πm; 0, Q) = WN(δ; Q)`, the weights of the sheets of any one coordinate sum
+# to exactly one:
+#
+#     Σₘ w(φ + 2πm) = 1.
+#
+# So the pushforward of the reweighted flat density under `φ ↦ φ mod 2π` is *exactly*
+# the chain density — the model is unchanged, and no probability mass is added, moved,
+# or lost. What changes is only which representative of each sheet class carries the
+# mass: `w` is a smooth partition of unity over the sheets that concentrates on the one
+# nearest `ref`.
+#
+# Taking `ref` to be the previous chain point and `Q` its transition variance makes the
+# weight cancel that point's wrapped-normal transition analytically, so the flat target
+# is the *unwrapped* Gaussian random walk `Πₖ N(φₖ − φₖ₋₁; 0, Qₖ)` times the (periodic)
+# likelihood: proper, smooth, and with a single dominant mode whenever a `2π` step is
+# improbable under the process (`exp(−(2π)²/2Q)`).
+
+# Log-density of `N(Δ; 0, Q)`, the unwrapped counterpart of `_wn_logpdf`.
+@inline _normal_logpdf(Δ, Q) = -(abs2(Δ) / Q + log(oftype(float(Δ), 2π) * Q)) / 2
+
+"""
+    _sheet_logweight(p, xi, xp, Δt, μ, T2π)
+
+Log of the sheet weight of a wrapped chain's free point at `xi`, whose flat lift is
+anchored on the (sheet-independent) previous chain value `xp` a gap `Δt` earlier. This is
+`log N(Δ; 0, Q) − log WN(Δ; Q)` for the process's own transition law, so summing
+`exp` of it over the `2π` sheets of `xi` gives exactly one.
+"""
+@inline function _sheet_logweight(p::AbstractGaussMarkovProcess, xi, xp, Δt, μ, T2π)
+    Φ, Q = transition_moments(p, Δt)
+    return _normal_logpdf(xi - μ - Φ * (xp - μ), Q) -
+        _transition_logpdf(p, xi, xp, Δt, μ, T2π)
+end
+
+# Variance of the Gaussian sheet window placed on a chain-opening free phase, whose
+# circular marginal is uniform and so anchors on nothing. It is *not* a prior: the
+# `N/WN` ratio sums to one over the sheets for any variance, so the circular law stays
+# exactly uniform. The variance only sets how sharply the window picks the principal
+# sheet; 1 rad² suppresses the neighbouring sheet by `exp(−(2π)²/2) ≈ 3e-9` while
+# staying wide enough to cover `(−π, π]` smoothly.
+const _SHEET_WINDOW_VAR = 1.0
+
+"""
+    _init_sheet_logweight(init, p, x1)
+
+Log of the sheet weight of a wrapped chain's *first* free point. It has no earlier chain
+value to anchor on, so the window is centered at zero; as for `_sheet_logweight`, the
+weights of its sheets sum to exactly one, leaving the uniform circular initial law
+untouched.
+"""
+@inline function _init_sheet_logweight(init, p, x1)
+    Q = oftype(float(x1), _SHEET_WINDOW_VAR)
+    return _normal_logpdf(x1, Q) - _wn_logpdf(x1, Q)
+end
 
 # ----- initial distributions p(x(t₁)) ------------------------------------------
 

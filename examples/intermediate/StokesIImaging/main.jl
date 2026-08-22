@@ -133,15 +133,17 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 
 # We set `centered = true` for the amplitude chains, which can help with mixing/
 # divergences in HMC sampling when every gain is strongly data-constrained. The wrapped
-# phase chains default to a circular angle embedding (two latent reals per phase), whose
-# flat coordinates carry no 2π ambiguity — the robust choice. When the data constrain
-# every phase tightly, adding `centered = true` to the phase prior as well (raw angles as
-# coordinates) halves the phase dimension and typically mixes better.
+# phase chains are centered by default: the coordinates are the raw angles, one per free
+# phase. Those coordinates are made proper by sheet weights, so the sampler sees a single
+# mode rather than the 2π-shifted copies the phase periodicity would otherwise produce,
+# and the circular model itself is exactly unchanged. Passing `centered = false` instead
+# embeds each phase as two latent reals, which removes the sheet structure entirely at
+# twice the phase dimension.
 
 # To reduce repetition we define small helpers that build the amplitude and phase
 # processes,
 ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * 0.1)); centered = true)
-wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit(), centered = true)
+wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit())
 
 # Just like the sky model, we use the `@instrument` macro to bundle the Jones matrices and
 # their priors in one block. Each Jones term is a `@jones` block whose `name ~ ArrayPrior(...)`
