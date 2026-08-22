@@ -229,11 +229,14 @@ end
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw)                          # StationaryInit invalid
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw; init = GaussianInit(0.0, 1.0))
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), p; init = UniformInit())     # circular init on a real-line process
+        # wrapped processes default to the centered raw-angle coordinates ...
         sp = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit())
-        @test !sp.centered
-        # centered = true opts back into raw-angle coordinates
-        spc = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), centered = true)
-        @test spc.centered
+        @test sp.centered
+        # ... while real-line processes keep the whitened default
+        @test !GaussMarkovSitePrior(ScanSeg(), p).centered
+        # centered = false opts into the angle embedding
+        spe = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), centered = false)
+        @test !spe.centered
 
         # wrapped-normal density: matches a wide brute-force image sum in both regimes
         for Q in (0.05, 0.5, 2.0, 3.9, 4.1, 8.0, 50.0), Δ in (-3.0, -0.4, 0.0, 1.1, 2.9, 7.0)
@@ -327,8 +330,29 @@ end
         θr, _, _ = TV.transform_with(TV.LogJac(), node, zi, 1)
         @test θr ≈ θe
 
-        # centered = true keeps the raw angles as flat coordinates (identity, zero
-        # Jacobian, one coordinate per free phase)
+        # sheet weights: the reweighting that makes the raw-angle (centered) lift
+        # proper must leave the circular model *exactly* alone, i.e. the weights of the
+        # 2π sheets of any one coordinate sum to one.
+        for Q in (0.001, 0.05, 0.5, 2.0, 3.9, 4.1, 10.0, 50.0)
+            pq = Comrade.WrappedBrownian(D = Q)   # Δt = 1, so the transition variance is Q
+            for Δ in (0.0, 0.7, -2.5, 3.0, 6.0)
+                tot = sum(m -> exp(Comrade._sheet_logweight(pq, Δ + 2π * m, 0.0, 1.0, 0.0, 2π)), -40:40)
+                @test tot ≈ 1 rtol = 1.0e-12
+            end
+        end
+        for φ in (0.0, 1.0, -2.0, 3.1, 9.0)
+            tot = sum(m -> exp(Comrade._init_sheet_logweight(UniformInit(), pw, φ + 2π * m)), -40:40)
+            @test tot ≈ 1 rtol = 1.0e-12
+        end
+        # a 2π step is suppressed by exp(-(2π)²/2Q), so the lift has a single relevant
+        # mode whenever the process makes a full turn between points improbable
+        let pq = Comrade.WrappedBrownian(D = 0.1)
+            w(Δ) = Comrade._sheet_logweight(pq, Δ, 0.0, 1.0, 0.0, 2π)
+            @test w(2π) - w(0.0) ≈ -(2π)^2 / (2 * 0.1) rtol = 1.0e-6
+        end
+
+        # centered = true keeps the raw angles as flat coordinates (one coordinate per
+        # free phase) and adds the sheet weight
         specc = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], true)
         dc = Comrade.GaussMarkovChainDist((AA = specc,), Int[], Float64[], n)
         nodec = Comrade.PT.transport_node(dc, Comrade.PT.TVFlat())
@@ -336,10 +360,51 @@ end
         θin = 2π .* rand(rng4, n) .- π
         θc, ℓcj, _ = TV.transform_with(TV.LogJac(), nodec, θin, 1)
         @test θc ≈ θin
-        @test iszero(ℓcj)
+        @test ℓcj ≈ Comrade._init_sheet_logweight(UniformInit(), pw, θin[1]) +
+            sum(k -> Comrade._sheet_logweight(pw, θin[k], θin[k - 1], ts[k] - ts[k - 1], 0.0, 2π), 2:n)
+        # coordinates outside (−π, π] wrap to angles, and the lift is no longer
+        # 2π-periodic: it decays, so the flat density is proper. The baseline has to sit
+        # on the *favoured* sheet for that comparison to mean anything: `θin` is uniform
+        # on the circle, so its raw steps routinely exceed π and are already suppressed —
+        # from there, adding 2π to a coordinate can move it onto a better sheet and
+        # *raise* the weight. A smooth coordinate vector (every raw step well inside one
+        # sheet) is the favoured unwrapping of its own angles.
+        θsm = collect(0.25 .* (1:n) .- 1.0)
+        _, ℓsm, _ = TV.transform_with(TV.LogJac(), nodec, θsm, 1)
+        θshift = copy(θsm)
+        θshift[3] += 2π
+        θw, ℓw, _ = TV.transform_with(TV.LogJac(), nodec, θshift, 1)
+        @test θw ≈ [Comrade._wrap_angle(v) for v in θshift]
+        @test ℓw < ℓsm - 10
+        # the inverse *unwraps*: it puts every point on the sheet the weights favour, so
+        # every step lands in (−π, π] and `transform ∘ inverse` returns the same angles
         zc = zeros(n)
         TV.inverse_at!(zc, 1, nodec, θc)
-        @test zc ≈ θin
+        @test all(k -> abs(zc[k] - zc[k - 1]) ≤ π + 1.0e-12, 2:n)
+        θz, _, _ = TV.transform_with(TV.LogJac(), nodec, zc, 1)
+        @test θz ≈ θc
+        # transform ∘ inverse is the identity on wrapped angles, also with scattered
+        # reference-fixed points, and the sheet weights still sum to one over the whole
+        # 2π lattice — the pushforward onto the circle is exactly the chain density
+        for (fpos, fvals) in ((Int[], Float64[]), ([2], [0.4]), ([1, 4], [0.0, -1.2]))
+            sp5 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), 1:5, ts[1:5], fpos, true)
+            d5 = Comrade.GaussMarkovChainDist((AA = sp5,), collect(fpos), fvals, 5)
+            nd5 = Comrade.PT.transport_node(d5, Comrade.PT.TVFlat())
+            nf = TV.dimension(nd5)
+            @test nf == 5 - length(fpos)
+            z5 = 0.5 .* randn(rng4, nf)
+            y5, _, _ = TV.transform_with(TV.LogJac(), nd5, z5, 1)
+            zi5 = zeros(nf)
+            TV.inverse_at!(zi5, 1, nd5, y5)
+            yr5, _, _ = TV.transform_with(TV.LogJac(), nd5, zi5, 1)
+            @test yr5 ≈ y5
+            lat = map(Iterators.product(ntuple(_ -> (-4):4, nf)...)) do m
+                ys, ℓs, _ = TV.transform_with(TV.LogJac(), nd5, z5 .+ 2π .* collect(m), 1)
+                return logpdf(d5, ys) + ℓs
+            end
+            mx = maximum(lat)
+            @test mx + log(sum(l -> exp(l - mx), lat)) ≈ logpdf(d5, y5) atol = 1.0e-9
+        end
     end
 
     dvis = _gm_test_data()
@@ -847,7 +912,8 @@ end
 
     @testset "WrappedBrownian phase posterior" begin
         # a fully circular phase prior: UniformInit absorbs the per-track offset, so no
-        # separate circular offset term is needed
+        # separate circular offset term is needed. Wrapped chains default to the centered
+        # raw-angle coordinates, made proper by the sheet weights.
         @instrument function gmint_wb()
             return @jones begin
                 gp ~ ArrayPrior(
@@ -862,26 +928,27 @@ end
         @test all(h -> keys(h) == (:D,), values(s.instrument.gp.hyperparams))
         @test isfinite(logdensityof(post, s))
 
-        # exactly invariant under a 2π shift of any single free phase
+        # the *model* is exactly invariant under a 2π shift of any single free phase —
+        # the sheet weights live in the flat lift and leave this untouched
         freeinds = setdiff(1:length(post.prior.instrument.gp.dists), post.prior.instrument.gp.dists.fixedinds)
         s2 = deepcopy(s)
         parent(s2.instrument.gp.params)[first(freeinds)] += 2π
         @test logdensityof(post, s2) ≈ logdensityof(post, s)
 
         tp = asflat(post)
-        # each free phase contributes two latent reals (angle embedding), plus one D per
-        # site and the sky's dimensions
+        # one coordinate per free phase, plus one D per site and the sky's dimensions
         dchain = post.prior.instrument.gp.dists
         nfreew = length(dchain) - length(dchain.fixedinds)
         nsites = length(keys(s.instrument.gp.hyperparams))
         skydim = LogDensityProblems.dimension(asflat(VLBIPosterior(skym, dvis)))
-        @test LogDensityProblems.dimension(tp) == skydim + nsites + 2 * nfreew
+        @test LogDensityProblems.dimension(tp) == skydim + nsites + nfreew
 
         xf = prior_sample(rng, tp)
         @test isfinite(logdensityof(tp, xf))
+        # the coloring wraps, so the roundtrip identity is `transform ∘ inverse` on the
+        # angles (the sheet an angle came from is not recoverable from it)
         y = Comrade.transform(tp, xf)
-        # the angle embedding is not injective (the latent radius is dropped on inverse),
-        # so the roundtrip identity holds through the constrained space, not the latent
+        @test all(θ -> -π - 1.0e-12 ≤ θ ≤ π + 1.0e-12, parent(y.instrument.gp.params))
         y2 = Comrade.transform(tp, Comrade.inverse(tp, y))
         @test parent(y2.instrument.gp.params) ≈ parent(y.instrument.gp.params)
         @test all(
@@ -890,6 +957,17 @@ end
                 values(y2.instrument.gp.hyperparams), values(y.instrument.gp.hyperparams)
             )
         )
+        # The flat lift is *proper*: the sheet weights break the exact 2π periodicity a
+        # raw-angle coordinate would otherwise have, so a 2π shift of a free phase
+        # coordinate is strongly suppressed rather than free, and the density decays in
+        # the tails instead of repeating forever.
+        jc = LogDensityProblems.dimension(tp)
+        ℓ0 = logdensityof(tp, xf)
+        shift(δ) = (z = copy(xf); z[jc] += δ; logdensityof(tp, z))
+        @test shift(2π) < ℓ0 - 10
+        @test shift(-2π) < ℓ0 - 10
+        @test shift(20π) < shift(2π)
+        @test shift(-20π) < shift(-2π)
         # wrapped chains refuse the Std transports
         @test_throws ArgumentError ascube(post)
 
@@ -902,41 +980,39 @@ end
             @test gz ≈ gfd rtol = 1.0e-5
         end
 
-        @testset "centered raw-angle option" begin
-            @instrument function gmint_wbc()
+        @testset "angle-embedding option" begin
+            @instrument function gmint_wbe()
                 return @jones begin
                     gp ~ ArrayPrior(
-                        GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = Exponential(1.0)); init = UniformInit(), centered = true);
+                        GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = Exponential(1.0)); init = UniformInit(), centered = false);
                         refant = SEFDReference(0.0)
                     )
                     return SingleStokesGain(exp(1im * gp))
                 end
             end
-            postc = VLBIPosterior(skym, gmint_wbc(), dvis)
-            sc = prior_sample(rng, postc)
-            @test isfinite(logdensityof(postc, sc))
-            tpc = asflat(postc)
-            # one coordinate per free phase (no embedding), same D and sky dims
-            @test LogDensityProblems.dimension(tpc) == skydim + nsites + nfreew
-            xc = prior_sample(rng, tpc)
-            @test isfinite(logdensityof(tpc, xc))
-            # the centered transport is bijective, so the latent roundtrip is exact
-            yc = Comrade.transform(tpc, xc)
-            @test Comrade.inverse(tpc, yc) ≈ xc
-            # the flat coordinates are the angles themselves: exactly 2π-periodic in
-            # every free phase (the identity transport carries the shift through)
-            fic = setdiff(1:length(postc.prior.instrument.gp.dists), postc.prior.instrument.gp.dists.fixedinds)
-            yc2 = deepcopy(yc)
-            parent(yc2.instrument.gp.params)[first(fic)] += 2π
-            @test logdensityof(tpc, Comrade.inverse(tpc, yc2)) ≈ logdensityof(tpc, xc)
-            @test_throws ArgumentError ascube(postc)
+            poste = VLBIPosterior(skym, gmint_wbe(), dvis)
+            se = prior_sample(rng, poste)
+            @test isfinite(logdensityof(poste, se))
+            tpe = asflat(poste)
+            # each free phase contributes two latent reals, same D and sky dims
+            @test LogDensityProblems.dimension(tpe) == skydim + nsites + 2 * nfreew
+            xe = prior_sample(rng, tpe)
+            @test isfinite(logdensityof(tpe, xe))
+            # the angle embedding is not injective (the latent radius is dropped on
+            # inverse), so the roundtrip identity holds through the constrained space
+            ye = Comrade.transform(tpe, xe)
+            ye2 = Comrade.transform(tpe, Comrade.inverse(tpe, ye))
+            @test parent(ye2.instrument.gp.params) ≈ parent(ye.instrument.gp.params)
+            # the embedding has no sheet structure at all: the flat target is a function
+            # of the angle only, so scaling a latent pair is pure radial freedom
+            @test_throws ArgumentError ascube(poste)
 
-            fc = let tpc = tpc
-                x -> logdensityof(tpc, x)
+            fe = let tpe = tpe
+                x -> logdensityof(tpe, x)
             end
-            gzc, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(fc), xc)
-            gfdc, = grad(central_fdm(5, 1), fc, xc)
-            @test gzc ≈ gfdc rtol = 1.0e-5
+            gze, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(fe), xe)
+            gfde, = grad(central_fdm(5, 1), fe, xe)
+            @test gze ≈ gfde rtol = 1.0e-5
         end
     end
 

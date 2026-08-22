@@ -21,22 +21,37 @@ for that site. `caltable`/`plotcaltable` accept the hierarchical sample directly
 elementwise postprocessing (e.g. `exp.(...)` of log-gains) use the `params` field, i.e.
 `exp.(x.instrument.lg.params)`.
 
-By default the prior is *whitened* (non-centered): each free point's latent coordinate is
-an iid standard variate that is colored through the chain's exact conditional moments.
-This removes the hyperparameter-gain funnel when hyperparameters are fitted and makes the
-transport to the Std spaces exact, so both `asflat` and `ascube` work. Set
-`centered = true` to instead use the gain values themselves as coordinates (the centered
-parameterization), which can mix better when every point is strongly data-constrained;
-centered priors support `asflat` only. Wrapped (circular) processes default to a third
-parameterization: each free phase is embedded as two latent reals through the same angle
-transform used by `DiagonalVonMises`, so the flat coordinates carry no `2π` ambiguity (a
-phase wrap is a continuous winding of the latent point, never a jump) and HMC warmup
-adaptation is robust even for weakly constrained phases. The embedding doubles the phase
-dimension and its per-pair geometry is a rotated ellipse a diagonal mass matrix cannot
-capture, so when every phase is strongly data-constrained `centered = true` mixes better:
-it uses the raw angles as coordinates, at the cost of exactly `2π`-periodic flat
-coordinates — a sampler sheet-hop on a weakly constrained point can destabilize warmup
-variance adaptation. Wrapped chains support `asflat` only in either form.
+The default value of `centered` depends on the process, because the trade-off does.
+
+For a **real-line process** (`OrnsteinUhlenbeck`, `BrownianMotion`) the default is
+`centered = false`, i.e. the prior is *whitened* (non-centered): each free point's latent
+coordinate is an iid standard variate that is colored through the chain's exact
+conditional moments. This removes the hyperparameter-gain funnel when hyperparameters are
+fitted and makes the transport to the Std spaces exact, so both `asflat` and `ascube`
+work. Set `centered = true` to instead use the gain values themselves as coordinates,
+which can mix better when every point is strongly data-constrained; centered priors
+support `asflat` only.
+
+For a **wrapped (circular) process** ([`WrappedBrownian`](@ref)) there is no whitening —
+a wrapped chain has no Gaussian conditionals — so the choice is between raw angles and an
+embedding, and the default is `centered = true`: one coordinate per free phase, the angle
+itself. A wrapped chain's density is exactly `2π`-periodic, so simply *calling* a real
+coordinate the angle would make the flat target improper — an infinite lattice of
+identical modes, `2π` apart in every coordinate, which a sampler drifts through and which
+wrecks warmup variance adaptation. The raw-angle lift therefore carries a *sheet weight*:
+each free phase is reweighted by `N(δ; 0, Q) / WN(δ; Q)`, where `δ` is its step onto the
+previous chain value and `Q` that step's variance. Those weights sum to exactly one over
+the `2π` sheets, so the circular model is untouched — no mass is added, moved, or lost —
+while the flat target becomes the proper *unwrapped* Gaussian random walk, in which a
+`2π` step costs `exp(−(2π)²/2Q)`.
+
+`centered = false` on a wrapped process selects the alternative: each free phase is
+embedded as two latent reals through the same angle transform used by `DiagonalVonMises`.
+The embedding is the one parameterization with no sheet structure at all (a phase wrap is
+a continuous winding of the latent point), so it is the safe fallback if a fit ever does
+show sheet-related pathology — at the cost of twice the phase dimension and a per-pair
+rotated-ellipse geometry a diagonal mass matrix cannot capture. Wrapped chains support
+`asflat` only in either form.
 
 This prior is intended for both gain amplitudes and phases. For phases the preferred
 process is [`WrappedBrownian`](@ref) with `init = UniformInit()`: the prior is then
@@ -85,9 +100,15 @@ struct GaussMarkovSitePrior{S <: TimeSegmentation, P <: AbstractGaussMarkovProce
     centered::Bool
 end
 
+# Wrapped (circular) chains default to the centered raw-angle coordinates; real-line
+# chains default to the whitened ones. The two defaults differ because the trade-off
+# does: whitening a real-line chain removes the hyperparameter funnel and buys the Std
+# transports, while a wrapped chain has no whitening (no Gaussian conditionals) and its
+# alternative — the angle embedding — costs twice the dimension for a geometry a diagonal
+# mass matrix cannot fit.
 function GaussMarkovSitePrior(
         seg::TimeSegmentation, process::AbstractGaussMarkovProcess;
-        init::AbstractInitialPrior = StationaryInit(), centered = false
+        init::AbstractInitialPrior = StationaryInit(), centered = is_wrapped(process)
     )
     _check_init(init, process)
     return GaussMarkovSitePrior(seg, process, init, centered)
@@ -382,6 +403,7 @@ function _free_point_tables(inds, ts, fixedpos)
     dtl = T[]
     mskl = T[]
     lfree = T[]
+    pofs = Int[]
     fidx = Int[]
     dtf = T[]
     mskf = T[]
@@ -406,6 +428,14 @@ function _free_point_tables(inds, ts, fixedpos)
             push!(mskl, zero(T))
             push!(lfree, zero(T))
         end
+        # Offset, within this chain's contiguous latent segment, of the free point whose
+        # coordinate is this one's *left* neighbour. Free points take one coordinate each
+        # in coordinate order, so that is `k - 2` (0-based) when the left chain point is
+        # itself free. When it is not (reference-fixed, or the chain opening), the read is
+        # masked off, so the offset points at this point's own coordinate: a static,
+        # always-in-bounds index, which a computed `max(k, 2)` would not be. Only the
+        # centered wrapped lift uses this.
+        push!(pofs, isone(last(lfree)) ? length(tgt) - 2 : length(tgt) - 1)
         if jfix ≤ nfix
             b = fixedpos[jfix]
             push!(fidx, inds[b])
@@ -417,7 +447,7 @@ function _free_point_tables(inds, ts, fixedpos)
             push!(mskf, zero(T))
         end
     end
-    return (; tgt, lidx, dtl, mskl, lfree, fidx, dtf, mskf, hasfix = nfix > 0)
+    return (; tgt, lidx, dtl, mskl, lfree, pofs, fidx, dtf, mskf, hasfix = nfix > 0)
 end
 
 _nfree(spec::MarkovChainSpec) = length(spec.free.tgt)
@@ -656,12 +686,58 @@ function _color_chain_wrapped!(flag, y, x, index, spec::MarkovChainSpec)
     return ℓ, index + 2n
 end
 
+# Wrapped chains, centered (raw-angle) coordinates: one flat coordinate `φ` per free
+# phase, the angle is `φ` wrapped to `(−π, π]`, and the flat density carries the sheet
+# weight of `_sheet_logweight` so the lift is *proper* — see the sheet-weight section of
+# `processes.jl` for why the reweighting leaves the circular model exactly unchanged.
+#
+# The sheet anchor of free point `k` is the value the chain density itself conditions on:
+# the previous free point's coordinate when the left chain neighbour is free (a
+# *contiguous* read of `x`, since free points take one coordinate each in order), the
+# reference-fixed value when it is not, and — for the point that opens the chain — the
+# zero-centered window of `_init_sheet_logweight`. All three are sheet-independent, so
+# the sheets of `φₖ` still sum to one. Reading the anchor from `x` rather than from the
+# colored `y` is what keeps this a pointwise loop: there is no recurrence to resolve, so
+# it raises under Reactant exactly like the other stage-then-scatter walkers.
+function _color_chain_wrapped_centered!(flag, y, x, index, spec::MarkovChainSpec, hp)
+    free = spec.free
+    n = _nfree(spec)
+    p = materialize(spec.process, _selecthp(hp, spec.hpsel))
+    μ = _process_mean(p)
+    T2π = convert(eltype(x), 2π)
+    ℓ = zero(eltype(x))
+    θs = similar(y, n)
+    @trace track_numbers = false for k in 1:n
+        φ = rgetindex(x, index + k - 1)
+        ml = rgetindex(free.mskl, k)
+        lf = rgetindex(free.lfree, k)
+        # Static table rather than a computed index: `free.pofs` points at the previous
+        # free point's coordinate, or (masked off) at this point's own.
+        prev = rgetindex(x, index + rgetindex(free.pofs, k))
+        anchor = lf * prev + (1 - lf) * ml * rgetindex(y, rgetindex(free.lidx, k))
+        # Both branches are evaluated and blended by the static mask so the loop body
+        # stays single-path; the dummy gap of a chain-opening point is a finite 1 hour,
+        # so the unused transition weight is finite rather than NaN.
+        wt = _sheet_logweight(p, φ, anchor, rgetindex(free.dtl, k), μ, T2π)
+        w0 = _init_sheet_logweight(spec.init, p, φ)
+        ℓ += ml * wt + (1 - ml) * w0
+        rsetindex!(θs, _wrap_angle(φ), k)
+    end
+    scatter_values!(y, free.tgt, θs)
+    flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + n
+    return ℓ, index + n
+end
+
 function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::MarkovChainSpec, hp)
     free = spec.free
     n = _nfree(spec)
     ℓ0 = TV.logjac_zero(flag, eltype(x))
     n == 0 && return ℓ0, index, sidx
     if spec.centered
+        if is_wrapped(spec.process)
+            ℓc, index = _color_chain_wrapped_centered!(flag, y, x, index, spec, hp)
+            return ℓc, index, sidx
+        end
         # A straight copy of a contiguous flat segment to the scattered chain positions:
         # one vectorized scatter (a scattered-write loop would serialize under Reactant).
         scatter_values!(y, free.tgt, view(x, index:(index + n - 1)))
@@ -712,6 +788,36 @@ end
     return _whiten_specs_flat!(x, index, y, Base.tail(specs), hp)
 end
 
+# Inverse of the centered wrapped lift. The coloring stores wrapped angles, so the
+# coordinates are recovered by *unwrapping* the chain: each free point's coordinate is
+# its own sheet anchor plus the wrapped step onto it, which places every point on the
+# sheet the coloring's weight favours (steps within `(−π, π]`) instead of on whatever
+# sheet the stored angle happened to land. Anchoring on the previous *coordinate* makes
+# this a first-order recurrence, resolved with the same `affine_scan!` as the coloring
+# rather than a loop-carried traced loop. `transform ∘ inverse` is the identity on
+# wrapped angles; `inverse ∘ transform` is not (the sheet is not recoverable from the
+# angle), as for the angle embedding.
+function _whiten_chain_wrapped_centered!(x, index, y, spec::MarkovChainSpec)
+    free = spec.free
+    n = _nfree(spec)
+    a = similar(x, n)
+    c = similar(x, n)
+    @trace track_numbers = false for k in 1:n
+        θ = rgetindex(y, rgetindex(free.tgt, k))
+        ml = rgetindex(free.mskl, k)
+        lf = rgetindex(free.lfree, k)
+        # zero for a chain-opening point, whose window is centered at zero
+        yl = ml * rgetindex(y, rgetindex(free.lidx, k))
+        rsetindex!(a, lf, k)
+        rsetindex!(c, _wrap_angle(θ - yl) + (1 - lf) * yl, k)
+    end
+    affine_scan!(a, c)
+    @trace track_numbers = false for k in 1:n
+        rsetindex!(x, rgetindex(c, k), index + k - 1)
+    end
+    return index + n
+end
+
 function _whiten_chain_flat!(x, index, y, spec::MarkovChainSpec, hp)
     free = spec.free
     if is_wrapped(spec.process) && !spec.centered
@@ -729,6 +835,7 @@ function _whiten_chain_flat!(x, index, y, spec::MarkovChainSpec, hp)
     end
     if spec.centered
         n = _nfree(spec)
+        is_wrapped(spec.process) && return _whiten_chain_wrapped_centered!(x, index, y, spec)
         @trace track_numbers = false for k in 1:n
             rsetindex!(x, rgetindex(y, rgetindex(free.tgt, k)), index + k - 1)
         end
