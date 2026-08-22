@@ -1116,11 +1116,16 @@ end
 
 # ----- construction from ArrayPrior --------------------------------------------
 
-# Chain times in hours, relative to the first chain point (handles multi-day tracks via
-# the mjd field).
-function _chain_times(times, inds)
-    t1 = times[first(inds)]
-    ts = map(i -> (mjd(times[i]) - mjd(t1)) * 24.0 + (_center(times[i]) - _center(t1)), inds)
+# Chain times in *absolute* UTC hours — the same clock as the data's `Ti` field — with
+# multi-day tracks continued past 24 h through the `mjd` field. The origin is the whole
+# array's first day, shared by every chain, so a chain's times are directly comparable
+# both to the data and between sites. (They used to be relative to each chain's own first
+# point, which made `spec.ts` silently unmatchable against `Ti` and incomparable across
+# sites.) Only *gaps* reach the process — `transition_moments`, the bridge, and the
+# `Δ0` of `_first_point_term` are all differences — so the origin never enters the
+# density; this is purely an interface property.
+function _chain_times(times, inds, mjd0)
+    ts = map(i -> (mjd(times[i]) - mjd0) * 24.0 + _center(times[i]), inds)
     for i in (firstindex(ts) + 1):lastindex(ts)
         ts[i] > ts[i - 1] || throw(
             ArgumentError(
@@ -1198,10 +1203,12 @@ function build_markov_observed(d::ArrayPrior, site_dists::NamedTuple, smap::Site
     # Set membership: `in(fixedinds)` over a Vector is O(|fixedinds|) per element, which
     # at IntegSeg scale makes this loop quadratic in the number of time stamps.
     fixedset = Set(fixedinds)
+    # shared origin for every chain (see `_chain_times`)
+    mjd0 = minimum(mjd, smap.times)
     chains = map(lookup(smap)) do inds
         s = smap.sites[first(inds)]
         sp = getproperty(site_dists, s)
-        ts = _chain_times(smap.times, inds)
+        ts = _chain_times(smap.times, inds, mjd0)
         fixedpos = findall(in(fixedset), inds)
         return _chainspec(sp, s, collect(Int, inds), ts, fixedpos)
     end

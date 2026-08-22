@@ -1026,6 +1026,38 @@ end
         end
     end
 
+    @testset "chain times are absolute and on the data's clock" begin
+        # `spec.ts` must live on the same clock as the data's `Ti`, with one origin
+        # shared by every site. They used to be hours relative to each chain's *own*
+        # first point, so `ts[1]` was always 0.0, `spec.ts` could not be matched against
+        # `Ti`, and two sites' times were not comparable to each other.
+        dtab = Comrade.datatable(arrayconfig(dvis))
+        function _specs(seg, centered)
+            sp = GaussMarkovSitePrior(seg, Comrade.WrappedBrownian(D = 1.0); init = UniformInit(), centered = centered)
+            op = Comrade.ObservedArrayPrior(ArrayPrior(sp), arrayconfig(dvis))
+            return Comrade.chainspecs(op.dists)
+        end
+        for (seg, exact) in ((IntegSeg(), true), (ScanSeg(), false))
+            specst = _specs(seg, true)
+            for (site, sp) in pairs(specst)
+                st = sort(unique(dtab.Ti[findall(b -> site in b, dtab.sites)]))
+                # absolute: no chain starts at 0 here (the data start at ~0.58 h), and
+                # every chain time lies inside that site's observed time span
+                @test !iszero(first(sp.ts))
+                @test all(t -> minimum(st) - 1.0e-8 ≤ t ≤ maximum(st) + 1.0e-8, sp.ts)
+                @test issorted(sp.ts) && allunique(sp.ts)
+                if exact
+                    # one parameter per integration: chain times ARE datum times
+                    @test all(t -> any(u -> isapprox(u, t; atol = 1.0e-8), st), sp.ts)
+                    @test first(sp.ts) ≈ first(st)
+                end
+            end
+            # one shared clock: sites observing together agree on a scan's time
+            allts = [Set(round.(collect(sp.ts); digits = 8)) for sp in values(specst)]
+            @test any(!isempty, [intersect(allts[a], allts[b]) for a in 1:length(allts) for b in (a + 1):length(allts)])
+        end
+    end
+
     @testset "phase=true errors" begin
         @instrument function gmint_phase()
             return @jones begin
