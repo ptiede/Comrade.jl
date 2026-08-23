@@ -341,38 +341,28 @@ end
 # Log-density of `N(Δ; 0, Q)`, the unwrapped counterpart of `_wn_logpdf`.
 @inline _normal_logpdf(Δ, Q) = -(abs2(Δ) / Q + log(oftype(float(Δ), 2π) * Q)) / 2
 
-"""
-    _sheet_logweight(p, xi, xp, Δt, μ, T2π)
-
-Log of the sheet weight of a wrapped chain's free point at `xi`, whose flat lift is
-anchored on the (sheet-independent) previous chain value `xp` a gap `Δt` earlier. This is
-`log N(Δ; 0, Q) − log WN(Δ; Q)` for the process's own transition law, so summing
-`exp` of it over the `2π` sheets of `xi` gives exactly one.
-"""
+#
+#    _sheet_logweight(p, xi, xp, Δt, μ, T2π)
+#
+#Log of the sheet weight of a wrapped chain's free point at `xi`, whose flat lift is
+#anchored on the (sheet-independent) previous chain value `xp` a gap `Δt` earlier. This is
+#`log N(Δ; 0, Q) − log WN(Δ; Q)` for the process's own transition law, so summing
+#`exp` of it over the `2π` sheets of `xi` gives exactly one.
 @inline function _sheet_logweight(p::AbstractGaussMarkovProcess, xi, xp, Δt, μ, T2π)
     Φ, Q = transition_moments(p, Δt)
     return _normal_logpdf(xi - μ - Φ * (xp - μ), Q) -
         _transition_logpdf(p, xi, xp, Δt, μ, T2π)
 end
 
-# Variance of the Gaussian sheet window placed on a chain-opening free phase, whose
-# circular marginal is uniform and so anchors on nothing. It is *not* a prior: the
-# `N/WN` ratio sums to one over the sheets for any variance, so the circular law stays
-# exactly uniform. The variance only sets how sharply the window picks the principal
-# sheet; 1 rad² suppresses the neighbouring sheet by `exp(−(2π)²/2) ≈ 3e-9` while
-# staying wide enough to cover `(−π, π]` smoothly.
-const _SHEET_WINDOW_VAR = 1.0
 
-"""
-    _init_sheet_logweight(init, p, x1)
-
-Log of the sheet weight of a wrapped chain's *first* free point. It has no earlier chain
-value to anchor on, so the window is centered at zero; as for `_sheet_logweight`, the
-weights of its sheets sum to exactly one, leaving the uniform circular initial law
-untouched.
-"""
+#    _init_sheet_logweight(init, p, x1)
+#
+#Log of the sheet weight of a wrapped chain's *first* free point. It has no earlier chain
+#value to anchor on, so the window is centered at zero; as for `_sheet_logweight`, the
+#weights of its sheets sum to exactly one, leaving the uniform circular initial law
+#untouched.
 @inline function _init_sheet_logweight(init, p, x1)
-    Q = oftype(float(x1), _SHEET_WINDOW_VAR)
+    Q = one(eltype(x1))
     return _normal_logpdf(x1, Q) - _wn_logpdf(x1, Q)
 end
 

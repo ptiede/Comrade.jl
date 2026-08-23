@@ -267,7 +267,7 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # and `IntegSeg()` (changes each integration time). For released EHT data the gains are
 # stable over a scan, while the d-terms are stable over the track.
 ou_amp(σ0, τ0) = GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); centered = true)
-wb_phase(τ0; init=UniformInit()) = GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = VLBIInverseGamma(1.0, -log(0.1)*τ0)); init = init)
+wb_phase(τ0; init = UniformInit()) = GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = VLBIInverseGamma(1.0, -log(0.1) * τ0)); init = init)
 
 
 @instrument function instrument()
@@ -276,7 +276,7 @@ wb_phase(τ0; init=UniformInit()) = GaussMarkovSitePrior(ScanSeg(), WrappedBrown
         lgR ~ ArrayPrior(ou_amp(0.2, 0.5); LM = ou_amp(1.0, 0.5))
         lgrat ~ ArrayPrior(ou_amp(0.2, 8.0))
         gpR ~ ArrayPrior(wb_phase(0.5); refant = SEFDReference(0.0))
-        gprat ~ ArrayPrior(wb_phase(12.0; init=FixedInit(0.0)); refant = SingleReference(:AA, 0.0))
+        gprat ~ ArrayPrior(wb_phase(12.0; init = FixedInit(0.0)); refant = SingleReference(:AA, 0.0))
         gprat0 ~ ArrayPrior(IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(0.2^2))); refant = SingleReference(:AA, 0.0))
         gR = exp(complex(lgR, gpR))
         gL = gR * exp(complex(lgrat, gprat + gprat0))
