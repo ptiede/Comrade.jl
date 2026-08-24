@@ -125,11 +125,12 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 # so a real-line (Gaussian) prior on a phase creates spurious posterior modes at 2π shifts.
 # We therefore use the circular process [`WrappedBrownian`](@ref), whose wrapped-normal
 # transitions make the prior exactly 2π-periodic — all wrapped modes are equivalent, and
-# the fitted diffusion coefficient `D` is unbiased by phase wraps. In the visibility
-# domain the process decorrelates as `exp(-D*Δt/2)`, so `2/D` is the phase coherence time
-# in hours. Starting each chain uniformly on the circle (`init = UniformInit()`) absorbs
-# the per-track phase offset, so no separate offset term is needed. To remove the trivial
-# station-phase degeneracy we pin one site's phases to zero.
+# the fitted coherence time `τ` is unbiased by phase wraps. In the visibility domain the
+# process decorrelates as `exp(-Δt/τ)`, so `τ` is the phase coherence time in hours — the
+# same units as the amplitude chain's `τ`. Starting each chain uniformly on the circle
+# (`init = UniformInit()`) absorbs the per-track phase offset, so no separate offset term
+# is needed. To remove the trivial station-phase degeneracy we pin one site's phases to
+# zero.
 
 # We set `centered = true` for the amplitude chains, which can help with mixing/
 # divergences in HMC sampling when every gain is strongly data-constrained. The wrapped
@@ -143,7 +144,7 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 # To reduce repetition we define small helpers that build the amplitude and phase
 # processes,
 ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * 0.1)); centered = true)
-wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit())
+wb_phase(τ0) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); init = UniformInit())
 
 # Just like the sky model, we use the `@instrument` macro to bundle the Jones matrices and
 # their priors in one block. Each Jones term is a `@jones` block whose `name ~ ArrayPrior(...)`
@@ -151,7 +152,7 @@ wb_phase() = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponentia
 @instrument function instrument()
     return @jones begin
         lg ~ ArrayPrior(ou_amp(0.2); LM = ou_amp(0.5))
-        gp ~ ArrayPrior(wb_phase(); refant = SingleReference(:AA, 0.0))
+        gp ~ ArrayPrior(wb_phase(0.5); refant = SingleReference(:AA, 0.0))
         ## SingleStokesGain is a single complex gain for each site.
         return SingleStokesGain(exp(complex(lg, gp)))
     end
@@ -226,7 +227,7 @@ plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 # holding the process hyperparameters, nested under each site's name. Let's look at the
 # fitted amplitude variability `σ` and correlation time `τ` (in hours) for each site,
 xopt.instrument.lg.hyperparams
-# and the per-site phase diffusion coefficients (`2/D` is the phase coherence time in hours)
+# and the per-site phase coherence times `τ` (also in hours)
 xopt.instrument.gp.hyperparams
 # !!! warning
 #     Joint MAP estimates of hierarchical hyperparameters are systematically biased: the

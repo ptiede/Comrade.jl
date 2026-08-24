@@ -257,17 +257,22 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 #     `adjoint(R)` in the composition. This is especially important for interferometers
 #     using a mixture of linear and circular feeds.
 
-# For the instrument prior we use IID priors for the gain amplitudes and d-terms, and
-# circular [`WrappedBrownian`](@ref) random walks for the gain phases. The R-feed phase
-# starts uniform on the circle (`UniformInit()`), which absorbs the per-track phase
-# offset; the R/L phase ratio is physically close to zero, so its chain starts pinned
-# there (`FixedInit(0.0)`) and drifts slowly (small diffusion `D`; `2/D` is the coherence
-# time in hours). The `IIDSitePrior`
-# segments are `ScanSeg()` (independent per scan), `TrackSeg()` (constant over the track),
-# and `IntegSeg()` (changes each integration time). For released EHT data the gains are
-# stable over a scan, while the d-terms are stable over the track.
+# For the instrument prior we use IID priors for the d-terms and circular random walks for
+# the gain phases. The two phases are physically different and get different processes.
+# The R-feed phase is an *absolute* phase with no preferred value, so it is a
+# [`WrappedBrownian`](@ref) chain starting uniform on the circle (`UniformInit()`), which
+# also absorbs the per-track phase offset. The R/L phase *ratio* is an instrumental offset
+# that sits near zero and only drifts, so it is a [`WrappedOrnsteinUhlenbeck`](@ref) chain:
+# the circular mean-reverting process, whose `WN(0, σ²)` marginal keeps the ratio phase
+# near zero on a `τ`-hour reversion timescale. One such chain replaces what would otherwise
+# be a pinned `WrappedBrownian` walk plus a separate circular offset term — and, unlike
+# that pair, it has something actually holding the ratio phase in place over a long track.
+# The `IIDSitePrior` segments are `ScanSeg()` (independent per scan), `TrackSeg()`
+# (constant over the track), and `IntegSeg()` (changes each integration time). For released
+# EHT data the gains are stable over a scan, while the d-terms are stable over the track.
 ou_amp(σ0, τ0) = GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); centered = true)
-wb_phase(τ0; init = UniformInit()) = GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = VLBIInverseGamma(1.0, -log(0.1) * τ0)); init = init)
+wb_phase(τ0) = GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); init = UniformInit())
+wou_phase(σ0, τ0) = GaussMarkovSitePrior(ScanSeg(), WrappedOrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)))
 
 
 @instrument function instrument()
@@ -276,10 +281,9 @@ wb_phase(τ0; init = UniformInit()) = GaussMarkovSitePrior(ScanSeg(), WrappedBro
         lgR ~ ArrayPrior(ou_amp(0.2, 0.5); LM = ou_amp(1.0, 0.5))
         lgrat ~ ArrayPrior(ou_amp(0.2, 8.0))
         gpR ~ ArrayPrior(wb_phase(0.5); refant = SEFDReference(0.0))
-        gprat ~ ArrayPrior(wb_phase(12.0; init = FixedInit(0.0)); refant = SingleReference(:AA, 0.0))
-        gprat0 ~ ArrayPrior(IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(0.2^2))); refant = SingleReference(:AA, 0.0))
+        gprat ~ ArrayPrior(wou_phase(0.2, 12.0); refant = SingleReference(:AA, 0.0))
         gR = exp(complex(lgR, gpR))
-        gL = gR * exp(complex(lgrat, gprat + gprat0))
+        gL = gR * exp(complex(lgrat, gprat))
         return JonesG((gR, gL))
     end
     ## Leakage/d-terms (re-im parameterization), returning (dR, dL).

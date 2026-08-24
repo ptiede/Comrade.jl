@@ -1,4 +1,5 @@
-export AbstractGaussMarkovProcess, OrnsteinUhlenbeck, BrownianMotion, WrappedBrownian
+export AbstractGaussMarkovProcess, OrnsteinUhlenbeck, BrownianMotion, WrappedBrownian,
+    WrappedOrnsteinUhlenbeck
 export AbstractInitialPrior, StationaryInit, FixedInit, GaussianInit, UniformInit
 
 """
@@ -65,9 +66,10 @@ the process interface; there is no fallback.
 """
 function isstationary end
 
-# Whether the process lives on the circle rather than the real line. Wrapped processes
-# use density-level transitions (`_transition_logpdf`) instead of Gaussian moments and
-# support only the centered parameterization.
+# Whether the process lives on the circle rather than the real line. A wrapped process
+# reads its `transition_moments`/`stationary_moments` as *wrapped* normal rather than
+# normal (see `_marginal_logpdf`), has no Gaussian conditionals — hence no whitening — and
+# supports only `asflat`.
 is_wrapped(::AbstractGaussMarkovProcess) = false
 
 # Mean entering the transition law `x(t+Δ) | x(t) ~ N(μ + Φ(x(t)−μ), Q)`. Stationary
@@ -75,11 +77,32 @@ is_wrapped(::AbstractGaussMarkovProcess) = false
 # override with any finite value; it cancels out of every Φ = 1 formula.
 _process_mean(p::AbstractGaussMarkovProcess) = first(stationary_moments(p))
 
-# Transition log-density over a gap Δt. The default is the Gaussian law implied by
-# `transition_moments`; wrapped processes override at the density level.
-@inline function _transition_logpdf(p::AbstractGaussMarkovProcess, xi, xp, Δt, μ, T2π)
+# Mean of the transition law given the previous point, `μ + Φ(xp − μ)`. A wrapped
+# *mean-reverting* process takes the deviation along the shortest arc instead, so that its
+# law is `2π`-periodic in `xp` as well as in `xi` (see [`WrappedOrnsteinUhlenbeck`](@ref));
+# `WrappedBrownian` needs no override, since Φ ≡ 1 collapses this to `xp` itself.
+@inline _cond_mean(::AbstractGaussMarkovProcess, xp, Φ, μ) = μ + Φ * (xp - μ)
+
+# Whether `_cond_mean` depends on the previous point only through its *angle*, i.e. is
+# itself `2π`-periodic. True for the mean-reverting wrapped processes, whose drift is the
+# shortest arc; false for `WrappedBrownian`, whose transition mean is the previous point
+# itself and therefore carries that point's sheet. This is what decides whether the
+# centered lift's inverse is a pointwise map or a first-order recurrence.
+_periodic_mean(::AbstractGaussMarkovProcess) = false
+
+# Log-density of a deviation `δ` with variance `P` in whichever family the process lives:
+# the normal law on the real line, the wrapped normal on the circle. Dispatch is on the
+# `is_wrapped` trait through `Val`, which constant-folds for a concrete process, so the
+# traced loop bodies that call this stay single-path.
+@inline _marginal_logpdf(p::AbstractGaussMarkovProcess, δ, P) =
+    _marginal_logpdf(Val(is_wrapped(p)), δ, P)
+@inline _marginal_logpdf(::Val{false}, δ, P) = _normal_logpdf(δ, P)
+@inline _marginal_logpdf(::Val{true}, δ, P) = _wn_logpdf(δ, P)
+
+# Transition log-density over a gap Δt, from the process's own transition moments.
+@inline function _transition_logpdf(p::AbstractGaussMarkovProcess, xi, xp, Δt, μ)
     Φ, Q = transition_moments(p, Δt)
-    return -(abs2(xi - μ - Φ * (xp - μ)) / Q + log(T2π * Q)) / 2
+    return _marginal_logpdf(p, xi - _cond_mean(p, xp, Φ, μ), Q)
 end
 
 """
@@ -208,18 +231,19 @@ _process_mean(p::BrownianMotion) = zero(_paramtype(p))
 @inline transition_moments(p::BrownianMotion, Δt) = (one(Δt), p.D * Δt)
 
 """
-    WrappedBrownian(; D)
+    WrappedBrownian(; τ)
 
 Brownian motion on the circle: angular increments over a gap `Δt` (hours) are wrapped
-normal `WN(0, D*Δt)`, the wrap of [`BrownianMotion`](@ref) onto `(−π, π]`. This is the
+normal `WN(0, 2Δt/τ)`, the wrap of [`BrownianMotion`](@ref) onto `(−π, π]`. This is the
 natural correlated prior for gain *phases*: the prior is exactly `2π`-periodic, so the
 `2π`-shifted posterior modes that a real-line (Gaussian) phase prior produces are exactly
 equivalent — which mode a sampler lands in is irrelevant, since the likelihood only sees
-`exp(iθ)` — and the diffusion posterior is not biased by phase wraps.
+`exp(iθ)` — and the coherence-time posterior is not biased by phase wraps.
 
 In the visibility domain the process decorrelates exponentially,
-`E[e^{i(θ(t+Δ) − θ(t))}] = e^{−DΔ/2}`, so `2/D` is the phase coherence time in hours —
-the circular analogue of the damped (Ornstein-Uhlenbeck) correlation. The circular
+`E[e^{i(θ(t+Δ) − θ(t))}] = e^{−Δ/τ}`, so `τ` is the phase coherence time in hours — the
+circular analogue of the correlation time of [`OrnsteinUhlenbeck`](@ref), and in the same
+units. (The underlying diffusion coefficient is `D = 2/τ` in rad² per hour.) The circular
 stationary law is uniform, so with [`UniformInit`](@ref) the chain also absorbs the
 per-track phase offset that would otherwise require a separate circular offset term.
 
@@ -238,26 +262,27 @@ conditioning, as for the Gaussian processes: wrapped normal transitions compose 
 
 # Arguments
 
-  - `D`: the phase diffusion coefficient in rad² per hour (`2/D` is the coherence time).
-    Pass a `Number` to fix it or a `Distributions.Distribution` to fit it as a
-    hyperparameter with that prior.
+  - `τ`: the phase coherence time in **hours** (the times of a VLBI observation are in
+    UTC hours): the gap over which the visibility-domain coherence
+    `E[e^{iΔθ}]` falls by `1/e`. Pass a `Number` to fix it or a
+    `Distributions.Distribution` to fit it as a hyperparameter with that prior.
 
 # Example
 
 ```julia
 gp ~ ArrayPrior(
-    GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit());
+    GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0)); init = UniformInit());
     refant = SEFDReference(0.0)
 )
 ```
 """
-struct WrappedBrownian{TD} <: AbstractGaussMarkovProcess
-    D::TD
+struct WrappedBrownian{Tτ} <: AbstractGaussMarkovProcess
+    τ::Tτ
 end
 
-function WrappedBrownian(; D)
-    D isa Number && D ≤ 0 && throw(ArgumentError("WrappedBrownian D must be positive"))
-    return WrappedBrownian(D)
+function WrappedBrownian(; τ)
+    τ isa Number && τ ≤ 0 && throw(ArgumentError("WrappedBrownian τ must be positive"))
+    return WrappedBrownian(τ)
 end
 
 isstationary(::WrappedBrownian) = false
@@ -269,7 +294,101 @@ stationary_moments(::WrappedBrownian) = throw(
     )
 )
 _process_mean(p::WrappedBrownian) = zero(_paramtype(p))
-@inline transition_moments(p::WrappedBrownian, Δt) = (one(Δt), p.D * Δt)
+# The wrapped-normal increment variance over a gap: D*Δt with D = 2/τ, so that the
+# visibility-domain coherence exp(-Q/2) e-folds exactly at Δt = τ.
+@inline _increment_var(p::WrappedBrownian, Δt) = 2 * Δt / p.τ
+@inline transition_moments(p::WrappedBrownian, Δt) = (one(Δt), _increment_var(p, Δt))
+
+"""
+    WrappedOrnsteinUhlenbeck(; σ, τ, μ = 0.0)
+
+The mean-reverting process on the circle: the wrap of [`OrnsteinUhlenbeck`](@ref) onto
+`(−π, π]`, with the drift taken along the **shortest arc** so that the law is exactly
+`2π`-periodic in both of its arguments and is therefore a genuine circular Markov kernel,
+
+    θ(t + Δt) | θ(t) ~ WN(μ + φ*wrap(θ(t) - μ), σ²*(1 - φ²)),   φ = exp(-Δt/τ),
+
+where `wrap` maps to `(−π, π]`. Its circular marginal is the wrapped normal `WN(μ, σ²)`,
+so — unlike [`WrappedBrownian`](@ref) — the phase is pinned near a level instead of
+wandering without bound, and the visibility-domain coherence
+
+    E[e^{i(θ(t+Δ) − θ(t))}] = exp(−σ²(1 − e^{−Δ/τ}))
+
+*saturates* at `exp(−σ²)` rather than decaying to zero: a mean-reverting phase stays
+partially coherent forever. Taking `σ, τ → ∞` at fixed `2σ²/τ = 2/τ_coh` recovers
+`WrappedBrownian(τ = τ_coh)` exactly.
+
+This is the natural prior for a gain *ratio* (R/L) phase, which is an instrumental offset
+that is stable up to slow drift: a single chain replaces the
+[`WrappedBrownian`](@ref)-with-[`FixedInit`](@ref) plus separate circular offset pair, and
+`σ` — not an unbounded random walk — sets how far the ratio phase may stray. As for every
+wrapped process the default is `centered = true` and only `asflat` is supported; see
+[`GaussMarkovSitePrior`](@ref).
+
+# Arguments
+
+  - `σ`: the circular marginal spread in **radians**, i.e. the `WN(μ, σ²)` scale. Pass a
+    `Number` to fix it or a `Distributions.Distribution` to fit it as a hyperparameter.
+  - `τ`: the reversion timescale in **hours** (the times of a VLBI observation are in UTC
+    hours), the same units as the `τ` of [`OrnsteinUhlenbeck`](@ref) and
+    [`WrappedBrownian`](@ref). A `Number` fixes it; a `Distributions.Distribution` fits it.
+  - `μ`: the circular mean (default `0.0`). Not fittable currently.
+
+!!! warning "Valid for `σ` well below `π`"
+    Mean reversion breaks the translation invariance that makes `WrappedBrownian` exact:
+    the only exactly composable mean-reverting circular semigroup is the von Mises
+    diffusion, whose transition density is a Mathieu-function expansion. Three properties
+    of this process therefore hold only up to the `WN(μ, σ²)` mass beyond `μ ± π` —
+    the marginal being exactly stationary, the reference-antenna conditioning of
+    [`GaussMarkovSitePrior`](@ref) composing exactly over skipped time stamps, and the
+    kernel being continuous at the antipode of `μ`. That mass is `1.7e-3` at `σ = 1` rad
+    and `e^{-123}` at `σ = 0.2` rad, so the process is exact for all practical purposes in
+    the regime where a ratio-phase prior is informative; do not use it as a stand-in for
+    an uninformative circular prior (`σ ≳ 2`), where [`WrappedBrownian`](@ref) with
+    [`UniformInit`](@ref) is both exact and what you want.
+
+# Example
+
+```julia
+## an R/L ratio phase: pinned near zero, drifting on a 12 hour timescale
+gprat ~ ArrayPrior(
+    GaussMarkovSitePrior(
+        ScanSeg(), WrappedOrnsteinUhlenbeck(σ = VLBIExponential(0.2), τ = VLBIInverseGamma(1.0, 12.0))
+    );
+    refant = SingleReference(:AA, 0.0)
+)
+```
+"""
+struct WrappedOrnsteinUhlenbeck{Tσ, Tτ, Tμ} <: AbstractGaussMarkovProcess
+    σ::Tσ
+    τ::Tτ
+    μ::Tμ
+end
+
+function WrappedOrnsteinUhlenbeck(; σ, τ, μ = 0.0)
+    σ isa Number && σ ≤ 0 && throw(ArgumentError("WrappedOrnsteinUhlenbeck σ must be positive"))
+    τ isa Number && τ ≤ 0 && throw(ArgumentError("WrappedOrnsteinUhlenbeck τ must be positive"))
+    μ isa Dists.Distribution &&
+        throw(ArgumentError("WrappedOrnsteinUhlenbeck μ is not fittable; pass a number"))
+    return WrappedOrnsteinUhlenbeck(σ, τ, μ)
+end
+
+isstationary(::WrappedOrnsteinUhlenbeck) = true
+is_wrapped(::WrappedOrnsteinUhlenbeck) = true
+# Read as the *wrapped* normal WN(μ, σ²) by `_marginal_logpdf`, since `is_wrapped` holds.
+@inline stationary_moments(p::WrappedOrnsteinUhlenbeck) = (p.μ, p.σ^2)
+
+# Identical to `OrnsteinUhlenbeck`, including the Φ < 1 clamp that keeps Q and the
+# downstream conditional variances positive when Δt/τ underflows.
+@inline function transition_moments(p::WrappedOrnsteinUhlenbeck, Δt)
+    Φ = min(exp(-Δt / p.τ), prevfloat(1.0))
+    return Φ, p.σ^2 * (1 - Φ^2)
+end
+
+# The shortest-arc drift: what makes the kernel 2π-periodic in the previous angle, and so
+# a circular kernel rather than the (non-periodic) wrap of a real OU path.
+@inline _cond_mean(p::WrappedOrnsteinUhlenbeck, xp, Φ, μ) = μ + Φ * _wrap_angle(xp - μ)
+_periodic_mean(::WrappedOrnsteinUhlenbeck) = true
 
 # Wrap an angle to (−π, π] up to floating point; `round` keeps the map traceable and its
 # a.e. zero derivative makes the wrap transparent to AD.
@@ -302,8 +421,6 @@ _process_mean(p::WrappedBrownian) = zero(_paramtype(p))
     lfour = log(max(sfour, eps(one(sfour)))) - log(T2π)
     return ifelse(Q < 4, limg, lfour)
 end
-
-@inline _transition_logpdf(p::WrappedBrownian, xi, xp, Δt, μ, T2π) = _wn_logpdf(xi - xp, p.D * Δt)
 
 # ----- sheet weights: the proper flat lift of a wrapped chain -----------------
 #
@@ -341,30 +458,24 @@ end
 # Log-density of `N(Δ; 0, Q)`, the unwrapped counterpart of `_wn_logpdf`.
 @inline _normal_logpdf(Δ, Q) = -(abs2(Δ) / Q + log(oftype(float(Δ), 2π) * Q)) / 2
 
+# The chain's *first* free point has no earlier chain value to anchor on; its weight uses
+# a window derived from the initial prior instead, so `_init_window`/`_init_sheet_logweight`
+# live with the initial distributions below.
+
 #
-#    _sheet_logweight(p, xi, xp, Δt, μ, T2π)
+#    _sheet_logweight(p, xi, xp, Δt, μ)
 #
 #Log of the sheet weight of a wrapped chain's free point at `xi`, whose flat lift is
 #anchored on the (sheet-independent) previous chain value `xp` a gap `Δt` earlier. This is
-#`log N(Δ; 0, Q) − log WN(Δ; Q)` for the process's own transition law, so summing
-#`exp` of it over the `2π` sheets of `xi` gives exactly one.
-@inline function _sheet_logweight(p::AbstractGaussMarkovProcess, xi, xp, Δt, μ, T2π)
+#`log N(δ; 0, Q) − log WN(δ; Q)` for the deviation `δ` of the process's own transition law,
+#so summing `exp` of it over the `2π` sheets of `xi` gives exactly one. Both densities read
+#the *same* `_cond_mean`, which is what makes that hold for any process.
+@inline function _sheet_logweight(p::AbstractGaussMarkovProcess, xi, xp, Δt, μ)
     Φ, Q = transition_moments(p, Δt)
-    return _normal_logpdf(xi - μ - Φ * (xp - μ), Q) -
-        _transition_logpdf(p, xi, xp, Δt, μ, T2π)
+    δ = xi - _cond_mean(p, xp, Φ, μ)
+    return _normal_logpdf(δ, Q) - _wn_logpdf(δ, Q)
 end
 
-
-#    _init_sheet_logweight(init, p, x1)
-#
-#Log of the sheet weight of a wrapped chain's *first* free point. It has no earlier chain
-#value to anchor on, so the window is centered at zero; as for `_sheet_logweight`, the
-#weights of its sheets sum to exactly one, leaving the uniform circular initial law
-#untouched.
-@inline function _init_sheet_logweight(init, p, x1)
-    Q = one(eltype(x1))
-    return _normal_logpdf(x1, Q) - _wn_logpdf(x1, Q)
-end
 
 # ----- initial distributions p(x(t₁)) ------------------------------------------
 
@@ -396,9 +507,11 @@ abstract type AbstractInitialPrior end
 """
     StationaryInit()
 
-Start each chain in the process's stationary marginal `N(μ, P)` from
-[`stationary_moments`](@ref Comrade.stationary_moments). This is the natural choice for
-a stationary process — every time stamp then has the same marginal — and the default of
+Start each chain in the process's stationary marginal from
+[`stationary_moments`](@ref Comrade.stationary_moments): `N(μ, P)` for a real-line process
+and the wrapped normal `WN(μ, P)` for a circular one (e.g.
+[`WrappedOrnsteinUhlenbeck`](@ref)). This is the natural choice for a stationary process —
+every time stamp then has the same marginal — and the default of
 [`GaussMarkovSitePrior`](@ref). Requires `isstationary(process)`.
 """
 struct StationaryInit <: AbstractInitialPrior end
@@ -446,9 +559,11 @@ GaussianInit(μ0::Number, σ0::Number) = GaussianInit{typeof(μ0), typeof(σ0)}(
     UniformInit()
 
 Start each chain uniformly on the circle `(−π, π]`. Only valid for circular (wrapped)
-processes such as [`WrappedBrownian`](@ref), where the uniform law is the process's
-stationary circular distribution: it is the natural non-informative start for a phase
-and absorbs the per-track phase offset into the chain itself.
+processes that are *not* mean-reverting, such as [`WrappedBrownian`](@ref), where the
+uniform law is invariant under the transitions: it is the natural non-informative start
+for a phase and absorbs the per-track phase offset into the chain itself. A mean-reverting
+circular process ([`WrappedOrnsteinUhlenbeck`](@ref)) is pinned near its circular mean
+instead, so its start is [`StationaryInit`](@ref).
 """
 struct UniformInit <: AbstractInitialPrior end
 
@@ -484,27 +599,52 @@ function marginal_moments(init::AbstractInitialPrior, p::AbstractGaussMarkovProc
 end
 marginal_moments(::StationaryInit, p::AbstractGaussMarkovProcess, _) = stationary_moments(p)
 
+#    _init_window(init, p, x1) -> (m, P)
+#
+#Centre and variance of the Gaussian window used to reweight the sheets of a wrapped
+#chain's *first* free point, which has no earlier chain value to anchor on. The sheets sum
+#to one for **any** proper window, so the window is free; taking the init's own marginal
+#makes the flat target reproduce that marginal exactly. `UniformInit` (flat on the circle)
+#and `FixedInit` (a delta — and always reference-fixed, so this term is never actually
+#used) have no proper Gaussian marginal to match and take the unit window at zero, which
+#also keeps the unused term finite rather than `0 * NaN`.
+@inline _init_window(init::AbstractInitialPrior, p, x1) = initial_moments(init, p)
+@inline _init_window(::UniformInit, p, x1) = (zero(x1), one(x1))
+@inline _init_window(::FixedInit, p, x1) = (zero(x1), one(x1))
+
+#    _init_sheet_logweight(init, p, x1)
+#
+#Log of the sheet weight of a wrapped chain's first free point, over the window of
+#`_init_window`. As for `_sheet_logweight`, the weights of its sheets sum to exactly one,
+#leaving the circular initial law untouched.
+@inline function _init_sheet_logweight(init, p, x1)
+    m, P = _init_window(init, p, x1)
+    δ = x1 - m
+    return _normal_logpdf(δ, P) - _wn_logpdf(δ, P)
+end
+
 # Validity of an (init, process) pair, checked when the site prior is constructed.
 # Written against the `is_wrapped`/`isstationary` traits rather than concrete process
 # types, so a new process is fully covered by defining its traits — no per-process
 # `_check_init` registrations (which, when forgotten, would accept GaussianInit for a
 # wrapped process silently and reject UniformInit with the wrong message):
-#   - StationaryInit needs Gaussian stationary moments: stationary and not wrapped.
+#   - StationaryInit needs a stationary marginal — Gaussian on the line, wrapped normal
+#     on the circle (see `_marginal_logpdf`).
 #   - GaussianInit is a real-line marginal: invalid for wrapped processes.
-#   - UniformInit is the circular stationary law: only valid for wrapped processes.
+#   - UniformInit is the *nonstationary* circular law: only valid for wrapped processes
+#     without a stationary marginal, i.e. the ones that really do wander uniformly. A
+#     mean-reverting wrapped process is pinned near its circular mean, so uniform is not
+#     its stationary law and StationaryInit is the right start.
 #   - FixedInit (the fallback) is the delta limit and valid everywhere.
 function _check_init(::StationaryInit, p::AbstractGaussMarkovProcess)
-    is_wrapped(p) && throw(
-        ArgumentError(
-            "$(nameof(typeof(p))) chains start uniform on the circle: use UniformInit(), " *
-                "or FixedInit(value) for an exact start"
-        )
-    )
     isstationary(p) || throw(
         ArgumentError(
             "StationaryInit requires a stationary process, but $(nameof(typeof(p))) has " *
                 "no stationary distribution. Pick an explicit initial prior, e.g. " *
-                "GaussianInit(μ0, σ0) or FixedInit(value)."
+                (
+                is_wrapped(p) ? "UniformInit() or FixedInit(value)." :
+                    "GaussianInit(μ0, σ0) or FixedInit(value)."
+            )
         )
     )
     return nothing
@@ -523,6 +663,13 @@ function _check_init(::UniformInit, p::AbstractGaussMarkovProcess)
         ArgumentError(
             "UniformInit is only valid for circular (wrapped) processes; " *
                 "$(nameof(typeof(p))) lives on the real line"
+        )
+    )
+    isstationary(p) && throw(
+        ArgumentError(
+            "$(nameof(typeof(p))) reverts to its circular mean, so uniform is not its " *
+                "stationary law: use StationaryInit() for the WN(μ, σ²) marginal, or " *
+                "FixedInit(value) for an exact start"
         )
     )
     return nothing

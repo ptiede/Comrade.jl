@@ -196,11 +196,11 @@ skym = SkyModel(sky, prior, grid; algorithm = VLBISkyModels.ReactantNUFFTAlg(), 
         lg ~ ArrayPrior(
             IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.5))
         )
-        ## Circular random-walk phases: ≈ 0.5 rad drift per 10 s integration
-        ## (D = 90 rad²/hr), starting uniform on the circle so no separate offset
-        ## term is needed.
+        ## Circular random-walk phases: a coherence time of 80 s (τ ≈ 0.022 hr) gives
+        ## ≈ 0.5 rad drift per 10 s integration, starting uniform on the circle so no
+        ## separate offset term is needed.
         gp ~ ArrayPrior(
-            GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(D = 90.0); init = UniformInit());
+            GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(τ = 2 / 90); init = UniformInit());
             refant = SEFDReference(0.0),
         )
         ## SingleStokesGain is a single complex gain for each site.

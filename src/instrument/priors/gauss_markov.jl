@@ -32,7 +32,8 @@ work. Set `centered = true` to instead use the gain values themselves as coordin
 which can mix better when every point is strongly data-constrained; centered priors
 support `asflat` only.
 
-For a **wrapped (circular) process** ([`WrappedBrownian`](@ref)) there is no whitening —
+For a **wrapped (circular) process** ([`WrappedBrownian`](@ref),
+[`WrappedOrnsteinUhlenbeck`](@ref)) there is no whitening —
 a wrapped chain has no Gaussian conditionals — so the choice is between raw angles and an
 embedding, and the default is `centered = true`: one coordinate per free phase, the angle
 itself. A wrapped chain's density is exactly `2π`-periodic, so simply *calling* a real
@@ -53,10 +54,14 @@ show sheet-related pathology — at the cost of twice the phase dimension and a 
 rotated-ellipse geometry a diagonal mass matrix cannot capture. Wrapped chains support
 `asflat` only in either form.
 
-This prior is intended for both gain amplitudes and phases. For phases the preferred
-process is [`WrappedBrownian`](@ref) with `init = UniformInit()`: the prior is then
-exactly `2π`-periodic, needs no separate circular offset term, and its diffusion
-posterior is unbiased by phase wraps. A real-line process (e.g. `OrnsteinUhlenbeck` with
+This prior is intended for both gain amplitudes and phases. For an *absolute* phase the
+preferred process is [`WrappedBrownian`](@ref) with `init = UniformInit()`: the prior is
+then exactly `2π`-periodic, needs no separate circular offset term, and its coherence-time
+posterior is unbiased by phase wraps. For a phase that is instead pinned near a level —
+an R/L gain *ratio* phase, say — use [`WrappedOrnsteinUhlenbeck`](@ref), the circular
+mean-reverting process: it is periodic in the same way, but its `WN(μ, σ²)` marginal keeps
+the chain from wandering off, which a `WrappedBrownian` chain has nothing to prevent. A
+real-line process (e.g. `OrnsteinUhlenbeck` with
 `init = FixedInit(0.0)` on top of a circular offset) models the phase as an *unwrapped*
 real and is appropriate when the excursions stay well below `2π` — beyond that, the
 likelihood's periodicity in `exp(iθ)` produces spurious `2π`-shifted modes that only the
@@ -169,7 +174,7 @@ EnzymeRules.inactive_type(::Type{<:IIDChainSpec}) = true
 # and is conventionally zero in both.
 @inline function _first_point_term(init::AbstractInitialPrior, p, x1, Δ0)
     m1, P1 = marginal_moments(init, p, Δ0)
-    return -(abs2(x1 - m1) / P1 + log(2π * P1)) / 2
+    return _marginal_logpdf(p, x1 - m1, P1)
 end
 @inline _first_point_term(::FixedInit, p, x1, Δ0) = zero(abs2(x1))
 # Uniform on the circle, which is also invariant under the wrapped transitions, so the
@@ -180,11 +185,10 @@ function _gm_chain_logpdf(p::AbstractGaussMarkovProcess, init::AbstractInitialPr
     x1 = rgetindex(x, rgetindex(inds, firstindex(inds)))
     ℓ = _first_point_term(init, p, x1, Δ0)
     μ = _process_mean(p)
-    T2π = convert(eltype(x), 2π)
     @trace track_numbers = false for i in (firstindex(inds) + 1):lastindex(inds)
         xi = rgetindex(x, rgetindex(inds, i))
         xp = rgetindex(x, rgetindex(inds, i - 1))
-        ℓ += _transition_logpdf(p, xi, xp, rgetindex(ts, i) - rgetindex(ts, i - 1), μ, T2π)
+        ℓ += _transition_logpdf(p, xi, xp, rgetindex(ts, i) - rgetindex(ts, i - 1), μ)
     end
     return ℓ
 end
@@ -527,7 +531,6 @@ end
 
 function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:WrappedBrownian}, hp)
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
-    D = p.D
     inds = spec.inds
     ts = spec.ts
     T = float(eltype(x))
@@ -544,7 +547,7 @@ function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:Wrappe
         end
     end
 
-    step_walk(prev, Δt) = _wrap_angle(prev + sqrt(D * Δt) * randn(rng, T))
+    step_walk(prev, Δt) = _wrap_angle(prev + sqrt(_increment_var(p, Δt)) * randn(rng, T))
 
     if isempty(fixpos)
         x[inds[1]] = T(π) * (2rand(rng, T) - 1)
@@ -564,12 +567,12 @@ function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:Wrappe
         fb - fa == 1 && continue
         ta, tb = ts[fa], ts[fb]
         Δθ = _wrap_angle(x[inds[fb]] - x[inds[fa]])
-        w = _sample_winding(rng, Δθ, D * (tb - ta))
+        w = _sample_winding(rng, Δθ, _increment_var(p, tb - ta))
         e = x[inds[fa]] + Δθ + 2π * w  # unwrapped endpoint of this segment
         cur, tp = x[inds[fa]], ta
         for i in (fa + 1):(fb - 1)
             m = cur + (e - cur) * (ts[i] - tp) / (tb - tp)
-            v = D * (ts[i] - tp) * (tb - ts[i]) / (tb - tp)
+            v = _increment_var(p, (ts[i] - tp) * (tb - ts[i]) / (tb - tp))
             cur = m + sqrt(v) * randn(rng, T)
             x[inds[i]] = _wrap_angle(cur)
             tp = ts[i]
@@ -578,6 +581,42 @@ function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:Wrappe
     # forward walk after the last fixed point
     @inbounds for i in (fixpos[end] + 1):length(inds)
         x[inds[i]] = step_walk(x[inds[i - 1]], ts[i] - ts[i - 1])
+    end
+    return x
+end
+
+# Mean-reverting wrapped chains: the same two-sided bridge as the Gaussian processes, but
+# with every deviation from the circular mean taken along the shortest arc (matching
+# `_cond_mean`) and every drawn value wrapped back onto `(−π, π]`. The innovation is drawn
+# normal rather than wrapped normal and the winding of a bridge between two reference-fixed
+# points is not enumerated as it is for `WrappedBrownian` above; both are the same `σ ≪ π`
+# approximation `WrappedOrnsteinUhlenbeck` already documents, and this is the rand-only
+# path — the log-density is exact.
+function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:WrappedOrnsteinUhlenbeck}, hp)
+    p = materialize(spec.process, _selecthp(hp, spec.hpsel))
+    μ = _process_mean(p)
+    m₀, P₀ = initial_moments(spec.init, p)
+    free = spec.free
+    T = float(eltype(x))
+    @inbounds for k in 1:_nfree(spec)
+        Φl, Ql = transition_moments(p, free.dtl[k])
+        ml = free.mskl[k]
+        # prior-from-the-left: the transition from the previous chain value, or the init
+        # marginal when this point opens the chain (`ml == 0` zeroes the Φ₁ term).
+        Φ₁ = ml * Φl
+        Q₁ = ml * Ql + (1 - ml) * P₀
+        b₁ = Φ₁ * _wrap_angle(x[free.lidx[k]] - μ) + (1 - ml) * (m₀ - μ)
+        if free.hasfix
+            Φf, Qf = transition_moments(p, free.dtf[k])
+            mf = free.mskf[k]
+            Φ₂ = mf * Φf
+            Q₂ = mf * Qf + (1 - mf)
+            y₂ = mf * _wrap_angle(x[free.fidx[k]] - μ)
+            m, s = _bridge_moments(zero(T), b₁, Q₁, Φ₂, y₂, Q₂)
+        else
+            m, s = b₁, sqrt(Q₁)
+        end
+        x[free.tgt[k]] = _wrap_angle(μ + m + s * randn(rng, T))
     end
     return x
 end
@@ -695,8 +734,8 @@ end
 # the previous free point's coordinate when the left chain neighbour is free (a
 # *contiguous* read of `x`, since free points take one coordinate each in order), the
 # reference-fixed value when it is not, and — for the point that opens the chain — the
-# zero-centered window of `_init_sheet_logweight`. All three are sheet-independent, so
-# the sheets of `φₖ` still sum to one. Reading the anchor from `x` rather than from the
+# window of `_init_window`. All three are sheet-independent, so the sheets of `φₖ` still
+# sum to one. Reading the anchor from `x` rather than from the
 # colored `y` is what keeps this a pointwise loop: there is no recurrence to resolve, so
 # it raises under Reactant exactly like the other stage-then-scatter walkers.
 function _color_chain_wrapped_centered!(flag, y, x, index, spec::MarkovChainSpec, hp)
@@ -704,7 +743,6 @@ function _color_chain_wrapped_centered!(flag, y, x, index, spec::MarkovChainSpec
     n = _nfree(spec)
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
     μ = _process_mean(p)
-    T2π = convert(eltype(x), 2π)
     ℓ = zero(eltype(x))
     θs = similar(y, n)
     @trace track_numbers = false for k in 1:n
@@ -718,7 +756,7 @@ function _color_chain_wrapped_centered!(flag, y, x, index, spec::MarkovChainSpec
         # Both branches are evaluated and blended by the static mask so the loop body
         # stays single-path; the dummy gap of a chain-opening point is a finite 1 hour,
         # so the unused transition weight is finite rather than NaN.
-        wt = _sheet_logweight(p, φ, anchor, rgetindex(free.dtl, k), μ, T2π)
+        wt = _sheet_logweight(p, φ, anchor, rgetindex(free.dtl, k), μ)
         w0 = _init_sheet_logweight(spec.init, p, φ)
         ℓ += ml * wt + (1 - ml) * w0
         rsetindex!(θs, _wrap_angle(φ), k)
@@ -797,6 +835,29 @@ end
 # rather than a loop-carried traced loop. `transform ∘ inverse` is the identity on
 # wrapped angles; `inverse ∘ transform` is not (the sheet is not recoverable from the
 # angle), as for the angle embedding.
+# Inverse of the centered wrapped lift for a process whose transition mean is itself
+# `2π`-periodic (`_periodic_mean`): `_cond_mean` then reads the previous point only through
+# its *angle*, so the sheet the coloring's weight favours is pinned by the stored angles
+# alone and the unwrap is pointwise — there is no recurrence to resolve, unlike the
+# `WrappedBrownian` case below whose Φ ≡ 1 mean carries the previous point's sheet. The
+# chain-opening point takes the centre of `_init_window`, the same window its weight used.
+function _whiten_chain_wrapped_pointwise!(x, index, y, spec::MarkovChainSpec, hp)
+    free = spec.free
+    n = _nfree(spec)
+    p = materialize(spec.process, _selecthp(hp, spec.hpsel))
+    μ = _process_mean(p)
+    m₀, _ = _init_window(spec.init, p, zero(eltype(x)))
+    @trace track_numbers = false for k in 1:n
+        θ = rgetindex(y, rgetindex(free.tgt, k))
+        ml = rgetindex(free.mskl, k)
+        Φ, _ = transition_moments(p, rgetindex(free.dtl, k))
+        yl = rgetindex(y, rgetindex(free.lidx, k))
+        m = ml * _cond_mean(p, yl, Φ, μ) + (1 - ml) * m₀
+        rsetindex!(x, m + _wrap_angle(θ - m), index + k - 1)
+    end
+    return index + n
+end
+
 function _whiten_chain_wrapped_centered!(x, index, y, spec::MarkovChainSpec)
     free = spec.free
     n = _nfree(spec)
@@ -835,7 +896,13 @@ function _whiten_chain_flat!(x, index, y, spec::MarkovChainSpec, hp)
     end
     if spec.centered
         n = _nfree(spec)
-        is_wrapped(spec.process) && return _whiten_chain_wrapped_centered!(x, index, y, spec)
+        if is_wrapped(spec.process)
+            # `_periodic_mean` is a trait on a concrete process type, so this is a
+            # host-static branch.
+            _periodic_mean(spec.process) &&
+                return _whiten_chain_wrapped_pointwise!(x, index, y, spec, hp)
+            return _whiten_chain_wrapped_centered!(x, index, y, spec)
+        end
         @trace track_numbers = false for k in 1:n
             rsetindex!(x, rgetindex(y, rgetindex(free.tgt, k)), index + k - 1)
         end

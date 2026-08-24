@@ -219,8 +219,9 @@ end
     end
 
     @testset "WrappedBrownian process" begin
-        @test_throws ArgumentError Comrade.WrappedBrownian(D = -1.0)
-        pw = Comrade.WrappedBrownian(D = 0.8)
+        @test_throws ArgumentError Comrade.WrappedBrownian(τ = -1.0)
+        τw = 2.5                                   # coherence time; diffusion D = 2/τw = 0.8
+        pw = Comrade.WrappedBrownian(τ = τw)
         @test !Comrade.isstationary(pw)
         @test Comrade.is_wrapped(pw)
         @test_throws ArgumentError Comrade.stationary_moments(pw)
@@ -261,7 +262,7 @@ end
         end
         @test Comrade._gm_chain_logpdf(pw, UniformInit(), x .+ 2π, inds, ts) ≈ ℓ0
 
-        # unconditional rand: range, uniform start, and the e^{-DΔ/2} coherence decay
+        # unconditional rand: range, uniform start, and the e^{-Δ/τ} coherence decay
         rng4 = Random.Xoshiro(31)
         spec0 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], false)
         d0 = Comrade.GaussMarkovChainDist((AA = spec0,), Int[], Float64[], n)
@@ -274,7 +275,7 @@ end
         @test abs(mean(cis.(draws[1, :]))) < 0.02
         for (i, j) in ((1, 2), (3, 7), (1, n))
             coh = mean(cis.(draws[j, :] .- draws[i, :]))
-            @test abs(coh) ≈ exp(-0.8 * (ts[j] - ts[i]) / 2) atol = 2.0e-2
+            @test abs(coh) ≈ exp(-(ts[j] - ts[i]) / τw) atol = 2.0e-2
             @test abs(imag(coh)) < 2.0e-2
         end
 
@@ -301,7 +302,7 @@ end
             Comrade._rand_chains!(rng4, v, d3, (;))
             v[2]
         end
-        Q1, Q2 = 0.8 * 0.4, 0.8 * 0.7
+        Q1, Q2 = 2 * 0.4 / τw, 2 * 0.7 / τw
         h(θm) = exp(Comrade._wn_logpdf(θm - θa, Q1) + Comrade._wn_logpdf(θb - θm, Q2))
         θgrid = range(-π, π; length = 4001)[1:(end - 1)]
         cquad = sum(θ -> cis(θ) * h(θ), θgrid) / sum(h, θgrid)
@@ -334,9 +335,9 @@ end
         # proper must leave the circular model *exactly* alone, i.e. the weights of the
         # 2π sheets of any one coordinate sum to one.
         for Q in (0.001, 0.05, 0.5, 2.0, 3.9, 4.1, 10.0, 50.0)
-            pq = Comrade.WrappedBrownian(D = Q)   # Δt = 1, so the transition variance is Q
+            pq = Comrade.WrappedBrownian(τ = 2 / Q)   # Δt = 1, so the transition variance is Q
             for Δ in (0.0, 0.7, -2.5, 3.0, 6.0)
-                tot = sum(m -> exp(Comrade._sheet_logweight(pq, Δ + 2π * m, 0.0, 1.0, 0.0, 2π)), -40:40)
+                tot = sum(m -> exp(Comrade._sheet_logweight(pq, Δ + 2π * m, 0.0, 1.0, 0.0)), -40:40)
                 @test tot ≈ 1 rtol = 1.0e-12
             end
         end
@@ -346,8 +347,8 @@ end
         end
         # a 2π step is suppressed by exp(-(2π)²/2Q), so the lift has a single relevant
         # mode whenever the process makes a full turn between points improbable
-        let pq = Comrade.WrappedBrownian(D = 0.1)
-            w(Δ) = Comrade._sheet_logweight(pq, Δ, 0.0, 1.0, 0.0, 2π)
+        let pq = Comrade.WrappedBrownian(τ = 20.0)   # Δt = 1 transition variance 2/20 = 0.1
+            w(Δ) = Comrade._sheet_logweight(pq, Δ, 0.0, 1.0, 0.0)
             @test w(2π) - w(0.0) ≈ -(2π)^2 / (2 * 0.1) rtol = 1.0e-6
         end
 
@@ -361,7 +362,7 @@ end
         θc, ℓcj, _ = TV.transform_with(TV.LogJac(), nodec, θin, 1)
         @test θc ≈ θin
         @test ℓcj ≈ Comrade._init_sheet_logweight(UniformInit(), pw, θin[1]) +
-            sum(k -> Comrade._sheet_logweight(pw, θin[k], θin[k - 1], ts[k] - ts[k - 1], 0.0, 2π), 2:n)
+            sum(k -> Comrade._sheet_logweight(pw, θin[k], θin[k - 1], ts[k] - ts[k - 1], 0.0), 2:n)
         # coordinates outside (−π, π] wrap to angles, and the lift is no longer
         # 2π-periodic: it decays, so the flat density is proper. The baseline has to sit
         # on the *favoured* sheet for that comparison to mean anything: `θin` is uniform
@@ -409,6 +410,181 @@ end
             end
             mx = maximum(lat)
             @test mx + log(sum(l -> exp(l - mx), lat)) ≈ logpdf(d5, y5) atol = 1.0e-9
+        end
+    end
+
+    @testset "WrappedOrnsteinUhlenbeck process" begin
+        @test_throws ArgumentError Comrade.WrappedOrnsteinUhlenbeck(σ = -1.0, τ = 1.0)
+        @test_throws ArgumentError Comrade.WrappedOrnsteinUhlenbeck(σ = 1.0, τ = -1.0)
+        @test_throws ArgumentError Comrade.WrappedOrnsteinUhlenbeck(σ = 1.0, τ = 1.0, μ = Normal())
+
+        σw, τw2, μw = 0.3, 2.0, 0.4
+        pr = Comrade.WrappedOrnsteinUhlenbeck(σ = σw, τ = τw2, μ = μw)
+        @test Comrade.is_wrapped(pr)
+        @test Comrade.isstationary(pr)
+        @test Comrade._periodic_mean(pr)
+        @test Comrade.stationary_moments(pr) == (μw, σw^2)
+        @test Comrade._process_mean(pr) == μw
+        Φ, Q = Comrade.transition_moments(pr, 0.5)
+        @test Φ ≈ exp(-0.5 / τw2)
+        @test Q ≈ σw^2 * (1 - Φ^2)
+        @test keys(Comrade.hyperprior(Comrade.WrappedOrnsteinUhlenbeck(σ = Exponential(0.2), τ = 2.0))) == (:σ,)
+
+        # the shortest-arc drift is what makes this a *circular* kernel: the transition
+        # law is a normalized density on the circle and is 2π-periodic in BOTH arguments
+        θgrid = range(-π, π; length = 20_001)[1:(end - 1)]
+        ker(p, xi, xp, Δt) = exp(Comrade._transition_logpdf(p, xi, xp, Δt, Comrade._process_mean(p)))
+        for xp in (-3.0, -0.5, 0.9, 3.1), Δt in (0.1, 1.0, 20.0)
+            @test sum(θ -> ker(pr, θ, xp, Δt), θgrid) * step(θgrid) ≈ 1 atol = 1.0e-9
+            for xi in (-1.0, 0.7, 2.5)
+                ℓ = Comrade._transition_logpdf(pr, xi, xp, Δt, μw)
+                @test ℓ ≈ Comrade._transition_logpdf(pr, xi + 2π, xp, Δt, μw)
+                @test ℓ ≈ Comrade._transition_logpdf(pr, xi, xp - 2π, Δt, μw)
+            end
+        end
+
+        # the WrappedBrownian limit: σ, τ → ∞ at fixed 2σ²/τ = 2/τ_coh
+        let τc = 1.7
+            errs = map((30.0, 300.0)) do sc
+                q = Comrade.WrappedOrnsteinUhlenbeck(σ = sc, τ = sc^2 * τc)
+                return abs(
+                    Comrade._transition_logpdf(q, 0.4, 0.1, 0.5, 0.0) -
+                        Comrade._transition_logpdf(Comrade.WrappedBrownian(τ = τc), 0.4, 0.1, 0.5, 0.0)
+                )
+            end
+            @test errs[1] < 1.0e-3
+            @test errs[2] < 100 * eps() + errs[1] / 50   # falls off as 1/σ²
+        end
+
+        # WN(μ, σ²) really is the stationary marginal, and the kernel composes over a
+        # skipped time stamp — the two properties the refant conditioning relies on. Both
+        # are exact only up to the WN mass beyond μ ± π, so they hold to machine precision
+        # at σ = 0.3 and degrade smoothly with σ (see the WrappedOrnsteinUhlenbeck
+        # docstring); the σ = 2 figure is the documented ceiling.
+        wn(p, δ) = exp(Comrade._wn_logpdf(δ, p.σ^2))
+        push0 = map(θgrid) do xi
+            sum(θ -> ker(pr, xi, θ, 0.9) * wn(pr, θ - μw), θgrid) * step(θgrid)
+        end
+        @test maximum(abs.(push0 .- wn.(Ref(pr), θgrid .- μw))) < 1.0e-8
+        function comperr(p, d1, d2, x0)
+            μ0 = Comrade._process_mean(p)
+            return maximum(θgrid) do xi
+                twice = sum(θ -> ker(p, xi, θ, d2) * ker(p, θ, x0, d1), θgrid) * step(θgrid)
+                return abs(twice - ker(p, xi, x0, d1 + d2))
+            end
+        end
+        @test comperr(pr, 0.7, 1.3, 0.4) < 1.0e-8
+        @test comperr(Comrade.WrappedOrnsteinUhlenbeck(σ = 1.0, τ = τw2), 0.7, 1.3, 0.4) < 1.0e-4
+        @test comperr(Comrade.WrappedOrnsteinUhlenbeck(σ = 2.0, τ = τw2), 0.7, 1.3, 0.4) < 5.0e-3
+
+        # sheet weights still sum to exactly one, now around the mean-reverting centre,
+        # and the first point's weights sum to one over the WN(μ, σ²) window
+        for Δt in (0.05, 1.0, 8.0), xp in (-2.0, 0.4, 2.7)
+            tot = sum(m -> exp(Comrade._sheet_logweight(pr, 0.37 + 2π * m, xp, Δt, μw)), -40:40)
+            @test tot ≈ 1 rtol = 1.0e-12
+        end
+        for φ in (0.0, 1.0, -2.0, 3.1)
+            tot = sum(m -> exp(Comrade._init_sheet_logweight(StationaryInit(), pr, φ + 2π * m)), -40:40)
+            @test tot ≈ 1 rtol = 1.0e-12
+        end
+        # the window of a FixedInit chain-opening point is never used (such a point is
+        # always reference-fixed) and must stay finite rather than 0 * NaN
+        @test isfinite(Comrade._init_sheet_logweight(FixedInit(0.0), pr, 0.3))
+
+        # construction rules: uniform is NOT the stationary law of a mean-reverting
+        # circular process, so it is rejected; StationaryInit is now the default
+        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pr; init = UniformInit())
+        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pr; init = GaussianInit(0.0, 1.0))
+        @test GaussMarkovSitePrior(ScanSeg(), pr).centered
+        @test GaussMarkovSitePrior(ScanSeg(), pr).init isa StationaryInit
+        @test GaussMarkovSitePrior(ScanSeg(), pr; init = FixedInit(0.0)) isa GaussMarkovSitePrior
+
+        # the chain density is exactly 2π-periodic in every point, like WrappedBrownian
+        nr = 8
+        tsr = cumsum([0.0; 0.2 .* ones(nr - 1)])
+        indsr = collect(1:nr)
+        xr = 0.5 .* randn(Random.Xoshiro(7), nr)
+        ℓr = Comrade._gm_chain_logpdf(pr, StationaryInit(), xr, indsr, tsr)
+        for i in (1, 4, nr)
+            xs = copy(xr)
+            xs[i] += 2π
+            @test Comrade._gm_chain_logpdf(pr, StationaryInit(), xs, indsr, tsr) ≈ ℓr
+        end
+
+        # rand: values on the circle, the WN(μ, σ²) marginal, and the saturating
+        # coherence exp(-σ²(1 - e^{-Δ/τ}))
+        rngr = Random.Xoshiro(19)
+        specr = Comrade.MarkovChainSpec(pr, StationaryInit(), Val(nothing), indsr, tsr, Int[], true)
+        dr = Comrade.GaussMarkovChainDist((AA = specr,), Int[], Float64[], nr)
+        N = 50_000
+        dw = Matrix{Float64}(undef, nr, N)
+        for k in 1:N
+            Comrade._rand_chains!(rngr, view(dw, :, k), dr, (;))
+        end
+        @test all(abs.(dw) .<= π + 1.0e-8)
+        @test abs(mean(cis.(dw[1, :])) - cis(μw) * exp(-σw^2 / 2)) < 2.0e-2
+        for (i, j) in ((1, 2), (3, 7), (1, nr))
+            coh = mean(cis.(dw[j, :] .- dw[i, :]))
+            @test abs(coh) ≈ exp(-σw^2 * (1 - exp(-(tsr[j] - tsr[i]) / τw2))) atol = 2.0e-2
+        end
+        # conditional rand hits the reference-fixed values exactly
+        fpr = [2, 6]
+        θfr = [0.4, -0.3]
+        specfr = Comrade.MarkovChainSpec(pr, StationaryInit(), Val(nothing), indsr, tsr, fpr, true)
+        dfr = Comrade.GaussMarkovChainDist((AA = specfr,), fpr, θfr, nr)
+        vr = Vector{Float64}(undef, nr)
+        for _ in 1:200
+            Comrade._rand_chains!(rngr, vr, dfr, (;))
+            @test vr[fpr] == θfr
+            @test all(abs.(vr) .<= π + 1.0e-8)
+        end
+
+        # centered flat lift: the raw angles, sheet-weighted, and the inverse unwraps
+        # *pointwise* (the transition mean is periodic in the previous angle, so there is
+        # no sheet to carry) onto the sheet the weights favour
+        nodew = Comrade.PT.transport_node(dr, Comrade.PT.TVFlat())
+        @test TV.dimension(nodew) == nr
+        θin = 2π .* rand(rngr, nr) .- π
+        θw, ℓw, _ = TV.transform_with(TV.LogJac(), nodew, θin, 1)
+        @test θw ≈ θin
+        @test ℓw ≈ Comrade._init_sheet_logweight(StationaryInit(), pr, θin[1]) +
+            sum(k -> Comrade._sheet_logweight(pr, θin[k], θin[k - 1], tsr[k] - tsr[k - 1], μw), 2:nr)
+        zw = zeros(nr)
+        TV.inverse_at!(zw, 1, nodew, θw)
+        θz, _, _ = TV.transform_with(TV.LogJac(), nodew, zw, 1)
+        @test θz ≈ θw
+        # every coordinate lands within π of its own transition mean
+        @test abs(zw[1] - μw) ≤ π + 1.0e-12
+        for k in 2:nr
+            Φk, _ = Comrade.transition_moments(pr, tsr[k] - tsr[k - 1])
+            @test abs(zw[k] - Comrade._cond_mean(pr, θw[k - 1], Φk, μw)) ≤ π + 1.0e-12
+        end
+        # the lift is proper — no 2π lattice — and its pushforward onto the circle is
+        # exactly the chain density, with and without scattered reference-fixed points
+        for (fpos, fvals) in ((Int[], Float64[]), ([2], [0.4]), ([1, 4], [0.0, -1.2]))
+            sp5 = Comrade.MarkovChainSpec(pr, StationaryInit(), Val(nothing), 1:5, tsr[1:5], fpos, true)
+            d5 = Comrade.GaussMarkovChainDist((AA = sp5,), collect(fpos), fvals, 5)
+            nd5 = Comrade.PT.transport_node(d5, Comrade.PT.TVFlat())
+            nf = TV.dimension(nd5)
+            @test nf == 5 - length(fpos)
+            z5 = [0.3, -0.2, 0.15, -0.1, 0.25][1:nf]
+            y5, _, _ = TV.transform_with(TV.LogJac(), nd5, z5, 1)
+            zi5 = zeros(nf)
+            TV.inverse_at!(zi5, 1, nd5, y5)
+            yr5, _, _ = TV.transform_with(TV.LogJac(), nd5, zi5, 1)
+            @test yr5 ≈ y5
+            lat = map(Iterators.product(ntuple(_ -> (-4):4, nf)...)) do m
+                ys, ℓs, _ = TV.transform_with(TV.LogJac(), nd5, z5 .+ 2π .* collect(m), 1)
+                return logpdf(d5, ys) + ℓs
+            end
+            mx = maximum(lat)
+            @test mx + log(sum(l -> exp(l - mx), lat)) ≈ logpdf(d5, y5) atol = 1.0e-9
+            # proper: shifting one coordinate far off is strongly suppressed
+            _, ℓ5, _ = TV.transform_with(TV.LogJac(), nd5, z5, 1)
+            zsh = copy(z5)
+            zsh[1] += 2π
+            _, ℓsh, _ = TV.transform_with(TV.LogJac(), nd5, zsh, 1)
+            @test ℓsh < ℓ5 - 10
         end
     end
 
@@ -922,7 +1098,7 @@ end
         @instrument function gmint_wb()
             return @jones begin
                 gp ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = Exponential(1.0)); init = UniformInit());
+                    GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = InverseGamma(3.0, 6.0)); init = UniformInit());
                     refant = SEFDReference(0.0)
                 )
                 return SingleStokesGain(exp(1im * gp))
@@ -930,7 +1106,7 @@ end
         end
         post = VLBIPosterior(skym, gmint_wb(), dvis)
         s = prior_sample(rng, post)
-        @test all(h -> keys(h) == (:D,), values(s.instrument.gp.hyperparams))
+        @test all(h -> keys(h) == (:τ,), values(s.instrument.gp.hyperparams))
         @test isfinite(logdensityof(post, s))
 
         # the *model* is exactly invariant under a 2π shift of any single free phase —
@@ -941,7 +1117,7 @@ end
         @test logdensityof(post, s2) ≈ logdensityof(post, s)
 
         tp = asflat(post)
-        # one coordinate per free phase, plus one D per site and the sky's dimensions
+        # one coordinate per free phase, plus one τ per site and the sky's dimensions
         dchain = post.prior.instrument.gp.dists
         nfreew = length(dchain) - length(dchain.fixedinds)
         nsites = length(keys(s.instrument.gp.hyperparams))
@@ -958,7 +1134,7 @@ end
         @test parent(y2.instrument.gp.params) ≈ parent(y.instrument.gp.params)
         @test all(
             map(
-                (a, b) -> a.D ≈ b.D,
+                (a, b) -> a.τ ≈ b.τ,
                 values(y2.instrument.gp.hyperparams), values(y.instrument.gp.hyperparams)
             )
         )
@@ -994,7 +1170,7 @@ end
             @instrument function gmint_wbe()
                 return @jones begin
                     gp ~ ArrayPrior(
-                        GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = Exponential(1.0)); init = UniformInit(), centered = false);
+                        GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = InverseGamma(3.0, 6.0)); init = UniformInit(), centered = false);
                         refant = SEFDReference(0.0)
                     )
                     return SingleStokesGain(exp(1im * gp))
@@ -1026,6 +1202,101 @@ end
         end
     end
 
+    @testset "WrappedOrnsteinUhlenbeck ratio-phase posterior" begin
+        # the mean-reverting circular process: one chain replaces the
+        # WrappedBrownian-with-FixedInit plus separate circular offset pair, and σ — not
+        # an unbounded random walk — sets how far the phase may stray from its mean.
+        @instrument function gmint_wou()
+            return @jones begin
+                gp ~ ArrayPrior(
+                    GaussMarkovSitePrior(
+                        ScanSeg(),
+                        WrappedOrnsteinUhlenbeck(σ = Exponential(0.3), τ = InverseGamma(3.0, 6.0))
+                    );
+                    refant = SEFDReference(0.0)
+                )
+                return SingleStokesGain(exp(1im * gp))
+            end
+        end
+        post = VLBIPosterior(skym, gmint_wou(), dvis)
+        s = prior_sample(rng, post)
+        @test all(h -> keys(h) == (:σ, :τ), values(s.instrument.gp.hyperparams))
+        @test isfinite(logdensityof(post, s))
+        # prior draws land on the circle
+        @test all(θ -> -π - 1.0e-8 ≤ θ ≤ π + 1.0e-8, parent(s.instrument.gp.params))
+
+        # the *model* is exactly invariant under a 2π shift of any single free phase
+        freeinds = setdiff(1:length(post.prior.instrument.gp.dists), post.prior.instrument.gp.dists.fixedinds)
+        s2 = deepcopy(s)
+        parent(s2.instrument.gp.params)[first(freeinds)] += 2π
+        @test logdensityof(post, s2) ≈ logdensityof(post, s)
+
+        tp = asflat(post)
+        dchain = post.prior.instrument.gp.dists
+        nfreew = length(dchain) - length(dchain.fixedinds)
+        nsites = length(keys(s.instrument.gp.hyperparams))
+        skydim = LogDensityProblems.dimension(asflat(VLBIPosterior(skym, dvis)))
+        # one coordinate per free phase, plus σ and τ per site
+        @test LogDensityProblems.dimension(tp) == skydim + 2 * nsites + nfreew
+
+        xf = prior_sample(rng, tp)
+        @test isfinite(logdensityof(tp, xf))
+        y = Comrade.transform(tp, xf)
+        @test all(θ -> -π - 1.0e-12 ≤ θ ≤ π + 1.0e-12, parent(y.instrument.gp.params))
+        y2 = Comrade.transform(tp, Comrade.inverse(tp, y))
+        @test parent(y2.instrument.gp.params) ≈ parent(y.instrument.gp.params)
+
+        # the flat lift is proper: it decays far out instead of repeating forever
+        jc = LogDensityProblems.dimension(tp)
+        ℓ0 = logdensityof(tp, xf)
+        shift(δ) = (z = copy(xf); z[jc] += δ; logdensityof(tp, z))
+        @test !isapprox(shift(2π), ℓ0)
+        @test shift(40π) < ℓ0 - 10
+        @test shift(-40π) < ℓ0 - 10
+        @test_throws ArgumentError ascube(post)
+
+        @testset "Enzyme gradient" begin
+            f = let tp = tp
+                x -> logdensityof(tp, x)
+            end
+            gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(f), xf)
+            gfd, = grad(central_fdm(5, 1), f, xf)
+            @test gz ≈ gfd rtol = 1.0e-5
+        end
+
+        @testset "angle-embedding option" begin
+            @instrument function gmint_woue()
+                return @jones begin
+                    gp ~ ArrayPrior(
+                        GaussMarkovSitePrior(
+                            ScanSeg(), WrappedOrnsteinUhlenbeck(σ = 0.3, τ = InverseGamma(3.0, 6.0));
+                            centered = false
+                        );
+                        refant = SEFDReference(0.0)
+                    )
+                    return SingleStokesGain(exp(1im * gp))
+                end
+            end
+            poste = VLBIPosterior(skym, gmint_woue(), dvis)
+            se = prior_sample(rng, poste)
+            @test isfinite(logdensityof(poste, se))
+            tpe = asflat(poste)
+            @test LogDensityProblems.dimension(tpe) == skydim + nsites + 2 * nfreew
+            xe = prior_sample(rng, tpe)
+            @test isfinite(logdensityof(tpe, xe))
+            ye = Comrade.transform(tpe, xe)
+            ye2 = Comrade.transform(tpe, Comrade.inverse(tpe, ye))
+            @test parent(ye2.instrument.gp.params) ≈ parent(ye.instrument.gp.params)
+
+            fe = let tpe = tpe
+                x -> logdensityof(tpe, x)
+            end
+            gze, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(fe), xe)
+            gfde, = grad(central_fdm(5, 1), fe, xe)
+            @test gze ≈ gfde rtol = 1.0e-5
+        end
+    end
+
     @testset "chain times are absolute and on the data's clock" begin
         # `spec.ts` must live on the same clock as the data's `Ti`, with one origin
         # shared by every site. They used to be hours relative to each chain's *own*
@@ -1033,7 +1304,7 @@ end
         # `Ti`, and two sites' times were not comparable to each other.
         dtab = Comrade.datatable(arrayconfig(dvis))
         function _specs(seg, centered)
-            sp = GaussMarkovSitePrior(seg, Comrade.WrappedBrownian(D = 1.0); init = UniformInit(), centered = centered)
+            sp = GaussMarkovSitePrior(seg, Comrade.WrappedBrownian(τ = 2.0); init = UniformInit(), centered = centered)
             op = Comrade.ObservedArrayPrior(ArrayPrior(sp), arrayconfig(dvis))
             return Comrade.chainspecs(op.dists)
         end

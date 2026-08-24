@@ -164,8 +164,9 @@ end
 # Each process stresses a different traced path: OU the fitted-hyperparameter coloring,
 # BrownianMotion+FixedInit the `scatter_values!` fixed-value fill, WrappedBrownian the
 # sheet-weight loop (whose anchor read is a table-driven index into the latent segment)
-# plus the log-sum-exp wrapped-normal image sum, and its `centered = false` form the
-# angle-embedding transform.
+# plus the log-sum-exp wrapped-normal image sum, its `centered = false` form the
+# angle-embedding transform, and WrappedOrnsteinUhlenbeck the shortest-arc `_cond_mean`
+# and the pointwise (carry-free) unwrap of the centered lift.
 @testset "GaussMarkov priors under Reactant" begin
     using Enzyme
 
@@ -191,7 +192,7 @@ end
     @instrument function gmint_reactant_wb()
         return @jones begin
             gp ~ ArrayPrior(
-                GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit());
+                GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0)); init = UniformInit());
                 refant = SEFDReference(0.0)
             )
             return SingleStokesGain(exp(1im * gp))
@@ -201,7 +202,20 @@ end
     @instrument function gmint_reactant_wbe()
         return @jones begin
             gp ~ ArrayPrior(
-                GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = VLBIExponential(1.0)); init = UniformInit(), centered = false);
+                GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0)); init = UniformInit(), centered = false);
+                refant = SEFDReference(0.0)
+            )
+            return SingleStokesGain(exp(1im * gp))
+        end
+    end
+
+    @instrument function gmint_reactant_wou()
+        return @jones begin
+            gp ~ ArrayPrior(
+                GaussMarkovSitePrior(
+                    ScanSeg(),
+                    WrappedOrnsteinUhlenbeck(σ = VLBIExponential(0.3), τ = VLBIInverseGamma(3.0, 6.0))
+                );
                 refant = SEFDReference(0.0)
             )
             return SingleStokesGain(exp(1im * gp))
@@ -253,5 +267,8 @@ end
     end
     @testset "WrappedBrownian angle embedding" begin
         check_matches_cpu(gmint_reactant_wbe())
+    end
+    @testset "WrappedOrnsteinUhlenbeck StationaryInit refant (centered default)" begin
+        check_matches_cpu(gmint_reactant_wou())
     end
 end

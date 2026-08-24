@@ -99,9 +99,8 @@ end
 
 # The phases are modeled as a [`WrappedBrownian`](@ref) random walk on the circle: the
 # prior is exactly 2π-periodic, so it has no spurious 2π-shifted modes, and starting each
-# chain uniformly on the circle (`UniformInit`) absorbs the per-track phase offset. With
-# `D = 20` rad²/hr the phases decorrelate between scans (`2/D` is the coherence time in
-# hours).
+# chain uniformly on the circle (`UniformInit`) absorbs the per-track phase offset. The
+# coherence time `τ = 0.1` hr (6 minutes) makes the phases decorrelate between scans.
 
 using VLBIImagePriors
 using Distributions
@@ -112,7 +111,7 @@ using Distributions
     return @jones begin
         lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
         gp ~ ArrayPrior(
-            GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(D = 20.0); init = UniformInit());
+            GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = 0.1); init = UniformInit());
             refant = SEFDReference(0.0)
         )
         ## SingleStokesGain is a single complex gain for each site.
