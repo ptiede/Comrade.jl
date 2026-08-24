@@ -1297,6 +1297,168 @@ end
         end
     end
 
+    @testset "batched chain groups reproduce the per-chain walkers" begin
+        # Every per-evaluation walker runs over `chaingroups(d)` — the chains concatenated
+        # into `MarkovGroup`s — rather than once per chain. That is a pure execution
+        # change: the batched path must agree with the per-chain one to the last bit, for
+        # the chain log-density, the flat coloring and its log-Jacobian, the flat
+        # whitening, and both Std transports. The per-chain walkers stay reachable (the
+        # sampler uses them) and serve as the reference here.
+        perchain(dd, xx, hh) = sum(Comrade.chain_term(sp, xx, hh) for sp in values(Comrade.chainspecs(dd)))
+
+        function mkdist(procs, init, centered, n; fixed, hpnames)
+            K = length(procs)
+            chains = NamedTuple{ntuple(i -> Symbol(:c, i), K)}(
+                ntuple(K) do i
+                    Comrade.MarkovChainSpec(
+                        procs[i], init, Val(hpnames === nothing ? nothing : hpnames[i]),
+                        collect(((i - 1) * n + 1):(i * n)),
+                        collect(range(0.1 * i; step = 0.1, length = n)), fixed[i], centered
+                    )
+                end
+            )
+            fi = Int[]
+            fv = Float64[]
+            for (i, sp) in enumerate(values(chains))
+                append!(fi, sp.fsub.inds)
+                append!(fv, fill(0.05 * i, length(sp.fsub.inds)))
+            end
+            return Comrade.GaussMarkovChainDist(chains, fi, fv, K * n)
+        end
+
+        rngb = Random.Xoshiro(5)
+        K, n = 4, 6
+        rep(p) = ntuple(_ -> p, K)
+        allfix(f) = ntuple(_ -> f, K)
+        OU = Comrade.OrnsteinUhlenbeck(σ = 0.2, τ = 0.5)
+        OUh = Comrade.OrnsteinUhlenbeck(σ = InverseGamma(3.0, 1.0), τ = InverseGamma(3.0, 1.0))
+        WB = Comrade.WrappedBrownian(τ = 0.5)
+        WBh = Comrade.WrappedBrownian(τ = InverseGamma(3.0, 1.0))
+        WOU = Comrade.WrappedOrnsteinUhlenbeck(σ = 0.3, τ = 0.7)
+        BM = Comrade.BrownianMotion(D = 0.3)
+        sites = (:a, :b, :c, :d)
+
+        cases = (
+            ("OU whitened", rep(OU), StationaryInit(), false, allfix(Int[]), nothing),
+            ("OU centered", rep(OU), StationaryInit(), true, allfix(Int[]), nothing),
+            ("OU refant", rep(OU), StationaryInit(), false, allfix([2, 5]), nothing),
+            ("OU fitted", rep(OUh), StationaryInit(), false, allfix(Int[]), sites),
+            ("OU fitted refant", rep(OUh), StationaryInit(), true, allfix([1, 4]), sites),
+            ("BM GaussianInit", rep(BM), GaussianInit(0.1, 2.0), false, allfix(Int[]), nothing),
+            ("BM FixedInit refant", rep(BM), FixedInit(0.0), false, allfix([1]), nothing),
+            ("BM GaussianInit refant", rep(BM), GaussianInit(0.1, 2.0), false, allfix([2, 5]), nothing),
+            ("WB centered", rep(WB), UniformInit(), true, allfix(Int[]), nothing),
+            ("WB refant", rep(WB), UniformInit(), true, allfix([2, 5]), nothing),
+            ("WB embedding", rep(WB), UniformInit(), false, allfix([3]), nothing),
+            ("WB fitted", rep(WBh), UniformInit(), true, allfix([2]), sites),
+            ("WOU stationary", rep(WOU), StationaryInit(), true, allfix(Int[]), nothing),
+            ("WOU refant", rep(WOU), StationaryInit(), true, allfix([1, 4]), nothing),
+            # heterogeneous groups: the two things a group is allowed to differ on.
+            # Per-site *numeric* process fields are read per point from `numvals`, so a
+            # site whose σ or τ is overridden still shares one group; getting that wrong
+            # would silently apply the first member's parameters to every chain.
+            (
+                "mixed numeric fields",
+                (
+                    OU, Comrade.OrnsteinUhlenbeck(σ = 0.7, τ = 0.5),
+                    Comrade.OrnsteinUhlenbeck(σ = 0.2, τ = 1.9), OU,
+                ),
+                StationaryInit(), false, allfix(Int[]), nothing,
+            ),
+            # Mixed `hasfix`: a chain with no reference-fixed points carries `mskf = 0`,
+            # and `_bridge_weights(Q₁, 0, 1)` collapses exactly to the one-sided
+            # conditional, so it may share a group with chains that do have them.
+            ("mixed refant", rep(OU), StationaryInit(), false, ([2], Int[], [1, 5], Int[]), nothing),
+            ("mixed refant wrapped", rep(WB), UniformInit(), true, (Int[], [3], Int[], [2, 6]), nothing),
+        )
+
+        for (nm, procs, init, centered, fixed, hpn) in cases
+            d = mkdist(procs, init, centered, n; fixed, hpnames = hpn)
+            @testset "$nm" begin
+                # every chain lands in a single group — that is the whole point
+                @test length(Comrade.chaingroups(d)) == 1
+                @test Comrade._nfree(only(Comrade.chaingroups(d))) ==
+                    sum(Comrade._nfree, values(Comrade.chainspecs(d)))
+
+                hp = hpn === nothing ? (;) :
+                    NamedTuple{hpn}(
+                        ntuple(K) do i
+                            procs[i] isa Comrade.WrappedBrownian ? (τ = 0.4 + 0.1i,) :
+                            (σ = 0.1 + 0.05i, τ = 0.4 + 0.1i)
+                    end
+                    )
+                y = Comrade.is_wrapped(first(procs)) ? (2π .* rand(rngb, K * n) .- π) :
+                    randn(rngb, K * n)
+                for (i, sp) in enumerate(values(Comrade.chainspecs(d)))
+                    y[sp.fsub.inds] .= 0.05 * i
+                end
+                @test Comrade._chain_logpdf(d, y, hp) ≈ perchain(d, y, hp) rtol = 1.0e-13
+
+                nflat = sum(Comrade._flat_dim, Comrade.chaingroups(d))
+                z = randn(rngb, nflat)
+                function color(units, zz)
+                    yy = zeros(length(d))
+                    Comrade._fill_fixed!(yy, d)
+                    av, cv = Comrade._scan_buffers(yy, d)
+                    ll, _, _ = Comrade._color_specs_flat!(TV.LogJac(), yy, zz, 1, 1, av, cv, units, hp)
+                    Comrade._resolve_scan!(yy, d, av, cv)
+                    return yy, ll
+                end
+                yb, ℓb = color(Comrade.chaingroups(d), z)
+                yr, ℓr = color(values(Comrade.chainspecs(d)), z)
+                @test yb ≈ yr rtol = 1.0e-13
+                @test ℓb ≈ ℓr rtol = 1.0e-13
+                @test isfinite(Comrade._chain_logpdf(d, yb, hp))
+
+                wb = zeros(nflat)
+                Comrade._whiten_specs_flat!(wb, 1, yb, Comrade.chaingroups(d), hp)
+                wr = zeros(nflat)
+                Comrade._whiten_specs_flat!(wr, 1, yb, values(Comrade.chainspecs(d)), hp)
+                @test wb ≈ wr rtol = 1.0e-13
+                @test first(color(Comrade.chaingroups(d), wb)) ≈ yb rtol = 1.0e-12
+
+                if all(Comrade._std_transportable, Comrade.chaingroups(d))
+                    sp = Comrade.PT.StdNormal()
+                    nstd = sum(u -> Comrade._std_dim(u, sp), Comrade.chaingroups(d))
+                    zs = randn(rngb, nstd)
+                    function colorstd(units)
+                        yy = zeros(length(d))
+                        Comrade._fill_fixed!(yy, d)
+                        av, cv = Comrade._scan_buffers(yy, d)
+                        Comrade._color_specs_std!(yy, zs, 1, 1, av, cv, units, hp, sp)
+                        Comrade._resolve_scan!(yy, d, av, cv)
+                        return yy
+                    end
+                    ysg = colorstd(Comrade.chaingroups(d))
+                    @test ysg ≈ colorstd(values(Comrade.chainspecs(d))) rtol = 1.0e-13
+                    sb = zeros(nstd)
+                    Comrade._whiten_specs_std!(sb, 1, ysg, Comrade.chaingroups(d), hp, sp)
+                    sr = zeros(nstd)
+                    Comrade._whiten_specs_std!(sr, 1, ysg, values(Comrade.chainspecs(d)), hp, sp)
+                    @test sb ≈ sr rtol = 1.0e-13
+                end
+            end
+        end
+
+        # Chains that disagree on the process type, the init, or `centered` must NOT be
+        # merged — the loop bodies dispatch on all three — and only *adjacent* compatible
+        # chains are merged, so the flat coordinate layout is unchanged.
+        @testset "grouping boundaries" begin
+            mixed = (
+                c1 = Comrade.MarkovChainSpec(OU, StationaryInit(), Val(nothing), 1:4, collect(0.1:0.1:0.4), Int[], false),
+                c2 = Comrade.MarkovChainSpec(OU, StationaryInit(), Val(nothing), 5:8, collect(0.1:0.1:0.4), Int[], true),
+                c3 = Comrade.MarkovChainSpec(BM, FixedInit(0.0), Val(nothing), 9:12, collect(0.1:0.1:0.4), [1], false),
+                c4 = Comrade.MarkovChainSpec(BM, FixedInit(1.0), Val(nothing), 13:16, collect(0.1:0.1:0.4), [1], false),
+            )
+            dm = Comrade.GaussMarkovChainDist(mixed, [9, 13], [0.0, 1.0], 16)
+            @test length(Comrade.chaingroups(dm)) == 4
+            # same key but non-adjacent: three groups, not two, so the layout is preserved
+            order = (a = mixed.c1, b = mixed.c2, c = mixed.c1)
+            da = Comrade.GaussMarkovChainDist(order, Int[], Float64[], 16)
+            @test length(Comrade.chaingroups(da)) == 3
+        end
+    end
+
     @testset "chain times are absolute and on the data's clock" begin
         # `spec.ts` must live on the same clock as the data's `Ti`, with one origin
         # shared by every site. They used to be hours relative to each chain's *own*

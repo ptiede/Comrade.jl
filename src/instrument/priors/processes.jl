@@ -599,6 +599,18 @@ function marginal_moments(init::AbstractInitialPrior, p::AbstractGaussMarkovProc
 end
 marginal_moments(::StationaryInit, p::AbstractGaussMarkovProcess, _) = stationary_moments(p)
 
+# Branchless variant for the batched chain log-density, where `Δt` is a per-point table read
+# and the `iszero` shortcut above cannot be a branch on a traced value. `z` is that
+# shortcut's host-computed indicator, so `z == 1` reproduces `initial_moments` exactly just
+# as the branch does, and `z == 0` takes the propagated moments.
+function marginal_moments(init::AbstractInitialPrior, p::AbstractGaussMarkovProcess, Δt, z)
+    m₀, P₀ = initial_moments(init, p)
+    μ = _process_mean(p)
+    Φ, Q = transition_moments(p, Δt)
+    return (z * m₀ + (1 - z) * (μ + Φ * (m₀ - μ)), z * P₀ + (1 - z) * (Φ^2 * P₀ + Q))
+end
+marginal_moments(::StationaryInit, p::AbstractGaussMarkovProcess, _, _) = stationary_moments(p)
+
 #    _init_window(init, p, x1) -> (m, P)
 #
 #Centre and variance of the Gaussian window used to reweight the sheets of a wrapped

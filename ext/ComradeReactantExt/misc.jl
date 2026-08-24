@@ -86,3 +86,10 @@ function Comrade.branchcut(x::Reactant.TracedRNumber)
     xmod = mod(x, oftype(x, 2π))
     return ifelse(xmod > π, xmod - oftype(x, 2π), xmod)
 end
+
+# Batched chain groups are worth their per-point parameter gather only where a per-chain
+# walker would cost a kernel launch per chain — i.e. exactly when the parameter vector is
+# traced. On the host the per-chain form wins (see `Comrade._walk_units`).
+@inline function Comrade._walk_units(d::Comrade.GaussMarkovChainDist, ::Reactant.AnyTracedRArray)
+    return Comrade.chaingroups(d)
+end
