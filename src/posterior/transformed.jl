@@ -1,4 +1,21 @@
-export transform, asflat, ascube
+export transform, asflat, ascube, geovi_likelihood
+
+"""
+    geovi_likelihood(tpost::TransformedVLBIPosterior; adtype = ADTypes.AutoEnzyme())
+
+Build a GeoVI `AbstractLikelihood` from a standard-normal–standardized posterior
+`tpost = transport_to(post, StdNormal())`, suitable for Geometric/Metric-Gaussian
+Variational Inference. The returned likelihood is the diagonal complex-Gaussian
+visibility likelihood composed with the forward map
+`ξ -> baseimage(last(forward_model(tpost.lpost, transform(tpost, ξ))))`, so GeoVI's
+standard-normal reference prior `½‖ξ‖²` exactly reproduces the standardized Comrade prior.
+
+`adtype` controls the linearization of the forward map (the Jacobian pushforward/pullback
+GeoVI's natural gradient needs). Requires `GeoVI` (and an AD backend such as `Enzyme`) to be
+loaded — the method is defined in `ComradeGeoVIExt`. Currently supports a single
+visibility data product.
+"""
+function geovi_likelihood end
 
 """
     $(TYPEDEF)

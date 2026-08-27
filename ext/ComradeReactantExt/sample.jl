@@ -3,6 +3,9 @@ using Serialization
 using Random
 using Printf
 using Reactant: ProbProg
+using Comrade 
+using ProbabilityTransports
+using TransformVariables
 
 # ===========================================================================
 # Sample-retention backends (reuse Comrade's MemoryStore / DiskStore configs)
@@ -526,6 +529,9 @@ function AbstractMCMC.sample(
     # in samplerinfo(out) for MemoryStore and in metadata.jls for DiskStore.
     return (; out, state)
 end
+
+maybe_flatten(post::Comrade.VLBIPosterior, transport_method) = transport_to(post, transport_method)
+maybe_flatten(post::Comrade.TransformedVLBIPosterior, transport_method) = post
 
 """
     sample(post, sampler::ReactantNUTS, nsamples; kwargs...)
