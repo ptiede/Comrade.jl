@@ -163,8 +163,9 @@ end
 # (hyperpriors, IID overrides) must accept `::Number`, so use the VLBI*/PT distributions.
 # Each process stresses a different traced path: OU the fitted-hyperparameter coloring,
 # BrownianMotion+FixedInit the `scatter_values!` fixed-value fill, WrappedBrownian the
-# sheet-weight loop (whose anchor read is a table-driven index into the latent segment)
-# plus the log-sum-exp wrapped-normal image sum, its `centered = false` form the
+# log-sum-exp wrapped-normal image sum plus, in its default non-centered form, the masked
+# wrap of the batched affine scan and, in its centered form, the sheet-weight loop (whose
+# anchor read is a table-driven index into the latent segment); `AngleEmbedded` the
 # angle-embedding transform, and WrappedOrnsteinUhlenbeck the shortest-arc `_cond_mean`
 # and the pointwise (carry-free) unwrap of the centered lift.
 @testset "GaussMarkov priors under Reactant" begin
@@ -199,10 +200,26 @@ end
         end
     end
 
+    @instrument function gmint_reactant_wbc()
+        return @jones begin
+            gp ~ ArrayPrior(
+                GaussMarkovSitePrior(
+                    ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0));
+                    init = UniformInit(), param = Centered()
+                );
+                refant = SEFDReference(0.0)
+            )
+            return SingleStokesGain(exp(1im * gp))
+        end
+    end
+
     @instrument function gmint_reactant_wbe()
         return @jones begin
             gp ~ ArrayPrior(
-                GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0)); init = UniformInit(), centered = false);
+                GaussMarkovSitePrior(
+                    ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0));
+                    init = UniformInit(), param = AngleEmbedded()
+                );
                 refant = SEFDReference(0.0)
             )
             return SingleStokesGain(exp(1im * gp))
@@ -262,8 +279,11 @@ end
     @testset "BrownianMotion FixedInit" begin
         check_matches_cpu(gmint_reactant_bm())
     end
-    @testset "WrappedBrownian UniformInit refant (centered default)" begin
+    @testset "WrappedBrownian UniformInit refant (non-centered default)" begin
         check_matches_cpu(gmint_reactant_wb())
+    end
+    @testset "WrappedBrownian centered" begin
+        check_matches_cpu(gmint_reactant_wbc())
     end
     @testset "WrappedBrownian angle embedding" begin
         check_matches_cpu(gmint_reactant_wbe())

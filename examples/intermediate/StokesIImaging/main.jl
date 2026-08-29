@@ -134,12 +134,13 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 
 # We set `centered = true` for the amplitude chains, which can help with mixing/
 # divergences in HMC sampling when every gain is strongly data-constrained. The wrapped
-# phase chains are centered by default: the coordinates are the raw angles, one per free
-# phase. Those coordinates are made proper by sheet weights, so the sampler sees a single
-# mode rather than the 2π-shifted copies the phase periodicity would otherwise produce,
-# and the circular model itself is exactly unchanged. Passing `centered = false` instead
-# embeds each phase as two latent reals, which removes the sheet structure entirely at
-# twice the phase dimension.
+# phase chains keep the default [`NonCentered`](@ref) coordinates: each phase's coordinate
+# is its scaled step onto the previous one, so the flat target is `N(0, I)` and the chain's
+# own correlation — which a diagonal mass matrix cannot absorb, and which couples a whole
+# station's phases to the image structure at once — is not handed to the sampler. Sheet
+# weights keep those coordinates proper, so the sampler sees a single mode rather than the
+# 2π-shifted copies the phase periodicity would otherwise produce, and the circular model
+# itself is exactly unchanged.
 
 # To reduce repetition we define small helpers that build the amplitude and phase
 # processes,

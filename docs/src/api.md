@@ -102,6 +102,10 @@ Comrade.siteparams
 Comrade.sites(::Comrade.CalTable)
 Comrade.IIDSitePrior
 Comrade.GaussMarkovSitePrior
+Comrade.AbstractChainParameterization
+Comrade.Centered
+Comrade.NonCentered
+Comrade.AngleEmbedded
 Comrade.AbstractGaussMarkovProcess
 Comrade.OrnsteinUhlenbeck
 Comrade.BrownianMotion

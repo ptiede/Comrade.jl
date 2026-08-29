@@ -111,7 +111,7 @@ end
     @testset "conditional rand (bridge)" begin
         fixedpos = [2, 5, 6, 10]
         freepos = setdiff(1:n, fixedpos)
-        spec = Comrade.MarkovChainSpec(p, StationaryInit(), Val(nothing), inds, ts, fixedpos, false)
+        spec = Comrade.MarkovChainSpec(p, StationaryInit(), Val(nothing), inds, ts, fixedpos, NonCentered())
         d = Comrade.GaussMarkovChainDist((AA = spec,), fixedpos, x[fixedpos], n)
         N = 100_000
         draws = Matrix{Float64}(undef, n, N)
@@ -128,7 +128,7 @@ end
         @test isapprox(cov(draws[freepos, :], dims = 2), Matrix(Σc); atol = 1.0e-2)
 
         # unconditional rand/logpdf consistency
-        spec0 = Comrade.MarkovChainSpec(p, StationaryInit(), Val(nothing), inds, ts, Int[], false)
+        spec0 = Comrade.MarkovChainSpec(p, StationaryInit(), Val(nothing), inds, ts, Int[], NonCentered())
         d0 = Comrade.GaussMarkovChainDist((AA = spec0,), Int[], Float64[], n)
         z = rand(rng, d0)
         @test logpdf(d0, z) ≈ logpdf(dmv, z)
@@ -164,7 +164,7 @@ end
         # conditional rand exercises the init-marginal prior-from-the-left of the
         # chain-opening free point
         rng2 = Random.Xoshiro(11)
-        spec = Comrade.MarkovChainSpec(p, init, Val(nothing), inds, ts, fp, false)
+        spec = Comrade.MarkovChainSpec(p, init, Val(nothing), inds, ts, fp, NonCentered())
         d = Comrade.GaussMarkovChainDist((AA = spec,), fp, x[fp], n)
         N = 100_000
         draws = Matrix{Float64}(undef, n, N)
@@ -207,7 +207,7 @@ end
 
         # conditional rand through the Φ = 1 bridge
         rng3 = Random.Xoshiro(23)
-        spec = Comrade.MarkovChainSpec(pb, init, Val(nothing), inds, ts, fp, false)
+        spec = Comrade.MarkovChainSpec(pb, init, Val(nothing), inds, ts, fp, NonCentered())
         d = Comrade.GaussMarkovChainDist((AA = spec,), fp, x[fp], n)
         N = 100_000
         draws = Matrix{Float64}(undef, n, N)
@@ -230,14 +230,21 @@ end
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw)                          # StationaryInit invalid
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw; init = GaussianInit(0.0, 1.0))
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), p; init = UniformInit())     # circular init on a real-line process
-        # wrapped processes default to the centered raw-angle coordinates ...
+        # WrappedBrownian has an affine transition mean, so it takes the non-centered
+        # (increment) coordinates by default, as the real-line processes do
         sp = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit())
-        @test sp.centered
-        # ... while real-line processes keep the whitened default
-        @test !GaussMarkovSitePrior(ScanSeg(), p).centered
-        # centered = false opts into the angle embedding
-        spe = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), centered = false)
-        @test !spe.centered
+        @test sp.param isa Comrade.NonCentered
+        @test GaussMarkovSitePrior(ScanSeg(), p).param isa Comrade.NonCentered
+        @test GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), centered = true).param isa Comrade.Centered
+        @test GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), centered = false).param isa Comrade.NonCentered
+        # the angle embedding is a wrapped-only third form and must be asked for by name
+        spe = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), param = AngleEmbedded())
+        @test spe.param isa Comrade.AngleEmbedded
+        @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), p; param = AngleEmbedded())
+        # `param` and the `centered` shorthand are alternatives, not a precedence rule
+        @test_throws ArgumentError GaussMarkovSitePrior(
+            ScanSeg(), pw; init = UniformInit(), param = Centered(), centered = true
+        )
 
         # wrapped-normal density: matches a wide brute-force image sum in both regimes
         for Q in (0.05, 0.5, 2.0, 3.9, 4.1, 8.0, 50.0), Δ in (-3.0, -0.4, 0.0, 1.1, 2.9, 7.0)
@@ -264,7 +271,7 @@ end
 
         # unconditional rand: range, uniform start, and the e^{-Δ/τ} coherence decay
         rng4 = Random.Xoshiro(31)
-        spec0 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], false)
+        spec0 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], Centered())
         d0 = Comrade.GaussMarkovChainDist((AA = spec0,), Int[], Float64[], n)
         N = 50_000
         draws = Matrix{Float64}(undef, n, N)
@@ -282,7 +289,7 @@ end
         # conditional rand: fixed values hit exactly, in range
         fpw = [2, 6]
         θf = [0.4, -2.9]
-        specf = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, fpw, false)
+        specf = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, fpw, Centered())
         df = Comrade.GaussMarkovChainDist((AA = specf,), fpw, θf, n)
         drawsf = Matrix{Float64}(undef, n, N)
         for k in 1:N
@@ -295,7 +302,7 @@ end
         inds3 = [1, 2, 3]
         ts3 = [0.0, 0.4, 1.1]
         θa, θb = 0.3, -2.8
-        spec3 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds3, ts3, [1, 3], false)
+        spec3 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds3, ts3, [1, 3], Centered())
         d3 = Comrade.GaussMarkovChainDist((AA = spec3,), [1, 3], [θa, θb], 3)
         v = Vector{Float64}(undef, 3)
         dm = map(1:N) do _
@@ -310,7 +317,7 @@ end
 
         # angle-embedding flat transport: two latents per free phase, angles from the
         # atan pairs, and the per-point logjacs are exactly the AngleTransform's
-        specw = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], false)
+        specw = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], AngleEmbedded())
         dw = Comrade.GaussMarkovChainDist((AA = specw,), Int[], Float64[], n)
         node = Comrade.PT.transport_node(dw, Comrade.PT.TVFlat())
         @test TV.dimension(node) == 2n
@@ -354,7 +361,7 @@ end
 
         # centered = true keeps the raw angles as flat coordinates (one coordinate per
         # free phase) and adds the sheet weight
-        specc = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], true)
+        specc = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], Centered())
         dc = Comrade.GaussMarkovChainDist((AA = specc,), Int[], Float64[], n)
         nodec = Comrade.PT.transport_node(dc, Comrade.PT.TVFlat())
         @test TV.dimension(nodec) == n
@@ -393,7 +400,7 @@ end
         # reference-fixed points, and the sheet weights still sum to one over the whole
         # 2π lattice — the pushforward onto the circle is exactly the chain density
         for (fpos, fvals) in ((Int[], Float64[]), ([2], [0.4]), ([1, 4], [0.0, -1.2]))
-            sp5 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), 1:5, ts[1:5], fpos, true)
+            sp5 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), 1:5, ts[1:5], fpos, Centered())
             d5 = Comrade.GaussMarkovChainDist((AA = sp5,), collect(fpos), fvals, 5)
             nd5 = Comrade.PT.transport_node(d5, Comrade.PT.TVFlat())
             nf = TV.dimension(nd5)
@@ -410,6 +417,95 @@ end
             end
             mx = maximum(lat)
             @test mx + log(sum(l -> exp(l - mx), lat)) ≈ logpdf(d5, y5) atol = 1.0e-9
+        end
+
+        # non-centered (the default): one coordinate per free phase, the *scaled step*
+        # onto it, so the phase is the wrapped running sum. The chain's first free point
+        # has nothing to step off and keeps its angle as its coordinate.
+        specn = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], NonCentered())
+        dn = Comrade.GaussMarkovChainDist((AA = specn,), Int[], Float64[], n)
+        noden = Comrade.PT.transport_node(dn, Comrade.PT.TVFlat())
+        @test TV.dimension(noden) == n
+        zn = randn(rng4, n)
+        θn, ℓn, _ = TV.transform_with(TV.LogJac(), noden, zn, 1)
+        φn = cumsum(
+            vcat(zn[1], [sqrt(Comrade._increment_var(pw, ts[k] - ts[k - 1])) * zn[k] for k in 2:n])
+        )
+        @test θn ≈ Comrade._wrap_angle.(φn)
+        # the whole point: in these coordinates the flat target is exactly N(0, I), so
+        # the chain's prior correlation is not handed to the sampler at all
+        @test logpdf(dn, θn) + ℓn ≈
+            -log(2π) + Comrade._init_sheet_logweight(UniformInit(), pw, zn[1]) +
+            sum(k -> logpdf(Normal(), zn[k]), 2:n)
+        # the two halves are FUSED (`_fused_flat`): the WN transitions cancel exactly
+        # against the sheet weights, so neither side computes them — `logpdf` alone
+        # carries only the chain-opening init term and the transform ℓ the rest. Only
+        # their sum (asserted just above) is the flat density.
+        @test logpdf(dn, θn) ≈ -log(2π)
+        # transform ∘ inverse is the identity on wrapped angles, as for the other lifts
+        zi = zeros(n)
+        TV.inverse_at!(zi, 1, noden, θn)
+        θi, _, _ = TV.transform_with(TV.LogJac(), noden, zi, 1)
+        @test θi ≈ θn
+        # ... and the sheets still sum to the circular chain density, so the model is
+        # the same one the centered lift carries
+        let ts2 = [0.0, 0.8], Q = Comrade._increment_var(pw, 0.8), sq = sqrt(Q)
+            sp2 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), [1, 2], ts2, Int[], NonCentered())
+            d2 = Comrade.GaussMarkovChainDist((AA = sp2,), Int[], Float64[], 2)
+            nd2 = Comrade.PT.transport_node(d2, Comrade.PT.TVFlat())
+            θa2, θb2 = 0.7, -2.1
+            tot = sum(Iterators.product((-60):60, (-60):60)) do (m1, m2)
+                z2 = [θa2 + 2π * m1, (Comrade._wrap_angle(θb2 - θa2) + 2π * m2) / sq]
+                y2, ℓ2, _ = TV.transform_with(TV.LogJac(), nd2, z2, 1)
+                # |dθ₂/dz₂| = √Q takes the density in the coordinate to one in the angle
+                return exp(logpdf(d2, y2) + ℓ2) / sq
+            end
+            @test tot ≈ exp(Comrade._wn_logpdf(θb2 - θa2, Q)) / (2π) rtol = 1.0e-9
+        end
+
+        # a reference-fixed time stamp is a *gauge* for a wrapped chain: it is dropped
+        # from the chain, the gap across it composes, and it carries no prior term — so a
+        # station picked as the reference is not pulled toward the reference value.
+        let indsg = collect(1:6), tsg = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5]
+            spw = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit())
+            spr = GaussMarkovSitePrior(ScanSeg(), p)
+            cw = Comrade._chainspec(spw, :a, indsg, tsg, [2, 5])
+            @test cw.inds == [1, 3, 4, 6]
+            @test cw.ts == [0.0, 1.0, 1.5, 2.5]
+            @test cw.free.dtl[2] ≈ 1.0          # t₃ − t₁, the composed gap
+            @test isempty(cw.fsub.inds)          # nothing left to condition on
+            # the real-line process keeps them and conditions on them exactly
+            cr = Comrade._chainspec(spr, :a, indsg, tsg, [2, 5])
+            @test cr.inds == indsg && cr.fsub.inds == [2, 5]
+            # the wrapped chain's density does not depend on the value fixed at stamp 2
+            lp(sp, v) = let c = Comrade._chainspec(sp, :a, collect(1:4), tsg[1:4], [2])
+                Comrade._chain_logpdf(
+                    Comrade.GaussMarkovChainDist(
+                        (AA = c,), c.fsub.inds, fill(v, length(c.fsub.inds)), 4
+                    ), [0.1, v, -0.4, 1.2], (;)
+                )
+            end
+            @test lp(spw, 0.0) ≈ lp(spw, 2.5)
+            @test !(lp(spr, 0.0) ≈ lp(spr, 2.5))
+            # a FixedInit chain's opening value states where the chain starts rather than
+            # a gauge, so it is retained and stays conditioned on
+            spf = GaussMarkovSitePrior(ScanSeg(), pw; init = FixedInit(0.0))
+            cf = Comrade._chainspec(spf, :a, indsg, tsg, [1, 4])
+            @test cf.inds == [1, 2, 3, 5, 6] && cf.fsub.inds == [1]
+            # fused remainder of a FixedInit chain is exactly zero for any values
+            df = Comrade.GaussMarkovChainDist((AA = cf,), cf.fsub.inds, [0.0], 6)
+            @test iszero(logpdf(df, [0.0, 0.4, -0.9, 99.0, 1.2, 0.3]))
+            # a site that is the reference at *every* one of its stamps has an empty chain:
+            # it contributes no coordinates and no prior term, and `rand` leaves the
+            # reference values `_fill_fixed!` placed
+            ca = Comrade._chainspec(spw, :a, indsg, tsg, collect(1:6))
+            @test isempty(ca.inds) && Comrade._nfree(ca) == 0
+            da = Comrade.GaussMarkovChainDist((AA = ca,), indsg, fill(0.3, 6), 6)
+            @test Comrade._flat_dim(da) == 0
+            @test iszero(Comrade._chain_logpdf(da, fill(0.3, 6), (;)))
+            va = Vector{Float64}(undef, 6)
+            Comrade._rand_chains!(Random.Xoshiro(3), va, da, (;))
+            @test va == fill(0.3, 6)
         end
     end
 
@@ -495,7 +591,7 @@ end
         # circular process, so it is rejected; StationaryInit is now the default
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pr; init = UniformInit())
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pr; init = GaussianInit(0.0, 1.0))
-        @test GaussMarkovSitePrior(ScanSeg(), pr).centered
+        @test GaussMarkovSitePrior(ScanSeg(), pr).param isa Comrade.Centered
         @test GaussMarkovSitePrior(ScanSeg(), pr).init isa StationaryInit
         @test GaussMarkovSitePrior(ScanSeg(), pr; init = FixedInit(0.0)) isa GaussMarkovSitePrior
 
@@ -514,7 +610,7 @@ end
         # rand: values on the circle, the WN(μ, σ²) marginal, and the saturating
         # coherence exp(-σ²(1 - e^{-Δ/τ}))
         rngr = Random.Xoshiro(19)
-        specr = Comrade.MarkovChainSpec(pr, StationaryInit(), Val(nothing), indsr, tsr, Int[], true)
+        specr = Comrade.MarkovChainSpec(pr, StationaryInit(), Val(nothing), indsr, tsr, Int[], Centered())
         dr = Comrade.GaussMarkovChainDist((AA = specr,), Int[], Float64[], nr)
         N = 50_000
         dw = Matrix{Float64}(undef, nr, N)
@@ -530,7 +626,7 @@ end
         # conditional rand hits the reference-fixed values exactly
         fpr = [2, 6]
         θfr = [0.4, -0.3]
-        specfr = Comrade.MarkovChainSpec(pr, StationaryInit(), Val(nothing), indsr, tsr, fpr, true)
+        specfr = Comrade.MarkovChainSpec(pr, StationaryInit(), Val(nothing), indsr, tsr, fpr, Centered())
         dfr = Comrade.GaussMarkovChainDist((AA = specfr,), fpr, θfr, nr)
         vr = Vector{Float64}(undef, nr)
         for _ in 1:200
@@ -562,7 +658,7 @@ end
         # the lift is proper — no 2π lattice — and its pushforward onto the circle is
         # exactly the chain density, with and without scattered reference-fixed points
         for (fpos, fvals) in ((Int[], Float64[]), ([2], [0.4]), ([1, 4], [0.0, -1.2]))
-            sp5 = Comrade.MarkovChainSpec(pr, StationaryInit(), Val(nothing), 1:5, tsr[1:5], fpos, true)
+            sp5 = Comrade.MarkovChainSpec(pr, StationaryInit(), Val(nothing), 1:5, tsr[1:5], fpos, Centered())
             d5 = Comrade.GaussMarkovChainDist((AA = sp5,), collect(fpos), fvals, 5)
             nd5 = Comrade.PT.transport_node(d5, Comrade.PT.TVFlat())
             nf = TV.dimension(nd5)
@@ -1170,7 +1266,7 @@ end
             @instrument function gmint_wbe()
                 return @jones begin
                     gp ~ ArrayPrior(
-                        GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = InverseGamma(3.0, 6.0)); init = UniformInit(), centered = false);
+                        GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = InverseGamma(3.0, 6.0)); init = UniformInit(), param = AngleEmbedded());
                         refant = SEFDReference(0.0)
                     )
                     return SingleStokesGain(exp(1im * gp))
@@ -1270,7 +1366,7 @@ end
                     gp ~ ArrayPrior(
                         GaussMarkovSitePrior(
                             ScanSeg(), WrappedOrnsteinUhlenbeck(σ = 0.3, τ = InverseGamma(3.0, 6.0));
-                            centered = false
+                            param = AngleEmbedded()
                         );
                         refant = SEFDReference(0.0)
                     )
@@ -1306,14 +1402,14 @@ end
         # sampler uses them) and serve as the reference here.
         perchain(dd, xx, hh) = sum(Comrade.chain_term(sp, xx, hh) for sp in values(Comrade.chainspecs(dd)))
 
-        function mkdist(procs, init, centered, n; fixed, hpnames)
+        function mkdist(procs, init, par, n; fixed, hpnames)
             K = length(procs)
             chains = NamedTuple{ntuple(i -> Symbol(:c, i), K)}(
                 ntuple(K) do i
                     Comrade.MarkovChainSpec(
                         procs[i], init, Val(hpnames === nothing ? nothing : hpnames[i]),
                         collect(((i - 1) * n + 1):(i * n)),
-                        collect(range(0.1 * i; step = 0.1, length = n)), fixed[i], centered
+                        collect(range(0.1 * i; step = 0.1, length = n)), fixed[i], par
                     )
                 end
             )
@@ -1339,20 +1435,23 @@ end
         sites = (:a, :b, :c, :d)
 
         cases = (
-            ("OU whitened", rep(OU), StationaryInit(), false, allfix(Int[]), nothing),
-            ("OU centered", rep(OU), StationaryInit(), true, allfix(Int[]), nothing),
-            ("OU refant", rep(OU), StationaryInit(), false, allfix([2, 5]), nothing),
-            ("OU fitted", rep(OUh), StationaryInit(), false, allfix(Int[]), sites),
-            ("OU fitted refant", rep(OUh), StationaryInit(), true, allfix([1, 4]), sites),
-            ("BM GaussianInit", rep(BM), GaussianInit(0.1, 2.0), false, allfix(Int[]), nothing),
-            ("BM FixedInit refant", rep(BM), FixedInit(0.0), false, allfix([1]), nothing),
-            ("BM GaussianInit refant", rep(BM), GaussianInit(0.1, 2.0), false, allfix([2, 5]), nothing),
-            ("WB centered", rep(WB), UniformInit(), true, allfix(Int[]), nothing),
-            ("WB refant", rep(WB), UniformInit(), true, allfix([2, 5]), nothing),
-            ("WB embedding", rep(WB), UniformInit(), false, allfix([3]), nothing),
-            ("WB fitted", rep(WBh), UniformInit(), true, allfix([2]), sites),
-            ("WOU stationary", rep(WOU), StationaryInit(), true, allfix(Int[]), nothing),
-            ("WOU refant", rep(WOU), StationaryInit(), true, allfix([1, 4]), nothing),
+            ("OU whitened", rep(OU), StationaryInit(), NonCentered(), allfix(Int[]), nothing),
+            ("OU centered", rep(OU), StationaryInit(), Centered(), allfix(Int[]), nothing),
+            ("OU refant", rep(OU), StationaryInit(), NonCentered(), allfix([2, 5]), nothing),
+            ("OU fitted", rep(OUh), StationaryInit(), NonCentered(), allfix(Int[]), sites),
+            ("OU fitted refant", rep(OUh), StationaryInit(), Centered(), allfix([1, 4]), sites),
+            ("BM GaussianInit", rep(BM), GaussianInit(0.1, 2.0), NonCentered(), allfix(Int[]), nothing),
+            ("BM FixedInit refant", rep(BM), FixedInit(0.0), NonCentered(), allfix([1]), nothing),
+            ("BM GaussianInit refant", rep(BM), GaussianInit(0.1, 2.0), NonCentered(), allfix([2, 5]), nothing),
+            ("WB centered", rep(WB), UniformInit(), Centered(), allfix(Int[]), nothing),
+            ("WB centered refant", rep(WB), UniformInit(), Centered(), allfix([2, 5]), nothing),
+            ("WB noncentered", rep(WB), UniformInit(), NonCentered(), allfix(Int[]), nothing),
+            ("WB noncentered refant", rep(WB), UniformInit(), NonCentered(), allfix([2, 5]), nothing),
+            ("WB embedding", rep(WB), UniformInit(), AngleEmbedded(), allfix([3]), nothing),
+            ("WB fitted", rep(WBh), UniformInit(), Centered(), allfix([2]), sites),
+            ("WB fitted noncentered", rep(WBh), UniformInit(), NonCentered(), allfix([2]), sites),
+            ("WOU stationary", rep(WOU), StationaryInit(), Centered(), allfix(Int[]), nothing),
+            ("WOU refant", rep(WOU), StationaryInit(), Centered(), allfix([1, 4]), nothing),
             # heterogeneous groups: the two things a group is allowed to differ on.
             # Per-site *numeric* process fields are read per point from `numvals`, so a
             # site whose σ or τ is overridden still shares one group; getting that wrong
@@ -1363,17 +1462,18 @@ end
                     OU, Comrade.OrnsteinUhlenbeck(σ = 0.7, τ = 0.5),
                     Comrade.OrnsteinUhlenbeck(σ = 0.2, τ = 1.9), OU,
                 ),
-                StationaryInit(), false, allfix(Int[]), nothing,
+                StationaryInit(), NonCentered(), allfix(Int[]), nothing,
             ),
             # Mixed `hasfix`: a chain with no reference-fixed points carries `mskf = 0`,
             # and `_bridge_weights(Q₁, 0, 1)` collapses exactly to the one-sided
             # conditional, so it may share a group with chains that do have them.
-            ("mixed refant", rep(OU), StationaryInit(), false, ([2], Int[], [1, 5], Int[]), nothing),
-            ("mixed refant wrapped", rep(WB), UniformInit(), true, (Int[], [3], Int[], [2, 6]), nothing),
+            ("mixed refant", rep(OU), StationaryInit(), NonCentered(), ([2], Int[], [1, 5], Int[]), nothing),
+            ("mixed refant wrapped", rep(WB), UniformInit(), Centered(), (Int[], [3], Int[], [2, 6]), nothing),
+            ("mixed refant wrapped nc", rep(WB), UniformInit(), NonCentered(), (Int[], [3], Int[], [2, 6]), nothing),
         )
 
-        for (nm, procs, init, centered, fixed, hpn) in cases
-            d = mkdist(procs, init, centered, n; fixed, hpnames = hpn)
+        for (nm, procs, init, par, fixed, hpn) in cases
+            d = mkdist(procs, init, par, n; fixed, hpnames = hpn)
             @testset "$nm" begin
                 # every chain lands in a single group — that is the whole point
                 @test length(Comrade.chaingroups(d)) == 1
@@ -1445,10 +1545,10 @@ end
         # chains are merged, so the flat coordinate layout is unchanged.
         @testset "grouping boundaries" begin
             mixed = (
-                c1 = Comrade.MarkovChainSpec(OU, StationaryInit(), Val(nothing), 1:4, collect(0.1:0.1:0.4), Int[], false),
-                c2 = Comrade.MarkovChainSpec(OU, StationaryInit(), Val(nothing), 5:8, collect(0.1:0.1:0.4), Int[], true),
-                c3 = Comrade.MarkovChainSpec(BM, FixedInit(0.0), Val(nothing), 9:12, collect(0.1:0.1:0.4), [1], false),
-                c4 = Comrade.MarkovChainSpec(BM, FixedInit(1.0), Val(nothing), 13:16, collect(0.1:0.1:0.4), [1], false),
+                c1 = Comrade.MarkovChainSpec(OU, StationaryInit(), Val(nothing), 1:4, collect(0.1:0.1:0.4), Int[], NonCentered()),
+                c2 = Comrade.MarkovChainSpec(OU, StationaryInit(), Val(nothing), 5:8, collect(0.1:0.1:0.4), Int[], Centered()),
+                c3 = Comrade.MarkovChainSpec(BM, FixedInit(0.0), Val(nothing), 9:12, collect(0.1:0.1:0.4), [1], NonCentered()),
+                c4 = Comrade.MarkovChainSpec(BM, FixedInit(1.0), Val(nothing), 13:16, collect(0.1:0.1:0.4), [1], NonCentered()),
             )
             dm = Comrade.GaussMarkovChainDist(mixed, [9, 13], [0.0, 1.0], 16)
             @test length(Comrade.chaingroups(dm)) == 4

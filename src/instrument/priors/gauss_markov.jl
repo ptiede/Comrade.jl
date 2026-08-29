@@ -1,7 +1,50 @@
 export GaussMarkovSitePrior, siteparams
+export Centered, NonCentered, AngleEmbedded
 
 """
-    GaussMarkovSitePrior(seg::TimeSegmentation, process::AbstractGaussMarkovProcess; init = StationaryInit(), centered = false)
+    AbstractChainParameterization
+
+Abstract type for the latent coordinates of a [`GaussMarkovSitePrior`](@ref) chain:
+[`Centered`](@ref), [`NonCentered`](@ref), or [`AngleEmbedded`](@ref). See the site
+prior's docstring for which to use when.
+"""
+abstract type AbstractChainParameterization end
+
+"""
+    Centered()
+
+Chain coordinates that are the free points' own values — the gain, or, for a wrapped
+process, the raw angle plus its sheet weight. The flat target then carries the chain's
+prior correlation, and only `asflat` is supported. See [`GaussMarkovSitePrior`](@ref).
+"""
+struct Centered <: AbstractChainParameterization end
+
+"""
+    NonCentered()
+
+Whitened chain coordinates: each free point's coordinate is an iid standard variate. On
+the real line it is colored through the chain's exact conditional moments (including the
+reference-station bridge and the initial marginal at the chain opening); on the circle it
+is the scaled step onto the previous phase, so the phase is the wrapped running sum and
+the chain-opening point keeps its raw angle. Either way the flat target carries none of
+the chain's prior correlation. Requires a transition mean affine in the previous point,
+which excludes [`WrappedOrnsteinUhlenbeck`](@ref). The default. See
+[`GaussMarkovSitePrior`](@ref).
+"""
+struct NonCentered <: AbstractChainParameterization end
+
+"""
+    AngleEmbedded()
+
+Chain coordinates that embed each free phase as two latent reals through the angle
+transform of `DiagonalVonMises`, at twice the dimension. The one parameterization of a
+wrapped chain with no `2π` sheet structure; valid only for a wrapped process. See
+[`GaussMarkovSitePrior`](@ref).
+"""
+struct AngleEmbedded <: AbstractChainParameterization end
+
+"""
+    GaussMarkovSitePrior(seg::TimeSegmentation, process::AbstractGaussMarkovProcess; init = StationaryInit(), param = NonCentered())
 
 A site prior that is correlated in time, following the continuous-time Gauss-Markov
 `process` (e.g. [`OrnsteinUhlenbeck`](@ref)) sampled at the times implied by the
@@ -21,38 +64,59 @@ for that site. `caltable`/`plotcaltable` accept the hierarchical sample directly
 elementwise postprocessing (e.g. `exp.(...)` of log-gains) use the `params` field, i.e.
 `exp.(x.instrument.lg.params)`.
 
-The default value of `centered` depends on the process, because the trade-off does.
+The `param` keyword picks the chain's latent coordinates. [`NonCentered`](@ref) whitens
+the chain — each free point's coordinate is an iid standard variate, colored through the
+exact conditional moments on the real line and, on the circle, the scaled step onto the
+previous phase; [`Centered`](@ref) makes the coordinate the value (or angle) itself;
+[`AngleEmbedded`](@ref) is a wrapped-only third form. The shorthand `centered = true` / `centered = false` selects
+`Centered()` / `NonCentered()`. The default is `NonCentered` for every process that
+supports it, which is all of them except [`WrappedOrnsteinUhlenbeck`](@ref).
 
-For a **real-line process** (`OrnsteinUhlenbeck`, `BrownianMotion`) the default is
-`centered = false`, i.e. the prior is *whitened* (non-centered): each free point's latent
-coordinate is an iid standard variate that is colored through the chain's exact
-conditional moments. This removes the hyperparameter-gain funnel when hyperparameters are
-fitted and makes the transport to the Std spaces exact, so both `asflat` and `ascube`
-work. Set `centered = true` to instead use the gain values themselves as coordinates,
-which can mix better when every point is strongly data-constrained; centered priors
-support `asflat` only.
+The default is `NonCentered` because a centered chain hands the sampler the chain's own
+prior correlation. For a random walk that correlation is a Green's function whose
+condition number grows with the number of time stamps, and a diagonal mass matrix cannot
+absorb it. It also matters for what the chain is coupled *to*: a common shift of one
+station's whole phase chain trades against source position and structure, and in centered
+coordinates that degeneracy is a diagonal ray through every coordinate of the chain. In
+non-centered coordinates it is a single coordinate — the chain's level — and the
+increments are prior-standardized and nearly orthogonal to the sky. `Centered` can still
+mix better when every point is strongly data-constrained and the prior is weak.
 
-For a **wrapped (circular) process** ([`WrappedBrownian`](@ref),
-[`WrappedOrnsteinUhlenbeck`](@ref)) there is no whitening —
-a wrapped chain has no Gaussian conditionals — so the choice is between raw angles and an
-embedding, and the default is `centered = true`: one coordinate per free phase, the angle
-itself. A wrapped chain's density is exactly `2π`-periodic, so simply *calling* a real
-coordinate the angle would make the flat target improper — an infinite lattice of
-identical modes, `2π` apart in every coordinate, which a sampler drifts through and which
-wrecks warmup variance adaptation. The raw-angle lift therefore carries a *sheet weight*:
-each free phase is reweighted by `N(δ; 0, Q) / WN(δ; Q)`, where `δ` is its step onto the
-previous chain value and `Q` that step's variance. Those weights sum to exactly one over
-the `2π` sheets, so the circular model is untouched — no mass is added, moved, or lost —
-while the flat target becomes the proper *unwrapped* Gaussian random walk, in which a
-`2π` step costs `exp(−(2π)²/2Q)`.
+For a **real-line process** (`OrnsteinUhlenbeck`, `BrownianMotion`) `NonCentered` colors
+iid standard variates through the chain's exact conditional moments. This also removes the
+hyperparameter-gain funnel when hyperparameters are fitted and makes the transport to the
+Std spaces exact, so both `asflat` and `ascube` work; `Centered` supports `asflat` only.
 
-`centered = false` on a wrapped process selects the alternative: each free phase is
-embedded as two latent reals through the same angle transform used by `DiagonalVonMises`.
-The embedding is the one parameterization with no sheet structure at all (a phase wrap is
-a continuous winding of the latent point), so it is the safe fallback if a fit ever does
-show sheet-related pathology — at the cost of twice the phase dimension and a per-pair
-rotated-ellipse geometry a diagonal mass matrix cannot capture. Wrapped chains support
-`asflat` only in either form.
+For a **wrapped (circular) process** every form supports `asflat` only, and the two
+non-embedded forms share a *sheet weight*. A wrapped chain's density is exactly
+`2π`-periodic, so simply *calling* a real coordinate the angle would make the flat target
+improper — an infinite lattice of identical modes, `2π` apart in every coordinate, which a
+sampler drifts through and which wrecks warmup variance adaptation. Each free phase is
+therefore reweighted by `N(δ; 0, Q) / WN(δ; Q)`, where `δ` is its step onto the previous
+chain value and `Q` that step's variance. Those weights sum to exactly one over the `2π`
+sheets, so the circular model is untouched — no mass is added, moved, or lost — while the
+flat target becomes proper, with a `2π` step costing `exp(−(2π)²/2Q)`.
+
+Under `Centered` the flat target is then the *unwrapped* Gaussian random walk in the raw
+angles, correlations and all. Under `NonCentered` the coordinate of each free phase is
+instead its increment divided by that step's standard deviation, and the sheet weight
+leaves a flat target that is exactly `N(0, I)` in those coordinates; the phase itself is
+the wrapped running sum. The chain's first free point keeps a raw-angle coordinate in both
+forms — it is the level, and there is nothing before it to take an increment from. The two
+halves of a non-centered wrapped chain's flat density are fused for efficiency: `logprior`
+of a constrained sample carries only the chain-opening terms, with the remainder in the
+flat transform — their sum, which every sampler and optimizer evaluates, is exact and
+unchanged.
+`NonCentered` requires a transition mean that is affine in the previous point, which on
+the circle means [`WrappedBrownian`](@ref) (Φ ≡ 1); the shortest-arc drift of
+[`WrappedOrnsteinUhlenbeck`](@ref) wraps its anchor, so that process is `Centered` only.
+
+[`AngleEmbedded`](@ref) embeds each free phase as two latent reals through the same angle
+transform used by `DiagonalVonMises`. It is the one parameterization with no sheet
+structure at all (a phase wrap is a continuous winding of the latent point), so it is the
+safe fallback if a fit ever does show sheet-related pathology — at the cost of twice the
+phase dimension, a per-pair rotated-ellipse geometry a diagonal mass matrix cannot
+capture, and the chain correlation of the centered form.
 
 This prior is intended for both gain amplitudes and phases. For an *absolute* phase the
 preferred process is [`WrappedBrownian`](@ref) with `init = UniformInit()`: the prior is
@@ -66,9 +130,7 @@ real-line process (e.g. `OrnsteinUhlenbeck` with
 real and is appropriate when the excursions stay well below `2π` — beyond that, the
 likelihood's periodicity in `exp(iθ)` produces spurious `2π`-shifted modes that only the
 wrapped process removes. In all cases the `phase=true` cumulative reparameterization of
-`ArrayPrior` is superseded by this prior: `phase` must be `false`. Reference stations
-(`refant`) are handled by exact conditioning of the chain on the fixed values, which
-works with scattered fixed indices such as those produced by `SEFDReference`.
+`ArrayPrior` is superseded by this prior: `phase` must be `false`.
 
 The initial distribution of each chain — how its first time stamp is treated — is set by
 `init` (see [`AbstractInitialPrior`](@ref)). [`StationaryInit`](@ref) (the default)
@@ -82,6 +144,23 @@ otherwise trade off against the offset and, through the likelihood's `2π` perio
 produce spurious posterior modes at `2π`-shifted levels. A referencing scheme that
 already fixes a chain's first point must agree with the `FixedInit` value; a conflict is
 an error.
+
+# Reference stations
+
+How a reference-fixed time stamp enters the chain depends on whether the process lives on
+the circle. On the **real line** the fixed value is a value of the process, and the chain
+is conditioned on it exactly — the free points are drawn from `p(free | fixed)`, which
+works with scattered fixed indices such as those produced by `SEFDReference`.
+
+On the **circle** it is a gauge choice instead. A station's phase is only defined up to
+the per-time global phase the reference scheme removes, so a station being picked as the
+reference says nothing about its own gain phase — and conditioning on it would pull the
+station's whole chain toward the reference value. A wrapped chain is therefore built over
+the time stamps where the station is actually free, with the process's transition law
+taken over the composed gap across the skipped stamps: a point following a reference-fixed
+stamp is an offset from the last free point, not from the reference value. The fixed
+values still enter the likelihood; they just carry no prior term. For
+[`WrappedBrownian`](@ref) this free-stamp chain is exactly the marginal of the full one.
 
 # Example
 
@@ -98,25 +177,60 @@ dgp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ 
     so work on both the CPU and GPU/`Reactant` backends; the plain `Distributions.jl` types
     only work on the CPU.
 """
-struct GaussMarkovSitePrior{S <: TimeSegmentation, P <: AbstractGaussMarkovProcess, I <: AbstractInitialPrior} <: AbstractSitePrior
+struct GaussMarkovSitePrior{S <: TimeSegmentation, P <: AbstractGaussMarkovProcess, I <: AbstractInitialPrior, C <: AbstractChainParameterization} <: AbstractSitePrior
     seg::S
     process::P
     init::I
-    centered::Bool
+    param::C
 end
 
-# Wrapped (circular) chains default to the centered raw-angle coordinates; real-line
-# chains default to the whitened ones. The two defaults differ because the trade-off
-# does: whitening a real-line chain removes the hyperparameter funnel and buys the Std
-# transports, while a wrapped chain has no whitening (no Gaussian conditionals) and its
-# alternative — the angle embedding — costs twice the dimension for a geometry a diagonal
-# mass matrix cannot fit.
+_asparam(p::AbstractChainParameterization) = p
+_asparam(centered::Bool) = centered ? Centered() : NonCentered()
+
+# The best coordinates the process supports: increments wherever the chain can be built as
+# a running sum, values otherwise.
+_default_param(p::AbstractGaussMarkovProcess) = has_affine_lift(p) ? NonCentered() : Centered()
+
+# `centered` is the two-valued shorthand for `param`; passing both is a conflict rather
+# than a precedence rule.
 function GaussMarkovSitePrior(
         seg::TimeSegmentation, process::AbstractGaussMarkovProcess;
-        init::AbstractInitialPrior = StationaryInit(), centered = is_wrapped(process)
+        init::AbstractInitialPrior = StationaryInit(),
+        param = nothing, centered = nothing
     )
+    (param === nothing || centered === nothing) || throw(
+        ArgumentError("pass either `param` or the `centered` shorthand, not both")
+    )
+    sel = param === nothing ? (centered === nothing ? _default_param(process) : centered) : param
+    par = _asparam(sel)
     _check_init(init, process)
-    return GaussMarkovSitePrior(seg, process, init, centered)
+    _check_param(par, process)
+    return GaussMarkovSitePrior(seg, process, init, par)
+end
+
+# Validity of a (parameterization, process) pair, checked when the site prior is built.
+# Written against the `is_wrapped`/`has_affine_lift` traits so a new process is covered by
+# defining its traits.
+_check_param(::AbstractChainParameterization, ::AbstractGaussMarkovProcess) = nothing
+function _check_param(::NonCentered, p::AbstractGaussMarkovProcess)
+    has_affine_lift(p) || throw(
+        ArgumentError(
+            "$(typeof(p).name.name) does not support the NonCentered parameterization: " *
+                "its transition mean takes the shortest arc onto the previous point, which " *
+                "is not affine in that point, so the chain cannot be built as a running sum " *
+                "of increments. Use param = Centered()."
+        )
+    )
+    return nothing
+end
+function _check_param(::AngleEmbedded, p::AbstractGaussMarkovProcess)
+    is_wrapped(p) || throw(
+        ArgumentError(
+            "AngleEmbedded is only valid for a wrapped (circular) process; " *
+                "$(typeof(p).name.name) lives on the real line."
+        )
+    )
+    return nothing
 end
 
 needs_chain_machinery(::GaussMarkovSitePrior) = true
@@ -126,22 +240,22 @@ needs_chain_machinery(::GaussMarkovSitePrior) = true
 # Built once at `set_array` time; everything in a spec is constant during sampling
 # (indices, times, and the process *template* whose fitted fields are placeholders).
 
-struct MarkovChainSpec{P <: AbstractGaussMarkovProcess, I <: AbstractInitialPrior, K, V <: AbstractVector{<:Integer}, T <: AbstractVector, F <: NamedTuple, G <: NamedTuple}
+struct MarkovChainSpec{P <: AbstractGaussMarkovProcess, I <: AbstractInitialPrior, C <: AbstractChainParameterization, K, V <: AbstractVector{<:Integer}, T <: AbstractVector, F <: NamedTuple, G <: NamedTuple}
     process::P     # template; fitted fields are Distribution placeholders
     init::I        # initial distribution of the chain's first time stamp
     hpsel::Val{K}  # the site whose hyperparameters this chain reads, or nothing if fully fixed
     inds::V        # flat indices into the full parameter vector, ascending in time
     ts::T          # chain times in hours (strictly increasing)
-    centered::Bool # coordinates are raw values (centered) or whitened standard variates
+    param::C       # which latent coordinates the chain uses
     free::F        # static per-free-point tables (see `_free_point_tables`)
     fsub::G        # inds/ts restricted to the fixed points, materialized (views do not trace)
 end
 
 function MarkovChainSpec(
-        process::AbstractGaussMarkovProcess, init::AbstractInitialPrior, hpsel::Val, inds, ts, fixedpos, centered::Bool
+        process::AbstractGaussMarkovProcess, init::AbstractInitialPrior, hpsel::Val, inds, ts, fixedpos, param::AbstractChainParameterization
     )
     return MarkovChainSpec(
-        process, init, hpsel, inds, ts, centered,
+        process, init, hpsel, inds, ts, param,
         _free_point_tables(inds, ts, fixedpos),
         (inds = inds[fixedpos], ts = ts[fixedpos]),
     )
@@ -162,11 +276,11 @@ IIDChainSpec(dist, freeinds) = IIDChainSpec(dist, freeinds, PT.transport_node(di
 EnzymeRules.inactive_type(::Type{<:MarkovChainSpec}) = true
 EnzymeRules.inactive_type(::Type{<:IIDChainSpec}) = true
 
-struct MarkovGroup{P <: AbstractGaussMarkovProcess, I <: AbstractInitialPrior, S, N <: NamedTuple, F <: NamedTuple, C <: NamedTuple}
+struct MarkovGroup{P <: AbstractGaussMarkovProcess, I <: AbstractInitialPrior, R <: AbstractChainParameterization, S, N <: NamedTuple, F <: NamedTuple, C <: NamedTuple}
     process::P     # template of the *first* member; fitted fields are Distribution placeholders
     init::I
     sites::Val{S}  # member sites in group order, or `nothing` when no field is fitted
-    centered::Bool
+    param::R
     numvals::N     # per-chain host vectors of the numeric (non-fitted) process fields
     free::F        # concatenated `_free_point_tables`, plus `hpi` (point -> member index)
     chain::C       # concatenated per-time-stamp tables for the chain log-density
@@ -176,7 +290,7 @@ end
 EnzymeRules.inactive_type(::Type{<:MarkovGroup}) = true
 
 # A single chain and a batched group expose the same surface to every walker: `process`,
-# `init`, `centered`, `free` and `_nfree`. See the batched-group section below.
+# `init`, `param`, `free` and `_nfree`. See the batched-group section below.
 const ChainUnit = Union{MarkovChainSpec, MarkovGroup}
 
 @inline _selecthp(hp::NamedTuple, ::Val{nothing}) = (;)
@@ -212,6 +326,61 @@ function _gm_chain_logpdf(p::AbstractGaussMarkovProcess, init::AbstractInitialPr
     return ℓ
 end
 
+# ----- fused flat evaluation of non-centered wrapped chains --------------------
+#
+# For a non-centered wrapped chain every wrapped-normal transition term of the chain
+# density cancels *exactly* against the `−log WN` of the matching sheet weight in
+# `_color_chain_wrapped_noncentered!`: both read the same deviation modulo 2π, and WN is
+# periodic in it. Evaluating both sides only for them to cancel would cost two
+# theta-function sums per free phase in every log-density and gradient evaluation, so the
+# boundary between the two halves is moved instead: the coloring returns the whole fused
+# flat target — `log N(zₖ; 0, 1)` per stepping point plus the chain-opening init weight —
+# and `chain_term` returns only the non-cancelling remainder, the chain-opening
+# first-point terms. For the inits a wrapped chain admits that remainder is a per-chain
+# constant (`−log 2π` under `UniformInit`, zero under `FixedInit`); the generic method
+# keeps any other init exact.
+#
+# Stated loudly: for these units `logpdf` alone is NOT the circular chain density — only
+# its sum with the flat transform's log-density term is meaningful, and that sum is
+# unchanged by the fusion. `asflat` sampling, optimization, and `logdensityof` always
+# evaluate that sum; a standalone `logprior` of a constrained sample inherits the split.
+_fused_flat(u::ChainUnit) = is_wrapped(u.process) && u.param isa NonCentered
+
+# Concrete unit types on both arguments so these shortcuts are unambiguously more
+# specific than the generic exact methods below.
+@inline _fused_chain_term(::UniformInit, u::MarkovChainSpec, x, hp) =
+    -_nlive(u) * log(oftype(zero(eltype(x)), 2π))
+@inline _fused_chain_term(::UniformInit, u::MarkovGroup, x, hp) =
+    -_nlive(u) * log(oftype(zero(eltype(x)), 2π))
+@inline _fused_chain_term(::FixedInit, ::MarkovChainSpec, x, hp) = zero(eltype(x))
+@inline _fused_chain_term(::FixedInit, ::MarkovGroup, x, hp) = zero(eltype(x))
+# `opens` marks each live chain's first stamp; the tables are host data, so the count is
+# a host constant (and folds at trace time under Reactant).
+@inline _nlive(spec::MarkovChainSpec) = one(eltype(spec.ts))
+@inline _nlive(g::MarkovGroup) = sum(g.chain.opens)
+
+# Exact for any init: the chain-opening first-point terms, evaluated on the angles. A
+# wrapped gauge chain conditions on nothing (`fsub` is empty apart from a FixedInit
+# opening, whose term is zero on both sides), so there is no subtraction here.
+@inline function _fused_chain_term(init::AbstractInitialPrior, spec::MarkovChainSpec, x, hp)
+    p = materialize(spec.process, _selecthp(hp, spec.hpsel))
+    x1 = rgetindex(x, rgetindex(spec.inds, firstindex(spec.inds)))
+    Δ0 = zero(eltype(spec.ts))
+    return _first_point_term(init, p, x1, Δ0, oftype(Δ0, true))
+end
+@inline function _fused_chain_term(init::AbstractInitialPrior, g::MarkovGroup, x, hp)
+    vals = _group_fieldvals(g, hp)
+    tab = g.chain
+    ℓ = zero(eltype(x))
+    @trace track_numbers = false for i in 1:length(tab.inds)
+        p = _point_process(g, vals, rgetindex(tab.hpi, i))
+        xi = rgetindex(x, rgetindex(tab.inds, i))
+        ℓ += rgetindex(tab.opens, i) *
+            _first_point_term(init, p, xi, rgetindex(tab.dt0, i), rgetindex(tab.z0, i))
+    end
+    return ℓ
+end
+
 # Exact conditioning on the reference-fixed values: the restriction of an order-1 Markov
 # process to a subset of times is Markov with the composed transition law over the larger
 # gaps, and its first marginal is the init marginal propagated to the subset's first time
@@ -223,6 +392,7 @@ end
     # identical and cancel exactly for any hyperparameters, so skip both (host-static
     # branch — the index vectors are concrete).
     length(spec.fsub.inds) == length(spec.inds) && return zero(eltype(x))
+    _fused_flat(spec) && return _fused_chain_term(spec.init, spec, x, hp)
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
     ℓ = _gm_chain_logpdf(p, spec.init, x, spec.inds, spec.ts)
     isempty(spec.fsub.inds) && return ℓ
@@ -262,16 +432,29 @@ struct GaussMarkovChainDist{C <: NamedTuple, G <: Tuple, I <: AbstractVector{<:I
     # has `a = 0` (chain-opening or fixed-left), so the carry resets at every chain
     # boundary of the concatenation.
     scantgt::Vector{Int}
+    # Elementwise mask over `scantgt`: 1 where the scanned value is an unwrapped phase
+    # that must be wrapped onto `(−π, π]` before it is scattered, 0 where it is a value on
+    # the real line that must be left alone. Held in the sample element type so the masked
+    # wrap is a single promotion-free broadcast.
+    scanwrap::F
+    anywrap::Bool
 end
 
-_scan_tgt(spec::ChainUnit) =
-    (is_wrapped(spec.process) || spec.centered) ? Int[] : spec.free.tgt
+_scan_tgt(spec::ChainUnit) = spec.param isa NonCentered ? spec.free.tgt : Int[]
 _scan_tgt(::IIDChainSpec) = Int[]
+
+_scan_wrap(spec::ChainUnit) = fill(Float64(is_wrapped(spec.process)), length(_scan_tgt(spec)))
+_scan_wrap(::IIDChainSpec) = Float64[]
 
 function GaussMarkovChainDist(chains::NamedTuple, fixedinds, fixedvals, len::Int)
     groups = _build_groups(values(chains))
-    scantgt = reduce(vcat, map(_scan_tgt, collect(groups)); init = Int[])
-    return GaussMarkovChainDist(chains, groups, fixedinds, fixedvals, len, scantgt)
+    gs = collect(groups)
+    scantgt = reduce(vcat, map(_scan_tgt, gs); init = Int[])
+    wrap = reduce(vcat, map(_scan_wrap, gs); init = Float64[])
+    scanwrap = convert(typeof(fixedvals), wrap)
+    return GaussMarkovChainDist(
+        chains, groups, fixedinds, fixedvals, len, scantgt, scanwrap, any(isone, wrap)
+    )
 end
 
 # The batched units (see `_build_groups`).
@@ -525,7 +708,7 @@ _nfree(spec::IIDChainSpec) = length(spec.freeinds)
 #
 # Chains may be grouped when they agree on everything the loop bodies dispatch on: the
 # process *type* (which also fixes which fields are fitted), the initial prior (by value —
-# `FixedInit`/`GaussianInit` carry numbers the moments depend on), and `centered`. They
+# `FixedInit`/`GaussianInit` carry numbers the moments depend on), and `param`. They
 # need *not* agree on the numeric field values of their process templates: every field is
 # read per point from a length-`nchain` vector, so per-site overrides that only change a
 # fixed σ or τ still share one group. `hasfix` need not agree either — a chain with no
@@ -537,9 +720,9 @@ _nfree(spec::IIDChainSpec) = length(spec.freeinds)
 _nfree(g::MarkovGroup) = length(g.free.tgt)
 
 # Chains are grouped iff they agree on what the loop bodies dispatch on. `init` and
-# `centered` compare by value; the process compares by *type*, which also fixes which
+# `param` compare by value; the process compares by *type*, which also fixes which
 # fields are `Distribution`s and hence whether `hpsel` is a site or `nothing`.
-_groupkey(spec::MarkovChainSpec) = (typeof(spec.process), spec.init, spec.centered)
+_groupkey(spec::MarkovChainSpec) = (typeof(spec.process), spec.init, spec.param)
 
 # Field names of `p` that are fitted (Distribution) and that are fixed (numeric).
 _fitkeys(p::AbstractGaussMarkovProcess) = keys(hyperprior(p))
@@ -616,12 +799,15 @@ function MarkovGroup(specs::AbstractVector{<:MarkovChainSpec})
         T
     )
     return MarkovGroup(
-        s1.process, s1.init, Val(sites), s1.centered, numvals,
+        s1.process, s1.init, Val(sites), s1.param, numvals,
         _group_free(specs), chain, fsub
     )
 end
 
-_hpsite(spec::MarkovChainSpec{<:Any, <:Any, K}) where {K} = K
+# Read through the field rather than by type-parameter position: the site key is one of
+# several parameters and a positional match silently follows any change to their order.
+_hpsite(spec::MarkovChainSpec) = _hpkey(spec.hpsel)
+_hpkey(::Val{K}) where {K} = K
 
 # Partition the spec tuple into maximal runs of groupable chains, preserving order (and
 # hence the flat coordinate layout). `IIDChainSpec`s pass through unchanged.
@@ -676,7 +862,7 @@ end
 end
 
 # A single chain and a batched group expose the same surface to every walker below —
-# `process`, `init`, `centered`, `free`, `_nfree` — so the walkers have one body each. The
+# `process`, `init`, `param`, `free`, `_nfree` — so the walkers have one body each. The
 # only difference is where a point's process parameters come from: a single chain
 # materializes once up front, a group gathers per point. `_unit_params` is evaluated once
 # per walker, `_unit_process` once per point, and both collapse to the old code for a
@@ -708,6 +894,7 @@ end
 
 @inline function chain_term(g::MarkovGroup, x, hp)
     isempty(g.chain.inds) && return zero(eltype(x))
+    _fused_flat(g) && return _fused_chain_term(g.init, g, x, hp)
     vals = _group_fieldvals(g, hp)
     ℓ = _group_chain_logpdf(g, g.chain, x, vals)
     isempty(g.fsub.inds) && return ℓ
@@ -791,6 +978,10 @@ function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:Wrappe
     inds = spec.inds
     ts = spec.ts
     T = float(eltype(x))
+    # A wrapped chain is built only over the stamps where its site is free (`ref_is_gauge`),
+    # so a site that is the reference at every one of its stamps has an empty chain. Its
+    # values are all reference-fixed and `_fill_fixed!` has already placed them.
+    isempty(inds) && return x
 
     # positions of the fixed points, in chain order (`fsub.inds` preserves it)
     fx = spec.fsub.inds
@@ -890,10 +1081,10 @@ end
 # per free point (its TV transform in flat space, its exact quantile transport in Std
 # spaces).
 
-# Non-centered wrapped chains embed each free phase as two latent reals (AngleTransform);
-# centered ones use the raw angles.
+# Only the angle embedding costs two latent reals per free phase; every other
+# parameterization takes one coordinate per free point.
 _flat_dim(spec::ChainUnit) =
-    (is_wrapped(spec.process) && !spec.centered) ? 2 * _nfree(spec) : _nfree(spec)
+    spec.param isa AngleEmbedded ? 2 * _nfree(spec) : _nfree(spec)
 _flat_dim(spec::IIDChainSpec) = _nfree(spec) * TV.dimension(PT.transport_node(spec.dist, PT.TVFlat()))
 _flat_dim(d::GaussMarkovChainDist) = sum(_flat_dim, chaingroups(d); init = 0)
 
@@ -901,16 +1092,16 @@ _std_dim(spec::ChainUnit, space) = _nfree(spec)
 _std_dim(spec::IIDChainSpec, space) = _nfree(spec) * PT.dimension(PT.transport_node(spec.dist, space))
 _std_dim(d::GaussMarkovChainDist, space) = sum(Base.Fix2(_std_dim, space), chaingroups(d); init = 0)
 
-_std_transportable(spec::ChainUnit) = !spec.centered && !is_wrapped(spec.process)
+_std_transportable(spec::ChainUnit) = spec.param isa NonCentered && !is_wrapped(spec.process)
 _std_transportable(::IIDChainSpec) = true
 function _check_std_transportable(d::GaussMarkovChainDist)
     all(_std_transportable, chaingroups(d)) || throw(
         ArgumentError(
             "This GaussMarkovSitePrior cannot be transported to the Std spaces " *
-                "(ascube/StdNormal): the centered parameterization needs the target " *
-                "log-density, which those transports never evaluate, and a wrapped " *
-                "(circular) chain has no measure-preserving map to the line. Use asflat() " *
-                "(or, for centered chains, the default whitened form)."
+                "(ascube/StdNormal): Centered and AngleEmbedded coordinates need the " *
+                "target log-density, which those transports never evaluate, and a wrapped " *
+                "(circular) chain carries a sheet weight that is not a quantile " *
+                "transport. Use asflat() (or, for a real-line process, NonCentered())."
         )
     )
     return nothing
@@ -935,8 +1126,19 @@ end
 # for the batched scan over `d.scantgt`, and the single scan+scatter that resolves them.
 _scan_buffers(y, d::GaussMarkovChainDist) =
     (similar(y, length(d.scantgt)), similar(y, length(d.scantgt)))
+# A non-centered wrapped chain scans the *unwrapped* phase, so its scanned values are
+# wrapped onto `(−π, π]` before they are scattered while the real-line chains sharing the
+# same buffers are not. The mask makes that one branchless broadcast rather than a second
+# scatter over a sub-range (see `GaussMarkovChainDist.scanwrap`).
+function _wrap_masked(v, m)
+    T2π = oftype(float(zero(eltype(v))), 2π)
+    return v .- m .* T2π .* round.(v ./ T2π)
+end
+
 function _resolve_scan!(y, d::GaussMarkovChainDist, av, cv)
-    isempty(d.scantgt) || scatter_values!(y, d.scantgt, affine_scan!(av, cv))
+    isempty(d.scantgt) && return y
+    v = affine_scan!(av, cv)
+    scatter_values!(y, d.scantgt, d.anywrap ? _wrap_masked(v, d.scanwrap) : v)
     return y
 end
 
@@ -1024,12 +1226,58 @@ function _color_chain_wrapped_centered!(flag, y, x, index, spec::ChainUnit, hp)
     return ℓ, index + n
 end
 
+# Wrapped chains, non-centered coordinates: the coordinate of each free phase is its
+# increment onto the previous chain value divided by that step's standard deviation, so the
+# unwrapped phase is the running sum `φₖ = φₖ₋₁ + √Qₖ zₖ` and the angle is its wrap. The
+# chain's opening point has nothing to take an increment from, so it keeps a raw-angle
+# coordinate weighted over `_init_window`, exactly as the centered lift does.
+#
+# The evaluation is FUSED with `chain_term` (see `_fused_flat`): each stepping point's WN
+# transition term there would cancel its `−log WN` sheet weight here exactly, so neither
+# is computed — this function contributes `log N(zₖ; 0, 1)` directly (no theta-function
+# sums) and `chain_term` only the chain-opening remainder. Only the chain-opening init
+# weight keeps a WN factor, one per chain.
+#
+# `_cond_mean` must be affine in the previous point for the running sum to be a first-order
+# affine scan; `_check_param` rejects the processes where it is not.
+function _color_chain_wrapped_noncentered!(flag, y, x, index, sidx, av, cv, spec::ChainUnit, hp)
+    free = spec.free
+    n = _nfree(spec)
+    vals = _unit_params(spec, hp)
+    ℓ = zero(eltype(x))
+    @trace track_numbers = false for k in 1:n
+        p = _unit_process(spec, vals, _hpidx(spec, free, k))
+        _, Q = transition_moments(p, rgetindex(free.dtl, k))
+        s = sqrt(Q)
+        ml = rgetindex(free.mskl, k)
+        lf = rgetindex(free.lfree, k)
+        z = rgetindex(x, index + k - 1)
+        δ = s * z
+        # `a = lfree` resets the carry wherever the previous chain value is not another
+        # free point; the fixed value it steps off is then a constant in `c`.
+        rsetindex!(av, lf, sidx + k - 1)
+        rsetindex!(
+            cv,
+            ml * (δ + (1 - lf) * rgetindex(y, rgetindex(free.lidx, k))) + (1 - ml) * z,
+            sidx + k - 1
+        )
+        ℓ += ml * (-(z^2 + log(oftype(float(z), 2π))) / 2) +
+            (1 - ml) * _init_sheet_logweight(spec.init, p, z)
+    end
+    flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + n, sidx + n
+    return ℓ, index + n, sidx + n
+end
+
 function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::ChainUnit, hp)
     free = spec.free
     n = _nfree(spec)
     ℓ0 = TV.logjac_zero(flag, eltype(x))
     n == 0 && return ℓ0, index, sidx
-    if spec.centered
+    if spec.param isa AngleEmbedded
+        ℓw, index = _color_chain_wrapped!(flag, y, x, index, spec)
+        return ℓw, index, sidx
+    end
+    if spec.param isa Centered
         if is_wrapped(spec.process)
             ℓc, index = _color_chain_wrapped_centered!(flag, y, x, index, spec, hp)
             return ℓc, index, sidx
@@ -1040,8 +1288,7 @@ function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::ChainUnit, hp
         return ℓ0, index + n, sidx
     end
     if is_wrapped(spec.process)
-        ℓw, index = _color_chain_wrapped!(flag, y, x, index, spec)
-        return ℓw, index, sidx
+        return _color_chain_wrapped_noncentered!(flag, y, x, index, sidx, av, cv, spec, hp)
     end
     vals = _unit_params(spec, hp)
     ℓ = zero(eltype(x))
@@ -1139,9 +1386,31 @@ function _whiten_chain_wrapped_centered!(x, index, y, spec::ChainUnit)
     return index + n
 end
 
+# Inverse of the non-centered wrapped lift: each coordinate is the wrapped step onto its
+# free point divided by that step's standard deviation, which places the step in `(−π, π]`
+# — the sheet the coloring's weight favours. Reading both endpoints from the colored
+# angles makes this pointwise, with no recurrence to resolve. The chain-opening point's
+# coordinate is its angle, as in the coloring. `transform ∘ inverse` is the identity on
+# wrapped angles; `inverse ∘ transform` is not (the sheet is not recoverable from the
+# angle), as for the centered lift and the angle embedding.
+function _whiten_chain_wrapped_noncentered!(x, index, y, spec::ChainUnit, hp)
+    free = spec.free
+    n = _nfree(spec)
+    vals = _unit_params(spec, hp)
+    @trace track_numbers = false for k in 1:n
+        p = _unit_process(spec, vals, _hpidx(spec, free, k))
+        _, Q = transition_moments(p, rgetindex(free.dtl, k))
+        θ = rgetindex(y, rgetindex(free.tgt, k))
+        ml = rgetindex(free.mskl, k)
+        yl = rgetindex(y, rgetindex(free.lidx, k))
+        rsetindex!(x, ml * (_wrap_angle(θ - yl) / sqrt(Q)) + (1 - ml) * θ, index + k - 1)
+    end
+    return index + n
+end
+
 function _whiten_chain_flat!(x, index, y, spec::ChainUnit, hp)
     free = spec.free
-    if is_wrapped(spec.process) && !spec.centered
+    if spec.param isa AngleEmbedded
         # Inverse of the angle embedding, `(sin θ, cos θ)` (radius 1); the coloring's
         # `atan` recovers θ exactly, so transform ∘ inverse is the identity on the angles
         # even though inverse ∘ transform is not (the radius is not preserved).
@@ -1154,7 +1423,7 @@ function _whiten_chain_flat!(x, index, y, spec::ChainUnit, hp)
         end
         return index + _nfree(spec) * dim
     end
-    if spec.centered
+    if spec.param isa Centered
         n = _nfree(spec)
         if is_wrapped(spec.process)
             # `_periodic_mean` is a trait on a concrete process type, so this is a
@@ -1167,6 +1436,9 @@ function _whiten_chain_flat!(x, index, y, spec::ChainUnit, hp)
             rsetindex!(x, rgetindex(y, rgetindex(free.tgt, k)), index + k - 1)
         end
         return index + n
+    end
+    if is_wrapped(spec.process)
+        return _whiten_chain_wrapped_noncentered!(x, index, y, spec, hp)
     end
     vals = _unit_params(spec, hp)
     @trace track_numbers = false for k in 1:_nfree(spec)
@@ -1467,9 +1739,24 @@ function _chain_times(times, inds, mjd0)
     return ts
 end
 
+# Split a chain's time stamps into the ones it is built over and, among those, the ones it
+# is conditioned on. A process whose reference values are a gauge (`ref_is_gauge`) drops
+# them from the chain entirely, so the free points step off each other over the composed
+# gap. A `FixedInit` chain's opening point is exempt: that value states where the chain
+# starts, which is a statement about the process and not a gauge, so it is retained and
+# stays conditioned on. Everything downstream reads the chain through `inds`/`ts` and the
+# tables built from them, so this is the only place the distinction appears.
+function _gauge_split(process, init, n::Int, fixedpos)
+    ref_is_gauge(process) || return collect(1:n), collect(fixedpos)
+    opens = init isa FixedInit && !isempty(fixedpos) && first(fixedpos) == 1
+    drop = Set(opens ? fixedpos[2:end] : fixedpos)
+    return filter(!in(drop), 1:n), opens ? [1] : Int[]
+end
+
 function _chainspec(sp::GaussMarkovSitePrior, site, inds, ts, fixedpos)
     hpk = isempty(hyperprior(sp.process)) ? nothing : site
-    return MarkovChainSpec(sp.process, sp.init, Val(hpk), inds, ts, fixedpos, sp.centered)
+    keep, kept = _gauge_split(sp.process, sp.init, length(inds), fixedpos)
+    return MarkovChainSpec(sp.process, sp.init, Val(hpk), inds[keep], ts[keep], kept, sp.param)
 end
 
 function _chainspec(sp::IIDSitePrior, site, inds, ts, fixedpos)

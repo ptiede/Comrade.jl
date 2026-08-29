@@ -68,9 +68,29 @@ function isstationary end
 
 # Whether the process lives on the circle rather than the real line. A wrapped process
 # reads its `transition_moments`/`stationary_moments` as *wrapped* normal rather than
-# normal (see `_marginal_logpdf`), has no Gaussian conditionals — hence no whitening — and
-# supports only `asflat`.
+# normal (see `_marginal_logpdf`), and supports only `asflat`.
 is_wrapped(::AbstractGaussMarkovProcess) = false
+
+# Whether a reference-fixed point of a chain is a *gauge* choice rather than an observation
+# of the process. A station's phase is only defined up to the per-time global phase the
+# reference scheme removes, so pinning a station to the reference value says nothing about
+# its own gain: its chain is built over the time stamps where it is actually free, with the
+# transition law taken over the composed gap across the skipped stamps. On the real line
+# the fixed value *is* a value of the process, so the chain is conditioned on it exactly.
+#
+# For `WrappedBrownian` the free-stamp chain is exactly the marginal of the full one (Φ ≡ 1
+# composes). For a mean-reverting wrapped process it is the process's own transition law
+# over the composed gap, which is the same construction but not literally that marginal,
+# since the shortest-arc drift does not compose.
+ref_is_gauge(p::AbstractGaussMarkovProcess) = is_wrapped(p)
+
+# Whether the process admits the non-centered (whitened) lift, whose coordinates are the
+# scaled increments onto each free point. That lift resolves the chain with a first-order
+# *affine* scan, so it needs a conditional mean that is affine in the previous point. On
+# the real line every process qualifies; on the circle only those whose transition mean
+# carries the previous point's sheet (`_periodic_mean == false`, i.e. Φ ≡ 1), since a
+# shortest-arc drift wraps its anchor and is not affine.
+has_affine_lift(p::AbstractGaussMarkovProcess) = !is_wrapped(p) || !_periodic_mean(p)
 
 # Mean entering the transition law `x(t+Δ) | x(t) ~ N(μ + Φ(x(t)−μ), Q)`. Stationary
 # processes revert to their stationary mean. Nonstationary processes (Φ ≡ 1) must
@@ -247,18 +267,22 @@ units. (The underlying diffusion coefficient is `D = 2/τ` in rad² per hour.) T
 stationary law is uniform, so with [`UniformInit`](@ref) the chain also absorbs the
 per-track phase offset that would otherwise require a separate circular offset term.
 
-A wrapped chain has no Gaussian conditionals, so the whitened parameterization does not
-exist. The default is therefore `centered = true`: the raw angles are the flat
-coordinates, one per free phase. That lift is kept *proper* — no `2π`-shifted copies of
-the posterior, which a raw circular coordinate would otherwise produce — by the sheet
-weights described below, which leave the circular model exactly unchanged. Passing
-`centered = false` instead embeds each free phase as two latent reals through the same
-angle transform used by `DiagonalVonMises`, which has no sheet structure at all but costs
-twice the phase dimension; it is the fallback if a fit ever does show sheet-related
-pathology. See [`GaussMarkovSitePrior`](@ref) for the trade-off. Only `asflat` is
-supported in either form. Reference stations (`refant`) are handled by exact
-conditioning, as for the Gaussian processes: wrapped normal transitions compose exactly
-(their variances add).
+Because the transition mean is the previous phase itself, this is the wrapped process that
+admits the non-centered lift: with the default `param = NonCentered()` the coordinate of
+each free phase is its increment onto the previous one divided by that step's standard
+deviation, and the phase is the wrapped running sum. `param = Centered()` uses the raw
+angles instead, one coordinate per free phase. Both lifts are kept *proper* — no
+`2π`-shifted copies of the posterior, which a raw circular coordinate would otherwise
+produce — by the sheet weights described below, which leave the circular model exactly
+unchanged; [`AngleEmbedded`](@ref) has no sheet structure at all but costs twice the phase
+dimension. See [`GaussMarkovSitePrior`](@ref) for the trade-off. Only `asflat` is
+supported in every form.
+
+A reference-fixed time stamp is a gauge choice rather than a phase this process produced,
+so it is dropped from the chain and the free points step off each other over the composed
+gap (wrapped normal transitions compose exactly — their variances add). A station picked
+as the reference therefore has its phases at other times read as offsets from its last
+free phase, not pulled toward the reference value.
 
 # Arguments
 
@@ -321,8 +345,10 @@ partially coherent forever. Taking `σ, τ → ∞` at fixed `2σ²/τ = 2/τ_co
 This is the natural prior for a gain *ratio* (R/L) phase, which is an instrumental offset
 that is stable up to slow drift: a single chain replaces the
 [`WrappedBrownian`](@ref)-with-[`FixedInit`](@ref) plus separate circular offset pair, and
-`σ` — not an unbounded random walk — sets how far the ratio phase may stray. As for every
-wrapped process the default is `centered = true` and only `asflat` is supported; see
+`σ` — not an unbounded random walk — sets how far the ratio phase may stray. The
+shortest-arc drift is not affine in the previous phase, so this process is `Centered` only
+(unlike [`WrappedBrownian`](@ref)) and supports only `asflat`; as for every wrapped
+process a reference-fixed time stamp is treated as a gauge and dropped from the chain. See
 [`GaussMarkovSitePrior`](@ref).
 
 # Arguments
@@ -472,9 +498,12 @@ end
 #the *same* `_cond_mean`, which is what makes that hold for any process.
 @inline function _sheet_logweight(p::AbstractGaussMarkovProcess, xi, xp, Δt, μ)
     Φ, Q = transition_moments(p, Δt)
-    δ = xi - _cond_mean(p, xp, Φ, μ)
-    return _normal_logpdf(δ, Q) - _wn_logpdf(δ, Q)
+    return _sheet_logweight_delta(xi - _cond_mean(p, xp, Φ, μ), Q)
 end
+
+# The sheet weight written on the deviation itself, for the non-centered lift, whose
+# coordinate *is* the (scaled) deviation and so needs no anchor to recover it.
+@inline _sheet_logweight_delta(δ, Q) = _normal_logpdf(δ, Q) - _wn_logpdf(δ, Q)
 
 
 # ----- initial distributions p(x(t₁)) ------------------------------------------
