@@ -1,5 +1,5 @@
 export AbstractGaussMarkovProcess, OrnsteinUhlenbeck, BrownianMotion, WrappedBrownian,
-    WrappedOrnsteinUhlenbeck
+    WrappedOrnsteinUhlenbeck, VonMisesProcess
 export AbstractInitialPrior, StationaryInit, FixedInit, GaussianInit, UniformInit
 
 """
@@ -84,13 +84,21 @@ is_wrapped(::AbstractGaussMarkovProcess) = false
 # since the shortest-arc drift does not compose.
 ref_is_gauge(p::AbstractGaussMarkovProcess) = is_wrapped(p)
 
-# Whether the process admits the non-centered (whitened) lift, whose coordinates are the
-# scaled increments onto each free point. That lift resolves the chain with a first-order
-# *affine* scan, so it needs a conditional mean that is affine in the previous point. On
-# the real line every process qualifies; on the circle only those whose transition mean
-# carries the previous point's sheet (`_periodic_mean == false`, i.e. Φ ≡ 1), since a
-# shortest-arc drift wraps its anchor and is not affine.
+# Whether the non-centered lift of this process resolves with the first-order *affine*
+# scan (`affine_scan!`), which needs a conditional mean that is affine in the previous
+# point. On the real line every process qualifies; on the circle Φ ≡ 1 (`WrappedBrownian`)
+# does. A process whose mean is equivariant but nonlinear ([`VonMisesProcess`](@ref))
+# overrides this to false and resolves its non-centered recurrence sequentially instead.
 has_affine_lift(p::AbstractGaussMarkovProcess) = !is_wrapped(p) || !_periodic_mean(p)
+
+# Whether the process admits the non-centered (whitened) lift at all, whose coordinates
+# are the scaled increments onto each free point. The lift exists whenever the chain can
+# be built as a running recurrence on the coordinates, which requires a transition mean
+# that carries the previous point's sheet: affine in it, or `2π`-equivariant
+# (`m(xp + 2π) = m(xp) + 2π`) like the sine drift of [`VonMisesProcess`](@ref). The
+# shortest-arc drift of [`WrappedOrnsteinUhlenbeck`](@ref) wraps its anchor
+# (`_periodic_mean`), which drops the sheet, so it does not qualify.
+has_noncentered_lift(p::AbstractGaussMarkovProcess) = has_affine_lift(p)
 
 # Mean entering the transition law `x(t+Δ) | x(t) ~ N(μ + Φ(x(t)−μ), Q)`. Stationary
 # processes revert to their stationary mean. Nonstationary processes (Φ ≡ 1) must
@@ -109,6 +117,17 @@ _process_mean(p::AbstractGaussMarkovProcess) = first(stationary_moments(p))
 # itself and therefore carries that point's sheet. This is what decides whether the
 # centered lift's inverse is a pointwise map or a first-order recurrence.
 _periodic_mean(::AbstractGaussMarkovProcess) = false
+
+# Floor for the variances entering the chain log-densities. An exactly zero variance —
+# a fitted hyperparameter materializing at the edge of its support (e.g. a heavy-tailed
+# τ hyperprior's quantile returning `Inf`) or underflowing to zero — makes
+# `_normal_logpdf` and `_wn_logpdf` evaluate `0/0 = NaN`, silently poisoning the whole
+# chain log-density. Floored, the density is finite and hugely negative, so the sampler
+# rejects the point instead. The floor (`eps² ≈ 5e-32` at `Float64`) sits far below
+# every variance a positive hyperparameter produces — the OU Φ clamp bottoms out at
+# `σ²·eps` — so it never alters a legitimate value, and `max` keeps the expression a
+# single trace under Reactant.
+@inline _floor_var(Q) = max(Q, eps(one(Q))^2)
 
 # Log-density of a deviation `δ` with variance `P` in whichever family the process lives:
 # the normal law on the real line, the wrapped normal on the circle. Dispatch is on the
@@ -156,6 +175,26 @@ materialize(p::AbstractGaussMarkovProcess, ::NamedTuple{()}) = p
 # Subset `hp` to the fitted fields so extra entries are ignored rather than an error.
 materialize(p::AbstractGaussMarkovProcess, hp::NamedTuple) = setproperties(p, hp[keys(hyperprior(p))])
 
+# Validate a fixed (numeric) hyperparameter at construction: it must be positive and
+# finite, since a zero or infinite value puts an exact zero in a transition variance
+# and a NaN in the chain log-density (see `_floor_var`). NaN fails the comparison too.
+# Distribution-valued (fitted) fields are not checked here; their materialized values
+# are guarded by the runtime variance floor instead.
+function _check_hyper(process::Symbol, name::Symbol, x)
+    x isa Number && !(0 < x < Inf) &&
+        throw(ArgumentError("$process $name must be positive and finite"))
+    return nothing
+end
+
+# The mean is not fittable and enters the transition mean linearly, so it need only be
+# a finite number.
+function _check_mean(process::Symbol, μ)
+    μ isa Dists.Distribution &&
+        throw(ArgumentError("$process μ is not fittable; pass a number"))
+    isfinite(μ) || throw(ArgumentError("$process μ must be finite"))
+    return nothing
+end
+
 """
     OrnsteinUhlenbeck(; σ, τ, μ = 0.0)
 
@@ -196,9 +235,9 @@ struct OrnsteinUhlenbeck{Tσ, Tτ, Tμ} <: AbstractGaussMarkovProcess
 end
 
 function OrnsteinUhlenbeck(; σ, τ, μ = 0.0)
-    σ isa Number && σ ≤ 0 && throw(ArgumentError("OrnsteinUhlenbeck σ must be positive"))
-    τ isa Number && τ ≤ 0 && throw(ArgumentError("OrnsteinUhlenbeck τ must be positive"))
-    μ isa Dists.Distribution && throw(ArgumentError("OrnsteinUhlenbeck μ is not fittable; pass a number"))
+    _check_hyper(:OrnsteinUhlenbeck, :σ, σ)
+    _check_hyper(:OrnsteinUhlenbeck, :τ, τ)
+    _check_mean(:OrnsteinUhlenbeck, μ)
     return OrnsteinUhlenbeck(σ, τ, μ)
 end
 
@@ -206,14 +245,17 @@ isstationary(::OrnsteinUhlenbeck) = true
 
 @inline stationary_moments(p::OrnsteinUhlenbeck) = (p.μ, p.σ^2)
 
-@inline function transition_moments(p::OrnsteinUhlenbeck, Δt)
-    # Keep Φ strictly below 1 so that Q and the conditional (bridge) variances downstream
-    # stay positive even when Δt/τ underflows, e.g. during a fitted-τ warmup excursion.
-    # Otherwise the chain log-density is NaN instead of merely very negative, and the
-    # whitening transform divides by zero.
-    Φ = min(exp(-Δt / p.τ), prevfloat(1.0))
-    return Φ, p.σ^2 * (1 - Φ^2)
+# Exact OU discretization over a gap, shared by `OrnsteinUhlenbeck` and its wrap
+# `WrappedOrnsteinUhlenbeck`. Keep Φ strictly below 1 so that Q and the conditional
+# (bridge) variances downstream stay positive even when Δt/τ underflows, e.g. during a
+# fitted-τ warmup excursion. Otherwise the chain log-density is NaN instead of merely
+# very negative, and the whitening transform divides by zero.
+@inline function _ou_transition_moments(σ, τ, Δt)
+    Φ = min(exp(-Δt / τ), prevfloat(1.0))
+    return Φ, σ^2 * (1 - Φ^2)
 end
+
+@inline transition_moments(p::OrnsteinUhlenbeck, Δt) = _ou_transition_moments(p.σ, p.τ, Δt)
 
 """
     BrownianMotion(; D)
@@ -239,7 +281,7 @@ struct BrownianMotion{TD} <: AbstractGaussMarkovProcess
 end
 
 function BrownianMotion(; D)
-    D isa Number && D ≤ 0 && throw(ArgumentError("BrownianMotion D must be positive"))
+    _check_hyper(:BrownianMotion, :D, D)
     return BrownianMotion(D)
 end
 
@@ -305,7 +347,7 @@ struct WrappedBrownian{Tτ} <: AbstractGaussMarkovProcess
 end
 
 function WrappedBrownian(; τ)
-    τ isa Number && τ ≤ 0 && throw(ArgumentError("WrappedBrownian τ must be positive"))
+    _check_hyper(:WrappedBrownian, :τ, τ)
     return WrappedBrownian(τ)
 end
 
@@ -319,8 +361,11 @@ stationary_moments(::WrappedBrownian) = throw(
 )
 _process_mean(p::WrappedBrownian) = zero(_paramtype(p))
 # The wrapped-normal increment variance over a gap: D*Δt with D = 2/τ, so that the
-# visibility-domain coherence exp(-Q/2) e-folds exactly at Δt = τ.
-@inline _increment_var(p::WrappedBrownian, Δt) = 2 * Δt / p.τ
+# visibility-domain coherence exp(-Q/2) e-folds exactly at Δt = τ. Floored away from
+# zero — `Δt/τ` can underflow during a fitted-τ warmup excursion — for the same reason
+# the OU Φ is clamped: the downstream conditional variances and the non-centered
+# whitening scale `√Q` must stay positive.
+@inline _increment_var(p::WrappedBrownian, Δt) = _floor_var(2 * Δt / p.τ)
 @inline transition_moments(p::WrappedBrownian, Δt) = (one(Δt), _increment_var(p, Δt))
 
 """
@@ -346,8 +391,9 @@ This is the natural prior for a gain *ratio* (R/L) phase, which is an instrument
 that is stable up to slow drift: a single chain replaces the
 [`WrappedBrownian`](@ref)-with-[`FixedInit`](@ref) plus separate circular offset pair, and
 `σ` — not an unbounded random walk — sets how far the ratio phase may stray. The
-shortest-arc drift is not affine in the previous phase, so this process is `Centered` only
-(unlike [`WrappedBrownian`](@ref)) and supports only `asflat`; as for every wrapped
+shortest-arc drift drops the previous phase's sheet, so this process is `Centered` only
+(unlike [`WrappedBrownian`](@ref) and the smooth-drift [`VonMisesProcess`](@ref), which
+trades the exact shortest arc for whitened coordinates) and supports only `asflat`; as for every wrapped
 process a reference-fixed time stamp is treated as a gauge and dropped from the chain. See
 [`GaussMarkovSitePrior`](@ref).
 
@@ -392,10 +438,9 @@ struct WrappedOrnsteinUhlenbeck{Tσ, Tτ, Tμ} <: AbstractGaussMarkovProcess
 end
 
 function WrappedOrnsteinUhlenbeck(; σ, τ, μ = 0.0)
-    σ isa Number && σ ≤ 0 && throw(ArgumentError("WrappedOrnsteinUhlenbeck σ must be positive"))
-    τ isa Number && τ ≤ 0 && throw(ArgumentError("WrappedOrnsteinUhlenbeck τ must be positive"))
-    μ isa Dists.Distribution &&
-        throw(ArgumentError("WrappedOrnsteinUhlenbeck μ is not fittable; pass a number"))
+    _check_hyper(:WrappedOrnsteinUhlenbeck, :σ, σ)
+    _check_hyper(:WrappedOrnsteinUhlenbeck, :τ, τ)
+    _check_mean(:WrappedOrnsteinUhlenbeck, μ)
     return WrappedOrnsteinUhlenbeck(σ, τ, μ)
 end
 
@@ -404,17 +449,96 @@ is_wrapped(::WrappedOrnsteinUhlenbeck) = true
 # Read as the *wrapped* normal WN(μ, σ²) by `_marginal_logpdf`, since `is_wrapped` holds.
 @inline stationary_moments(p::WrappedOrnsteinUhlenbeck) = (p.μ, p.σ^2)
 
-# Identical to `OrnsteinUhlenbeck`, including the Φ < 1 clamp that keeps Q and the
-# downstream conditional variances positive when Δt/τ underflows.
-@inline function transition_moments(p::WrappedOrnsteinUhlenbeck, Δt)
-    Φ = min(exp(-Δt / p.τ), prevfloat(1.0))
-    return Φ, p.σ^2 * (1 - Φ^2)
-end
+# The same exact discretization as `OrnsteinUhlenbeck`, read as wrapped normal.
+@inline transition_moments(p::WrappedOrnsteinUhlenbeck, Δt) = _ou_transition_moments(p.σ, p.τ, Δt)
 
 # The shortest-arc drift: what makes the kernel 2π-periodic in the previous angle, and so
 # a circular kernel rather than the (non-periodic) wrap of a real OU path.
 @inline _cond_mean(p::WrappedOrnsteinUhlenbeck, xp, Φ, μ) = μ + Φ * _wrap_angle(xp - μ)
 _periodic_mean(::WrappedOrnsteinUhlenbeck) = true
+
+"""
+    VonMisesProcess(; σ, τ, μ = 0.0)
+
+The mean-reverting circular process with a *smooth* drift: the same exact-OU
+discretization as [`WrappedOrnsteinUhlenbeck`](@ref) — same `σ`/`τ`/`μ`, same transition
+variance `σ²(1 − φ²)` with `φ = exp(−Δt/τ)` — but with the shortest-arc drift replaced by
+the sine drift
+
+    θ(t + Δt) | θ(t) ~ WN(θ(t) − (1 − φ)·sin(θ(t) − μ), σ²*(1 − φ²)),
+
+the discretization of the von Mises (circular Langevin) diffusion, whose stationary law
+is `vM(μ, 1/σ²) ≈ WN(μ, σ²)` in the small-`σ` regime. For deviations well inside
+`(−π, π)` the two drifts agree (`sin ε ≈ ε`), so this is a drop-in replacement for
+`WrappedOrnsteinUhlenbeck` throughout that process's documented `σ ≪ π` regime of
+validity — and it carries the same warning: do not use it as a stand-in for an
+uninformative circular prior, where [`WrappedBrownian`](@ref) is both exact and what you
+want.
+
+What the smooth drift buys is the parameterization: the sine mean is `2π`-equivariant and
+smooth in the previous point, where the shortest-arc drift jumps by `2πφ` at the antipode
+of `μ`, so this process supports `param = NonCentered()` (the default) — whitened
+coordinates that decouple the chain values from fitted hyperparameters (no `σ` funnel)
+and from each other. The price of smoothness on the circle is a second, unstable
+equilibrium at the antipode where the drift vanishes; the stationary density has its
+minimum there, and in the `σ ≪ π` regime the chain essentially never visits it.
+
+Because the drift is nonlinear in the previous point, a non-centered chain resolves as a
+sequential recurrence rather than the batched affine scan: exact on every backend, but a
+serialized loop under `Reactant`. It is intended for scan-level chains (a gain-*ratio*
+phase drifting about a separate circular offset, with `init = FixedInit(0.0)`, or
+carrying its own level with the default `StationaryInit`); an integ-level absolute phase
+wants [`WrappedBrownian`](@ref), which needs no drift at all.
+
+# Arguments
+
+  - `σ`: the circular marginal spread in **radians**. Pass a `Number` to fix it or a
+    `Distributions.Distribution` to fit it as a hyperparameter.
+  - `τ`: the reversion timescale in **hours** (the times of a VLBI observation are in UTC
+    hours). A `Number` fixes it; a `Distributions.Distribution` fits it.
+  - `μ`: the circular mean (default `0.0`). Not fittable currently.
+
+# Example
+
+```julia
+## an R/L ratio phase: pinned near zero, drifting on a 12 hour timescale, whitened
+gprat ~ ArrayPrior(
+    GaussMarkovSitePrior(
+        ScanSeg(), VonMisesProcess(σ = VLBIExponential(0.2), τ = VLBIInverseGamma(1.0, 12.0))
+    );
+    refant = SingleReference(:AA, 0.0)
+)
+```
+"""
+struct VonMisesProcess{Tσ, Tτ, Tμ} <: AbstractGaussMarkovProcess
+    σ::Tσ
+    τ::Tτ
+    μ::Tμ
+end
+
+function VonMisesProcess(; σ, τ, μ = 0.0)
+    _check_hyper(:VonMisesProcess, :σ, σ)
+    _check_hyper(:VonMisesProcess, :τ, τ)
+    _check_mean(:VonMisesProcess, μ)
+    return VonMisesProcess(σ, τ, μ)
+end
+
+isstationary(::VonMisesProcess) = true
+is_wrapped(::VonMisesProcess) = true
+# Read as the wrapped normal WN(μ, σ²) by `_marginal_logpdf` — the small-σ form of the
+# vM(μ, 1/σ²) stationary law, the same approximation `WrappedOrnsteinUhlenbeck` makes.
+@inline stationary_moments(p::VonMisesProcess) = (p.μ, p.σ^2)
+@inline transition_moments(p::VonMisesProcess, Δt) = _ou_transition_moments(p.σ, p.τ, Δt)
+
+# The sine drift: smooth and 2π-equivariant in the previous point (m(xp + 2π) =
+# m(xp) + 2π), matching the linear OU drift μ + Φ(xp − μ) to first order about μ.
+# Monotone in xp (m′ = 1 − (1 − Φ)cos ≥ Φ > 0), so the mean map is a circle
+# diffeomorphism and the non-centered recurrence never folds.
+@inline _cond_mean(p::VonMisesProcess, xp, Φ, μ) = xp - (1 - Φ) * sin(xp - μ)
+# Equivariant, not periodic: the mean carries the previous point's sheet, which is what
+# admits the non-centered lift — but it is not affine, so the lift resolves sequentially.
+has_affine_lift(::VonMisesProcess) = false
+has_noncentered_lift(::VonMisesProcess) = true
 
 # Wrap an angle to (−π, π] up to floating point; `round` keeps the map traceable and its
 # a.e. zero derivative makes the wrap transparent to AD.
@@ -436,16 +560,17 @@ _periodic_mean(::WrappedOrnsteinUhlenbeck) = true
 # number.
 @inline function _wn_logpdf(Δ, Q)
     T2π = oftype(float(Δ), 2π)
+    Qf = _floor_var(Q)
     Δw = _wrap_angle(Δ)
-    sratio = sum(k -> exp(-(abs2(Δw + T2π * k) - abs2(Δw)) / (2Q)), -3:3)
-    limg = -abs2(Δw) / (2Q) + log(sratio) - log(T2π * Q) / 2
+    sratio = sum(k -> exp(-(abs2(Δw + T2π * k) - abs2(Δw)) / (2Qf)), -3:3)
+    limg = -abs2(Δw) / (2Qf) + log(sratio) - log(T2π * Qf) / 2
     sfouri = ntuple(Val(3)) do j
         Base.@_inline_meta
-        exp(-j^2 * Q / 2) * cos(j * Δw)
+        exp(-j^2 * Qf / 2) * cos(j * Δw)
     end
     sfour = 1 + 2 * sum(sfouri)
     lfour = log(max(sfour, eps(one(sfour)))) - log(T2π)
-    return ifelse(Q < 4, limg, lfour)
+    return ifelse(Qf < 4, limg, lfour)
 end
 
 # ----- sheet weights: the proper flat lift of a wrapped chain -----------------
@@ -481,8 +606,13 @@ end
 # likelihood: proper, smooth, and with a single dominant mode whenever a `2π` step is
 # improbable under the process (`exp(−(2π)²/2Q)`).
 
-# Log-density of `N(Δ; 0, Q)`, the unwrapped counterpart of `_wn_logpdf`.
-@inline _normal_logpdf(Δ, Q) = -(abs2(Δ) / Q + log(oftype(float(Δ), 2π) * Q)) / 2
+# Log-density of `N(Δ; 0, Q)`, the unwrapped counterpart of `_wn_logpdf`. `Q` is floored
+# by the same `_floor_var` as `_wn_logpdf`, which keeps the sheet weights an exact
+# partition of unity at the floor.
+@inline function _normal_logpdf(Δ, Q)
+    Qf = _floor_var(Q)
+    return -(abs2(Δ) / Qf + log(oftype(float(Δ), 2π) * Qf)) / 2
+end
 
 # The chain's *first* free point has no earlier chain value to anchor on; its weight uses
 # a window derived from the initial prior instead, so `_init_window`/`_init_sheet_logweight`

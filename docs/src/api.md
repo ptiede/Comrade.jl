@@ -111,6 +111,7 @@ Comrade.OrnsteinUhlenbeck
 Comrade.BrownianMotion
 Comrade.WrappedBrownian
 Comrade.WrappedOrnsteinUhlenbeck
+Comrade.VonMisesProcess
 Comrade.stationary_moments
 Comrade.transition_moments
 Comrade.isstationary

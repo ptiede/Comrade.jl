@@ -25,11 +25,12 @@ struct Centered <: AbstractChainParameterization end
 Whitened chain coordinates: each free point's coordinate is an iid standard variate. On
 the real line it is colored through the chain's exact conditional moments (including the
 reference-station bridge and the initial marginal at the chain opening); on the circle it
-is the scaled step onto the previous phase, so the phase is the wrapped running sum and
-the chain-opening point keeps its raw angle. Either way the flat target carries none of
-the chain's prior correlation. Requires a transition mean affine in the previous point,
-which excludes [`WrappedOrnsteinUhlenbeck`](@ref). The default. See
-[`GaussMarkovSitePrior`](@ref).
+is the scaled step onto the previous phase's transition mean, so the phase is the wrapped
+running recurrence and the chain-opening point keeps its raw angle. Either way the flat
+target carries none of the chain's prior correlation. Requires a transition mean that
+carries the previous point's sheet — affine in it, or `2π`-equivariant like the sine
+drift of [`VonMisesProcess`](@ref) — which excludes [`WrappedOrnsteinUhlenbeck`](@ref).
+The default. See [`GaussMarkovSitePrior`](@ref).
 """
 struct NonCentered <: AbstractChainParameterization end
 
@@ -107,8 +108,10 @@ halves of a non-centered wrapped chain's flat density are fused for efficiency: 
 of a constrained sample carries only the chain-opening terms, with the remainder in the
 flat transform — their sum, which every sampler and optimizer evaluates, is exact and
 unchanged.
-`NonCentered` requires a transition mean that is affine in the previous point, which on
-the circle means [`WrappedBrownian`](@ref) (Φ ≡ 1); the shortest-arc drift of
+`NonCentered` requires a transition mean that carries the previous point's sheet, which
+on the circle means [`WrappedBrownian`](@ref) (Φ ≡ 1, resolved by the batched affine
+scan) or the `2π`-equivariant sine drift of [`VonMisesProcess`](@ref) (nonlinear, so its
+recurrence resolves sequentially); the shortest-arc drift of
 [`WrappedOrnsteinUhlenbeck`](@ref) wraps its anchor, so that process is `Centered` only.
 
 [`AngleEmbedded`](@ref) embeds each free phase as two latent reals through the same angle
@@ -188,8 +191,8 @@ _asparam(p::AbstractChainParameterization) = p
 _asparam(centered::Bool) = centered ? Centered() : NonCentered()
 
 # The best coordinates the process supports: increments wherever the chain can be built as
-# a running sum, values otherwise.
-_default_param(p::AbstractGaussMarkovProcess) = has_affine_lift(p) ? NonCentered() : Centered()
+# a running recurrence, values otherwise.
+_default_param(p::AbstractGaussMarkovProcess) = has_noncentered_lift(p) ? NonCentered() : Centered()
 
 # `centered` is the two-valued shorthand for `param`; passing both is a conflict rather
 # than a precedence rule.
@@ -213,12 +216,13 @@ end
 # defining its traits.
 _check_param(::AbstractChainParameterization, ::AbstractGaussMarkovProcess) = nothing
 function _check_param(::NonCentered, p::AbstractGaussMarkovProcess)
-    has_affine_lift(p) || throw(
+    has_noncentered_lift(p) || throw(
         ArgumentError(
             "$(typeof(p).name.name) does not support the NonCentered parameterization: " *
                 "its transition mean takes the shortest arc onto the previous point, which " *
-                "is not affine in that point, so the chain cannot be built as a running sum " *
-                "of increments. Use param = Centered()."
+                "drops that point's sheet, so the chain cannot be built as a running " *
+                "recurrence on the coordinates. Use param = Centered(), or the smooth-drift " *
+                "VonMisesProcess, which supports NonCentered."
         )
     )
     return nothing
@@ -372,7 +376,7 @@ end
     vals = _group_fieldvals(g, hp)
     tab = g.chain
     ℓ = zero(eltype(x))
-    @trace track_numbers = false for i in 1:length(tab.inds)
+    @trace track_numbers = false for i in eachindex(tab.inds)
         p = _point_process(g, vals, rgetindex(tab.hpi, i))
         xi = rgetindex(x, rgetindex(tab.inds, i))
         ℓ += rgetindex(tab.opens, i) *
@@ -440,7 +444,11 @@ struct GaussMarkovChainDist{C <: NamedTuple, G <: Tuple, I <: AbstractVector{<:I
     anywrap::Bool
 end
 
-_scan_tgt(spec::ChainUnit) = spec.param isa NonCentered ? spec.free.tgt : Int[]
+# Only affine-lift chains participate in the batched scan; a non-centered chain with a
+# nonlinear (equivariant) mean resolves its own recurrence and scatters its angles itself
+# (`_color_chain_wrapped_recur!`), so it must not claim scan slots it never stages.
+_scan_tgt(spec::ChainUnit) =
+    (spec.param isa NonCentered && has_affine_lift(spec.process)) ? spec.free.tgt : Int[]
 _scan_tgt(::IIDChainSpec) = Int[]
 
 _scan_wrap(spec::ChainUnit) = fill(Float64(is_wrapped(spec.process)), length(_scan_tgt(spec)))
@@ -690,21 +698,19 @@ _nfree(spec::IIDChainSpec) = length(spec.freeinds)
 
 # ----- batched chain groups ----------------------------------------------------
 #
-# Every walker below used to run once per (site, frequency) chain: its own staged loop,
-# its own `scatter_values!`, its own reduction and — with fitted hyperparameters — its own
-# scalar pipeline through `materialize`. On an accelerator each of those is a separate
-# kernel over a few dozen elements, so the cost of the prior scaled with the *number of
-# chains* rather than with the amount of arithmetic. (Measured on the post-XLA gradient
-# module at fixed total point count: ~4 extra kernels per Gaussian chain and ~37 per
-# wrapped chain, with the arithmetic itself unchanged.)
-#
 # A `MarkovGroup` is the concatenation of a *run of adjacent compatible chains*: the same
 # static tables of `_free_point_tables`, laid out chain after chain, plus a per-point index
 # into the group's per-chain process parameters. The loop bodies are the per-chain ones
 # unchanged — they simply run once over every point of every chain, so Reactant raises
-# each into a single set of vectorized ops instead of one set per chain. Only *adjacent*
+# each into a single set of vectorized ops instead of one set per chain. Without the
+# grouping, every walker runs once per (site, frequency) chain — its own staged loop,
+# `scatter_values!`, reduction and, with fitted hyperparameters, its own scalar pipeline
+# through `materialize` — and on an accelerator each of those is a separate kernel over a
+# few dozen elements (~4 extra kernels per Gaussian chain, ~37 per wrapped chain, on the
+# post-XLA gradient module at fixed total point count), so the cost of the prior scales
+# with the *number of chains* rather than with the amount of arithmetic. Only *adjacent*
 # specs are grouped, so the flat coordinate layout is bit-for-bit the one the per-chain
-# walkers produced.
+# walkers produce.
 #
 # Chains may be grouped when they agree on everything the loop bodies dispatch on: the
 # process *type* (which also fixes which fields are fitted), the initial prior (by value —
@@ -880,7 +886,7 @@ end
 
 function _group_chain_logpdf(g::MarkovGroup, tab, x, vals)
     ℓ = zero(eltype(x))
-    @trace track_numbers = false for i in 1:length(tab.inds)
+    @trace track_numbers = false for i in eachindex(tab.inds)
         p = _point_process(g, vals, rgetindex(tab.hpi, i))
         μ = _process_mean(p)
         xi = rgetindex(x, rgetindex(tab.inds, i))
@@ -987,7 +993,7 @@ function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:Wrappe
     fx = spec.fsub.inds
     fixpos = Vector{Int}(undef, length(fx))
     j = 1
-    @inbounds for i in eachindex(inds)
+    for i in eachindex(inds)
         j > length(fx) && break
         if inds[i] == fx[j]
             fixpos[j] = i
@@ -999,18 +1005,18 @@ function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:Wrappe
 
     if isempty(fixpos)
         x[inds[1]] = T(π) * (2rand(rng, T) - 1)
-        @inbounds for i in 2:length(inds)
+        for i in 2:length(inds)
             x[inds[i]] = step_walk(x[inds[i - 1]], ts[i] - ts[i - 1])
         end
         return x
     end
 
     # backward walk before the first fixed point
-    @inbounds for i in (fixpos[1] - 1):-1:1
+    for i in (fixpos[1] - 1):-1:1
         x[inds[i]] = step_walk(x[inds[i + 1]], ts[i + 1] - ts[i])
     end
     # bridges between consecutive fixed points, with the winding drawn exactly
-    @inbounds for s in 1:(length(fixpos) - 1)
+    for s in 1:(length(fixpos) - 1)
         fa, fb = fixpos[s], fixpos[s + 1]
         fb - fa == 1 && continue
         ta, tb = ts[fa], ts[fb]
@@ -1027,33 +1033,36 @@ function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:Wrappe
         end
     end
     # forward walk after the last fixed point
-    @inbounds for i in (fixpos[end] + 1):length(inds)
+    for i in (fixpos[end] + 1):length(inds)
         x[inds[i]] = step_walk(x[inds[i - 1]], ts[i] - ts[i - 1])
     end
     return x
 end
 
 # Mean-reverting wrapped chains: the same two-sided bridge as the Gaussian processes, but
-# with every deviation from the circular mean taken along the shortest arc (matching
-# `_cond_mean`) and every drawn value wrapped back onto `(−π, π]`. The innovation is drawn
-# normal rather than wrapped normal and the winding of a bridge between two reference-fixed
-# points is not enumerated as it is for `WrappedBrownian` above; both are the same `σ ≪ π`
-# approximation `WrappedOrnsteinUhlenbeck` already documents, and this is the rand-only
-# path — the log-density is exact.
-function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:WrappedOrnsteinUhlenbeck}, hp)
+# with the drift onto the previous chain value taken through the process's own
+# `_cond_mean` — the shortest arc for `WrappedOrnsteinUhlenbeck`, the sine drift for
+# `VonMisesProcess` — and every drawn value wrapped back onto `(−π, π]`. The innovation is
+# drawn normal rather than wrapped normal and the winding of a bridge between two
+# reference-fixed points is not enumerated as it is for `WrappedBrownian` above; both are
+# the same `σ ≪ π` approximation these processes already document, and this is the
+# rand-only path — the log-density is exact.
+function _rand_chain!(
+        rng::Random.AbstractRNG, x,
+        spec::MarkovChainSpec{<:Union{WrappedOrnsteinUhlenbeck, VonMisesProcess}}, hp
+    )
     p = materialize(spec.process, _selecthp(hp, spec.hpsel))
     μ = _process_mean(p)
     m₀, P₀ = initial_moments(spec.init, p)
     free = spec.free
     T = float(eltype(x))
-    @inbounds for k in 1:_nfree(spec)
+    for k in 1:_nfree(spec)
         Φl, Ql = transition_moments(p, free.dtl[k])
         ml = free.mskl[k]
         # prior-from-the-left: the transition from the previous chain value, or the init
-        # marginal when this point opens the chain (`ml == 0` zeroes the Φ₁ term).
-        Φ₁ = ml * Φl
+        # marginal when this point opens the chain (`ml == 0` masks the drift term off).
         Q₁ = ml * Ql + (1 - ml) * P₀
-        b₁ = Φ₁ * _wrap_angle(x[free.lidx[k]] - μ) + (1 - ml) * (m₀ - μ)
+        b₁ = ml * (_cond_mean(p, x[free.lidx[k]], Φl, μ) - μ) + (1 - ml) * (m₀ - μ)
         if free.hasfix
             Φf, Qf = transition_moments(p, free.dtf[k])
             mf = free.mskf[k]
@@ -1268,6 +1277,48 @@ function _color_chain_wrapped_noncentered!(flag, y, x, index, sidx, av, cv, spec
     return ℓ, index + n, sidx + n
 end
 
+# Wrapped chains, non-centered coordinates, for a process whose transition mean carries
+# the previous point's sheet but is NOT affine in it (`has_noncentered_lift` without
+# `has_affine_lift`, i.e. the sine drift of `VonMisesProcess`). Same coordinates, same
+# weights, and the same fused flat target as `_color_chain_wrapped_noncentered!` — each
+# stepping point contributes exactly `log N(zₖ; 0, 1)` and a chain opening its raw-angle
+# init weight — but the recurrence `θₖ = wrap(m(θₖ₋₁) + √Q zₖ)` is nonlinear, so it cannot
+# stage into the batched affine scan and is resolved here as a loop-carried recurrence.
+# Equivariance (`m(θ + 2πs) = m(θ) + 2πs`) lets the carry run on the *wrapped* angles: a
+# sheet shift of the carry shifts the mean by the same `2π` multiple, which the wrap
+# removes, so no unwrapped running phase is needed. Sequential by nature — under Reactant
+# a `stablehlo.while` per group, which is why this parameterization targets scan-level
+# chains rather than IntegSeg-scale ones.
+function _color_chain_wrapped_recur!(flag, y, x, index, spec::ChainUnit, hp)
+    free = spec.free
+    n = _nfree(spec)
+    vals = _unit_params(spec, hp)
+    ℓ = zero(eltype(x))
+    θs = similar(y, n)
+    θp = zero(eltype(x))
+    @trace track_numbers = false for k in 1:n
+        p = _unit_process(spec, vals, _hpidx(spec, free, k))
+        μ = _process_mean(p)
+        Φ, Q = transition_moments(p, rgetindex(free.dtl, k))
+        ml = rgetindex(free.mskl, k)
+        lf = rgetindex(free.lfree, k)
+        z = rgetindex(x, index + k - 1)
+        # The previous chain value: the carried previous free angle, or the
+        # reference-fixed value where the left neighbour is not free (`_fill_fixed!`
+        # placed it; at a chain opening `ml` masks the whole step off, and the opening
+        # keeps its raw-angle coordinate exactly as in the affine-scan walker).
+        anchor = lf * θp + (1 - lf) * rgetindex(y, rgetindex(free.lidx, k))
+        θk = _wrap_angle(ml * (_cond_mean(p, anchor, Φ, μ) + sqrt(Q) * z) + (1 - ml) * z)
+        rsetindex!(θs, θk, k)
+        θp = θk
+        ℓ += ml * (-(z^2 + log(oftype(float(z), 2π))) / 2) +
+            (1 - ml) * _init_sheet_logweight(spec.init, p, z)
+    end
+    scatter_values!(y, free.tgt, θs)
+    flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + n
+    return ℓ, index + n
+end
+
 function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::ChainUnit, hp)
     free = spec.free
     n = _nfree(spec)
@@ -1288,7 +1339,10 @@ function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::ChainUnit, hp
         return ℓ0, index + n, sidx
     end
     if is_wrapped(spec.process)
-        return _color_chain_wrapped_noncentered!(flag, y, x, index, sidx, av, cv, spec, hp)
+        has_affine_lift(spec.process) &&
+            return _color_chain_wrapped_noncentered!(flag, y, x, index, sidx, av, cv, spec, hp)
+        ℓr, index = _color_chain_wrapped_recur!(flag, y, x, index, spec, hp)
+        return ℓr, index, sidx
     end
     vals = _unit_params(spec, hp)
     ℓ = zero(eltype(x))
@@ -1386,24 +1440,65 @@ function _whiten_chain_wrapped_centered!(x, index, y, spec::ChainUnit)
     return index + n
 end
 
+# Inverse of the centered wrapped lift for a process whose transition mean carries the
+# previous point's sheet but is nonlinear in it (`VonMisesProcess`): the coordinate the
+# weights favour is `φₖ = m(φₖ₋₁) + wrap(θₖ − m(φₖ₋₁))`, and the mean of the previous
+# *coordinate* — equivariance makes it congruent to `m` of the stored angle modulo `2π`,
+# but its sheet needs the coordinate itself — enters nonlinearly, so unlike the affine
+# unwrap above this is a loop-carried recurrence. Inverse-only; never in the log-density
+# hot path.
+function _whiten_chain_wrapped_centered_recur!(x, index, y, spec::ChainUnit, hp)
+    free = spec.free
+    n = _nfree(spec)
+    vals = _unit_params(spec, hp)
+    φp = zero(eltype(x))
+    @trace track_numbers = false for k in 1:n
+        p = _unit_process(spec, vals, _hpidx(spec, free, k))
+        μ = _process_mean(p)
+        Φ, _ = transition_moments(p, rgetindex(free.dtl, k))
+        m₀, _ = _init_window(spec.init, p, zero(eltype(x)))
+        θ = rgetindex(y, rgetindex(free.tgt, k))
+        ml = rgetindex(free.mskl, k)
+        lf = rgetindex(free.lfree, k)
+        # sheet anchor of the coloring's weight: the previous coordinate when the left
+        # chain point is free, the reference-fixed value when it is not, the init window's
+        # centre at a chain opening
+        anchor = lf * φp + (1 - lf) * rgetindex(y, rgetindex(free.lidx, k))
+        m = ml * _cond_mean(p, anchor, Φ, μ) + (1 - ml) * m₀
+        φk = m + _wrap_angle(θ - m)
+        rsetindex!(x, φk, index + k - 1)
+        φp = φk
+    end
+    return index + n
+end
+
 # Inverse of the non-centered wrapped lift: each coordinate is the wrapped step onto its
-# free point divided by that step's standard deviation, which places the step in `(−π, π]`
-# — the sheet the coloring's weight favours. Reading both endpoints from the colored
-# angles makes this pointwise, with no recurrence to resolve. The chain-opening point's
-# coordinate is its angle, as in the coloring. `transform ∘ inverse` is the identity on
-# wrapped angles; `inverse ∘ transform` is not (the sheet is not recoverable from the
-# angle), as for the centered lift and the angle embedding.
+# free point's transition mean divided by that step's standard deviation, which places the
+# step in `(−π, π]` — the sheet the coloring's weight favours. This is pointwise for
+# *every* process the lift admits, the nonlinear sine drift included: the mean is
+# `2π`-equivariant, so its value modulo `2π` — all the wrapped step needs — is readable
+# from the stored previous angle, with no recurrence to resolve. The chain-opening point's
+# coordinate is its angle placed on the sheet nearest its init window's centre, as in the
+# coloring. `transform ∘ inverse` is the identity on wrapped angles; `inverse ∘ transform`
+# is not (the sheet is not recoverable from the angle), as for the centered lift and the
+# angle embedding.
 function _whiten_chain_wrapped_noncentered!(x, index, y, spec::ChainUnit, hp)
     free = spec.free
     n = _nfree(spec)
     vals = _unit_params(spec, hp)
     @trace track_numbers = false for k in 1:n
         p = _unit_process(spec, vals, _hpidx(spec, free, k))
-        _, Q = transition_moments(p, rgetindex(free.dtl, k))
+        μ = _process_mean(p)
+        Φ, Q = transition_moments(p, rgetindex(free.dtl, k))
+        m₀, _ = _init_window(spec.init, p, zero(eltype(x)))
         θ = rgetindex(y, rgetindex(free.tgt, k))
         ml = rgetindex(free.mskl, k)
-        yl = rgetindex(y, rgetindex(free.lidx, k))
-        rsetindex!(x, ml * (_wrap_angle(θ - yl) / sqrt(Q)) + (1 - ml) * θ, index + k - 1)
+        m = _cond_mean(p, rgetindex(y, rgetindex(free.lidx, k)), Φ, μ)
+        rsetindex!(
+            x,
+            ml * (_wrap_angle(θ - m) / sqrt(Q)) + (1 - ml) * (m₀ + _wrap_angle(θ - m₀)),
+            index + k - 1
+        )
     end
     return index + n
 end
@@ -1426,11 +1521,13 @@ function _whiten_chain_flat!(x, index, y, spec::ChainUnit, hp)
     if spec.param isa Centered
         n = _nfree(spec)
         if is_wrapped(spec.process)
-            # `_periodic_mean` is a trait on a concrete process type, so this is a
-            # host-static branch.
+            # `_periodic_mean`/`has_affine_lift` are traits on a concrete process type,
+            # so these are host-static branches.
             _periodic_mean(spec.process) &&
                 return _whiten_chain_wrapped_pointwise!(x, index, y, spec, hp)
-            return _whiten_chain_wrapped_centered!(x, index, y, spec)
+            has_affine_lift(spec.process) &&
+                return _whiten_chain_wrapped_centered!(x, index, y, spec)
+            return _whiten_chain_wrapped_centered_recur!(x, index, y, spec, hp)
         end
         @trace track_numbers = false for k in 1:n
             rsetindex!(x, rgetindex(y, rgetindex(free.tgt, k)), index + k - 1)
@@ -1602,6 +1699,12 @@ end
 
 # ----- the hierarchical observed prior ----------------------------------------
 
+# One sample of a hierarchical instrument prior: the gains plus the fitted process
+# hyperparameters. Every method that recognizes the shape by dispatch (`siteparams`,
+# `caltable`, the Makie `prepare_caltable`) uses this alias, so the shape is written
+# down once.
+const HierarchicalSiteSample = NamedTuple{(:params, :hyperparams)}
+
 """
     siteparams(x)
 
@@ -1611,7 +1714,7 @@ hierarchical samples `(params = SiteArray, hyperparams = NamedTuple)` (produced 
 for plain `SiteArray` samples it is the identity.
 """
 @inline siteparams(x) = x
-@inline siteparams(x::NamedTuple{(:params, :hyperparams)}) = x.params
+@inline siteparams(x::HierarchicalSiteSample) = x.params
 
 #    ObservedHierarchicalArrayPrior
 #
@@ -1721,9 +1824,9 @@ end
 # Chain times in *absolute* UTC hours — the same clock as the data's `Ti` field — with
 # multi-day tracks continued past 24 h through the `mjd` field. The origin is the whole
 # array's first day, shared by every chain, so a chain's times are directly comparable
-# both to the data and between sites. (They used to be relative to each chain's own first
-# point, which made `spec.ts` silently unmatchable against `Ti` and incomparable across
-# sites.) Only *gaps* reach the process — `transition_moments`, the bridge, and the
+# both to the data and between sites; times relative to each chain's own first point
+# would make `spec.ts` silently unmatchable against `Ti` and incomparable across
+# sites. Only *gaps* reach the process — `transition_moments`, the bridge, and the
 # `Δ0` of `_first_point_term` are all differences — so the origin never enters the
 # density; this is purely an interface property.
 function _chain_times(times, inds, mjd0)
