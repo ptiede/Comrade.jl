@@ -594,4 +594,19 @@ end
             rm(f; force = true)
         end
     end
+
+    # Under-collecting an assigned name is unsafe (a definition closing over it would be
+    # wrongly hoisted), so every binding form must be seen — including the exception name
+    # of `catch e`, which the Expr stores as a bare Symbol outside any assignment head.
+    @testset "catch binding is collected as assigned" begin
+        out = Symbol[]
+        Comrade._collect_assigned!(out, :(try f() catch e
+            handle(e)
+        end))
+        @test :e in out
+        out2 = Symbol[]
+        Comrade._collect_assigned!(out2, :(try f() catch
+        end))
+        @test isempty(out2)
+    end
 end

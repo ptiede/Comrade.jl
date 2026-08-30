@@ -226,7 +226,7 @@ end
 
 # Hierarchical instrument samples (e.g. GaussMarkovSitePrior with fitted hyperparameters)
 # carry the gains in `params`; the caltable only shows the gains.
-caltable(x::NamedTuple{(:params, :hyperparams)}) = caltable(siteparams(x))
+caltable(x::HierarchicalSiteSample) = caltable(siteparams(x))
 
 """
     caltable(s::SiteArray)

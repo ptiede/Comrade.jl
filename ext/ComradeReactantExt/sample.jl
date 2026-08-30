@@ -44,15 +44,32 @@ mutable struct _DiskSink
     nsamples_done::Int
 end
 
+# Scan files of a chain stored in `dir` in Comrade's on-disk layout (empty if none).
+function _scan_files(dir::String)
+    sampdir = joinpath(dir, "samples")
+    isdir(sampdir) || return String[]
+    return filter(f -> startswith(f, "output_scan_") && endswith(f, ".jls"), readdir(sampdir))
+end
+
+# Remove any chain already stored in `dir` (scan files, index, warmup log). A fresh
+# (non-append) open must never write around stale scan files: the index is only rewritten
+# when the first chunk lands, and until then `load_samples(dir)` would reassemble the old
+# run's files into the new chain. Deleting them is reported with a warning.
+function _clear_stale_chain(dir::String)
+    scans = _scan_files(dir)
+    pf = joinpath(dir, "parameters.jls")
+    haveidx = isfile(pf)
+    isempty(scans) && !haveidx && return nothing
+    @warn "\"$dir\" already contains a sampled chain ($(length(scans)) scan file(s)$(haveidx ? " and an index" : "")); removing it to start fresh. Pass `restart = true` to continue an interrupted run instead."
+    foreach(f -> rm(joinpath(dir, "samples", f)), scans)
+    haveidx && rm(pf)
+    return nothing
+end
+
 # Open Comrade's on-disk sample layout in `dir` (creating `dir/samples`). This is the one
 # place the layout's open semantics live — the main chain and the warmup log both go
-# through it. On append, new chunks are numbered after the ones already indexed. On a
-# fresh open, any chain already in `dir` is dropped first — the scan files (only ones
-# matching our own naming) *and* the index. The index must go with the files: it is only
-# rewritten when the first chunk lands (behind the multi-minute kernel compile for the
-# warmup log), and until then `load_samples(dir)` — an advertised mid-run workflow —
-# would read the old run's index and crash on (or splice in) the files deleted here. It
-# also keeps a later `append` open from adopting the old run's counter as its start.
+# through it. On append, new chunks are numbered after the ones already indexed; a fresh
+# open clears any chain already there (`_clear_stale_chain`).
 function _open_disk_layout(dir::String, stride::Int; append::Bool = false)
     sampdir = joinpath(dir, "samples")
     mkpath(sampdir)
@@ -62,11 +79,7 @@ function _open_disk_layout(dir::String, stride::Int; append::Bool = false)
         prev = deserialize(pf).params
         iter0, nsamples0 = prev.nfiles, prev.nsamples
     elseif !append
-        for f in readdir(sampdir)
-            startswith(f, "output_scan_") && endswith(f, ".jls") &&
-                rm(joinpath(sampdir, f))
-        end
-        rm(pf; force = true)
+        _clear_stale_chain(dir)
     end
     return _DiskSink(dir, joinpath(sampdir, "output_scan_"), stride, iter0, nsamples0)
 end
@@ -124,9 +137,10 @@ end
 # The layout is Comrade's standard on-disk sample layout (`<dir>/samples/output_scan_%05d.jls`
 # + `parameters.jls`) with `stride = 1`, so the warmup chain reads back with a plain
 # `Comrade.load_samples(dir)`. The log IS a `_DiskSink` — same layout, same open/write
-# helpers — so the two can never drift apart; a fresh open drops any previous warmup
-# chain (files + index) via `_open_disk_layout`. The MCMC state is checkpointed
-# separately (`<name>/state.jls` in `warmup_chunked`), so no state lands here.
+# helpers — so the two can never drift apart; a fresh open clears a warmup chain already
+# in the directory (`_clear_stale_chain` via `_open_disk_layout`). The MCMC
+# state is checkpointed separately (`<name>/state.jls` in `warmup_chunked`), so no state
+# lands here.
 _open_warmup_log(dir::String; append::Bool = false) = _open_disk_layout(dir, 1; append)
 
 # `params` is one constrained draw; `stats` is a column-oriented NamedTuple of length-1
@@ -436,15 +450,15 @@ function sample_chunked(
 
         raw = Array(samples)
         chain = [transform(tpost, r) for r in eachrow(raw)]
-        # Reactant 0.2.275 widened `diagnostics` from a length-`ns` Bool vector to an `ns x 2`
-        # matrix. Column 1 is the old vector: the impulse dialect calls it a "placeholder for
-        # future expansion" and it reads `true` for every draw — including a chain frozen on a
-        # single point — so `.!col1` (what this used to compute) was uniformly `false` and
-        # never flagged anything. Column 2 is the actual per-draw divergence flag: it is 0 for
-        # a healthy chain, 1 when the trajectory blows past `max_delta_energy`, and takes
-        # intermediate values in between. That matches `numerical_error`'s cross-backend
-        # meaning (AdvancedHMC reports divergences here), so it is used directly, unnegated.
-        numerical_error = Array(diagnostics)[:, 2]
+        # `diagnostics` is an `ns x 2` matrix (Reactant ≥ 0.2.275, see the compat bound).
+        # Column 1 is a placeholder the impulse dialect reads `true` for every draw — even
+        # for a chain frozen on a single point — so it carries no information. Column 2 is
+        # the per-draw divergence signal: 0 for a healthy draw, 1 when the trajectory blows
+        # past `max_delta_energy`, with intermediate values in between. The cross-backend
+        # `numerical_error` contract (`default_disk_callback`) is a `Vector{Bool}` of
+        # per-draw divergence flags — `count` is called on it — so any nonzero signal
+        # marks the draw divergent.
+        numerical_error = map(>(0), Array(diagnostics)[:, 2])
 
         # Persist the chunk first (serialization / accumulation), then build the callback
         # `info` and fire the callback — the same ordering the AdvancedHMC path uses.
@@ -563,6 +577,10 @@ its draws already stream to `<name>/warmup`. Overriding it replaces what lands i
 `warmup_history`, so return `info.params` from a custom callback to keep the in-memory
 warmup chain.
 
+A fresh run (`restart=false`) requires a `DiskStore` directory with no chain in it:
+sampling into a directory that already holds a previous run's chain or warmup log is an
+error, so an old run is never silently overwritten.
+
 `restart=true` (only with a `DiskStore`) continues an interrupted run, matching
 AdvancedHMC's `restart`. Warmup is checkpointed after every chunk, so an interruption
 *during* warmup resumes from the last completed chunk (the persisted adaptation state is
@@ -624,6 +642,11 @@ function AbstractMCMC.sample(
             throw(ArgumentError("restart=true requires saveto::DiskStore"))
         isfile(state_ckpt) ||
             throw(ArgumentError("cannot restart: no state checkpoint at $state_ckpt"))
+    elseif saveto isa DiskStore
+        # A fresh run clears a previous run's chain and warmup log up front (see
+        # `_clear_stale_chain`) so the warning lands before the multi-minute warmup compile.
+        _clear_stale_chain(saveto.name)
+        _clear_stale_chain(warmup_draws_dir)
     end
 
     if !restart

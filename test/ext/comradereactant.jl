@@ -67,6 +67,9 @@ end
     chain = res.out
     @test length(Comrade.postsamples(chain)) == 100
     @test hasproperty(samplerstats(chain), :numerical_error)
+    # cross-backend contract: per-draw Bool divergence flags (`count`-able by the
+    # default disk callback)
+    @test eltype(samplerstats(chain).numerical_error) == Bool
     @test haskey(samplerinfo(chain), :warmup_history)
     @test haskey(samplerinfo(chain), :sample_history)
 
@@ -97,6 +100,14 @@ end
     @test out2.nsamples == 200
     c = load_samples(out2)
     @test length(Comrade.postsamples(c)) == 200
+
+    # a fresh run into a directory that already holds a chain warns, clears it, and
+    # starts over; `restart = true` is the way to continue
+    out3 = (@test_logs (:warn, r"already contains a sampled chain") match_mode = :any sample(
+        post, s, 100; saveto = DiskStore(name = dir, stride = 25)
+    )).out
+    @test out3.nsamples == 100
+    @test length(Comrade.postsamples(load_samples(out3))) == 100
 
     rm(dir, recursive = true)
 end

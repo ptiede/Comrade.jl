@@ -69,6 +69,11 @@ function _collect_assigned!(out, node)
         for a in node.args
             _collect_lhs_symbols!(out, a)
         end
+    elseif node.head === :try
+        # `catch e` binds the exception name, stored in args[2] as a bare Symbol (or
+        # `false` when absent) — the recursive walk below never sees non-Expr nodes,
+        # so it must be collected here.
+        _collect_lhs_symbols!(out, node.args[2])
     end
     for a in node.args
         _collect_assigned!(out, a)
