@@ -247,14 +247,17 @@ default_warmup_callback_noparams(info) =
 # chopping warmup into chunks is bit-identical to one fused warmup (this is exactly what
 # Reactant's own `run_chain` does — see EnzymeAD/Reactant.jl#2964). The offset is a runtime
 # argument so one compiled kernel serves every chunk of a given length.
-function _compile_warmup_kernel(state, ldf, tpost, nsteps::Int, total::Int, sampler::ReactantNUTS)
+function _compile_warmup_kernel(
+        state, ldf, tpost, nsteps::Int, total::Int, sampler::ReactantNUTS;
+        adapt_mass_matrix::Bool = sampler.adapt_mass_matrix
+    )
     fn = function (st::ProbProg.MCMCState, lf, off)
         # `_infer` returns (trace, diagnostics, log_densities, traced_result, state). The
         # `log_densities` slot was added in Reactant 0.2.275 — hence the compat lower bound.
         _, _, _, _, st_out = ProbProg._infer(
             st, lf, tpost;
             algorithm = :NUTS, num_warmup = nsteps, num_samples = 0,
-            adapt_step_size = true, adapt_mass_matrix = true,
+            adapt_step_size = true, adapt_mass_matrix = adapt_mass_matrix,
             total_warmup = total, warmup_offset = off,
             max_tree_depth = sampler.max_tree_depth,
             max_delta_energy = sampler.max_delta_energy,
@@ -308,11 +311,15 @@ function warmup_chunked(
         checkpoint = nothing, progress_checkpoint = nothing,
         draws_dir = nothing,
         resume_state = nothing, warmup_done::Int = 0,
+        refit = nothing, refit_steps::AbstractVector{<:Integer} = Int[],
+        segment_start::Int = 0,
     )
 
     na = sampler.n_adapts
     na > 0 || throw(ArgumentError("n_adapts must be positive"))
     chunk > 0 || throw(ArgumentError("warmup chunk length must be positive"))
+    all(s -> 0 < s < na, refit_steps) ||
+        throw(ArgumentError("refit_steps must lie strictly inside (0, n_adapts)"))
 
     if isnothing(resume_state)
         T = eltype(x0)
@@ -334,25 +341,48 @@ function warmup_chunked(
         _open_warmup_log(draws_dir; append = !isnothing(resume_state))
 
     history = Any[]
-    kernel = nothing
-    kernel_key = nothing
+    # Kernel cache: one compiled kernel per (chunk length, gradient-presence) shape.
+    # A refit rebuilds the state with an empty gradient slot, flipping the shape back
+    # and forth — with frequent (nutpie-cadence) refits each shape must compile ONCE
+    # and be reused, not recompiled per flip. A structural transform swap invalidates
+    # the whole cache (the transform is baked into the kernels).
+    kernels = Dict{Any, Any}()
+    # Windowed-refit bookkeeping: `seg` anchors the Stan schedule to the CURRENT segment
+    # (each refit restarts the schedule for the remaining warmup, since the geometry the
+    # earlier windows adapted to no longer exists), `pending` the refit steps still ahead,
+    # and `adapt_mm` freezes the Welford metric from the first refit on — the refitted
+    # transform then carries the metric, and Welford's marginal re-normalization would
+    # undo any marginal-vs-conditional balance the transform encodes.
+    seg = segment_start
+    pending = sort(collect(Int, filter(>(done), refit_steps)))
+    adapt_mm = sampler.adapt_mass_matrix && seg == 0
     while done < na
         nsteps = min(chunk, na - done)
-        # Recompile when the chunk length changes or when the state gains its gradient (and
-        # adaptation) after the very first chunk — mirrors Reactant's `_run_chain_chunked`.
-        key = (nsteps, isnothing(state.gradient))
-        if key != kernel_key
-            kernel = _compile_warmup_kernel(state, ldf, tpost, nsteps, na, sampler)
-            kernel_key = key
+        !isempty(pending) && (nsteps = min(nsteps, first(pending) - done))
+        # With the metric frozen (post-refit), the Stan window schedule is inert and
+        # `total_warmup` need not track the segment — pinning it keeps the kernel cache
+        # key stable across refits (the schedule anchor only matters while the Welford
+        # metric adapts, i.e. in segment 0).
+        total_c = adapt_mm ? (na - seg) : na
+        off_c = adapt_mm ? (done - seg) : done
+        key = (nsteps, isnothing(state.gradient), adapt_mm, total_c)
+        kernel = get!(kernels, key) do
+            _compile_warmup_kernel(
+                state, ldf, tpost, nsteps, total_c, sampler;
+                adapt_mass_matrix = adapt_mm
+            )
         end
-        state = kernel(state, ldf, ConcreteRNumber(Int64(done)))
+        state = kernel(state, ldf, ConcreteRNumber(Int64(off_c)))
         done += nsteps
 
         # Checkpoint AFTER the chunk so a crash resumes from completed work.
         if !isnothing(checkpoint)
             ProbProg.save_state(checkpoint, state)
             isnothing(progress_checkpoint) ||
-                serialize(progress_checkpoint, (; warmup_done = done, n_adapts = na))
+                serialize(
+                progress_checkpoint,
+                (; warmup_done = done, n_adapts = na, segment_start = seg)
+            )
         end
 
         cur = _current_state(state, tpost)
@@ -374,8 +404,45 @@ function warmup_chunked(
             state,
         )
         push!(history, callback(info))
+
+        # Windowed refit: the callable gets the current step, transformed posterior,
+        # and constrained draw, and returns `nothing` (no change) or `(tpost′, xnew)` —
+        # the transformed posterior to continue in and the host-side latent position of
+        # the current draw in its coordinates. `tpost′ === tpost` means the transform's
+        # device buffers were updated IN PLACE (see `_device_pre`): the compiled kernel
+        # is reused as-is. A different object is a structural change and recompiles.
+        # Either way dual averaging restarts anchored at the current adapted step size,
+        # the metric freezes at identity, and the windowed schedule restarts for the
+        # remaining steps. The refit callable persists whatever a restart needs to
+        # rebuild the same transform (e.g. the run's `transport.jls`).
+        if !isnothing(refit) && !isempty(pending) && done >= first(pending)
+            popfirst!(pending)
+            res = refit(done, tpost, cur.params)
+            if !isnothing(res)
+                newt, xnewh = res
+                T = eltype(cur.position)
+                xnew = Reactant.to_rarray(T.(xnewh))
+                step0 = ConcreteRNumber(T(cur.step_size))
+                mass0 = Reactant.to_rarray(ones(T, length(cur.position)))
+                state = ProbProg.MCMCState(
+                    xnew, nothing, nothing, step0, mass0, state.rng, nothing
+                )
+                if newt !== tpost
+                    tpost = newt
+                    empty!(kernels)      # structural change: every cached kernel is stale
+                end
+                seg = done
+                adapt_mm = false
+                # No checkpoint here: `save_state` cannot serialize the rebuilt state's
+                # empty gradient/adaptation slots. The next chunk's standard checkpoint
+                # (one chunk later) persists the populated state together with the new
+                # `segment_start`; until then the on-disk state predates the refit while
+                # `transport.jls` is already new, so a crash inside that short window
+                # needs a fresh start rather than `restart = true`.
+            end
+        end
     end
-    return state, history
+    return state, history, tpost
 end
 
 """
@@ -599,7 +666,8 @@ function AbstractMCMC.sample(
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
         chunk_size::Int = 100, warmup_chunk::Int = 0,
         ldf = _default_ldf, host_rng = Random.default_rng(),
-        warmup_callback = nothing
+        warmup_callback = nothing,
+        warmup_refit = nothing, warmup_refit_steps::AbstractVector{<:Integer} = Int[]
     )
 
     # Default warmup callback: `MemoryStore` keeps the per-chunk draw in `warmup_history`
@@ -652,11 +720,12 @@ function AbstractMCMC.sample(
     if !restart
         x0 = _initial_position(host_rng, tpost, initial_params)
         @info "ReactantNUTS warmup" n_adapts = sampler.n_adapts chunk = warmup_chunk
-        state, warmup_history = warmup_chunked(
+        state, warmup_history, tpost = warmup_chunked(
             rng, ldf, x0, tpost, sampler;
             chunk = warmup_chunk, callback = warmup_callback,
             checkpoint = state_ckpt, progress_checkpoint = progress_ckpt,
             draws_dir = warmup_draws_dir,
+            refit = warmup_refit, refit_steps = warmup_refit_steps,
         )
     else
         # Restart: load the checkpoint. If warmup did not finish (recorded step count <
@@ -664,16 +733,23 @@ function AbstractMCMC.sample(
         # adaptation accumulators; otherwise skip straight to sampling. `warmup_progress.jls`
         # is absent for already-completed warmups, so default to "complete".
         state = ProbProg.load_state(state_ckpt)
-        warmup_done = isfile(progress_ckpt) ?
-            deserialize(progress_ckpt).warmup_done : sampler.n_adapts
+        prog = isfile(progress_ckpt) ? deserialize(progress_ckpt) : nothing
+        warmup_done = isnothing(prog) ? sampler.n_adapts : prog.warmup_done
+        # Refit segments: resume inside the segment the checkpoint belongs to. The
+        # transform itself was re-persisted by the refit callable, so `tpost` above is
+        # already the segment's transform.
+        seg0 = (isnothing(prog) || !haskey(pairs(prog), :segment_start)) ? 0 :
+            prog.segment_start
         if warmup_done < sampler.n_adapts
             @info "ReactantNUTS restart: resuming warmup" done = warmup_done n_adapts = sampler.n_adapts
-            state, warmup_history = warmup_chunked(
+            state, warmup_history, tpost = warmup_chunked(
                 rng, ldf, nothing, tpost, sampler;
                 chunk = warmup_chunk, callback = warmup_callback,
                 checkpoint = state_ckpt, progress_checkpoint = progress_ckpt,
                 draws_dir = warmup_draws_dir,
                 resume_state = state, warmup_done = warmup_done,
+                refit = warmup_refit, refit_steps = warmup_refit_steps,
+                segment_start = seg0,
             )
         else
             @info "ReactantNUTS restart: warmup complete, skipping" dir = saveto.name

@@ -23,6 +23,13 @@ checkpointed after every warmup chunk, so an interrupted warmup can be resumed w
   init_step_size = 0.01    initial leapfrog step size; seeds dual averaging (see note)
   max_tree_depth = 10
   max_delta_energy = 1000.0
+  adapt_mass_matrix = true adapt the Welford diagonal mass matrix during warmup. Set
+                           false to freeze the metric at identity, so that a
+                           preconditioning transform composed into the posterior IS
+                           the metric: Welford adapts to *marginal* variances, which
+                           silently undoes any transform component that deliberately
+                           trades marginal against conditional width (a ridge
+                           coordinate's balance). Step-size adaptation still runs.
   strong_zero = true       turn 0*Inf / 0*NaN in the gradient into 0; REQUIRED for
                            stiff image models or every proposal NaN-rejects and the
                            chain freezes -- keep `true` unless you know better.
@@ -42,4 +49,5 @@ Base.@kwdef struct ReactantNUTS
     max_tree_depth::Int = 10
     max_delta_energy::Float64 = 1000.0
     strong_zero::Bool = true
+    adapt_mass_matrix::Bool = true
 end

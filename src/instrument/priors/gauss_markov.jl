@@ -1888,6 +1888,17 @@ function build_markov_observed(d::ArrayPrior, site_dists::NamedTuple, smap::Site
     )
     d.centroid_station === nothing ||
         throw(ArgumentError("centroid_station is not supported with GaussMarkovSitePrior"))
+    # The chain-machinery path has no first-stamp pin for IID sites; refusing here beats
+    # silently dropping the pin the prior asked for.
+    for s in keys(site_dists)
+        sd = site_dists[s]
+        sd isa IIDSitePrior && initprior(sd) !== nothing && throw(
+            ArgumentError(
+                "IIDSitePrior init pins are not supported when the same ArrayPrior " *
+                    "also carries chain (GaussMarkov) site priors (site $s)"
+            )
+        )
+    end
 
     T = _working_type(site_dists)
     finds, vals = reference_indices(array, smap, d.refant)

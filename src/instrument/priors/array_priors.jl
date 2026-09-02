@@ -255,6 +255,38 @@ function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroi
     ss = smap.sites
     # fs = smap.frequencies
     fixedinds, vals = reference_indices(array, smap, refants)
+    if any(!isnothing ∘ initprior, values(dists))
+        fixedinds = convert(Vector{Int}, fixedinds)
+        vals = vals === nothing ? Float64[] : convert(Vector{Float64}, vals)
+        # Init pins: a site prior with `init = FixedInit(v)` fixes each site's first
+        # stamp (per frequency channel) to `v` — see `IIDSitePrior`. A stamp the
+        # referencing scheme already fixes stays the reference's, and the values must
+        # agree: a silent disagreement would quietly change the reference gauge.
+        for s in keys(dists)
+            ini = initprior(getproperty(dists, s))
+            ini === nothing && continue
+            for f in unique(smap.frequencies)
+                sinds = findall(
+                    i -> ss[i] == s && smap.frequencies[i] == f, eachindex(ss)
+                )
+                isempty(sinds) && continue
+                i1 = sinds[argmin(view(ts, sinds))]
+                j = findfirst(==(i1), fixedinds)
+                if j === nothing
+                    push!(fixedinds, i1)
+                    push!(vals, ini.value)
+                elseif vals[j] != ini.value
+                    throw(
+                        ArgumentError(
+                            "init = FixedInit($(ini.value)) for site $s conflicts " *
+                                "with the reference value $(vals[j]) already fixing " *
+                                "its first stamp"
+                        )
+                    )
+                end
+            end
+        end
+    end
 
     if !(centroid_station isa Nothing)
         centstat = keys(centroid_station)
