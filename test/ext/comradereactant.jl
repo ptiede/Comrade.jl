@@ -103,9 +103,11 @@ end
 
     # a fresh run into a directory that already holds a chain warns, clears it, and
     # starts over; `restart = true` is the way to continue
-    out3 = (@test_logs (:warn, r"already contains a sampled chain") match_mode = :any sample(
-        post, s, 100; saveto = DiskStore(name = dir, stride = 25)
-    )).out
+    out3 = (
+        @test_logs (:warn, r"already contains a sampled chain") match_mode = :any sample(
+            post, s, 100; saveto = DiskStore(name = dir, stride = 25)
+        )
+    ).out
     @test out3.nsamples == 100
     @test length(Comrade.postsamples(load_samples(out3))) == 100
 

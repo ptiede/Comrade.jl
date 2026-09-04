@@ -486,7 +486,7 @@ space and routed to `saveto` (`MemoryStore` -> accumulate; `DiskStore` -> write
 Comrade layout). `out` is a `PosteriorSamples` (memory) or `Comrade.DiskOutput`
 (disk). After EVERY chunk the per-batch callback runs: `saveto.callback` for a `DiskStore`,
 otherwise [`Comrade.default_disk_callback`](@ref). The `info` it receives is the same
-`NamedTuple` documented under the `ReactantNUTS` [`sample`](@ref) method (common fields in
+`NamedTuple` documented under the `ReactantNUTS` `sample` method (common fields in
 [`Comrade.default_disk_callback`](@ref), with the host-side `MCMCState` view from
 [`_current_state`](@ref) under `info.extras`).
 """
@@ -837,7 +837,7 @@ end
     sample(post, sampler::ReactantNUTS, nsamples; kwargs...)
 
 Convenience method that builds a default `ReactantRNG` and forwards to the
-main [`sample`](@ref).
+main `sample`.
 """
 function AbstractMCMC.sample(post, sampler::ReactantNUTS, nsamples::Int; kwargs...)
     rng = Reactant.ReactantRNG()

@@ -26,7 +26,7 @@ flat latent space: `b` and `d` are the per-coordinate center and scale (length `
 `V` an `n × m` matrix with orthonormal columns, and `s` the `m` per-direction scale
 factors applied on `span(V)`.
 
-Pass it as the `transport_method` of [`sample`](@ref); `transport_to` composes it in
+Pass it as the `transport_method` of `sample`; `transport_to` composes it in
 front of the posterior's [`asflat`](@ref asflat) transform, so the result is an ordinary
 [`TransformedVLBIPosterior`](@ref). Build it from a pilot run with
 [`fit_preconditioner`](@ref).

@@ -600,13 +600,25 @@ end
     # of `catch e`, which the Expr stores as a bare Symbol outside any assignment head.
     @testset "catch binding is collected as assigned" begin
         out = Symbol[]
-        Comrade._collect_assigned!(out, :(try f() catch e
-            handle(e)
-        end))
+        Comrade._collect_assigned!(
+            out, :(
+                try
+                    f()
+                catch e
+                    handle(e)
+                end
+            )
+        )
         @test :e in out
         out2 = Symbol[]
-        Comrade._collect_assigned!(out2, :(try f() catch
-        end))
+        Comrade._collect_assigned!(
+            out2, :(
+                try
+                    f()
+                catch
+                end
+            )
+        )
         @test isempty(out2)
     end
 end
