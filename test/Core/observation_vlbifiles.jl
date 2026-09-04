@@ -100,6 +100,49 @@ end
     @test length(c) > 0
     @test eltype(c[:measurement]) <: AbstractMatrix{<:Complex}
     @test all(d -> d.polbasis == (CirBasis(), CirBasis()), c[:baseline])
+
+    # A hand is either fully measured or fully flagged. Readers hand back a missing hand as
+    # a real-only `NaN` (`NaN + 0.0im`) with zero noise; the imaginary part of such an entry
+    # survives the subtraction in `residuals` as a finite `-imag(model)`, which then gets
+    # divided by a tiny noise and shows up as a huge spurious offset in exactly the hands
+    # that have flagged data.
+    for (m, n) in zip(Comrade.measurement(c), Comrade.noise(c)), i in 1:4
+        @test isnan(real(m[i])) == isnan(imag(m[i]))
+        @test isnan(real(m[i])) == isnan(n[i])
+    end
+end
+
+
+@testset "coherency missing hands stay flagged" begin
+    path = joinpath(@__DIR__, "..", "test_data.uvfits")
+    uvd = VLBIFiles.load(VLBIFiles.UVData, path)
+    c = extract_table(uvd, Coherencies(; time_average = VLBI.GapBasedScans()))
+    Tm = eltype(Comrade.measurement(c))
+    Tn = eltype(Comrade.noise(c))
+
+    m = Tm(1 + 2im, 3 - 1im, -2 + 0.5im, 4 + 0im)
+    n = Tn(0.1, 0.2, 0.3, 0.4)
+    @test Comrade.mask_missing_hands(m, n) === (m, n)
+
+    # the LR hand as a reader reports it when the row does not carry it
+    vm, em = Comrade.mask_missing_hands(
+        Base.setindex(m, complex(NaN, 0.0), 2), Base.setindex(n, 0.0, 2)
+    )
+    @test isnan(real(vm[2])) && isnan(imag(vm[2]))
+    @test isnan(em[2])
+    for i in (1, 3, 4)
+        @test vm[i] == m[i]
+        @test em[i] == n[i]
+    end
+
+    # and the flag must survive the subtraction `residuals` performs
+    meas = fill(vm, length(c))
+    nse = fill(em, length(c))
+    cflag = Comrade.EHTObservationTable{Comrade.datumtype(c)}(meas, nse, arrayconfig(c))
+    res = Comrade.residual_data(fill(Tm(0.5 + 0.5im, 1 + 1im, 1 - 1im, 2 + 2im), length(c)), cflag)
+    r = Comrade.measurement(res)[begin]
+    @test isnan(real(r[2])) && isnan(imag(r[2]))
+    @test all(i -> isfinite(real(r[i])) && isfinite(imag(r[i])), (1, 3, 4))
 end
 
 

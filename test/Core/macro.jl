@@ -491,3 +491,134 @@ end
         end
     end
 end
+
+# --- param_map hoisting -------------------------------------------------------------------
+# `@instrument` emits every param_map / combination function as a *named* function, and hoists
+# it to top level when it closes over nothing. That matters for serialization: a definition
+# nested inside `_<name>_jones` is a closure, so its type is gensym'd — `var"#_f_pmap_1#37"` —
+# and the trailing counter is a module-global compile-time number rather than anything written
+# in the source. Since the param_map is a type parameter of the Jones term, editing unrelated
+# code earlier in the module shifts that counter and every previously serialized model then
+# fails to load with `UndefVarError: #_f_pmap_1#37`. Hoisted, the type is the stable singleton
+# `typeof(_f_pmap_1)`. A param_map that genuinely captures a construction-time keyword must
+# still stay nested, or the captured value would go out of scope.
+#
+# These definitions are deliberately at file top level: `include` evaluates into module global
+# scope, which is what allows hoisting in the first place. Defining them inside a `@testset`
+# (a local scope) would leave them nested no matter what the macro does.
+
+# Every generic function's type is named "#f", so a leading "#" distinguishes nothing; the
+# closure marker is the trailing "#<counter>".
+_is_hoisted(f) = isnothing(match(r"#\d+$", String(nameof(typeof(f)))))
+
+@instrument function hoist_plain(; refbasis = CirBasis())
+    return @jones begin
+        lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+        gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+        g = exp(lg + 1im * gp)
+        return JonesG((g, g))
+    end
+end
+
+# The param_map reads `gscale`, a construction-time keyword, so it cannot be hoisted.
+@instrument function hoist_capture(; refbasis = CirBasis(), gscale = 2.0)
+    return @jones begin
+        lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+        g = exp(gscale * lg)
+        return JonesG((g, g))
+    end
+end
+
+@instrument function hoist_sandwich(; refbasis = CirBasis())
+    G = @jones begin
+        lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+        return JonesG((exp(lg), exp(lg)))
+    end
+    R = @jones begin
+        return JonesR(; add_fr = true)
+    end
+    return JonesSandwich(G, R) do g, r
+        return g * r
+    end
+end
+
+@testset "@instrument param_map hoisting" begin
+    # Pin down what the marker actually distinguishes, so nothing below can pass vacuously.
+    @testset "hoisted/closure probe" begin
+        @test _is_hoisted(identity)
+        @test !_is_hoisted(
+            let y = 1
+                z -> z + y
+            end
+        )
+    end
+
+    @testset "capture-free param_map is hoisted to top level" begin
+        pm = hoist_plain().jones.param_map
+        @test _is_hoisted(pm)
+        @test isdefined(@__MODULE__, :_hoist_plain_pmap_1)
+        @test pm === _hoist_plain_pmap_1
+        @test pm((; lg = 0.3, gp = 0.2)) == let g = exp(0.3 + 1im * 0.2)
+            (g, g)
+        end
+    end
+
+    @testset "capturing param_map stays nested" begin
+        pm = hoist_capture().jones.param_map
+        @test !_is_hoisted(pm)
+        @test pm((; lg = 0.5)) == let g = exp(2.0 * 0.5)
+            (g, g)
+        end
+        # the capture is live: a different keyword must give a different result
+        pm3 = hoist_capture(; gscale = 3.0).jones.param_map
+        @test pm3((; lg = 0.5)) == let g = exp(3.0 * 0.5)
+            (g, g)
+        end
+    end
+
+    @testset "param_map inside a composition is hoisted" begin
+        pm = hoist_sandwich().jones.matrices[1].param_map
+        @test _is_hoisted(pm)
+        @test pm === _hoist_sandwich_pmap_1
+    end
+
+    @testset "hoisted type survives serialization" begin
+        m = hoist_plain()
+        f = tempname()
+        try
+            serialize(f, m.jones)
+            back = deserialize(f)
+            @test typeof(back) === typeof(m.jones)
+            @test back.param_map === m.jones.param_map
+        finally
+            rm(f; force = true)
+        end
+    end
+
+    # Under-collecting an assigned name is unsafe (a definition closing over it would be
+    # wrongly hoisted), so every binding form must be seen — including the exception name
+    # of `catch e`, which the Expr stores as a bare Symbol outside any assignment head.
+    @testset "catch binding is collected as assigned" begin
+        out = Symbol[]
+        Comrade._collect_assigned!(
+            out, :(
+                try
+                    f()
+                catch e
+                    handle(e)
+                end
+            )
+        )
+        @test :e in out
+        out2 = Symbol[]
+        Comrade._collect_assigned!(
+            out2, :(
+                try
+                    f()
+                catch
+                end
+            )
+        )
+        @test isempty(out2)
+    end
+end

@@ -77,7 +77,7 @@ end
 # the EHT is not very sensitive to a larger field of view. Typically 60-80 μas is enough to
 # describe the compact flux of M87. Given this, we only need to use a small number of pixels
 # to describe our image.
-npix = 48
+npix = 64
 fovx = μas2rad(200.0)
 fovy = μas2rad(200.0)
 
@@ -90,7 +90,7 @@ grid = imagepixels(fovx, fovy, npix, npix)
 # start with an initial guess for the image structure. For this tutorial we will use a
 # a symmetric Gaussian with a FWHM of 50 μas
 fwhmfac = 2 * sqrt(2 * log(2))
-mpr = modify(Gaussian(), Stretch(μas2rad(60.0) ./ fwhmfac))
+mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
 mimg_raw = intensitymap(mpr, grid)
 mimg = mimg_raw ./ Comrade.flux(mimg_raw)
 
@@ -114,13 +114,46 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 #   - Gain amplitudes which are typically known to 10-20%, except for LMT, which has amplitudes closer to 50-100%.
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
+# Rather than treating every integration as independent, we will use the time-correlated
+# [`GaussMarkovSitePrior`](@ref). For the gain *amplitudes* each site's log-gain series is
+# a stationary [`OrnsteinUhlenbeck`](@ref) process (the continuous-time AR(1) process)
+# whose marginal standard deviation `σ` and correlation time `τ` (in hours) can either be
+# fixed numbers or hyperparameters that are fit alongside the gains — pass a
+# `Distribution` to fit a hyperparameter with that prior.
+
+# The gain *phases* live on the circle: the likelihood only sees a phase through `exp(iθ)`,
+# so a real-line (Gaussian) prior on a phase creates spurious posterior modes at 2π shifts.
+# We therefore use the circular process [`WrappedBrownian`](@ref), whose wrapped-normal
+# transitions make the prior exactly 2π-periodic — all wrapped modes are equivalent, and
+# the fitted coherence time `τ` is unbiased by phase wraps. In the visibility domain the
+# process decorrelates as `exp(-Δt/τ)`, so `τ` is the phase coherence time in hours — the
+# same units as the amplitude chain's `τ`. Starting each chain uniformly on the circle
+# (`init = UniformInit()`) absorbs the per-track phase offset, so no separate offset term
+# is needed. To remove the trivial station-phase degeneracy we pin one site's phases to
+# zero.
+
+# We set `centered = true` for the amplitude chains, which can help with mixing/
+# divergences in HMC sampling when every gain is strongly data-constrained. The wrapped
+# phase chains keep the default [`NonCentered`](@ref) coordinates: each phase's coordinate
+# is its scaled step onto the previous one, so the flat target is `N(0, I)` and the chain's
+# own correlation — which a diagonal mass matrix cannot absorb, and which couples a whole
+# station's phases to the image structure at once — is not handed to the sampler. Sheet
+# weights keep those coordinates proper, so the sampler sees a single mode rather than the
+# 2π-shifted copies the phase periodicity would otherwise produce, and the circular model
+# itself is exactly unchanged.
+
+# To reduce repetition we define small helpers that build the amplitude and phase
+# processes,
+ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * 0.1)); centered = true)
+wb_phase(τ0) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); init = UniformInit())
+
 # Just like the sky model, we use the `@instrument` macro to bundle the Jones matrices and
 # their priors in one block. Each Jones term is a `@jones` block whose `name ~ ArrayPrior(...)`
 # lines are its priors and whose body builds and returns the Jones matrix.
 @instrument function instrument()
     return @jones begin
-        lg ~ ArrayPrior(IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 1.0)))
-        gp ~ ArrayPrior(IIDSitePrior(IntegSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
+        lg ~ ArrayPrior(ou_amp(0.2); LM = ou_amp(0.5))
+        gp ~ ArrayPrior(wb_phase(0.5); refant = SingleReference(:AA, 0.0))
         ## SingleStokesGain is a single complex gain for each site.
         return SingleStokesGain(exp(complex(lg, gp)))
     end
@@ -190,6 +223,18 @@ plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 # instrument modeling as we are able to solve for the gain amplitudes and get a reasonable
 # image.
 
+# Because the amplitude and phase processes have fitted hyperparameters, their samples are
+# named tuples with a `params` field holding the gain series and a `hyperparams` field
+# holding the process hyperparameters, nested under each site's name. Let's look at the
+# fitted amplitude variability `σ` and correlation time `τ` (in hours) for each site,
+xopt.instrument.lg.hyperparams
+# and the per-site phase coherence times `τ` (also in hours)
+xopt.instrument.gp.hyperparams
+# !!! warning
+#     Joint MAP estimates of hierarchical hyperparameters are systematically biased: the
+#     mode prefers smaller `σ` and longer `τ` than the truth. Use the posterior samples
+#     below for reliable hyperparameter inference.
+
 # # Why we should Sample from the Posterior
 # One problem with the MAP estimate is that it does not provide uncertainties on the image.
 # That is we are unable to statistically assess which components of the image are certain.
@@ -207,7 +252,7 @@ plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 # run.
 #-
 using AdvancedHMC
-chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt)
+chain = sample(rng, post, NUTS(0.8), 700; n_adapts = 500, initial_params = xopt, progress = false)
 #-
 # !!! note
 #     The above sampler will store the samples in memory, i.e. RAM. For large models this
@@ -233,9 +278,17 @@ mchain = Comrade.rmap(mean, chain);
 schain = Comrade.rmap(std, chain);
 # Now we can use the measurements package to automatically plot everything with error bars.
 # First we create a `caltable` the same way but making sure all of our variables have errors
-# attached to them.
+# attached to them. For the hierarchical (Gauss-Markov) terms we only want the gain series,
+# so we unwrap the `(params, hyperparams)` named tuples with `Comrade.siteparams`.
 using Measurements
-gmeas = instrumentmodel(post, (; instrument = map((x, y) -> Measurements.measurement.(x, y), mchain.instrument, schain.instrument)))
+gmeas = instrumentmodel(
+    post, (;
+        instrument = map(
+            (x, y) -> Measurements.measurement.(Comrade.siteparams(x), Comrade.siteparams(y)),
+            mchain.instrument, schain.instrument
+        ),
+    )
+)
 ctable_am = caltable(abs.(gmeas))
 ctable_ph = caltable(angle.(gmeas))
 
