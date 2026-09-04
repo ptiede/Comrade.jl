@@ -249,7 +249,7 @@ default_warmup_callback_noparams(info) =
 # argument so one compiled kernel serves every chunk of a given length.
 function _compile_warmup_kernel(
         state, ldf, tpost, nsteps::Int, total::Int, sampler::ReactantNUTS;
-        adapt_mass_matrix::Bool = sampler.adapt_mass_matrix
+        adapt_mass_matrix::Bool = Comrade.adapts_welford(sampler.metric_adaptor)
     )
     fn = function (st::ProbProg.MCMCState, lf, off)
         # `_infer` returns (trace, diagnostics, log_densities, traced_result, state). The
@@ -292,6 +292,17 @@ If `checkpoint` is a path, the `MCMCState` is written there with `ProbProg.save_
 resume an interrupted warmup from the last completed chunk. To resume, pass the loaded state
 as `resume_state` and the recorded step count as `warmup_done`.
 
+`sampler.metric_adaptor` decides how the metric adapts. Under [`Comrade.FisherLowRank`](@ref)
+this loop also drives the refits: at each scheduled step it fits a new
+[`Comrade.LowRankPreconditioner`](@ref) from the base-flat draws and scores it has been
+accumulating (both taken from the sampler's own state — no separate score evaluation and
+no disk round-trip), swaps the latent space to it, and restarts dual averaging anchored at
+the current step size. A refit updates the transform's device buffers in place where the
+rank allows, so the compiled kernel is reused; a rank that outgrows the padded block
+rebuilds them and costs one recompile. The accumulated draws are checkpointed to
+`adaptation_checkpoint` alongside the state, and the fitted transform to
+`transport_checkpoint`, so a restart resumes with the window it had built up.
+
 If `draws_dir` is a path, the draw at the end of each chunk is appended there as it is
 produced, giving an inspectable warmup chain of `n_adapts ÷ chunk` draws:
 
@@ -309,17 +320,18 @@ function warmup_chunked(
         rng, ldf, x0, tpost, sampler::ReactantNUTS;
         chunk::Int, callback = default_warmup_callback,
         checkpoint = nothing, progress_checkpoint = nothing,
+        adaptation_checkpoint = nothing, transport_checkpoint = nothing,
         draws_dir = nothing,
         resume_state = nothing, warmup_done::Int = 0,
-        refit = nothing, refit_steps::AbstractVector{<:Integer} = Int[],
-        segment_start::Int = 0,
+        adaptation = nothing, segment_start::Int = 0,
     )
 
     na = sampler.n_adapts
     na > 0 || throw(ArgumentError("n_adapts must be positive"))
     chunk > 0 || throw(ArgumentError("warmup chunk length must be positive"))
-    all(s -> 0 < s < na, refit_steps) ||
-        throw(ArgumentError("refit_steps must lie strictly inside (0, n_adapts)"))
+
+    adaptor = sampler.metric_adaptor
+    astate = isnothing(adaptation) ? Comrade.init_metric_adaptation(adaptor) : adaptation
 
     if isnothing(resume_state)
         T = eltype(x0)
@@ -349,13 +361,15 @@ function warmup_chunked(
     kernels = Dict{Any, Any}()
     # Windowed-refit bookkeeping: `seg` anchors the Stan schedule to the CURRENT segment
     # (each refit restarts the schedule for the remaining warmup, since the geometry the
-    # earlier windows adapted to no longer exists), `pending` the refit steps still ahead,
-    # and `adapt_mm` freezes the Welford metric from the first refit on — the refitted
-    # transform then carries the metric, and Welford's marginal re-normalization would
-    # undo any marginal-vs-conditional balance the transform encodes.
+    # earlier windows adapted to no longer exists), and `pending` holds the refit steps
+    # still ahead. `devpre` is the live padded device buffer block the transform reads
+    # from, and `rankcap` its column count; a fit whose rank still fits is written into
+    # it in place, so the compiled kernel stays valid.
     seg = segment_start
-    pending = sort(collect(Int, filter(>(done), refit_steps)))
-    adapt_mm = sampler.adapt_mass_matrix && seg == 0
+    pending = sort(filter(>(done), Comrade.metric_refit_steps(adaptor, na, chunk)))
+    adapt_mm = Comrade.adapts_welford(adaptor) && seg == 0
+    devpre = nothing
+    rankcap = 0
     while done < na
         nsteps = min(chunk, na - done)
         !isempty(pending) && (nsteps = min(nsteps, first(pending) - done))
@@ -375,9 +389,20 @@ function warmup_chunked(
         state = kernel(state, ldf, ConcreteRNumber(Int64(off_c)))
         done += nsteps
 
+        cur = _current_state(state, tpost)
+        # Record the draw and its score for the metric adaptor before anything is
+        # checkpointed, so the checkpoint and the accumulated window agree on how much
+        # warmup has been seen. `xbf` is this draw in base-flat coordinates, which is also
+        # what a new transform has to be re-expressed from.
+        xbf = Comrade.observe_draw!(
+            astate, Comrade._transport_pre(tpost), cur.position, cur.gradient
+        )
+
         # Checkpoint AFTER the chunk so a crash resumes from completed work.
         if !isnothing(checkpoint)
             ProbProg.save_state(checkpoint, state)
+            isnothing(adaptation_checkpoint) || isnothing(astate) ||
+                serialize(adaptation_checkpoint, astate)
             isnothing(progress_checkpoint) ||
                 serialize(
                 progress_checkpoint,
@@ -385,7 +410,6 @@ function warmup_chunked(
             )
         end
 
-        cur = _current_state(state, tpost)
         # Log the draw before the callback so a throwing callback can't lose it.
         isnothing(wlog) || _write_warmup_draw!(
             wlog, cur.params,
@@ -405,40 +429,47 @@ function warmup_chunked(
         )
         push!(history, callback(info))
 
-        # Windowed refit: the callable gets the current step, transformed posterior,
-        # and constrained draw, and returns `nothing` (no change) or `(tpost′, xnew)` —
-        # the transformed posterior to continue in and the host-side latent position of
-        # the current draw in its coordinates. `tpost′ === tpost` means the transform's
-        # device buffers were updated IN PLACE (see `_device_pre`): the compiled kernel
-        # is reused as-is. A different object is a structural change and recompiles.
-        # Either way dual averaging restarts anchored at the current adapted step size,
-        # the metric freezes at identity, and the windowed schedule restarts for the
-        # remaining steps. The refit callable persists whatever a restart needs to
-        # rebuild the same transform (e.g. the run's `transport.jls`).
-        if !isnothing(refit) && !isempty(pending) && done >= first(pending)
+        # Windowed refit. The adaptor fits a new latent space from the draws and scores
+        # accumulated so far; the current draw is carried into it through base-flat, and
+        # the sampler continues from there with dual averaging restarted at the current
+        # adapted step size, the metric frozen at identity, and the windowed schedule
+        # anchored to the new segment. Where the new rank still fits the padded device
+        # block the buffers are overwritten in place and the compiled kernel is reused;
+        # otherwise the block is rebuilt, which is a structural change and recompiles.
+        if !isempty(pending) && done >= first(pending)
             popfirst!(pending)
-            res = refit(done, tpost, cur.params)
-            if !isnothing(res)
-                newt, xnewh = res
+            pre = Comrade.metric_refit(adaptor, astate)
+            if isnothing(pre)
+                @info "warmup metric refit at step $done skipped: too few draws recorded"
+            else
+                @info "warmup metric refit at step $done" pre
+                isnothing(transport_checkpoint) || serialize(transport_checkpoint, pre)
+                nrank = length(pre.s)
+                if isnothing(devpre) || nrank > rankcap
+                    grow = !isnothing(devpre)
+                    rankcap = max(round(Int, 1.25 * nrank), 16)
+                    devpre = Comrade._device_pre(pre; rank_cap = rankcap)
+                    tpost = Comrade.maybe_transport(tpost.lpost, devpre)
+                    empty!(kernels)  # structural change: every cached kernel is stale
+                    grow && @info "grew low-rank cap to $rankcap (fit rank $nrank); one recompile"
+                else
+                    Comrade._update_device_pre!(devpre, pre)
+                end
                 T = eltype(cur.position)
-                xnew = Reactant.to_rarray(T.(xnewh))
+                xnew = Reactant.to_rarray(T.(Comrade._affine_inv(pre, xbf)))
                 step0 = ConcreteRNumber(T(cur.step_size))
                 mass0 = Reactant.to_rarray(ones(T, length(cur.position)))
                 state = ProbProg.MCMCState(
                     xnew, nothing, nothing, step0, mass0, state.rng, nothing
                 )
-                if newt !== tpost
-                    tpost = newt
-                    empty!(kernels)      # structural change: every cached kernel is stale
-                end
                 seg = done
                 adapt_mm = false
                 # No checkpoint here: `save_state` cannot serialize the rebuilt state's
                 # empty gradient/adaptation slots. The next chunk's standard checkpoint
                 # (one chunk later) persists the populated state together with the new
                 # `segment_start`; until then the on-disk state predates the refit while
-                # `transport.jls` is already new, so a crash inside that short window
-                # needs a fresh start rather than `restart = true`.
+                # `transport_checkpoint` is already new, so a crash inside that short
+                # window needs a fresh start rather than `restart = true`.
             end
         end
     end
@@ -600,6 +631,17 @@ thread into a follow-up `sample_chunked`) and `out` is the standard Comrade outp
     A resumable `MCMCState` is checkpointed to `<name>/state.jls` after every warmup
     chunk and after each sampling chunk (warmup progress in `<name>/warmup_progress.jls`).
 
+## Metric adaptation
+
+`sampler.metric_adaptor` selects how the metric adapts during warmup — see
+[`Comrade.WelfordDiagonal`](@ref), [`Comrade.FixedMetric`](@ref) and
+[`Comrade.FisherLowRank`](@ref). Under `FisherLowRank` the latent space is refit from the
+run's own warmup draws and scores at scheduled steps and warmup continues in the fitted
+coordinates; with a `DiskStore` each fit is written to `<name>/transport.jls` (which is
+also what a restart resumes in) and the accumulated draws and scores to
+`<name>/metric_adaptation.jls`, so a resumed warmup refits from the whole window rather
+than only the steps taken since the restart.
+
 ## Inspecting warmup
 
 The warmup (adaptation) chain is saved as it runs, so it can be looked at while the job is
@@ -666,8 +708,7 @@ function AbstractMCMC.sample(
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
         chunk_size::Int = 100, warmup_chunk::Int = 0,
         ldf = _default_ldf, host_rng = Random.default_rng(),
-        warmup_callback = nothing,
-        warmup_refit = nothing, warmup_refit_steps::AbstractVector{<:Integer} = Int[]
+        warmup_callback = nothing
     )
 
     # Default warmup callback: `MemoryStore` keeps the per-chunk draw in `warmup_history`
@@ -687,11 +728,16 @@ function AbstractMCMC.sample(
 
     # Checkpoint paths (DiskStore only): the resumable MCMCState and the warmup step counter.
     # Warmup is chunked at the same size as sampling.
-    state_ckpt, progress_ckpt = if saveto isa DiskStore
+    state_ckpt, progress_ckpt, adapt_ckpt, transport_ckpt = if saveto isa DiskStore
         mkpath(saveto.name)
-        (joinpath(saveto.name, "state.jls"), joinpath(saveto.name, "warmup_progress.jls"))
+        (
+            joinpath(saveto.name, "state.jls"),
+            joinpath(saveto.name, "warmup_progress.jls"),
+            joinpath(saveto.name, "metric_adaptation.jls"),
+            joinpath(saveto.name, "transport.jls"),
+        )
     else
-        (nothing, nothing)
+        (nothing, nothing, nothing, nothing)
     end
     # Warmup chunking defaults to the sampling chunk size. It also sets the cadence of the
     # warmup draw log (one draw per chunk), so `warmup_chunk` lets that be made finer
@@ -724,8 +770,8 @@ function AbstractMCMC.sample(
             rng, ldf, x0, tpost, sampler;
             chunk = warmup_chunk, callback = warmup_callback,
             checkpoint = state_ckpt, progress_checkpoint = progress_ckpt,
+            adaptation_checkpoint = adapt_ckpt, transport_checkpoint = transport_ckpt,
             draws_dir = warmup_draws_dir,
-            refit = warmup_refit, refit_steps = warmup_refit_steps,
         )
     else
         # Restart: load the checkpoint. If warmup did not finish (recorded step count <
@@ -740,16 +786,19 @@ function AbstractMCMC.sample(
         # already the segment's transform.
         seg0 = (isnothing(prog) || !haskey(pairs(prog), :segment_start)) ? 0 :
             prog.segment_start
+        # The accumulated warmup draws and scores are the metric adaptor's window; without
+        # them a resumed run would refit from only the steps taken after the restart.
+        adaptation = isfile(adapt_ckpt) ? deserialize(adapt_ckpt) : nothing
         if warmup_done < sampler.n_adapts
             @info "ReactantNUTS restart: resuming warmup" done = warmup_done n_adapts = sampler.n_adapts
             state, warmup_history, tpost = warmup_chunked(
                 rng, ldf, nothing, tpost, sampler;
                 chunk = warmup_chunk, callback = warmup_callback,
                 checkpoint = state_ckpt, progress_checkpoint = progress_ckpt,
+                adaptation_checkpoint = adapt_ckpt, transport_checkpoint = transport_ckpt,
                 draws_dir = warmup_draws_dir,
                 resume_state = state, warmup_done = warmup_done,
-                refit = warmup_refit, refit_steps = warmup_refit_steps,
-                segment_start = seg0,
+                adaptation = adaptation, segment_start = seg0,
             )
         else
             @info "ReactantNUTS restart: warmup complete, skipping" dir = saveto.name

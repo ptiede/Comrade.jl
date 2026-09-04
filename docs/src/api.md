@@ -190,6 +190,27 @@ Comrade.ReactantNUTS
 Comrade.default_disk_callback
 ```
 
+### Metric adaptation
+```@docs
+Comrade.AbstractMetricAdaptor
+Comrade.WelfordDiagonal
+Comrade.FixedMetric
+Comrade.FisherLowRank
+Comrade.LowRankPreconditioner
+Comrade.fit_preconditioner
+```
+
+The protocol an `AbstractMetricAdaptor` implements:
+
+```@docs
+Comrade.adapts_welford
+Comrade.metric_refit_steps
+Comrade.init_metric_adaptation
+Comrade.observe_draw!
+Comrade.metric_refit
+Comrade.FisherAdaptation
+```
+
 ## Misc
 
 ```@docs

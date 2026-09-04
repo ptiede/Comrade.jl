@@ -66,6 +66,7 @@ ComradeMakieExt = "Makie"
 ComradeOptimizationExt = "Optimization"
 ComradePigeonsExt = "Pigeons"
 ComradePyehtimExt = "Pyehtim"
+ComradeReactantEnzymeExt = ["Reactant", "Enzyme"]
 ComradeReactantExt = "Reactant"
 ComradeVLBIFilesExt = "VLBIFiles"
 

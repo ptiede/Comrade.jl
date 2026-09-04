@@ -33,6 +33,7 @@ using RecipesBase
 using Reexport
 using SparseArrays
 using StaticArraysCore
+using Statistics: mean, var
 using StructArrays: StructVector, StructArray, append!!
 import StructArrays
 using Tables

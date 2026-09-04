@@ -3,6 +3,8 @@ using Serialization
 
 include("optimization.jl")
 include("posteriorsamples.jl")
+include("preconditioner.jl")
+include("metric_adaptation.jl")
 include("reactant.jl")
 
 

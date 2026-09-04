@@ -167,6 +167,88 @@ end
     @test Array(s_resume.position) == Array(s_single.position)
 end
 
+@testset "ReactantNUTS FisherLowRank warmup refits" begin
+    ext = Base.get_extension(Comrade, :ComradeReactantExt)
+
+    gprior = (
+        f1 = VLBIGaussian(1.0, 0.1), σ1 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ1 = VLBIGaussian(0.5, 0.05), ξ1 = VLBIGaussian(0.0, 0.3),
+        f2 = VLBIGaussian(0.5, 0.1), σ2 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ2 = VLBIGaussian(0.5, 0.05), ξ2 = VLBIGaussian(0.0, 0.3),
+        x = VLBIGaussian(0.0, μas2rad(20.0)), y = VLBIGaussian(0.0, μas2rad(20.0)),
+    )
+    _, vis, _, _, _ = load_data()
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 12, 12)
+    post = Comrade.prepare_device(
+        VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing), ReactantEx()
+    )
+    tpost = asflat(post)
+    ldf = ext._default_ldf
+    x0 = Reactant.to_rarray(prior_sample(Random.default_rng(), tpost))
+    freshrng() = Reactant.ReactantRNG(Reactant.to_rarray(UInt64[1, 5]))
+    quiet = _ -> nothing
+
+    na, chunk = 40, 2
+    adaptor = FisherLowRank(; rank = 4, schedule = [0.5], min_draws = 6)
+    sampler = ReactantNUTS(;
+        n_adapts = na, max_tree_depth = 4, init_step_size = 0.01,
+        metric_adaptor = adaptor
+    )
+    @test Comrade.metric_refit_steps(adaptor, na, chunk) == [20]
+
+    # The adaptation window is only checkpointed alongside the sampler state: a window
+    # persisted without the state it belongs to would let a restart refit from draws that
+    # do not match the position it resumes at.
+    sckpt, ckpt = tempname(), tempname()
+    state, _, newt = ext.warmup_chunked(
+        freshrng(), ldf, x0, tpost, sampler;
+        chunk, callback = quiet, checkpoint = sckpt, adaptation_checkpoint = ckpt,
+    )
+
+    # Warmup ran to completion in a latent space the refit installed: the transform is a
+    # different object and now carries a preconditioner, while base-flat dimension is
+    # unchanged (the refit reparameterizes, it does not project).
+    @test newt !== tpost
+    pre = Comrade._transport_pre(newt)
+    @test pre isa LowRankPreconditioner
+    @test length(pre.b) == dimension(tpost)
+    # The installed transform's low-rank block is padded to a fixed device rank cap so
+    # later refits can overwrite it in place; only the non-unit columns are corrections.
+    scales = Array(pre.s)
+    @test 0 < count(!=(1.0), scales) <= adaptor.rank
+    @test length(scales) >= count(!=(1.0), scales)
+    @test all(isfinite, Array(state.position))
+
+    # Draws and scores were accumulated from the sampler itself, one per chunk, and
+    # checkpointed for restart.
+    @test isfile(ckpt)
+    st = deserialize(ckpt)
+    rm(ckpt; force = true)
+    rm(sckpt; force = true)
+    @test st isa Comrade.FisherAdaptation
+    @test length(st.draws) == na ÷ chunk
+    @test length(st.scores) == length(st.draws)
+    @test all(d -> length(d) == dimension(tpost), st.draws)
+    @test all(g -> all(isfinite, g), st.scores)
+
+    # Resuming hands the accumulated window back, so a post-restart refit sees the whole
+    # run rather than only the steps since the restart.
+    _, _, resumed = ext.warmup_chunked(
+        freshrng(), ldf, nothing, newt, sampler;
+        chunk, callback = quiet, resume_state = state,
+        warmup_done = na - 4, adaptation = st, segment_start = 20,
+    )
+    @test length(st.draws) > na ÷ chunk
+    @test Comrade._transport_pre(resumed) isa LowRankPreconditioner
+
+    # WelfordDiagonal keeps the sampler's own adaptation and never touches the transform.
+    wsampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01)
+    _, _, samet = ext.warmup_chunked(
+        freshrng(), ldf, x0, tpost, wsampler; chunk = na, callback = quiet
+    )
+    @test samet === tpost
+end
+
 # GaussMarkov (time-correlated) instrument priors trace through the flat path with no
 # Reactant-specific code: the `@trace`d chain logpdf and the branchless whitened coloring
 # only need `rgetindex`/`rsetindex!` for the scalar-indexing opt-in (Reactant promotes
@@ -302,4 +384,36 @@ end
     @testset "WrappedOrnsteinUhlenbeck StationaryInit refant (centered default)" begin
         check_matches_cpu(gmint_reactant_wou())
     end
+end
+
+# Device staging for the low-rank preconditioner. The buffers are padded to a fixed rank
+# so that a warmup refit can overwrite them in place: the compiled program sees the same
+# shapes and is not rebuilt. Padding columns carry `s = 1` and are exact no-ops.
+@testset "LowRankPreconditioner device buffers" begin
+    rng = Random.Xoshiro(7)
+    n, m = 40, 3
+    V = Matrix(qr(randn(rng, n, m)).Q)[:, 1:m]
+    p = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), V, [4.0, 2.0, 0.5])
+
+    dev = Comrade._device_pre(p; rank_cap = 8)
+    @test size(dev.V) == (n, 8)
+    @test Array(dev.V)[:, 1:m] ≈ V
+    @test all(iszero, Array(dev.V)[:, (m + 1):end])
+    @test Array(dev.s) == [4.0, 2.0, 0.5, 1, 1, 1, 1, 1]
+    @test_throws ArgumentError Comrade._device_pre(p; rank_cap = 2)
+
+    # A host vector goes through the host mirror of the device buffers, so the padded
+    # transform still agrees with the host fit it was built from.
+    z = randn(rng, n)
+    @test Comrade._affine_fwd(Comrade._pre_for(dev, z), z) ≈ Comrade._affine_fwd(p, z)
+
+    # In-place update at a lower rank: the tail returns to the no-op padding.
+    p2 = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), V[:, 1:2], [3.0, 0.4])
+    Comrade._update_device_pre!(dev, p2)
+    @test Array(dev.s) == [3.0, 0.4, 1, 1, 1, 1, 1, 1]
+    @test Array(dev.b) ≈ p2.b
+    @test Comrade._affine_fwd(Comrade._pre_for(dev, z), z) ≈ Comrade._affine_fwd(p2, z)
+
+    p3 = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), Matrix(qr(randn(rng, n, 9)).Q)[:, 1:9], fill(2.0, 9))
+    @test_throws ArgumentError Comrade._update_device_pre!(dev, p3)
 end
