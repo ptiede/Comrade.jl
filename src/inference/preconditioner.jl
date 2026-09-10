@@ -247,15 +247,40 @@ function _score_init_pre(post::VLBIPosterior, θ0, cache; reactant::Bool)
     return LowRankPreconditioner(x0, d, zeros(length(x0), 0), Float64[])
 end
 
-# Symmetric-positive-definite geometric mean: the Σ solving Σ A Σ = B
-# (Seyboldt, Carlson & Carpenter 2026, Algorithm 2).
+# Symmetric-positive-definite geometric mean: the Σ solving Σ A Σ = B, that is A⁻¹ # B
+# (Seyboldt, Carlson & Carpenter 2026, Algorithm 2). Both arguments must be positive
+# definite; `cholesky` raises when they are not.
+#
+# Routed through the Cholesky factors rather than the matrix square roots. With A = Lₐ Lₐᵀ,
+# congruence invariance of the geometric mean gives Σ = Lₐ⁻ᵀ (Lₐᵀ B Lₐ)^½ Lₐ⁻¹, and with
+# B = L_b L_bᵀ the inner matrix is the Gram matrix of Y = Lₐᵀ L_b, so its square root is
+# read off the singular values of Y. Y carries the square root of that Gram matrix's
+# condition number, and that is what keeps the small eigenvalues of Σ accurate: the callers'
+# covariances are each conditioned like 1/γ, so forming the congruence explicitly squares
+# that past what Float64 resolves and returns eigenvalues that come out negative rather than
+# small. Building Σ from its own square root also leaves it positive semidefinite by
+# construction, so no eigenvalue needs rounding up afterwards.
 function _spdm(A::Symmetric, B::Symmetric)
-    FA = eigen(A)
-    Ah = FA.vectors * Diagonal(sqrt.(FA.values)) * FA.vectors'
-    Aih = FA.vectors * Diagonal(inv.(sqrt.(FA.values))) * FA.vectors'
-    FM = eigen(Symmetric(Ah * B * Ah))
-    Mh = FM.vectors * Diagonal(sqrt.(max.(FM.values, 0.0))) * FM.vectors'
-    return Symmetric(Aih * Mh * Aih)
+    La = cholesky(A).L
+    Y = La' * cholesky(B).L
+    F = svd(Y)
+    Z = La' \ F.U
+    return Symmetric(Z * Diagonal(F.S) * Z')
+end
+
+# The fitted transform's center in base-flat coordinates, given the diagonal scales `σ`, the
+# mean score `ᾱ`, and the fitted directions. The diagonal part is the score-informed center
+# of Thm 2.2, μ* = x̄ + σ*² ⊙ ᾱ: the mean score pulls it toward the mode, past the Cramér–Rao
+# limit of x̄ alone. The low-rank part is that same correction along the fitted directions.
+# nuts-rs carries it as a second center applied in the standardized space,
+# x = b + σ ⊙ (M z + V diag(s²-1) Vᵀ (σ ⊙ ᾱ)); the diagonal scaling is the outermost factor,
+# so it folds into `b` and the affine maps need no extra term. Without it the center stays
+# biased along exactly the directions the fit corrects, and that bias does not shrink as
+# draws accumulate.
+function _fisher_center(x̄, σ, ᾱ, V, s)
+    b = x̄ .+ σ .^ 2 .* ᾱ
+    isempty(s) && return b
+    return b .+ σ .* (V * ((s .^ 2 .- 1) .* (V' * (σ .* ᾱ))))
 end
 
 # The Fisher-divergence estimator of Seyboldt, Carlson & Carpenter (arXiv:2603.18845,
@@ -275,7 +300,7 @@ end
 # `LowRankPreconditioner` with `s = √λ`.
 function _fisher_lowrank(
         Z::AbstractMatrix, G::AbstractMatrix;
-        rank::Int, cutoff::Real = 2.0, γ::Real = 1.0e-5, s_floor::Real = 0.02, carry = nothing
+        rank::Int, cutoff::Real = 2.0, γ::Real = 1.0e-5, carry = nothing
     )
     n, N = size(Z)
     size(G) == (n, N) || throw(DimensionMismatch("draws and scores must align"))
@@ -287,12 +312,11 @@ function _fisher_lowrank(
     )
     σ = (vz ./ vg) .^ (1 // 4)                      # σ*² = √(var(x)/var(α))
     x̄ = vec(mean(Z; dims = 2))
-    # The estimation is centered at the draw mean (Algorithm 1); the returned
-    # transform's SHIFT is the score-informed center of Thm 2.2, μ* = x̄ + σ*² ⊙ ᾱ —
-    # the mean score pulls it toward the mode, past the Cramér–Rao limit of x̄ alone.
-    b = x̄ .+ σ .^ 2 .* vec(mean(G; dims = 2))
+    ᾱ = vec(mean(G; dims = 2))
+    # The estimation is centered at the draw mean (Algorithm 1); the returned transform's
+    # SHIFT is the score-informed center, see `_fisher_center`.
     X = (Z .- x̄) ./ σ                               # standardized draws
-    A = (G .- mean(G; dims = 2)) .* σ               # standardized scores (contravariant)
+    A = (G .- ᾱ) .* σ                               # standardized scores (contravariant)
     X0h = copy(X); A0h = copy(A)                    # pre-deflation, for carried re-scale
     # Accumulation (carry): carry the previous transform's directions forward so a
     # direction once found is never lost when a later window fails to see it. The carried
@@ -310,48 +334,60 @@ function _fisher_lowrank(
     end
     # Directions AND scales from ALL draws, using the in-sample geometric-mean
     # eigenvalues directly — matching nuts-rs (pymc-devs/nuts-rs,
-    # transform/adapt/low_rank.rs): no cross-validation, no eigenvalue shrinkage. The γ
-    # ridge on each covariance and the two-sided cutoff are the only regularization. The
+    # transform/adapt/low_rank.rs): no cross-validation, no eigenvalue shrinkage. The
+    # identity shift on each covariance and the two-sided cutoff are the only
+    # regularization. The
     # mass-matrix eigenvalue λ is the scale²: s = √λ, wide for λ > cutoff, stiff for
     # λ < 1/cutoff.
     Q = _thinq(hcat(X, A), min(2 * (N - 1), n))
     Px = Q' * X
     Pa = Q' * A
-    # cov = sample covariance + γI. nuts-rs uses XXᵀ/γ + I (an effective ridge ~γ/N); at
-    # N ≪ n that weak ridge lets sampling noise in the joint draw+score subspace pass the
-    # two-sided filter as spurious wide/stiff directions (dozens on ~150 draws). The
-    # stronger γI directly suppresses them — the fitted low rank then tracks real
-    # anisotropy, not noise. γ is a nuts-rs setting, so this is a different regularization
-    # strength, not a different method.
-    Cx = Symmetric(Px * Px' ./ (N - 1) + γ * I)
-    Ca = Symmetric(Pa * Pa' ./ (N - 1) + γ * I)
+    # cov = XXᵀ/γ + I, matching nuts-rs `estimate_mass_matrix`
+    # (pymc-devs/nuts-rs, transform/adapt/low_rank.rs). The shrinkage target is the
+    # IDENTITY: a direction the window carries no information about gets covariance I in
+    # both factors, so its geometric-mean eigenvalue is 1 and the two-sided filter leaves it
+    # alone. Shrinking toward zero instead sends such a direction's eigenvalue to 0 or ∞,
+    # where the filter admits sampling noise as an extreme stiff or wide direction and the
+    # transform stretches that axis by 1/√λ. The identity shift is also what makes both
+    # factors positive definite, which `_spdm` requires. γ weights the sample outer product
+    # against that identity; a smaller γ trusts the window more. The γ scaling cancels
+    # between the two factors wherever the window does carry information, so it only bites
+    # on the directions it is there to protect.
+    Cx = Symmetric(Px * Px' ./ γ + I)
+    Ca = Symmetric(Pa * Pa' ./ γ + I)
     Σ = _spdm(Ca, Cx)                               # cov_draws # cov_grads⁻¹
     F = eigen(Σ)
     λ = F.values
     cand = findall(l -> l >= cutoff || l <= inv(cutoff), λ)
     if isempty(cand)
-        isempty(U0) && return LowRankPreconditioner(b, σ, zeros(n, 0), Float64[])
-        return LowRankPreconditioner(b, σ, hcat(U0), vcat(s0))
+        if isempty(U0)
+            return LowRankPreconditioner(_fisher_center(x̄, σ, ᾱ, U0, s0), σ, U0, s0)
+        end
+        V0 = hcat(U0)
+        return LowRankPreconditioner(_fisher_center(x̄, σ, ᾱ, V0, s0), σ, V0, s0)
     end
     U = Q * F.vectors[:, cand]
     U = _thinq(U, length(cand))                     # re-orthonormalize after projection
-    # In-sample geometric-mean scale s = √λ, floored on the stiff side. At N ≪ n a
-    # direction's fitted scale can round toward zero (the geometric-mean eigenvalue
-    # underflows); unfloored it compresses that axis by ~1/s and forces the step size
-    # toward zero. The floor bounds that; real stiff directions sit well above it.
-    s = clamp.(sqrt.(max.(λ[cand], eps())), s_floor, Inf)
+    # In-sample geometric-mean scale s = √λ, taken as fitted — as nuts-rs takes it. The
+    # identity shift on both covariances bounds λ away from zero, so a scale cannot
+    # underflow and compress its axis by an unbounded 1/s.
+    s = sqrt.(λ[cand])
     # `rank` bounds per-fit cost. A driver that pads device buffers to a fixed rank can
     # grow its cap to match, so this only bites at the configured ceiling.
     keep = sortperm(abs.(log.(s)); rev = true)
     keep = keep[1:min(max(rank - length(s0), 0), length(keep))]
-    isempty(U0) && return LowRankPreconditioner(b, σ, U[:, keep], s[keep])
+    if isempty(U0)
+        Vk, sk = U[:, keep], s[keep]
+        return LowRankPreconditioner(_fisher_center(x̄, σ, ᾱ, Vk, sk), σ, Vk, sk)
+    end
     # Deflating the carried span out of the draws/scores leaves U0 and the new
     # directions mutually orthogonal only up to roundoff, which trips the constructor's
     # orthonormality check. A column-order-preserving thin QR cleans the cross terms
     # without disturbing the per-direction scale assignment: the already-orthonormal
     # leading block reappears up to a per-column sign, and the scale is sign-invariant.
     V = _thinq(hcat(U0, U[:, keep]), length(s0) + length(keep))
-    return LowRankPreconditioner(b, σ, V, vcat(s0, s[keep]))
+    sV = vcat(s0, s[keep])
+    return LowRankPreconditioner(_fisher_center(x̄, σ, ᾱ, V, sV), σ, V, sV)
 end
 
 # The preconditioner a pilot run itself sampled through, to be carried into a new fit as

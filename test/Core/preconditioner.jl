@@ -59,13 +59,13 @@ import TransformVariables as TV
     @test Comrade._affine_inv(pf, Comrade._affine_fwd(pf, zf)) ≈ zf
 end
 
-@testset "Fisher fit: ridge and scale floor at N << n" begin
-    # The ridge γ and the stiff-scale floor `s_floor` are the noise control that makes
-    # the estimator usable when far fewer draws than dimensions are available. With N
-    # draws the joint draw+score subspace has dimension ≤ 2(N-1); sampling noise inside
-    # it passes the two-sided eigenvalue filter as spurious wide/stiff directions unless
-    # the covariances are ridged, and a genuine stiff direction's fitted scale can round
-    # toward zero and drive the sampler's step size with it unless it is floored.
+@testset "Fisher fit: regularization at N << n" begin
+    # The projected covariances are formed as XXᵀ/γ + I, so the shrinkage target is the
+    # identity. That is what keeps the estimator usable when far fewer draws than dimensions
+    # are available: a direction the window carries no information about lands at eigenvalue
+    # 1, where the two-sided filter ignores it, rather than at 0 or ∞ where the filter would
+    # admit it as an extreme stiff or wide direction. It also keeps both covariances positive
+    # definite, which is what makes the geometric mean of the two well posed.
     rng = Random.Xoshiro(1234)
     n, N = 400, 60
     u = normalize(randn(rng, n))                       # planted wide direction
@@ -80,17 +80,60 @@ end
     @test maximum(abs.(pre.V' * normalize(v ./ pre.d))) > 0.8
     # ... and essentially nothing else: the fit tracks real anisotropy, not noise.
     @test length(pre.s) <= 6
-    # No fitted scale sits below the floor.
-    @test minimum(pre.s) >= 0.02
+    # Every fitted scale is a geometry estimate, not a numerical zero. Shrinking the
+    # covariances toward the identity bounds how extreme a correction a finite window can
+    # propose, so the stiff scale stays near the planted 0.1 instead of underflowing.
+    @test minimum(pre.s) > 0.03
 
-    # Weakening the ridge floods the fit with noise directions. This is the regression
-    # guard: the ridge is load-bearing, not decoration.
-    weak = Comrade._fisher_lowrank(Z, G; rank = 64, γ = 1.0e-9)
-    @test length(weak.s) > 4 * length(pre.s)
+    @test all(isfinite, pre.s)
+end
 
-    # The floor binds from below only; raising it lifts the stiff scales to it.
-    lifted = Comrade._fisher_lowrank(Z, G; rank = 64, s_floor = 0.5)
-    @test minimum(lifted.s) >= 0.5
+@testset "Fisher fit: score-informed center along the fitted directions" begin
+    # The center carries the mean-score correction on the low-rank part as well as on the
+    # diagonal. Dropping the low-rank half leaves the center biased along exactly the
+    # directions the fit corrects, and unlike sampling noise that bias does not shrink as
+    # draws accumulate. Measured as where a Gaussian's known center lands in the fitted
+    # latent space, which is the origin for a perfect fit.
+    rng = Random.Xoshiro(3)
+    n, N = 400, 320
+    u = normalize(randn(rng, n))
+    v = normalize(randn(rng, n)); v .-= dot(v, u) * u; normalize!(v)
+    Σ = Symmetric(I + 35.0 * u * u' - 0.99 * v * v')
+    m = 2.0 .* randn(rng, n)                        # true center, unknown to the fit
+    Z = m .+ cholesky(Σ).L * randn(rng, n, N)
+    G = -(Σ \ (Z .- m))
+
+    pre = Comrade._fisher_lowrank(Z, G; rank = 64)
+    @test norm(Comrade._affine_inv(pre, m)) < 1.0
+
+    # The diagonal-only center, for contrast: the same fit with the low-rank half of the
+    # correction removed.
+    diagonly = Comrade.LowRankPreconditioner(
+        vec(mean(Z; dims = 2)) .+ pre.d .^ 2 .* vec(mean(G; dims = 2)),
+        pre.d, pre.V, pre.s
+    )
+    @test norm(Comrade._affine_inv(pre, m)) < 0.2 * norm(Comrade._affine_inv(diagonly, m))
+end
+
+@testset "SPD geometric mean under a graded spectrum" begin
+    # `_fisher_lowrank` hands `_spdm` projected covariances whose directions span orders of
+    # magnitude, because a real posterior's do, and whose draw and score power grade in
+    # opposite senses. Forming the congruence A^½ B A^½ explicitly squares that dynamic
+    # range and the small eigenvalues of the result come back negative; the caller's
+    # two-sided filter then reads each of those as an infinitely stiff direction and the
+    # transform compresses that axis by an unbounded 1/√λ. Routing through the Cholesky
+    # factors holds the result positive definite.
+    rng = Random.Xoshiro(11)
+    m, k, γ = 382, 192, 1.0e-5
+    g = exp10.(range(-4, 4, length = k))
+    Px = randn(rng, m, k) * Diagonal(g)
+    Pa = randn(rng, m, k) * Diagonal(reverse(g))
+    Cx = Symmetric(Px * Px' ./ γ + I)
+    Ca = Symmetric(Pa * Pa' ./ γ + I)
+    Σ = Comrade._spdm(Ca, Cx)
+    @test minimum(eigvals(Σ)) > 0
+    # Σ is what it is defined to be: the solution of Σ Ca Σ = Cx.
+    @test norm(Σ * Ca * Σ - Cx) / norm(Cx) < 1.0e-8
 end
 
 @testset "metric adaptors" begin
@@ -103,8 +146,7 @@ end
     @testset "construction is validated" begin
         @test_throws "rank must be positive" FisherLowRank(; rank = 0)
         @test_throws "cutoff must be greater than 1" FisherLowRank(; cutoff = 1.0)
-        @test_throws "ridge γ must be positive" FisherLowRank(; γ = 0.0)
-        @test_throws "s_floor must be positive" FisherLowRank(; s_floor = -1.0)
+        @test_throws "weight γ must be positive" FisherLowRank(; γ = 0.0)
         @test_throws "min_draws must be at least 4" FisherLowRank(; min_draws = 3)
         @test_throws "unknown refit schedule" FisherLowRank(; schedule = :welford)
         @test_throws "must lie strictly in (0, 1)" FisherLowRank(; schedule = [0.5, 1.5])
@@ -197,6 +239,6 @@ end
         # The planted directions are recovered from sampler-reported quantities alone.
         @test maximum(abs.(fit.V' * normalize(u ./ fit.d))) > 0.8
         @test maximum(abs.(fit.V' * normalize(v ./ fit.d))) > 0.8
-        @test minimum(fit.s) >= ad.s_floor
+        @test minimum(fit.s) > 0.03
     end
 end

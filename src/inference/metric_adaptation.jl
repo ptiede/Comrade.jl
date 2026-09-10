@@ -43,7 +43,7 @@ struct FixedMetric <: AbstractMetricAdaptor end
 
 """
     FisherLowRank(; rank = 16, schedule = :stan, cutoff = 2.0, γ = 1e-5,
-                  s_floor = 0.02, min_draws = 12, max_fit_draws = 192)
+                  min_draws = 12, max_fit_draws = 192)
 
 Adapt the latent space itself: at each scheduled warmup step, fit a
 [`LowRankPreconditioner`](@ref) by the Fisher-divergence estimator of Seyboldt, Carlson
@@ -63,11 +63,11 @@ composition, and base-flat is the one reference frame that is invariant across r
     `:nutpie` (fits from the start of warmup, every chunk to 30% and every eighth chunk
     to 85%), or a vector of fractions of warmup in `(0, 1)`.
   - `cutoff`: an eigenvalue is corrected when `λ ≥ cutoff` (wide) or `λ ≤ 1/cutoff` (stiff).
-  - `γ`: ridge added to the projected draw and score covariances. With far fewer draws
-    than dimensions, sampling noise in the joint draw-plus-score subspace otherwise passes
-    the two-sided filter as spurious directions.
-  - `s_floor`: lower bound on a fitted direction scale. An underflowing stiff scale
-    compresses its axis by `1/s` and drags the step size to zero with it.
+  - `γ`: weight of the sample outer product against the identity in the projected draw and
+    score covariances, formed as `XXᵀ/γ + I`. A smaller γ trusts the window more. Shrinking
+    toward the identity rather than toward zero is what leaves a direction the window
+    carries no information about at eigenvalue 1, outside the two-sided filter, instead of
+    admitting it as an extreme stiff or wide direction.
   - `min_draws`: refits below this many recorded draws are skipped.
   - `max_fit_draws`: draws are thinned to at most this many columns per fit.
 
@@ -79,16 +79,14 @@ struct FisherLowRank{S} <: AbstractMetricAdaptor
     schedule::S
     cutoff::Float64
     γ::Float64
-    s_floor::Float64
     min_draws::Int
     max_fit_draws::Int
     function FisherLowRank{S}(
-            rank, schedule, cutoff, γ, s_floor, min_draws, max_fit_draws
+            rank, schedule, cutoff, γ, min_draws, max_fit_draws
         ) where {S}
         rank > 0 || throw(ArgumentError("rank must be positive, got $rank"))
         cutoff > 1 || throw(ArgumentError("cutoff must be greater than 1, got $cutoff"))
-        γ > 0 || throw(ArgumentError("the ridge γ must be positive, got $γ"))
-        s_floor > 0 || throw(ArgumentError("s_floor must be positive, got $s_floor"))
+        γ > 0 || throw(ArgumentError("the regularization weight γ must be positive, got $γ"))
         min_draws >= 4 ||
             throw(ArgumentError("min_draws must be at least 4, got $min_draws"))
         max_fit_draws >= min_draws || throw(
@@ -97,16 +95,16 @@ struct FisherLowRank{S} <: AbstractMetricAdaptor
             )
         )
         _check_refit_schedule(schedule)
-        return new{S}(rank, schedule, cutoff, γ, s_floor, min_draws, max_fit_draws)
+        return new{S}(rank, schedule, cutoff, γ, min_draws, max_fit_draws)
     end
 end
 
 function FisherLowRank(;
         rank::Int = 16, schedule = :stan, cutoff::Real = 2.0, γ::Real = 1.0e-5,
-        s_floor::Real = 0.02, min_draws::Int = 12, max_fit_draws::Int = 192
+        min_draws::Int = 12, max_fit_draws::Int = 192
     )
     return FisherLowRank{typeof(schedule)}(
-        rank, schedule, cutoff, γ, s_floor, min_draws, max_fit_draws
+        rank, schedule, cutoff, γ, min_draws, max_fit_draws
     )
 end
 
@@ -254,7 +252,5 @@ function metric_refit(a::FisherLowRank, st::FisherAdaptation)
     )
     Z = reduce(hcat, @view st.draws[sel])
     G = reduce(hcat, @view st.scores[sel])
-    return _fisher_lowrank(
-        Z, G; rank = a.rank, cutoff = a.cutoff, γ = a.γ, s_floor = a.s_floor
-    )
+    return _fisher_lowrank(Z, G; rank = a.rank, cutoff = a.cutoff, γ = a.γ)
 end
