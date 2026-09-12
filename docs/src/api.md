@@ -131,7 +131,10 @@ Comrade.ScanSeg
 Comrade.TrackSeg
 Comrade.timestamps
 Comrade.SingleReference
+Comrade.MultiReference
 Comrade.SEFDReference
+Comrade.gauge_pins
+Comrade.default_gauge_preference
 Comrade.SingleStokesGain
 Comrade.JonesG
 Comrade.JonesD

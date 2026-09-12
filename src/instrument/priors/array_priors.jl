@@ -4,11 +4,12 @@ struct ArrayPrior{D, A, R, C}
     refant::R
     phase::Bool
     centroid_station::C
+    gauge::Symbol
 end
 
 
 """
-    ArrayPrior(default_dist; refant=NoReference(), phase=false, kwargs...)
+    ArrayPrior(default_dist; refant=NoReference(), phase=false, gauge=:none, kwargs...)
 
 Construct a prior for an entire array of sites.
 
@@ -20,6 +21,16 @@ correspond to gain phases.
  - The `phase` argument is a boolean that specifies if
 the prior is for a `phase` or not. *The phase argument is experimental and we
 recommend setting it to false currently.*
+ - The `gauge` argument declares that this parameter is a term of a quantity whose absolute
+level the data cannot see. `gauge = :phase` marks the parameter as one summand of the
+absolute station phase: the visibility phase on a baseline sees only differences of station
+phases, so the sum of all `gauge = :phase` parameters at a site is observable only up to one
+constant per (time, frequency) stamp. When several such parameters are added together (a
+track-level offset plus a per-integration residual, say) the reference pins placed on each
+one separately can leave the *sum* under-determined. Declaring the terms lets the
+[`InstrumentModel`](@ref) find the leftover flat directions with
+[`Comrade.gauge_pins`](@ref) and either report them or pin them, depending on its
+`gaugefix` setting. `gauge = :none` (the default) opts out of that analysis.
 
 # Example
 
@@ -30,11 +41,14 @@ p = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0, 0.1)); LM = IIDSitePrior(
 means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM which is mean
 zero and unit std. dev. Finally the refant is using the [`SEFDReference`](@ref) scheme.
 """
-function ArrayPrior(dist; refant = NoReference(), phase = false, kwargs...)
+function ArrayPrior(dist; refant = NoReference(), phase = false, gauge = :none, kwargs...)
     # if centroid_station isa Tuple{<:Symbol, <:Symbol}
     #     centroid_station = NamedTuple{centroid_station}((0.0, 0.0))
     # end
-    return ArrayPrior(dist, kwargs, refant, phase, nothing)
+    g = Symbol(gauge)
+    g in (:none, :phase) ||
+        throw(ArgumentError("ArrayPrior gauge must be :none or :phase, got :$g"))
+    return ArrayPrior(dist, kwargs, refant, phase, nothing, g)
 end
 
 

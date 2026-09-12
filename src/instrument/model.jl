@@ -31,6 +31,19 @@ struct InstrumentModel{J <: AbstractJonesMatrix, PI, P <: PolBasis} <: AbstractI
     jones::J
     prior::PI
     refbasis::P
+    gaugefix::Symbol
+    function InstrumentModel{J, PI, P}(jones, prior, refbasis, gaugefix) where {J, PI, P}
+        g = Symbol(gaugefix)
+        g in (:error, :pin) ||
+            throw(ArgumentError("InstrumentModel gaugefix must be :error or :pin, got :$g"))
+        return new{J, PI, P}(jones, prior, refbasis, g)
+    end
+end
+
+function InstrumentModel(jones, prior, refbasis, gaugefix = :error)
+    return InstrumentModel{typeof(jones), typeof(prior), typeof(refbasis)}(
+        jones, prior, refbasis, gaugefix
+    )
 end
 
 function Base.show(io::IO, ::MIME"text/plain", m::InstrumentModel)
@@ -79,7 +92,7 @@ end
 
 
 """
-    InstrumentModel(jones, prior; refbasis = CirBasis())
+    InstrumentModel(jones, prior; refbasis = CirBasis(), gaugefix = :error)
 
 Builds an instrument model using the jones matrix `jones`, with priors `prior`.
 The reference basis is `refbasis` and is used to define what
@@ -100,6 +113,11 @@ visibilities.
 
 # Optional Arguments
   - `refbasis`: The reference basis used for the computation. The default is `CirBasis()` which are circular feeds.
+  - `gaugefix`: What to do when the priors declared with `gauge = :phase` (see [`ArrayPrior`](@ref))
+    add up to a station phase the data cannot determine. `:error` (the default) reports the flat
+    directions and the entries that would fix them; `:pin` pins those entries itself, adding them to
+    each affected prior's referencing scheme and logging one line per pin. The analysis is
+    [`Comrade.gauge_pins`](@ref) and runs when the model is given an array configuration.
 
 
 # Example
@@ -144,12 +162,15 @@ which construct the gain matrix from R and ratios, and D is the small leakage ma
 is the *response matrix* that controls how the site responds to the ideal visibility in the reference
 basis.
 """
-function InstrumentModel(jones::AbstractJonesMatrix, prior::NamedTuple{N}; refbasis = CirBasis()) where {N}
-    return InstrumentModel(jones, prior, refbasis)
+function InstrumentModel(
+        jones::AbstractJonesMatrix, prior::NamedTuple{N};
+        refbasis = CirBasis(), gaugefix = :error
+    ) where {N}
+    return InstrumentModel(jones, prior, refbasis, gaugefix)
 end
 
-function InstrumentModel(jones::JonesR; refbasis = CirBasis())
-    return InstrumentModel(jones, NamedTuple(), refbasis)
+function InstrumentModel(jones::JonesR; refbasis = CirBasis(), gaugefix = :error)
+    return InstrumentModel(jones, NamedTuple(), refbasis, gaugefix)
 end
 
 function set_array(int::InstrumentModel, array::AbstractArrayConfiguration)
@@ -157,7 +178,9 @@ function set_array(int::InstrumentModel, array::AbstractArrayConfiguration)
     # 1. preallocate and jones matrices
     Jpre = preallocate_jones(jones, array, refbasis)
     # 2. construct the prior with the array you have
-    prior_obs = NamedDist(map(x -> ObservedArrayPrior(x, array), prior))
+    obs = map(x -> ObservedArrayPrior(x, array), prior)
+    obs = fix_phase_gauge(prior, obs, array, int.gaugefix)
+    prior_obs = NamedDist(obs)
     # 3. construct the baseline site map for each prior
     x = rand(prior_obs)
     bsitemaps = map(x -> _construct_baselinemap(array, siteparams(x)), x)
