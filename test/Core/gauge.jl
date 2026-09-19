@@ -1,4 +1,6 @@
 using Distributions
+using LinearAlgebra
+using Random
 
 @testset "Phase gauge solver" begin
 
@@ -214,6 +216,87 @@ using Distributions
         @test_throws "must be distinct" Comrade.EntryReference([1, 1], 0.0)
         @test Comrade.reference_value(NoReference()) === nothing
         @test Comrade.reference_value(r) == 0.0
+    end
+
+    @testset "disconnected baselines at one time give one stamp per group" begin
+        @test Comrade._connected_sites([(:AA, :LM), (:GL, :PV), (:LM, :SW)]) ==
+            [[:AA, :LM, :SW], [:GL, :PV]]
+        @test Comrade._connected_sites([(:AA, :LM), (:LM, :GL), (:GL, :AA)]) ==
+            [[:AA, :LM, :GL]]
+
+        # AA-LM and GL-PV observe together with no baseline between them, so the time
+        # carries two phase constants and a per-stamp term needs a pin in each group
+        times = [0.0, 0.0]
+        sites_at = [[:AA, :LM], [:GL, :PV]]
+        sefd = (AA = 100.0, LM = 11000.0, GL = 15000.0, PV = 1500.0)
+        smap, idx = integ_lookup(times, sites_at; dt = 0.5)
+        pins = Comrade.gauge_pins(
+            (gp = (smap = smap, fixed = Int[]),), stamplist(times), sites_at, sefd
+        )
+        @test sort(last.(pins)) == sort([idx[(1, :AA)], idx[(2, :PV)]])
+    end
+
+    @testset "pin count equals the nullity of the baseline phase design" begin
+        # Dense cross-check: one row per baseline, +1 on the free entries covering the
+        # first site and -1 on those covering the second. Baselines join every pair of
+        # sites within a stamp and none across stamps.
+        function nullity(lookups, fixed, sites_at)
+            ncols = [length(l[1].sites) for l in lookups]
+            offs = cumsum([0; ncols[1:(end - 1)]])
+            rows = Vector{Float64}[]
+            for τ in eachindex(sites_at)
+                ss = sites_at[τ]
+                for a in eachindex(ss), b in (a + 1):lastindex(ss)
+                    row = zeros(sum(ncols))
+                    for (k, (_, idx)) in pairs(lookups), (s, sgn) in ((ss[a], 1.0), (ss[b], -1.0))
+                        i = get(idx, (τ, s), get(idx, s, 0))
+                        (i == 0 || i in fixed[k]) && continue
+                        row[offs[k] + i] += sgn
+                    end
+                    push!(rows, row)
+                end
+            end
+            A = reduce(vcat, permutedims.(rows))
+            nfree = sum(ncols) - sum(length, fixed)
+            return nfree - rank(A)
+        end
+
+        rng = Random.Xoshiro(20260919)
+        allsites = [:AA, :AX, :GL, :LM, :SW, :PV]
+        sefd = (AA = 100.0, AX = 300.0, GL = 15000.0, LM = 11000.0, SW = 12000.0, PV = 1500.0)
+        for _ in 1:200
+            # random schedule; a time with at least four sites may split into two groups
+            times = Float64[]
+            sites_at = Vector{Symbol}[]
+            for t in 1:rand(rng, 2:6)
+                ss = Random.shuffle(rng, allsites)[1:rand(rng, 2:6)]
+                if length(ss) >= 4 && rand(rng) < 0.4
+                    c = rand(rng, 2:(length(ss) - 2))
+                    append!(times, (t, t))
+                    push!(sites_at, ss[1:c], ss[(c + 1):end])
+                else
+                    push!(times, t)
+                    push!(sites_at, ss)
+                end
+            end
+            res, ridx = integ_lookup(times, sites_at; dt = 0.05)
+            off, oidx = track_lookup(times, sites_at)
+            rfixed = rand(rng, Bool) ? init_pins(sites_at, ridx) : Int[]
+            rand(rng, Bool) && (rfixed = union(rfixed, sefd_pins(sites_at, sefd, ridx)))
+            ofixed = rand(rng, Bool) ? [first(values(oidx))] : Int[]
+            lookups = ((off, oidx), (res, ridx))
+            terms(of, rf) = (gpμ = (smap = off, fixed = of), gp = (smap = res, fixed = rf))
+
+            pins = Comrade.gauge_pins(terms(ofixed, rfixed), stamplist(times), sites_at, sefd)
+            @test length(pins) == nullity(lookups, (ofixed, rfixed), sites_at)
+
+            ofull = union(ofixed, [i for (n, i) in pins if n === :gpμ])
+            rfull = union(rfixed, [i for (n, i) in pins if n === :gp])
+            @test nullity(lookups, (ofull, rfull), sites_at) == 0
+            @test isempty(
+                Comrade.gauge_pins(terms(ofull, rfull), stamplist(times), sites_at, sefd)
+            )
+        end
     end
 
     @testset "gauge is declared on the ArrayPrior" begin

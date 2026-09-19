@@ -60,30 +60,61 @@ sensitive site, then on the site with the most data.
 """
 default_gauge_preference(e) = (-e.dt, e.sefd, -e.occupancy)
 
-# Stamps of an observation and the sites present at each: the unique (time, frequency) of
-# the data, sorted, with the sites of every baseline observed there.
+# Stamps of an observation and the sites present at each: the (time, frequency) of the
+# data, sorted, with the sites of every baseline observed there. The phase constant of a
+# stamp is shared only by sites that baselines connect, so a (time, frequency) whose
+# baselines fall into several disconnected groups yields one stamp per group, repeated with
+# the same key.
 function gauge_stamps(array::AbstractArrayConfiguration)
     T = array[:Ti]
     F = array[:Fr]
     bl = array[:sites]
-    stamps = Tuple{eltype(T), eltype(F)}[]
-    sites_at = Vector{Symbol}[]
+    keys = Tuple{eltype(T), eltype(F)}[]
+    bls_at = Vector{Tuple{Symbol, Symbol}}[]
     index = Dict{Tuple{eltype(T), eltype(F)}, Int}()
     for i in eachindex(T, F, bl)
         key = (T[i], F[i])
-        k = get(index, key, 0)
-        if k == 0
-            push!(stamps, key)
-            push!(sites_at, Symbol[])
-            k = length(stamps)
-            index[key] = k
+        k = get!(index, key) do
+            push!(keys, key)
+            push!(bls_at, Tuple{Symbol, Symbol}[])
+            length(keys)
         end
-        s1, s2 = bl[i]
-        s1 in sites_at[k] || push!(sites_at[k], s1)
-        s2 in sites_at[k] || push!(sites_at[k], s2)
+        push!(bls_at[k], (bl[i][1], bl[i][2]))
     end
-    p = sortperm(stamps)
-    return stamps[p], sites_at[p]
+    stamps = eltype(keys)[]
+    sites_at = Vector{Symbol}[]
+    for k in sortperm(keys), group in _connected_sites(bls_at[k])
+        push!(stamps, keys[k])
+        push!(sites_at, group)
+    end
+    return stamps, sites_at
+end
+
+# The sites of `baselines` grouped into the connected components of the baseline graph,
+# each group and the groups themselves in order of first appearance.
+function _connected_sites(baselines)
+    sites = Symbol[]
+    idx = Dict{Symbol, Int}()
+    for b in baselines, s in b
+        get!(idx, s) do
+            push!(sites, s)
+            length(sites)
+        end
+    end
+    uf = GaugeUnionFind(length(sites))
+    for (s1, s2) in baselines
+        _union!(uf, idx[s1], idx[s2])
+    end
+    groups = Vector{Symbol}[]
+    groupof = Dict{Int, Int}()
+    for (i, s) in pairs(sites)
+        g = get!(groupof, _find!(uf, i)) do
+            push!(groups, Symbol[])
+            length(groups)
+        end
+        push!(groups[g], s)
+    end
+    return groups
 end
 
 # For each stamp, the entry of `smap` covering each site there. Every entry finds the
@@ -124,7 +155,9 @@ init pins already hold constant. The observation enters only through its schedul
 second form takes it as `stamps`, a vector of `(time, frequency)` pairs sorted by time,
 `sites_at`, the sites present at each stamp, and `sefd`, a site-keyed NamedTuple or
 dictionary of system equivalent flux densities; the first form reads all three off an array
-configuration.
+configuration. The sites of one stamp share a single phase constant, so they must be
+connected by baselines: a `(time, frequency)` whose baselines split into disconnected groups
+is listed once per group, which is how the first form builds it.
 
 Each datum — site `s` at stamp `τ` — carries one equation relating the stamp's unobservable
 phase constant to the free entries covering `(s, τ)`; an entry covers a datum when its site
