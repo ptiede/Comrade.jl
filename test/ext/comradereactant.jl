@@ -70,6 +70,16 @@ end
     # cross-backend contract: per-draw Bool divergence flags (`count`-able by the
     # default disk callback)
     @test eltype(samplerstats(chain).numerical_error) == Bool
+    # the remaining per-draw stats: the stored log density is that of the flat posterior
+    # at the draw, the step size is frozen after warmup, and the wall time is positive
+    let st = samplerstats(chain), tcpu = asflat(post_cpu), ps = Comrade.postsamples(chain)
+        @test length(st.log_density) == length(st.step_size) == length(st.time) == 100
+        for i in (1, 25, 26, 100)
+            @test st.log_density[i] ≈ logdensityof(tcpu, Comrade.inverse(tcpu, ps[i])) rtol = 1.0e-8
+        end
+        @test allequal(st.step_size) && first(st.step_size) > 0
+        @test all(>(0), st.time)
+    end
     @test haskey(samplerinfo(chain), :warmup_history)
     @test haskey(samplerinfo(chain), :sample_history)
 
@@ -86,6 +96,9 @@ end
     @test out.nsamples == 100
     @test isfile(joinpath(dir, "state.jls"))
     @test isfile(joinpath(dir, "metadata.jls"))
+    # the scan files carry the same per-draw stats as the in-memory chain
+    @test propertynames(samplerstats(load_samples(out))) ==
+        (:numerical_error, :log_density, :step_size, :time)
 
     # Metadata.jls captured the sample + warmup history.
     let meta = open(deserialize, joinpath(dir, "metadata.jls"))

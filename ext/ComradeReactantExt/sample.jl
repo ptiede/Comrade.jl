@@ -8,9 +8,9 @@ using Reactant: ProbProg
 # Sample-retention backends (reuse Comrade's MemoryStore / DiskStore configs)
 # Both deal in transformed PosteriorSamples. A "sink" is driven by:
 #   _open_sink -> create
-#   _write_sink!(sink, store, chain, numerical_error, state) -> persist one chunk
+#   _write_sink!(sink, store, chain, stats, state) -> persist one chunk
 #   _close_sink -> finalize
-# The sink takes only the data it needs to persist (chain, numerical_error, state); the
+# The sink takes only the data it needs to persist (chain, per-draw stats, state); the
 # richer callback `info` is built separately in `sample_chunked` (mirroring the AdvancedHMC
 # path, where serialization and the callback `info` are distinct steps).
 # ===========================================================================
@@ -18,18 +18,18 @@ using Reactant: ProbProg
 # --- MemoryStore: accumulate transformed chains + stats, build one PS at close ---
 mutable struct _MemorySink
     chains::Vector{Any}
-    nerr::Vector{Any}
+    stats::Vector{Any}
 end
 _open_sink(::MemoryStore, _tpost, _nsamples, _nscans, _stride; append::Bool = false) =
     _MemorySink(Any[], Any[])
-function _write_sink!(sink::_MemorySink, ::MemoryStore, chain, numerical_error, state)
+function _write_sink!(sink::_MemorySink, ::MemoryStore, chain, stats, state)
     push!(sink.chains, chain)
-    push!(sink.nerr, numerical_error)
+    push!(sink.stats, stats)
     return nothing
 end
 function _close_sink(sink::_MemorySink, ::MemoryStore, metadata)
     chain = reduce(vcat, sink.chains)
-    stats = (; numerical_error = reduce(vcat, sink.nerr))
+    stats = map((cols...) -> reduce(vcat, cols), sink.stats...)
     return PosteriorSamples(chain, stats; metadata)
 end
 
@@ -107,8 +107,8 @@ function _write_index!(sink::_DiskSink)
     return nothing
 end
 
-function _write_sink!(sink::_DiskSink, ::DiskStore, chain, numerical_error, state)
-    _write_scan_file!(sink, chain, (; numerical_error))
+function _write_sink!(sink::_DiskSink, ::DiskStore, chain, stats, state)
+    _write_scan_file!(sink, chain, stats)
     # resumable MCMC state checkpoint (latest wins)
     ProbProg.save_state(joinpath(sink.outdir, "state.jls"), state)
     # update parameters.jls every chunk so a crash mid-run leaves it current and
@@ -543,7 +543,7 @@ function sample_chunked(
         t = @elapsed begin
             # (trace, diagnostics, log_densities, traced_result, state) — the
             # `log_densities` slot appeared in Reactant 0.2.275 (see the compat bound).
-            samples, diagnostics, _, _, state = cfn(state, ns)
+            samples, diagnostics, log_densities, _, state = cfn(state, ns)
         end
 
         raw = Array(samples)
@@ -560,9 +560,20 @@ function sample_chunked(
 
         # Persist the chunk first (serialization / accumulation), then build the callback
         # `info` and fire the callback — the same ordering the AdvancedHMC path uses.
-        _write_sink!(sink, saveto, chain, numerical_error, state)
-
         cur = _current_state(state, tpost)
+        # Per-draw sampler statistics, one column each. The step size is frozen during
+        # sampling and the wall time is measured per chunk, so both repeat over the chunk;
+        # `time` divided by the cost of one gradient is the number of leapfrog steps per
+        # draw, which ProbProg does not report. The first chunk of each length also pays
+        # for compilation, so its `time` is an overestimate.
+        stats = (;
+            numerical_error,
+            log_density = vec(Array(log_densities)),
+            step_size = fill(cur.step_size, ns),
+            time = fill(t / ns, ns),
+        )
+        _write_sink!(sink, saveto, chain, stats, state)
+
         info = (;
             round, nrounds, num_samples = ns, time = t,
             step_size = cur.step_size, params = cur.params, numerical_error,
@@ -623,7 +634,9 @@ Returns a `NamedTuple` `(; out, state)` where `state` is the final ProbProg
 thread into a follow-up `sample_chunked`) and `out` is the standard Comrade output:
 
   - `saveto::MemoryStore` -> `out` is a `PosteriorSamples` (chain transformed to
-    constrained space; `samplerstats` carries per-sample `numerical_error`;
+    constrained space; `samplerstats` carries per-sample `numerical_error`,
+    `log_density` (of the flat, unconstrained posterior), `step_size` and `time`
+    (wall seconds per draw, averaged over the chunk);
     warmup/sample history + final state in the metadata).
   - `saveto::DiskStore` -> writes per-chunk `PosteriorSamples` to `saveto.name` in
     Comrade's on-disk layout; `out` is the `Comrade.DiskOutput` handle. Read the
