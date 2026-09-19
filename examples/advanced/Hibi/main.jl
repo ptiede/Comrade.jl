@@ -97,6 +97,11 @@ end
 #   - Gain amplitudes which are typically known to 10-20%, except for LMT, which has amplitudes closer to 50-100%.
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
+# The phases are modeled as a [`WrappedBrownian`](@ref) random walk on the circle: the
+# prior is exactly 2π-periodic, so it has no spurious 2π-shifted modes, and starting each
+# chain uniformly on the circle (`UniformInit`) absorbs the per-track phase offset. The
+# coherence time `τ = 0.1` hr (6 minutes) makes the phases decorrelate between scans.
+
 using VLBIImagePriors
 using Distributions
 # We use the `@instrument` macro to bundle the Jones matrices and their priors in one block.
@@ -105,7 +110,10 @@ using Distributions
 @instrument function instrument()
     return @jones begin
         lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
-        gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SEFDReference(0.0), phase = true)
+        gp ~ ArrayPrior(
+            GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = 0.1); init = UniformInit());
+            refant = SEFDReference(0.0)
+        )
         ## SingleStokesGain is a single complex gain for each site.
         return SingleStokesGain(exp(complex(lg, gp)))
     end

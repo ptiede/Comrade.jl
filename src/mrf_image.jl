@@ -9,9 +9,22 @@ The function `f` is applied to the fluctuations and then the the transfored δ a
 to the image.
 """
 @inline function apply_fluctuations(f, mimg::IntensityMap, δ::AbstractArray)
-    out = similar(mimg)
+    out = _fluctuation_buffer(mimg, δ)
     apply_fluctuations!(f, out, mimg, δ)
     return out
+end
+
+# Output buffer for `apply_fluctuations`, allocated from the *fluctuations* rather than
+# from the mean image. `δ` is the traced/differentiated argument while `mimg` is a
+# constant, so `similar(mimg)` returns a container of the mean image's type — under
+# Reactant a device-resident `ConcretePJRTArray`, and on any GPU backend a concrete
+# device array. The `apply_fluctuations!` methods then write traced values into that
+# concrete buffer, which falls back to scalar indexing and aborts the trace. Allocating
+# from `δ` keeps the buffer in the same (traced) family as the values being written; the
+# axes still come from `mimg`, so the result is unchanged on the CPU.
+@inline function _fluctuation_buffer(mimg::IntensityMap, δ::AbstractArray)
+    T = promote_type(eltype(mimg), eltype(δ))
+    return IntensityMap(similar(baseimage(δ), T, size(mimg)), axisdims(mimg))
 end
 
 @inline function apply_fluctuations(f, m::AbstractModel, g::AbstractRectiGrid, δ::AbstractArray)
