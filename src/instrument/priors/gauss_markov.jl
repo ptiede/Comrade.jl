@@ -622,6 +622,19 @@ end
 # loop raising never vectorizes a loop-carried recurrence (it would serialize into a
 # `stablehlo.while` in every logdensity/gradient evaluation) and IntegSeg-scale chains
 # (10³-10⁴ points) rule out any O(n²) closed form.
+# `out[offset + k - 1] = f(k)` for `k in 1:n` in one traced loop. Reactant's loop raising
+# vectorizes a traced loop only when it carries a single value, so every walker below fills
+# each staged array (and each per-point log term, summed afterward) with its own loop.
+function _traced_fill!(f, out, offset, n)
+    @trace track_numbers = false for k in 1:n
+        rsetindex!(out, f(k), offset + k - 1)
+    end
+    return out
+end
+
+# `sum(f(k) for k in 1:n)` through a staged vector (see `_traced_fill!`).
+_traced_sum(f, like, n) = sum(_traced_fill!(f, similar(like, n), 1, n))
+
 function affine_scan!(a, c)
     acc = zero(eltype(c))
     for k in eachindex(c)
@@ -1158,15 +1171,13 @@ function _color_all_flat!(flag, y, x, index, d::GaussMarkovChainDist, hp)
     return ℓ, index
 end
 
-# Skip the `log` on the value-only path; dispatch is on the compile-time flag, so the
-# traced loop body stays single-path.
-@inline _maybe_logjac(::TV.NoLogJac, s) = zero(s)
-@inline _maybe_logjac(::TV.LogJac, s) = log(s)
-
-# Under NoLogJac the per-point logjac from `TV.transform_with` is the `NoLogJac` sentinel,
-# not a number; keep the traced accumulator real on both paths (cf. `_maybe_logjac`).
-@inline _acc_logjac(::TV.NoLogJac, ℓk, θ) = zero(θ)
-@inline _acc_logjac(::TV.LogJac, ℓk, θ) = ℓk
+# The affine coloring coefficients `(a, c, s)` of free point `k` of a chain unit.
+function _unit_affine(spec, vals, y, free, k)
+    p = _unit_process(spec, vals, _hpidx(spec, free, k))
+    μ = _process_mean(p)
+    m₀, P₀ = initial_moments(spec.init, p)
+    return _free_moments_affine(p, μ, m₀, P₀, y, free, k)
+end
 
 # Wrapped chains: each free phase is embedded as two latent reals through the same
 # `AngleTransform` that backs the circular IID priors (`DiagonalVonMises`), so the flat
@@ -1177,20 +1188,15 @@ function _color_chain_wrapped!(flag, y, x, index, spec::ChainUnit)
     free = spec.free
     n = _nfree(spec)
     t = PT.angle_transform()
-    ℓ = zero(eltype(x))
     # The iterations are independent, but a direct write to the scattered `free.tgt`
     # positions serializes under Reactant's loop raising (a scattered-index scatter never
     # raises; scattered gathers and contiguous writes do). Stage into a contiguous temp
     # and finish with one vectorized `scatter_values!`.
-    θs = similar(y, n)
-    @trace track_numbers = false for k in 1:n
-        θ, ℓk, _ = TV.transform_with(flag, t, x, index + 2 * (k - 1))
-        rsetindex!(θs, θ, k)
-        ℓ += _acc_logjac(flag, ℓk, θ)
-    end
+    step = k -> TV.transform_with(flag, t, x, index + 2 * (k - 1))
+    θs = _traced_fill!(k -> first(step(k)), similar(y, n), 1, n)
     scatter_values!(y, free.tgt, θs)
     flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + 2n
-    return ℓ, index + 2n
+    return _traced_sum(k -> step(k)[2], x, n), index + 2n
 end
 
 # Wrapped chains, centered (raw-angle) coordinates: one flat coordinate `φ` per free
@@ -1210,9 +1216,10 @@ function _color_chain_wrapped_centered!(flag, y, x, index, spec::ChainUnit, hp)
     free = spec.free
     n = _nfree(spec)
     vals = _unit_params(spec, hp)
-    ℓ = zero(eltype(x))
-    θs = similar(y, n)
-    @trace track_numbers = false for k in 1:n
+    θs = _traced_fill!(k -> _wrap_angle(rgetindex(x, index + k - 1)), similar(y, n), 1, n)
+    scatter_values!(y, free.tgt, θs)
+    flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + n
+    ℓ = _traced_sum(x, n) do k
         p = _unit_process(spec, vals, _hpidx(spec, free, k))
         μ = _process_mean(p)
         φ = rgetindex(x, index + k - 1)
@@ -1227,11 +1234,8 @@ function _color_chain_wrapped_centered!(flag, y, x, index, spec::ChainUnit, hp)
         # so the unused transition weight is finite rather than NaN.
         wt = _sheet_logweight(p, φ, anchor, rgetindex(free.dtl, k), μ)
         w0 = _init_sheet_logweight(spec.init, p, φ)
-        ℓ += ml * wt + (1 - ml) * w0
-        rsetindex!(θs, _wrap_angle(φ), k)
+        return ml * wt + (1 - ml) * w0
     end
-    scatter_values!(y, free.tgt, θs)
-    flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + n
     return ℓ, index + n
 end
 
@@ -1253,27 +1257,25 @@ function _color_chain_wrapped_noncentered!(flag, y, x, index, sidx, av, cv, spec
     free = spec.free
     n = _nfree(spec)
     vals = _unit_params(spec, hp)
-    ℓ = zero(eltype(x))
-    @trace track_numbers = false for k in 1:n
+    # `a = lfree` resets the carry wherever the previous chain value is not another free
+    # point; the fixed value it steps off is then a constant in `c`.
+    _traced_fill!(k -> rgetindex(free.lfree, k), av, sidx, n)
+    _traced_fill!(cv, sidx, n) do k
         p = _unit_process(spec, vals, _hpidx(spec, free, k))
         _, Q = transition_moments(p, rgetindex(free.dtl, k))
-        s = sqrt(Q)
         ml = rgetindex(free.mskl, k)
         lf = rgetindex(free.lfree, k)
         z = rgetindex(x, index + k - 1)
-        δ = s * z
-        # `a = lfree` resets the carry wherever the previous chain value is not another
-        # free point; the fixed value it steps off is then a constant in `c`.
-        rsetindex!(av, lf, sidx + k - 1)
-        rsetindex!(
-            cv,
-            ml * (δ + (1 - lf) * rgetindex(y, rgetindex(free.lidx, k))) + (1 - ml) * z,
-            sidx + k - 1
-        )
-        ℓ += ml * (-(z^2 + log(oftype(float(z), 2π))) / 2) +
-            (1 - ml) * _init_sheet_logweight(spec.init, p, z)
+        return ml * (sqrt(Q) * z + (1 - lf) * rgetindex(y, rgetindex(free.lidx, k))) + (1 - ml) * z
     end
     flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + n, sidx + n
+    ℓ = _traced_sum(x, n) do k
+        p = _unit_process(spec, vals, _hpidx(spec, free, k))
+        ml = rgetindex(free.mskl, k)
+        z = rgetindex(x, index + k - 1)
+        return ml * (-(z^2 + log(oftype(float(z), 2π))) / 2) +
+            (1 - ml) * _init_sheet_logweight(spec.init, p, z)
+    end
     return ℓ, index + n, sidx + n
 end
 
@@ -1325,13 +1327,13 @@ function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::ChainUnit, hp
     ℓ0 = TV.logjac_zero(flag, eltype(x))
     n == 0 && return ℓ0, index, sidx
     if spec.param isa AngleEmbedded
-        ℓw, index = _color_chain_wrapped!(flag, y, x, index, spec)
-        return ℓw, index, sidx
+        ℓw, iw = _color_chain_wrapped!(flag, y, x, index, spec)
+        return ℓw, iw, sidx
     end
     if spec.param isa Centered
         if is_wrapped(spec.process)
-            ℓc, index = _color_chain_wrapped_centered!(flag, y, x, index, spec, hp)
-            return ℓc, index, sidx
+            ℓc, ic = _color_chain_wrapped_centered!(flag, y, x, index, spec, hp)
+            return ℓc, ic, sidx
         end
         # A straight copy of a contiguous flat segment to the scattered chain positions:
         # one vectorized scatter (a scattered-write loop would serialize under Reactant).
@@ -1341,27 +1343,23 @@ function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::ChainUnit, hp
     if is_wrapped(spec.process)
         has_affine_lift(spec.process) &&
             return _color_chain_wrapped_noncentered!(flag, y, x, index, sidx, av, cv, spec, hp)
-        ℓr, index = _color_chain_wrapped_recur!(flag, y, x, index, spec, hp)
-        return ℓr, index, sidx
+        ℓr, ir = _color_chain_wrapped_recur!(flag, y, x, index, spec, hp)
+        return ℓr, ir, sidx
     end
     vals = _unit_params(spec, hp)
-    ℓ = zero(eltype(x))
     # The recurrence `y[tgt[k]] = m(y[tgt[k-1]]) + s*x[k]` is affine in the previous
-    # free value, so split it: this loop computes the coefficients `(a, c)` — reading
-    # only tables, hyperparameters, and fixed values, with contiguous writes, so it
-    # raises under Reactant. The recurrence itself is resolved by the caller's single
+    # free value, so split it: these loops compute the coefficients `(a, c)` — reading
+    # only tables, hyperparameters, and fixed values, with contiguous writes, so they
+    # raise under Reactant. The recurrence itself is resolved by the caller's single
     # batched `affine_scan!` over all chains.
-    @trace track_numbers = false for k in 1:n
-        p = _unit_process(spec, vals, _hpidx(spec, free, k))
-        μ = _process_mean(p)
-        m₀, P₀ = initial_moments(spec.init, p)
-        a, c, s = _free_moments_affine(p, μ, m₀, P₀, y, free, k)
-        rsetindex!(av, a, sidx + k - 1)
-        rsetindex!(cv, c + s * rgetindex(x, index + k - 1), sidx + k - 1)
-        ℓ += _maybe_logjac(flag, s)
+    coef = k -> _unit_affine(spec, vals, y, free, k)
+    _traced_fill!(k -> first(coef(k)), av, sidx, n)
+    _traced_fill!(cv, sidx, n) do k
+        _, c, s = coef(k)
+        return c + s * rgetindex(x, index + k - 1)
     end
     flag isa TV.NoLogJac && return ℓ0, index + n, sidx + n
-    return ℓ, index + n, sidx + n
+    return _traced_sum(k -> log(last(coef(k))), x, n), index + n, sidx + n
 end
 
 function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::IIDChainSpec, hp)
@@ -1370,14 +1368,11 @@ function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::IIDChainSpec,
     n = _nfree(spec)
     # Independent pointwise transforms; stage contiguously so the loop raises and the
     # scattered write is a single vectorized scatter (see `_color_chain_wrapped!`).
-    ys = similar(y, n)
-    @trace track_numbers = false for k in 1:n
-        yi, ℓi, _ = TV.transform_with(flag, spec.fnode, x, index + (k - 1) * dim)
-        rsetindex!(ys, yi, k)
-        ℓ += ℓi
-    end
+    step = k -> TV.transform_with(flag, spec.fnode, x, index + (k - 1) * dim)
+    ys = _traced_fill!(k -> first(step(k)), similar(y, n), 1, n)
     scatter_values!(y, spec.freeinds, ys)
-    return ℓ, index + n * dim, sidx
+    flag isa TV.NoLogJac && return ℓ, index + n * dim, sidx
+    return _traced_sum(k -> step(k)[2], x, n), index + n * dim, sidx
 end
 
 @inline _whiten_specs_flat!(x, index, y, ::Tuple{}, hp) = index
@@ -1582,18 +1577,23 @@ function _color_chain_std!(y, x, index, sidx, av, cv, spec::ChainUnit, hp, space
     free = spec.free
     n = _nfree(spec)
     # Same affine split as the flat coloring (see `_color_chain_flat!`): coefficients
-    # staged in a raisable loop; the caller's batched `affine_scan!` resolves them.
-    @trace track_numbers = false for k in 1:n
-        p = _unit_process(spec, vals, _hpidx(spec, free, k))
-        μ = _process_mean(p)
-        m₀, P₀ = initial_moments(spec.init, p)
-        a, c, s = _free_moments_affine(p, μ, m₀, P₀, y, free, k)
-        u = PT._clamp_unit(PT.space_cdf(space, rgetindex(x, index + k - 1)))
-        rsetindex!(av, a, sidx + k - 1)
-        rsetindex!(cv, c + s * PT.space_quantile(PT.StdNormal(), u), sidx + k - 1)
+    # staged in raisable loops; the caller's batched `affine_scan!` resolves them.
+    coef = k -> _unit_affine(spec, vals, y, free, k)
+    _traced_fill!(k -> first(coef(k)), av, sidx, n)
+    _traced_fill!(cv, sidx, n) do k
+        _, c, s = coef(k)
+        return c + s * _to_stdnormal(space, rgetindex(x, index + k - 1))
     end
     return index + n, sidx + n
 end
+
+# A latent coordinate of `space` as a standard normal value and back, through the space's cdf.
+# In the StdNormal space the latent already is that value, and the map is the identity: the
+# cdf/quantile pair would saturate in the tails.
+_to_stdnormal(space, z) = PT.space_quantile(PT.StdNormal(), PT._clamp_unit(PT.space_cdf(space, z)))
+_to_stdnormal(::PT.StdNormal, z) = z
+_from_stdnormal(space, w) = PT.space_quantile(space, PT._clamp_unit(PT.space_cdf(PT.StdNormal(), w)))
+_from_stdnormal(::PT.StdNormal, w) = w
 
 function _color_chain_std!(y, x, index, sidx, av, cv, spec::IIDChainSpec, hp, space)
     tin = PT.transport_node(spec.dist, space)
@@ -1625,10 +1625,7 @@ function _whiten_chain_std!(x, index, y, spec::ChainUnit, hp, space)
         μ = _process_mean(p)
         m₀, P₀ = initial_moments(spec.init, p)
         m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
-        u = PT._clamp_unit(
-            PT.space_cdf(PT.StdNormal(), (rgetindex(y, rgetindex(free.tgt, k)) - m) / s)
-        )
-        rsetindex!(x, PT.space_quantile(space, u), index + k - 1)
+        rsetindex!(x, _from_stdnormal(space, (rgetindex(y, rgetindex(free.tgt, k)) - m) / s), index + k - 1)
     end
     return index + n
 end

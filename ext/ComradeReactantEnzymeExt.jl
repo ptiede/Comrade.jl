@@ -17,9 +17,9 @@ function _device_flat_grad(tpost, x)
     return last(derivs), val
 end
 
-function Comrade._compiled_flat_score(post::Comrade.VLBIPosterior, x0::AbstractVector)
+function Comrade._compiled_score(post::Comrade.VLBIPosterior, x0::AbstractVector, space)
     dpost = Comrade.prepare_device(post, ReactantEx())
-    tflat = Comrade.asflat(dpost)
+    tflat = Comrade.maybe_transport(dpost, space)
     vg = Reactant.@compile sync = true _device_flat_grad(
         tflat, Reactant.to_rarray(collect(x0))
     )

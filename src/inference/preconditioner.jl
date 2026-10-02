@@ -12,7 +12,7 @@
 # metric's job. A is square: the latent dimension is unchanged, and log|det A| =
 # Σ log d + Σ log s is a constant.
 
-export LowRankPreconditioner, fit_preconditioner
+export LowRankPreconditioner, Preconditioned, fit_preconditioner
 
 # Parametric so the arrays can be host `Array`s (baked as constants under Reactant)
 # or `ConcreteRArray`s (traced as runtime inputs, updatable in place between compiled
@@ -109,9 +109,26 @@ end
 # the device buffers untouched. Dispatch on the INPUT array: plain host arrays get a
 # hostified transform, everything else passes through.
 _hostify(x::AbstractArray) = x isa Array ? x : Array(x)
-_hostify(p::LowRankPreconditioner) =
-    LowRankPreconditioner(_hostify(p.b), _hostify(p.d), _hostify(p.V), _hostify(p.s))
 _devicebuffers(p::LowRankPreconditioner) = !(p.b isa Array)
+# Host mirrors of device-buffered preconditioners, keyed by the identity of their device
+# `V` (held weakly; hashing a device array by value would read it element by element): host
+# calls (constrained transforms of each draw, between-chunk moves) would otherwise copy and
+# revalidate the whole basis every time. `_update_device_pre!` drops the entry it changes.
+const _HOST_MIRRORS = Dict{UInt, Tuple{WeakRef, LowRankPreconditioner}}()
+const _HOST_MIRRORS_LOCK = ReentrantLock()
+_drop_host_mirror!(V) = lock(() -> delete!(_HOST_MIRRORS, objectid(V)), _HOST_MIRRORS_LOCK)
+function _hostify(p::LowRankPreconditioner)
+    _devicebuffers(p) || return p
+    key = objectid(p.V)
+    return lock(_HOST_MIRRORS_LOCK) do
+        e = get(_HOST_MIRRORS, key, nothing)
+        (!isnothing(e) && e[1].value === p.V) && return e[2]
+        filter!(kv -> !isnothing(kv[2][1].value), _HOST_MIRRORS)
+        h = LowRankPreconditioner(_hostify(p.b), _hostify(p.d), _hostify(p.V), _hostify(p.s))
+        _HOST_MIRRORS[key] = (WeakRef(p.V), h)
+        return h
+    end
+end
 _ishostvec(z) = z isa Array || (z isa SubArray && parent(z) isa Array)
 _pre_for(p, z) = (_ishostvec(z) && _devicebuffers(p)) ? _hostify(p) : p
 
@@ -170,6 +187,103 @@ function PT.transport_to(post::VLBIPosterior, space::LowRankPreconditioner)
     return TransformedVLBIPosterior(post, td)
 end
 
+"""
+    Preconditioned(space, pre::LowRankPreconditioner)
+
+The affine map of `pre` in front of the latent space `space` (`ProbabilityTransports.StdNormal()`):
+the sampler's coordinates `z` map to `w = b + A z` in that space. Pass it as the
+`transport_method` of `sample`. A bare `LowRankPreconditioner` acts in front of the flat
+space.
+"""
+struct Preconditioned{S <: PT.StdNormal, P <: LowRankPreconditioner}
+    space::S
+    pre::P
+end
+
+Base.show(io::IO, p::Preconditioned) = print(io, "Preconditioned($(p.space), $(p.pre))")
+
+# The `transport_method` applying `pre` in front of the base space `space` (`nothing` = flat).
+_in_space(::Nothing, pre::LowRankPreconditioner) = pre
+_in_space(space::PT.StdNormal, pre::LowRankPreconditioner) = Preconditioned(space, pre)
+
+# The Std-space node: `w = b + A z`, then the inner node. With an exact transport the
+# density is the reference's, carried by `PreconditionedStdNormal`, so the node itself
+# forms no Jacobian.
+struct PreconditionedStd{P, I <: PT.AbstractTransport, S} <: PT.AbstractTransport
+    pre::P
+    inner::I
+    space::S
+end
+
+PT.dimension(t::PreconditionedStd) = PT.dimension(t.inner)
+PT.is_scalar_transport(t::PreconditionedStd) = PT.is_scalar_transport(t.inner)
+
+function PT.pfwd_step(t::PreconditionedStd, z, index)
+    n = PT.dimension(t.inner)
+    zv = view(z, index:(index + n - 1))
+    w = _affine_fwd(_pre_for(t.pre, zv), zv)
+    x, _ = PT.pfwd_step(t.inner, w, firstindex(w))
+    return x, index + n
+end
+
+function PT.pback_step!(z, index, t::PreconditionedStd, x)
+    n = PT.dimension(t.inner)
+    index′ = PT.pback_step!(z, index, t.inner, x)
+    zv = view(z, index:(index + n - 1))
+    copyto!(zv, _affine_inv(_pre_for(t.pre, z), zv))
+    return index′
+end
+
+# The reference of the preconditioned Std space: the density of `z` when `w = b + A z`
+# follows `base`.
+struct PreconditionedStdNormal{P, B} <: Dists.ContinuousMultivariateDistribution
+    pre::P
+    base::B
+end
+
+Base.length(d::PreconditionedStdNormal) = length(d.base)
+
+function Dists.logpdf(d::PreconditionedStdNormal, z::AbstractVector)
+    pre = _pre_for(d.pre, z)
+    return Dists.logpdf(d.base, _affine_fwd(pre, z)) + _affine_logdet(pre)
+end
+
+function Dists._rand!(rng::AbstractRNG, d::PreconditionedStdNormal, z::AbstractVector{<:Real})
+    copyto!(z, _affine_inv(_hostify(d.pre), rand(rng, d.base)))
+    return z
+end
+
+function PT.transport_to(post::VLBIPosterior, space::Preconditioned)
+    t0 = PT.transport_to(post, space.space).transform
+    node0 = PT.transport_node(t0)
+    n = PT.dimension(node0)
+    _pre_dim(space.pre) == n || throw(
+        DimensionMismatch(
+            "preconditioner dimension $(_pre_dim(space.pre)) does not match the posterior " *
+                "latent dimension $n — it was fit to a different model"
+        )
+    )
+    node = PreconditionedStd(space.pre, node0, space.space)
+    stop = PreconditionedStdNormal(space.pre, getfield(t0, :stop))
+    td = PT.TransportedDistribution(node, getfield(t0, :start), stop)
+    return TransformedVLBIPosterior(post, td)
+end
+
+# The latent space a preconditioner acts in front of for `tpost`: `nothing` (flat) or a
+# `StdNormal`.
+function _base_space(tpost::TransformedVLBIPosterior)
+    node = PT.transport_node(tpost.transform)
+    node isa PreconditionedFlat && return nothing
+    isnothing(getfield(tpost.transform, :stop)) && return nothing
+    s = PT.space(node)
+    s isa PT.StdNormal || throw(
+        ArgumentError(
+            "low-rank preconditioning supports the flat and StdNormal latent spaces, not $(typeof(s))"
+        )
+    )
+    return s
+end
+
 # Convert a host-fitted preconditioner to device buffers, padding the low-rank stage to
 # `rank_cap` columns (zero columns with `s = 1` are exact no-ops). Device buffers trace as
 # runtime inputs of a compiled program, so a later refit updates them in place with
@@ -182,6 +296,11 @@ function _device_pre(pre; kwargs...)
     )
 end
 
+# `space` with any host low-rank preconditioner moved into device buffers, so a compiled
+# program reads it as a runtime input rather than embedding it as a constant. The Reactant
+# extension implements the preconditioner methods.
+_device_space(space) = space
+
 # Copy a fresh host fit `h` into the live device buffers `dev`, whose shapes were fixed
 # at `_device_pre` time. Implemented by the Reactant extension.
 function _update_device_pre!(dev, h)
@@ -191,8 +310,8 @@ function _update_device_pre!(dev, h)
 end
 
 # Caches reused across warmup refits: `draws`/`scores` map a warmup-store draw index to
-# its base-flat position and flat-space score (both invariant across refits — the flat
-# space never changes), and `fn` holds the score function built on first use. The windowed
+# its base-space position and score (both invariant across refits — the base space never
+# changes), and `fn` holds the score function built on first use. The windowed
 # run seeds `draws` with the sampler's real base-flat draws as warmup produces them, so a
 # refit reuses them and computes each score once; without the cache every refit rebuilds
 # the score function and reloads the full window.
@@ -202,11 +321,11 @@ _new_refit_cache() = (;
     fn = Ref{Any}(nothing),
 )
 
-# Flat-space score of `post` evaluated on the device: `post` is moved to the Reactant
-# device, and the returned closure maps a host `Vector{Float64}` to the host gradient of
-# the flat log-density. The program is compiled once, at the shape of `x0`. Implemented by
-# the Reactant + Enzyme extension.
-function _compiled_flat_score(post, x0)
+# Score of `post` in the base space `space` (`nothing` = flat) evaluated on the device:
+# `post` is moved to the Reactant device, and the returned closure maps a host
+# `Vector{Float64}` to the host gradient of the log-density in that space. The program is
+# compiled once, at the shape of `x0`. Implemented by the Reactant + Enzyme extension.
+function _compiled_score(post, x0, space)
     return throw(
         ArgumentError(
             "a device flat score needs both Reactant and Enzyme loaded; `using Reactant, " *
@@ -215,16 +334,16 @@ function _compiled_flat_score(post, x0)
     )
 end
 
-# Host score, through the posterior's own AD mode.
-function _host_flat_score(post::VLBIPosterior)
-    tflat = asflat(post)
-    return x -> last(LogDensityProblems.logdensity_and_gradient(tflat, x))
+# Host score in the base space `space`, through the posterior's own AD mode.
+function _host_score(post::VLBIPosterior, space)
+    tpost = maybe_transport(post, space)
+    return x -> last(LogDensityProblems.logdensity_and_gradient(tpost, x))
 end
 
-# One flat-space score, through the cache's score function (built on first use).
-function _flat_score!(cache, post::VLBIPosterior, x::Vector{Float64}; reactant::Bool)
+# One base-space score, through the cache's score function (built on first use).
+function _score!(cache, post::VLBIPosterior, x::Vector{Float64}, space; reactant::Bool)
     if cache.fn[] === nothing
-        cache.fn[] = reactant ? _compiled_flat_score(post, x) : _host_flat_score(post)
+        cache.fn[] = reactant ? _compiled_score(post, x, space) : _host_score(post, space)
     end
     return cache.fn[](x)
 end
@@ -236,15 +355,16 @@ end
 # start point becomes the center, so a run passing the result as its `transport_method`
 # begins warmup pre-scaled instead of on a unit metric; the first windowed refit then
 # replaces this with the full Fisher fit. The score comes through the refit cache, so the
-# score function is shared with every later refit.
-_score_init_pre(post::VLBIPosterior, θ0; reactant::Bool) =
-    _score_init_pre(post, θ0, _new_refit_cache(); reactant)
+# score function is shared with every later refit. `space` is the base space (`nothing` =
+# flat, or `StdNormal()`); the result is the matching `transport_method`.
+_score_init_pre(post::VLBIPosterior, θ0; reactant::Bool, space = nothing) =
+    _score_init_pre(post, θ0, _new_refit_cache(); reactant, space)
 
-function _score_init_pre(post::VLBIPosterior, θ0, cache; reactant::Bool)
-    x0 = inverse(asflat(post), θ0)
-    g = _flat_score!(cache, post, x0; reactant)
+function _score_init_pre(post::VLBIPosterior, θ0, cache; reactant::Bool, space = nothing)
+    x0 = inverse(maybe_transport(post, space), θ0)
+    g = _score!(cache, post, x0, space; reactant)
     d = clamp.(inv.(sqrt.(abs.(g) .+ 1.0e-8)), 1.0e-4, 1.0e4)
-    return LowRankPreconditioner(x0, d, zeros(length(x0), 0), Float64[])
+    return _in_space(space, LowRankPreconditioner(x0, d, zeros(length(x0), 0), Float64[]))
 end
 
 # Symmetric-positive-definite geometric mean: the Σ solving Σ A Σ = B, that is A⁻¹ # B
@@ -300,7 +420,8 @@ end
 # `LowRankPreconditioner` with `s = √λ`.
 function _fisher_lowrank(
         Z::AbstractMatrix, G::AbstractMatrix;
-        rank::Int, cutoff::Real = 2.0, γ::Real = 1.0e-5, carry = nothing
+        rank::Int, cutoff::Real = 2.0, γ::Real = 1.0e-5, carry = nothing,
+        keep_carried::Bool = false
     )
     n, N = size(Z)
     size(G) == (n, N) || throw(DimensionMismatch("draws and scores must align"))
@@ -310,7 +431,8 @@ function _fisher_lowrank(
     (all(>(0), vz) && all(>(0), vg)) || throw(
         ArgumentError("zero-variance coordinates in draws or scores")
     )
-    σ = (vz ./ vg) .^ (1 // 4)                      # σ*² = √(var(x)/var(α))
+    # σ*² = √(var(x)/var(α)), or the carried transform's own diagonal when it is kept
+    σ = (keep_carried && carry !== nothing) ? carry.d : (vz ./ vg) .^ (1 // 4)
     x̄ = vec(mean(Z; dims = 2))
     ᾱ = vec(mean(G; dims = 2))
     # The estimation is centered at the draw mean (Algorithm 1); the returned transform's
@@ -325,7 +447,12 @@ function _fisher_lowrank(
     # on the current draws — keeping the wider of carried and re-measured for wide
     # directions (a wide mode only ever gets wider as the chain frees).
     U0 = zeros(n, 0); s0 = Float64[]
-    if carry !== nothing && !isempty(carry.s)
+    if keep_carried && carry !== nothing && !isempty(carry.s)
+        # σ = carry.d, so the carried directions are orthonormal in this standardization.
+        U0, s0 = carry.V, carry.s
+        X .-= U0 * (U0' * X)
+        A .-= U0 * (U0' * A)
+    elseif carry !== nothing && !isempty(carry.s)
         U0 = _thinq((carry.d .* carry.V) ./ σ, length(carry.s))
         s0now = (vec(var(U0' * X0h; dims = 2)) ./ vec(var(U0' * A0h; dims = 2))) .^ (1 // 4)
         s0 = map((sc, sn) -> sc > 1 ? max(sc, sn) : sn, carry.s, s0now)
@@ -385,7 +512,13 @@ function _fisher_lowrank(
     # orthonormality check. A column-order-preserving thin QR cleans the cross terms
     # without disturbing the per-direction scale assignment: the already-orthonormal
     # leading block reappears up to a per-column sign, and the scale is sign-invariant.
-    V = _thinq(hcat(U0, U[:, keep]), length(s0) + length(keep))
+    # A kept carried block stays exact; only the new block is cleaned against it.
+    V = if keep_carried
+        Un = U[:, keep] .- U0 * (U0' * U[:, keep])
+        hcat(U0, _thinq(Un, length(keep)))
+    else
+        _thinq(hcat(U0, U[:, keep]), length(s0) + length(keep))
+    end
     sV = vcat(s0, s[keep])
     return LowRankPreconditioner(_fisher_center(x̄, σ, ᾱ, V, sV), σ, V, sV)
 end
@@ -396,24 +529,43 @@ function _pilot_carry(root::AbstractString)
     tf = joinpath(root, "transport.jls")
     old = isfile(tf) ? deserialize(tf) : nothing
     old isa LowRankPreconditioner && return old
+    old isa Preconditioned && return old.pre
     @warn "augment requested but the pilot has no LowRankPreconditioner at $tf; " *
         "fitting without carried directions"
     return nothing
 end
 
+# The base space a pilot run sampled in, from the `transport_method` it stored (`nothing`,
+# i.e. flat, when it stored none).
+function _pilot_space(root::AbstractString)
+    tf = joinpath(root, "transport.jls")
+    isfile(tf) || return nothing
+    t = deserialize(tf)
+    t isa Preconditioned && return t.space
+    t isa PT.StdNormal && return t
+    (isnothing(t) || t isa LowRankPreconditioner) && return nothing
+    throw(ArgumentError("$tf holds a $(typeof(t)); cannot tell which latent space the pilot sampled in"))
+end
+
+_space_name(::Nothing) = "flat"
+_space_name(s) = string(nameof(typeof(s)))
+
 """
-    fit_preconditioner(pilot, post; rank=16, nsamples=2000, discard=0.0, augment=false) -> LowRankPreconditioner
+    fit_preconditioner(pilot, post; rank=16, nsamples=2000, discard=0.0, augment=false, space=nothing)
 
 Fit a [`LowRankPreconditioner`](@ref) for `post` from a pilot run's log by the
 Fisher-divergence estimator of Seyboldt, Carlson & Carpenter (arXiv:2603.18845): draws
-AND scores in flat space, one joint fit. `pilot` is an MCMC [`DiskStore`](@ref)
+AND scores in the base latent space `space` (`nothing` for the flat space, or
+`ProbabilityTransports.StdNormal()`), one joint fit. Returns the matching `transport_method`:
+the `LowRankPreconditioner` itself for the flat space, a [`Preconditioned`](@ref) otherwise. `pilot` is an MCMC [`DiskStore`](@ref)
 directory (a run's `outbase`, or `<outbase>/warmup` for the warmup log). The pilot must
 have sampled the SAME model.
 
 A run whose sampler adapted under [`FisherLowRank`](@ref) leaves a
 `metric_adaptation.jls` checkpoint holding its warmup draws and scores already in
-base-flat coordinates; that is used when present. Otherwise draws are reconstructed as
-`inverse(asflat(post), θ)` from the stored chain and scored here — for a model with
+base-space coordinates; that is used when present, and it (like `augment`) requires the
+pilot to have sampled in `space`. Otherwise draws are reconstructed as
+`inverse(maybe_transport(post, space), θ)` from the stored chain and scored here — for a model with
 angle-embedded `(sin, cos)` parameters that reconstruction returns the unit-radius
 representative, collapsing each pair's radial direction into an artificial
 zero-variance axis the chain never actually sampled.
@@ -431,14 +583,25 @@ Reactant and Enzyme to be loaded, instead of on the host.
 function fit_preconditioner(
         pilot::AbstractString, post::VLBIPosterior;
         rank::Int = 16, nsamples::Int = 2000, discard::Real = 0.0,
-        augment::Bool = false, grad_reactant::Bool = false, refit_cache = nothing
+        augment::Bool = false, grad_reactant::Bool = false, refit_cache = nothing,
+        space = nothing
     )
     0 <= discard < 1 || throw(ArgumentError("discard must be in [0, 1), got $discard"))
     # A run's own checkpoints live at its root; `pilot` may point at the warmup log one
     # level down.
     root = basename(abspath(pilot)) == "warmup" ? dirname(abspath(pilot)) : abspath(pilot)
-    # The sampler's own base-flat draws and scores, when the run recorded them.
+    # The sampler's own base-space draws and scores, when the run recorded them.
     af = joinpath(root, "metric_adaptation.jls")
+    if isfile(af) || augment
+        pspace = _pilot_space(root)
+        (isnothing(pspace) == isnothing(space)) || throw(
+            ArgumentError(
+                "the pilot at $root sampled in the $(_space_name(pspace)) space; its recorded " *
+                    "draws and carried directions cannot fit a preconditioner for the " *
+                    "$(_space_name(space)) space"
+            )
+        )
+    end
     if isfile(af)
         st = deserialize(af)::FisherAdaptation
         N = length(st.draws)
@@ -449,16 +612,16 @@ function fit_preconditioner(
             rank, carry = augment ? _pilot_carry(root) : nothing
         )
         @info "Fitted Fisher preconditioner from $(length(sel)) recorded draw/score pairs: $pre"
-        return pre
+        return _in_space(space, pre)
     end
     carry = augment ? _pilot_carry(root) : nothing
     ntot = deserialize(joinpath(pilot, "parameters.jls")).params.nsamples
     start = round(Int, discard * ntot) + 1
     step = max(1, (ntot - start + 1) ÷ nsamples)
     usedidx = collect(start:step:ntot)
-    tpost = asflat(post)
+    tpost = maybe_transport(post, space)
     n = dimension(tpost)
-    # Fisher-divergence fit (Seyboldt+ 2026): draws + scores in flat space. Only the ≤192
+    # Fisher-divergence fit (Seyboldt+ 2026): draws + scores in the base space. Only the ≤192
     # columns used are loaded, each scored ONCE via the cache, and the score function is
     # built once — so a repeat fit against the same cache costs seconds.
     cache = isnothing(refit_cache) ? _new_refit_cache() : refit_cache
@@ -471,10 +634,10 @@ function fit_preconditioner(
             inverse(tpost, only(postsamples(load_samples(pilot, idx:idx))))
         end
         Gf[:, k] = get!(cache.scores, idx) do
-            _flat_score!(cache, post, Zf[:, k]; reactant = grad_reactant)
+            _score!(cache, post, Zf[:, k], space; reactant = grad_reactant)
         end
     end
     pre = _fisher_lowrank(Zf, Gf; rank, carry)
     @info "Fitted Fisher preconditioner from $(length(need)) draw/score pairs: $pre"
-    return pre
+    return _in_space(space, pre)
 end

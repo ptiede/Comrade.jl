@@ -43,7 +43,7 @@ struct FixedMetric <: AbstractMetricAdaptor end
 
 """
     FisherLowRank(; rank = 16, schedule = :stan, cutoff = 2.0, γ = 1e-5,
-                  min_draws = 12, max_fit_draws = 192)
+                  min_draws = 12, max_fit_draws = 192, discard = 0.0, carry = :none)
 
 Adapt the latent space itself: at each scheduled warmup step, fit a
 [`LowRankPreconditioner`](@ref) by the Fisher-divergence estimator of Seyboldt, Carlson
@@ -70,6 +70,17 @@ composition, and base-flat is the one reference frame that is invariant across r
     admitting it as an extreme stiff or wide direction.
   - `min_draws`: refits below this many recorded draws are skipped.
   - `max_fit_draws`: draws are thinned to at most this many columns per fit.
+  - `discard`: fraction in `[0, 1)` of the draws recorded so far that each fit drops from the
+    start of warmup, so fits use only the most recent draws. The first 3 draws are always
+    dropped, and at least `min_draws` are always kept.
+  - `carry`: what each fit builds on. `:none` fits from scratch. `:rescale` keeps the
+    directions of the transform the chain is sampling through, re-scaled on the current
+    draws and scores, and spends the rest of `rank` on new directions outside their span,
+    so directions accumulate across fits. `:keep` keeps the transform warmup started in
+    (a `transport_method` preconditioner) exactly — its directions, scales and diagonal —
+    and fits up to `rank` minus its rank new directions outside its span, replacing those
+    of the previous fit. Use `:keep` for a starting transform the window cannot measure as
+    well, such as one built from the likelihood's curvature.
 
 To start warmup in fitted coordinates rather than on a unit metric, pass a
 [`LowRankPreconditioner`](@ref) as the sampler's `transport_method`.
@@ -81,8 +92,10 @@ struct FisherLowRank{S} <: AbstractMetricAdaptor
     γ::Float64
     min_draws::Int
     max_fit_draws::Int
+    discard::Float64
+    carry::Symbol
     function FisherLowRank{S}(
-            rank, schedule, cutoff, γ, min_draws, max_fit_draws
+            rank, schedule, cutoff, γ, min_draws, max_fit_draws, discard, carry
         ) where {S}
         rank > 0 || throw(ArgumentError("rank must be positive, got $rank"))
         cutoff > 1 || throw(ArgumentError("cutoff must be greater than 1, got $cutoff"))
@@ -94,17 +107,22 @@ struct FisherLowRank{S} <: AbstractMetricAdaptor
                 "max_fit_draws ($max_fit_draws) must be at least min_draws ($min_draws)"
             )
         )
+        0 <= discard < 1 ||
+            throw(ArgumentError("discard must lie in [0, 1), got $discard"))
         _check_refit_schedule(schedule)
-        return new{S}(rank, schedule, cutoff, γ, min_draws, max_fit_draws)
+        carry in (:none, :rescale, :keep) ||
+            throw(ArgumentError("carry must be :none, :rescale or :keep, got $(repr(carry))"))
+        return new{S}(rank, schedule, cutoff, γ, min_draws, max_fit_draws, discard, carry)
     end
 end
 
 function FisherLowRank(;
         rank::Int = 16, schedule = :stan, cutoff::Real = 2.0, γ::Real = 1.0e-5,
-        min_draws::Int = 12, max_fit_draws::Int = 192
+        min_draws::Int = 12, max_fit_draws::Int = 192, discard::Real = 0.0,
+        carry::Symbol = :none
     )
     return FisherLowRank{typeof(schedule)}(
-        rank, schedule, cutoff, γ, min_draws, max_fit_draws
+        rank, schedule, cutoff, γ, min_draws, max_fit_draws, discard, carry
     )
 end
 
@@ -203,10 +221,11 @@ init_metric_adaptation(::AbstractMetricAdaptor) = nothing
 init_metric_adaptation(::FisherLowRank) = FisherAdaptation()
 
 # The preconditioner a transformed posterior is currently sampling through, or `nothing`
-# when its latent space is plain base-flat.
+# when it samples its base space (flat or StdNormal) directly.
 _transport_pre(tpost::TransformedVLBIPosterior) =
     _node_pre(PT.transport_node(tpost.transform))
 _node_pre(node::PreconditionedFlat) = node.pre
+_node_pre(node::PreconditionedStd) = node.pre
 _node_pre(::Any) = nothing
 
 _baseflat_draw(::Nothing, z::AbstractVector) = collect(Float64, z)
@@ -233,24 +252,44 @@ function observe_draw!(st::FisherAdaptation, pre, position, gradient)
     return x
 end
 
-"""
-    metric_refit(adaptor, state) -> LowRankPreconditioner or nothing
-
-Fit a new latent space from the recorded draws and scores, or `nothing` when too few have
-been recorded to fit from.
-"""
-metric_refit(::AbstractMetricAdaptor, state) = nothing
-
-function metric_refit(a::FisherLowRank, st::FisherAdaptation)
-    N = length(st.draws)
-    N >= a.min_draws || return nothing
-    # Drop the true transient only — a run started from a near-posterior draw has a short
-    # one, and a fractional discard would starve the early fit windows.
-    start = round(Int, min(0.2, 3 / N) * N) + 1
-    sel = unique(
+# Indices of the `N` recorded draws a fit uses: the first `a.discard` fraction (and at least the
+# first 3 draws) dropped, at least `a.min_draws` kept, and the rest thinned to at most
+# `a.max_fit_draws`.
+function _refit_selection(a::FisherLowRank, N::Int)
+    ndrop = max(round(Int, min(0.2, 3 / N) * N), floor(Int, a.discard * N))
+    start = min(ndrop, N - a.min_draws) + 1
+    return unique(
         round.(Int, range(start, N, length = min(a.max_fit_draws, N - start + 1)))
     )
+end
+
+"""
+    metric_refit(adaptor, state; current = nothing, initial = nothing)
+        -> LowRankPreconditioner or nothing
+
+Fit a new latent space from the recorded draws and scores, or `nothing` when too few have
+been recorded to fit from. `current` and `initial` are the preconditioners the chain samples
+through now and started warmup in (`nothing` for the base space), which an adaptor with
+`carry = :rescale` or `:keep` builds on.
+"""
+metric_refit(::AbstractMetricAdaptor, state; kwargs...) = nothing
+
+# `p` without the zero-padded columns (`s = 1`) of a device rank slot.
+function _active_directions(p::LowRankPreconditioner)
+    h = _hostify(p)
+    act = findall(!=(1), h.s)
+    return LowRankPreconditioner(h.b, h.d, h.V[:, act], h.s[act])
+end
+
+function metric_refit(a::FisherLowRank, st::FisherAdaptation; current = nothing, initial = nothing)
+    N = length(st.draws)
+    N >= a.min_draws || return nothing
+    sel = _refit_selection(a, N)
     Z = reduce(hcat, @view st.draws[sel])
     G = reduce(hcat, @view st.scores[sel])
-    return _fisher_lowrank(Z, G; rank = a.rank, cutoff = a.cutoff, γ = a.γ)
+    from = a.carry === :rescale ? current : a.carry === :keep ? initial : nothing
+    carry = isnothing(from) ? nothing : _active_directions(from)
+    return _fisher_lowrank(
+        Z, G; rank = a.rank, cutoff = a.cutoff, γ = a.γ, carry, keep_carried = a.carry === :keep
+    )
 end

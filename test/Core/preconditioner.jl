@@ -1,4 +1,5 @@
 using LinearAlgebra
+using Serialization
 using Random
 using Statistics
 import TransformVariables as TV
@@ -151,6 +152,20 @@ end
         @test_throws "unknown refit schedule" FisherLowRank(; schedule = :welford)
         @test_throws "must lie strictly in (0, 1)" FisherLowRank(; schedule = [0.5, 1.5])
         @test_throws "must be :stan, :nutpie" FisherLowRank(; schedule = "stan")
+        @test_throws "discard must lie in [0, 1)" FisherLowRank(; discard = 1.0)
+        @test_throws "discard must lie in [0, 1)" FisherLowRank(; discard = -0.1)
+    end
+
+    @testset "refit draw selection" begin
+        # without discard only the first 3 draws are dropped
+        @test Comrade._refit_selection(FisherLowRank(), 100) == 4:100
+        # discard drops the leading fraction of the recorded draws
+        @test Comrade._refit_selection(FisherLowRank(; discard = 0.5), 100) == 51:100
+        # but never below min_draws
+        @test Comrade._refit_selection(FisherLowRank(; discard = 0.9, min_draws = 12), 20) == 9:20
+        # and the kept draws are thinned to at most max_fit_draws
+        sel = Comrade._refit_selection(FisherLowRank(; discard = 0.5, max_fit_draws = 20), 400)
+        @test length(sel) == 20 && first(sel) == 201 && last(sel) == 400
     end
 
     @testset "refit schedules" begin
@@ -240,5 +255,94 @@ end
         @test maximum(abs.(fit.V' * normalize(u ./ fit.d))) > 0.8
         @test maximum(abs.(fit.V' * normalize(v ./ fit.d))) > 0.8
         @test minimum(fit.s) > 0.03
+
+        # A carrying refit keeps the current transform's directions (here one the window
+        # does not single out, next to a zero-padded device column) and adds the planted ones.
+        w = normalize(randn(rng, n)); w .-= dot(w, u) * u .+ dot(w, v) * v; normalize!(w)
+        cur = LowRankPreconditioner(zeros(n), ones(n), hcat(w, zeros(n)), [0.01, 1.0])
+        cad = FisherLowRank(; rank = 8, min_draws = 12, carry = :rescale)
+        cfit = Comrade.metric_refit(cad, st; current = cur)
+        @test length(cfit.s) <= 8
+        @test maximum(abs.(cfit.V' * normalize(w ./ cfit.d))) > 0.99
+        @test maximum(abs.(cfit.V' * normalize(u ./ cfit.d))) > 0.8
+        @test maximum(abs.(fit.V' * normalize(w ./ fit.d))) < 0.9
+        @test Comrade.metric_refit(ad, st; current = cur).V ≈ fit.V
+        # `:keep` carries the starting transform exactly: its direction, scale and diagonal
+        kad = FisherLowRank(; rank = 8, min_draws = 12, carry = :keep)
+        kcur = LowRankPreconditioner(zeros(n), fill(2.0, n), hcat(w, zeros(n)), [0.01, 1.0])
+        kfit = Comrade.metric_refit(kad, st; current = cur, initial = kcur)
+        @test kfit.d == kcur.d
+        @test kfit.V[:, 1] == w && kfit.s[1] == 0.01
+        @test length(kfit.s) <= 8
+        @test kfit.V' * kfit.V ≈ I atol = 1.0e-8
+        @test maximum(abs.(kfit.V' * normalize(u ./ kfit.d))) > 0.8
+        @test Comrade.metric_refit(kad, st; current = kcur).V ≈ fit.V
+        @test_throws "carry must be :none, :rescale or :keep" FisherLowRank(; carry = :yes)
+    end
+end
+
+@testset "low-rank preconditioner in the StdNormal space" begin
+    rng = Random.Xoshiro(3)
+    gprior = (
+        f1 = VLBIGaussian(1.0, 0.1), σ1 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ1 = VLBIGaussian(0.5, 0.05), ξ1 = VLBIGaussian(0.0, 0.3),
+        f2 = VLBIGaussian(0.5, 0.1), σ2 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ2 = VLBIGaussian(0.5, 0.05), ξ2 = VLBIGaussian(0.0, 0.3),
+        x = VLBIGaussian(0.0, μas2rad(20.0)), y = VLBIGaussian(0.0, μas2rad(20.0)),
+    )
+    _, vis, _, _, _ = load_data()
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 12, 12)
+    post = VLBIPosterior(SkyModel(test_model, gprior, g), vis)
+    sp = Comrade.PT.StdNormal()
+    tstd = Comrade.transport_to(post, sp)
+    n = dimension(tstd)
+    V = Matrix(qr(randn(rng, n, 2)).Q)[:, 1:2]
+    pre = LowRankPreconditioner(randn(rng, n), exp.(0.3 .* randn(rng, n)), V, [3.0, 0.5])
+    tpre = Comrade.transport_to(post, Preconditioned(sp, pre))
+    @test dimension(tpre) == n
+
+    # z ↦ w = b + A z, then the StdNormal transport; the density picks up log|det A|
+    z = randn(rng, n)
+    w = Comrade._affine_fwd(pre, z)
+    x = transform(tpre, z)
+    @test inverse(tstd, x) ≈ w
+    @test inverse(tpre, x) ≈ z
+    @test logdensityof(tpre, z) ≈ logdensityof(tstd, w) + Comrade._affine_logdet(pre)
+
+    # the reference draws z = A⁻¹(w − b) with w ~ N(0, I)
+    stop = getfield(tpre.transform, :stop)
+    @test rand(Random.Xoshiro(5), stop) ≈
+        Comrade._affine_inv(pre, rand(Random.Xoshiro(5), getfield(tstd.transform, :stop)))
+
+    @test Comrade._base_space(tpre) === sp
+    @test Comrade._base_space(tstd) === sp
+    @test isnothing(Comrade._base_space(asflat(post)))
+    @test Comrade._transport_pre(tpre) === pre
+    @test isnothing(Comrade._transport_pre(tstd))
+    @test Comrade._in_space(sp, pre) isa Preconditioned
+    @test Comrade._in_space(nothing, pre) === pre
+    bad = LowRankPreconditioner(zeros(n + 1), ones(n + 1), zeros(n + 1, 0), Float64[])
+    @test_throws DimensionMismatch Comrade.transport_to(post, Preconditioned(sp, bad))
+
+    # score init centers the transform at the start point in the base space; the score comes
+    # from the cache (here the standard-normal score -x)
+    θ0 = prior_sample(rng, post)
+    cache = Comrade._new_refit_cache()
+    cache.fn[] = x -> -x
+    tm = Comrade._score_init_pre(post, θ0, cache; reactant = false, space = sp)
+    @test tm isa Preconditioned && tm.space === sp
+    @test tm.pre.b ≈ inverse(tstd, θ0)
+    @test Comrade._score_init_pre(post, θ0, cache; reactant = false) isa LowRankPreconditioner
+
+    # a pilot's recorded base-space draws fit only a preconditioner for the same space
+    mktempdir() do dir
+        draws = [randn(rng, n) for _ in 1:12]
+        serialize(joinpath(dir, "metric_adaptation.jls"), Comrade.FisherAdaptation(draws, [-d for d in draws]))
+        serialize(joinpath(dir, "transport.jls"), sp)
+        @test fit_preconditioner(dir, post; rank = 2, space = sp) isa Preconditioned
+        @test_throws "sampled in the StdNormal space" fit_preconditioner(dir, post; rank = 2)
+        serialize(joinpath(dir, "transport.jls"), nothing)
+        @test fit_preconditioner(dir, post; rank = 2) isa LowRankPreconditioner
+        @test_throws "sampled in the flat space" fit_preconditioner(dir, post; rank = 2, space = sp)
     end
 end

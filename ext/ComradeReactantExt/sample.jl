@@ -202,6 +202,36 @@ function _current_state(state, tpost)
 end
 
 # ===========================================================================
+# Host-side moves between chunks
+# ===========================================================================
+
+# Run the `between_chunks` hook and hand back a state the next compiled kernel can take.
+# A hook may return the position as a host array; it is moved to the device in the shape
+# the kernels were compiled for. Whenever the position changed, the cached gradient and
+# potential energy belong to the old point, so both are dropped and the next kernel
+# recomputes them. The step size, metric, RNG and adaptation state carry over.
+function _run_between_chunks(hook, state, tpost, info, host_rng)
+    isnothing(hook) && return state
+    before = Array(state.position)
+    state = hook(state, tpost, info, host_rng)
+    state isa ProbProg.MCMCState || throw(
+        ArgumentError("`between_chunks` must return the MCMCState, got $(typeof(state))")
+    )
+    after = Array(state.position)
+    length(after) == length(before) || throw(
+        DimensionMismatch(
+            "`between_chunks` changed the position length from $(length(before)) to $(length(after))"
+        )
+    )
+    if after != before
+        state.position = Reactant.to_rarray(reshape(convert(Array{eltype(before)}, after), size(before)))
+        state.gradient = nothing
+        state.potential_energy = nothing
+    end
+    return state
+end
+
+# ===========================================================================
 # Default callbacks (called between rounds; return value is collected into history)
 # ===========================================================================
 
@@ -303,6 +333,10 @@ rebuilds them and costs one recompile. The accumulated draws are checkpointed to
 `adaptation_checkpoint` alongside the state, and the fitted transform to
 `transport_checkpoint`, so a restart resumes with the window it had built up.
 
+`between_chunks(state, tpost, info, host_rng) -> state` runs at the end of every chunk,
+after the refit, and may move `state.position` (e.g. a Metropolis–Hastings step); see the
+`ReactantNUTS` `sample` method. Here `info` is `(; phase = :warmup, step, total, pre)`.
+
 If `draws_dir` is a path, the draw at the end of each chunk is appended there as it is
 produced, giving an inspectable warmup chain of `n_adapts ÷ chunk` draws:
 
@@ -316,6 +350,25 @@ cadence is the chunk length — ProbProg collects no per-step warmup trace, and 
 would perturb the chain (see the warmup-log note above `_open_warmup_log`), so use a smaller `chunk` for a
 finer log. Passing `resume_state` appends to an existing log rather than restarting it.
 """
+# The transform warmup started in, for an adaptor that keeps it (`carry = :keep`): host
+# arrays, active columns only. Refits overwrite the transport checkpoint, so a fresh warmup
+# also stores it beside that as `initial_transport.jls`, which a resumed warmup reads back.
+function _initial_pre(adaptor, tpost, transport_checkpoint, fresh::Bool)
+    (adaptor isa Comrade.FisherLowRank && adaptor.carry === :keep) || return nothing
+    file = isnothing(transport_checkpoint) ? nothing :
+        joinpath(dirname(transport_checkpoint), "initial_transport.jls")
+    if fresh
+        pre = Comrade._transport_pre(tpost)
+        h = isnothing(pre) ? nothing : Comrade._active_directions(pre)
+        isnothing(file) || serialize(file, h)
+        return h
+    end
+    (isnothing(file) || !isfile(file)) && throw(
+        ArgumentError("resuming a `carry = :keep` warmup needs its starting transform at $(something(file, "<no transport checkpoint>"))")
+    )
+    return deserialize(file)
+end
+
 function warmup_chunked(
         rng, ldf, x0, tpost, sampler::ReactantNUTS;
         chunk::Int, callback = default_warmup_callback,
@@ -324,6 +377,7 @@ function warmup_chunked(
         draws_dir = nothing,
         resume_state = nothing, warmup_done::Int = 0,
         adaptation = nothing, segment_start::Int = 0,
+        between_chunks = nothing, host_rng = Random.default_rng(),
     )
 
     na = sampler.n_adapts
@@ -332,6 +386,7 @@ function warmup_chunked(
 
     adaptor = sampler.metric_adaptor
     astate = isnothing(adaptation) ? Comrade.init_metric_adaptation(adaptor) : adaptation
+    initial = _initial_pre(adaptor, tpost, transport_checkpoint, isnothing(resume_state))
 
     if isnothing(resume_state)
         T = eltype(x0)
@@ -353,10 +408,11 @@ function warmup_chunked(
         _open_warmup_log(draws_dir; append = !isnothing(resume_state))
 
     history = Any[]
-    # Kernel cache: one compiled kernel per (chunk length, gradient-presence) shape.
-    # A refit rebuilds the state with an empty gradient slot, flipping the shape back
-    # and forth — with frequent (nutpie-cadence) refits each shape must compile ONCE
-    # and be reused, not recompiled per flip. A structural transform swap invalidates
+    # Kernel cache: one compiled kernel per chunk length and state shape (gradient and
+    # adaptation presence, position rank). A refit rebuilds the state with empty gradient
+    # and adaptation slots and a between-chunks move empties the gradient slot, flipping
+    # the shape back and forth — each shape must compile ONCE and be reused, not
+    # recompiled per flip. A structural transform swap invalidates
     # the whole cache (the transform is baked into the kernels).
     kernels = Dict{Any, Any}()
     # Windowed-refit bookkeeping: `seg` anchors the Stan schedule to the CURRENT segment
@@ -379,7 +435,10 @@ function warmup_chunked(
         # metric adapts, i.e. in segment 0).
         total_c = adapt_mm ? (na - seg) : na
         off_c = adapt_mm ? (done - seg) : done
-        key = (nsteps, isnothing(state.gradient), adapt_mm, total_c)
+        key = (
+            nsteps, isnothing(state.gradient), isnothing(state.adaptation),
+            ndims(state.position), adapt_mm, total_c,
+        )
         kernel = get!(kernels, key) do
             _compile_warmup_kernel(
                 state, ldf, tpost, nsteps, total_c, sampler;
@@ -438,18 +497,20 @@ function warmup_chunked(
         # otherwise the block is rebuilt, which is a structural change and recompiles.
         if !isempty(pending) && done >= first(pending)
             popfirst!(pending)
-            pre = Comrade.metric_refit(adaptor, astate)
+            pre = Comrade.metric_refit(adaptor, astate; current = Comrade._transport_pre(tpost), initial)
             if isnothing(pre)
                 @info "warmup metric refit at step $done skipped: too few draws recorded"
             else
                 @info "warmup metric refit at step $done" pre
-                isnothing(transport_checkpoint) || serialize(transport_checkpoint, pre)
+                base = Comrade._base_space(tpost)
+                isnothing(transport_checkpoint) ||
+                    serialize(transport_checkpoint, Comrade._in_space(base, pre))
                 nrank = length(pre.s)
                 if isnothing(devpre) || nrank > rankcap
                     grow = !isnothing(devpre)
                     rankcap = max(round(Int, 1.25 * nrank), 16)
                     devpre = Comrade._device_pre(pre; rank_cap = rankcap)
-                    tpost = Comrade.maybe_transport(tpost.lpost, devpre)
+                    tpost = Comrade.maybe_transport(tpost.lpost, Comrade._in_space(base, devpre))
                     empty!(kernels)  # structural change: every cached kernel is stale
                     grow && @info "grew low-rank cap to $rankcap (fit rank $nrank); one recompile"
                 else
@@ -472,6 +533,12 @@ function warmup_chunked(
                 # window needs a fresh start rather than `restart = true`.
             end
         end
+
+        state = _run_between_chunks(
+            between_chunks, state, tpost,
+            (; phase = :warmup, step = done, total = na, pre = Comrade._transport_pre(tpost)),
+            host_rng,
+        )
     end
     return state, history, tpost
 end
@@ -489,11 +556,16 @@ otherwise [`Comrade.default_disk_callback`](@ref). The `info` it receives is the
 `NamedTuple` documented under the `ReactantNUTS` `sample` method (common fields in
 [`Comrade.default_disk_callback`](@ref), with the host-side `MCMCState` view from
 [`_current_state`](@ref) under `info.extras`).
+
+`between_chunks(state, tpost, info, host_rng) -> state` runs after the callback of every
+chunk but the last, with `info = (; phase = :sampling, step, total, pre)`; see the
+`ReactantNUTS` `sample` method.
 """
 function sample_chunked(
         state, ldf, tpost, sampler::ReactantNUTS;
         num_samples::Int, saveto = MemoryStore(), chunk_size::Int = 100,
-        append::Bool = false, metadata = Dict{Symbol, Any}()
+        append::Bool = false, metadata = Dict{Symbol, Any}(),
+        between_chunks = nothing, host_rng = Random.default_rng(),
     )
 
     # The per-batch callback is configured solely on the DiskStore; MemoryStore just logs
@@ -532,12 +604,15 @@ function sample_chunked(
         )
     end
 
-    compiled = Dict{Int, Any}()
+    # One compiled kernel per (chunk length, gradient presence): a between-chunks move
+    # empties the gradient slot, which changes the kernel's inputs.
+    compiled = Dict{Tuple{Int, Bool}, Any}()
     sink = _open_sink(saveto, tpost, num_samples, nrounds, chunk; append)
     history = Any[]
+    ndone = 0
 
     for (round, ns) in enumerate(sizes)
-        cfn = get!(compiled, ns) do
+        cfn = get!(compiled, (ns, isnothing(state.gradient))) do
             Reactant.Compiler.compile(run_chunk, (state, ns); optimize = :probprog)
         end
         t = @elapsed begin
@@ -587,6 +662,18 @@ function sample_chunked(
             ),
         )
         push!(history, callback(info))
+        ndone += ns
+
+        if round < nrounds
+            state = _run_between_chunks(
+                between_chunks, state, tpost,
+                (;
+                    phase = :sampling, step = ndone, total = num_samples,
+                    pre = Comrade._transport_pre(tpost),
+                ),
+                host_rng,
+            )
+        end
     end
 
     meta = merge(
@@ -617,7 +704,7 @@ _default_ldf(x, tpost) = logdensityof(tpost, x)
            saveto=MemoryStore(), initial_params=nothing, restart=false,
            chunk_size=100, warmup_chunk=0, ldf=_default_ldf,
            host_rng=Random.default_rng(),
-           warmup_callback=nothing)
+           warmup_callback=nothing, between_chunks=nothing)
 
 Warm up (Stan-windowed adaptation run in chunks of the sampling size, or of `warmup_chunk`
 if given — see [`warmup_chunked`](@ref)) then draw `nsamples` post-warmup samples from the Reactant
@@ -699,6 +786,27 @@ its draws already stream to `<name>/warmup`. Overriding it replaces what lands i
 `warmup_history`, so return `info.params` from a custom callback to keep the in-memory
 warmup chain.
 
+## Moves between chunks
+
+`between_chunks(state, tpost, info, host_rng) -> state` runs on the host between compiled
+NUTS chunks and may change `state.position`, e.g. with a Metropolis–Hastings step along a
+direction NUTS explores slowly. Composing a posterior-preserving move with the NUTS chunks
+preserves the posterior. During warmup it runs at the end of every warmup chunk (after the
+callback and any metric refit); during sampling, after the callback of every chunk but
+the last. `info` is `(; phase, step, total, pre)`: `phase` is `:warmup` or `:sampling`,
+`step` counts the warmup steps (or post-warmup draws) done so far out of `total`, and `pre`
+is the preconditioner composed into `tpost` (`nothing` for plain base-flat), so the
+constrained point is `transform(tpost, vec(Array(state.position)))`. `host_rng` is the
+`host_rng` keyword.
+
+`state.position` is the latent point of `tpost`; the hook may replace it with a device or
+host array of the same length. Whenever the position changes, its cached gradient and
+potential energy are dropped and the next chunk recomputes them; the step size, metric,
+and adaptation state carry over. Moves are not recorded: the chain holds the NUTS draws,
+and the checkpointed `state.jls` is the state before the move, which a restart resumes
+from. A hook keeps its own acceptance statistics. The warmup chunk length (by default the
+`DiskStore` stride) sets how often it runs.
+
 A fresh run (`restart=false`) requires a `DiskStore` directory with no chain in it:
 sampling into a directory that already holds a previous run's chain or warmup log is an
 error, so an old run is never silently overwritten.
@@ -721,7 +829,7 @@ function AbstractMCMC.sample(
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
         chunk_size::Int = 100, warmup_chunk::Int = 0,
         ldf = _default_ldf, host_rng = Random.default_rng(),
-        warmup_callback = nothing
+        warmup_callback = nothing, between_chunks = nothing
     )
 
     # Default warmup callback: `MemoryStore` keeps the per-chunk draw in `warmup_history`
@@ -735,8 +843,10 @@ function AbstractMCMC.sample(
 
     # Persist/reload the latent space (DiskStore only) so a restart resumes in the same space
     # it was launched in instead of silently defaulting; MemoryStore just honors the kwarg.
-    tpost = Comrade.resolve_disk_transport(
-        post, saveto isa DiskStore ? saveto.name : nothing, restart, transport_method
+    tpost = _device_transport(
+        Comrade.resolve_disk_transport(
+            post, saveto isa DiskStore ? saveto.name : nothing, restart, transport_method
+        )
     )
 
     # Checkpoint paths (DiskStore only): the resumable MCMCState and the warmup step counter.
@@ -784,7 +894,7 @@ function AbstractMCMC.sample(
             chunk = warmup_chunk, callback = warmup_callback,
             checkpoint = state_ckpt, progress_checkpoint = progress_ckpt,
             adaptation_checkpoint = adapt_ckpt, transport_checkpoint = transport_ckpt,
-            draws_dir = warmup_draws_dir,
+            draws_dir = warmup_draws_dir, between_chunks, host_rng,
         )
     else
         # Restart: load the checkpoint. If warmup did not finish (recorded step count <
@@ -812,6 +922,7 @@ function AbstractMCMC.sample(
                 draws_dir = warmup_draws_dir,
                 resume_state = state, warmup_done = warmup_done,
                 adaptation = adaptation, segment_start = seg0,
+                between_chunks, host_rng,
             )
         else
             @info "ReactantNUTS restart: warmup complete, skipping" dir = saveto.name
@@ -839,7 +950,8 @@ function AbstractMCMC.sample(
     )
     state, out, _ = sample_chunked(
         state, ldf, tpost, sampler;
-        num_samples = remaining, saveto, chunk_size, append = restart, metadata
+        num_samples = remaining, saveto, chunk_size, append = restart, metadata,
+        between_chunks, host_rng,
     )
     # sample_history is already merged into metadata by sample_chunked, so it lives
     # in samplerinfo(out) for MemoryStore and in metadata.jls for DiskStore.

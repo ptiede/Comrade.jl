@@ -264,6 +264,196 @@ end
     @test samet === tpost
 end
 
+@testset "ReactantNUTS in the StdNormal space" begin
+    ext = Base.get_extension(Comrade, :ComradeReactantExt)
+    gprior = (
+        f1 = VLBIGaussian(1.0, 0.1), σ1 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ1 = VLBIGaussian(0.5, 0.05), ξ1 = VLBIGaussian(0.0, 0.3),
+        f2 = VLBIGaussian(0.5, 0.1), σ2 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ2 = VLBIGaussian(0.5, 0.05), ξ2 = VLBIGaussian(0.0, 0.3),
+        x = VLBIGaussian(0.0, μas2rad(20.0)), y = VLBIGaussian(0.0, μas2rad(20.0)),
+    )
+    _, vis, _, _, _ = load_data()
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 12, 12)
+    post_cpu = VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing)
+    post = Comrade.prepare_device(post_cpu, ReactantEx())
+    sp = Comrade.PT.StdNormal()
+    tstd = Comrade.transport_to(post, sp)
+    ldf = ext._default_ldf
+    x0 = Reactant.to_rarray(Comrade.inverse(tstd, prior_sample(Random.Xoshiro(2), post_cpu)))
+    freshrng() = Reactant.ReactantRNG(Reactant.to_rarray(UInt64[1, 5]))
+    quiet = _ -> nothing
+    na, chunk = 40, 2
+
+    # FisherLowRank refits stay in the StdNormal space and checkpoint a `Preconditioned`
+    adaptor = FisherLowRank(; rank = 4, schedule = [0.5], min_draws = 6)
+    sampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01, metric_adaptor = adaptor)
+    tckpt = tempname()
+    state, _, newt = ext.warmup_chunked(
+        freshrng(), ldf, x0, tstd, sampler; chunk, callback = quiet, transport_checkpoint = tckpt,
+    )
+    @test Comrade.PT.transport_node(newt.transform) isa Comrade.PreconditionedStd
+    @test Comrade._base_space(newt) === sp
+    @test Comrade._transport_pre(newt) isa LowRankPreconditioner
+    @test all(isfinite, Array(state.position))
+    saved = deserialize(tckpt)
+    rm(tckpt; force = true)
+    @test saved isa Preconditioned && saved.space === sp
+    # the device-buffered transform maps a host latent point like the saved host fit
+    hpre = Comrade.transport_to(post_cpu, saved)
+    z = randn(Random.Xoshiro(4), dimension(tstd))
+    @test Comrade.inverse(hpre, Comrade.transform(hpre, z)) ≈ z
+
+    # WelfordDiagonal leaves the StdNormal transform alone
+    wsampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01)
+    _, _, samet = ext.warmup_chunked(freshrng(), ldf, x0, tstd, wsampler; chunk = na, callback = quiet)
+    @test samet === tstd
+
+    # full runs to disk, without and with refits: draws are finite, the stored transport
+    # records the StdNormal base space
+    dadaptor = FisherLowRank(; rank = 4, schedule = [0.75], min_draws = 6)
+    @test Comrade.metric_refit_steps(dadaptor, 80, 10) == [60]
+    dsampler = ReactantNUTS(; n_adapts = 80, max_tree_depth = 4, init_step_size = 0.01, metric_adaptor = dadaptor)
+    for (smp, T) in ((wsampler, Comrade.PT.StdNormal), (dsampler, Preconditioned))
+        dir = mktempdir()
+        out = sample(post, smp, 20; saveto = DiskStore(name = dir, stride = 10), transport_method = sp).out
+        @test out.nsamples == 20
+        ps = Comrade.postsamples(load_samples(out))
+        @test all(p -> all(isfinite, values(p.sky)), ps)
+        @test deserialize(joinpath(dir, "transport.jls")) isa T
+        rm(dir; recursive = true)
+    end
+
+    # a host preconditioner is sampled through device buffers and stored as given
+    n = dimension(tstd)
+    V = Matrix(qr(randn(Random.Xoshiro(5), n, 3)).Q)[:, 1:3]
+    hp = Preconditioned(sp, LowRankPreconditioner(zeros(n), ones(n), V, [0.5, 2.0, 0.8]))
+    dt = ext._device_transport(Comrade.transport_to(post, hp))
+    @test Comrade._devicebuffers(Comrade._transport_pre(dt))
+    @test Comrade._base_space(dt) === sp
+    fsampler = ReactantNUTS(; n_adapts = 20, max_tree_depth = 4, init_step_size = 0.01, metric_adaptor = FixedMetric())
+    dir = mktempdir()
+    out = sample(post, fsampler, 10; saveto = DiskStore(name = dir, stride = 10), transport_method = hp).out
+    @test out.nsamples == 10
+    @test all(p -> all(isfinite, values(p.sky)), Comrade.postsamples(load_samples(out)))
+    saved = deserialize(joinpath(dir, "transport.jls"))
+    @test saved isa Preconditioned && saved.pre.V isa Array && saved.pre.V == V
+    rm(dir; recursive = true)
+end
+
+# Random-walk Metropolis–Hastings along the direction `v` for the log-density `target`,
+# keeping its own counters.
+mutable struct LineMove{F}
+    target::F
+    v::Vector{Float64}
+    scale::Float64
+    nprop::Int
+    nacc::Int
+    phases::Vector{Symbol}
+end
+LineMove(target, v, scale) = LineMove(target, v, scale, 0, 0, Symbol[])
+function (m::LineMove)(state, tpost, info, rng)
+    push!(m.phases, info.phase)
+    z = vec(Array(state.position))
+    for _ in 1:5
+        z1 = z .+ m.scale * randn(rng) .* m.v
+        m.nprop += 1
+        if log(rand(rng)) < m.target(z1) - m.target(z)
+            z = z1
+            m.nacc += 1
+        end
+    end
+    state.position = z
+    return state
+end
+
+# Host-side moves between NUTS chunks (`between_chunks`). The toy target ignores the
+# posterior and is a diagonal Gaussian in the latent coordinates, so the sampled moments
+# are known exactly and the host can evaluate the target for a Metropolis–Hastings step.
+@testset "ReactantNUTS between_chunks moves" begin
+    ext = Base.get_extension(Comrade, :ComradeReactantExt)
+
+    gprior = (
+        f1 = VLBIGaussian(1.0, 0.1), σ1 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ1 = VLBIGaussian(0.5, 0.05), ξ1 = VLBIGaussian(0.0, 0.3),
+        f2 = VLBIGaussian(0.5, 0.1), σ2 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ2 = VLBIGaussian(0.5, 0.05), ξ2 = VLBIGaussian(0.0, 0.3),
+        x = VLBIGaussian(0.0, μas2rad(20.0)), y = VLBIGaussian(0.0, μas2rad(20.0)),
+    )
+    _, vis, _, _, _ = load_data()
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 12, 12)
+    post = Comrade.prepare_device(
+        VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing), ReactantEx()
+    )
+    n = dimension(asflat(post))
+    μ = collect(range(-1.0, 1.0; length = n))
+    σ = collect(range(0.5, 2.0; length = n))
+    target(x) = -sum(abs2, (x .- μ) ./ σ) / 2
+    ldf(x, _) = target(x)
+    x0 = Comrade.transform(asflat(post), zeros(n))
+    freshrng() = Reactant.ReactantRNG(Reactant.to_rarray(UInt64[3, 11]))
+    s = ReactantNUTS(; n_adapts = 60, max_tree_depth = 5)
+    runchain(hook; nsamples = 60, host_rng = Random.Xoshiro(2)) = sample(
+        freshrng(), post, s, nsamples;
+        chunk_size = 10, initial_params = x0, ldf, host_rng, between_chunks = hook
+    )
+    draws(res) = reduce(hcat, (Comrade.inverse(asflat(post), p) for p in Comrade.postsamples(res.out)))
+
+    @testset "no hook and an identity hook give the same chain" begin
+        r0 = runchain(nothing)
+        r1 = runchain((st, _, _, _) -> st)
+        @test draws(r0) == draws(r1)
+        @test Array(r0.state.position) == Array(r1.state.position)
+        @test Array(r0.state.step_size) == Array(r1.state.step_size)
+    end
+
+    @testset "moved states restart NUTS from a recomputed gradient" begin
+        # A host-array position drops the cached gradient and potential energy and comes
+        # back on the device in the kernel's shape; an unmoved state keeps both.
+        st = runchain(nothing; nsamples = 20).state
+        info = (; phase = :sampling, step = 0, total = 0, pre = nothing)
+        kept = ext._run_between_chunks((s, _, _, _) -> s, st, nothing, info, Random.Xoshiro(1))
+        @test kept.gradient !== nothing && kept.potential_energy !== nothing
+        znew = vec(Array(st.position)) .+ 0.1
+        moved = ext._run_between_chunks(
+            (s, _, _, _) -> (s.position = znew; s), st, nothing, info, Random.Xoshiro(1)
+        )
+        @test moved.gradient === nothing && moved.potential_energy === nothing
+        @test moved.position isa Reactant.ConcreteRArray
+        @test size(moved.position) == (1, n)
+        @test vec(Array(moved.position)) == znew
+
+        # One chunk from the moved state: the kernel compiled for an empty gradient slot
+        # runs, and returns a potential energy evaluated at its own position.
+        st2, _, _ = ext.sample_chunked(moved, ldf, asflat(post), s; num_samples = 4, chunk_size = 4)
+        @test -only(Array(st2.potential_energy)) ≈ target(vec(Array(st2.position))) rtol = 1.0e-10
+
+        @test_throws "must return the MCMCState" ext._run_between_chunks(
+            (_, _, _, _) -> nothing, st2, nothing, info, Random.Xoshiro(1)
+        )
+        @test_throws DimensionMismatch ext._run_between_chunks(
+            (s, _, _, _) -> (s.position = zeros(n + 1); s), st2, nothing, info, Random.Xoshiro(1)
+        )
+    end
+
+    @testset "a valid MH move leaves the target moments unchanged" begin
+        v = normalize!([1.0; 1.0; zeros(n - 2)])
+        mv = LineMove(target, v, 1.5)
+        res = runchain(mv; nsamples = 3000)
+        @test :warmup in mv.phases && :sampling in mv.phases
+        @test count(==(:warmup), mv.phases) == s.n_adapts ÷ 10
+        @test count(==(:sampling), mv.phases) == 3000 ÷ 10 - 1
+        @test 0.2 < mv.nacc / mv.nprop < 0.95
+        X = draws(res)
+        # the stored log densities are those of the stored draws
+        @test samplerstats(res.out).log_density ≈ map(target, eachcol(X)) rtol = 1.0e-10
+        # NUTS on a Gaussian is close to independent draws: 6 standard errors on the
+        # mean, and the sample variance within 20%
+        @test all(abs.(vec(mean(X; dims = 2)) .- μ) .< 6 .* σ ./ sqrt(size(X, 2)))
+        @test all(abs.(vec(var(X; dims = 2)) ./ σ .^ 2 .- 1) .< 0.2)
+    end
+end
+
 # GaussMarkov (time-correlated) instrument priors trace through the flat path with no
 # Reactant-specific code: the `@trace`d chain logpdf and the branchless whitened coloring
 # only need `rgetindex`/`rsetindex!` for the scalar-indexing opt-in (Reactant promotes
@@ -421,6 +611,7 @@ end
     # transform still agrees with the host fit it was built from.
     z = randn(rng, n)
     @test Comrade._affine_fwd(Comrade._pre_for(dev, z), z) ≈ Comrade._affine_fwd(p, z)
+    @test Comrade._hostify(dev) === Comrade._hostify(dev)
 
     # In-place update at a lower rank: the tail returns to the no-op padding.
     p2 = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), V[:, 1:2], [3.0, 0.4])
@@ -428,7 +619,17 @@ end
     @test Array(dev.s) == [3.0, 0.4, 1, 1, 1, 1, 1, 1]
     @test Array(dev.b) ≈ p2.b
     @test Comrade._affine_fwd(Comrade._pre_for(dev, z), z) ≈ Comrade._affine_fwd(p2, z)
+    @test Comrade._hostify(dev).b ≈ p2.b
 
     p3 = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), Matrix(qr(randn(rng, n, 9)).Q)[:, 1:9], fill(2.0, 9))
     @test_throws ArgumentError Comrade._update_device_pre!(dev, p3)
+
+    sp = Comrade.PT.StdNormal()
+    @test Comrade._devicebuffers(Comrade._device_space(p))
+    @test Comrade._device_space(dev) === dev
+    q = Comrade._device_space(Preconditioned(sp, p))
+    @test q.space === sp && Comrade._devicebuffers(q.pre)
+    @test Array(q.pre.V) ≈ V
+    @test Comrade._device_space(sp) === sp
+    @test Comrade._device_space(nothing) === nothing
 end

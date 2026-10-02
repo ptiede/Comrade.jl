@@ -10,6 +10,22 @@
     return vout
 end
 
+# Reactant's loop raising vectorizes a traced loop only when it carries a single value, so a
+# matrix-valued output fills each of its component arrays with its own loop.
+@inline function Comrade._apply_instrument!(
+        vout::StructArray{<:SMatrix{2, 2, <:Reactant.TracedRNumber}},
+        vis,
+        J::Comrade.ObservedInstrumentModel,
+        xint
+    )
+    foreach(enumerate(StructArrays.components(vout))) do (c, comp)
+        Reactant.@allowscalar @trace track_numbers = false for i in eachindex(vis)
+            comp[i] = Comrade.apply_jones(vis[i], i, J, xint)[c]
+        end
+    end
+    return vout
+end
+
 function StructArrays.createinstance(::Type{<:StokesParams}, args...)
     return StokesParams(args...)
 end

@@ -23,9 +23,23 @@ function Comrade._update_device_pre!(
     V[:, 1:m] = h.V
     s = ones(cap)
     s[1:m] = h.s
+    Comrade._drop_host_mirror!(dev.V)
     copyto!(dev.b, h.b)
     copyto!(dev.d, h.d)
     copyto!(dev.V, V)
     copyto!(dev.s, s)
     return dev
+end
+
+Comrade._device_space(pre::Comrade.LowRankPreconditioner) =
+    Comrade._devicebuffers(pre) ? pre : Comrade._device_pre(pre)
+Comrade._device_space(p::Comrade.Preconditioned) =
+    Comrade.Preconditioned(p.space, Comrade._device_space(p.pre))
+
+# `tpost` sampling through device buffers of its preconditioner.
+function _device_transport(tpost)
+    pre = Comrade._transport_pre(tpost)
+    (isnothing(pre) || Comrade._devicebuffers(pre)) && return tpost
+    space = Comrade._in_space(Comrade._base_space(tpost), Comrade._device_pre(pre))
+    return Comrade.maybe_transport(tpost.lpost, space)
 end
