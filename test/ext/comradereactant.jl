@@ -305,11 +305,16 @@ end
     @test Comrade.inverse(hpre, Comrade.transform(hpre, z)) ≈ z
 
     # GaussNewtonLowRank refits from the curvature sketch: here a fixed rank-2 curvature,
-    # so every fit keeps its two directions
+    # so every fit keeps its two directions. The curvature also holds host data Reactant
+    # cannot trace, as a curvature over a host posterior does; the compiled NUTS kernels
+    # must not capture the adaptor.
     nstd = dimension(tstd)
     Qg = Matrix(qr(randn(Random.Xoshiro(6), nstd, 2)).Q)[:, 1:2]
     Hg = Qg * Diagonal([900.0, 300.0]) * Qg'
-    gadaptor = GaussNewtonLowRank((x, W) -> Hg * W; rank = 2, oversample = 2, schedule = [0.5], min_draws = 4)
+    hostdata = Comrade.StructArrays.StructArray((rand(3), rand(3)))
+    gadaptor = GaussNewtonLowRank(
+        (x, W) -> (length(hostdata); Hg * W); rank = 2, oversample = 2, schedule = [0.5], min_draws = 4
+    )
     gsampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01, metric_adaptor = gadaptor)
     gstate, _, gt = ext.warmup_chunked(freshrng(), ldf, x0, tstd, gsampler; chunk, callback = quiet)
     gpre = Comrade._hostify(Comrade._transport_pre(gt))

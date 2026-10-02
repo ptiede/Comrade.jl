@@ -271,6 +271,15 @@ default_warmup_callback_noparams(info) =
 # Engine: single fused warmup + chunked sampling
 # ===========================================================================
 
+# The NUTS settings a compiled kernel needs. Kernels close over these values only, never the
+# sampler: a closure is traced with everything it captures, and the metric adaptor may hold
+# host data (e.g. a curvature function over a host posterior) that cannot be traced.
+_nuts_settings(sampler::ReactantNUTS) = (;
+    max_tree_depth = sampler.max_tree_depth,
+    max_delta_energy = sampler.max_delta_energy,
+    strong_zero = sampler.strong_zero,
+)
+
 # Compile a warmup kernel that advances an `MCMCState` by `nsteps` adaptation steps,
 # threading the dual-averaging/Welford `adaptation` carried on the state. `total` and the
 # runtime `warmup_offset` anchor Stan's windowed schedule to the *global* warmup length, so
@@ -281,6 +290,7 @@ function _compile_warmup_kernel(
         state, ldf, tpost, nsteps::Int, total::Int, sampler::ReactantNUTS;
         adapt_mass_matrix::Bool = Comrade.adapts_welford(sampler.metric_adaptor)
     )
+    nuts = _nuts_settings(sampler)
     fn = function (st::ProbProg.MCMCState, lf, off)
         # `_infer` returns (trace, diagnostics, log_densities, traced_result, state). The
         # `log_densities` slot was added in Reactant 0.2.275 — hence the compat lower bound.
@@ -288,10 +298,7 @@ function _compile_warmup_kernel(
             st, lf, tpost;
             algorithm = :NUTS, num_warmup = nsteps, num_samples = 0,
             adapt_step_size = true, adapt_mass_matrix = adapt_mass_matrix,
-            total_warmup = total, warmup_offset = off,
-            max_tree_depth = sampler.max_tree_depth,
-            max_delta_energy = sampler.max_delta_energy,
-            strong_zero = sampler.strong_zero,
+            total_warmup = total, warmup_offset = off, nuts...,
         )
         return st_out
     end
@@ -594,14 +601,12 @@ function sample_chunked(
     end
     nrounds = length(sizes)
 
+    nuts = _nuts_settings(sampler)
     run_chunk = function (st, ns)
         return ProbProg.mcmc_logpdf(
             st, ldf, tpost;
             algorithm = :NUTS, num_warmup = 0, num_samples = ns,
-            max_tree_depth = sampler.max_tree_depth,
-            max_delta_energy = sampler.max_delta_energy,
-            adapt_step_size = false, adapt_mass_matrix = false,
-            strong_zero = sampler.strong_zero
+            adapt_step_size = false, adapt_mass_matrix = false, nuts...
         )
     end
 
