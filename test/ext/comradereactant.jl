@@ -327,6 +327,21 @@ end
         freshrng(), ldf, Reactant.to_rarray(zeros(dimension(tflat))), tflat, gsampler; chunk, callback = quiet
     )
 
+    # MoveSet between NUTS chunks on a device position: the log density is compiled once and
+    # every round is proposed
+    rwmove = CompensatedMove(
+        "f1_rw", CoordinateView(post_cpu, sp), (:sky, :f1), (:sky, :f2), (v, x, x′, ctx) -> v; invariant = false
+    )
+    ms = MoveSet(post_cpu, (rwmove,); space = sp, rounds = 4)
+    mdir = mktempdir()
+    mout = sample(post, ReactantNUTS(; n_adapts = 20, max_tree_depth = 4, init_step_size = 0.01), 20;
+        saveto = DiskStore(name = mdir, stride = 10), transport_method = sp, between_chunks = ms).out
+    msum = only(move_summary(ms))
+    @test msum.warmup.proposed == 4 * 2 && msum.sampling.proposed == 4 * 1
+    @test 0 < msum.warmup.accepted + msum.sampling.accepted
+    @test all(p -> all(isfinite, values(p.sky)), Comrade.postsamples(load_samples(mout)))
+    rm(mdir; recursive = true)
+
     # WelfordDiagonal leaves the StdNormal transform alone
     wsampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01)
     _, _, samet = ext.warmup_chunked(freshrng(), ldf, x0, tstd, wsampler; chunk = na, callback = quiet)

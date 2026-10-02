@@ -231,6 +231,17 @@ function _run_between_chunks(hook, state, tpost, info, host_rng)
     return state
 end
 
+# `Comrade.MoveSet` on a device position: the log density is one compiled program per
+# `tpost`, called with host latent vectors.
+function Comrade._logdensity_closure(tpost, position::Reactant.AbstractConcreteArray)
+    zd = Reactant.to_rarray(collect(Float64, vec(Array(position))))
+    c = Reactant.Compiler.compile((tp, z) -> logdensityof(tp, z), (tpost, zd))
+    return z -> Float64(c(tpost, Reactant.to_rarray(z)))
+end
+
+Comrade._position_like(z, position::Reactant.AbstractConcreteArray) =
+    Reactant.to_rarray(reshape(convert(Array{eltype(position)}, z), size(position)))
+
 # ===========================================================================
 # Default callbacks (called between rounds; return value is collected into history)
 # ===========================================================================

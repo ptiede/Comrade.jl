@@ -5,6 +5,9 @@ include("optimization.jl")
 include("posteriorsamples.jl")
 include("preconditioner.jl")
 include("metric_adaptation.jl")
+include("moves.jl")
+include("move_set.jl")
+include("chain_moves.jl")
 include("reactant.jl")
 
 
