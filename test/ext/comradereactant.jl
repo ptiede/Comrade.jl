@@ -304,6 +304,24 @@ end
     z = randn(Random.Xoshiro(4), dimension(tstd))
     @test Comrade.inverse(hpre, Comrade.transform(hpre, z)) ≈ z
 
+    # GaussNewtonLowRank refits from the curvature sketch: here a fixed rank-2 curvature,
+    # so every fit keeps its two directions
+    nstd = dimension(tstd)
+    Qg = Matrix(qr(randn(Random.Xoshiro(6), nstd, 2)).Q)[:, 1:2]
+    Hg = Qg * Diagonal([900.0, 300.0]) * Qg'
+    gadaptor = GaussNewtonLowRank((x, W) -> Hg * W; rank = 2, oversample = 2, schedule = [0.5], min_draws = 4)
+    gsampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01, metric_adaptor = gadaptor)
+    gstate, _, gt = ext.warmup_chunked(freshrng(), ldf, x0, tstd, gsampler; chunk, callback = quiet)
+    gpre = Comrade._hostify(Comrade._transport_pre(gt))
+    act = findall(!=(1), gpre.s)
+    @test sort(gpre.s[act]) ≈ inv.(sqrt.(1 .+ [900.0, 300.0])) rtol = 1.0e-8
+    @test abs.(gpre.V[:, act]' * Qg) * [1, 1] ≈ [1, 1] atol = 1.0e-8
+    @test all(isfinite, Array(gstate.position))
+    tflat = asflat(post)
+    @test_throws "GaussNewtonLowRank needs the StdNormal latent space" ext.warmup_chunked(
+        freshrng(), ldf, Reactant.to_rarray(zeros(dimension(tflat))), tflat, gsampler; chunk, callback = quiet
+    )
+
     # WelfordDiagonal leaves the StdNormal transform alone
     wsampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01)
     _, _, samet = ext.warmup_chunked(freshrng(), ldf, x0, tstd, wsampler; chunk = na, callback = quiet)

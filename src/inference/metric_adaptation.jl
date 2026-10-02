@@ -5,17 +5,19 @@
 # schedule, feeds it one (draw, score) pair per warmup chunk, and asks for a new transform
 # at each scheduled step.
 
-export WelfordDiagonal, FixedMetric, FisherLowRank
+export WelfordDiagonal, FixedMetric, FisherLowRank, GaussNewtonLowRank
 
 """
     AbstractMetricAdaptor
 
 Warmup metric-adaptation strategy for a sampler. Implementations:
-[`WelfordDiagonal`](@ref), [`FixedMetric`](@ref), [`FisherLowRank`](@ref).
+[`WelfordDiagonal`](@ref), [`FixedMetric`](@ref), [`FisherLowRank`](@ref),
+[`GaussNewtonLowRank`](@ref).
 
 The sampler-facing protocol is:
 
   - [`adapts_welford`](@ref) — does the backend's own diagonal adaptation run?
+  - [`check_metric_space`](@ref) — can the adaptor work in this latent space?
   - [`metric_refit_steps`](@ref) — warmup steps at which to refit.
   - [`init_metric_adaptation`](@ref) — build the accumulator threaded through warmup.
   - [`observe_draw!`](@ref) — record one warmup draw and its score.
@@ -145,6 +147,14 @@ _check_refit_schedule(x) = throw(
 )
 
 """
+    check_metric_space(adaptor, space)
+
+Throw if `adaptor` cannot adapt a sampler working in front of the latent space `space`
+(`nothing` for flat, or a `StdNormal`).
+"""
+check_metric_space(::AbstractMetricAdaptor, space) = nothing
+
+"""
     adapts_welford(adaptor) -> Bool
 
 Whether the sampler's own diagonal (Welford) mass-matrix adaptation should run.
@@ -234,18 +244,18 @@ _baseflat_score(::Nothing, g::AbstractVector) = collect(Float64, g)
 _baseflat_score(pre, g::AbstractVector) = Float64.(_affine_invT(_pre_for(pre, g), g))
 
 """
-    observe_draw!(state, pre, position, gradient) -> Vector or nothing
+    observe_draw!(adaptor, state, pre, position, gradient) -> Vector or nothing
 
-Record one warmup draw. `position` and `gradient` are the sampler's own, expressed in the
+Record one warmup draw in `state`, the accumulator of `adaptor`. `position` and `gradient` are the sampler's own, expressed in the
 latent space the preconditioner `pre` defines (`nothing` for plain base-flat); both are
 mapped back to base-flat coordinates — the draw through the transform, the gradient
 through its inverse transpose — so that draws from different refit segments describe one
 distribution. Returns the base-flat draw, which is also the position a new transform must
 be re-expressed from.
 """
-observe_draw!(::Nothing, pre, position, gradient) = nothing
+observe_draw!(::AbstractMetricAdaptor, ::Nothing, pre, position, gradient) = nothing
 
-function observe_draw!(st::FisherAdaptation, pre, position, gradient)
+function observe_draw!(::FisherLowRank, st::FisherAdaptation, pre, position, gradient)
     x = _baseflat_draw(pre, vec(position))
     push!(st.draws, x)
     push!(st.scores, _baseflat_score(pre, vec(gradient)))
@@ -292,4 +302,189 @@ function metric_refit(a::FisherLowRank, st::FisherAdaptation; current = nothing,
     return _fisher_lowrank(
         Z, G; rank = a.rank, cutoff = a.cutoff, γ = a.γ, carry, keep_carried = a.carry === :keep
     )
+end
+
+"""
+    GaussNewtonLowRank(curvature; rank, oversample = 10, probes_per_draw = rank + oversample,
+                       threshold = 100.0, schedule = :stan, min_draws = 4, seed = 1)
+
+Adapt the latent space to the likelihood's curvature: at each recorded warmup draw `x`,
+apply the Gauss–Newton (or any symmetric positive semidefinite) curvature `H(x)` of the
+negative log-likelihood to `probes_per_draw` columns of a fixed random orthonormal probe
+matrix `Ω` (`n × (rank + oversample)`, cycling through its columns), and average the
+products. At each scheduled refit the averaged sketch `Ȳ ≈ H̄Ω` gives the Nyström
+eigendecomposition `H̄ ≈ V Λ Vᵀ`, and the eigenpairs with `λ ≥ threshold` set a
+[`LowRankPreconditioner`](@ref) with unit diagonal and scales `s = 1/√(1 + λ)`: the
+posterior Hessian `I + H̄` whitened on `span(V)`. The sketch is then reset, so each fit uses
+only the draws since the previous one.
+
+Works in the `StdNormal` latent space only, where the prior is exactly N(0, I) and `I + H`
+is the posterior's Gauss–Newton Hessian.
+
+# Arguments
+  - `curvature(x, W) -> Matrix`: `H(x) * W` for a base-space draw `x` (a `Vector`) and a
+    matrix of directions `W`.
+  - `rank`: the most eigenpairs a fit may keep. A fit with more than `rank` eigenvalues
+    `≥ threshold` errors (the spectrum would be truncated; raise `rank`).
+  - `oversample`: extra probe columns beyond `rank`.
+  - `probes_per_draw`: probe columns applied per recorded draw, in `1:(rank + oversample)`.
+    Fewer than all of them means each column averages over a different subset of draws.
+  - `schedule`, `min_draws`: as for [`FisherLowRank`](@ref); a refit is also skipped until
+    every probe column has been applied at least once since the last fit.
+  - `seed`: the random seed of `Ω`.
+
+The sketch accumulator holds an `n × (rank + oversample)` `Float64` matrix and is
+checkpointed with the warmup state.
+"""
+struct GaussNewtonLowRank{F, S} <: AbstractMetricAdaptor
+    curvature::F
+    rank::Int
+    oversample::Int
+    probes_per_draw::Int
+    threshold::Float64
+    schedule::S
+    min_draws::Int
+    seed::Int
+    probes::Base.RefValue{Matrix{Float64}}
+    function GaussNewtonLowRank{F, S}(
+            curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed
+        ) where {F, S}
+        rank > 0 || throw(ArgumentError("rank must be positive, got $rank"))
+        oversample >= 1 ||
+            throw(ArgumentError("oversample must be at least 1 to detect a truncated spectrum, got $oversample"))
+        1 <= probes_per_draw <= rank + oversample || throw(
+            ArgumentError("probes_per_draw must lie in 1:$(rank + oversample) (rank + oversample), got $probes_per_draw")
+        )
+        threshold > 0 || throw(ArgumentError("threshold must be positive, got $threshold"))
+        min_draws >= 1 || throw(ArgumentError("min_draws must be at least 1, got $min_draws"))
+        _check_refit_schedule(schedule)
+        return new{F, S}(
+            curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed,
+            Ref(Matrix{Float64}(undef, 0, 0))
+        )
+    end
+end
+
+function GaussNewtonLowRank(
+        curvature; rank::Integer, oversample::Integer = 10,
+        probes_per_draw::Integer = rank + oversample, threshold::Real = 100.0,
+        schedule = :stan, min_draws::Integer = 4, seed::Integer = 1
+    )
+    return GaussNewtonLowRank{typeof(curvature), typeof(schedule)}(
+        curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed
+    )
+end
+
+function Base.show(io::IO, a::GaussNewtonLowRank)
+    return print(
+        io, "GaussNewtonLowRank(rank = $(a.rank), threshold = $(a.threshold), " *
+            "schedule = $(repr(a.schedule)))"
+    )
+end
+
+check_metric_space(::GaussNewtonLowRank, ::PT.StdNormal) = nothing
+check_metric_space(::GaussNewtonLowRank, space) = throw(
+    ArgumentError(
+        "GaussNewtonLowRank needs the StdNormal latent space (transport_method = " *
+            "StdNormal() or a Preconditioned StdNormal transform), got $(_space_name(space))"
+    )
+)
+
+metric_refit_steps(a::GaussNewtonLowRank, n_adapts::Int, chunk::Int) =
+    filter(s -> 0 < s < n_adapts, _refit_steps(a.schedule, n_adapts, chunk))
+
+# The probe matrix `Ω` for latent dimension `n`, generated from the adaptor's seed on first
+# use, so the serialized sketch need not carry it.
+function _probe_matrix(a::GaussNewtonLowRank, n::Int)
+    k = a.rank + a.oversample
+    k <= n || throw(
+        ArgumentError("rank + oversample = $k exceeds the latent dimension $n")
+    )
+    if size(a.probes[]) != (n, k)
+        a.probes[] = _thinq(randn(Random.Xoshiro(a.seed), n, k), k)
+    end
+    return a.probes[]
+end
+
+"""
+    GaussNewtonSketch
+
+The sketch accumulated by [`GaussNewtonLowRank`](@ref) since its last fit: `Y[:, j]` is the
+sum of the curvature products with probe column `j` over the `counts[j]` draws that applied
+it, `next` the next column to apply and `ndraws` the draws recorded. Serializable.
+"""
+mutable struct GaussNewtonSketch
+    Y::Matrix{Float64}
+    counts::Vector{Int}
+    next::Int
+    ndraws::Int
+end
+GaussNewtonSketch() = GaussNewtonSketch(Matrix{Float64}(undef, 0, 0), Int[], 1, 0)
+
+Base.show(io::IO, st::GaussNewtonSketch) =
+    print(io, "GaussNewtonSketch($(st.ndraws) draws, $(length(st.counts)) probes)")
+
+init_metric_adaptation(::GaussNewtonLowRank) = GaussNewtonSketch()
+
+function _reset!(st::GaussNewtonSketch)
+    fill!(st.Y, 0)
+    fill!(st.counts, 0)
+    st.ndraws = 0
+    return st
+end
+
+function observe_draw!(a::GaussNewtonLowRank, st::GaussNewtonSketch, pre, position, gradient)
+    x = _baseflat_draw(pre, vec(position))
+    n = length(x)
+    Ω = _probe_matrix(a, n)
+    k = size(Ω, 2)
+    if isempty(st.counts)
+        st.Y = zeros(n, k)
+        st.counts = zeros(Int, k)
+    end
+    size(st.Y) == (n, k) || throw(
+        DimensionMismatch("the sketch holds $(size(st.Y)) products, but the draw has dimension $n and $k probes")
+    )
+    cols = mod1.(st.next .+ (0:(a.probes_per_draw - 1)), k)
+    HΩ = a.curvature(x, Ω[:, cols])
+    size(HΩ) == (n, length(cols)) || throw(
+        DimensionMismatch("curvature returned a $(size(HΩ)) matrix for $(length(cols)) directions of dimension $n")
+    )
+    all(isfinite, HΩ) || error(
+        "the curvature product at a warmup draw is not finite (draw $(st.ndraws + 1) since the last fit)"
+    )
+    st.Y[:, cols] .+= HΩ
+    st.counts[cols] .+= 1
+    st.next = mod1(st.next + a.probes_per_draw, k)
+    st.ndraws += 1
+    return x
+end
+
+# Eigenpairs of the Nyström approximation `Y (ΩᵀY)⁻¹ Yᵀ` of a positive semidefinite `H` from
+# its sketch `Y = HΩ` (Tropp, Yurtsever, Udell & Cevher 2017, Alg. 3), eigenvalues
+# decreasing. The shift `ν` keeps the core factorization stable for a rank-deficient `H`.
+function _nystrom(Ω::AbstractMatrix, Y::AbstractMatrix)
+    ν = sqrt(size(Y, 1)) * eps(norm(Y))
+    Yν = Y .+ ν .* Ω
+    C = cholesky(Symmetric(Ω' * Yν); check = false)
+    issuccess(C) || error(
+        "the Gauss–Newton sketch is not positive definite on its probes; with " *
+            "probes_per_draw below rank + oversample each probe averages different draws — " *
+            "raise probes_per_draw or min_draws"
+    )
+    F = svd(Yν / C.U)
+    return max.(F.S .^ 2 .- ν, 0), F.U
+end
+
+function metric_refit(a::GaussNewtonLowRank, st::GaussNewtonSketch; kwargs...)
+    (st.ndraws >= a.min_draws && !isempty(st.counts) && all(>(0), st.counts)) || return nothing
+    n = size(st.Y, 1)
+    λ, U = _nystrom(_probe_matrix(a, n), st.Y ./ st.counts')
+    keep = findall(>=(a.threshold), λ)
+    length(keep) <= a.rank || error(
+        "$(length(keep)) Gauss–Newton eigenvalues exceed threshold = $(a.threshold), more " *
+            "than rank = $(a.rank): the spectrum would be truncated; raise rank or threshold"
+    )
+    _reset!(st)
+    return LowRankPreconditioner(zeros(n), ones(n), U[:, keep], inv.(sqrt.(1 .+ λ[keep])))
 end

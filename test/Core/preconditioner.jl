@@ -242,7 +242,7 @@ end
             x = L * randn(rng, n)                        # a base-flat draw
             z = A \ (x .- pre.b)                         # as the sampler sees it
             gz = A' * (-(Σ \ x))                         # and its gradient there
-            xb = Comrade.observe_draw!(st, pre, z, gz)
+            xb = Comrade.observe_draw!(ad, st, pre, z, gz)
             @test xb ≈ x
         end
         @test length(st.draws) == N
@@ -278,6 +278,110 @@ end
         @test maximum(abs.(kfit.V' * normalize(u ./ kfit.d))) > 0.8
         @test Comrade.metric_refit(kad, st; current = kcur).V ≈ fit.V
         @test_throws "carry must be :none, :rescale or :keep" FisherLowRank(; carry = :yes)
+    end
+end
+
+@testset "Gauss–Newton low-rank adaptor" begin
+    rng = Random.Xoshiro(17)
+    n = 40
+    lowrank(λ) = (Q = Matrix(qr(randn(rng, n, length(λ))).Q)[:, eachindex(λ)]; (Q * Diagonal(λ) * Q', Q))
+    sp = Comrade.PT.StdNormal()
+
+    @testset "construction is validated" begin
+        H(x, W) = W
+        @test_throws "rank must be positive" GaussNewtonLowRank(H; rank = 0)
+        @test_throws "oversample must be at least 1" GaussNewtonLowRank(H; rank = 4, oversample = 0)
+        @test_throws "probes_per_draw must lie in 1:14" GaussNewtonLowRank(H; rank = 4, probes_per_draw = 15)
+        @test_throws "threshold must be positive" GaussNewtonLowRank(H; rank = 4, threshold = 0)
+        @test_throws "min_draws must be at least 1" GaussNewtonLowRank(H; rank = 4, min_draws = 0)
+        @test_throws "refit schedule" GaussNewtonLowRank(H; rank = 4, schedule = :often)
+        a = GaussNewtonLowRank(H; rank = 4)
+        @test isnothing(Comrade.check_metric_space(a, sp))
+        @test_throws "GaussNewtonLowRank needs the StdNormal latent space" Comrade.check_metric_space(a, nothing)
+        @test Comrade.metric_refit_steps(a, 1000, 10) == Comrade.metric_refit_steps(FisherLowRank(), 1000, 10)
+    end
+
+    @testset "constant curvature: exact eigenpairs" begin
+        λ0 = [5.0e4, 900.0, 150.0, 20.0, 0.5]
+        A, Q = lowrank(λ0)
+        a = GaussNewtonLowRank((x, W) -> A * W; rank = 4, oversample = 3, threshold = 100.0, min_draws = 2)
+        st = Comrade.init_metric_adaptation(a)
+        @test isnothing(Comrade.metric_refit(a, st))
+        # draws arrive in the sampler's coordinates and are recorded in the base space
+        pre = LowRankPreconditioner(zeros(n), fill(2.0, n), reshape(normalize(randn(rng, n)), n, 1), [3.0])
+        for _ in 1:2
+            z = randn(rng, n)
+            @test Comrade.observe_draw!(a, st, pre, z, zero(z)) ≈ Comrade._affine_fwd(pre, z)
+        end
+        fit = Comrade.metric_refit(a, st)
+        @test fit isa LowRankPreconditioner
+        @test fit.b == zeros(n) && fit.d == ones(n)
+        @test fit.s ≈ inv.(sqrt.(1 .+ λ0[1:3])) rtol = 1.0e-8
+        @test abs.(fit.V' * Q[:, 1:3]) ≈ I atol = 1.0e-8
+        # the transform whitens the posterior Hessian I + A on its span
+        M = I + fit.V * Diagonal(fit.s .- 1) * fit.V'
+        @test fit.V' * (M * (I + A) * M) * fit.V ≈ I atol = 1.0e-8
+        # the sketch is reset by a fit
+        @test st.ndraws == 0 && all(iszero, st.counts) && iszero(st.Y)
+        @test isnothing(Comrade.metric_refit(a, st))
+    end
+
+    @testset "varying curvature: the sketch averages the draws" begin
+        As = [lowrank([400.0 * k, 30.0])[1] for k in 1:3]
+        xs = [randn(rng, n) for _ in As]
+        curv(x, W) = As[findfirst(==(x), xs)] * W
+        a = GaussNewtonLowRank(curv; rank = 8, oversample = 2, threshold = 1.0, min_draws = 3)
+        st = Comrade.init_metric_adaptation(a)
+        foreach(x -> Comrade.observe_draw!(a, st, nothing, x, zero(x)), xs)
+        Ω = Comrade._probe_matrix(a, n)
+        @test Ω' * Ω ≈ I
+        @test st.Y ./ st.counts' ≈ sum(As) / 3 * Ω
+        E = eigen(Symmetric(sum(As) / 3); sortby = -)
+        fit = Comrade.metric_refit(a, st)
+        @test fit.s ≈ inv.(sqrt.(1 .+ filter(>=(1.0), E.values))) rtol = 1.0e-6
+
+        # probes cycle through the columns; a refit waits until each has been applied
+        b = GaussNewtonLowRank(curv; rank = 8, oversample = 2, probes_per_draw = 4, threshold = 1.0, min_draws = 1)
+        sb = Comrade.init_metric_adaptation(b)
+        Comrade.observe_draw!(b, sb, nothing, xs[1], zero(xs[1]))
+        Comrade.observe_draw!(b, sb, nothing, xs[2], zero(xs[2]))
+        @test sb.counts == [1, 1, 1, 1, 1, 1, 1, 1, 0, 0] && sb.next == 9
+        @test isnothing(Comrade.metric_refit(b, sb))
+        Comrade.observe_draw!(b, sb, nothing, xs[3], zero(xs[3]))
+        @test sb.counts == [2, 2, 1, 1, 1, 1, 1, 1, 1, 1] && sb.next == 3
+        Ωb = Comrade._probe_matrix(b, n)
+        @test sb.Y[:, 1] ≈ (As[1] + As[3]) * Ωb[:, 1]
+        @test sb.Y[:, 5] ≈ As[2] * Ωb[:, 5]
+
+        # the sketch round-trips through serialization and keeps accumulating
+        path = tempname()
+        serialize(path, st)
+        foreach(x -> Comrade.observe_draw!(a, st, nothing, x, zero(x)), xs)
+        st2 = deserialize(path)
+        rm(path)
+        foreach(x -> Comrade.observe_draw!(a, st2, nothing, x, zero(x)), xs)
+        @test st2.Y == st.Y && st2.counts == st.counts
+    end
+
+    @testset "failures are errors" begin
+        A, _ = lowrank([1.0e4, 5.0e3, 2.0e3, 1.0e3])
+        a = GaussNewtonLowRank((x, W) -> A * W; rank = 2, threshold = 10.0, min_draws = 1)
+        st = Comrade.init_metric_adaptation(a)
+        Comrade.observe_draw!(a, st, nothing, randn(rng, n), zeros(n))
+        @test_throws "4 Gauss–Newton eigenvalues exceed threshold = 10.0, more than rank = 2" Comrade.metric_refit(a, st)
+        bad = GaussNewtonLowRank((x, W) -> fill(NaN, size(W)); rank = 2, min_draws = 1)
+        @test_throws "curvature product at a warmup draw is not finite" Comrade.observe_draw!(
+            bad, Comrade.init_metric_adaptation(bad), nothing, randn(rng, n), zeros(n)
+        )
+        short = GaussNewtonLowRank((x, W) -> W[1:3, :]; rank = 2, min_draws = 1)
+        @test_throws DimensionMismatch Comrade.observe_draw!(
+            short, Comrade.init_metric_adaptation(short), nothing, randn(rng, n), zeros(n)
+        )
+        @test_throws "exceeds the latent dimension" Comrade._probe_matrix(GaussNewtonLowRank((x, W) -> W; rank = n), n)
+        indefinite = GaussNewtonLowRank((x, W) -> -W; rank = 2, min_draws = 1)
+        si = Comrade.init_metric_adaptation(indefinite)
+        Comrade.observe_draw!(indefinite, si, nothing, randn(rng, n), zeros(n))
+        @test_throws "not positive definite on its probes" Comrade.metric_refit(indefinite, si)
     end
 end
 

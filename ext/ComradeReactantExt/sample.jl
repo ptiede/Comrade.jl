@@ -386,6 +386,7 @@ function warmup_chunked(
 
     adaptor = sampler.metric_adaptor
     astate = isnothing(adaptation) ? Comrade.init_metric_adaptation(adaptor) : adaptation
+    Comrade.check_metric_space(adaptor, Comrade._base_space(tpost))
     initial = _initial_pre(adaptor, tpost, transport_checkpoint, isnothing(resume_state))
 
     if isnothing(resume_state)
@@ -454,7 +455,7 @@ function warmup_chunked(
         # warmup has been seen. `xbf` is this draw in base-flat coordinates, which is also
         # what a new transform has to be re-expressed from.
         xbf = Comrade.observe_draw!(
-            astate, Comrade._transport_pre(tpost), cur.position, cur.gradient
+            adaptor, astate, Comrade._transport_pre(tpost), cur.position, cur.gradient
         )
 
         # Checkpoint AFTER the chunk so a crash resumes from completed work.
