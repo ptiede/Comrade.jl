@@ -121,8 +121,8 @@ Comrade.move_name(::_NoStep) = "nostep"
     @test_throws "lies in the block" CompensatedMove("x", view, (:sky, :a), (:sky,), identity)
     @test_throws "index 2 is outside" CompensatedMove("x", view, (:sky, :a), (:sky, :b), identity; index = 2)
     @test_throws "initial_scale must be positive" CompensatedMove("x", view, (:sky, :a), (:sky, :b), identity; initial_scale = 0)
-    @test_throws "has discrete steps but no draw_step" Comrade.draw_step(_NoStep(), rng, 1.0)
-    @test_throws "has discrete steps but no reverse_step" Comrade.reverse_step(_NoStep(), 1)
+    @test_throws MethodError Comrade.draw_step(_NoStep(), rng, 1.0)
+    @test_throws MethodError Comrade.reverse_step(_NoStep(), 1)
 end
 
 # A small model with a gain log-amplitude chain `lg` (fitted OU hyperparameters) and a

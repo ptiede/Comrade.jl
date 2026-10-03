@@ -160,15 +160,14 @@ function move_name end
 is_invariant(::AbstractMove) = true
 context_data(::AbstractMove, view) = NamedTuple()
 
-draw_step(m::AbstractMove, rng::AbstractRNG, τ) = _draw_step(step_kind(m), m, rng, τ)
-_draw_step(::RandomWalk, m, rng, τ) = τ * randn(rng)
-_draw_step(::DiscreteSymmetric, m, rng, τ) =
-    throw(ArgumentError("move $(move_name(m)) has discrete steps but no draw_step method"))
+draw_step(m::AbstractMove, rng::AbstractRNG, τ) = _draw_step(step_kind(m), rng, τ)
+_draw_step(::RandomWalk, rng, τ) = τ * randn(rng)
 
-reverse_step(m::AbstractMove, step) = _reverse_step(step_kind(m), m, step)
-_reverse_step(::RandomWalk, m, u) = -u
-_reverse_step(::DiscreteSymmetric, m, step) =
-    throw(ArgumentError("move $(move_name(m)) has discrete steps but no reverse_step method"))
+reverse_step(m::AbstractMove, step) = _reverse_step(step_kind(m), step)
+_reverse_step(::RandomWalk, u) = -u
+
+# The step scale a move starts with; discrete moves have none.
+_initial_scale(m::AbstractMove) = (k = step_kind(m); k isa RandomWalk ? k.initial_scale : NaN)
 
 """
     move_context(view::CoordinateView, moves) -> NamedTuple
@@ -289,8 +288,7 @@ function check_move(
     )
     view = CoordinateView(post, space)
     ctx = move_context(view, (move,))
-    kind = step_kind(move)
-    τ = something(τ, kind isa RandomWalk ? kind.initial_scale : 1.0)
+    τ = something(τ, _initial_scale(move))
     name = move_name(move)
     tbase = view.tbase
     rev, lderr, dll = 0.0, 0.0, 0.0
@@ -322,15 +320,7 @@ function check_move(
             "move $name reports logdet = $ld, but the finite-difference Jacobian over its " *
                 "$(length(T)) changed coordinates gives $ldfd"
         )
-        if is_invariant(move)
-            l0 = loglikelihood(post, transform(tbase, x))
-            l1 = loglikelihood(post, transform(tbase, x′))
-            dll = max(dll, abs(l1 - l0))
-            abs(l1 - l0) <= rtol * (abs(l0) + 1) || error(
-                "move $name changed the log-likelihood from $l0 to $l1; the model is not " *
-                    "invariant under it"
-            )
-        end
+        is_invariant(move) && (dll = max(dll, check_invariance(move, post, view, ctx, x; step, rtol)))
     end
     ks, crit = Float64[], NaN
     if nprior > 0

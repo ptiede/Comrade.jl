@@ -2,19 +2,16 @@
 
 export MoveSet, move_summary
 
+# `counts[phase]` and `bystep[label]` are `[proposed, accepted]`.
 mutable struct _MoveStats
     logscale::Float64
-    proposed::Dict{Symbol, Int}
-    accepted::Dict{Symbol, Int}
+    counts::Dict{Symbol, Vector{Int}}
     bystep::Dict{Any, Vector{Int}}
 end
 
 _MoveStats(m::AbstractMove) = _MoveStats(
-    log(_initial_scale(step_kind(m))), Dict(:warmup => 0, :sampling => 0),
-    Dict(:warmup => 0, :sampling => 0), Dict{Any, Vector{Int}}()
+    log(_initial_scale(m)), Dict(:warmup => [0, 0], :sampling => [0, 0]), Dict{Any, Vector{Int}}()
 )
-_initial_scale(k::RandomWalk) = k.initial_scale
-_initial_scale(::DiscreteSymmetric) = 1.0
 
 """
     step_label(move, step)
@@ -94,21 +91,24 @@ function MoveSet(
 end
 
 """
-    check_invariance(move, post, view, ctx, x; rtol = 1e-8)
+    check_invariance(move, post, view, ctx, x; step, rtol = 1e-8) -> Float64
 
-Error unless a proposal of `move` from the base point `x` leaves the log-likelihood of
-`post` unchanged (up to `rtol`).
+The change of the log-likelihood of `post` when `move` proposes from the base point `x` with
+`step` (by default one drawn at the move's initial scale); an error if it exceeds `rtol`
+relative to the log-likelihood.
 """
-function check_invariance(move::AbstractMove, post, view::CoordinateView, ctx, x; rtol::Real = 1.0e-8)
-    kind = step_kind(move)
-    x′, _ = propose(move, x, draw_step(move, Random.Xoshiro(1), _initial_scale(kind)), ctx)
+function check_invariance(
+        move::AbstractMove, post, view::CoordinateView, ctx, x;
+        step = draw_step(move, Random.Xoshiro(1), _initial_scale(move)), rtol::Real = 1.0e-8
+    )
+    x′, _ = propose(move, x, step, ctx)
     l0 = loglikelihood(post, transform(view.tbase, x))
     l1 = loglikelihood(post, transform(view.tbase, x′))
     abs(l1 - l0) <= rtol * (abs(l0) + 1) || error(
         "move $(move_name(move)) changed the log-likelihood from $l0 to $l1; the model is " *
             "not invariant under it"
     )
-    return nothing
+    return abs(l1 - l0)
 end
 
 # A host function of a host latent vector giving the log density of `tpost`. The Reactant
@@ -124,30 +124,16 @@ function _logdensity_for(ms::MoveSet, tpost, position)
     return f
 end
 
-_base_point(::Nothing, z) = z
-_base_point(pre, z) = _affine_fwd(_hostify(pre), z)
+_to_base(pre, z) = isnothing(pre) ? z : _affine_fwd(_hostify(pre), z)
+_from_base(pre, x) = isnothing(pre) ? x : _affine_inv(_hostify(pre), x)
 
-# The sampled-space step that moves the base point by `Δx`: the linear part of the inverse
-# preconditioner, so coordinates a move does not touch stay exactly where they were when
-# no preconditioner is composed.
-_sampled_step(::Nothing, Δx) = Δx
-function _sampled_step(pre, Δx)
-    p = _hostify(pre)
-    w = Δx ./ p.d
-    isempty(p.s) && return w
-    return w .+ p.V * ((inv.(p.s) .- 1) .* (p.V' * w))
-end
+_count!(c, accepted) = (c[1] += 1; c[2] += accepted; c)
 
 function _record!(st::_MoveStats, kind, phase::Symbol, α, accepted::Bool, target, label)
-    st.proposed[phase] += 1
-    st.accepted[phase] += accepted
-    if !isnothing(label)
-        c = get!(() -> [0, 0], st.bystep, (phase, label))
-        c[1] += 1
-        c[2] += accepted
-    end
+    _count!(st.counts[phase], accepted)
+    isnothing(label) || _count!(get!(() -> [0, 0], st.bystep, label), accepted)
     if phase === :warmup && kind isa RandomWalk
-        n = st.proposed[:warmup]
+        n = st.counts[:warmup][1]
         st.logscale = clamp(st.logscale + (α - target) / n^0.6, log(1.0e-8), log(10.0))
     end
     return st
@@ -170,7 +156,7 @@ function (ms::MoveSet)(state, tpost, info, rng)
     ℓf = _logdensity_for(ms, tpost, position)
     ℓ = ℓf(z)
     isfinite(ℓ) || error("the log density at the sampler's position is $ℓ before the moves")
-    x = _base_point(pre, z)
+    x = _to_base(pre, z)
     nacc = zeros(Int, length(ms.moves))
     for r in 1:maximum(ms.rounds), (j, m) in enumerate(ms.moves)
         r <= ms.rounds[j] || continue
@@ -178,7 +164,7 @@ function (ms::MoveSet)(state, tpost, info, rng)
         kind = step_kind(m)
         step = draw_step(m, rng, exp(st.logscale))
         x′, logdet = propose(m, x, step, ms.ctx)
-        z′ = z .+ _sampled_step(pre, x′ .- x)
+        z′ = _from_base(pre, x′)
         ℓ′ = ℓf(z′)
         logα = ℓ′ - ℓ + logdet
         accepted = !isnan(logα) && log(rand(rng)) < logα
@@ -205,8 +191,8 @@ end
     move_summary(ms::MoveSet) -> Vector{NamedTuple}
 
 Per move: `name`, the current step scale `τ` (`nothing` for discrete moves), `rounds`, and
-the proposals and acceptances in warmup and sampling, plus `bystep`, the counts per
-`step_label` as `(phase, label) => [proposed, accepted]`.
+the proposals and acceptances in warmup and sampling, plus `bystep`, the counts over both
+phases per `step_label` as `label => [proposed, accepted]`.
 """
 function move_summary(ms::MoveSet)
     return map(enumerate(ms.moves)) do (j, m)
@@ -215,8 +201,8 @@ function move_summary(ms::MoveSet)
             name = move_name(m),
             τ = step_kind(m) isa RandomWalk ? exp(st.logscale) : nothing,
             rounds = ms.rounds[j],
-            warmup = (proposed = st.proposed[:warmup], accepted = st.accepted[:warmup]),
-            sampling = (proposed = st.proposed[:sampling], accepted = st.accepted[:sampling]),
+            warmup = (proposed = st.counts[:warmup][1], accepted = st.counts[:warmup][2]),
+            sampling = (proposed = st.counts[:sampling][1], accepted = st.counts[:sampling][2]),
             bystep = copy(st.bystep),
         )
     end
