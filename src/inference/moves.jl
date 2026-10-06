@@ -255,10 +255,10 @@ must read `ctx.view` and the `context` arrays from `ctx` instead of capturing th
 
 Construction checks only that `shift` and `block` exist in `view` and do not overlap.
 """
-struct CompensatedMove{C, L, X <: NamedTuple} <: AbstractMove
+struct CompensatedMove{B <: Tuple, C, L, X <: NamedTuple} <: AbstractMove
     name::String
     ishift::Int
-    block::Tuple
+    block::B
     compensate::C
     logdet::L
     initial_scale::Float64

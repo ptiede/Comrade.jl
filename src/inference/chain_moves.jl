@@ -131,9 +131,9 @@ under `h′`, so the likelihood is unchanged. Its log-determinant is
 hyperparameter given the chain values. Sites touch disjoint latent coordinates and their
 chain densities are separate terms, so the components are independent.
 """
-struct ChainHyperMove{S} <: AbstractMove
+struct ChainHyperMove{P <: Tuple, S} <: AbstractMove
     name::String
-    path::Tuple
+    path::P
     sites::Vector{Symbol}
     hcoords::Vector{Int}
     innovations::Vector{Vector{Int}}
