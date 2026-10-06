@@ -306,13 +306,14 @@ end
 
 """
     GaussNewtonLowRank(curvature; rank, oversample = 10, probes_per_draw = rank + oversample,
-                       threshold = 100.0, schedule = :stan, min_draws = 4, seed = 1)
+                       threshold = 100.0, schedule = :stan, min_draws = 4, seed = 1,
+                       rows = nothing)
 
 Adapt the latent space to the likelihood's curvature: at each recorded warmup draw `x`,
 apply the Gauss–Newton (or any symmetric positive semidefinite) curvature `H(x)` of the
-negative log-likelihood to `probes_per_draw` columns of a fixed random orthonormal probe
-matrix `Ω` (`n × (rank + oversample)`, cycling through its columns), and average the
-products. At each scheduled refit the averaged sketch `Ȳ ≈ H̄Ω` gives the Nyström
+negative log-likelihood to `probes_per_draw` columns of a fixed Gaussian probe matrix `Ω`
+(`n × (rank + oversample)`, entries `N(0, 1/n)`, cycling through its columns), and average
+the products. At each scheduled refit the averaged sketch `Ȳ ≈ H̄Ω` gives the Nyström
 eigendecomposition `H̄ ≈ V Λ Vᵀ`, and the eigenpairs with `λ ≥ threshold` set a
 [`LowRankPreconditioner`](@ref) with unit diagonal and scales `s = 1/√(1 + λ)`: the
 posterior Hessian `I + H̄` whitened on `span(V)`. The sketch is then reset, so each fit uses
@@ -332,9 +333,17 @@ is the posterior's Gauss–Newton Hessian.
   - `schedule`, `min_draws`: as for [`FisherLowRank`](@ref); a refit is also skipped until
     every probe column has been applied at least once since the last fit.
   - `seed`: the random seed of `Ω`.
+  - `rows`: the latent coordinates the directions may use (strictly increasing), or
+    `nothing` for all. With `rows`, `Ω` is zero off `rows`, the sketch holds only those
+    rows of `H̄Ω`, and a fit's `V` is a [`RowSupportedMatrix`](@ref) on them: the
+    eigendecomposition is that of `H̄` restricted to `rows`, and applying the
+    preconditioner costs `length(rows)` rather than `n` per direction.
 
 The sketch accumulator holds an `n × (rank + oversample)` `Float64` matrix and is
-checkpointed with the warmup state.
+checkpointed with the warmup state. `Ω` is never stored: each column is generated from `seed`
+and its index when it is used, and a draw's products are formed 64 columns at a time. A refit works in the accumulator's memory, generating `Ω` for
+the refit only and allocating the kept eigenvectors, and a failed refit leaves the
+accumulator overwritten.
 """
 struct GaussNewtonLowRank{F, S} <: AbstractMetricAdaptor
     curvature::F
@@ -345,9 +354,10 @@ struct GaussNewtonLowRank{F, S} <: AbstractMetricAdaptor
     schedule::S
     min_draws::Int
     seed::Int
-    probes::Base.RefValue{Matrix{Float64}}
+    rows::Union{Nothing, Vector{Int}}
     function GaussNewtonLowRank{F, S}(
-            curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed
+            curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed,
+            rows = nothing
         ) where {F, S}
         rank > 0 || throw(ArgumentError("rank must be positive, got $rank"))
         oversample >= 1 ||
@@ -358,9 +368,11 @@ struct GaussNewtonLowRank{F, S} <: AbstractMetricAdaptor
         threshold > 0 || throw(ArgumentError("threshold must be positive, got $threshold"))
         min_draws >= 1 || throw(ArgumentError("min_draws must be at least 1, got $min_draws"))
         _check_refit_schedule(schedule)
+        isnothing(rows) || (!isempty(rows) && issorted(rows; lt = <=) && first(rows) >= 1) ||
+            throw(ArgumentError("rows must be a non-empty, strictly increasing list of coordinates"))
         return new{F, S}(
             curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed,
-            Ref(Matrix{Float64}(undef, 0, 0))
+            isnothing(rows) ? nothing : collect(Int, rows)
         )
     end
 end
@@ -368,10 +380,10 @@ end
 function GaussNewtonLowRank(
         curvature; rank::Integer, oversample::Integer = 10,
         probes_per_draw::Integer = rank + oversample, threshold::Real = 100.0,
-        schedule = :stan, min_draws::Integer = 4, seed::Integer = 1
+        schedule = :stan, min_draws::Integer = 4, seed::Integer = 1, rows = nothing
     )
     return GaussNewtonLowRank{typeof(curvature), typeof(schedule)}(
-        curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed
+        curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed, rows
     )
 end
 
@@ -393,33 +405,57 @@ check_metric_space(::GaussNewtonLowRank, space) = throw(
 metric_refit_steps(a::GaussNewtonLowRank, n_adapts::Int, chunk::Int) =
     filter(s -> 0 < s < n_adapts, _refit_steps(a.schedule, n_adapts, chunk))
 
-# The probe matrix `Ω` for latent dimension `n`, generated from the adaptor's seed on first
-# use, so the serialized sketch need not carry it.
-function _probe_matrix(a::GaussNewtonLowRank, n::Int)
-    k = a.rank + a.oversample
-    k <= n || throw(
-        ArgumentError("rank + oversample = $k exceeds the latent dimension $n")
+# The coordinates the directions use, for latent dimension `n`.
+function _probe_rows(a::GaussNewtonLowRank, n::Int)
+    isnothing(a.rows) && return 1:n
+    last(a.rows) <= n || throw(
+        ArgumentError("rows reach coordinate $(last(a.rows)) of a latent space of dimension $n")
     )
-    if size(a.probes[]) != (n, k)
-        a.probes[] = _thinq(randn(Random.Xoshiro(a.seed), n, k), k)
-    end
-    return a.probes[]
+    return a.rows
 end
+
+# The number of probe columns, `rank + oversample`, checked against the number of rows they
+# span among the `n` latent coordinates.
+function _nprobes(a::GaussNewtonLowRank, n::Int)
+    k = a.rank + a.oversample
+    nr = length(_probe_rows(a, n))
+    k <= nr || throw(
+        ArgumentError("rank + oversample = $k exceeds the $nr latent coordinates the directions may use")
+    )
+    return k
+end
+
+# Columns `cols` of the probe matrix `Ω` for latent dimension `n`: column `j` is a standard
+# normal vector scaled by `1/√n`, generated from the adaptor's seed and `j`.
+function _probe_columns(a::GaussNewtonLowRank, n::Int, cols)
+    W = Matrix{Float64}(undef, n, length(cols))
+    for (c, j) in pairs(cols)
+        ω = view(W, :, c)
+        randn!(Random.Xoshiro(hash((a.seed, j))), ω)
+        ω ./= sqrt(n)
+    end
+    return W
+end
+
+# `Ω` in the coordinates `rows` of a latent space of dimension `n`.
+_probe_matrix(a::GaussNewtonLowRank, n::Int) = _probe_columns(a, length(_probe_rows(a, n)), 1:_nprobes(a, n))
 
 """
     GaussNewtonSketch
 
 The sketch accumulated by [`GaussNewtonLowRank`](@ref) since its last fit: `Y[:, j]` is the
 sum of the curvature products with probe column `j` over the `counts[j]` draws that applied
-it, `next` the next column to apply and `ndraws` the draws recorded. Serializable.
+it (on the adaptor's `rows`), `next` the next column to apply, `ndraws` the draws recorded
+and `n` the latent dimension (0 before the first draw). Serializable.
 """
 mutable struct GaussNewtonSketch
     Y::Matrix{Float64}
     counts::Vector{Int}
     next::Int
     ndraws::Int
+    n::Int
 end
-GaussNewtonSketch() = GaussNewtonSketch(Matrix{Float64}(undef, 0, 0), Int[], 1, 0)
+GaussNewtonSketch() = GaussNewtonSketch(Matrix{Float64}(undef, 0, 0), Int[], 1, 0, 0)
 
 Base.show(io::IO, st::GaussNewtonSketch) =
     print(io, "GaussNewtonSketch($(st.ndraws) draws, $(length(st.counts)) probes)")
@@ -436,55 +472,86 @@ end
 function observe_draw!(a::GaussNewtonLowRank, st::GaussNewtonSketch, pre, position, gradient)
     x = _baseflat_draw(pre, vec(position))
     n = length(x)
-    Ω = _probe_matrix(a, n)
-    k = size(Ω, 2)
+    k = _nprobes(a, n)
+    nr = length(_probe_rows(a, n))
     if isempty(st.counts)
-        st.Y = zeros(n, k)
+        st.Y = zeros(nr, k)
         st.counts = zeros(Int, k)
+        st.n = n
     end
-    size(st.Y) == (n, k) || throw(
-        DimensionMismatch("the sketch holds $(size(st.Y)) products, but the draw has dimension $n and $k probes")
+    size(st.Y) == (nr, k) || throw(
+        DimensionMismatch("the sketch holds $(size(st.Y)) products, but the draw has $nr probed coordinates and $k probes")
     )
     cols = mod1.(st.next .+ (0:(a.probes_per_draw - 1)), k)
-    HΩ = a.curvature(x, Ω[:, cols])
-    size(HΩ) == (n, length(cols)) || throw(
-        DimensionMismatch("curvature returned a $(size(HΩ)) matrix for $(length(cols)) directions of dimension $n")
-    )
-    all(isfinite, HΩ) || error(
-        "the curvature product at a warmup draw is not finite (draw $(st.ndraws + 1) since the last fit)"
-    )
-    st.Y[:, cols] .+= HΩ
+    _apply_probes!(a, st, x, cols)
     st.counts[cols] .+= 1
     st.next = mod1(st.next + a.probes_per_draw, k)
     st.ndraws += 1
     return x
 end
 
-# Eigenpairs of the Nyström approximation `Y (ΩᵀY)⁻¹ Yᵀ` of a positive semidefinite `H` from
-# its sketch `Y = HΩ` (Tropp, Yurtsever, Udell & Cevher 2017, Alg. 3), eigenvalues
-# decreasing. The shift `ν` keeps the core factorization stable for a rank-deficient `H`.
-function _nystrom(Ω::AbstractMatrix, Y::AbstractMatrix)
-    ν = sqrt(size(Y, 1)) * eps(norm(Y))
-    Yν = Y .+ ν .* Ω
-    C = cholesky(Symmetric(Ω' * Yν); check = false)
+# Add the curvature products at `x` with probe columns `cols` to the sketch, `block` columns
+# per call of the curvature, so only one `n × block` slice of probes and products exists at a
+# time. With `rows`, the probes are embedded in the latent space and only those rows of the
+# products are kept.
+function _apply_probes!(a::GaussNewtonLowRank, st::GaussNewtonSketch, x, cols; block::Int = 64)
+    n = length(x)
+    rows = _probe_rows(a, n)
+    for b in Iterators.partition(cols, block)
+        Ωb = _probe_columns(a, length(rows), b)
+        W = isnothing(a.rows) ? Ωb : (Wf = zeros(n, length(b)); Wf[rows, :] = Ωb; Wf)
+        HΩ = a.curvature(x, W)
+        size(HΩ) == (n, length(b)) || throw(
+            DimensionMismatch("curvature returned a $(size(HΩ)) matrix for $(length(b)) directions of dimension $n")
+        )
+        all(isfinite, HΩ) || error(
+            "the curvature product at a warmup draw is not finite (draw $(st.ndraws + 1) since the last fit)"
+        )
+        st.Y[:, b] .+= isnothing(a.rows) ? HΩ : view(HΩ, rows, :)
+    end
+    return st
+end
+
+# The eigenvalues, decreasing, of the Nyström approximation `Y (ΩᵀY)⁻¹ Yᵀ` of a positive
+# semidefinite `H` from its sketch `Y = HΩ` (Tropp, Yurtsever, Udell & Cevher 2017, Alg. 3),
+# and the eigenvectors of those at least `cut`. The approximation is unchanged by `Ω → ΩR⁻¹`,
+# so with `ΩᵀΩ = RᵀR` the algorithm runs on the orthonormal `Q = ΩR⁻¹` and `HQ = YR⁻¹`; the
+# shift `ν` keeps the core factorization stable for a rank-deficient `H`. `Y` is
+# overwritten: it becomes the shifted `HQ + νQ` and then the thin factor `B`, whose singular
+# pairs come from the `k × k` Gram matrix `BᵀB`. `Ω` is generated for the call only.
+function _nystrom!(a::GaussNewtonLowRank, Y::AbstractMatrix, cut)
+    n, k = size(Y)
+    Ω = _probe_columns(a, n, 1:k)
+    R = cholesky(Symmetric(Ω' * Ω)).U
+    ν = sqrt(n) * eps(norm(Y) * opnorm(inv(R)))
+    Y .+= ν .* Ω
+    M = Ω' * Y
+    Ω = nothing
+    rdiv!(Y, R)
+    C = cholesky(Symmetric(R' \ M / R); check = false)
     issuccess(C) || error(
         "the Gauss–Newton sketch is not positive definite on its probes; with " *
             "probes_per_draw below rank + oversample each probe averages different draws — " *
             "raise probes_per_draw or min_draws"
     )
-    F = svd(Yν / C.U)
-    return max.(F.S .^ 2 .- ν, 0), F.U
+    rdiv!(Y, C.U)
+    E = eigen(Symmetric(Y' * Y); sortby = -)
+    σ² = max.(E.values, 0)
+    λ = max.(σ² .- ν, 0)
+    keep = findall(>=(cut), λ)
+    return λ, keep, Y * (E.vectors[:, keep] ./ sqrt.(σ²[keep])')
 end
 
 function metric_refit(a::GaussNewtonLowRank, st::GaussNewtonSketch; kwargs...)
     (st.ndraws >= a.min_draws && !isempty(st.counts) && all(>(0), st.counts)) || return nothing
-    n = size(st.Y, 1)
-    λ, U = _nystrom(_probe_matrix(a, n), st.Y ./ st.counts')
-    keep = findall(>=(a.threshold), λ)
+    n = st.n
+    st.Y ./= st.counts'
+    λ, keep, U = _nystrom!(a, st.Y, a.threshold)
+    V = isnothing(a.rows) ? U : RowSupportedMatrix(n, a.rows, U)
     length(keep) <= a.rank || error(
         "$(length(keep)) Gauss–Newton eigenvalues exceed threshold = $(a.threshold), more " *
             "than rank = $(a.rank): the spectrum would be truncated; raise rank or threshold"
     )
     _reset!(st)
-    return LowRankPreconditioner(zeros(n), ones(n), U[:, keep], inv.(sqrt.(1 .+ λ[keep])))
+    return LowRankPreconditioner(zeros(n), ones(n), V, inv.(sqrt.(1 .+ λ[keep])))
 end

@@ -324,6 +324,12 @@ end
         # the sketch is reset by a fit
         @test st.ndraws == 0 && all(iszero, st.counts) && iszero(st.Y)
         @test isnothing(Comrade.metric_refit(a, st))
+
+        # a complete probe set (rank + oversample = n) of a low-rank curvature is exact too
+        full = GaussNewtonLowRank((x, W) -> A * W; rank = n - 4, oversample = 4, threshold = 100.0, min_draws = 1)
+        sf = Comrade.init_metric_adaptation(full)
+        Comrade.observe_draw!(full, sf, nothing, randn(rng, n), zeros(n))
+        @test Comrade.metric_refit(full, sf).s ≈ inv.(sqrt.(1 .+ λ0[1:3])) rtol = 1.0e-8
     end
 
     @testset "varying curvature: the sketch averages the draws" begin
@@ -334,7 +340,10 @@ end
         st = Comrade.init_metric_adaptation(a)
         foreach(x -> Comrade.observe_draw!(a, st, nothing, x, zero(x)), xs)
         Ω = Comrade._probe_matrix(a, n)
-        @test Ω' * Ω ≈ I
+        # Ω is not stored: its columns are generated the same way each time
+        @test Ω == Comrade._probe_matrix(a, n)
+        @test Comrade._probe_columns(a, n, [3, 1]) == Ω[:, [3, 1]]
+        @test all(c -> 0.5 < norm(c) < 1.5, eachcol(Ω))
         @test st.Y ./ st.counts' ≈ sum(As) / 3 * Ω
         E = eigen(Symmetric(sum(As) / 3); sortby = -)
         fit = Comrade.metric_refit(a, st)
@@ -353,6 +362,14 @@ end
         @test sb.Y[:, 1] ≈ (As[1] + As[3]) * Ωb[:, 1]
         @test sb.Y[:, 5] ≈ As[2] * Ωb[:, 5]
 
+        # products formed a few columns at a time add up to the same sketch
+        s1, s3 = Comrade.init_metric_adaptation(a), Comrade.init_metric_adaptation(a)
+        foreach(st -> (st.Y = zeros(n, 10); st.counts = zeros(Int, 10)), (s1, s3))
+        Comrade._apply_probes!(a, s1, xs[2], 1:10)
+        Comrade._apply_probes!(a, s3, xs[2], 1:10; block = 3)
+        @test s3.Y ≈ s1.Y rtol = 1.0e-12
+        @test s1.Y ≈ As[2] * Comrade._probe_matrix(a, n) rtol = 1.0e-12
+
         # the sketch round-trips through serialization and keeps accumulating
         path = tempname()
         serialize(path, st)
@@ -361,6 +378,51 @@ end
         rm(path)
         foreach(x -> Comrade.observe_draw!(a, st2, nothing, x, zero(x)), xs)
         @test st2.Y == st.Y && st2.counts == st.counts
+    end
+
+    @testset "directions confined to rows" begin
+        # RowSupportedMatrix behaves as the dense matrix it stands for
+        rows = sort(randperm(rng, n)[1:25])
+        M = Matrix(qr(randn(rng, 25, 4)).Q)[:, 1:4]
+        R = RowSupportedMatrix(n, rows, M)
+        D = Array(R)
+        @test size(R) == (n, 4) && D[rows, :] == M && iszero(D[setdiff(1:n, rows), :])
+        @test R[rows[3], 2] == M[3, 2] && R[first(setdiff(1:n, rows)), 2] == 0
+        z, c = randn(rng, n), randn(rng, 4)
+        @test R' * z ≈ D' * z && R * c ≈ D * c
+        @test R' * [z z] ≈ D' * [z z] && R * [c c] ≈ D * [c c]
+        @test Array(R[:, [2, 4]]) == D[:, [2, 4]]
+        @test_throws "strictly increasing" RowSupportedMatrix(n, [3, 2], M[1:2, :])
+        @test_throws DimensionMismatch RowSupportedMatrix(n, rows[1:3], M)
+        # a preconditioner on a RowSupportedMatrix is the same map as on its dense matrix
+        s = [0.1, 0.5, 2.0, 7.0]
+        pr = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), R, s)
+        pd = LowRankPreconditioner(pr.b, pr.d, D, s)
+        @test Comrade._affine_fwd(pr, z) ≈ Comrade._affine_fwd(pd, z)
+        @test Comrade._affine_inv(pr, z) ≈ Comrade._affine_inv(pd, z)
+        @test Comrade._affine_invT(pr, z) ≈ Comrade._affine_invT(pd, z)
+        @test Comrade._affine_inv(pr, Comrade._affine_fwd(pr, z)) ≈ z
+        @test Comrade._hostify(pr) === pr
+        @test_throws "orthonormal columns" LowRankPreconditioner(pr.b, pr.d, RowSupportedMatrix(n, rows, 2 .* M), s)
+
+        # the Gauss–Newton fit on rows is the eigendecomposition of the curvature restricted to them
+        λ0 = [5.0e4, 900.0, 150.0, 20.0, 0.5]
+        A, _ = lowrank(λ0)
+        g = GaussNewtonLowRank((x, W) -> A * W; rank = 6, oversample = 4, threshold = 100.0, min_draws = 1, rows)
+        st = Comrade.init_metric_adaptation(g)
+        Comrade.observe_draw!(g, st, nothing, randn(rng, n), zeros(n))
+        @test size(st.Y) == (length(rows), 10) && st.n == n
+        fit = Comrade.metric_refit(g, st)
+        Er = eigen(Symmetric(A[rows, rows]); sortby = -)
+        keep = findall(>=(100.0), Er.values)
+        @test fit.V isa RowSupportedMatrix && fit.V.rows == rows && size(fit.V) == (n, length(keep))
+        @test fit.s ≈ inv.(sqrt.(1 .+ Er.values[keep])) rtol = 1.0e-8
+        @test abs.(fit.V.M' * Er.vectors[:, keep]) ≈ I atol = 1.0e-8
+        @test_throws "strictly increasing" GaussNewtonLowRank((x, W) -> W; rank = 2, rows = [4, 2])
+        @test_throws "exceeds the 5 latent coordinates" Comrade.observe_draw!(
+            GaussNewtonLowRank((x, W) -> W; rank = 4, oversample = 2, rows = rows[1:5]),
+            Comrade.GaussNewtonSketch(), nothing, randn(rng, n), zeros(n)
+        )
     end
 
     @testset "failures are errors" begin
@@ -377,7 +439,7 @@ end
         @test_throws DimensionMismatch Comrade.observe_draw!(
             short, Comrade.init_metric_adaptation(short), nothing, randn(rng, n), zeros(n)
         )
-        @test_throws "exceeds the latent dimension" Comrade._probe_matrix(GaussNewtonLowRank((x, W) -> W; rank = n), n)
+        @test_throws "exceeds the $n latent coordinates" Comrade._probe_matrix(GaussNewtonLowRank((x, W) -> W; rank = n), n)
         indefinite = GaussNewtonLowRank((x, W) -> -W; rank = 2, min_draws = 1)
         si = Comrade.init_metric_adaptation(indefinite)
         Comrade.observe_draw!(indefinite, si, nothing, randn(rng, n), zeros(n))

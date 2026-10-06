@@ -231,16 +231,98 @@ function _run_between_chunks(hook, state, tpost, info, host_rng)
     return state
 end
 
-# `Comrade.MoveSet` on a device position: the log density is one compiled program per
-# `tpost`, called with host latent vectors.
-function Comrade._logdensity_closure(tpost, position::Reactant.AbstractConcreteArray)
+# `Comrade.MoveSet` on a device position. The base point and every map stay on the device;
+# the preconditioner enters the maps as a runtime argument, so in-place refits of its buffers
+# need no recompile. The log density is that of the base space over the device posterior, so
+# no proposal goes through the preconditioner. The traceable moves' steps of a call run as one
+# program (`_fused_steps`); other moves propose on the host.
+function Comrade._move_kernels(ms::Comrade.MoveSet, tpost, position::Reactant.AbstractConcreteArray)
     zd = Reactant.to_rarray(collect(Float64, vec(Array(position))))
-    c = Reactant.Compiler.compile((tp, z) -> logdensityof(tp, z), (tpost, zd))
-    return z -> Float64(c(tpost, Reactant.to_rarray(z)))
+    pre() = Comrade._transport_pre(tpost)
+    if isnothing(pre())
+        fwd = finv = (p, z) -> z
+    else
+        fwd = Reactant.Compiler.compile((p, z) -> Comrade._affine_fwd(p, z), (pre(), zd))
+        finv = Reactant.Compiler.compile((p, x) -> Comrade._affine_inv(p, x), (pre(), zd))
+    end
+    ctx = _device_move_context(ms, tpost)
+    tbase = ctx.view.tbase
+    ld = Reactant.Compiler.compile((tb, x) -> logdensityof(tb, x), (tbase, zd))
+    # Distinct arguments: compiling with one array in both places traces them as one input.
+    pd = Reactant.Compiler.compile(Comrade._prior_delta, (zd, copy(zd)))
+    tj = Comrade._traced_moves(ms)
+    fused = isempty(tj) ? nothing : _compile_fused(ms, tj, ctx, zd)
+    function propose(j, x, step)
+        x′, logdet = Comrade.propose(ms.moves[j], Array(x), step, ms.ctx)
+        return Reactant.to_rarray(x′), Float64(logdet)
+    end
+    function run_fused(x, ℓ, steps, logu, active)
+        R = size(steps, 1)
+        x, ℓd, logα = fused(
+            ctx, x, Reactant.ConcreteRNumber(ℓ), Reactant.to_rarray(vec(steps)),
+            Reactant.to_rarray(vec(logu)), Reactant.to_rarray(vec(Float64.(active)))
+        )
+        return x, Float64(ℓd), reshape(Array(logα), R, :)
+    end
+    return (;
+        load = p -> Reactant.to_rarray(collect(Float64, vec(Array(p)))),
+        to_base = z -> fwd(pre(), z),
+        from_base = x -> finv(pre(), x),
+        logdensity = x -> Float64(ld(tbase, x)),
+        prior_delta = (x, x′) -> Float64(pd(x, x′)),
+        propose,
+        fused = run_fused,
+        download = Array,
+        upload = (xh, x) -> Reactant.to_rarray(xh),
+        store = (z, p) -> Reactant.to_rarray(reshape(convert(Array{eltype(p)}, Array(z)), size(p))),
+    )
 end
 
-Comrade._position_like(z, position::Reactant.AbstractConcreteArray) =
-    Reactant.to_rarray(reshape(convert(Array{eltype(position)}, z), size(position)))
+function _compile_fused(ms, tj, ctx, zd)
+    moves = Tuple(ms.moves[tj])
+    free = Tuple(ms.free[tj])
+    R = maximum(ms.rounds[tj])
+    v = Reactant.to_rarray(zeros(R * length(tj)))
+    return Reactant.Compiler.compile(
+        (c, x, ℓ, steps, logu, active) -> _fused_steps(c, moves, free, R, x, ℓ, steps, logu, active),
+        (ctx, zd, Reactant.ConcreteRNumber(0.0), v, copy(v), copy(v))
+    )
+end
+
+# The traceable moves' steps of one call as a traced loop over rounds, in the base space of
+# `ctx.view`: step `(r, c)` (linear index `r + (c - 1) R`) is round `r` of `moves[c]`, run
+# when `active > 0` and accepted when `logu < log α`; a NaN `log α` rejects. A move with
+# `free[c]` is accepted without the likelihood (see `MoveSet`). Returns the final point,
+# its log density and every step's `log α`.
+function _fused_steps(ctx, moves, free, R, x, ℓ, steps, logu, active)
+    logα = zero(steps)
+    @trace track_numbers = false for r in 1:R
+        x, ℓ, logα = _fused_round(ctx, moves, free, R, r, x, ℓ, steps, logu, active, logα)
+    end
+    return x, ℓ, logα
+end
+
+function _fused_round(ctx, moves, free, R, r, x, ℓ, steps, logu, active, logα)
+    for c in eachindex(moves)
+        i = r + (c - 1) * R
+        x′, logdet = Comrade.propose(moves[c], x, Comrade._rget(steps, i), ctx)
+        ℓ′ = free[c] ? ℓ + Comrade._prior_delta(x, x′) : logdensityof(ctx.view.tbase, x′)
+        a = ℓ′ - ℓ + logdet
+        accept = (Comrade._rget(active, i) > 0) & (Comrade._rget(logu, i) < a)
+        x = ifelse.(accept, x′, x)
+        ℓ = ifelse(accept, ℓ′, ℓ)
+        Comrade.ComradeBase.rsetindex!(logα, a, i)
+    end
+    return x, ℓ, logα
+end
+
+# The move context over the device posterior of `tpost`, with the moves' context arrays on
+# the device.
+function _device_move_context(ms::Comrade.MoveSet, tpost)
+    view = Comrade.CoordinateView(tpost.lpost, Comrade.space(ms.ctx.view))
+    data = Base.structdiff(ms.ctx, NamedTuple{(:view,)})
+    return merge((; view), map(v -> v isa AbstractArray ? Reactant.to_rarray(v) : v, data))
+end
 
 # ===========================================================================
 # Default callbacks (called between rounds; return value is collected into history)
@@ -331,8 +413,10 @@ chunk boundaries — chunked warmup is bit-identical to one fused warmup.
 `ldf(x, tpost)` is the log-density. Returns the post-warmup `MCMCState` and the vector of
 per-chunk `callback` return values. The `info` passed to `callback` carries `step`, `total`,
 `num_warmup` (== `total`), `step_size`, the host-side view (`position`/`params`/
-`potential_energy`/`gradient`/`inverse_mass_matrix`, see [`_current_state`](@ref)), and the
-raw `state`.
+`potential_energy`/`gradient`/`inverse_mass_matrix`, see [`_current_state`](@ref)), the
+raw `state`, and `gradient_time`: the wall seconds of one gradient through the device
+preconditioner, measured when a refit builds it (`nothing` before the first fit or
+without Enzyme loaded).
 
 If `checkpoint` is a path, the `MCMCState` is written there with `ProbProg.save_state` after
 *every* chunk (it persists the adaptation accumulators), and the step count is recorded to
@@ -445,6 +529,8 @@ function warmup_chunked(
     adapt_mm = Comrade.adapts_welford(adaptor) && seg == 0
     devpre = nothing
     rankcap = 0
+    # One gradient's wall time through the device preconditioner, measured when it is built.
+    gradient_time = nothing
     while done < na
         nsteps = min(chunk, na - done)
         !isempty(pending) && (nsteps = min(nsteps, first(pending) - done))
@@ -503,7 +589,7 @@ function warmup_chunked(
             position = cur.position, params = cur.params,
             potential_energy = cur.potential_energy, gradient = cur.gradient,
             inverse_mass_matrix = cur.inverse_mass_matrix,
-            state,
+            state, gradient_time,
         )
         push!(history, callback(info))
 
@@ -532,6 +618,9 @@ function warmup_chunked(
                     tpost = Comrade.maybe_transport(tpost.lpost, Comrade._in_space(base, devpre))
                     empty!(kernels)  # structural change: every cached kernel is stale
                     grow && @info "grew low-rank cap to $rankcap (fit rank $nrank); one recompile"
+                    gradient_time = Comrade._gradient_seconds(tpost, Reactant.to_rarray(Comrade._affine_inv(pre, xbf)))
+                    isnothing(gradient_time) ||
+                        @info "one gradient through the device preconditioner: $(round(1000 * gradient_time; digits = 2)) ms"
                 else
                     Comrade._update_device_pre!(devpre, pre)
                 end
@@ -624,6 +713,8 @@ function sample_chunked(
     # One compiled kernel per (chunk length, gradient presence): a between-chunks move
     # empties the gradient slot, which changes the kernel's inputs.
     compiled = Dict{Tuple{Int, Bool}, Any}()
+    gradient_time = isnothing(Comrade._transport_pre(tpost)) ? nothing :
+        Comrade._gradient_seconds(tpost, Reactant.to_rarray(vec(Array(state.position))))
     sink = _open_sink(saveto, tpost, num_samples, nrounds, chunk; append)
     history = Any[]
     ndone = 0
@@ -675,7 +766,7 @@ function sample_chunked(
                 position = cur.position, gradient = cur.gradient,
                 potential_energy = cur.potential_energy,
                 inverse_mass_matrix = cur.inverse_mass_matrix,
-                state, samples = raw,
+                state, samples = raw, gradient_time,
             ),
         )
         push!(history, callback(info))
@@ -793,6 +884,8 @@ common fields documented in [`Comrade.default_disk_callback`](@ref) plus an `ext
   - `extras.inverse_mass_matrix` : current (diagonal) inverse mass matrix
   - `extras.state`               : the raw Reactant `MCMCState` (resumable checkpoint)
   - `extras.samples`             : the raw, unconstrained sample matrix for the batch
+  - `extras.gradient_time`       : wall seconds of one gradient through the device
+                                   preconditioner (`nothing` without one or without Enzyme)
 
 `warmup_callback` runs once per warmup chunk; its `info` carries `step`/`total`/
 `num_warmup` alongside the host-side state view (see [`default_warmup_callback`](@ref)

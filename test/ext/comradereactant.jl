@@ -6,6 +6,10 @@ import TransformVariables as TV
 
 const ReactantEx = Comrade.ComradeBase.ReactantEx
 
+mutable struct _DeviceMovesState
+    position::Any
+end
+
 # Reference-antenna gains fix some sites to a constant value. Rebuilding the full
 # parameter vector used to scatter those constants into a freshly-allocated array
 # (`yfv[fixed_index] .= fixed_values`), which forces scalar indexing and fails to
@@ -342,6 +346,72 @@ end
     @test all(p -> all(isfinite, values(p.sky)), Comrade.postsamples(load_samples(mout)))
     rm(mdir; recursive = true)
 
+    # On a device position a traceable move proposes in a compiled program and a host move
+    # from a copy of the base point; through a device preconditioner both make the same
+    # proposals and decisions as the host kernels on the same random numbers, and an
+    # in-place update of the preconditioner is used without recompiling.
+    mview = CoordinateView(post_cpu, sp)
+    scaled(v, x, x′, ctx) = v * sum(ctx.c)
+    devmove = CompensatedMove(
+        "f1_dev", mview, (:sky, :f1), (:sky, :f2), scaled;
+        invariant = false, context = (; c = [1.0]), traceable = true
+    )
+    devmove2 = CompensatedMove(
+        "τ1_dev", mview, (:sky, :τ1), (:sky, :f2), scaled;
+        invariant = false, context = (; c = [1.0]), traceable = true
+    )
+    hostmove = CompensatedMove("ξ1_host", mview, (:sky, :ξ1), (:sky, :f2), scaled; invariant = false, context = (; c = [1.0]))
+    @test Comrade.traceable(devmove) && !Comrade.traceable(hostmove)
+    dmoves, drounds = (devmove, devmove2, hostmove), [6, 3, 4]
+    nstd = dimension(tstd)
+    hpre(seed) = LowRankPreconditioner(
+        0.1 .* randn(Random.Xoshiro(seed), nstd), exp.(0.2 .* randn(Random.Xoshiro(seed + 1), nstd)),
+        Matrix(qr(randn(Random.Xoshiro(seed + 2), nstd, 2)).Q)[:, 1:2], [0.5, 2.0]
+    )
+    p1, p2 = hpre(8), hpre(20)
+    dpre = Comrade._device_pre(p1; rank_cap = 4)
+    tdev = Comrade.transport_to(post, Preconditioned(sp, dpre))
+    thost(p) = Comrade.transport_to(post_cpu, Preconditioned(sp, p))
+    xstart = Comrade.inverse(Comrade.transport_to(post_cpu, sp), prior_sample(Random.Xoshiro(3), post_cpu))
+    msd = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
+    warm = (; phase = :warmup, step = 2, total = 20)
+    compiled = Ref{Any}(nothing)
+    for p in (p1, p2)
+        p === p2 && Comrade._update_device_pre!(dpre, p2)
+        msh = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
+        msd.stats .= [Comrade._MoveStats(m) for m in msd.moves]
+        z0 = Comrade._affine_inv(p, xstart)
+        sh = msh(_DeviceMovesState(copy(z0)), thost(p), warm, Random.Xoshiro(30))
+        sd = msd(_DeviceMovesState(Reactant.to_rarray(z0)), tdev, warm, Random.Xoshiro(30))
+        @test sd.position isa Reactant.AbstractConcreteArray
+        @test Array(sd.position) ≈ sh.position rtol = 1.0e-9
+        @test [m.warmup for m in move_summary(msd)] == [m.warmup for m in move_summary(msh)]
+        @test [m.warmup.proposed for m in move_summary(msd)] == drounds
+        @test [m.τ for m in move_summary(msd)] ≈ [m.τ for m in move_summary(msh)]
+        @test sh.position != z0
+        isnothing(compiled[]) ? (compiled[] = msd.compiled[]) : @test(msd.compiled[] === compiled[])
+    end
+
+    # Invariant moves are accepted without the likelihood, in the compiled program and on
+    # the host alike: `u` and `w` do not enter the sky, so random walks of them are exact.
+    post_u = VLBIPosterior(SkyModel(test_model, merge(gprior, (u = VLBIGaussian(0.0, 1.0), w = VLBIGaussian(0.0, 1.0))), g), vis; admode = nothing)
+    uview = CoordinateView(post_u, sp)
+    keep(v, x, x′, ctx) = v
+    umove = CompensatedMove("u_dev", uview, (:sky, :u), (:sky, :f2), keep; traceable = true)
+    wmove = CompensatedMove("w_host", uview, (:sky, :w), (:sky, :f2), keep)
+    tdev_u = Comrade.transport_to(Comrade.prepare_device(post_u, ReactantEx()), sp)
+    thost_u = Comrade.transport_to(post_u, sp)
+    xu = Comrade.inverse(thost_u, prior_sample(Random.Xoshiro(4), post_u))
+    msu_h = MoveSet(post_u, (umove, wmove); space = sp, rounds = [5, 3])
+    msu_d = MoveSet(post_u, (umove, wmove); space = sp, rounds = [5, 3])
+    @test all(msu_d.free)
+    su_h = msu_h(_DeviceMovesState(copy(xu)), thost_u, warm, Random.Xoshiro(31))
+    su_d = msu_d(_DeviceMovesState(Reactant.to_rarray(xu)), tdev_u, warm, Random.Xoshiro(31))
+    @test Array(su_d.position) ≈ su_h.position rtol = 1.0e-9
+    @test [m.warmup for m in move_summary(msu_d)] == [m.warmup for m in move_summary(msu_h)]
+    @test [m.τ for m in move_summary(msu_d)] ≈ [m.τ for m in move_summary(msu_h)]
+    @test su_h.position[end] != xu[end]
+
     # WelfordDiagonal leaves the StdNormal transform alone
     wsampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01)
     _, _, samet = ext.warmup_chunked(freshrng(), ldf, x0, tstd, wsampler; chunk = na, callback = quiet)
@@ -661,6 +731,26 @@ end
 
     p3 = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), Matrix(qr(randn(rng, n, 9)).Q)[:, 1:9], fill(2.0, 9))
     @test_throws ArgumentError Comrade._update_device_pre!(dev, p3)
+
+    # Directions confined to rows: padded on the device, the same map as the host fit in a
+    # compiled program, updated in place without recompiling; a refit on other rows or in
+    # dense storage is an error.
+    rows = sort(randperm(rng, n)[1:25])
+    R = RowSupportedMatrix(n, rows, Matrix(qr(randn(rng, 25, 3)).Q)[:, 1:3])
+    pr = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), R, [4.0, 2.0, 0.5])
+    devr = Comrade._device_pre(pr; rank_cap = 5)
+    @test devr.V isa RowSupportedMatrix && devr.V.rows == rows && size(devr.V) == (n, 5)
+    @test Array(devr.V)[:, 1:3] ≈ Array(R)
+    zr = randn(rng, n)
+    fr = Reactant.Compiler.compile((q, x) -> Comrade._affine_fwd(q, x), (devr, Reactant.to_rarray(zr)))
+    @test Array(fr(devr, Reactant.to_rarray(zr))) ≈ Comrade._affine_fwd(pr, zr)
+    pr2 = LowRankPreconditioner(pr.b, pr.d, R[:, 1:2], [3.0, 0.4])
+    Comrade._update_device_pre!(devr, pr2)
+    @test Array(fr(devr, Reactant.to_rarray(zr))) ≈ Comrade._affine_fwd(pr2, zr)
+    @test Comrade._affine_fwd(Comrade._pre_for(devr, zr), zr) ≈ Comrade._affine_fwd(pr2, zr)
+    other = RowSupportedMatrix(n, sort([setdiff(1:n, rows); rows[1:10]]), R.M)
+    @test_throws "changed the rows" Comrade._update_device_pre!(devr, LowRankPreconditioner(pr.b, pr.d, other, pr.s))
+    @test_throws "changed the storage" Comrade._update_device_pre!(devr, p2)
 
     sp = Comrade.PT.StdNormal()
     @test Comrade._devicebuffers(Comrade._device_space(p))

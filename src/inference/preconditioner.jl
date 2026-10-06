@@ -12,7 +12,57 @@
 # metric's job. A is square: the latent dimension is unchanged, and log|det A| =
 # Σ log d + Σ log s is a constant.
 
-export LowRankPreconditioner, Preconditioned, fit_preconditioner
+export LowRankPreconditioner, Preconditioned, fit_preconditioner, RowSupportedMatrix
+
+"""
+    RowSupportedMatrix(n, rows, M)
+
+The `n × size(M, 2)` matrix equal to `M` on the rows `rows` (strictly increasing) and zero
+on every other row. As the `V` of a [`LowRankPreconditioner`](@ref) it confines the
+directions to the coordinates `rows`: `V'z` reads only `z[rows]` and `V*c` writes only
+those rows, so the cost scales with `length(rows)` rather than `n`. `rows` is a host
+vector, a constant of a compiled program.
+"""
+struct RowSupportedMatrix{T, R <: AbstractVector{<:Integer}, M <: AbstractMatrix{T}} <: AbstractMatrix{T}
+    n::Int
+    rows::R
+    M::M
+    function RowSupportedMatrix(n::Integer, rows::R, M::MT) where {T, R <: AbstractVector{<:Integer}, MT <: AbstractMatrix{T}}
+        length(rows) == size(M, 1) || throw(
+            DimensionMismatch("$(length(rows)) rows for a $(size(M, 1))-row block")
+        )
+        (isempty(rows) || (issorted(rows; lt = <=) && 1 <= first(rows) && last(rows) <= n)) ||
+            throw(ArgumentError("rows must be strictly increasing within 1:$n"))
+        return new{T, R, MT}(Int(n), rows, M)
+    end
+end
+
+Base.size(A::RowSupportedMatrix) = (A.n, size(A.M, 2))
+function Base.getindex(A::RowSupportedMatrix, i::Int, j::Int)
+    r = searchsortedfirst(A.rows, i)
+    return (r <= length(A.rows) && A.rows[r] == i) ? A.M[r, j] : zero(eltype(A))
+end
+Base.getindex(A::RowSupportedMatrix, ::Colon, cols) = RowSupportedMatrix(A.n, A.rows, A.M[:, cols])
+function Base.Array(A::RowSupportedMatrix)
+    D = zeros(eltype(A), size(A))
+    D[A.rows, :] = Array(A.M)
+    return D
+end
+Base.Matrix(A::RowSupportedMatrix) = Array(A)
+Base.:*(At::Adjoint{<:Any, <:RowSupportedMatrix}, z::AbstractVector) = parent(At).M' * z[parent(At).rows]
+Base.:*(At::Adjoint{<:Any, <:RowSupportedMatrix}, Z::AbstractMatrix) = parent(At).M' * Z[parent(At).rows, :]
+function Base.:*(A::RowSupportedMatrix, c::AbstractVector)
+    y = A.M * c
+    x = fill!(similar(y, A.n), zero(eltype(y)))
+    x[A.rows] = y
+    return x
+end
+function Base.:*(A::RowSupportedMatrix, C::AbstractMatrix)
+    Y = A.M * C
+    X = fill!(similar(Y, A.n, size(Y, 2)), zero(eltype(Y)))
+    X[A.rows, :] = Y
+    return X
+end
 
 # Parametric so the arrays can be host `Array`s (baked as constants under Reactant)
 # or `ConcreteRArray`s (traced as runtime inputs, updatable in place between compiled
@@ -50,18 +100,22 @@ struct LowRankPreconditioner{TB <: AbstractVector, TV_ <: AbstractMatrix, TS <: 
                     "length(s) == size(V, 2)"
             )
         )
-        if b isa Array && V isa Array
+        if b isa Array && _columns(V) isa Array
             all(>(0), d) || throw(ArgumentError("marginal scales d must all be positive"))
             all(>(0), s) || throw(ArgumentError("direction scales s must all be positive"))
             # Zero-padded columns (used to hold the device rank slot open) carry s = 1
             # and contribute nothing; only active columns must be orthonormal.
             act = findall(!=(1.0), s)
-            isempty(act) || opnorm(V[:, act]' * V[:, act] - I) < 1.0e-6 ||
+            isempty(act) || opnorm(_columns(V)[:, act]' * _columns(V)[:, act] - I) < 1.0e-6 ||
                 throw(ArgumentError("V must have orthonormal columns"))
         end
         return new{TB, TV_, TS}(b, d, V, s)
     end
 end
+
+# The stored columns of `V`: its nonzero rows for a `RowSupportedMatrix`.
+_columns(V::AbstractMatrix) = V
+_columns(V::RowSupportedMatrix) = V.M
 
 function Base.show(io::IO, p::LowRankPreconditioner)
     return print(
@@ -109,6 +163,7 @@ end
 # the device buffers untouched. Dispatch on the INPUT array: plain host arrays get a
 # hostified transform, everything else passes through.
 _hostify(x::AbstractArray) = x isa Array ? x : Array(x)
+_hostify(A::RowSupportedMatrix) = RowSupportedMatrix(A.n, A.rows, _hostify(A.M))
 _devicebuffers(p::LowRankPreconditioner) = !(p.b isa Array)
 # Host mirrors of device-buffered preconditioners, keyed by the identity of their device
 # `V` (held weakly; hashing a device array by value would read it element by element): host
@@ -334,6 +389,11 @@ function _compiled_score(post, x0, space)
     )
 end
 
+# The wall time in seconds of one compiled gradient of the log density of `tpost` at the
+# device point `x`, or `nothing` without Reactant and Enzyme. Implemented by the Reactant +
+# Enzyme extension, which compiles the gradient once per device preconditioner.
+_gradient_seconds(tpost, x) = nothing
+
 # Host score in the base space `space`, through the posterior's own AD mode.
 function _host_score(post::VLBIPosterior, space)
     tpost = maybe_transport(post, space)
@@ -449,11 +509,11 @@ function _fisher_lowrank(
     U0 = zeros(n, 0); s0 = Float64[]
     if keep_carried && carry !== nothing && !isempty(carry.s)
         # σ = carry.d, so the carried directions are orthonormal in this standardization.
-        U0, s0 = carry.V, carry.s
+        U0, s0 = Array(carry.V), carry.s
         X .-= U0 * (U0' * X)
         A .-= U0 * (U0' * A)
     elseif carry !== nothing && !isempty(carry.s)
-        U0 = _thinq((carry.d .* carry.V) ./ σ, length(carry.s))
+        U0 = _thinq((carry.d .* Array(carry.V)) ./ σ, length(carry.s))
         s0now = (vec(var(U0' * X0h; dims = 2)) ./ vec(var(U0' * A0h; dims = 2))) .^ (1 // 4)
         s0 = map((sc, sn) -> sc > 1 ? max(sc, sn) : sn, carry.s, s0now)
         X .-= U0 * (U0' * X)

@@ -2,7 +2,8 @@
 # StdNormal), the parameter view they read and write through, and checks of their
 # correctness.
 
-export CoordinateView, AbstractMove, RandomWalk, DiscreteSymmetric, CompensatedMove, check_move
+export CoordinateView, AbstractMove, RandomWalk, DiscreteSymmetric, ComponentwiseRandomWalk,
+    CompensatedMove, check_move
 
 """
     CoordinateView(post::VLBIPosterior, space = nothing)
@@ -76,7 +77,7 @@ The latent coordinates of the parameter at `path`.
 coords(view::CoordinateView, path::Tuple) = last(_locate_node(view.root, path, 0, path))
 
 _block_value(t::PT.AbstractTransport, y) = PT.latent_pfwd(t, y)
-_block_value(t::TV.ScalarTransform, y) = TV.transform(t, only(y))
+_block_value(t::TV.ScalarTransform, y) = TV.transform(t, _rget(y, firstindex(y)))
 _block_value(t, y) = TV.transform(t, y)
 _block_latent(t::PT.AbstractTransport, v) = PT.latent_pback(t, v)
 _block_latent(t, v) = TV.inverse(t, v)
@@ -101,6 +102,12 @@ latent(view::CoordinateView, path::Tuple, v) = _latent_vector(_block_latent(node
 _latent_vector(y::Number) = [y]
 _latent_vector(y) = vec(y)
 
+# `latent` with the block allocated like `x`, so a traced `x` gives a traced block.
+_latent_like(view::CoordinateView, path::Tuple, v, x) = _latent_vector(_block_latent_like(node(view, path), v, x))
+_block_latent_like(t::PT.AbstractTransport, v, x) = PT.latent_pback!(similar(x, PT.dimension(t)), t, v)
+_block_latent_like(t, v, x) = _block_latent(t, v)
+_block_latent_like(::TV.ArrayTransformation{TV.Identity}, v, x) = vec(v)
+
 # --- the move protocol ------------------------------------------------------------------
 
 """
@@ -110,13 +117,17 @@ A Metropolis–Hastings move of the base latent coordinates of a posterior. A mo
 
   - [`propose`](@ref)`(move, x, step, ctx) -> (x′, logdet)`: the moved point and
     `log|det ∂x′/∂x|`, with `ctx` from [`move_context`](@ref);
-  - `step_kind(move)`: [`RandomWalk`](@ref) (a scalar step `u ~ N(0, τ²)`) or
-    [`DiscreteSymmetric`](@ref);
+  - `step_kind(move)`: [`RandomWalk`](@ref) (a scalar step `u ~ N(0, τ²)`),
+    [`DiscreteSymmetric`](@ref), or [`ComponentwiseRandomWalk`](@ref) (a vector step, one
+    log-determinant per component, and `component_coords(move)`);
   - `move_name(move)`.
 
 and optionally `draw_step(move, rng, τ)` and `reverse_step(move, step)` (required for
-`DiscreteSymmetric`), `is_invariant(move)` (default `true`: the likelihood does not change)
-and `context_data(move, view)` (arrays the move reads from `ctx`).
+`DiscreteSymmetric`), `is_invariant(move)` (default `true`: the likelihood does not change),
+`context_data(move, view)` (arrays the move reads from `ctx`) and `traceable(move)` (default
+`false`). A traceable `RandomWalk` move's proposal is compiled into a Reactant program when
+the sampler's position lives on the device; it must then read every array it needs from
+`ctx` (whose `view` is then over the device posterior) rather than capture host objects.
 
 A proposal and the proposal with `reverse_step` must invert each other, and the step
 distribution must be symmetric under `reverse_step`, so that
@@ -149,6 +160,42 @@ The step kind of a move that draws its step from a finite set with `draw_step(mo
 struct DiscreteSymmetric end
 
 """
+    ComponentwiseRandomWalk(initial_scale, n)
+
+The step kind of a move with `n` independent components. The step is a vector `u` with
+`uᵢ ~ N(0, τᵢ²)`, each `τᵢ` starting at `initial_scale`; [`propose`](@ref) returns one
+log-determinant per component, and `component_coords(move)` the latent coordinates each
+component changes. The components' coordinates are disjoint and component `i` of the
+proposal depends on `uᵢ` alone, so each component is accepted on its own; `u` and `−u` are
+reverse steps.
+"""
+struct ComponentwiseRandomWalk
+    initial_scale::Float64
+    n::Int
+    function ComponentwiseRandomWalk(initial_scale, n)
+        initial_scale > 0 ||
+            throw(ArgumentError("initial_scale must be positive, got $initial_scale"))
+        n > 0 || throw(ArgumentError("a componentwise move needs at least one component, got $n"))
+        return new(initial_scale, n)
+    end
+end
+
+"""
+    component_coords(move) -> Vector{Vector{Int}}
+
+The latent coordinates each component of a [`ComponentwiseRandomWalk`](@ref) move changes.
+"""
+function component_coords end
+
+"""
+    component_label(move, i)
+
+The name of component `i` of a [`ComponentwiseRandomWalk`](@ref) move in its statistics
+(default `i`).
+"""
+component_label(::AbstractMove, i) = i
+
+"""
     propose(move, x, step, ctx) -> (x′, logdet)
 
 The point `move` takes the base latent point `x` to with `step`, and `log|det ∂x′/∂x|`.
@@ -159,15 +206,20 @@ function step_kind end
 function move_name end
 is_invariant(::AbstractMove) = true
 context_data(::AbstractMove, view) = NamedTuple()
+traceable(::AbstractMove) = false
 
 draw_step(m::AbstractMove, rng::AbstractRNG, τ) = _draw_step(step_kind(m), rng, τ)
 _draw_step(::RandomWalk, rng, τ) = τ * randn(rng)
+_draw_step(k::ComponentwiseRandomWalk, rng, τ) = τ .* randn(rng, k.n)
 
 reverse_step(m::AbstractMove, step) = _reverse_step(step_kind(m), step)
 _reverse_step(::RandomWalk, u) = -u
+_reverse_step(::ComponentwiseRandomWalk, u) = -u
 
 # The step scale a move starts with; discrete moves have none.
-_initial_scale(m::AbstractMove) = (k = step_kind(m); k isa RandomWalk ? k.initial_scale : NaN)
+_initial_scale(m::AbstractMove) = _initial_scale(step_kind(m))
+_initial_scale(k::Union{RandomWalk, ComponentwiseRandomWalk}) = k.initial_scale
+_initial_scale(k) = NaN
 
 """
     move_context(view::CoordinateView, moves) -> NamedTuple
@@ -189,17 +241,21 @@ end
 
 """
     CompensatedMove(name, view, shift, block, compensate; index = 1,
-                    logdet = (vb, x, x′, ctx) -> 0.0, initial_scale = 0.05, invariant = true)
+                    logdet = (vb, x, x′, ctx) -> 0.0, initial_scale = 0.05, invariant = true,
+                    context = (;), traceable = false)
 
 A random-walk move that shifts the `index`-th latent coordinate of the parameter at path
 `shift` by the step `u` and replaces the parameter at path `block` with
 `compensate(vb, x, x′, ctx)`, where `vb` is its value at `x` and `x′` is `x` with the shift
 applied; `compensate` keeps a quantity the likelihood depends on fixed (for example a product
 or a pixelwise image). `logdet(vb, x, x′, ctx)` is `log|det ∂x′/∂x|` of the whole map.
+`context` (a `NamedTuple` of arrays) is merged into `ctx`; with `traceable = true` the
+proposal compiles on the device (see [`AbstractMove`](@ref)), so `compensate` and `logdet`
+must read `ctx.view` and the `context` arrays from `ctx` instead of capturing them.
 
 Construction checks only that `shift` and `block` exist in `view` and do not overlap.
 """
-struct CompensatedMove{C, L} <: AbstractMove
+struct CompensatedMove{C, L, X <: NamedTuple} <: AbstractMove
     name::String
     ishift::Int
     block::Tuple
@@ -207,12 +263,14 @@ struct CompensatedMove{C, L} <: AbstractMove
     logdet::L
     initial_scale::Float64
     invariant::Bool
+    context::X
+    traceable::Bool
 end
 
 function CompensatedMove(
         name::AbstractString, view::CoordinateView, shift::Tuple, block::Tuple, compensate;
         index::Integer = 1, logdet = (vb, x, x′, ctx) -> 0.0, initial_scale::Real = 0.05,
-        invariant::Bool = true
+        invariant::Bool = true, context::NamedTuple = (;), traceable::Bool = false
     )
     rs = coords(view, shift)
     1 <= index <= length(rs) || throw(
@@ -222,19 +280,22 @@ function CompensatedMove(
     i = rs[index]
     i in rb && throw(ArgumentError("the shifted coordinate of $shift lies in the block $block"))
     return CompensatedMove(
-        String(name), i, block, compensate, logdet, Float64(RandomWalk(initial_scale).initial_scale), invariant
+        String(name), i, block, compensate, logdet, Float64(RandomWalk(initial_scale).initial_scale),
+        invariant, context, traceable
     )
 end
 
 step_kind(m::CompensatedMove) = RandomWalk(m.initial_scale)
 move_name(m::CompensatedMove) = m.name
 is_invariant(m::CompensatedMove) = m.invariant
+context_data(m::CompensatedMove, view) = m.context
+traceable(m::CompensatedMove) = m.traceable
 
 function propose(m::CompensatedMove, x, u, ctx)
     x′ = _with_coordinate(x, m.ishift, _rget(x, m.ishift) + u)
     vb = value(ctx.view, x, m.block)
     rb = coords(ctx.view, m.block)
-    x′[rb] = latent(ctx.view, m.block, m.compensate(vb, x, x′, ctx))
+    x′[rb] = _latent_like(ctx.view, m.block, m.compensate(vb, x, x′, ctx), x′)
     return x′, m.logdet(vb, x, x′, ctx)
 end
 
@@ -250,6 +311,45 @@ function _ks_statistic(a::AbstractVector, b::AbstractVector)
         d = max(d, abs(fa - fb))
     end
     return d
+end
+
+"""
+    check_components(move, x, step, ctx; rtol = 1e-8)
+
+Check that the components of the [`ComponentwiseRandomWalk`](@ref) move `move` are
+independent at the base point `x` for the vector step `step`: `component_coords(move)` are
+disjoint, the proposal changes no coordinate outside them, and proposing with component `i`
+of `step` alone gives the same coordinates of component `i` and the same log-determinant
+`i` as the full step, and leaves the other components' coordinates in place. Errors
+naming the first violation.
+"""
+function check_components(move::AbstractMove, x, step, ctx; rtol::Real = 1.0e-8)
+    name = move_name(move)
+    cs = component_coords(move)
+    length(cs) == length(step) ||
+        error("move $name has $(length(cs)) components but a step of length $(length(step))")
+    every = reduce(vcat, cs; init = Int[])
+    allunique(every) || error("the components of move $name share latent coordinates")
+    x′, ld = propose(move, x, step, ctx)
+    tol(a) = rtol * (maximum(abs, a; init = 0.0) + 1)
+    outside = setdiff(eachindex(x), every)
+    maximum(abs, x′[outside] .- x[outside]; init = 0.0) <= tol(x) ||
+        error("move $name changes latent coordinates outside its components")
+    for i in eachindex(cs)
+        u = zero(step)
+        u[i] = step[i]
+        xi, ldi = propose(move, x, u, ctx)
+        rest = setdiff(every, cs[i])
+        (
+            maximum(abs, xi[cs[i]] .- x′[cs[i]]; init = 0.0) <= tol(x) &&
+                maximum(abs, xi[rest] .- x[rest]; init = 0.0) <= tol(x) &&
+                isapprox(ldi[i], ld[i]; atol = rtol * (abs(ld[i]) + 1))
+        ) || error(
+            "component $(component_label(move, i)) of move $name depends on the other " *
+                "components' steps or changes their coordinates"
+        )
+    end
+    return nothing
 end
 
 _logprior_latent(tbase, post, x) =
@@ -268,7 +368,9 @@ point in `θs`, throwing an error that names the failed property:
   - log-determinant: `logdet` matches `log|det J|` of a central finite-difference Jacobian
     (step `h`) over the coordinates the proposal changes (the map is the identity on the
     others, so they do not contribute);
-  - invariance: if `is_invariant(move)`, the log-likelihood does not change (`rtol`).
+  - invariance: if `is_invariant(move)`, the log-likelihood does not change (`rtol`);
+  - for a [`ComponentwiseRandomWalk`](@ref) move, [`check_components`](@ref), with the
+    log-determinants summed over the components above.
 
 With `nprior > 0` it also checks that the move kernel leaves the prior invariant: `nprior`
 prior draws each take `nsteps` Metropolis–Hastings steps of `move` targeting the prior, and
@@ -300,6 +402,8 @@ function check_move(
         x″, ld′ = propose(move, x′, reverse_step(move, step), ctx)
         e = maximum(abs, x″ .- x) / (maximum(abs, x) + 1)
         rev = max(rev, e)
+        step_kind(move) isa ComponentwiseRandomWalk && check_components(move, x, step, ctx; rtol)
+        ld, ld′ = sum(ld), sum(ld′)
         (e <= rtol && isapprox(ld′, -ld; atol = logdet_atol)) || error(
             "move $name is not reversed by reverse_step at step $step: |Δx| = $e, " *
                 "logdet $ld then $ld′ (should sum to 0)"
@@ -333,7 +437,7 @@ function check_move(
             for _ in 1:nsteps
                 x′, ld = propose(move, x, draw_step(move, rng, τ), ctx)
                 ℓ′ = _logprior_latent(tbase, post, x′)
-                if log(rand(rng)) < ℓ′ - ℓ + ld
+                if log(rand(rng)) < ℓ′ - ℓ + sum(ld)
                     x, ℓ = x′, ℓ′
                 end
             end

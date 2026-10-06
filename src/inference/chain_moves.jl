@@ -1,6 +1,6 @@
 # Moves along exact symmetries of instrument models with Gauss–Markov gain chains.
 
-export PhaseSheetMove, flux_gain_move
+export PhaseSheetMove, flux_gain_move, ChainHyperMove, chain_hyper_moves
 
 _is_chain_value(v) = v isa NamedTuple && haskey(v, :params) && haskey(v, :hyperparams)
 _chain_params(v) = _is_chain_value(v) ? v.params : v
@@ -116,4 +116,100 @@ function flux_gain_move(
         return _with_chain_params(vg, pa)
     end
     return CompensatedMove("flux_gain", view, flux, gains, compensate; initial_scale)
+end
+
+"""
+    ChainHyperMove
+
+A [`ComponentwiseRandomWalk`](@ref) move of one fitted hyperparameter field (e.g. `σ` or
+`τ`) of a Gauss–Markov chain term, one component per site that fits it; build them with
+[`chain_hyper_moves`](@ref). Component `i` steps the latent coordinate of site `i`'s
+hyperparameter, `h → h′`, keeps the site's chain values `g` fixed and whitens them again
+under `h′`, so the likelihood is unchanged. Its log-determinant is
+`log p(g | h′) − log p(g | h) + (‖z′‖² − ‖z‖²)/2` over the site's whitened innovations
+`z → z′`, so that with the standard normal latent density its acceptance is that of the
+hyperparameter given the chain values. Sites touch disjoint latent coordinates and their
+chain densities are separate terms, so the components are independent.
+"""
+struct ChainHyperMove{S} <: AbstractMove
+    name::String
+    path::Tuple
+    sites::Vector{Symbol}
+    hcoords::Vector{Int}
+    innovations::Vector{Vector{Int}}
+    specs::S
+    initial_scale::Float64
+end
+
+step_kind(m::ChainHyperMove) = ComponentwiseRandomWalk(m.initial_scale, length(m.sites))
+move_name(m::ChainHyperMove) = m.name
+component_coords(m::ChainHyperMove) = [vcat(h, z) for (h, z) in zip(m.hcoords, m.innovations)]
+component_label(m::ChainHyperMove, i) = m.sites[i]
+
+_site_chain_logpdf(specs, g, hp) = sum(spec -> chain_term(spec, g, hp), specs; init = zero(eltype(g)))
+
+function propose(m::ChainHyperMove, x, u::AbstractVector, ctx)
+    v = value(ctx.view, x, m.path)
+    x′ = copy(x)
+    x′[m.hcoords] .+= u
+    h′ = value(ctx.view, x′, m.path).hyperparams
+    x′[coords(ctx.view, m.path)] = latent(ctx.view, m.path, (params = v.params, hyperparams = h′))
+    g = parent(v.params)
+    logdet = map(eachindex(m.sites)) do i
+        z, z′ = x[m.innovations[i]], x′[m.innovations[i]]
+        return _site_chain_logpdf(m.specs[i], g, h′) - _site_chain_logpdf(m.specs[i], g, v.hyperparams) +
+            (sum(abs2, z′) - sum(abs2, z)) / 2
+    end
+    return x′, logdet
+end
+
+"""
+    chain_hyper_moves(view::CoordinateView, path; initial_scale = 0.1) -> Vector{ChainHyperMove}
+
+One [`ChainHyperMove`](@ref) per fitted hyperparameter field of the Gauss–Markov chain term
+at `path` (e.g. `(:instrument, :lg1)`), named `"chain_hyper[term.field]"`, with one
+component per site that fits the field.
+
+Errors if `path` is not a chain term with fitted hyperparameters.
+"""
+function chain_hyper_moves(view::CoordinateView, path::Tuple; initial_scale::Real = 0.1)
+    t = node(view, path)
+    hasproperty(t, :hnode) || throw(
+        ArgumentError("$path is not a Gauss–Markov chain term with fitted hyperparameters")
+    )
+    r = coords(view, path)
+    nh = _node_dimension(t.hnode)
+    nh > 0 || throw(ArgumentError("the chain term $path fits no hyperparameters"))
+    x0 = randn(Random.Xoshiro(1), dimension(view.tbase)) ./ 3
+    v0 = value(view, x0, path)
+    h0 = v0.hyperparams
+    labels = map(r[1:nh]) do j
+        x1 = copy(x0)
+        x1[j] += 0.1
+        h1 = value(view, x1, path).hyperparams
+        moved = [(s, f) for s in keys(h0) for f in keys(h0[s]) if h1[s][f] != h0[s][f]]
+        length(moved) == 1 || error(
+            "latent coordinate $j of $path moves the hyperparameters $moved; each " *
+                "coordinate must move exactly one"
+        )
+        return only(moved)
+    end
+    chains = values(t.dists.chains)
+    tag = path[end]
+    return map(unique(last.(labels))) do f
+        idx = findall(l -> last(l) == f, labels)
+        sites = first.(labels[idx])
+        hcoords = collect(r[idx])
+        innovations = map(hcoords) do j
+            x1 = copy(x0)
+            x1[j] += 0.1
+            y = latent(view, path, (params = v0.params, hyperparams = value(view, x1, path).hyperparams))
+            k = findall(i -> abs(y[i] - x0[r[i]]) > 1.0e-10 * (abs(x0[r[i]]) + 1), (nh + 1):length(r))
+            return collect(r[nh .+ k])
+        end
+        specs = map(s -> Tuple(c for c in chains if c isa MarkovChainSpec && c.hpsel === Val(s)), sites)
+        return ChainHyperMove(
+            "chain_hyper[$tag.$f]", path, sites, hcoords, innovations, specs, Float64(initial_scale)
+        )
+    end
 end

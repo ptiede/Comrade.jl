@@ -144,6 +144,11 @@ end
     end
 end
 
+struct _TracedDiscrete <: Comrade.AbstractMove end
+Comrade.step_kind(::_TracedDiscrete) = DiscreteSymmetric()
+Comrade.move_name(::_TracedDiscrete) = "traced_discrete"
+Comrade.traceable(::_TracedDiscrete) = true
+
 mutable struct _MovesState
     position::Vector{Float64}
 end
@@ -178,7 +183,23 @@ end
         f, f′ = θs[1].sky.f1, Comrade.value(view, x′, (:sky, :f1))
         @test parent(Comrade.value(view, x′, (:instrument, :lg)).params) ≈
             parent(θs[1].instrument.lg.params) .- log(f′ / f) / 2
+
+        hm = chain_hyper_moves(view, (:instrument, :lg))
+        @test sort(Comrade.move_name.(hm)) == ["chain_hyper[lg.σ]", "chain_hyper[lg.τ]"]
+        for m in hm
+            @test length(m.sites) > 1 && all(!isempty, m.innovations)
+            @test Comrade.step_kind(m) == ComponentwiseRandomWalk(0.1, length(m.sites))
+            r = check_move(m, post, θs; space, rng, nprior = m === first(hm) ? 300 : 0)
+            @test r.logdet < 1.0e-6
+            x′, ld = Comrade.propose(m, x, fill(0.3, length(m.sites)), ctx)
+            v′ = Comrade.value(view, x′, (:instrument, :lg))
+            @test parent(v′.params) ≈ parent(θs[1].instrument.lg.params) rtol = 1.0e-10
+            @test all(s -> v′.hyperparams[s] != θs[1].instrument.lg.hyperparams[s], m.sites)
+            @test length(ld) == length(m.sites)
+        end
     end
+    @test_throws "is not a Gauss–Markov chain term with fitted hyperparameters" chain_hyper_moves(CoordinateView(post), (:instrument, :gp))
+    @test_throws "is componentwise, which needs the StdNormal space" MoveSet(post, chain_hyper_moves(CoordinateView(post), (:instrument, :lg)))
     @test_throws "no instrument parameter gq" PhaseSheetMove(post, (:gq,))
     @test_throws "power must be positive" flux_gain_move(CoordinateView(post); flux = (:sky, :f1), gains = (:instrument, :lg), power = 0)
 
@@ -191,7 +212,9 @@ end
         tflat = asflat(post)
         st = _MovesState(Comrade.inverse(tflat, θs[1]))
         warm(k) = (; phase = :warmup, step = 10k, total = 100)
+        @test move_seconds(ms) == 0
         ms(st, tflat, warm(1), Random.Xoshiro(1))
+        @test move_seconds(ms) > 0
         s = move_summary(ms)
         @test [x.warmup.proposed for x in s] == [5, 3]
         @test s[1].τ != 0.05 && isnothing(s[2].τ)
@@ -220,12 +243,50 @@ end
         @test [x.warmup.accepted for x in move_summary(msa)] == [x.warmup.accepted for x in move_summary(msb)]
         @test sa.position != x0
 
+        # StdNormal: invariant moves are accepted without the likelihood
+        vs = CoordinateView(post, sp)
+        hm = chain_hyper_moves(vs, (:instrument, :lg))
+        fgs = flux_gain_move(vs; flux = (:sky, :f1), gains = (:instrument, :lg))
+        mss = MoveSet(post, (fgs, hm...); space = sp, θ0 = θs[1], rounds = [4, 3, 3])
+        @test all(mss.free)
+        tstd = Comrade.transport_to(post, sp)
+        ss = _MovesState(Comrade.inverse(tstd, θs[1]))
+        for k in 1:5
+            mss(ss, tstd, warm(k), Random.Xoshiro(20 + k))
+        end
+        sm = move_summary(mss)
+        nsite = [length(m.sites) for m in hm]
+        @test [x.warmup.proposed for x in sm] == 5 .* [4, 3 * nsite[1], 3 * nsite[2]]
+        @test all(x -> x.warmup.accepted > 0, sm)
+        @test sm[2].τ isa Vector && length(sm[2].τ) == nsite[1] && sm[2].τ != fill(0.1, nsite[1])
+        @test sum(v[1] for v in values(sm[2].bystep)) == 15 * nsite[1]
+        θe = transform(tstd, ss.position)
+        @test loglikelihood(post, θe) ≈ loglikelihood(post, θs[1]) rtol = 1.0e-8
+        @test θe.instrument.lg.hyperparams != θs[1].instrument.lg.hyperparams
+        # a move flagged invariant that changes the likelihood fails the audit
+        bad = CompensatedMove("bad", vs, (:sky, :f1), (:instrument, :lg), (vb, x, x′, ctx) -> vb)
+        msb = MoveSet(post, (bad,); space = sp, rounds = 20)
+        @test_throws "changed the likelihood" msb(_MovesState(Comrade.inverse(tstd, θs[1])), tstd, warm(1), Random.Xoshiro(1))
+
         @test_throws "the moves act in the StdNormal space but the sampler samples the flat space" MoveSet(post, (PhaseSheetMove(post, (:gp,); space = sp),); space = sp)(st, tflat, warm(1), rng)
         @test_throws "rounds has 1 entries for 2 moves" MoveSet(post, (fg, sheet); rounds = [1])
         @test_throws "target_accept must lie in (0, 1)" MoveSet(post, (fg,); target_accept = 1.0)
         @test_throws "move names must be distinct" MoveSet(post, (fg, fg))
         @test_throws "MoveSet needs at least one move" MoveSet(post, ())
         @test_throws "unknown sampler phase" ms(st, tflat, (; phase = :burnin, step = 1, total = 1), rng)
+        @test_throws "is traceable but not a RandomWalk move" MoveSet(post, (_TracedDiscrete(),))
+
+        # a traceable move runs from steps drawn up front at the call's step scale; with the
+        # scale frozen (sampling) that is the same chain as proposing one step at a time
+        rw(traceable) = CompensatedMove("f1_rw", view, (:sky, :f1), (:instrument, :lg), (v, x, x′, ctx) -> v; invariant = false, traceable)
+        msf, mss = MoveSet(post, (rw(true),); rounds = 7), MoveSet(post, (rw(false),); rounds = 7)
+        sf, ss = _MovesState(copy(x0)), _MovesState(copy(x0))
+        samp = (; phase = :sampling, step = 1, total = 10)
+        msf(sf, tflat, samp, Random.Xoshiro(4))
+        mss(ss, tflat, samp, Random.Xoshiro(4))
+        @test sf.position == ss.position && sf.position != x0
+        @test only(move_summary(msf)).sampling == only(move_summary(mss)).sampling
+
         lgonly = CompensatedMove("lg_only", view, (:sky, :f1), (:instrument, :lg), (v, x, x′, ctx) -> v)
         @test_throws "move lg_only changed the log-likelihood" MoveSet(post, (lgonly,); θ0 = θs[1])
     end
