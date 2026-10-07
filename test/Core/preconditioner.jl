@@ -392,6 +392,7 @@ end
         @test R' * z ≈ D' * z && R * c ≈ D * c
         @test R' * [z z] ≈ D' * [z z] && R * [c c] ≈ D * [c c]
         @test Array(R[:, [2, 4]]) == D[:, [2, 4]]
+        @test Comrade.Adapt.parent_type(typeof(R)) === typeof(R)
         @test_throws "strictly increasing" RowSupportedMatrix(n, [3, 2], M[1:2, :])
         @test_throws DimensionMismatch RowSupportedMatrix(n, rows[1:3], M)
         # a preconditioner on a RowSupportedMatrix is the same map as on its dense matrix
@@ -425,12 +426,19 @@ end
         )
     end
 
-    @testset "failures are errors" begin
+    @testset "more eigenvalues than rank keeps the largest" begin
         A, _ = lowrank([1.0e4, 5.0e3, 2.0e3, 1.0e3])
         a = GaussNewtonLowRank((x, W) -> A * W; rank = 2, threshold = 10.0, min_draws = 1)
         st = Comrade.init_metric_adaptation(a)
         Comrade.observe_draw!(a, st, nothing, randn(rng, n), zeros(n))
-        @test_throws "4 Gauss–Newton eigenvalues exceed threshold = 10.0, more than rank = 2" Comrade.metric_refit(a, st)
+        fit = @test_logs (:info, r"4 eigenvalues exceed threshold = 10.0; keeping the largest rank = 2, the largest dropped is λ = 2000") Comrade.metric_refit(a, st)
+        E = eigen(Symmetric(A); sortby = -)
+        @test size(fit.V) == (n, 2)
+        @test fit.s ≈ inv.(sqrt.(1 .+ [1.0e4, 5.0e3])) rtol = 1.0e-8
+        @test abs.(fit.V' * E.vectors[:, 1:2]) ≈ I atol = 1.0e-8
+    end
+
+    @testset "failures are errors" begin
         bad = GaussNewtonLowRank((x, W) -> fill(NaN, size(W)); rank = 2, min_draws = 1)
         @test_throws "curvature product at a warmup draw is not finite" Comrade.observe_draw!(
             bad, Comrade.init_metric_adaptation(bad), nothing, randn(rng, n), zeros(n)

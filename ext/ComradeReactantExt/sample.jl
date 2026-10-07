@@ -544,13 +544,19 @@ function warmup_chunked(
             nsteps, isnothing(state.gradient), isnothing(state.adaptation),
             ndims(state.position), adapt_mm, total_c,
         )
+        fresh = !haskey(kernels, key)
         kernel = get!(kernels, key) do
             _compile_warmup_kernel(
                 state, ldf, tpost, nsteps, total_c, sampler;
                 adapt_mass_matrix = adapt_mm
             )
         end
-        state = kernel(state, ldf, ConcreteRNumber(Int64(off_c)))
+        # The kernel runs asynchronously; waiting for its result keeps the timing to the
+        # NUTS steps alone.
+        nuts_seconds = @elapsed begin
+            state = kernel(state, ldf, ConcreteRNumber(Int64(off_c)))
+            Reactant.synchronize(state.position)
+        end
         done += nsteps
 
         cur = _current_state(state, tpost)
@@ -589,7 +595,7 @@ function warmup_chunked(
             position = cur.position, params = cur.params,
             potential_energy = cur.potential_energy, gradient = cur.gradient,
             inverse_mass_matrix = cur.inverse_mass_matrix,
-            state, gradient_time,
+            state, gradient_time, nsteps, nuts_seconds, fresh_kernel = fresh,
         )
         push!(history, callback(info))
 
@@ -720,13 +726,16 @@ function sample_chunked(
     ndone = 0
 
     for (round, ns) in enumerate(sizes)
-        cfn = get!(compiled, (ns, isnothing(state.gradient))) do
+        key = (ns, isnothing(state.gradient))
+        fresh = !haskey(compiled, key)
+        cfn = get!(compiled, key) do
             Reactant.Compiler.compile(run_chunk, (state, ns); optimize = :probprog)
         end
         t = @elapsed begin
             # (trace, diagnostics, log_densities, traced_result, state) — the
             # `log_densities` slot appeared in Reactant 0.2.275 (see the compat bound).
             samples, diagnostics, log_densities, _, state = cfn(state, ns)
+            Reactant.synchronize(state.position)
         end
 
         raw = Array(samples)
@@ -747,8 +756,9 @@ function sample_chunked(
         # Per-draw sampler statistics, one column each. The step size is frozen during
         # sampling and the wall time is measured per chunk, so both repeat over the chunk;
         # `time` divided by the cost of one gradient is the number of leapfrog steps per
-        # draw, which ProbProg does not report. The first chunk of each length also pays
-        # for compilation, so its `time` is an overestimate.
+        # draw, which ProbProg does not report. Compilation is outside `time`, but the first
+        # run of a freshly compiled kernel (`extras.fresh_kernel`) pays one-time device
+        # setup, so its `time` is an overestimate.
         stats = (;
             numerical_error,
             log_density = vec(Array(log_densities)),
@@ -766,7 +776,7 @@ function sample_chunked(
                 position = cur.position, gradient = cur.gradient,
                 potential_energy = cur.potential_energy,
                 inverse_mass_matrix = cur.inverse_mass_matrix,
-                state, samples = raw, gradient_time,
+                state, samples = raw, gradient_time, fresh_kernel = fresh,
             ),
         )
         push!(history, callback(info))
@@ -889,7 +899,10 @@ common fields documented in [`Comrade.default_disk_callback`](@ref) plus an `ext
 
 `warmup_callback` runs once per warmup chunk; its `info` carries `step`/`total`/
 `num_warmup` alongside the host-side state view (see [`default_warmup_callback`](@ref)
-and [`warmup_chunked`](@ref)). The default (`nothing`) resolves per store: `MemoryStore`
+and [`warmup_chunked`](@ref)), plus `nsteps` (the NUTS steps of the chunk),
+`nuts_seconds` (their wall time on the device, without compilation, moves or refits) and
+`fresh_kernel` (whether the chunk ran a just-compiled kernel, whose first run pays one-time
+device setup). The default (`nothing`) resolves per store: `MemoryStore`
 keeps each chunk's draw in `warmup_history` ([`default_warmup_callback`](@ref)), while
 `DiskStore` logs only scalars there ([`default_warmup_callback_noparams`](@ref)) since
 its draws already stream to `<name>/warmup`. Overriding it replaces what lands in

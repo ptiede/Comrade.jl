@@ -325,8 +325,9 @@ is the posterior's Gauss–Newton Hessian.
 # Arguments
   - `curvature(x, W) -> Matrix`: `H(x) * W` for a base-space draw `x` (a `Vector`) and a
     matrix of directions `W`.
-  - `rank`: the most eigenpairs a fit may keep. A fit with more than `rank` eigenvalues
-    `≥ threshold` errors (the spectrum would be truncated; raise `rank`).
+  - `rank`: the most eigenpairs a fit keeps. A fit with more than `rank` eigenvalues
+    `≥ threshold` keeps the `rank` largest and logs how many it dropped and the largest
+    dropped eigenvalue; the dropped directions stay unwhitened.
   - `oversample`: extra probe columns beyond `rank`.
   - `probes_per_draw`: probe columns applied per recorded draw, in `1:(rank + oversample)`.
     Fewer than all of them means each column averages over a different subset of draws.
@@ -547,11 +548,15 @@ function metric_refit(a::GaussNewtonLowRank, st::GaussNewtonSketch; kwargs...)
     n = st.n
     st.Y ./= st.counts'
     λ, keep, U = _nystrom!(a, st.Y, a.threshold)
+    # `keep` is in decreasing eigenvalue order, so truncation drops the weakest directions.
+    if length(keep) > a.rank
+        @info "Gauss–Newton refit: $(length(keep)) eigenvalues exceed threshold = " *
+            "$(a.threshold); keeping the largest rank = $(a.rank), the largest dropped is " *
+            "λ = $(round(λ[keep[a.rank + 1]]; sigdigits = 4))"
+        keep = keep[1:a.rank]
+        U = U[:, 1:a.rank]
+    end
     V = isnothing(a.rows) ? U : RowSupportedMatrix(n, a.rows, U)
-    length(keep) <= a.rank || error(
-        "$(length(keep)) Gauss–Newton eigenvalues exceed threshold = $(a.threshold), more " *
-            "than rank = $(a.rank): the spectrum would be truncated; raise rank or threshold"
-    )
     _reset!(st)
     return LowRankPreconditioner(zeros(n), ones(n), V, inv.(sqrt.(1 .+ λ[keep])))
 end

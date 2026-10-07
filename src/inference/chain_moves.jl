@@ -98,12 +98,13 @@ end
     flux_gain_move(view::CoordinateView; flux, gains, power = 2, initial_scale = 0.05)
 
 A [`CompensatedMove`](@ref) trading the scalar flux parameter at path `flux` against the
-gain log-amplitude chain at path `gains`: a step `u` on the flux's latent coordinate takes
-`F → F′` and shifts every value of the chain by `−c` with `c = log(F′/F) / power`. When
-each visibility depends on these parameters only through `F · exp(power · g)` (e.g.
-`power = 2` for a common log-amplitude `g` of both stations of a baseline), the likelihood
-is unchanged. For a whitened chain with fixed hyperparameters the shift is a constant in
-the latent space, so `logdet = 0`; `check_move` verifies both.
+gain log-amplitudes at path `gains` (a Gauss–Markov chain or per-site constants): a step `u`
+on the flux's latent coordinate takes `F → F′` and shifts every gain value by `−c` with
+`c = log(F′/F) / power`. When each visibility depends on these parameters only through
+`F · exp(power · g)` (e.g. `power = 2` for a common log-amplitude `g` of both stations of a
+baseline), the likelihood is unchanged. For a whitened chain with fixed hyperparameters, or
+Gaussian per-site constants, the shift is a constant in the latent space, so `logdet = 0`;
+`check_move` verifies both.
 """
 function flux_gain_move(
         view::CoordinateView; flux::Tuple, gains::Tuple, power::Real = 2, initial_scale::Real = 0.05

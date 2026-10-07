@@ -37,6 +37,10 @@ struct RowSupportedMatrix{T, R <: AbstractVector{<:Integer}, M <: AbstractMatrix
     end
 end
 
+# Not a wrapper of `M`: its indices are not those of `M`, so the type is its own storage
+# when Reactant (or anything else using `Adapt.parent_type`) looks for the wrapped array.
+Adapt.parent_type(::Type{T}) where {T <: RowSupportedMatrix} = T
+
 Base.size(A::RowSupportedMatrix) = (A.n, size(A.M, 2))
 function Base.getindex(A::RowSupportedMatrix, i::Int, j::Int)
     r = searchsortedfirst(A.rows, i)
@@ -389,9 +393,10 @@ function _compiled_score(post, x0, space)
     )
 end
 
-# The wall time in seconds of one compiled gradient of the log density of `tpost` at the
-# device point `x`, or `nothing` without Reactant and Enzyme. Implemented by the Reactant +
-# Enzyme extension, which compiles the gradient once per device preconditioner.
+# The steady-state wall time in seconds of one compiled gradient of the log density of
+# `tpost` at the device point `x` (the median over repeated calls after a time-based warm-up),
+# or `nothing` without Reactant and Enzyme. Implemented by the Reactant + Enzyme extension,
+# which compiles the gradient once per device preconditioner.
 _gradient_seconds(tpost, x) = nothing
 
 # Host score in the base space `space`, through the posterior's own AD mode.

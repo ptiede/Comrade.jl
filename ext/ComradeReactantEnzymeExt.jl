@@ -17,6 +17,20 @@ function _device_flat_grad(tpost, x)
     return last(derivs), val
 end
 
+# The median wall time of `f()` once the device runs at its working speed. A device left idle
+# (for example during a host-side refit) runs its first calls far slower than it does while
+# sampling, so the calls before timing span `warmup` seconds rather than a fixed count.
+function _steady_seconds(f; warmup = 0.5, mincalls = 10, ncalls = 21)
+    t0 = time()
+    n = 0
+    while n < mincalls || time() - t0 < warmup
+        f()
+        n += 1
+    end
+    ts = [@elapsed(f()) for _ in 1:ncalls]
+    return sort!(ts)[cld(ncalls, 2)]
+end
+
 # Gradient wall times by the device array the cost depends on (the preconditioner's `V`, or
 # `tpost` itself without one), held weakly. An in-place refit keeps the shapes, so the time
 # stays valid.
@@ -28,8 +42,7 @@ function Comrade._gradient_seconds(tpost, x::Reactant.AbstractConcreteArray)
     e = get(_GRADIENT_SECONDS, objectid(obj), nothing)
     (!isnothing(e) && e[1].value === obj) && return e[2]
     g = Reactant.@compile sync = true _device_flat_grad(tpost, x)
-    g(tpost, x)
-    t = sort([@elapsed(g(tpost, x)) for _ in 1:5])[3]
+    t = _steady_seconds(() -> g(tpost, x))
     filter!(kv -> !isnothing(kv[2][1].value), _GRADIENT_SECONDS)
     _GRADIENT_SECONDS[objectid(obj)] = (WeakRef(obj), t)
     return t

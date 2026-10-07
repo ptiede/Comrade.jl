@@ -359,19 +359,33 @@ function (ms::MoveSet)(state, tpost, info, rng)
     dt = Base.time() - t0
     ms.seconds[] += dt
     if phase === :warmup
-        parts = map(enumerate(ms.moves)) do (j, m)
-            kind = step_kind(m)
-            st = ms.stats[j]
-            if kind isa ComponentwiseRandomWalk
-                τ = exp(sum(st.complog) / length(st.complog))
-                return "$(move_name(m)) $(nacc[j])/$(ms.rounds[j] * kind.n) τ̄=$(@sprintf("%.3g", τ))"
-            end
-            s = "$(move_name(m)) $(nacc[j])/$(ms.rounds[j])"
-            kind isa RandomWalk ? s * " τ=$(@sprintf("%.3g", exp(st.logscale)))" : s
-        end
-        @info "moves after warmup step $(info.step)/$(info.total) ($(@sprintf("%.2f", dt)) s): " * join(parts, "; ")
+        @info "moves after warmup step $(info.step)/$(info.total) ($(@sprintf("%.2f", dt)) s)\n" *
+            _moves_table(ms, nacc)
     end
     return state
+end
+
+# One row per move: proposals accepted in this call, proposals made, the acceptance rate,
+# and the random-walk step scale (the geometric mean over components for a componentwise
+# move; blank for discrete moves).
+function _moves_table(ms::MoveSet, nacc)
+    rows = map(enumerate(ms.moves)) do (j, m)
+        kind = step_kind(m)
+        st = ms.stats[j]
+        nprop = kind isa ComponentwiseRandomWalk ? ms.rounds[j] * kind.n : ms.rounds[j]
+        τ = kind isa ComponentwiseRandomWalk ? exp(sum(st.complog) / length(st.complog)) :
+            kind isa RandomWalk ? exp(st.logscale) : nothing
+        return [
+            move_name(m), string(nacc[j]), string(nprop),
+            @sprintf("%.0f%%", 100 * nacc[j] / nprop),
+            isnothing(τ) ? "" : @sprintf("%.3g", τ),
+        ]
+    end
+    return pretty_table(
+        String, permutedims(reduce(hcat, rows));
+        column_labels = ["move", "accepted", "proposed", "rate", "step scale"],
+        alignment = [:l, :r, :r, :r, :r]
+    )
 end
 
 """
