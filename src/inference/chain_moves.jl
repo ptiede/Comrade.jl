@@ -171,7 +171,8 @@ One [`ChainHyperMove`](@ref) per fitted hyperparameter field of the Gauss–Mark
 at `path` (e.g. `(:instrument, :lg1)`), named `"chain_hyper[term.field]"`, with one
 component per site that fits the field.
 
-Errors if `path` is not a chain term with fitted hyperparameters.
+Errors if `path` is not a chain term with fitted hyperparameters, or if a site's chain
+density is not available as `chain_term` (grouped chains, wrapped non-centered chains).
 """
 function chain_hyper_moves(view::CoordinateView, path::Tuple; initial_scale::Real = 0.1)
     t = node(view, path)
@@ -209,6 +210,20 @@ function chain_hyper_moves(view::CoordinateView, path::Tuple; initial_scale::Rea
             return collect(r[nh .+ k])
         end
         specs = map(s -> Tuple(c for c in chains if c isa MarkovChainSpec && c.hpsel === Val(s)), sites)
+        for (s, sp) in zip(sites, specs)
+            isempty(sp) && throw(
+                ArgumentError(
+                    "site $s of $path has no per-site chain whose density chain_hyper_moves can " *
+                        "evaluate (a grouped chain?); the move needs log p(g | h) of the site"
+                )
+            )
+            any(_fused_flat, sp) && throw(
+                ArgumentError(
+                    "site $s of $path is a wrapped non-centered chain, whose chain_term is not " *
+                        "its full density; the move needs log p(g | h) of the site"
+                )
+            )
+        end
         return ChainHyperMove(
             "chain_hyper[$tag.$f]", path, sites, hcoords, innovations, specs, Float64(initial_scale)
         )

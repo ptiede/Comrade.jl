@@ -183,7 +183,7 @@ end
 # The functions a `MoveSet` call runs through: `load(position) -> z`, `to_base(z) -> x`,
 # `from_base(x) -> z`, `logdensity(x) -> Float64` (of the base space),
 # `prior_delta(x, x′) -> Float64`, `propose(j, x, step) -> (x′, logdet)`,
-# `fused(x, ℓ, steps, logu, active) -> (x, ℓ, logα)` for the traceable moves,
+# `fused(x, ℓ, order, steps, logu) -> (x, ℓ, logα)` for the traceable moves,
 # `download(x)` and `upload(xh, x)` (a host copy of `x`, and a host vector back to where `x`
 # lives) and `store(z, position)`, here for host positions. The Reactant extension provides
 # the device version for device positions.
@@ -208,17 +208,16 @@ _position_like(z, position) = reshape(z, size(position))
 
 _traced_moves(ms::MoveSet) = [j for j in eachindex(ms.moves) if traceable(ms.moves[j])]
 
-# The traceable moves' steps of one call: step `(r, c)` is round `r` of move `tj[c]`, run
-# when `active[r, c]`, in round order, accepted when `logu[r, c] < log α`; `free[c]` when
-# the move is accepted without the likelihood.
-function _fused_sequential(k, tj, free, x, ℓ, steps, logu, active)
-    logα = fill(NaN, size(steps))
-    for r in axes(steps, 1), (c, j) in pairs(tj)
-        active[r, c] || continue
-        x′, logdet = k.propose(j, x, steps[r, c])
+# The traceable moves' steps of one call: step `s` is a proposal of move `tj[order[s]]` with
+# step `steps[s]`, accepted when `logu[s] < log α`; `free[c]` when move `tj[c]` is accepted
+# without the likelihood.
+function _fused_sequential(k, tj, free, x, ℓ, order, steps, logu)
+    logα = similar(steps)
+    for (s, c) in pairs(order)
+        x′, logdet = k.propose(tj[c], x, steps[s])
         ℓ′ = free[c] ? ℓ + k.prior_delta(x, x′) : k.logdensity(x′)
-        logα[r, c] = ℓ′ - ℓ + logdet
-        if logu[r, c] < logα[r, c]
+        logα[s] = ℓ′ - ℓ + logdet
+        if logu[s] < logα[s]
             x, ℓ = x′, ℓ′
         end
     end
@@ -305,22 +304,21 @@ function (ms::MoveSet)(state, tpost, info, rng)
     nacc = zeros(Int, length(ms.moves))
     tj = _traced_moves(ms)
     if !isempty(tj)
-        R = maximum(ms.rounds[tj])
-        steps, logu, active = zeros(R, length(tj)), fill(-Inf, R, length(tj)), falses(R, length(tj))
-        for r in 1:R, (c, j) in pairs(tj)
+        order, steps, logu = Int[], Float64[], Float64[]
+        for r in 1:maximum(ms.rounds[tj]), (c, j) in pairs(tj)
             r <= ms.rounds[j] || continue
-            steps[r, c] = draw_step(ms.moves[j], rng, exp(ms.stats[j].logscale))
-            logu[r, c] = log(rand(rng))
-            active[r, c] = true
+            push!(order, c)
+            push!(steps, draw_step(ms.moves[j], rng, exp(ms.stats[j].logscale)))
+            push!(logu, log(rand(rng)))
         end
-        x, ℓ, logα = k.fused(x, ℓ, steps, logu, active)
-        for r in 1:R, (c, j) in pairs(tj)
-            active[r, c] || continue
+        x, ℓ, logα = k.fused(x, ℓ, order, steps, logu)
+        for (s, c) in pairs(order)
+            j = tj[c]
             m = ms.moves[j]
-            a = logα[r, c]
-            accepted = !isnan(a) && logu[r, c] < a
+            a = logα[s]
+            accepted = !isnan(a) && logu[s] < a
             α = isnan(a) ? 0.0 : min(1.0, exp(a))
-            _record!(ms.stats[j], step_kind(m), phase, α, accepted, ms.target_accept[j], step_label(m, steps[r, c]))
+            _record!(ms.stats[j], step_kind(m), phase, α, accepted, ms.target_accept[j], step_label(m, steps[s]))
             nacc[j] += accepted
         end
     end
@@ -347,7 +345,8 @@ function (ms::MoveSet)(state, tpost, info, rng)
     end
     if any(j -> ms.free[j] && nacc[j] > 0, eachindex(ms.moves))
         ℓfull = k.logdensity(x)
-        abs(ℓfull - ℓ) <= 1.0e-6 * (abs(ℓfull) + 1) || error(
+        # Tight: a likelihood change under this tolerance is accepted as if it were none.
+        abs(ℓfull - ℓ) <= 1.0e-9 * (abs(ℓfull) + 1) || error(
             "the log density after the moves is $ℓfull, but accepting them without the " *
                 "likelihood gave $ℓ: one of the accepted moves " *
                 "($(join([move_name(m) for (j, m) in enumerate(ms.moves) if ms.free[j] && nacc[j] > 0], ", "))) " *

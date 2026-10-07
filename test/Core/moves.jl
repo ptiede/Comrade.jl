@@ -263,6 +263,26 @@ end
         θe = transform(tstd, ss.position)
         @test loglikelihood(post, θe) ≈ loglikelihood(post, θs[1]) rtol = 1.0e-8
         @test θe.instrument.lg.hyperparams != θs[1].instrument.lg.hyperparams
+        # The componentwise acceptance never reads the likelihood, so the kernel leaves the
+        # StdNormal prior N(0, I) itself invariant: prior draws run through MoveSet stay
+        # prior draws on the hyperparameter coordinates the moves step.
+        hw = chain_hyper_moves(vs, (:instrument, :lg); initial_scale = 1.0)
+        msp = MoveSet(post, hw; space = sp, rounds = 10)
+        samp = (; phase = :sampling, step = 1, total = 1)
+        idx = reduce(vcat, [m.hcoords for m in hw])
+        prng = Random.Xoshiro(31)
+        nd = 300
+        moved = map(1:nd) do _
+            s = _MovesState(randn(prng, Comrade.dimension(tstd)))
+            for _ in 1:3
+                msp(s, tstd, samp, prng)
+            end
+            s.position[idx]
+        end
+        @test all(x -> x.sampling.accepted > 0, move_summary(msp))
+        fresh = [randn(prng, length(idx)) for _ in 1:nd]
+        crit = sqrt(-log(1.0e-3 / length(idx) / 2) / 2) * sqrt(2 / nd)
+        @test all(i -> Comrade._ks_statistic(getindex.(moved, i), getindex.(fresh, i)) <= crit, eachindex(idx))
         # a move flagged invariant that changes the likelihood fails the audit
         bad = CompensatedMove("bad", vs, (:sky, :f1), (:instrument, :lg), (vb, x, x′, ctx) -> vb)
         msb = MoveSet(post, (bad,); space = sp, rounds = 20)

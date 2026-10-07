@@ -256,13 +256,12 @@ function Comrade._move_kernels(ms::Comrade.MoveSet, tpost, position::Reactant.Ab
         x′, logdet = Comrade.propose(ms.moves[j], Array(x), step, ms.ctx)
         return Reactant.to_rarray(x′), Float64(logdet)
     end
-    function run_fused(x, ℓ, steps, logu, active)
-        R = size(steps, 1)
+    function run_fused(x, ℓ, order, steps, logu)
         x, ℓd, logα = fused(
-            ctx, x, Reactant.ConcreteRNumber(ℓ), Reactant.to_rarray(vec(steps)),
-            Reactant.to_rarray(vec(logu)), Reactant.to_rarray(vec(Float64.(active)))
+            ctx, x, Reactant.ConcreteRNumber(ℓ), Reactant.to_rarray(order),
+            Reactant.to_rarray(steps), Reactant.to_rarray(logu)
         )
-        return x, Float64(ℓd), reshape(Array(logα), R, :)
+        return x, Float64(ℓd), Array(logα)
     end
     return (;
         load = p -> Reactant.to_rarray(collect(Float64, vec(Array(p)))),
@@ -278,42 +277,77 @@ function Comrade._move_kernels(ms::Comrade.MoveSet, tpost, position::Reactant.Ab
     )
 end
 
+# The move flags and the step count enter as runtime arguments so the step loop stays a
+# loop: with them constant, the compiler unrolls it and inlines one copy of the log density
+# per step.
 function _compile_fused(ms, tj, ctx, zd)
     moves = Tuple(ms.moves[tj])
-    free = Tuple(ms.free[tj])
-    R = maximum(ms.rounds[tj])
-    v = Reactant.to_rarray(zeros(R * length(tj)))
-    return Reactant.Compiler.compile(
-        (c, x, ℓ, steps, logu, active) -> _fused_steps(c, moves, free, R, x, ℓ, steps, logu, active),
-        (ctx, zd, Reactant.ConcreteRNumber(0.0), v, copy(v), copy(v))
+    free = Reactant.to_rarray(Float64.(ms.free[tj]))
+    n = sum(ms.rounds[tj])
+    nsteps = Reactant.ConcreteRNumber(n)
+    order = Reactant.to_rarray(ones(Int, n))
+    v = Reactant.to_rarray(zeros(n))
+    fused = Reactant.Compiler.compile(
+        (c, x, ℓ, order, steps, logu, free, nsteps) ->
+            _fused_steps(c, moves, free, nsteps, x, ℓ, order, steps, logu),
+        (ctx, zd, Reactant.ConcreteRNumber(0.0), order, v, copy(v), free, nsteps)
     )
+    return (c, x, ℓ, order, steps, logu) -> fused(c, x, ℓ, order, steps, logu, free, nsteps)
 end
 
-# The traceable moves' steps of one call as a traced loop over rounds, in the base space of
-# `ctx.view`: step `(r, c)` (linear index `r + (c - 1) R`) is round `r` of `moves[c]`, run
-# when `active > 0` and accepted when `logu < log α`; a NaN `log α` rejects. A move with
-# `free[c]` is accepted without the likelihood (see `MoveSet`). Returns the final point,
-# its log density and every step's `log α`.
-function _fused_steps(ctx, moves, free, R, x, ℓ, steps, logu, active)
+# The traceable moves' steps of one call as a traced loop, in the base space of `ctx.view`:
+# step `s` is a proposal of `moves[order[s]]` with step `steps[s]`, accepted when
+# `logu[s] < log α`; a NaN `log α` rejects. A move with `free[c] > 0` is accepted without
+# the likelihood (see `MoveSet`). Returns the final point, its log density and every step's
+# `log α`.
+function _fused_steps(ctx, moves, free, nsteps, x, ℓ, order, steps, logu)
     logα = zero(steps)
-    @trace track_numbers = false for r in 1:R
-        x, ℓ, logα = _fused_round(ctx, moves, free, R, r, x, ℓ, steps, logu, active, logα)
+    @trace track_numbers = false for s in 1:nsteps
+        x, ℓ, logα = _fused_step(ctx, moves, free, s, x, ℓ, order, steps, logu, logα)
     end
     return x, ℓ, logα
 end
 
-function _fused_round(ctx, moves, free, R, r, x, ℓ, steps, logu, active, logα)
-    for c in eachindex(moves)
-        i = r + (c - 1) * R
-        x′, logdet = Comrade.propose(moves[c], x, Comrade._rget(steps, i), ctx)
-        ℓ′ = free[c] ? ℓ + Comrade._prior_delta(x, x′) : logdensityof(ctx.view.tbase, x′)
-        a = ℓ′ - ℓ + logdet
-        accept = (Comrade._rget(active, i) > 0) & (Comrade._rget(logu, i) < a)
-        x = ifelse.(accept, x′, x)
-        ℓ = ifelse(accept, ℓ′, ℓ)
-        Comrade.ComradeBase.rsetindex!(logα, a, i)
+function _fused_step(ctx, moves, free, s, x, ℓ, order, steps, logu, logα)
+    c = Comrade._rget(order, s)
+    x′, logdet = _propose_at(moves, c, x, Comrade._rget(steps, s), ctx)
+    @trace track_numbers = false if Comrade._rget(free, c) > 0
+        ℓ′ = ℓ + Comrade._prior_delta(x, x′)
+    else
+        ℓ′ = logdensityof(ctx.view.tbase, x′)
     end
+    a = ℓ′ - ℓ + logdet
+    accept = Comrade._rget(logu, s) < a
+    x = ifelse.(accept, x′, x)
+    ℓ = ifelse(accept, ℓ′, ℓ)
+    Comrade.ComradeBase.rsetindex!(logα, a, s)
     return x, ℓ, logα
+end
+
+# The proposal of `moves[c]`: one traced branch per move, in sequence rather than nested, so
+# tracing depth does not grow with the number of moves.
+function _propose_at(moves, c, x, u, ctx)
+    x′ = x
+    logdet = Reactant.promote_to(Reactant.TracedRNumber{Float64}, 0.0)
+    for k in eachindex(moves)
+        x′, logdet = _propose_if(moves[k], c == k, x, u, ctx, x′, logdet)
+    end
+    return x′, logdet
+end
+
+function _propose_if(m, hit, x, u, ctx, x′, logdet)
+    @trace track_numbers = false if hit
+        y, l = _uniform_propose(m, x, u, ctx)
+    else
+        y, l = x′, logdet
+    end
+    return y, l
+end
+
+# Every branch of a traced `if` must return the same types.
+function _uniform_propose(m, x, u, ctx)
+    x′, logdet = Comrade.propose(m, x, u, ctx)
+    return Reactant.promote_to(x, x′), Reactant.promote_to(Reactant.TracedRNumber{Float64}, logdet)
 end
 
 # The move context over the device posterior of `tpost`, with the moves' context arrays on
