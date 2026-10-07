@@ -4,21 +4,33 @@ struct ArrayPrior{D, A, R, C}
     refant::R
     phase::Bool
     centroid_station::C
+    gauge::Symbol
 end
 
 
 """
-    ArrayPrior(default_dist; refant=NoReference(), phase=false, kwargs...)
+    ArrayPrior(default_dist; refant=NoReference(), phase=false, gauge=:none, kwargs...)
 
 Construct a prior for an entire array of sites.
 
- - The `default_dist` is the default distribution for all sites. Currently only `IIDSitePrior` is supported.
+ - The `default_dist` is the default distribution for all sites. This may be an
+[`IIDSitePrior`](@ref) or a time-correlated [`GaussMarkovSitePrior`](@ref).
  - Different priors for specified sites can be set using kwargs.
  - The `refant`  set the reference antennae to be used and is typically only done for priors that
 correspond to gain phases.
  - The `phase` argument is a boolean that specifies if
 the prior is for a `phase` or not. *The phase argument is experimental and we
 recommend setting it to false currently.*
+ - The `gauge` argument declares that this parameter is a term of a quantity whose absolute
+level the data cannot see. `gauge = :phase` marks the parameter as one summand of the
+absolute station phase: the visibility phase on a baseline sees only differences of station
+phases, so the sum of all `gauge = :phase` parameters at a site is observable only up to one
+constant per (time, frequency) stamp. When several such parameters are added together (a
+track-level offset plus a per-integration residual, say) the reference pins placed on each
+one separately can leave the *sum* under-determined. Declaring the terms lets the
+[`InstrumentModel`](@ref) find the leftover flat directions with
+[`Comrade.gauge_pins`](@ref) and either report them or pin them, depending on its
+`gaugefix` setting. `gauge = :none` (the default) opts out of that analysis.
 
 # Example
 
@@ -29,11 +41,14 @@ p = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0, 0.1)); LM = IIDSitePrior(
 means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM which is mean
 zero and unit std. dev. Finally the refant is using the [`SEFDReference`](@ref) scheme.
 """
-function ArrayPrior(dist; refant = NoReference(), phase = false, kwargs...)
+function ArrayPrior(dist; refant = NoReference(), phase = false, gauge = :none, kwargs...)
     # if centroid_station isa Tuple{<:Symbol, <:Symbol}
     #     centroid_station = NamedTuple{centroid_station}((0.0, 0.0))
     # end
-    return ArrayPrior(dist, kwargs, refant, phase, nothing)
+    g = Symbol(gauge)
+    g in (:none, :phase) ||
+        throw(ArgumentError("ArrayPrior gauge must be :none or :phase, got :$g"))
+    return ArrayPrior(dist, kwargs, refant, phase, nothing, g)
 end
 
 
@@ -130,6 +145,10 @@ end
 function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
     smap = build_sitemap(d, array)
     site_dists = site_tuple(array, d.default_dist; d.override_dist...)
+    # Time-correlated site priors need per-chain machinery rather than a product
+    # distribution; see gauss_markov.jl.
+    any(needs_chain_machinery, values(site_dists)) &&
+        return build_markov_observed(d, site_dists, smap, array)
     dists = build_dist(site_dists, smap, array, d.refant, d.centroid_station)
     return ObservedArrayPrior(dists, smap, d.phase)
 end
@@ -145,14 +164,23 @@ end
 
 TV.dimension(t::PartiallyFixedTransform) = TV.dimension(t.transform)
 
+# Scatter `vals` into `y` at (static, host-side) `inds`. Under Reactant the broadcast
+# lowers to a single vectorized `stablehlo.scatter` — the fast, "raised" path — instead of
+# a serialized element-by-element traced loop; ComradeReactantExt overloads this for
+# traced arrays (the bounds check scalar-iterates the index vector, and the
+# single-element scatter hits a Reactant bug — see EnzymeAD/Reactant.jl#2960).
+function scatter_values!(y, inds, vals)
+    y[inds] .= vals
+    return y
+end
+
 # Scatter the variate `y` and the fixed (reference) `fixed_values` back into the full
-# parameter vector. Under Reactant this `setindex!`/broadcast lowers to a `stablehlo.scatter`,
-# but the bounds check iterates the index vector with scalar `getindex`, which is disallowed
-# while tracing. ComradeReactantExt overloads this for traced arrays to wrap it in
-# `@allowscalar`. See https://github.com/EnzymeAD/Reactant.jl/issues/2960.
+# parameter vector. Both scatters go through `scatter_values!`, which carries the traced
+# workarounds (ComradeReactantExt overloads it — see EnzymeAD/Reactant.jl#2960), so this
+# generic method serves both backends.
 function fill_partially_fixed!(yfv, variate_index, fixed_index, y, fixed_values)
-    yfv[variate_index] = y
-    yfv[fixed_index] .= fixed_values
+    scatter_values!(yfv, variate_index, y)
+    scatter_values!(yfv, fixed_index, fixed_values)
     return yfv
 end
 
@@ -241,6 +269,38 @@ function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroi
     ss = smap.sites
     # fs = smap.frequencies
     fixedinds, vals = reference_indices(array, smap, refants)
+    if any(!isnothing ∘ initprior, values(dists))
+        fixedinds = convert(Vector{Int}, fixedinds)
+        vals = vals === nothing ? Float64[] : convert(Vector{Float64}, vals)
+        # Init pins: a site prior with `init = FixedInit(v)` fixes each site's first
+        # stamp (per frequency channel) to `v` — see `IIDSitePrior`. A stamp the
+        # referencing scheme already fixes stays the reference's, and the values must
+        # agree: a silent disagreement would quietly change the reference gauge.
+        for s in keys(dists)
+            ini = initprior(getproperty(dists, s))
+            ini === nothing && continue
+            for f in unique(smap.frequencies)
+                sinds = findall(
+                    i -> ss[i] == s && smap.frequencies[i] == f, eachindex(ss)
+                )
+                isempty(sinds) && continue
+                i1 = sinds[argmin(view(ts, sinds))]
+                j = findfirst(==(i1), fixedinds)
+                if j === nothing
+                    push!(fixedinds, i1)
+                    push!(vals, ini.value)
+                elseif vals[j] != ini.value
+                    throw(
+                        ArgumentError(
+                            "init = FixedInit($(ini.value)) for site $s conflicts " *
+                                "with the reference value $(vals[j]) already fixing " *
+                                "its first stamp"
+                        )
+                    )
+                end
+            end
+        end
+    end
 
     if !(centroid_station isa Nothing)
         centstat = keys(centroid_station)

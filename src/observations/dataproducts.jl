@@ -207,6 +207,19 @@ interfacing Comrade with a new data type.
 """
 function extract_coherency end
 
+# Sometimes missing hands are assigned strange values. This function
+# masks them to ensure that if we have a missing measurement they get properly NaN'd
+function mask_missing_hands(
+        v::StaticArraysCore.StaticMatrix{2, 2, <:Complex},
+        e::StaticArraysCore.StaticMatrix{2, 2, <:Real}
+    )
+    flagged = map(isnan, v)
+    any(flagged) || return v, e
+    nanv = complex(convert(real(eltype(v)), NaN), convert(real(eltype(v)), NaN))
+    nane = convert(eltype(e), NaN)
+    return map((f, z) -> f ? nanv : z, flagged, v), map((f, s) -> f ? nane : s, flagged, e)
+end
+
 """
     load_array_txt(path)
 

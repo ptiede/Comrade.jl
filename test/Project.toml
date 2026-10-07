@@ -45,3 +45,6 @@ VLBIFiles = "c1ebf4c8-f9d4-409a-8daf-7009448f4e6e"
 VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 VLBILikelihoods = "90db92cd-0007-4c0a-8e51-dbf0782ce592"
 VLBISkyModels = "d6343c73-7174-4e0f-bb64-562643efbeca"
+
+[sources]
+Comrade = {path = ".."}

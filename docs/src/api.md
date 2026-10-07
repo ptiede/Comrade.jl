@@ -98,8 +98,32 @@ Comrade.@instrument
 Comrade.@jones
 Comrade.CalTable
 Comrade.caltable(::Comrade.SiteArray)
+Comrade.siteparams
 Comrade.sites(::Comrade.CalTable)
 Comrade.IIDSitePrior
+Comrade.GaussMarkovSitePrior
+Comrade.AbstractChainParameterization
+Comrade.Centered
+Comrade.NonCentered
+Comrade.AngleEmbedded
+Comrade.AbstractGaussMarkovProcess
+Comrade.OrnsteinUhlenbeck
+Comrade.BrownianMotion
+Comrade.WrappedBrownian
+Comrade.WrappedOrnsteinUhlenbeck
+Comrade.VonMisesProcess
+Comrade.stationary_moments
+Comrade.transition_moments
+Comrade.isstationary
+Comrade.AbstractInitialPrior
+Comrade.StationaryInit
+Comrade.FixedInit
+Comrade.GaussianInit
+Comrade.UniformInit
+Comrade.initial_moments
+Comrade.marginal_moments
+Comrade.hyperprior
+Comrade.materialize
 Comrade.ArrayPrior
 Comrade.Segmentation
 Comrade.IntegSeg
@@ -107,7 +131,10 @@ Comrade.ScanSeg
 Comrade.TrackSeg
 Comrade.timestamps
 Comrade.SingleReference
+Comrade.MultiReference
 Comrade.SEFDReference
+Comrade.gauge_pins
+Comrade.default_gauge_preference
 Comrade.SingleStokesGain
 Comrade.JonesG
 Comrade.JonesD
@@ -164,6 +191,27 @@ Comrade.residual_data
 Comrade.chi2
 Comrade.ReactantNUTS
 Comrade.default_disk_callback
+```
+
+### Metric adaptation
+```@docs
+Comrade.AbstractMetricAdaptor
+Comrade.WelfordDiagonal
+Comrade.FixedMetric
+Comrade.FisherLowRank
+Comrade.LowRankPreconditioner
+Comrade.fit_preconditioner
+```
+
+The protocol an `AbstractMetricAdaptor` implements:
+
+```@docs
+Comrade.adapts_welford
+Comrade.metric_refit_steps
+Comrade.init_metric_adaptation
+Comrade.observe_draw!
+Comrade.metric_refit
+Comrade.FisherAdaptation
 ```
 
 ## Misc

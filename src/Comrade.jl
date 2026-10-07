@@ -2,7 +2,7 @@ module Comrade
 
 using Adapt
 using AbstractMCMC
-using Accessors: @set
+using Accessors: @set, getproperties, setproperties
 using ArgCheck: @argcheck
 using DensityInterface
 import Distributions as Dists
@@ -33,6 +33,7 @@ using RecipesBase
 using Reexport
 using SparseArrays
 using StaticArraysCore
+using Statistics: mean, var
 using StructArrays: StructVector, StructArray, append!!
 import StructArrays
 using Tables
