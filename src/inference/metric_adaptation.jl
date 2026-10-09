@@ -291,7 +291,7 @@ function _active_directions(p::LowRankPreconditioner)
     return LowRankPreconditioner(h.b, h.d, h.V[:, act], h.s[act])
 end
 
-function metric_refit(a::FisherLowRank, st::FisherAdaptation; current = nothing, initial = nothing)
+function metric_refit(a::FisherLowRank, st::FisherAdaptation; current = nothing, initial = nothing, position = nothing)
     N = length(st.draws)
     N >= a.min_draws || return nothing
     sel = _refit_selection(a, N)
@@ -307,7 +307,7 @@ end
 """
     GaussNewtonLowRank(curvature; rank, oversample = 10, probes_per_draw = rank + oversample,
                        threshold = 100.0, schedule = :stan, min_draws = 4, seed = 1,
-                       rows = nothing)
+                       rows = nothing, prior = nothing, max_eigenvalue = Inf)
 
 Adapt the latent space to the likelihood's curvature: at each recorded warmup draw `x`,
 apply the Gauss–Newton (or any symmetric positive semidefinite) curvature `H(x)` of the
@@ -339,6 +339,17 @@ is the posterior's Gauss–Newton Hessian.
     rows of `H̄Ω`, and a fit's `V` is a [`RowSupportedMatrix`](@ref) on them: the
     eigendecomposition is that of `H̄` restricted to `rows`, and applying the
     preconditioner costs `length(rows)` rather than `n` per direction.
+  - `prior`: `nothing` when the prior is exactly N(0, I), or `x -> (; d, A, B)` for a prior
+    that is not. At the refit position `x` (the latest draw, in base coordinates) its
+    Gauss–Newton Hessian must be `D⁻¹ JᵀJ D⁻¹` with `D = Diagonal(d)`, `d > 0`, and
+    `J = I + A Bᵀ` (`A`, `B` both `n × m`, `m` small). The refit then whitens
+    `D⁻¹ (JᵀJ + D H̄ D) D⁻¹` instead of `I + H̄`: the result has marginal scales `d`, and its
+    directions may have eigenvalues of `JᵀJ + D H̄ D - I` in `(-1, 0)` (scales above 1), kept
+    when the eigenvalue is at most `-1/2`. Not supported together with `rows`.
+  - `max_eigenvalue`: the largest curvature eigenvalue a direction is whitened for; a
+    direction with `λ > max_eigenvalue` gets the scale `1/√(1 + max_eigenvalue)`. The fit
+    holds the stiffest directions at their orientation at the refit, and along them the
+    posterior can extend far beyond `1/√(1 + λ)` when that orientation varies across it.
 
 The sketch accumulator holds an `n × (rank + oversample)` `Float64` matrix and is
 checkpointed with the warmup state. `Ω` is never stored: each column is generated from `seed`
@@ -356,9 +367,11 @@ struct GaussNewtonLowRank{F, S} <: AbstractMetricAdaptor
     min_draws::Int
     seed::Int
     rows::Union{Nothing, Vector{Int}}
+    prior::Any
+    max_eigenvalue::Float64
     function GaussNewtonLowRank{F, S}(
             curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed,
-            rows = nothing
+            rows = nothing, prior = nothing, max_eigenvalue = Inf
         ) where {F, S}
         rank > 0 || throw(ArgumentError("rank must be positive, got $rank"))
         oversample >= 1 ||
@@ -367,13 +380,17 @@ struct GaussNewtonLowRank{F, S} <: AbstractMetricAdaptor
             ArgumentError("probes_per_draw must lie in 1:$(rank + oversample) (rank + oversample), got $probes_per_draw")
         )
         threshold > 0 || throw(ArgumentError("threshold must be positive, got $threshold"))
+        max_eigenvalue >= threshold ||
+            throw(ArgumentError("max_eigenvalue ($max_eigenvalue) must be at least threshold ($threshold)"))
         min_draws >= 1 || throw(ArgumentError("min_draws must be at least 1, got $min_draws"))
         _check_refit_schedule(schedule)
         isnothing(rows) || (!isempty(rows) && issorted(rows; lt = <=) && first(rows) >= 1) ||
             throw(ArgumentError("rows must be a non-empty, strictly increasing list of coordinates"))
+        (isnothing(rows) || isnothing(prior)) ||
+            throw(ArgumentError("a non-standard `prior` is not supported together with `rows`"))
         return new{F, S}(
             curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed,
-            isnothing(rows) ? nothing : collect(Int, rows)
+            isnothing(rows) ? nothing : collect(Int, rows), prior, max_eigenvalue
         )
     end
 end
@@ -381,16 +398,19 @@ end
 function GaussNewtonLowRank(
         curvature; rank::Integer, oversample::Integer = 10,
         probes_per_draw::Integer = rank + oversample, threshold::Real = 100.0,
-        schedule = :stan, min_draws::Integer = 4, seed::Integer = 1, rows = nothing
+        schedule = :stan, min_draws::Integer = 4, seed::Integer = 1, rows = nothing,
+        prior = nothing, max_eigenvalue::Real = Inf
     )
     return GaussNewtonLowRank{typeof(curvature), typeof(schedule)}(
-        curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed, rows
+        curvature, rank, oversample, probes_per_draw, threshold, schedule, min_draws, seed, rows, prior,
+        max_eigenvalue
     )
 end
 
 function Base.show(io::IO, a::GaussNewtonLowRank)
     return print(
         io, "GaussNewtonLowRank(rank = $(a.rank), threshold = $(a.threshold), " *
+            "max_eigenvalue = $(a.max_eigenvalue), " *
             "schedule = $(repr(a.schedule)))"
     )
 end
@@ -543,10 +563,11 @@ function _nystrom!(a::GaussNewtonLowRank, Y::AbstractMatrix, cut)
     return λ, keep, Y * (E.vectors[:, keep] ./ sqrt.(σ²[keep])')
 end
 
-function metric_refit(a::GaussNewtonLowRank, st::GaussNewtonSketch; kwargs...)
+function metric_refit(a::GaussNewtonLowRank, st::GaussNewtonSketch; position = nothing, kwargs...)
     (st.ndraws >= a.min_draws && !isempty(st.counts) && all(>(0), st.counts)) || return nothing
     n = st.n
     st.Y ./= st.counts'
+    isnothing(a.prior) || return _refit_with_prior(a, st, position)
     λ, keep, U = _nystrom!(a, st.Y, a.threshold)
     # `keep` is in decreasing eigenvalue order, so truncation drops the weakest directions.
     if length(keep) > a.rank
@@ -558,5 +579,45 @@ function metric_refit(a::GaussNewtonLowRank, st::GaussNewtonSketch; kwargs...)
     end
     V = isnothing(a.rows) ? U : RowSupportedMatrix(n, a.rows, U)
     _reset!(st)
-    return LowRankPreconditioner(zeros(n), ones(n), V, inv.(sqrt.(1 .+ λ[keep])))
+    return LowRankPreconditioner(zeros(n), ones(n), V, inv.(sqrt.(1 .+ min.(λ[keep], a.max_eigenvalue))))
+end
+
+# Refit for a prior that is not N(0, I) (see the `prior` argument of `GaussNewtonLowRank`).
+# With `y = D⁻¹ x` the posterior Gauss–Newton Hessian is `JᵀJ + D H̄ D = I + G`, where
+# `G = D U Λ Uᵀ D + A Bᵀ + B Aᵀ + B (AᵀA) Bᵀ` lies in the span of `[D U, A, B]`; `G` is
+# diagonalized exactly on that span.
+function _refit_with_prior(a::GaussNewtonLowRank, st::GaussNewtonSketch, position)
+    isnothing(position) &&
+        throw(ArgumentError("a Gauss–Newton refit with a non-standard prior needs the refit position"))
+    n = st.n
+    x = collect(Float64, position)
+    length(x) == n || throw(DimensionMismatch("refit position has length $(length(x)), the sketch $n"))
+    (; d, A, B) = a.prior(x)
+    (length(d) == n && size(A, 1) == n && size(B) == size(A)) || throw(
+        DimensionMismatch("prior returned d $(length(d)), A $(size(A)), B $(size(B)) for dimension $n")
+    )
+    all(>(0), d) || throw(ArgumentError("prior marginal scales d must all be positive"))
+    # H̄'s directions that D can lift to at least the threshold.
+    λ, keep, U = _nystrom!(a, st.Y, a.threshold / maximum(d)^2)
+    DU = d .* U
+    Q = Matrix(qr(hcat(DU, A, B)).Q)
+    QA, QB, QDU = Q' * A, Q' * B, Q' * DU
+    G = QDU * (λ[keep] .* QDU') .+ QA * QB' .+ QB * QA' .+ QB * (A' * A) * QB'
+    E = eigen(Symmetric(G))
+    μ = E.values
+    minimum(μ) > -1 || error(
+        "the prior Gauss–Newton Hessian is not positive definite at the refit position " *
+            "(smallest eigenvalue of I + G is $(1 + minimum(μ)))"
+    )
+    sel = findall(m -> m >= a.threshold || m <= -1 / 2, μ)
+    sel = sel[sortperm(abs.(log1p.(μ[sel])); rev = true)]
+    if length(sel) > a.rank
+        @info "Gauss–Newton refit: $(length(sel)) directions pass the cuts; keeping the " *
+            "$(a.rank) with the largest |log(1 + μ)|"
+        sel = sel[1:a.rank]
+    end
+    @info "Gauss–Newton refit with prior: $(count(>=(a.threshold), μ[sel])) stiff and " *
+        "$(count(<(0), μ[sel])) flat directions; smallest 1 + μ = $(round(1 + minimum(μ); sigdigits = 3))"
+    _reset!(st)
+    return LowRankPreconditioner(zeros(n), collect(Float64, d), Q * E.vectors[:, sel], inv.(sqrt.(1 .+ μ[sel])))
 end

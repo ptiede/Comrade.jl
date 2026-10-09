@@ -140,6 +140,25 @@ function (c::_Reduced)(μ)
     return NormalFast(c.f(μ), c.σ)
 end
 
+export ParamLogDensity
+
+"""
+    ParamLogDensity(f)
+
+A log-density term `f(θ)` of the posterior parameters `θ` (the named tuple with `sky` and
+`instrument` entries), added to the log-likelihood. Pass it with any image-domain data through
+the `imgdata` keyword of [`VLBIPosterior`](@ref).
+
+The term is part of the log-likelihood, not the prior: a transport of the prior to a standard
+space does not see it.
+"""
+struct ParamLogDensity{F}
+    f::F
+end
+
+makelikelihood(data::ParamLogDensity) = data
+@inline _imglogdensity(l::ParamLogDensity, img, θ) = l.f(θ)
+
 function makelikelihood(data::ImgNormalData)
     σ = data.noise
     meas = data.measurement

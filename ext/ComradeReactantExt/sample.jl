@@ -608,7 +608,7 @@ function warmup_chunked(
         # otherwise the block is rebuilt, which is a structural change and recompiles.
         if !isempty(pending) && done >= first(pending)
             popfirst!(pending)
-            pre = Comrade.metric_refit(adaptor, astate; current = Comrade._transport_pre(tpost), initial)
+            pre = Comrade.metric_refit(adaptor, astate; current = Comrade._transport_pre(tpost), initial, position = xbf)
             if isnothing(pre)
                 @info "warmup metric refit at step $done skipped: too few draws recorded"
             else

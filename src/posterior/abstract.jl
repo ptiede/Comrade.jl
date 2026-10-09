@@ -112,7 +112,7 @@ Computes the log-likelihood of the posterior `d` with parameters `θ`.
     img, vis = forward_model(d, θ)
     # Convert because of conventions
     lis = d.lklhdsimg
-    return logdensityofvis(d.lklhds, vis) + logdensityofimg(lis, img)
+    return logdensityofvis(d.lklhds, vis) + logdensityofimg(lis, img, θ)
 end
 
 """
@@ -158,6 +158,15 @@ end
     ls = map(fl, lklhds)
     return sum(ls)
 end
+
+@inline _imglogdensity(l, img, θ) = logdensityof(l, img)
+
+@inline function logdensityofimg(lklhds::Tuple, img, θ)
+    ls = map(l -> _imglogdensity(l, img, θ), lklhds)
+    return sum(ls)
+end
+
+@inline logdensityofimg(lklhds::Tuple{}, img, θ) = logdensityofimg(lklhds, img)
 
 ## There is no image data so just return 0
 @inline function logdensityofimg(lklhds::Tuple{}, img::Number)
