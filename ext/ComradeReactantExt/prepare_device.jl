@@ -21,6 +21,11 @@ function Comrade.prepare_device(m::Comrade.ObservedInstrumentModel, ex::Reactant
     return Comrade.ObservedInstrumentModel(_ondevice(m.instrument), m.refbasis, m.layout, m.pol, Comrade.corrected(m))
 end
 
+Comrade.prepare_device(m::Comrade.FieldSkies, ex::ReactantEx) =
+    Comrade.FieldSkies(map(Base.Fix2(Comrade.prepare_device, ex), m.fields))
+Comrade.prepare_device(m::Comrade.FieldInstruments, ex::ReactantEx) =
+    Comrade.FieldInstruments(map(Base.Fix2(Comrade.prepare_device, ex), m.fields))
+
 _ondevice(J) = Reactant.to_rarray(J)
 _ondevice(J::Comrade._StationGroups) = Comrade._StationGroups(Reactant.to_rarray(J.terms), J.cells)
 

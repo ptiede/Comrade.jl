@@ -2,6 +2,7 @@ using Reactant
 using Random
 using Serialization
 using Distributions
+using StaticArrays
 import TransformVariables as TV
 
 const ReactantEx = Comrade.ComradeBase.ReactantEx
@@ -349,8 +350,9 @@ end
     fgrad(x, tp) = Enzyme.gradient(
         Enzyme.set_runtime_activity(Enzyme.Reverse), Const(Base.Fix1(logdensityof, tp)), x
     )[1]
-    function check_matches_cpu(skym, intm, data; transport = asflat)
-        post_cpu = VLBIPosterior(skym, intm, data; admode = nothing)
+    check_matches_cpu(skym, intm, data; transport = asflat) =
+        check_matches_cpu(VLBIPosterior(skym, intm, data; admode = nothing); transport)
+    function check_matches_cpu(post_cpu; transport = asflat)
         tpost_cpu = transport(post_cpu)
         x0 = prior_sample(Random.Xoshiro(41), tpost_cpu)
         tpost = transport(Comrade.prepare_device(post_cpu, ReactantEx()))
@@ -391,5 +393,13 @@ end
         intm = InstrumentModel(Jones((x, c) -> complex(exp(x.lg)); lg = ArrayPrior(g0)); selfcal = true)
         transport = p -> transport_to(p, Comrade.PT.StdNormal())
         check_matches_cpu(SkyModel(test_model, test_prior(), g), intm, vis; transport)
+    end
+
+    @testset "fields" begin
+        G = Jones((x, c) -> exp(complex(x.lg, x.gp)); lg = ArrayPrior(g0), gp = ArrayPrior(g0; refant = SensitiveReference(0.0)))
+        S = Jones((x, c) -> exp(x.s); s = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.1))))
+        skym = SkyModel(test_model, test_prior(), g)
+        post = VLBIPosterior(InstrumentModel(G * S), Field(:A, skym, vis), Field(:B, skym, later(vis, 1)); admode = nothing)
+        check_matches_cpu(post)
     end
 end
