@@ -15,7 +15,8 @@ abstract type AbstractJonesMatrix end
 An instrument term with the parameters `name`, each with its prior (an [`ArrayPrior`](@ref)).
 `f(x, c)` takes the instrument parameters `x` of one station cell and the cell's coordinates
 `c` (`c.ant`, the station's index in the station table; `c.Ti`, hours since the epoch; `c.Fr`,
-Hz; `c.elevation`, `c.parallactic`, `c.azimuth`, radians) and returns the term's 2×2 matrix in
+Hz; `c.elevation`, `c.parallactic`, `c.azimuth`, radians; `c.ra`, `c.dec`, the J2000 direction
+of the observed source, radians) and returns the term's 2×2 matrix in
 the station's local feed basis, or a number, a gain on both feeds (the form for Stokes I
 data). [`gains`](@ref), [`leakage`](@ref) and [`rotation`](@ref) build the usual matrices; any
 other optic is the matrix written out. A parameter exists only at the stations whose term

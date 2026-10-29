@@ -107,7 +107,8 @@ function _samerecords(a::VisTable, b::VisTable)
     a === b && return true
     ca, cb = ComradeBase.coords(domain(a)), ComradeBase.coords(domain(b))
     return size(a) == size(b) && ca.u == cb.u && ca.v == cb.v && ca.Ti == cb.Ti && ca.ant1 == cb.ant1 &&
-        ca.ant2 == cb.ant2 && info(a).channels.frequency == info(b).channels.frequency
+        ca.ant2 == cb.ant2 && info(a).channels.frequency == info(b).channels.frequency &&
+        info(a).epoch == info(b).epoch && info(a).source == info(b).source
 end
 
 function combine_prior(skyprior, instrumentmodelprior)
@@ -135,7 +136,7 @@ function Base.show(io::IO, mime::MIME"text/plain", post::VLBIPosterior)
     show(io, mime, post.instrumentmodel)
     println()
     printstyled(io, "Data Products: ", color = :light_green)
-    return println(io, join(map(_datadescription, post.data), ", "))
+    return println(io, _datadescription(post.data))
 end
 
 
@@ -146,22 +147,31 @@ Create a simulated observation using the posterior and its data `post` using the
 values `θ`. In Bayesian terminology this is a draw from the posterior predictive distribution.
 
 If `add_thermal_noise` is true then baseline based thermal noise is added. Otherwise, we just
-return the model visibilities.
+return the model visibilities. A multi-field posterior gives the data products of each field,
+keyed by field name.
 """
 function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; add_thermal_noise = true)
-    vis = _storage(baseimage(last(forward_model(post, θ))))
-    t = _commonvis(post.data)
-    if add_thermal_noise
+    return _simulated(rng, post.data, last(forward_model(post, θ)), add_thermal_noise)
+end
+
+# One tuple of simulated data products per field.
+_simulated(rng, data::NamedTuple, vis::NamedTuple, noise) = map((d, v) -> _simulated(rng, d, v, noise), data, vis)
+function _simulated(rng, data::Tuple, vis, noise)
+    v = _storage(baseimage(vis))
+    t = _commonvis(data)
+    if noise
         w = _dense(weight(t))
-        vis = rand(rng, _noiselikelihood(eltype(measurement(t)), vis, w))
+        v = rand(rng, _noiselikelihood(eltype(measurement(t)), v, w))
     end
-    return map(d -> _withmodel(d, vis), post.data)
+    return map(d -> _withmodel(d, v), data)
 end
 
 _noiselikelihood(::Type{<:StaticArraysCore.StaticMatrix}, vis, w) = CoherencyLikelihood(vis, w)
 _noiselikelihood(::Type, vis, w) = ComplexVisLikelihood(vis, w)
 simulate_observation(post::VLBIPosterior, θ; add_thermal_noise = true) = simulate_observation(Random.default_rng(), post, θ; add_thermal_noise)
 
+_datadescription(data::Tuple) = join(map(_datadescription, data), ", ")
+_datadescription(data::NamedTuple) = join(map((n, d) -> string(n, ": ", _datadescription(d)), keys(data), values(data)), "; ")
 _datadescription(t::VisTable) = string(eltype(measurement(t)) <: Real ? "amplitudes" : "visibilities", " (", _polname(t.pol), ")")
 _datadescription(ct::ClosureTable) = ct.product isa ClosurePhases ? "closure phases" : "log closure amplitudes"
 
@@ -192,12 +202,16 @@ end
 
 The residuals of each data product in `post` at the parameter values `θ`: tables of the same
 kind (a [`VisTable`](@ref) or [`ClosureTable`](@ref)) whose measurements are the data minus the
-model. Closure phase residuals are wrapped to `(-π, π]`.
+model. Closure phase residuals are wrapped to `(-π, π]`. A multi-field posterior gives the
+residuals of each field, keyed by field name.
 """
 function residuals(post::VLBIPosterior, p)
-    vis = baseimage(last(forward_model(post, p)))
-    return map(d -> _residual(d, vis), post.data)
+    return _residuals(post.data, last(forward_model(post, p)))
 end
+
+# One tuple of residual tables per field.
+_residuals(data::NamedTuple, vis::NamedTuple) = map(_residuals, data, vis)
+_residuals(data::Tuple, vis) = map(d -> _residual(d, baseimage(vis)), data)
 
 function _residual(t::VisTable, vis)
     model = _withmodel(t, vis)
@@ -222,17 +236,11 @@ Note that reduce doesn't take into account the number of model parameters
 which for non-linear models is difficult to define globally.
 """
 function chi2(post::AbstractVLBIPosterior, p; reduce = false)
-    res = residuals(post, p)
-    return map(res) do r
-        nd = ndata(r)
-        c2 = _chi2(r)
-        if reduce
-            return c2 / nd
-        else
-            return c2
-        end
-    end
+    return _chi2s(residuals(post, p), reduce)
 end
+
+_chi2s(res::NamedTuple, reduce) = map(r -> _chi2s(r, reduce), res)
+_chi2s(res::Tuple, reduce) = map(r -> reduce ? _chi2(r) / ndata(r) : _chi2(r), res)
 
 # Σ |residual|² / σ² over the measured values.
 _chi2(res::VisTable) = sum(_dense(weight(res)) .* abs2.(_dense(measurement(res))))

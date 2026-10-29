@@ -373,7 +373,7 @@ end
 Build one Jones term inside an [`@instrument`](@ref) block. Each `name ~ ArrayPrior(...)` line
 is a prior for this term; the rest of the block computes the Jones matrix from the sampled
 parameters. The block can also read the station cell's coordinates as `c` (`c.Ti`, `c.Fr`,
-`c.elevation`, `c.parallactic`, `c.azimuth`, `c.ant`; see [`AbstractJonesMatrix`](@ref Comrade.AbstractJonesMatrix)).
+`c.elevation`, `c.parallactic`, `c.azimuth`, `c.ra`, `c.dec`, `c.ant`; see [`AbstractJonesMatrix`](@ref Comrade.AbstractJonesMatrix)).
 
 A block with no `~` lines is parameter-free and is emitted verbatim: its value is the Jones
 term.

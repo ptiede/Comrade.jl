@@ -6,8 +6,8 @@
 
 The station cells of a [`VisTable`](@ref) and the index maps the instrument model reads:
 
-- `coords`: per cell, the station index `ant`, `Ti`, `Fr`, `elevation`, `parallactic` and
-  `azimuth`;
+- `coords`: per cell, the station index `ant`, `Ti`, `Fr`, `elevation`, `parallactic`,
+  `azimuth`, and the direction `ra`, `dec` of the observed source;
 - `cell1`, `cell2`: per value `(record, channel)`, the cells of its first and second station;
 - `entries`: per instrument parameter, the entry of its site array at each cell;
 - `response`: per cell, the matrix `U` from the global sky basis to the station's local ideal
@@ -35,8 +35,8 @@ function _cells(t::VisTable)
     return cellkeys, getindex.(Ref(index), key1), getindex.(Ref(index), key2)
 end
 
-function _cellcoords(t::VisTable, keys)
-    τ = times(t)
+function _cellcoords(t::VisTable, keys, shift)
+    τ = times(t) .+ shift
     freqs = info(t).channels.frequency
     g = stations(t)
     el, par, az = parent(g.elevation), parent(g.parallactic), parent(g.azimuth)
@@ -45,6 +45,7 @@ function _cellcoords(t::VisTable, keys)
             ant = [k[1] for k in keys], Ti = [τ[k[2]] for k in keys], Fr = [freqs[k[3]] for k in keys],
             elevation = [el[k[1], k[2]] for k in keys], parallactic = [par[k[1], k[2]] for k in keys],
             azimuth = [az[k[1], k[2]] for k in keys],
+            ra = fill(deg2rad(info(t).source.ra), length(keys)), dec = fill(deg2rad(info(t).source.dec), length(keys)),
         )
     )
 end
@@ -112,9 +113,10 @@ function _responses(t::VisTable, coords, refbasis)
     end
 end
 
-function CellLayout(t::VisTable, params::NamedTuple, refbasis, readers::NamedTuple)
+# `shift`: the hours from the epoch of `t` to that of the instrument's site arrays.
+function CellLayout(t::VisTable, params::NamedTuple, refbasis, readers::NamedTuple; shift = 0.0)
     cellkeys, cell1, cell2 = _cells(t)
-    coords = _cellcoords(t, cellkeys)
+    coords = _cellcoords(t, cellkeys, shift)
     measured = falses(length(cellkeys))
     meas = _measured(t)
     for I in CartesianIndices(meas)

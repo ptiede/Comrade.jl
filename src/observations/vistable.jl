@@ -496,33 +496,52 @@ function Base.vcat(t::VisTable, ts::VisTable...)
         throw(ArgumentError("tables of $(join(unique(map(s -> _polname(s.pol), tabs)), ", ")) cannot be joined"))
     any(s -> eltype(measurement(s)) <: Real, tabs) &&
         throw(ArgumentError("amplitude tables cannot be joined; join the visibility tables, then take amplitudes"))
+    source = info(t).source
+    all(s -> info(s).source == source, tabs) ||
+        throw(ArgumentError("tables of different sources cannot be joined: $(map(s -> info(s).source, tabs))"))
+    s = _stack(tabs, _dense ∘ measurement, _dense ∘ weight)
+    m = _mergerecords(s.info, s.V, s.W, s.u, s.v, s.Ti, s.ant1, s.ant2, s.rest)
+    elevation, parallactic = _joingeometry(s.info, tabs, s.stidx, s.shift, sort!(unique(m.Ti)))
+    return VisTable(
+        t.pol, m.V; weight = m.W, m.u, m.v, m.Ti, m.ant1, m.ant2, info = s.info, elevation, parallactic,
+    )
+end
+
+# The earliest epoch of the tables `tabs` and the hours each table's times shift to reach it.
+function _epochshift(tabs)
+    epoch = minimum(s -> info(s).epoch, tabs)
+    return epoch, map(s -> 24.0 * Dates.value(info(s).epoch - epoch), tabs)
+end
+
+# The records of `tabs` one after another, with the values `values(s)` and weights `weights(s)`
+# of each table `s`, on the stations, channels, scans and tracks of all of them, the time axis
+# of the earliest epoch, and the source of the first.
+function _stack(tabs, values, weights)
     infos = map(info, tabs)
-    source = first(infos).source
-    all(a -> a.source == source, infos) ||
-        throw(ArgumentError("tables of different sources cannot be joined: $(map(a -> a.source, infos))"))
-    epoch = minimum(a -> a.epoch, infos)
-    shift = map(a -> 24.0 * Dates.value(a.epoch - epoch), infos)
+    epoch, shift = _epochshift(tabs)
     a = ArrayInfo(;
         stations = _joinstations(infos), channels = _joinchannels(tabs),
         scans = _unionintervals(map(a -> a.scans, infos), shift),
-        tracks = _unionintervals(map(a -> a.tracks, infos), shift), source, epoch,
+        tracks = _unionintervals(map(a -> a.tracks, infos), shift), source = first(infos).source, epoch,
     )
 
     stidx = map(b -> map(s -> stationindex(a, s), b.stations.name), infos)
     chidx = map(s -> map(f -> findfirst(==(f), a.channels.frequency), _frequencies(s)), tabs)
-    fd = _valueshape(t.pol)
+    Vs, Ws = map(values, tabs), map(weights, tabs)
+    fd = size(first(Vs))[3:end]
+    all(V -> size(V)[3:end] == fd, Vs) || throw(DimensionMismatch("the tables' values have different shapes"))
     rest = ntuple(_ -> Colon(), length(fd))
     n, nch = sum(s -> size(s, 1), tabs), length(a.channels)
-    V = zeros(promote_type(map(s -> eltype(_dense(measurement(s))), tabs)...), n, nch, fd...)
-    W = zeros(promote_type(map(s -> eltype(_dense(weight(s))), tabs)...), n, nch, fd...)
+    V = zeros(promote_type(map(eltype, Vs)...), n, nch, fd...)
+    W = zeros(promote_type(map(eltype, Ws)...), n, nch, fd...)
     u, v, Ti = (zeros(n) for _ in 1:3)
     ant1, ant2 = zeros(Int, n), zeros(Int, n)
     offset = 0
     for k in eachindex(tabs)
         s = tabs[k]
         r = offset .+ (1:size(s, 1))
-        V[r, chidx[k], rest...] .= _dense(measurement(s))
-        W[r, chidx[k], rest...] .= _dense(weight(s))
+        V[r, chidx[k], rest...] .= Vs[k]
+        W[r, chidx[k], rest...] .= Ws[k]
         d = domain(s)
         c = ComradeBase.coords(d)
         u[r] .= c.u
@@ -532,11 +551,15 @@ function Base.vcat(t::VisTable, ts::VisTable...)
         ant2[r] .= stidx[k][d.ant2]
         offset += size(s, 1)
     end
-    m = _mergerecords(a, V, W, u, v, Ti, ant1, ant2, rest)
-    elevation, parallactic = _joingeometry(a, tabs, stidx, shift, sort!(unique(m.Ti)))
-    return VisTable(
-        t.pol, m.V; weight = m.W, m.u, m.v, m.Ti, m.ant1, m.ant2, info = a, elevation, parallactic,
-    )
+    return (; info = a, V, W, u, v, Ti, ant1, ant2, rest, shift, stidx)
+end
+
+# A table of the measured values of all `tabs`, unmerged, on the time axis of the earliest epoch,
+# each weighted by its total weight: what an instrument's priors are built on. Its values are
+# zero, and its `u`, `v` and geometry mix the tables' sources.
+function _measuredtable(tabs)
+    s = _stack(tabs, t -> zeros(ComplexF64, size(t)), _valueweights)
+    return VisTable(IPol(), s.V; weight = s.W, s.u, s.v, s.Ti, s.ant1, s.ant2, info = s.info)
 end
 
 const _JOIN_UV_RTOL = 1.0e-3

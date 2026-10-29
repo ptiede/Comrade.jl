@@ -224,19 +224,47 @@ are built on the measured values of `t`.
 function set_array(int::InstrumentModel, t::VisTable)
     int.selfcal && int.jones isa PerStation && throw(ArgumentError("self-calibration does not support PerStation models"))
     int.selfcal && return _set_selfcal(int, t)
-    (; jones, refbasis) = int
+    prior, x = _instrumentprior(int, t)
+    return _observe(int, t, x), prior
+end
+
+"""
+    set_array(int, tables::NamedTuple)
+
+The observed instrument models of `int` for the visibility tables of several fields, keyed by
+field name, and their one prior. The priors are built on the measured values of all tables,
+on the time axis of the earliest epoch, so a parameter is shared by the fields wherever its
+segments cover the data of several.
+"""
+function set_array(int::InstrumentModel, tables::NamedTuple)
+    int.selfcal && throw(ArgumentError("self-calibration does not support several fields"))
+    _, shift = _epochshift(values(tables))
+    prior, x = _instrumentprior(int, _measuredtable(values(tables)))
+    observed = map((t, s) -> _observe(int, t, x, s), values(tables), shift)
+    return FieldInstruments(NamedTuple{keys(tables)}(observed)), prior
+end
+
+# The prior of the instrument parameters, built on the measured values of `t`, and a draw.
+function _instrumentprior(int::InstrumentModel, t::VisTable)
+    jones = int.jones
     _checkstations(jones, info(t).stations.name)
     s = _measuredpoints(t).sites
     prior = _stationpriors(jones, int.prior, sort(unique(vcat(first.(s), last.(s)))))
     obs = map(Base.Fix2(ObservedArrayPrior, t), prior)
     obs = fix_phase_gauge(prior, obs, t, int.gaugefix)
     prior_obs = NamedDist(obs)
-    x = rand(prior_obs)
-    layout = CellLayout(t, map(siteparams, x), refbasis, _readers(jones, int.prior, info(t).stations.name))
+    return prior_obs, rand(prior_obs)
+end
+
+# `int` bound to the table `t`, whose times are `shift` hours after the epoch of the site arrays
+# of the parameters `x`.
+function _observe(int::InstrumentModel, t::VisTable, x, shift = 0.0)
+    (; jones, refbasis) = int
+    layout = CellLayout(t, map(siteparams, x), refbasis, _readers(jones, int.prior, info(t).stations.name); shift)
     groups, layout = _stationgroups(_withoutpriors(jones), t, layout)
     J = ObservedInstrumentModel(groups, refbasis, layout, t.pol, int.feedrotation_corrected)
     _checkgroups(J, x)
-    return J, prior_obs
+    return J
 end
 
 _checkstations(::AbstractJonesMatrix, names) = nothing
@@ -327,6 +355,18 @@ end
 EnzymeRules.inactive_type(::Type{<:ObservedIdealInstrument}) = true
 
 set_array(::IdealInstrumentModel, t::VisTable) = (ObservedIdealInstrument(t.pol), NamedDist((;)))
+set_array(::IdealInstrumentModel, tables::NamedTuple) =
+    (FieldInstruments(map(t -> ObservedIdealInstrument(t.pol), tables)), NamedDist((;)))
+
+# The instruments bound to the tables of several fields, keyed by field name, reading one set of
+# parameters.
+struct FieldInstruments{F <: NamedTuple} <: AbstractInstrumentModel
+    fields::F
+end
+
+EnzymeRules.inactive_type(::Type{<:FieldInstruments}) = true
+
+@inline apply_instrument(vis::NamedTuple, J::FieldInstruments, x) = map((v, j) -> apply_instrument(v, j, x), vis, J.fields)
 
 @inline apply_instrument(vis, J::ObservedIdealInstrument, x) = _IdealValue{typeof(J.pol), CirBasis}(J.pol).(baseimage(vis))
 

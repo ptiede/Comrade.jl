@@ -131,11 +131,14 @@ end
 
 The Jones matrices `J_a U_a` of a posterior's instrument at the parameter values `θ`, for every
 station, time stamp and channel of its data, as an array over `(Ant, Ts, Fr)` (see
-[`forward_jones`](@ref)).
+[`forward_jones`](@ref)). A multi-field posterior gives one array per field, keyed by field name.
 """
 function instrumentmodel(post::AbstractVLBIPosterior, θ)
-    return forward_jones(_observedmodel(instrumentmodel(post)), θ, _commonvis(post.data))
+    return _forwardjones(instrumentmodel(post), θ, post.data)
 end
+
+_forwardjones(J, θ, data::Tuple) = forward_jones(_observedmodel(J), θ, _commonvis(data))
+_forwardjones(J::FieldInstruments, θ, data::NamedTuple) = map((j, d) -> _forwardjones(j, θ, d), J.fields, data)
 
 _observedmodel(J::ObservedInstrumentModel) = J
 _observedmodel(J::ObservedSelfCalInstrumentModel) = J.model
@@ -185,4 +188,5 @@ end
 
 include("likelihood.jl")
 include("vlbiposterior.jl")
+include("fields.jl")
 include("transformed.jl")
