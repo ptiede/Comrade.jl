@@ -1,3 +1,30 @@
+export StationPhase, ReportGauge, PinGauge
+
+"""
+    StationPhase()
+
+Marks an [`ArrayPrior`](@ref) as one summand of the absolute station phase (its `gauge`
+argument), so that the [`InstrumentModel`](@ref) checks that the reference pins of all such
+terms together fix the phase the data cannot see.
+"""
+struct StationPhase end
+
+"""
+    ReportGauge()
+
+The default `gaugefix` of an [`InstrumentModel`](@ref): a station phase left undetermined by
+the [`StationPhase`](@ref) terms is an error that lists the entries whose pinning would fix it.
+"""
+struct ReportGauge end
+
+"""
+    PinGauge()
+
+The `gaugefix` of an [`InstrumentModel`](@ref) that pins the entries a station phase left
+undetermined by the [`StationPhase`](@ref) terms needs, logging one line per pin.
+"""
+struct PinGauge end
+
 # The phase-gauge solver: which parameter entries have to be pinned so that a station
 # phase written as a sum of several `ArrayPrior` terms is determined by the data.
 #
@@ -49,26 +76,27 @@ Rank the entries that [`gauge_pins`](@ref) may pin: the entry with the smallest 
 one it pins, and the largest key is the one it treats as determined when a datum can only
 determine one of its entries.
 
-`entry` is a NamedTuple `(; term, index, site, dt, sefd, occupancy)` describing one entry of
-one term — the term's name, the entry's position in the term's `SiteLookup`, its site, the
-width of its integration time, the site's SEFD (`Inf` when the array table has no such
-site), and the number of stamps at which the site appears.
+`entry` is a NamedTuple `(; term, index, site, dt, weight, occupancy)` describing one entry
+of one term — the term's name, the entry's position in the term's `SiteLookup`, its site, the
+width of its integration time, the site's total data weight `Σ 1/σ²` (`0` for a site the
+weights do not list), and the number of stamps at which the site appears.
 
-The key is `(-dt, sefd, -occupancy)`: pin the coarsest term first, since one pin on a
+The key is `(-dt, -weight, -occupancy)`: pin the coarsest term first, since one pin on a
 track-long entry fixes a level the finer terms then measure against; break ties on the most
 sensitive site, then on the site with the most data.
 """
-default_gauge_preference(e) = (-e.dt, e.sefd, -e.occupancy)
+default_gauge_preference(e) = (-e.dt, -e.weight, -e.occupancy)
 
 # Stamps of an observation and the sites present at each: the (time, frequency) of the
 # data, sorted, with the sites of every baseline observed there. The phase constant of a
 # stamp is shared only by sites that baselines connect, so a (time, frequency) whose
 # baselines fall into several disconnected groups yields one stamp per group, repeated with
 # the same key.
-function gauge_stamps(array::AbstractArrayConfiguration)
-    T = array[:Ti]
-    F = array[:Fr]
-    bl = array[:sites]
+function gauge_stamps(t::VisTable)
+    points = _measuredpoints(t)
+    T = points.Ti
+    F = points.Fr
+    bl = points.sites
     keys = Tuple{eltype(T), eltype(F)}[]
     bls_at = Vector{Tuple{Symbol, Symbol}}[]
     index = Dict{Tuple{eltype(T), eltype(F)}, Int}()
@@ -142,8 +170,8 @@ function _coverage(smap::SiteLookup, stamps, stamptimes, name)
 end
 
 """
-    gauge_pins(terms, array::AbstractArrayConfiguration; prefer = default_gauge_preference)
-    gauge_pins(terms, stamps, sites_at, sefd; prefer = default_gauge_preference)
+    gauge_pins(terms, t::VisTable; prefer = default_gauge_preference)
+    gauge_pins(terms, stamps, sites_at, weight; prefer = default_gauge_preference)
 
 Return the entries that must be pinned, as `Vector{Tuple{Symbol, Int}}` of (term name, entry
 index), so that a station phase written as the sum of `terms` is determined by the data up
@@ -153,9 +181,9 @@ to nothing at all. An empty result means the parameterization is already identif
 term's [`SiteLookup`](@ref) and `fixed` holds the entry indices its referencing scheme and
 init pins already hold constant. The observation enters only through its schedule: the
 second form takes it as `stamps`, a vector of `(time, frequency)` pairs sorted by time,
-`sites_at`, the sites present at each stamp, and `sefd`, a site-keyed NamedTuple or
-dictionary of system equivalent flux densities; the first form reads all three off an array
-configuration. The sites of one stamp share a single phase constant, so they must be
+`sites_at`, the sites present at each stamp, and `weight`, a site-keyed NamedTuple or
+dictionary of each site's total data weight; the first form reads all three off a
+visibility table. The sites of one stamp share a single phase constant, so they must be
 connected by baselines: a `(time, frequency)` whose baselines split into disconnected groups
 is listed once per group, which is how the first form builds it.
 
@@ -184,19 +212,15 @@ reported as no pin: the data fix those constants once the entries around them ar
 
 ## Notes
 This is the analysis behind the `gaugefix` setting of [`InstrumentModel`](@ref), which
-applies the pins for terms declared with `gauge = :phase`. Called directly it is a way to
+applies the pins for terms declared with `gauge = StationPhase()`. Called directly it is a way to
 check a parameterization before running it.
 """
-function gauge_pins(
-        terms, array::AbstractArrayConfiguration; prefer = default_gauge_preference
-    )
-    stamps, sites_at = gauge_stamps(array)
-    tarr = array.tarr
-    sefd = NamedTuple{Tuple(tarr.sites)}(Tuple(tarr.SEFD1 .+ tarr.SEFD2))
-    return gauge_pins(terms, stamps, sites_at, sefd; prefer)
+function gauge_pins(terms, t::VisTable; prefer = default_gauge_preference)
+    stamps, sites_at = gauge_stamps(t)
+    return gauge_pins(terms, stamps, sites_at, _stationweights(t); prefer)
 end
 
-function gauge_pins(terms, stamps, sites_at, sefd; prefer = default_gauge_preference)
+function gauge_pins(terms, stamps, sites_at, weight; prefer = default_gauge_preference)
     length(stamps) == length(sites_at) || throw(
         DimensionMismatch(
             "each stamp needs its site list: got $(length(stamps)) stamps and " *
@@ -271,7 +295,7 @@ function gauge_pins(terms, stamps, sites_at, sefd; prefer = default_gauge_prefer
         return prefer(
             (
                 term = names[k], index = i, site = s, dt = float(_region(smaps[k].times[i])),
-                sefd = float(get(sefd, s, Inf)), occupancy = get(occupancy, s, 0),
+                weight = float(get(weight, s, 0.0)), occupancy = get(occupancy, s, 0),
             )
         )
     end
@@ -388,23 +412,23 @@ function _pin_description(obs::NamedTuple, name::Symbol, i::Int)
 end
 
 # Resolve the phase gauge of the observed priors `obs` built from the `ArrayPrior`s
-# `prior`. Terms declared `gauge = :phase` are summed to give the station phase, so their
-# reference pins have to identify the sum and not merely each term on its own; `gauge_pins`
-# says whether they do. With `gaugefix = :error` a leftover flat direction is reported,
-# with `:pin` it is pinned and the affected priors are re-observed.
-function fix_phase_gauge(prior::NamedTuple, obs::NamedTuple, array, gaugefix::Symbol)
-    names = filter(n -> getproperty(prior, n).gauge === :phase, keys(prior))
+# `prior`. Terms declared `gauge = StationPhase()` are summed to give the station phase, so
+# their reference pins have to identify the sum and not merely each term on its own;
+# `gauge_pins` says whether they do. With `ReportGauge()` a leftover flat direction is
+# reported, with `PinGauge()` it is pinned and the affected priors are re-observed.
+function fix_phase_gauge(prior::NamedTuple, obs::NamedTuple, t::VisTable, gaugefix)
+    names = filter(n -> getproperty(prior, n).gauge isa StationPhase, keys(prior))
     isempty(names) && return obs
-    pins = gauge_pins(gauge_terms(obs, names), array)
+    pins = gauge_pins(gauge_terms(obs, names), t)
     isempty(pins) && return obs
 
     listing = join(("  " * _pin_description(obs, n, i) for (n, i) in pins), "\n")
-    gaugefix === :error && throw(
+    gaugefix isa ReportGauge && throw(
         ArgumentError(
             "the phase parameterization is rank deficient by $(length(pins)): the data " *
-                "determine the sum of the gauge = :phase terms only up to that many free " *
+                "determine the sum of the StationPhase() terms only up to that many free " *
                 "constants. Pinning\n$listing\nwould remove them. Either set " *
-                "gaugefix = :pin on the InstrumentModel to apply these pins " *
+                "gaugefix = PinGauge() on the InstrumentModel to apply these pins " *
                 "automatically, or pin the sites yourself with a MultiReference on the " *
                 "named term."
         )
@@ -418,17 +442,17 @@ function fix_phase_gauge(prior::NamedTuple, obs::NamedTuple, array, gaugefix::Sy
         pinned = ArrayPrior(
             p.default_dist, p.override_dist,
             CompositeReference(p.refant, EntryReference(inds, val)),
-            p.phase, p.centroid_station, p.gauge
+            p.centroid_station, p.gauge, p.stations
         )
-        out = merge(out, NamedTuple{(name,)}((ObservedArrayPrior(pinned, array),)))
+        out = merge(out, NamedTuple{(name,)}((ObservedArrayPrior(pinned, t),)))
         for i in inds
             @info "gaugefix: pinning $(_pin_description(obs, name, i)) to $val"
         end
     end
 
-    left = gauge_pins(gauge_terms(out, names), array)
+    left = gauge_pins(gauge_terms(out, names), t)
     isempty(left) || error(
-        "gaugefix = :pin left $(length(left)) phase gauge freedom(s) unfixed: $left"
+        "PinGauge() left $(length(left)) phase gauge freedom(s) unfixed: $left"
     )
     return out
 end

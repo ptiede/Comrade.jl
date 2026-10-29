@@ -28,14 +28,14 @@ function FixedSkyModel(m::AbstractModel, grid::AbstractRectiGrid; algorithm = NF
     return FixedSkyModel(m, grid, algorithm)
 end
 
-function ObservedSkyModel(m::FixedSkyModel, arr::AbstractArrayConfiguration)
+function ObservedSkyModel(m::FixedSkyModel, arr::VisTable)
     gfour = FourierDualDomain(m.grid, arr, m.algorithm)
     # img = intensitymap(m.model, gfour)
     vis = visibilitymap(m.model, gfour)
     return ObservedSkyModel(m, gfour, (; m.model, vis))
 end
 
-function set_prior(::FixedSkyModel, ::AbstractArrayConfiguration)
+function set_prior(::FixedSkyModel, ::VisTable)
     return (;)
 end
 

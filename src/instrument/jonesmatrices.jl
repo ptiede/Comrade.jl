@@ -1,250 +1,159 @@
-export SingleStokesGain, JonesG, JonesD, JonesF, JonesR, GenericJones,
-    JonesSandwich, forward_jones
+export Jones, PerStation, gains, leakage, rotation, forward_jones
 
+"""
+    AbstractJonesMatrix
+
+An instrument term in the local ideal feed basis of a station: per station cell, a 2×2 matrix,
+or a number for a term that acts on both feeds alike. Each term owns the priors of the
+parameters it reads. Build one with [`Jones`](@ref) and combine terms with `*`.
+"""
 abstract type AbstractJonesMatrix end
-@inline jonesmatrix(mat::AbstractJonesMatrix, params, visindex, site) = construct_jones(mat, param_map(mat, params), visindex, site)
-@inline param_map(mat::AbstractJonesMatrix, x) = mat.param_map(x)
-preallocate_jones(g::AbstractJonesMatrix, array, refbasis) = g
 
 """
-    SingleStokesGain(param_map)
+    Jones(f; name = prior, ...)
 
-Construct a gain term that is applicable to a single measured visibility. This is
-useful for pure stokes I modeling. The `param_map` is a function that maps the
-set of parameters to the gain term.
+An instrument term with the parameters `name`, each with its prior (an [`ArrayPrior`](@ref)).
+`f(x, c)` takes the instrument parameters `x` of one station cell and the cell's coordinates
+`c` (`c.ant`, the station's index in the station table; `c.Ti`, hours since the epoch; `c.Fr`,
+Hz; `c.elevation`, `c.parallactic`, `c.azimuth`, radians) and returns the term's 2×2 matrix in
+the station's local feed basis, or a number, a gain on both feeds (the form for Stokes I
+data). [`gains`](@ref), [`leakage`](@ref) and [`rotation`](@ref) build the usual matrices; any
+other optic is the matrix written out. A parameter exists only at the stations whose term
+reads it (see [`PerStation`](@ref)), and two terms that read the same parameter must give it
+the same prior.
 
-The arguments of `param_map` is typically a named tuple, where some of the elements
-are the parameter values needed to compute the gain.
-The return value of the `param_map` should be a single number or complex gain.
-
-## Example
 ```julia
-G = SingleStokesGain(x->exp(x.lg + xp.gp))
-```
-
-"""
-struct SingleStokesGain{F} <: AbstractJonesMatrix
-    param_map::F
+G = Jones(
+    (x, c) -> gains(exp(complex(x.lgR, x.gpR)), exp(complex(x.lgL, x.gpL)));
+    lgR = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+    gpR = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SensitiveReference(0.0)),
+    lgL = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1))),
+    gpL = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SensitiveReference(0.0)),
+)
+# a quarter-wave plate whose retardance and angle are fit
+Q = Jones(; θ = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1))),
+            δ = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 0.1)))) do x, c
+    R = rotation(x.θ, LinBasis())
+    return R' * SMatrix{2, 2}(1, 0, 0, cis(π / 2 + x.δ)) * R
 end
-@inline construct_jones(::SingleStokesGain, x, index, site) = x
-
-"""
-    JonesG(param_map)
-
-Describes a gain Jones matrix with layout
-
-  g1 0
-  0  g2
-
-where `g1` and `g2` are the gains for first and second feed of the telescope.
-
-The `param_map` is a function that maps the set of parameters to the gain term.
-The arguments of `param_map` is typically a named tuple, where some of the elements
-are the parameter values needed to compute the gain.
-The return value of the `param_map` should be a two element tuple where the first element
-is the complex gain `g1` and the second element is the complex gain `g2`.
-
-## Example
-```julia
-G = JonesG() do
-    g1 = exp(complex(x.lg1, x.gp1))
-    g2 = g1*exp(complex(x.lgratio, x.gpratio))
-    return g1, g2
-end
+J = G * Q
 ```
 """
-struct JonesG{F} <: AbstractJonesMatrix
+struct Jones{F, P <: NamedTuple} <: AbstractJonesMatrix
     param_map::F
+    priors::P
 end
-@inline construct_jones(::JonesG, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(x[1], zero(T), zero(T), x[2])
+Jones(f; priors...) = Jones(f, NamedTuple(priors))
+@inline jonesmatrix(J::Jones, x, c) = J.param_map(x, c)
 
+# The priors of the parameters a term reads, by name.
+_priors(J::Jones) = J.priors
+_priors(::AbstractJonesMatrix) = (;)
 
 """
-    JonesD(param_map)
+    gains(g1, g2)
 
-Describes a leakage Jones matrix with layout
-
-  1 d1
-  d2 1
-
-where `d1` and `d2` are the d-terms for first and second feed of the telescope.
-
-The `param_map` is a function that maps the set of parameters to the gain term.
-The arguments of `param_map` is typically a named tuple, where some of the elements
-are the parameter values needed to compute the gain.
-The return value of the `param_map` should be a two element tuple where the first element
-is the complex d-term `d1` and the second element is the complex d-term `d2`.
-
-## Example
-```julia
-D = JonesD() do
-    d1 = complex(x.d1real, x.d1imag)
-    d2 = complex(x.d2real, x.d2imag)
-    return d1, d2
-end
-```
+The gain matrix `[g1 0; 0 g2]`: the complex gains of the first and second feed.
 """
-struct JonesD{F} <: AbstractJonesMatrix
-    param_map::F
+@inline function gains(g1, g2)
+    z = zero(promote_type(typeof(g1), typeof(g2)))
+    return SMatrix{2, 2}(g1, z, z, g2)
 end
-Base.@propagate_inbounds construct_jones(::JonesD, x::NTuple{2, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(1, x[2], x[1], 1)
-
 
 """
-    GenericJones(param_map)
+    leakage(d1, d2)
 
-Construct a generic dense jones matrix with four parameterized elements.
-
-The `param_map` is a function that maps the set of parameters to the gain term.
-The arguments of `param_map` is typically a named tuple, where some of the elements
-are the parameter values needed to compute the gain.
-The return value of the `param_map` should be a four element tuple where the elements are
-the entries of the jones matrix in column major order.
-
-## Example
-```julia
-J = GenericJones() do
-    return x.j11, x.j21, x.j12, x.j22
+The leakage matrix `[1 d1; d2 1]`: `d1` is the leakage of the second feed's polarization into
+the first feed, `d2` of the first into the second.
+"""
+@inline function leakage(d1, d2)
+    o = one(promote_type(typeof(d1), typeof(d2)))
+    return SMatrix{2, 2}(o, d2, d1, o)
 end
-```
 
 """
-struct GenericJones{F} <: AbstractJonesMatrix
-    param_map::F
+    rotation(φ, basis::PolBasis)
+
+The rotation of the electric field by the angle `φ` (radians) against the sky, as a 2×2 matrix
+in the feed basis `basis`: `diag(e^{-iφ}, e^{iφ})` in `CirBasis()`, and that matrix transformed
+to any other basis. A station's feed rotation (see [`feed_rotation`](@ref)) acts on its feeds
+this way.
+"""
+@inline function rotation(φ, basis::PolBasis)
+    Tc = basis_transform(CirBasis(), basis)
+    return Tc * SMatrix{2, 2}(cis(-φ), zero(cis(φ)), zero(cis(φ)), cis(φ)) * Tc'
 end
-@inline construct_jones(::GenericJones, x::NTuple{4, T}, index, site) where {T} = SMatrix{2, 2, T, 4}(x[1], x[2], x[3], x[4])
 
+"""
+    J1 * J2
 
-struct JonesConst{M} <: AbstractJonesMatrix
+The product of the instrument terms `J1` and `J2`, evaluated per station cell as the matrix
+product in that order, e.g. `G * D` for gains times leakage.
+"""
+struct JonesProduct{M <: Tuple} <: AbstractJonesMatrix
     matrices::M
 end
-JonesConst(m1, m2) = JonesConst((m1, m2))
-@inline construct_jones(J::JonesConst, x, index, ::Val{N}) where {N} = @inbounds(rgetindex(J.matrices[N], index))
-param_map(::JonesConst, x) = x
 
+_factors(J::JonesProduct) = J.matrices
+_factors(J::AbstractJonesMatrix) = (J,)
+Base.:*(a::AbstractJonesMatrix, b::AbstractJonesMatrix) = JonesProduct((_factors(a)..., _factors(b)...))
+
+@inline jonesmatrix(J::JonesProduct, x, c) = _mulall(map(m -> jonesmatrix(m, x, c), J.matrices)...)
+
+# The product unrolled at compile time: `prod` over a tuple is a loop that Enzyme reverses with
+# runtime dispatch.
+@inline _mulall(a) = a
+@inline _mulall(a, b, rest...) = _mulall(a * b, rest...)
 
 """
-    JonesF(;add_fr=true)
+    PerStation(default; station = term, ...)
 
-The **feed rotation** Jones matrix. This matrix describes the orientation of the feeds of the
-telescope.
-
-This Jones matrix has no parameters so it doesn't accept
-a `param_map`. The `add_fr` argument is a boolean that specifies if feed rotation should
-be included.
+Instrument terms assigned per station: each named station uses its `term`, every other station
+`default`, e.g. `PerStation(G * D; AA = G * D * Q)` for a quarter-wave plate at AA only. Every
+term must give values of one type (all 2×2 matrices, or all numbers). A parameter exists only
+at the stations whose term reads it: above, the parameters of `Q` exist only at AA, and a
+station whose term leaves out `D` has no leakage parameters.
 """
-struct JonesF{M} <: AbstractJonesMatrix
-    matrices::M
+struct PerStation{D <: AbstractJonesMatrix, O <: NamedTuple} <: AbstractJonesMatrix
+    default::D
+    overrides::O
 end
-JonesF() = JonesF(nothing)
-@inline construct_jones(J::JonesF, x, index, ::Val{M}) where {M} = @inbounds J.matrices[index][M]
-param_map(::JonesF, x) = x
-function preallocate_jones(::JonesF, array::AbstractArrayConfiguration, ref)
-    field_rotations = build_feedrotation(array)
-    return JonesConst(field_rotations[1], field_rotations[2])
+
+function PerStation(default::AbstractJonesMatrix; kwargs...)
+    o = NamedTuple(kwargs)
+    all(t -> t isa AbstractJonesMatrix, values(o)) ||
+        throw(ArgumentError("PerStation takes an instrument term for each station"))
+    any(t -> t isa PerStation, values(o)) && throw(ArgumentError("PerStation terms cannot be nested"))
+    default isa PerStation && throw(ArgumentError("PerStation terms cannot be nested"))
+    return PerStation(default, o)
 end
 
+Base.:*(::PerStation, ::AbstractJonesMatrix) = throw(ArgumentError("a PerStation model is the whole instrument; multiply the terms inside it"))
+Base.:*(::AbstractJonesMatrix, ::PerStation) = throw(ArgumentError("a PerStation model is the whole instrument; multiply the terms inside it"))
+Base.:*(::PerStation, ::PerStation) = throw(ArgumentError("a PerStation model is the whole instrument; multiply the terms inside it"))
 
-"""
-    JonesR(;add_fr=true)
+# The term of station `s`.
+stationterm(J::PerStation, s::Symbol) = get(J.overrides, s, J.default)
 
-The **response** Jones matrix. This is the reponse the telescope has to the incoming
-electric field, if the telescope was ideal. If `add_fr=true` then feed rotation are included.
+_priors(J::JonesProduct) = _mergepriors(map(_priors, J.matrices)...)
+_priors(J::PerStation) = _mergepriors(_priors(J.default), map(_priors, values(J.overrides))...)
 
-This Jones matrix has no parameters so it doesn't accept
-a `param_map`. The `add_fr` argument is a boolean that specifies if feed rotation should
-be included.
-"""
-Base.@kwdef struct JonesR{M} <: AbstractJonesMatrix
-    matrices::M = nothing
-    add_fr::Bool = true
-end
-@inline construct_jones(J::JonesR, x, index, ::Val{M}) where {M} = @inbounds rgetindex(J.matrices[M], index)
-param_map(::JonesR, x) = x
-
-function preallocate_jones(J::JonesR, array::AbstractArrayConfiguration, ref)
-    T1 = StructArray(map(x -> basis_transform(ref, x[1]), array[:polbasis]))
-    T2 = StructArray(map(x -> basis_transform(ref, x[2]), array[:polbasis]))
-    Tcirc1 = StructArray(map(x -> basis_transform(CirBasis(), x[1]), array[:polbasis]))
-    Tcirc2 = StructArray(map(x -> basis_transform(CirBasis(), x[2]), array[:polbasis]))
-    if J.add_fr
-        field_rotations = build_feedrotation(array)
-        @. T1 .= Tcirc1 * field_rotations[1] * adjoint(Tcirc1) * T1
-        @. T2 .= Tcirc2 * field_rotations[2] * adjoint(Tcirc2) * T2
+_mergepriors() = (;)
+_mergepriors(a::NamedTuple) = a
+function _mergepriors(a::NamedTuple, b::NamedTuple, rest::NamedTuple...)
+    for k in keys(b)
+        haskey(a, k) && getproperty(a, k) !== getproperty(b, k) && throw(
+            ArgumentError("two instrument terms give the parameter $k different priors; a parameter shared by terms has one prior")
+        )
     end
-    return JonesConst(T1, T2)
-
+    return _mergepriors(merge(a, b), rest...)
 end
 
+# Whether the term `J` reads the parameter `p`.
+_reads(J::AbstractJonesMatrix, p) = haskey(_priors(J), p)
 
-struct JonesSandwich{J, M} <: AbstractJonesMatrix
-    jones_map::J
-    matrices::M
-end
-
-"""
-    JonesSandwich([decomp_function=*,] matrices::AbstractJonesMatrix...)
-
-Constructs a Jones matrix that is the results combining multiple Jones matrices together.
-The specific composition is determined by the `decomp_function`. For example if the
-decomp function is `*` then the matrices are multiplied together, if it is `+` then they
-are added.
-
-
-## Examples
-```julia
-G = JonesG(x->(x.gR, x.gL)) # Gain matrix
-D = JonesD(x->(x.dR, x.dL)) # leakage matrix
-F = JonesF()                # Feed rotation matrix
-
-J = JonesSandwich(*, G, D, F) # Construct the full Jones matrix as G*D*F
-
-# Or if you want to include FR calibration
-J = JonesSandwich(G, D, F) do g, d, f
-    return adjoint(f)*g*d*f
-end
-```
-"""
-function JonesSandwich(map, matrices::AbstractJonesMatrix...)
-    return JonesSandwich(splat(map), matrices)
-end
-
-function JonesSandwich(matrices::AbstractJonesMatrix...)
-    return JonesSandwich(*, matrices...)
-end
-
-@inline function jonesmatrix(J::JonesSandwich, x, index, site)
-    return J.jones_map(map(m -> construct_jones(m, param_map(m, x), index, site), J.matrices))
-end
-
-function preallocate_jones(J::JonesSandwich, array::AbstractArrayConfiguration, refbasis = CirBasis())
-    m2 = map(x -> preallocate_jones(x, array, refbasis), J.matrices)
-    return JonesSandwich(J.jones_map, m2)
-end
-
-"""
-    forward_jones(J::AbstractJonesMatrix, xs::NamedTuple{N})
-
-Construct the forward model for the jones matrix model `J` with the parameters `xs`.
-    
-The `xs` is a named tuple where the keys are the parameter names and the values are SiteArrays with
-the parameter values. The return value is a `SiteArray` whose dimension is the largest of the elements
-of `xs, and whose elements are the jones matrices for the specific parameters.
-
-"""
-function forward_jones(v::AbstractJonesMatrix, xs::NamedTuple{N}) where {N}
-    sm = broadest_sitemap(xs)
-    bl = map(x -> (x, x), sm.sites)
-    bmaps = map(x -> _construct_baselinemap(getproperty.(sm.times, :t0), getproperty.(sm.frequencies, :central), bl, x).indices_1, xs)
-    vs = map(eachindex(sm.times)) do index
-        indices = map(x -> getindex(x, index), bmaps)
-        params = NamedTuple{N}(map(getindex, values(xs), values(indices)))
-        return jonesmatrix(v, params, index, Val(1))
-    end
-    return SiteArray(vs, sm)
-end
-
-function broadest_sitemap(xs::NamedTuple)
-    v = values(xs)
-    return SiteLookup(argmax(x -> length(x.times), v))
-end
+# `J` as the observed model evaluates it: the priors are needed only to build the model's prior.
+_withoutpriors(J::Jones) = Jones(J.param_map, (;))
+_withoutpriors(J::JonesProduct) = JonesProduct(map(_withoutpriors, J.matrices))
+_withoutpriors(J::PerStation) = PerStation(_withoutpriors(J.default), map(_withoutpriors, J.overrides))
+_withoutpriors(J::AbstractJonesMatrix) = J

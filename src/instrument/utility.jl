@@ -2,11 +2,10 @@ export site_tuple
 
 """
     site_tuple(sites, default; reference=nothing kwargs...)
-    site_tuple(obs::AbstractObservationTable, default; reference=nothing, kwargs...)
-    site_tuple(obs::AbstractArrayConfiguration, default; reference=nothing, kwargs...)
+    site_tuple(t::VisTable, default; reference=nothing, kwargs...)
 
 Convienence function that will construct a `NamedTuple` of objects
-whose names are the `sites` in the observation `obs` or explicitly in the argument
+whose names are the `sites` of the visibility table `t` or explicitly in the argument
 `sites`. The `NamedTuple` will be filled with `default` if no kwargs are defined
 otherwise each kwarg (key, value) pair denotes a sites and value pair.
 
@@ -30,6 +29,5 @@ function site_tuple(sites::NTuple{N, Symbol}, default; kwargs...) where {N}
     out = map(x -> get(kwargs, x, default), sites)
     return NamedTuple{sites}(out)
 end
-site_tuple(dvis::AbstractObservationTable, default; kwargs...) = site_tuple((sites(dvis)), default; kwargs...)
-site_tuple(dvis::AbstractArrayConfiguration, default; kwargs...) = site_tuple((sites(dvis)), default; kwargs...)
+site_tuple(t::VisTable, default; kwargs...) = site_tuple(sites(t), default; kwargs...)
 site_tuple(st::AbstractVector{Symbol}, default; kwargs...) = site_tuple(Tuple(st), default; kwargs...)

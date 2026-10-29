@@ -1,66 +1,47 @@
 export dirty_image, dirty_beam
 
-function reflect_vis(obs::EHTObservationTable{<:EHTVisibilityDatum})
-    ac = arrayconfig(obs)
-    con = datatable(arrayconfig(obs))
-    conn = copy(con)
-    conn.U .= -con.U
-    conn.V .= -con.V
-    con2 = vcat(con, conn)
-
-    meas = measurement(obs)
-    noise = Comrade.noise(obs)
-    measn = conj.(copy(meas))
-
-    meas2 = vcat(meas, measn)
-    noise2 = vcat(noise, noise)
-
-    conf2 = EHTArrayConfiguration(
-        ac.bandwidth, ac.tarr, ac.scans,
-        ac.mjd, ac.ra, ac.dec, ac.source,
-        ac.timetype, con2
-    )
-
-    return EHTObservationTable{datumtype(obs)}(meas2, noise2, conf2)
-end
-
-
 """
-    dirty_image(fov::Real, npix::Int, obs::EHTObservation{<:EHTVisibilityDatum}) where T
+    dirty_image(fov::Real, npix::Int, t::VisTable)
 
-Computes the dirty image of the complex visibilities assuming a field of view of `fov`
-and number of pixels `npix` using the complex visibilities found in the observation `obs`.
+Computes the dirty image of the complex visibilities in the table `t` assuming a field of
+view of `fov` and number of pixels `npix`.
 
 The `dirty image` is the inverse Fourier transform of the measured visibilties assuming every
 other visibility is zero.
-
 """
-function dirty_image(fov::Real, npix::Int, obs::EHTObservationTable{D}) where {D <: EHTVisibilityDatum}
-    # First we double the baselines, i.e. we reflect them and conjugate the measurements
-    # This ensures a real NFFT
-    img = IntensityMap(zeros(npix, npix), imagepixels(fov, fov, npix, npix))
-    vis2 = reflect_vis(obs)
-
-    # Get the number of pixels
-    gfour = FourierDualDomain(axisdims(img), arrayconfig(vis2), NFFTAlg())
-    plr = VLBISkyModels.reverse_plan(gfour)
-    m = plr.plan * (conj.(vis2[:measurement]) .* plr.phases)
-    return IntensityMap(real.(m) ./ npix^2, axisdims(img))
+function dirty_image(fov::Real, npix::Int, t::VisTable)
+    keep = _dirtyvalues(t)
+    return _dirty(fov, npix, t, keep, baseimage(measurement(t))[keep])
 end
 
-
 """
-    dirty_beam(fov::Real, npix::Int, obs::EHTObservation{<:EHTVisibilityDatum})
+    dirty_beam(fov::Real, npix::Int, t::VisTable)
 
-Computes the dirty beam of the complex visibilities assuming a field of view of `fov`
-and number of pixels `npix` using baseline coverage found in `obs`.
+Computes the dirty beam of the baseline coverage of the table `t` assuming a field of view of
+`fov` and number of pixels `npix`.
 
 The `dirty beam` is the inverse Fourier transform of the (u,v) coverage assuming every
 visibility is unity and everywhere else is zero.
-
 """
-function dirty_beam(fov, npix, obs::EHTObservationTable{D}) where {D <: EHTVisibilityDatum}
-    vis2 = reflect_vis(obs)
-    vis2.measurement .= complex(oneunit(fov), zero(fov))
-    return dirty_image(fov, npix, vis2)
+function dirty_beam(fov::Real, npix::Int, t::VisTable)
+    keep = _dirtyvalues(t)
+    return _dirty(fov, npix, t, keep, fill(complex(oneunit(fov), zero(fov)), length(keep)))
+end
+
+function _dirtyvalues(t::VisTable)
+    eltype(measurement(t)) <: Complex ||
+        throw(ArgumentError("a dirty image is formed from a table of complex visibilities, got one of $(eltype(measurement(t)))"))
+    return _measuredvalues(t)
+end
+
+# Each baseline and its reflection, with the conjugate visibility, so the transform is real.
+function _dirty(fov, npix, t, keep, vis)
+    d = domain(t)
+    U, V = d.U[keep], d.V[keep]
+    (; Ti, Fr) = _measuredpoints(t)
+    points = UnstructuredDomain((U = vcat(U, -U), V = vcat(V, -V), Ti = vcat(Ti, Ti), Fr = vcat(Fr, Fr)))
+    g = spatialgrid(fov, fov, npix, npix)
+    plr = VLBISkyModels.reverse_plan(FourierDualDomain(g, points, NFFTAlg()))
+    m = plr.plan * (conj.(vcat(vis, conj.(vis))) .* plr.phases)./npix^2
+    return IntensityMap(real.(m), g)
 end

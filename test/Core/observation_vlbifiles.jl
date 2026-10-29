@@ -1,5 +1,4 @@
 using VLBIFiles
-using Pyehtim
 using Comrade
 using Test
 using Statistics
@@ -31,133 +30,6 @@ end
 end
 
 
-@testset "VLBIFiles vs Pyehtim — extract_vis" begin
-    path = joinpath(@__DIR__, "..", "test_data.uvfits")
-    uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    obs = Pyehtim.load_uvfits_and_array(path)
-
-    v_jl = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
-    Pyehtim.scan_average(obs)
-    v_py = Comrade.extract_vis(Pyehtim.scan_average(obs))
-
-    cj = arrayconfig(v_jl)
-    cp = arrayconfig(v_py)
-
-    # exact metadata
-    @test cj.source == cp.source
-    @test cj.mjd == cp.mjd
-    @test cj.bandwidth ≈ cp.bandwidth rtol = 1.0e-6
-    @test sites(v_jl) == sites(v_py)
-    @test cj.ra ≈ cp.ra rtol = 1.0e-9
-    @test cj.dec ≈ cp.dec rtol = 1.0e-9
-
-    # match jl <-> py rows by (sites, time-rounded) and compare geometry
-    kj = Dict{Tuple{Tuple{Symbol, Symbol}, Float64}, Int}()
-    for i in 1:length(v_jl)
-        d = v_jl[i]
-        kj[(d.baseline.sites, round(d.baseline.Ti; digits = 3))] = i
-    end
-    matched = 0
-    elev_diff = Float64[]
-    par_diff = Float64[]
-    for i in 1:length(v_py)
-        d = v_py[i]
-        j = get(kj, (d.baseline.sites, round(d.baseline.Ti; digits = 3)), 0)
-        j == 0 && continue
-        matched += 1
-        push!(elev_diff, abs(v_jl[j].baseline.elevation[1] - d.baseline.elevation[1]))
-        push!(elev_diff, abs(v_jl[j].baseline.elevation[2] - d.baseline.elevation[2]))
-        push!(par_diff, abs(v_jl[j].baseline.parallactic[1] - d.baseline.parallactic[1]))
-        push!(par_diff, abs(v_jl[j].baseline.parallactic[2] - d.baseline.parallactic[2]))
-    end
-    @test matched > length(v_py) ÷ 2
-
-    # Geometry tolerances: ehtim and our pure-Julia helper both use mean
-    # GMST + the standard parallactic atan2 formula but differ in their
-    # sidereal-time numerics, so a few-arcminute residual is expected.
-    @test maximum(elev_diff) < 0.01    # rad ≈ 0.6°
-    @test maximum(par_diff) < 0.02     # rad ≈ 1.1°
-    @test mean(elev_diff) < 0.005
-    @test mean(par_diff) < 0.005
-end
-
-
-@testset "VLBIFiles extract_amp" begin
-    path = joinpath(@__DIR__, "..", "test_data.uvfits")
-    uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    a = extract_table(uvd, VisibilityAmplitudes(; time_average = VLBI.GapBasedScans()))
-    @test length(a) > 0
-    @test all(isfinite, a[:measurement])
-    @test all(a[:measurement] .≥ 0)
-    @test all(a[:noise] .> 0)
-end
-
-
-@testset "VLBIFiles extract_coherency" begin
-    path = joinpath(@__DIR__, "..", "test_data.uvfits")
-    uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    c = extract_table(uvd, Coherencies(; time_average = VLBI.GapBasedScans()))
-    @test length(c) > 0
-    @test eltype(c[:measurement]) <: AbstractMatrix{<:Complex}
-    @test all(d -> d.polbasis == (CirBasis(), CirBasis()), c[:baseline])
-
-    # A hand is either fully measured or fully flagged. Readers hand back a missing hand as
-    # a real-only `NaN` (`NaN + 0.0im`) with zero noise; the imaginary part of such an entry
-    # survives the subtraction in `residuals` as a finite `-imag(model)`, which then gets
-    # divided by a tiny noise and shows up as a huge spurious offset in exactly the hands
-    # that have flagged data.
-    for (m, n) in zip(Comrade.measurement(c), Comrade.noise(c)), i in 1:4
-        @test isnan(real(m[i])) == isnan(imag(m[i]))
-        @test isnan(real(m[i])) == isnan(n[i])
-    end
-end
-
-
-@testset "coherency missing hands stay flagged" begin
-    path = joinpath(@__DIR__, "..", "test_data.uvfits")
-    uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    c = extract_table(uvd, Coherencies(; time_average = VLBI.GapBasedScans()))
-    Tm = eltype(Comrade.measurement(c))
-    Tn = eltype(Comrade.noise(c))
-
-    m = Tm(1 + 2im, 3 - 1im, -2 + 0.5im, 4 + 0im)
-    n = Tn(0.1, 0.2, 0.3, 0.4)
-    @test Comrade.mask_missing_hands(m, n) === (m, n)
-
-    # the LR hand as a reader reports it when the row does not carry it
-    vm, em = Comrade.mask_missing_hands(
-        Base.setindex(m, complex(NaN, 0.0), 2), Base.setindex(n, 0.0, 2)
-    )
-    @test isnan(real(vm[2])) && isnan(imag(vm[2]))
-    @test isnan(em[2])
-    for i in (1, 3, 4)
-        @test vm[i] == m[i]
-        @test em[i] == n[i]
-    end
-
-    # and the flag must survive the subtraction `residuals` performs
-    meas = fill(vm, length(c))
-    nse = fill(em, length(c))
-    cflag = Comrade.EHTObservationTable{Comrade.datumtype(c)}(meas, nse, arrayconfig(c))
-    res = Comrade.residual_data(fill(Tm(0.5 + 0.5im, 1 + 1im, 1 - 1im, 2 + 2im), length(c)), cflag)
-    r = Comrade.measurement(res)[begin]
-    @test isnan(real(r[2])) && isnan(imag(r[2]))
-    @test all(i -> isfinite(real(r[i])) && isfinite(imag(r[i])), (1, 3, 4))
-end
-
-
-@testset "VLBIFiles extract_cphase + extract_lcamp" begin
-    path = joinpath(@__DIR__, "..", "test_data.uvfits")
-    uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    cp = extract_table(uvd, ClosurePhases(; time_average = VLBI.GapBasedScans()))
-    lc = extract_table(uvd, LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()))
-    @test length(cp) > 0
-    @test length(lc) > 0
-    @test all(isfinite, cp[:measurement])
-    @test all(isfinite, lc[:measurement])
-end
-
-
 @testset "load_array_txt + reset_mounts!" begin
     path = joinpath(@__DIR__, "..", "test_data.uvfits")
     uvd = VLBIFiles.load(VLBIFiles.UVData, path)
@@ -176,37 +48,13 @@ end
         @test loaded[:AA].fr_elevation == 0.5
         @test loaded[:AA].fr_offset ≈ deg2rad(-30.0)
 
-        # apply via reset_mounts!
-        v = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
-        reset_mounts!(v, loaded)
-        i = findfirst(==(:AA), arrayconfig(v).tarr.sites)
-        @test arrayconfig(v).tarr.SEFD1[i] == 9999.0
-        @test arrayconfig(v).tarr.fr_offset[i] ≈ deg2rad(-30.0)
+        t = VisTable(uvd, IPol())
+        reset_mounts!(t, loaded)
+        st = info(t).stations
+        i = findfirst(==(:AA), st.name)
+        @test st.mount[i].parallactic == 1.0 && st.mount[i].elevation == 0.5
+        @test all(≈(deg2rad(-30.0)), st.feed_angles[i])
     finally
         rm(tmp; force = true)
     end
-end
-
-
-@testset "extract_table dispatch on UVData" begin
-    path = joinpath(@__DIR__, "..", "test_data.uvfits")
-    uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    v1 = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
-    v2 = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
-    @test length(v1) == length(v2)
-    @test v1[:measurement] ≈ v2[:measurement]
-end
-
-
-@testset "time_average / frequency_average kwargs" begin
-    path = joinpath(@__DIR__, "..", "test_data.uvfits")
-    uvd = VLBIFiles.load(VLBIFiles.UVData, path)
-    v_avg = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
-    @test length(v_avg) > 0
-
-    a_avg = extract_table(uvd, VisibilityAmplitudes(; time_average = VLBI.GapBasedScans()))
-    @test length(a_avg) == length(v_avg)
-
-    cp_avg = extract_table(uvd, ClosurePhases(; time_average = VLBI.GapBasedScans()))
-    @test length(cp_avg) > 0
 end

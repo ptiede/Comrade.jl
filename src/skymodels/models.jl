@@ -39,8 +39,17 @@ function SkyModel(f, prior, grid::AbstractRectiGrid; algorithm = NFFTAlg(), meta
     return SkyModel(f, prior, grid, algorithm, metadata)
 end
 
-function VLBISkyModels.FourierDualDomain(grid::AbstractRectiGrid, array::AbstractArrayConfiguration, alg::FourierTransform; executor = executor(grid))
-    return FourierDualDomain(grid, domain(array; executor), alg)
+function VLBISkyModels.FourierDualDomain(grid::AbstractRectiGrid, t::VisTable, alg::FourierTransform; executor = executor(grid))
+    return FourierDualDomain(grid, _skydomain(domain(t), executor), alg)
+end
+
+# The points the sky is evaluated at: the baselines in wavelengths, precomputed, and the times of
+# the table's records, without the station coordinates only the instrument reads.
+function _skydomain(d::StructuredDomain, executor)
+    return StructuredDomain(
+        DD.dims(d); executor, header = ComradeBase.header(d),
+        U = collect(d.U) => (:Node, :Fr), V = collect(d.V) => (:Node, :Fr), Ti = d.Ti => (:Node,),
+    )
 end
 
 
@@ -53,7 +62,7 @@ VLBISkyModels.getphases(::AnalyticPlan) = nothing
 VLBISkyModels.create_plans(::AnalyticAlg, imgdomain, visdomain) = (AnalyticPlan(), AnalyticPlan())
 
 """
-    ObservedSkyModel(sky::AbstractSkyModel, array::AbstractArrayConfiguration)
+    ObservedSkyModel(sky::AbstractSkyModel, t::VisTable)
 
 Constructs a sky model that has been theoretically observed by an array with configuration `array`.
 Note that this is not a public facing method and is used internally to construct the observed sky
@@ -61,7 +70,7 @@ model for use in [`VLBIPosterior`](@ref). Users should construct a [`SkyModel`](
 pass that to a [`VLBIPosterior`](@ref) object instead.
 
 """
-function ObservedSkyModel(m::SkyModel, arr::AbstractArrayConfiguration)
+function ObservedSkyModel(m::SkyModel, arr::VisTable)
     x = rand(NamedDist(m.prior))
     ms = m.f(x, m.metadata)
     # if analytic don't bother planning the FT

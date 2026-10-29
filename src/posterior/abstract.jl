@@ -1,9 +1,11 @@
 using LinearAlgebra
 using VLBILikelihoods
+# One `loglikelihood` with Distributions and StatsBase, so loading them with Comrade does not clash.
+import StatsBase: loglikelihood
 
 export vlbimodel, logdensityof, dimension, skymodel, instrumentmodel, dataproducts,
     forward_model, prior_sample, simulate_observation,
-    VLBIPosterior, logdensityof, loglikelihood, chi2, residuals
+    VLBIPosterior, logdensityof, loglikelihood, chi2, residuals, ndata
 
 
 function prepare_device(any, ex)
@@ -38,7 +40,7 @@ abstract type AbstractVLBIPosterior end
 Computes the log-prior of the posterior `d` with parameters `θ`.
 """
 logprior(d::AbstractVLBIPosterior, θ) = logdensityof(d.prior, θ)
-logprior(d::AbstractVLBIPosterior, ::NamedTuple{()}) = zero(eltype(d.data[1].config.datatable.U))
+logprior(d::AbstractVLBIPosterior, ::NamedTuple{()}) = zero(real(eltype(baseimage(weight(_commonvis(d.data))))))
 
 LogDensityProblems.logdensity(d::AbstractVLBIPosterior, θ) = logdensityof(d, θ)
 LogDensityProblems.dimension(d::AbstractVLBIPosterior) = dimension(d)
@@ -112,7 +114,7 @@ Computes the log-likelihood of the posterior `d` with parameters `θ`.
     img, vis = forward_model(d, θ)
     # Convert because of conventions
     lis = d.lklhdsimg
-    return logdensityofvis(d.lklhds, vis) + logdensityofimg(lis, img)
+    return logdensityofvis(d.lklhds, vis) + logdensityofimg(lis, img, θ)
 end
 
 """
@@ -127,13 +129,16 @@ end
 """
     instrumentmodel(post::AbstractVLBIPosterior, θ)
 
-Returns the instrument model of a posterior using the parameter values `θ`.
-The output will be a `SiteArray` of the Jones matrices for each site, time, and frequency.
+The Jones matrices `J_a U_a` of a posterior's instrument at the parameter values `θ`, for every
+station, time stamp and channel of its data, as an array over `(Ant, Ts, Fr)` (see
+[`forward_jones`](@ref)).
 """
 function instrumentmodel(post::AbstractVLBIPosterior, θ)
-    J = instrumentmodel(post)
-    return forward_jones(J.instrument, map(siteparams, θ.instrument))
+    return forward_jones(_observedmodel(instrumentmodel(post)), θ, _commonvis(post.data))
 end
+
+_observedmodel(J::ObservedInstrumentModel) = J
+_observedmodel(J::ObservedSelfCalInstrumentModel) = J.model
 
 
 """
@@ -158,6 +163,15 @@ end
     ls = map(fl, lklhds)
     return sum(ls)
 end
+
+@inline _imglogdensity(l, img, θ) = logdensityof(l, img)
+
+@inline function logdensityofimg(lklhds::Tuple, img, θ)
+    ls = map(l -> _imglogdensity(l, img, θ), lklhds)
+    return sum(ls)
+end
+
+@inline logdensityofimg(lklhds::Tuple{}, img, θ) = logdensityofimg(lklhds, img)
 
 ## There is no image data so just return 0
 @inline function logdensityofimg(lklhds::Tuple{}, img::Number)

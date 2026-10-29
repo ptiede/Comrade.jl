@@ -19,60 +19,55 @@ For the description of the model API see [VLBISkyModels](https://ehtjulia.github
 ## Data Interface
 
 
-### Data Tables
+### Visibility Tables
 
 ```@docs
-Comrade.AbstractVLBITable
-Comrade.datatable
-Comrade.AbstractArrayConfiguration
-Comrade.EHTArrayBaselineDatum
-Comrade.EHTArrayConfiguration
-Comrade.ClosureConfig
-Comrade.sites(::Comrade.AbstractArrayConfiguration)
-Comrade.domain(::Comrade.AbstractArrayConfiguration)
-Comrade.beamsize(::Comrade.AbstractArrayConfiguration)
-Comrade.logclosure_amplitudes
-Comrade.closure_phases
-Comrade.AbstractObservationTable
-Comrade.EHTObservationTable
-Comrade.domain(::Comrade.AbstractObservationTable)
-Comrade.arrayconfig(::Comrade.AbstractObservationTable)
-Comrade.beamsize(::Comrade.AbstractObservationTable)
-Comrade.sites(::Comrade.AbstractObservationTable)
-Comrade.TimeTable
-Comrade.Scan
-Comrade.timetable
+Comrade.ArrayInfo
+Comrade.Source
+Comrade.stationindex
+Comrade.VisTable
+Comrade.Correlation
+Comrade.Correlations
+Comrade.measurement(::Comrade.VisTable)
+Comrade.weight
+Comrade.noise(::Comrade.VisTable)
+Comrade.domain(::Comrade.VisTable)
+Comrade.info(::Comrade.VisTable)
+Comrade.stations(::Comrade.VisTable)
+Comrade.baselines
+Comrade.sites(::Comrade.VisTable)
+Comrade.times
+Comrade.beamsize(::Comrade.VisTable)
+Comrade.amplitudes
 Comrade.flag
-Base.filter(::Any, ::Comrade.EHTObservationTable)
-Comrade.select_baseline
+Comrade.drop
 Comrade.add_fractional_noise
 Comrade.load_array_txt
 Comrade.reset_mounts!
+Comrade.datarows
+Comrade.ecef_to_geodetic
+Comrade.elevation_parallactic
 ```
 
-### Datums
+### Averaging
 
 ```@docs
-Comrade.AbstractVisibilityDatum
-Comrade.EHTCoherencyDatum
-Comrade.EHTVisibilityDatum
-Comrade.EHTVisibilityAmplitudeDatum
-Comrade.EHTLogClosureAmplitudeDatum
-Comrade.EHTClosurePhaseDatum
-Comrade.triangle
-Comrade.baseline
-Comrade.quadrangle
+Comrade.average
+Comrade.ByScan
+Comrade.ChannelBins
+Comrade.ByChannel
+Comrade.averaging_axis
 ```
 
-### Data Products
+### Closures
 
 ```@docs
-Comrade.extract_table
-Comrade.Visibilities
-Comrade.VisibilityAmplitudes
+Comrade.ClosureTable
+Comrade.closure_phases(::Comrade.VisTable)
+Comrade.log_closure_amplitudes
+Comrade.noise(::Comrade.ClosureTable)
 Comrade.ClosurePhases
 Comrade.LogClosureAmplitudes
-Comrade.Coherencies
 ```
 
 
@@ -129,19 +124,23 @@ Comrade.Segmentation
 Comrade.IntegSeg
 Comrade.ScanSeg
 Comrade.TrackSeg
+Comrade.EpochSeg
 Comrade.timestamps
 Comrade.SingleReference
 Comrade.MultiReference
-Comrade.SEFDReference
+Comrade.SensitiveReference
+Comrade.StationPhase
+Comrade.ReportGauge
+Comrade.PinGauge
 Comrade.gauge_pins
 Comrade.default_gauge_preference
-Comrade.SingleStokesGain
-Comrade.JonesG
-Comrade.JonesD
-Comrade.JonesR
-Comrade.JonesF
-Comrade.GenericJones
-Comrade.JonesSandwich
+Comrade.AbstractJonesMatrix
+Comrade.Jones
+Comrade.gains
+Comrade.leakage
+Comrade.rotation
+Comrade.JonesProduct
+Comrade.PerStation
 Comrade.AbstractInstrumentModel
 Comrade.IdealInstrumentModel
 Comrade.InstrumentModel
@@ -187,31 +186,10 @@ Comrade.samplerstats
 Comrade.samplerinfo
 Comrade.resample_equal
 Comrade.residual
-Comrade.residual_data
 Comrade.chi2
+Comrade.ndata
 Comrade.ReactantNUTS
 Comrade.default_disk_callback
-```
-
-### Metric adaptation
-```@docs
-Comrade.AbstractMetricAdaptor
-Comrade.WelfordDiagonal
-Comrade.FixedMetric
-Comrade.FisherLowRank
-Comrade.LowRankPreconditioner
-Comrade.fit_preconditioner
-```
-
-The protocol an `AbstractMetricAdaptor` implements:
-
-```@docs
-Comrade.adapts_welford
-Comrade.metric_refit_steps
-Comrade.init_metric_adaptation
-Comrade.observe_draw!
-Comrade.metric_refit
-Comrade.FisherAdaptation
 ```
 
 ## Misc
@@ -231,26 +209,11 @@ Comrade.rmap
 ## Internal (Not Public API)
 
 ```@docs
-Comrade.build_datum
 Comrade.ObservedSkyModel
 Comrade.forward_model_map
 
 ```
 
-### Data Internals (Internal)
-
-```@docs
-Comrade.extract_amp
-Comrade.extract_cphase
-Comrade.extract_lcamp
-Comrade.extract_vis
-Comrade.extract_coherency
-Comrade.closure_designmat
-Comrade.elevation_parallactic
-Comrade.ecef_to_geodetic
-Comrade.build_closure_config
-
-```
 
 ## Plotting
 

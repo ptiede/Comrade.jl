@@ -15,55 +15,44 @@ are simulated data.
 likelihood(d::ConditionedLikelihood, μ) = d.kernel(μ)
 
 
-struct _Visibility{S, L}
-    S::S
+struct _Visibility{W, L}
+    w::W
     L::L
 end
 
-function (v::_Visibility)(μ)
-    return ComplexVisLikelihood(baseimage(μ), v.S, v.L)
+(v::_Visibility)(μ) = ComplexVisLikelihood(baseimage(μ), v.w, v.L)
+
+function _vislikelihood(vis, w)
+    lnorm = VLBILikelihoods.lognorm(ComplexVisLikelihood(vis, w))
+    return ConditionedLikelihood(_Visibility(w, lnorm), vis)
 end
 
-# internal function that creates the likelihood for a set of complex visibilities
-function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTVisibilityDatum})
-    Σ = noise(data) .^ 2
-    vis = measurement(data)
-    lnorm = VLBILikelihoods.lognorm(ComplexVisLikelihood(vis, Σ))
-    ℓ = ConditionedLikelihood(_Visibility(Σ, lnorm), vis)
-    return ℓ
-end
-
-struct _Coherency{S, L}
-    S::S
+struct _Coherency{W, L}
+    w::W
     L::L
 end
 
-function (c::_Coherency)(μ)
-    return CoherencyLikelihood(baseimage(μ), c.S, c.L)
+(c::_Coherency)(μ) = CoherencyLikelihood(_storage(baseimage(μ)), c.w, c.L)
+
+# The dense `(…, 2, 2)` storage of coherencies, which the likelihood reads without converting.
+_storage(μ::FieldDimArray) = parent(μ)
+_storage(μ) = μ
+
+function _coherencylikelihood(vis, w)
+    lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, w))
+    return ConditionedLikelihood(_Coherency(w, lnorm), vis)
 end
 
-function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTCoherencyDatum})
-    Σ = map(x -> x .^ 2, noise(data))
-    vis = measurement(data)
-    lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, Σ))
-    ℓ = ConditionedLikelihood(_Coherency(Σ, lnorm), vis)
-    return ℓ
+struct _VisAmp{W, L}
+    w::W
+    L::L
 end
 
-struct _VisAmp{S}
-    S::S
-end
+(v::_VisAmp)(μ) = RiceAmplitudeLikelihood(abs.(baseimage(μ)), v.w, v.L)
 
-function (v::_VisAmp)(μ)
-    return RiceAmplitudeLikelihood(abs.(baseimage(μ)), v.S)
-end
-
-# internal function that creates the likelihood for a set of visibility amplitudes
-function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTVisibilityAmplitudeDatum})
-    Σ = noise(data) .^ 2
-    amp = measurement(data)
-    ℓ = ConditionedLikelihood(_VisAmp(Σ), amp)
-    return ℓ
+function _amplikelihood(amp, w)
+    lnorm = VLBILikelihoods.lognorm(RiceAmplitudeLikelihood(amp, w))
+    return ConditionedLikelihood(_VisAmp(w, lnorm), amp)
 end
 
 struct _LCamp{F, S, L}
@@ -76,16 +65,6 @@ function (c::_LCamp)(μ)
     return AmplitudeLikelihood(c.f(baseimage(μ)), c.S, c.L)
 end
 
-# internal function that creates the likelihood for a set of log closure amplitudes
-function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTLogClosureAmplitudeDatum})
-    Σlca = factornoisecovariance(arrayconfig(data))
-    f = Base.Fix2(logclosure_amplitudes, designmat(arrayconfig(data)))
-    amp = measurement(data)
-    lnorm = VLBILikelihoods.lognorm(AmplitudeLikelihood(amp, Σlca))
-    ℓ = ConditionedLikelihood(_LCamp(f, Σlca, lnorm), amp)
-    return ℓ
-end
-
 struct _CPhase{F, S, L}
     f::F
     S::S
@@ -96,14 +75,36 @@ function (c::_CPhase)(μ)
     return ClosurePhaseLikelihood(c.f(baseimage(μ)), c.S, c.L)
 end
 
-# internal function that creates the likelihood for a set of closure phase datum
-function makelikelihood(data::Comrade.EHTObservationTable{<:Comrade.EHTClosurePhaseDatum})
-    Σcp = factornoisecovariance(arrayconfig(data))
-    f = Base.Fix2(closure_phases, designmat(arrayconfig(data)))
-    phase = measurement(data)
-    lnorm = VLBILikelihoods.lognorm(ClosurePhaseLikelihood(phase, Σcp))
-    ℓ = ConditionedLikelihood(_CPhase(f, Σcp, lnorm), phase)
-    return ℓ
+# Coherencies go to the likelihood as dense `(…, 2, 2)` arrays.
+function makelikelihood(t::VisTable)
+    return _tablelikelihood(eltype(measurement(t)), _dense(measurement(t)), _dense(weight(t)))
+end
+
+_tablelikelihood(::Type{<:Complex}, vis, w) = _vislikelihood(vis, w)
+_tablelikelihood(::Type{<:Real}, amp, w) = _amplikelihood(amp, w)
+_tablelikelihood(::Type{<:StaticArraysCore.StaticMatrix}, vis, w) = _coherencylikelihood(vis, w)
+
+# The closures of model visibilities `vis` over a table's records: their measured values, by
+# record then channel, through the design matrix.
+struct _ClosureOf{K, D, P}
+    keep::K
+    design::D
+    product::P
+end
+(c::_ClosureOf)(vis) = c.design * _closurevalue.(Ref(c.product), vis[c.keep])
+EnzymeRules.inactive_type(::Type{<:_ClosureOf}) = true
+
+function makelikelihood(ct::ClosureTable)
+    Σ = VLBILikelihoods.CholeskyFactor(getfield(ct, :covariance))
+    f = _ClosureOf(_measuredvalues(getfield(ct, :vis)), getfield(ct, :design), ct.product)
+    x = Vector(baseimage(measurement(ct)))
+    if ct.product isa ClosurePhases
+        lnorm = VLBILikelihoods.lognorm(ClosurePhaseLikelihood(x, Σ))
+        return ConditionedLikelihood(_CPhase(f, Σ, lnorm), x)
+    else
+        lnorm = VLBILikelihoods.lognorm(AmplitudeLikelihood(x, Σ))
+        return ConditionedLikelihood(_LCamp(f, Σ, lnorm), x)
+    end
 end
 
 export ImgNormalData
@@ -139,6 +140,25 @@ end
 function (c::_Reduced)(μ)
     return NormalFast(c.f(μ), c.σ)
 end
+
+export ParamLogDensity
+
+"""
+    ParamLogDensity(f)
+
+A log-density term `f(θ)` of the posterior parameters `θ` (the named tuple with `sky` and
+`instrument` entries), added to the log-likelihood. Pass it with any image-domain data through
+the `imgdata` keyword of [`VLBIPosterior`](@ref).
+
+The term is part of the log-likelihood, not the prior: a transport of the prior to a standard
+space does not see it.
+"""
+struct ParamLogDensity{F}
+    f::F
+end
+
+makelikelihood(data::ParamLogDensity) = data
+@inline _imglogdensity(l::ParamLogDensity, img, θ) = l.f(θ)
 
 function makelikelihood(data::ImgNormalData)
     σ = data.noise

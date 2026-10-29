@@ -153,61 +153,6 @@ function Tables.getcolumn(g::CalTableRow, nm::Symbol)
     return gmat(src)[getfield(g, :row), lookup(src)[nm]]
 end
 
-@recipe function f(gt::CalTable; sites = Comrade.sites(gt), datagains = false)
-
-    @argcheck prod(sites .∈ Ref(Comrade.sites(gt))) "passed site isn't in array\n" *
-        "sites:     $(sites)\n" *
-        "telescope: $(sites(gt))"
-    #if !datagains
-    #    plot_title --> "Model Gain Amp."
-    #else
-    #    plot_title --> "Data Gain Amp."
-    #end
-    layout --> (length(sites), 1)
-
-
-    size --> (350, 150 * length(sites))
-    #lims = extrema(filter(!ismissing, gmat(gt))).*1.1
-    #if !datagains
-    #    ylims --> lims
-    #else
-    #    ylims --> inv.(lims)[end:-1:begin]
-    #end
-    t = getproperty.(gt[:Ti], :t0)
-    xlims --> (t[begin], t[end] + 0.01 * abs(t[end]))
-    for (i, s) in enumerate(sites)
-        T = nonmissingtype(eltype(gt[s]))
-        for (j, f) in enumerate(unique(gt[:Fr]))
-            @series begin
-                seriestype := :scatter
-                subplot := i
-                title := String(s)
-                if i == length(sites)
-                    xguide --> "Time (UTC)"
-                end
-                label = "$(round(f.central / 1.0e9, digits = 1)) GHz"
-                if i == length(sites)
-                    label --> label
-                else
-                    label := nothing
-                end
-                ind = Base.:!.(ismissing.(gt[s]))
-                find = findall(==(f), gt[:Fr][ind])
-                #x := gt[:Ti][ind]
-                x = t[ind][find]
-
-                if !datagains
-                    y = T.(gt[s][ind][find])
-                else
-                    y = T.(inv.((gt[s][ind][find])))
-                end
-                x, y
-            end
-        end
-    end
-end
-
-
 using PrettyTables
 
 function Base.show(io::IO, ct::CalTable)

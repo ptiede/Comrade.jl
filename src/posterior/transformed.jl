@@ -149,8 +149,8 @@ julia> logdensityof(tpost, x0)
 ```
 
 # Notes
-This is the transform that should be used if using typical NestedSampling methods,
-i.e. `ComradeNested`. For the transformation to unconstrained space see [`asflat`](@ref asflat)
+This is the transform nested sampling methods, such as Dynesty, use. For the transformation to
+unconstrained space see [`asflat`](@ref asflat)
 """
 ascube(post::VLBIPosterior) = transport_to(post, StdUniform())
 

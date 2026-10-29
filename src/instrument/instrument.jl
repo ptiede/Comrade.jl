@@ -40,7 +40,7 @@ _region(fs::FrequencyChannel) = fs.bandwidth
 
 
 include("site_array.jl")
-include("feedrotations.jl")
+include("cells.jl")
 include("jonesmatrices.jl")
 include("priors/priors.jl")
 include("instrument_transforms.jl")
@@ -48,3 +48,4 @@ include("model.jl")
 include("macro.jl")
 include("utility.jl")
 include("caltable.jl")
+include("selfcal.jl")

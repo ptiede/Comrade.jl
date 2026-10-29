@@ -25,8 +25,7 @@ close(pkg_io) #hide
 using Comrade
 
 
-# We load uvfits with the pure-Julia VLBIFiles loader. VLBIFiles re-exports
-# VLBIData, so the `VLBI` averaging namespace is in scope too.
+# We load uvfits with the pure-Julia VLBIFiles loader.
 using VLBIFiles
 # For reproducibility we use a stable random number genreator
 using StableRNGs
@@ -41,21 +40,17 @@ uvd = VLBIFiles.load(
     joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
 )
 
-# Since the gains in this dataset are coherent across a scan, we extract scan-averaged
-# closures. Since uvfits aren't guaranteed to have the scan table we use a gap-based
-# scan averaging scheme.
-dlcamp, dcphase = extract_table(
-    uvd,
-    LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()),
-    ClosurePhases(; time_average = VLBI.GapBasedScans()),
-)
-# We also remove the trivial 0-baseline triangles (we don't care about large-scale flux) and inflate
-# the noise by 2% in quadrature to account for residual systematics.
-isshort(d) = any(b -> hypot(b.U, b.V) < 0.1e9, d.baseline)
-dlcamp = flag(isshort, dlcamp)
-dcphase = flag(isshort, dcphase)
-add_fractional_noise!(dlcamp, 0.02)
-add_fractional_noise!(dcphase, 0.02)
+# Since the gains in this dataset are coherent across a scan, we average the visibilities
+# over each scan. Since uvfits aren't guaranteed to have the scan table, `ByScan` finds the
+# scans from gaps in the data when the file does not list them.
+dvis = average(VisTable(uvd, IPol()), ByScan())
+# We also flag the short baselines, which removes the trivial 0-baseline triangles (we don't
+# care about large-scale flux), and inflate the noise by 2% in quadrature to account for
+# residual systematics. The closures are then formed from these visibilities.
+dvis = flag(row -> hypot(row.U, row.V) < 0.1e9, dvis)
+dvis = add_fractional_noise(dvis, 0.02)
+dlcamp = log_closure_amplitudes(dvis)
+dcphase = closure_phases(dvis)
 
 # !!!warn
 #    We remove the low-snr closures since they are very non-gaussian. This can create rather
@@ -102,7 +97,7 @@ end
 
 # The `@sky` macro then transforms this into a function called `sky` that we can then use to
 # initialize or construct our sky model for some given grid.
-skym = sky(imagepixels(μas2rad(200.0), μas2rad(200.0), 128, 128))
+skym = sky(spatialgrid(μas2rad(200.0), μas2rad(200.0), 128, 128))
 
 
 # Since we are fitting closures this is essentialy the entire model. In other tutorials we will
@@ -192,7 +187,7 @@ xopt, sol = comrade_opt(post, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxite
 
 using DisplayAs
 using CairoMakie
-g = imagepixels(μas2rad(200.0), μas2rad(200.0), 256, 256)
+g = spatialgrid(μas2rad(200.0), μas2rad(200.0), 256, 256)
 fig = imageviz(intensitymap(skymodel(post, xopt), g), colormap = :afmhot, size = (500, 400));
 DisplayAs.Text(DisplayAs.PNG(fig))
 
@@ -240,10 +235,10 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # A reasonable workflow is to use `plotfields` to set up the initial figure and axis labels and then
 # then use `baselineplot!` to add additional plots to the axis. For example,
 lcsim, cpsim = simulate_observation(post, xopt; add_thermal_noise = false)
-fig, ax1 = plotfields(lcsim, uvdist, measwnoise, scatter_kwargs = (; marker = :circle, label = "MAP"), figure_kwargs = (; size = (800, 300)), legend = false);
-baselineplot!(ax1, dlcamp, uvdist, measurement, marker = :+, color = :black, label = "Data")
-ax2, = plotfields!(fig[1, 2], cpsim, uvdist, mod2pi ∘ measwnoise, scatter_kwargs = (; marker = :circle, label = "MAP"), axis_kwargs = (ylabel = "Closure Phase (rad)",))
-baselineplot!(ax2, dcphase, uvdist, mod2pi ∘ measurement, marker = :+, color = :black, label = "Data")
+fig, ax1 = plotfields(lcsim, :uvdist, :measwnoise, scatter_kwargs = (; marker = :circle, label = "MAP"), figure_kwargs = (; size = (800, 300)), legend = false);
+baselineplot!(ax1, dlcamp, :uvdist, :measurement, marker = :+, color = :black, label = "Data")
+ax2, = plotfields!(fig[1, 2], cpsim, :uvdist, x -> mod2pi(x.measurement), scatter_kwargs = (; marker = :circle, label = "MAP"), axis_kwargs = (ylabel = "Closure Phase (rad)",))
+baselineplot!(ax2, dcphase, :uvdist, x -> mod2pi(x.measurement), marker = :+, color = :black, label = "Data")
 axislegend(ax1, framevisible = false)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
@@ -251,17 +246,17 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # The posterior predictive distribution create a number of synthetic observations that
 # are marginalized over the posterior.
 fig = Figure(; size = (800, 300))
-ax1 = Axis(fig[1, 1], xlabel = "√Quadrangle Area", ylabel = "Log Closure Amplitude")
-ax2 = Axis(fig[1, 2], xlabel = "√Triangle Area", ylabel = "Closure Phase (rad)")
+ax1 = Axis(fig[1, 1], xlabel = "Longest Baseline (λ)", ylabel = "Log Closure Amplitude")
+ax2 = Axis(fig[1, 2], xlabel = "Longest Baseline (λ)", ylabel = "Closure Phase (rad)")
 for i in 1:10
     mobs = simulate_observation(post, sample(chain, 1)[1])
     mlca = mobs[1]
     mcp = mobs[2]
-    baselineplot!(ax1, mlca, uvdist, measurement, color = :grey, alpha = 0.2)
-    baselineplot!(ax2, mcp, uvdist, mod2pi ∘ measurement, color = :grey, alpha = 0.2)
+    baselineplot!(ax1, mlca, :uvdist, :measurement, color = :grey, alpha = 0.2)
+    baselineplot!(ax2, mcp, :uvdist, x -> mod2pi(x.measurement), color = :grey, alpha = 0.2)
 end
-baselineplot!(ax1, dlcamp, uvdist, measurement, marker = :x)
-baselineplot!(ax2, dcphase, uvdist, mod2pi ∘ measurement, marker = :x)
+baselineplot!(ax1, dlcamp, :uvdist, :measurement, marker = :x)
+baselineplot!(ax2, dcphase, :uvdist, x -> mod2pi(x.measurement), marker = :x)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
@@ -269,6 +264,6 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
 rd = residuals(post, chain[end])
-fig, ax = plotfields(rd[1], uvdist, :res, axis_kwargs = (; ylabel = "Norm. Res. LCA"))
-plotfields!(fig[2, 1], rd[2], uvdist, :res, axis_kwargs = (; ylabel = "Norm. Res. CP"))
+fig, ax = plotfields(rd[1], :uvdist, :res, axis_kwargs = (; ylabel = "Norm. Res. LCA"))
+plotfields!(fig[2, 1], rd[2], :uvdist, :res, axis_kwargs = (; ylabel = "Norm. Res. CP"))
 DisplayAs.Text(DisplayAs.PNG(fig))

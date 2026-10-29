@@ -4,7 +4,7 @@
 The abstract type for Comrade Sky Models. For a concrete implementation see [`SkyModel`](@ref).
 
 Any subtype must implement the following methods
- - `ObservedSkyModel(m::AbstractSkyModel, array::AbstractArrayConfiguration)`: Constructs an observed sky model
+ - `ObservedSkyModel(m::AbstractSkyModel, t::VisTable)`: Constructs an observed sky model
     given the sky model `m` and the array configuration `array`. This method is used to compute the visibilities
     and image of the sky model.
 
@@ -13,9 +13,9 @@ The following methods have default implementations:
     given the model parameters `x`.
  - `skymodel(m::AbstractSkyModel, x)`: Returns the sky model image given the model parameters `x`.
  - `domain(m::AbstractSkyModel)`: Returns the domain of the sky model `m`.
- - `set_array(m::AbstractSkyModel, array::AbstractArrayConfiguration)`: Sets the array configuration
+ - `set_array(m::AbstractSkyModel, t::VisTable)`: Sets the array configuration
     for the sky model `m` and returns the observed sky model and prior.
- - `set_prior(m::AbstractSkyModel, array::AbstractArrayConfiguration)`: Sets the prior for the sky model
+ - `set_prior(m::AbstractSkyModel, t::VisTable)`: Sets the prior for the sky model
     `m` given the array configuration `array`. This is used to set the priors for the model parameters.
 
 """
@@ -37,7 +37,7 @@ end
 skymodel(m::AbstractSkyModel) = getfield(m, :f)
 
 
-function set_array(m::AbstractSkyModel, array::AbstractArrayConfiguration)
+function set_array(m::AbstractSkyModel, array::VisTable)
     return ObservedSkyModel(m, array), NamedDist(set_prior(m, array))
 end
 
@@ -71,16 +71,14 @@ function forward_dualmap(skym::AbstractModel, grid::VLBISkyModels.AbstractFourie
 end
 
 function forward_dualmap(skym::ContinuousImage, grid::VLBISkyModels.AbstractFourierDualDomain)
-    VLBISkyModels.checkgrid(axisdims(skym), ComradeBase.imgdomain(grid)) ||
-        throw(DomainError("Image domain does not match skymodel image domain"))
+    VLBISkyModels.checkgrid(axisdims(skym), ComradeBase.imgdomain(grid))
     img = VLBISkyModels.make_map(skym)
     return img, visibilitymap(skym, grid)
 end
 
 
 function forward_dualmap(skym::VLBISkyModels.AddModel{<:ContinuousImage}, grid::VLBISkyModels.AbstractFourierDualDomain)
-    VLBISkyModels.checkgrid(axisdims(skym.m1), ComradeBase.imgdomain(grid)) ||
-        throw(DomainError("Image domain does not match skymodel image domain"))
+    VLBISkyModels.checkgrid(axisdims(skym.m1), ComradeBase.imgdomain(grid))
     img = VLBISkyModels.make_map(skym.m1)
     img2 = intensitymap(skym.m2, grid)
     img2 .+= img #copy into this one because img will alias otherwise
@@ -95,7 +93,7 @@ function skymodel(m::AbstractSkyModel, x)
     return m.f(x, m.metadata)
 end
 
-function set_prior(m::AbstractSkyModel, array::AbstractArrayConfiguration)
+function set_prior(m::AbstractSkyModel, array::VisTable)
     return getfield(m, :prior)
 end
 

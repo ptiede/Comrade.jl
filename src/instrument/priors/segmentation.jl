@@ -1,4 +1,4 @@
-export ScanSeg, IntegSeg, TrackSeg
+export ScanSeg, IntegSeg, TrackSeg, EpochSeg
 
 """
     $(TYPEDEF)
@@ -7,21 +7,29 @@ The data segmentation scheme to use. This is used specify how often we want vari
 instrument hyperparameters to change. A user subtyping this expression must implement
 the following functions:
 
- - [`timestamps`](@ref): Specifies the time region for each segmentation scheme given an array
+ - [`timestamps`](@ref): Specifies the time region for each segmentation scheme given a visibility table
 """
 abstract type Segmentation end
 
 abstract type TimeSegmentation <: Segmentation end
 
-abstract type FrequencySegmentation <: Segmentation end
-
 # Track is for quantities that remain static across an entire observation
 """
     $(TYPEDEF)
 
-Data segmentation such that the quantity is constant over a `track`, i.e., the observation "night".
+Data segmentation such that the quantity is constant over the whole table: every track of a
+table joined from several nights shares one value. See [`EpochSeg`](@ref) for one value per
+track.
 """
 struct TrackSeg <: TimeSegmentation end
+
+"""
+    $(TYPEDEF)
+
+Data segmentation such that the quantity is constant over each track of `info(t).tracks`, an
+observing session such as one night, and changes from track to track.
+"""
+struct EpochSeg <: TimeSegmentation end
 
 # Scan is for quantities that are constant across a scan
 """
@@ -42,62 +50,53 @@ If the data is scan-averaged before then `IntegSeg` will be identical to `ScanSe
 struct IntegSeg <: TimeSegmentation end
 
 """
-    timestamps(seg::TimeSegmentation, array::AbstractArrayConfiguration)
+    timestamps(seg::TimeSegmentation, t::VisTable)
 
-Return the time stamps or really a vector of integration time regions for a
-given segmentation scheme `seg` and array configuration `array`.
+The time intervals, as `IntegrationTime`s, into which the segmentation `seg` divides the
+measured values of the visibility table `t`.
 """
 function timestamps end
 
-function timestamps(::ScanSeg, array)
-    st = array.scans
-    mjd = array.mjd
-    # Shift the central time to the middle of the scan
+function timestamps(::ScanSeg, t::VisTable)
+    st = info(t).scans
     dt = (st.stop .- st.start)
     t0 = st.start .+ dt ./ 2
-
-    return IntegrationTime.(mjd, t0, dt)
+    return IntegrationTime.(_mjd(t), t0, dt)
 end
 
-# getscan(scans, t) = findfirst(i->scans.start[i]≤t<scans.stop[i], 1:length(scans))
-
-
-function timestamps(::IntegSeg, array)
-    ts = sort(unique(array[:Ti]))
-    mjd = array.mjd
-
+function timestamps(::IntegSeg, t::VisTable)
+    ts = sort(unique(_measuredpoints(t).Ti))
     # TODO build in the dt into the data format
-    if length(ts) <= 1
-        # arbritrarily set the dt to 1
-        dt = 0.1 / 3600
-    else
-        dt = minimum(diff(ts))
-    end
-    return IntegrationTime.(mjd, ts, dt)
+    dt = length(ts) <= 1 ? 0.1 / 3600 : minimum(diff(ts))
+    return IntegrationTime.(_mjd(t), ts, dt)
 end
 
-function timestamps(::TrackSeg, array)
-    mjd = array.mjd
-
-    tstart, tend = extrema(array[:Ti])
+function timestamps(::TrackSeg, t::VisTable)
+    tstart, tend = extrema(_measuredpoints(t).Ti)
     tend = tend + 1
     dt = 2 * (tend - tstart)
     if iszero(dt)
         dt = 2 * 1 / 3600
     end
-    # TODO build in the dt into the data format
-    return (IntegrationTime(mjd, (tend - tstart) / 2 + tstart, dt),)
+    return (IntegrationTime(_mjd(t), (tend - tstart) / 2 + tstart, dt),)
 end
 
+# One segment per track, centered on it and widened by an hour, or by half the gap to the
+# nearest track if that is shorter, so it holds the time stamps at the track's ends.
+function timestamps(::EpochSeg, t::VisTable)
+    tr = info(t).tracks
+    gap = minimum(tr.start[2:end] .- tr.stop[1:(end - 1)]; init = Inf)
+    pad = min(1.0, gap / 2)
+    return map((a, b) -> IntegrationTime(_mjd(t), (a + b) / 2, b - a + 2 * pad), tr.start, tr.stop)
+end
 
-struct SpectralWindow <: FrequencySegmentation end
-
-
-function freqchannels(::SpectralWindow, array)
-    Fr = sort(unique(array[:Fr]))
-    if length(Fr) > 1
-        # nudge the highest channel so its half-open upper edge includes the max frequency
-        Fr[end] = nextfloat(Fr[end])
-    end
-    return FrequencyChannel.(Fr, array.bandwidth, 1:length(Fr))
+# The frequency segment of every instrument parameter: one spanning all measured channels of
+# `t`, so a station's parameter is shared by its channels. Frequency dependence belongs in the
+# Jones function, which reads each cell's frequency `c.Fr`.
+function bandchannel(t::VisTable)
+    ch = info(t).channels
+    lo, hi = extrema(_measuredpoints(t).Fr)
+    width(f) = ch.width[findfirst(==(f), ch.frequency)]
+    a, b = lo - width(lo) / 2, hi + width(hi) / 2
+    return FrequencyChannel((a + b) / 2, b - a, 1)
 end

@@ -1,5 +1,5 @@
 using Comrade, Optimization
-using Pyehtim, OptimizationLBFGSB, Distributions, VLBIImagePriors
+using OptimizationLBFGSB, Distributions, VLBIImagePriors
 using OptimizationBBO, OptimizationGCMAES, OptimizationOptimisers
 using Enzyme
 using Test
@@ -11,7 +11,7 @@ const Ahyper = Comrade.CubeTransport
 
 @testset "ComradeOptimizationExt" begin
     _, _, _, lcamp, cphase = load_data()
-    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
     post = VLBIPosterior(skym, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
     tpost = asflat(post)

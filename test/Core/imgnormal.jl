@@ -5,7 +5,7 @@ using Distributions
     _, vis, amp, lcamp, cphase = load_data()
 
     # Create a simple image grid
-    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 32, 32)
+    g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 32, 32)
     skym = SkyModel(test_model, test_prior(), g)
 
     # Create a base posterior to sample from
@@ -149,12 +149,13 @@ using Distributions
         # Test dataproducts
         dp = dataproducts(post)
         @test dp isa Tuple
-        @test vis in dp
+        @test only(dp) isa VisTable
+        @test count(>(0), parent(weight(only(dp)))) == length(vis)
     end
 
     @testset "ImgNormal ContinuousImage" begin
         imgdata = ImgNormalData(centroid, [0.0, 0.0], [1.0e-12, 1.0e-12])
-        g = imagepixels(μas2rad(150.0), μas2rad(150.0), 32, 32)
+        g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 32, 32)
         skym = SkyModel(testimg, testimg_prior(g), g; metadata = (grid = g,))
 
         post = VLBIPosterior(skym, vis; imgdata = (imgdata,))

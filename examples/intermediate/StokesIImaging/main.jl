@@ -37,10 +37,10 @@ uvd = VLBIFiles.load(
     VLBIFiles.UVData,
     joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
 )
-# Extract scan-averaged complex visibilities. Then inflate the noise by 2% to account for
+# Scan-average the Stokes I complex visibilities. Then inflate the noise by 2% to account for
 # residual calibration errors.
-dvis = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
-add_fractional_noise!(dvis, 0.02)
+dvis = average(VisTable(uvd, IPol()), ByScan())
+dvis = add_fractional_noise(dvis, 0.02)
 
 # ##Building the Model/Posterior
 
@@ -83,7 +83,7 @@ fovy = μas2rad(200.0)
 
 # Now let's form our cache's. First, we have our usual image cache which is needed to numerically
 # compute the visibilities.
-grid = imagepixels(fovx, fovy, npix, npix)
+grid = spatialgrid(fovx, fovy, npix, npix)
 
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. This behaves somewhat similary to a entropy regularizer in that it will
@@ -154,8 +154,8 @@ wb_phase(τ0) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(τ = VLBIInvers
     return @jones begin
         lg ~ ArrayPrior(ou_amp(0.2); LM = ou_amp(0.5))
         gp ~ ArrayPrior(wb_phase(0.5); refant = SingleReference(:AA, 0.0))
-        ## SingleStokesGain is a single complex gain for each site.
-        return SingleStokesGain(exp(complex(lg, gp)))
+        ## A single complex gain for each site.
+        return Jones(exp(complex(lg, gp)))
     end
 end
 intmodel = instrument()
@@ -195,7 +195,7 @@ plotfields(res[1], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
 # Plotting the image, we see that we have a much cleaner version of the closure-only image from
 # [Imaging a Black Hole using only Closure Quantities](@ref).
-g = imagepixels(fovx, fovy, 128, 128)
+g = spatialgrid(fovx, fovy, 128, 128)
 img = intensitymap(skymodel(post, xopt), g)
 imageviz(img, size = (500, 400)) |> DisplayAs.PNG |> DisplayAs.Text
 
@@ -204,11 +204,13 @@ imageviz(img, size = (500, 400)) |> DisplayAs.PNG |> DisplayAs.Text
 # First, let's query the posterior object with the optimal parameters to get
 # the instrument model.
 intopt = instrumentmodel(post, xopt)
-# This returns a `SiteArray` object which contains the gains as a flat vector with
-# metadata about the sites, time, and frequency. To visualize the gains we can use
-# the `plotcaltable` function which automatically plots the gains. Since the gains are complex
-# we will first plot the phases.
-plotcaltable(angle.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
+# This returns the gain of every station, time stamp and frequency channel of the data as an
+# array with the dimensions `(Ant, Ts, Fr)`; a station without data at a time stamp holds `NaN`.
+# To visualize the gains we use the fitted parameters, which are `SiteArray`s holding the gain
+# terms as a flat vector with metadata about the sites, time, and frequency. The
+# `plotcaltable` function plots them directly. We will first plot the gain phases.
+gphase = angle.(cis.(Comrade.siteparams(xopt.instrument.gp)))
+plotcaltable(gphase) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Due to the a priori calibration of the data, the gain phases are quite stable and just drift
 # over time. Note that the one outlier around 2.5 UT is when ALMA leaves the array. As a result
@@ -216,7 +218,8 @@ plotcaltable(angle.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # We can also plot the gain amplitudes
-plotcaltable(abs.(intopt)) |> DisplayAs.PNG |> DisplayAs.Text
+gamp = exp.(Comrade.siteparams(xopt.instrument.lg))
+plotcaltable(gamp) |> DisplayAs.PNG |> DisplayAs.Text
 # Here we find relatively stable gains for most stations. The exception is LMT which
 # has a large offset after 2.5 UT. This is a known issue with the LMT in 2017 and is
 # due to pointing issues. However, we can see the power of simultaneous imaging and
@@ -281,16 +284,12 @@ schain = Comrade.rmap(std, chain);
 # attached to them. For the hierarchical (Gauss-Markov) terms we only want the gain series,
 # so we unwrap the `(params, hyperparams)` named tuples with `Comrade.siteparams`.
 using Measurements
-gmeas = instrumentmodel(
-    post, (;
-        instrument = map(
-            (x, y) -> Measurements.measurement.(Comrade.siteparams(x), Comrade.siteparams(y)),
-            mchain.instrument, schain.instrument
-        ),
-    )
+gmeas = map(
+    (x, y) -> Measurements.measurement.(Comrade.siteparams(x), Comrade.siteparams(y)),
+    mchain.instrument, schain.instrument
 )
-ctable_am = caltable(abs.(gmeas))
-ctable_ph = caltable(angle.(gmeas))
+ctable_am = caltable(exp.(gmeas.lg))
+ctable_ph = caltable(angle.(cis.(gmeas.gp)))
 
 # Now let's plot the phase curves
 plotcaltable(ctable_ph) |> DisplayAs.PNG |> DisplayAs.Text

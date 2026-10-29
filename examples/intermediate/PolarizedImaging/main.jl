@@ -61,28 +61,30 @@ close(pkg_io) #hide
 # ```
 # where $J$ is known as a *Jones matrix* and $ij$ denotes the baseline $ij$ with sites $i$ and $j$.
 #-
-# `Comrade` is highly flexible with how the Jones matrices are formed and provides several
-# convenience functions that parameterize standard Jones matrices. These matrices include:
-#   - [`JonesG`](@ref) which builds the set of complex gain Jones matrices
+# In `Comrade` a Jones term is a [`Jones`](@ref): a function that returns each station's 2×2
+# matrix from its parameters, so any optic can be modeled by writing its matrix down. Terms
+# combine with `*`. Two helpers build the standard matrices:
+#   - [`gains`](@ref), the complex gain matrix
 # ```math
 #   G = \begin{pmatrix}
 #           g_a   &0\\
 #           0     &g_b\\
 #       \end{pmatrix}
 # ```
-#   - [`JonesD`](@ref) which builds the set of complex d-terms Jones matrices
+#   - [`leakage`](@ref), the d-term (leakage) matrix
 # ```math
 #   D = \begin{pmatrix}
 #           1   & d_a\\
 #           d_b     &1\\
 #       \end{pmatrix}
 # ```
-#   - [`JonesR`](@ref) is the ideal telescope response $R$. This transformation is special and
-#      combines two things using the decomposition $R=FB$. The first, $B$, is the transformation from
-#      some reference basis to the observed coherency basis (this allows for mixed basis measurements).
-#      The second is the feed rotation, $F$, that transforms from some reference axis to the axis of the
-#      telescope as the source moves in the sky. The feed rotation matrix `F` for circular feeds
-#      in terms of the per station feed rotation angle $\varphi$ is
+#   - the ideal telescope response $U$, which `Comrade` builds itself for every station from its
+#      feed basis and feed rotation, so it has no parameters. It combines two things using the
+#      decomposition $U=FB$. The first, $B$, is the transformation from the reference basis of the
+#      sky to the station's feed basis (this allows for mixed basis measurements). The second is the
+#      feed rotation, $F$, that transforms from some reference axis to the axis of the telescope as
+#      the source moves in the sky. The feed rotation matrix `F` for circular feeds in terms of the
+#      per station feed rotation angle $\varphi$ is
 # ```math
 #   F = \begin{pmatrix}
 #           e^{-i\varphi}   & 0\\
@@ -115,20 +117,16 @@ fname = Base.download(
 uvd = VLBIFiles.load(VLBIFiles.UVData, fname)
 
 
-# Unlike non-polarized tutorials, we also need an **array file** describing the antenna
-# feed rotation parameters. We pass it via the `arrayfile` keyword on the data product.
-dvis = extract_table(
-    uvd, Coherencies(;
-        time_average = VLBI.GapBasedScans(),
-    )
-)
+# We scan-average the full 2×2 coherency matrices of each baseline.
+dvis = average(VisTable(uvd, Correlations()), ByScan())
 
-# Often the EHT does not take into acount feed offsets. To load those we read in the standard
-# ehtim style array.txt files.
-Comrade.reset_mounts!(dvis, Comrade.load_array_txt(joinpath(__DIR, "../../Data/array.txt")))
-# Inflate noise by 1% and drop short (uvdist < 0.1 Gλ) baselines.
-add_fractional_noise!(dvis, 0.01)
-dvis = flag(d -> hypot(d.baseline.U, d.baseline.V) < 0.1e9, dvis)
+# Unlike non-polarized tutorials, we also need an **array file** describing the antenna
+# feed rotation parameters. Often the EHT does not take into acount feed offsets. To load
+# those we read in the standard ehtim style array.txt files.
+reset_mounts!(dvis, joinpath(__DIR, "../../Data/array.txt"))
+# Inflate noise by 1% and flag short (uvdist < 0.1 Gλ) baselines.
+dvis = add_fractional_noise(dvis, 0.01)
+dvis = flag(row -> hypot(row.U, row.V) < 0.1e9, dvis)
 
 # ##Building the Model/Posterior
 
@@ -140,7 +138,7 @@ dvis = flag(d -> hypot(d.baseline.U, d.baseline.V) < 0.1e9, dvis)
 #       This parameterization ensures that we have all the physical properties of stokes parameters.
 #       Note that we also have a parameterization in terms of hyperbolic trig functions `VLBISkyModels.PolExp2Map`
 #    2. **The instrument model**. The instrument model specifies the model that describes the impact of instrumental and atmospheric effects.
-#       We will be using the $J = GDR$ decomposition we described above. However, to parameterize the
+#       We will be using the $J = GD$ decomposition, applied after the response $U$. However, to parameterize the
 #       R/L complex gains, we will be using a gain product and ratio decomposition. The reason for this decomposition
 #       is that in realistic measurements, the gain ratios and products have different temporal characteristics.
 #       Namely, many of the EHT observations tend to demonstrate constant R/L gain ratios across an
@@ -203,7 +201,7 @@ end
 fovx = μas2rad(200.0)
 fovy = μas2rad(200.0)
 nx = ny = 48
-grid = imagepixels(fovx, fovy, nx, ny)
+grid = spatialgrid(fovx, fovy, nx, ny)
 
 fwhmfac = 2 * sqrt(2 * log(2))
 mpr = modify(Gaussian(), Stretch(μas2rad(50.0) ./ fwhmfac))
@@ -227,9 +225,10 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # Now we build the instrument model. Due to the complexity of VLBI the instrument model is critical
 # to the success of imaging and getting reliable results. For this example we will use the standard
 # instrument model used in polarized EHT analyses expressed in the RIME formalism. Our Jones
-# decomposition will be given by `GDR`, where `G` are the complex gains, `D` are the d-terms, and `R`
-# is what we call the *ideal instrument response*, which is how an ideal interferometer using the
-# feed basis we observe relative to some reference basis.
+# decomposition will be given by `GD`, where `G` are the complex gains and `D` are the d-terms.
+# `Comrade` applies these after the *ideal instrument response* `U`, which is how an ideal
+# interferometer using the feed basis we observe responds relative to the reference basis of the
+# sky. The coherencies of a baseline `ij` are then `G_i D_i U_i C_ij U_jᴴ D_jᴴ G_jᴴ`.
 #
 # Given the possible flexibility in different parameterizations of the individual Jones matrices
 # each Jones matrix requires the user to specify a function that converts from parameters
@@ -238,24 +237,21 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # We bundle the whole instrument model — the Jones matrices and their priors — in a single
 # block with the `@instrument` macro. Each Jones term is its own `@jones` block: the
 # `name ~ ArrayPrior(...)` lines inside are that term's priors, and the block builds and
-# returns the Jones matrix. The macro lifts each `@jones` body — and the combination function —
-# into a named function for us (named functions, unlike closures, serialize reliably).
+# returns the Jones term. The macro lifts each `@jones` body into a named function for us
+# (named functions, unlike closures, serialize reliably).
 #
 # The individual Jones matrices are:
-#   - `JonesG` — the complex gains, in an amplitude/phase decomposition. The gain matrix is
-#     diagonal, so it returns a 2-tuple (R feed, L feed).
-#   - `JonesD` — the leakage (d-)terms in the small-leakage limit `[1 d1; d2 1]`, using a
-#     re-im parameterization, returning a 2-tuple.
-#   - `JonesR` — the response matrix (basis transform plus feed rotation). It has no free
-#     parameters, so its `@jones` block has no `~` lines.
-# We combine them with `JonesSandwich` using the standard `J = adjoint(R)*G*D*R`.
+#   - `G` — the complex gains, in an amplitude/phase decomposition: `gains(gR, gL)`.
+#   - `D` — the leakage (d-)terms in the small-leakage limit `[1 d1; d2 1]`, using a re-im
+#     parameterization: `leakage(dR, dL)`.
+# We combine them with `*`: the instrument's Jones matrix is the product `J = G*D`.
 
 # !!! note
 #     For arrays with non-zero leakage, feed rotation calibration does not remove the impact
-#     of feed rotations on the instrument model: the `R` and `D` matrices do not commute, so
-#     feed rotation must be modelled. This is why we keep `add_fr = true` and apply
-#     `adjoint(R)` in the composition. This is especially important for interferometers
-#     using a mixture of linear and circular feeds.
+#     of feed rotations on the instrument model: the response `U` and the `D` matrices do not
+#     commute, so feed rotation must be modelled. `Comrade` therefore always applies the
+#     response, with each station's feed rotation, before the Jones matrices. This is especially
+#     important for interferometers using a mixture of linear and circular feeds.
 
 # For the instrument prior we use IID priors for the d-terms and circular random walks for
 # the gain phases. The two phases are physically different and get different processes.
@@ -276,38 +272,31 @@ wou_phase(σ0, τ0) = GaussMarkovSitePrior(ScanSeg(), WrappedOrnsteinUhlenbeck(�
 
 
 @instrument function instrument()
-    ## Complex gains: amplitude/phase decomposition, returning (gR, gL).
+    ## Complex gains: amplitude/phase decomposition.
     G = @jones begin
         lgR ~ ArrayPrior(ou_amp(0.2, 0.5); LM = ou_amp(1.0, 0.5))
         lgrat ~ ArrayPrior(ou_amp(0.2, 8.0))
-        gpR ~ ArrayPrior(wb_phase(0.5); refant = SEFDReference(0.0))
+        gpR ~ ArrayPrior(wb_phase(0.5); refant = SensitiveReference(0.0))
         gprat ~ ArrayPrior(wou_phase(0.2, 12.0); refant = SingleReference(:AA, 0.0))
         gR = exp(complex(lgR, gpR))
         gL = gR * exp(complex(lgrat, gprat))
-        return JonesG((gR, gL))
+        return Jones(gains(gR, gL))
     end
-    ## Leakage/d-terms (re-im parameterization), returning (dR, dL).
+    ## Leakage/d-terms (re-im parameterization).
     D = @jones begin
         dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
         dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
         dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
         dLy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-        return JonesD((complex(dRx, dRy), complex(dLx, dLy)))
+        return Jones(leakage(complex(dRx, dRy), complex(dLx, dLy)))
     end
-    ## The ideal response (basis transform + feed rotation); no free parameters.
-    R = @jones begin
-        return JonesR(; add_fr = true)
-    end
-    ## Combine into the full Jones matrix J = adjoint(R)*G*D*R.
-    return JonesSandwich(G, D, R) do g, d, r
-        return adjoint(r) * g * d * r
-    end
+    ## Combine into the full Jones matrix J = G*D.
+    return G * D
 end
 
 # Building the instrument model is now a single call.
 intmodel = instrument()
 
-# intmodel = InstrumentModel(JonesR(;add_fr=true))
 # Putting it all together, we form our likelihood and posterior objects for optimization and
 # sampling, and specifying to use Enzyme.Reverse with runtime activity for AD.
 using Enzyme
@@ -343,10 +332,10 @@ using CairoMakie
 using DisplayAs #hide
 res = residuals(post, xopt)
 fig = Figure(; size = (800, 600))
-plotfields!(fig[1, 1], res[1], uvdist, x -> Comrade.measurement(x)[1, 1] / noise(x)[1, 1], axis_kwargs = (; ylabel = "RR Residual"))
-plotfields!(fig[2, 1], res[1], uvdist, x -> Comrade.measurement(x)[2, 1] / noise(x)[2, 1], axis_kwargs = (; ylabel = "LR Residual"))
-plotfields!(fig[1, 2], res[1], uvdist, x -> Comrade.measurement(x)[1, 2] / noise(x)[1, 2], axis_kwargs = (; ylabel = "RL Residual"))
-plotfields!(fig[2, 2], res[1], uvdist, x -> Comrade.measurement(x)[2, 2] / noise(x)[2, 2], axis_kwargs = (; ylabel = "LL Residual"))
+plotfields!(fig[1, 1], res[1], :uvdist, x -> x.measurement[1, 1] / x.noise[1, 1], axis_kwargs = (; ylabel = "RR Residual"))
+plotfields!(fig[2, 1], res[1], :uvdist, x -> x.measurement[2, 1] / x.noise[2, 1], axis_kwargs = (; ylabel = "LR Residual"))
+plotfields!(fig[1, 2], res[1], :uvdist, x -> x.measurement[1, 2] / x.noise[1, 2], axis_kwargs = (; ylabel = "RL Residual"))
+plotfields!(fig[2, 2], res[1], :uvdist, x -> x.measurement[2, 2] / x.noise[2, 2], axis_kwargs = (; ylabel = "LL Residual"))
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting.

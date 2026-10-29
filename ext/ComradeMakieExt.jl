@@ -25,8 +25,8 @@ If `bl` is a `Colon` or bl is not specified all baselines are plotted.
  - `data` : The data to plot
 
  - `field1` and `field2` : The fields to plot. field1 - x axis, field2 - y axis 
-    If `field1` or `field2` is a function, baselineplot will broadcast them over `datatable(obsdata)` 
-    to get the x and y values as the outputs from `field1.(datatable(obsdata))` and `field2.(datatable(obsdata))`.
+    If `field1` or `field2` is a function, baselineplot will broadcast them over `datarows(data)` 
+    to get the x and y values as the outputs from `field1.(datarows(data))` and `field2.(datarows(data))`.
     If field1 or field2 is a symbol, it will look for a predefined function:
      - :U - baseline u coordinate
      - :V - baseline v coordinate
@@ -44,10 +44,10 @@ If `bl` is a `Colon` or bl is not specified all baselines are plotted.
 
 # Examples
 ```julia-repl
-julia> baselineplot(log_closure_amplitudes, Comrade.uvdist, Comrade.measwnoise, error=true)
+julia> baselineplot(log_closure_amplitudes(t), :uvdist, :measwnoise)
 ```
 """
-Makie.@recipe BaselinePlot (data::Comrade.AbstractObservationTable, bl::Any, fieldx::Any, fieldy::Any) begin
+Makie.@recipe BaselinePlot (data::AbstractVector, bl::Any, fieldx::Any, fieldy::Any) begin
     "The color of the marker"
     color = @inherit markercolor
     "The color to use for the imaginary component if fieldy returns a complex number. Note this does not cycle with the color attribute"
@@ -73,34 +73,58 @@ Makie.@recipe BaselinePlot (data::Comrade.AbstractObservationTable, bl::Any, fie
     cycle = [:color]
 end
 
-function Makie.convert_arguments(::Type{<:BaselinePlot}, data::Comrade.EHTObservationTable, fieldx, fieldy)
-    return data, Colon(), fieldx, fieldy
+# The tables are plotted through their rows, `datarows(t)`.
+const _Table = Union{Comrade.VisTable, Comrade.ClosureTable}
+
+Makie.convert_arguments(::Type{<:BaselinePlot}, rows::AbstractVector, fieldx, fieldy) = (rows, Colon(), fieldx, fieldy)
+Makie.convert_arguments(::Type{<:BaselinePlot}, rows::AbstractVector, bl, fieldx, fieldy) = (rows, bl, fieldx, fieldy)
+Makie.convert_arguments(P::Type{<:BaselinePlot}, t::_Table, args...) = Makie.convert_arguments(P, datarows(t), args...)
+
+# The rows on the baseline `bl`, in either order.
+function select_baseline(rows, bl)
+    hasproperty(rows, :sites) || throw(ArgumentError("closures are not on one baseline"))
+    s = Symbol.(bl)
+    return filter(r -> r.sites == s || reverse(r.sites) == s, rows)
 end
+
+_measwnoise(m::Real, n) = Measurements.measurement(m, n)
+_measwnoise(m::Complex, n) = complex(Measurements.measurement(real(m), n), Measurements.measurement(imag(m), n))
+_measwnoise(m::AbstractMatrix, n::AbstractMatrix) = map(_measwnoise, m, n)
 
 # This is convienence function to conver the field to a function
 # if the field is a symbol, we see if it is an option and return that
 convert_field(f) = f
 convert_field(::Type{<:U}) = _U
 convert_field(::Type{<:V}) = _V
-convert_field(::Type{<:Ti}) = x -> x.baseline.Ti
-convert_field(::Type{<:Fr}) = x -> x.baseline.Fr
+convert_field(::Type{<:Ti}) = _Ti
+convert_field(::Type{<:Fr}) = _Fr
 
-_U(x) = x.baseline.U
-_V(x) = x.baseline.V
+_U(x) = x.U
+_V(x) = x.V
+_Ti(x) = x.Ti
+_Fr(x) = x.Fr
+_uvdist(x) = x.uvdist
+_snr(x) = abs.(x.measurement) ./ x.noise
+_amp(x) = abs.(x.measurement)
+_phase(x) = angle.(x.measurement)
+_res(x) = x.measurement ./ x.noise
+_measurement(x) = x.measurement
+_noise(x) = x.noise
+_measwnoise(x) = _measwnoise(x.measurement, x.noise)
 
 function convert_field(field::Symbol)
     field == :U && return _U
     field == :V && return _V
-    field == :Ti && return x -> x.baseline.Ti
-    field == :Fr && return x -> x.baseline.Fr
-    field == :snr && return x -> abs.(Comrade.measurement(x)) ./ noise(x)
-    field == :uvdist && return uvdist
-    field == :amp && return x -> abs.(measurement(x))
-    field == :phase && return x -> angle.(measurement(x))
-    field == :res && return x -> Comrade.measurement(x) ./ noise(x)
-    field == :measurement && return x -> Comrade.measurement(x)
-    field == :noise && return x -> noise(x)
-    field == :measwnoise && return x -> measwnoise(x)
+    field == :Ti && return _Ti
+    field == :Fr && return _Fr
+    field == :snr && return _snr
+    field == :uvdist && return _uvdist
+    field == :amp && return _amp
+    field == :phase && return _phase
+    field == :res && return _res
+    field == :measurement && return _measurement
+    field == :noise && return _noise
+    field == :measwnoise && return _measwnoise
 
     throw(
         ArgumentError(
@@ -120,7 +144,7 @@ ismeasure(x) = false
 function Makie.plot!(
         plot::BaselinePlot{
             <:Tuple{
-                <:Comrade.EHTObservationTable,
+                <:AbstractVector,
                 <:Union{Tuple{Symbol, Symbol}, Colon},
                 <:Any, <:Any,
             },
@@ -129,9 +153,9 @@ function Makie.plot!(
 
     map!(plot, [:bl, :data], :obl) do bl, data
         if bl isa Colon
-            obs = datatable(data)
+            obs = data
         else
-            obs = datatable(select_baseline(data, bl))
+            obs = select_baseline(data, bl)
         end
         isempty(obs) && throw(ArgumentError("No data for baseline $bl"))
         return obs
@@ -209,29 +233,19 @@ function Makie.plot!(
     return plot
 end
 
-
 function frequencylabel(ν::Number)
-    if ν > 1.0e6
-        if ν > 1.0e12
-            label = @sprintf("%.2f", ν / 1.0e12) * " THz"
-        elseif ν > 1.0e9
-            label = @sprintf("%.2f", ν / 1.0e9) * " GHz"
-        else
-            label = @sprintf("%.2f", ν / 1.0e6) * " MHz"
-        end
-    else
-        label = @sprintf("%.2f", ν) * " Hz"
-    end
-    return label
+    ν >= 1.0e12 && return @sprintf("%.2f", ν / 1.0e12) * " THz"
+    ν >= 1.0e9 && return @sprintf("%.2f", ν / 1.0e9) * " GHz"
+    ν >= 1.0e6 && return @sprintf("%.2f", ν / 1.0e6) * " MHz"
+    ν >= 1.0e3 && return @sprintf("%.2f", ν / 1.0e3) * " kHz"
+    return @sprintf("%.2f", ν) * " Hz"
 end
 
-_frequency(d::EHTObservationTable) = domain(d).Fr
-_frequency(d::EHTObservationTable{<:Comrade.ClosureProducts}) = datatable(d).baseline.:(1).Fr
-measname(d::EHTObservationTable{<:Comrade.EHTVisibilityDatum}) = "Visibility (Jy)"
-measname(d::EHTObservationTable{<:Comrade.EHTClosurePhaseDatum}) = "Closure Phase (rad)"
-measname(d::EHTObservationTable{<:Comrade.EHTLogClosureAmplitudeDatum}) = "Log Closure Amplitude"
-measname(d::EHTObservationTable{<:Comrade.EHTCoherencyDatum}) = "Coherency (Jy)"
-measname(d::EHTObservationTable{<:Comrade.EHTVisibilityAmplitudeDatum}) = "Visibility Amplitude (Jy)"
+measname(t::Comrade.VisTable) = _measname(eltype(Comrade.measurement(t)))
+_measname(::Type{<:Complex}) = "Visibility (Jy)"
+_measname(::Type{<:Real}) = "Visibility Amplitude (Jy)"
+_measname(::Type{<:AbstractMatrix}) = "Correlation (Jy)"
+measname(ct::Comrade.ClosureTable) = ct.product isa Comrade.ClosurePhases ? "Closure Phase (rad)" : "Log Closure Amplitude"
 
 _defaultlabel(f::Symbol) = _defaultlabel(Val(f))
 _defaultlabel(::Val{:U}) = "u (λ)"
@@ -250,27 +264,30 @@ _defaultlabel(::Val{:phase}) = "Visibility Phase (rad)"
 _defaultlabel(::Val{:uvdist}) = "Projected Baseline Distance (λ)"
 _defaultlabel(::Val{:snr}) = "SNR"
 _defaultlabel(::Val{:res}) = "Normalized Residual"
-_defaultlabel(::typeof(Comrade.uvdist)) = _defaultlabel(:uvdist)
 _defaultlabel(f) = string(f)
 
 @doc"""
 
-    plotfields(obsdata::EHTObservationTable, field1, field2; 
-                site1=nothing, site2=nothing, axis_kwargs=(;), legend_kwargs=(;), scatter_kwargs=(;))
+    plotfields(obsdata, field1, field2; axis_kwargs=(;), legend_kwargs=(;), scatter_kwargs=(;))
+    plotfields(obsdata, bl, field1, field2; kwargs...)
 
-Plots two data fields against each other.
+Plots two data fields against each other. A field whose values are matrices, such as the
+measurements of a table of all correlations (`Correlations()`), gets one axis per correlation
+on a 2×2 grid, and the figure is returned.
 
 # Arguments
- - `obsdata` : EHTObservationTable containing the data to plot (closure quantities not supported yet)
+ - `obsdata` : the `VisTable` or `ClosureTable` to plot
+ - `bl` : a baseline, e.g. `(:AA, :AX)`, to plot only its rows
 
  - `field1` and `field2` : The fields to plot. field1 - x axis, field2 - y axis 
-    If field1 or field2 is a function it will apply to `datatable(obsdata)` to get the value
+    If field1 or field2 is a function it will apply to `datarows(obsdata)` to get the value
     If field1 or field2 is a symbol, it will look for a predefined function:
      - :U - baseline u coordinate
      - :V - baseline v coordinate
      - :Ti - time
      - :Fr - frequency
-     - :measure - measurement
+     - :measurement - measurement
+     - :measwnoise - measurement with its noise as error bars
      - :noise - noise
      - :amp - visibility amplitude
      - :phase - visibility phase
@@ -278,13 +295,13 @@ Plots two data fields against each other.
      - :snr - signal to noise ratio
      - :res - normalized residual visibilities (only if obsdata contains the residuals)
 
- - `site1` and `site2` : Keywords for the sites forming the baseline being plotted, e.g. :ALMA, :APEX.
  - `axis_kwargs` : Keyword arguments for each subplot's Axis.
  - `legend_kwargs` : Keyword arguments passed to the figure legend.
  - `scatter_kwargs` : Keyword arguments passed to scatter! in each subplot.
 """
+
 function plotfields(
-        obsdata::Comrade.EHTObservationTable,
+        obsdata::_Table,
         field1,
         field2;
         legend = true,
@@ -294,19 +311,16 @@ function plotfields(
         scatter_kwargs = (;),
         figure_kwargs = (;)
     )
-
-
     fig = Figure(; figure_kwargs...)
-    ax = plotfields!(
-        fig[1, 1],
-        obsdata, field1, field2;
-        legend, conjugate,
-        axis_kwargs,
-        scatter_kwargs,
-        legend_kwargs
-    )
-    return Makie.FigureAxisPlot(fig, ax.axis, ax.plot)
+    ax = plotfields!(fig[1, 1], obsdata, field1, field2; legend, conjugate, axis_kwargs, scatter_kwargs, legend_kwargs)
+    return _figureplot(fig, ax)
 end
+
+# A field whose values are matrices, such as the measurements of a table of all correlations, is
+# plotted on a 2×2 grid of axes, one per correlation.
+_matrixvalued(rows, field) = !isempty(rows) && convert_field(field)(first(rows)) isa AbstractMatrix
+_figureplot(fig, ax::Makie.AxisPlot) = Makie.FigureAxisPlot(fig, ax.axis, ax.plot)
+_figureplot(fig, ::AbstractMatrix) = fig
 
 function axis_labels(field1, field2, axis_kwargs)
     hasproperty(axis_kwargs, :xlabel) || (axis_kwargs = merge(axis_kwargs, (xlabel = _defaultlabel(field1),)))
@@ -320,42 +334,19 @@ function maybeset(nt, key, val)
 end
 
 """
-    plotfields!(f::Makie.GridPosition, obsdata::Comrade.EHTObservationTable, field1, field2;
+    plotfields!(f::Makie.GridPosition, obsdata, field1, field2;
                 kwargs...)
 
 Plots the two data fields in the grid position `f`. For more information about the arguments
-see the [`plotfields`](@ref) function. 
+see the [`plotfields`](@ref) function. Returns the `AxisPlot`, or for a field whose values are
+matrices a 2×2 matrix of them, one per correlation.
 """
-function plotfields!(
-        f::MakieGrid,
-        obsdata::Comrade.EHTObservationTable,
-        field1,
-        field2;
-        legend = true,
-        conjugate = true,
-        axis_kwargs = (;),
-        legend_kwargs = (; merge = true, unique = true),
-        scatter_kwargs = (;),
-    )
-
-
-    ax = plotaxis(
-        f,
-        obsdata,
-        field1,
-        field2;
-        legend,
-        conjugate,
-        axis_kwargs,
-        scatter_kwargs,
-        legend_kwargs,
-    )
-    return ax
+function plotfields!(f::MakieGrid, obsdata::_Table, field1, field2; kwargs...)
+    return _plotrows!(f, datarows(obsdata), measname(obsdata), field1, field2; kwargs...)
 end
 
-
 function plotfields(
-        obsdata::Comrade.EHTObservationTable,
+        obsdata::_Table,
         bl::NTuple{2, Union{String, Symbol}},
         field1,
         field2;
@@ -364,55 +355,36 @@ function plotfields(
         axis_kwargs = (;),
         legend_kwargs = (; merge = true, unique = true),
         scatter_kwargs = (;),
+        figure_kwargs = (;)
     )
-    blobs = select_baseline(obsdata, bl)
-    title = string(bl[1]) * " - " * string(bl[2])
-    return plotfields(
-        blobs,
-        field1,
-        field2;
-        legend,
-        conjugate,
-        axis_kwargs = maybeset(axis_kwargs, :title, title),
-        legend_kwargs = legend_kwargs,
-        scatter_kwargs = scatter_kwargs,
-    )
+    fig = Figure(; figure_kwargs...)
+    ax = plotfields!(fig[1, 1], obsdata, bl, field1, field2; legend, conjugate, axis_kwargs, scatter_kwargs, legend_kwargs)
+    return _figureplot(fig, ax)
 end
 
 function plotfields!(
         f::MakieGrid,
-        obsdata::Comrade.EHTObservationTable,
+        obsdata::_Table,
         bl::NTuple{2, Union{String, Symbol}},
         field1,
         field2;
-        legend = true,
-        conjugate = true,
         axis_kwargs = (;),
-        legend_kwargs = (; merge = true, unique = true),
-        scatter_kwargs = (;),
+        kwargs...
     )
-
-    blobs = select_baseline(obsdata, bl)
     title = string(bl[1]) * " - " * string(bl[2])
-
-    ax = plotaxis(
-        f,
-        blobs,
-        field1,
-        field2;
-        legend,
-        conjugate,
-        axis_kwargs = maybeset(axis_kwargs, :title, title),
-        scatter_kwargs,
-        legend_kwargs,
-    )
-    return ax
+    rows = select_baseline(datarows(obsdata), bl)
+    return _plotrows!(f, rows, measname(obsdata), field1, field2; axis_kwargs = maybeset(axis_kwargs, :title, title), kwargs...)
 end
 
+function _plotrows!(f, rows, mname, field1, field2; kwargs...)
+    _matrixvalued(rows, field2) || return plotaxis(f, rows, mname, field1, field2; kwargs...)
+    g = GridLayout(f)
+    return [plotaxis(g[i, j], rows, mname, field1, field2; entry = (i, j), kwargs...) for i in 1:2, j in 1:2]
+end
 
 @doc"""
 
-    axisfields(fig, obsdata::EHTObservationField, field1, field2;
+    axisfields(fig, obsdata, field1, field2;
                 legend=true, conjugate=true, axis_kwargs=(;), legend_kwargs=(;), scatter_kwargs=(;))
 
 Plots two data fields from `obsdata` against each other on `fig`, returns a Makie Axis which can 
@@ -424,76 +396,76 @@ be used to configure subplots.
 """
 axisfields(args...; kwargs...) = plotfields!(args...; kwargs...)
 
-getfr(x) = x.Fr
-getfr(x::NTuple) = getfr(x[1])
+# The entry `(i, j)` of a field whose values are matrices.
+struct _Component{F}
+    f::F
+    i::Int
+    j::Int
+end
+(c::_Component)(x) = c.f(x)[c.i, c.j]
+_component(f, ::Nothing) = f
+_component(f, (i, j)) = _Component(f, i, j)
 
-_ismeas(field) = field in (:measurement, measurement, :measwnoise, measwnoise)
+# The reduced χ² of residual rows: Σ |r/σ|² over the measured components, per real datum.
+function _chi2(rows, entry = nothing)
+    r = Iterators.flatten(map(_component(_res, entry), rows))
+    z = [x for x in r if !isnan(x)]
+    return sum(abs2, z) / (eltype(z) <: Complex ? 2 * length(z) : length(z))
+end
 
+_ismeas(field) = field in (:measurement, :measwnoise)
+
+# One axis of `field2` against `field1` over `rows`, whose measurements are `mname`; `entry`
+# picks one correlation of matrix-valued fields.
 function plotaxis(
         fig::MakieGrid,
-        obsdata, field1, field2;
+        rows, mname, field1, field2;
+        entry = nothing,
         conjugate = false,
         legend = true,
         axis_kwargs = (;),
         scatter_kwargs = (;),
         legend_kwargs = (; merge = true, unique = true),
     )
-
-    fx = (_ismeas(field1) ? measname(obsdata) : field1)
-    fy = (_ismeas(field2) ? measname(obsdata) : field2)
+    lx = (_ismeas(field1) ? mname : field1)
+    ly = (_ismeas(field2) ? mname : field2)
 
     if field2 == :res
-        title = "χ² = $(round(Comrade._chi2(obsdata) / Comrade.ndata(obsdata), digits = 2))"
-        axis_kwargs = maybeset(axis_kwargs, :title, title)
+        axis_kwargs = maybeset(axis_kwargs, :title, "χ² = $(round(_chi2(rows, entry), digits = 2))")
     end
-
-
-    axis_kwargs = axis_labels(fx, fy, axis_kwargs)
-
+    isnothing(entry) || (axis_kwargs = maybeset(axis_kwargs, :ylabel, string(_defaultlabel(ly), " ", entry)))
+    axis_kwargs = axis_labels(lx, ly, axis_kwargs)
 
     fx = convert_field(field1)
-    fy = convert_field(field2)
-    dt = datatable(obsdata)
-    x = fx.(dt)
-    y = fy.(dt)
-    Fr = _frequency(obsdata)
-    if conjugate # conjugating for (u,v) plotting
-        if fx in (_U, _V) && fy in (_U, _V) # conjugating for (u,v) plotting
-            x = [x; -x]
-            y = [y; -y]
-            Fr = [Fr; Fr]
-            axis_kwargs = maybeset(axis_kwargs, :aspect, 1)
-        end
-
-
-    end
-
-    if fx == _U
-        axis_kwargs = maybeset(axis_kwargs, :xreversed, true)
-    end
-
-
-    νlist = unique(Fr) # multifrequency support
+    fy = _component(convert_field(field2), entry)
+    uv = fx in (_U, _V) && fy in (_U, _V)
+    conjugate && uv && (axis_kwargs = maybeset(axis_kwargs, :aspect, 1))
+    fx == _U && (axis_kwargs = maybeset(axis_kwargs, :xreversed, true))
 
     ax = Axis(fig; axis_kwargs...)
 
     pl = nothing
-    for ν in νlist
-        obsν = filter(x -> getfr(x.baseline) ≈ ν, obsdata)
+    for ν in unique(rows.Fr)
+        obsν = filter(x -> x.Fr ≈ ν, rows)
         label = frequencylabel(ν)
         color = get(scatter_kwargs, :color, Makie.wong_colors()[1])
-        pl = baselineplot!(ax, obsν, field1, field2; color, label, scatter_kwargs...)
-
-        if conjugate && fx in (_U, _V) && fy in (_U, _V)
+        pl = baselineplot!(ax, obsν, fx, fy; color, label, scatter_kwargs...)
+        if conjugate && uv
             baselineplot!(ax, obsν, x -> -fx(x), x -> -fy(x); color, label, scatter_kwargs...)
         end
-
     end
-    if legend
-        axislegend(ax; legend_kwargs...)
-    end
+    legend && axislegend(ax; legend_kwargs...)
 
     return Makie.AxisPlot(ax, pl)
+end
+
+function Comrade.residual(post::Comrade.AbstractVLBIPosterior, p; figure_kwargs = (;), kwargs...)
+    res = Comrade.residuals(post, p)
+    fig = Figure(; size = (600, 350 * length(res)), figure_kwargs...)
+    for (i, r) in enumerate(res)
+        plotfields!(fig[i, 1], r, :uvdist, :res; kwargs...)
+    end
+    return fig
 end
 
 """

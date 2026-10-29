@@ -3,7 +3,6 @@ module Comrade
 using Adapt
 using AbstractMCMC
 using Accessors: @set, getproperties, setproperties
-using ArgCheck: @argcheck
 using DensityInterface
 import Distributions as Dists
 using DocStringExtensions
@@ -29,11 +28,9 @@ import VLBIImagePriors: asflat, ascube
 using Measurements
 using Printf
 using Random
-using RecipesBase
 using Reexport
 using SparseArrays
 using StaticArraysCore
-using Statistics: mean, var
 using StructArrays: StructVector, StructArray, append!!
 import StructArrays
 using Tables
@@ -42,6 +39,8 @@ using ComradeBase: AbstractDomain, AbstractSingleDomain, AbstractRectiGrid
 using VLBISkyModels: FourierTransform, FourierDualDomain
 using ReactantCore
 using ComradeBase: rgetindex, rsetindex!
+import DimensionalData as DD
+using Dates: Dates, Date, DateTime, datetime2julian
 
 # Reexport the core libraries for Comrade
 @reexport using VLBISkyModels

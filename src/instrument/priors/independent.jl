@@ -12,11 +12,12 @@ needs_chain_machinery(::AbstractSitePrior) = false
 """
     IIDSitePrior(seg::Segmentation, dist; init = nothing)
 
-Create a site prior that is independent and identically distributed (IID) across all times
-and frequencies. The `seg` argument is a segmentation object that defines how fine the time
-segmentation is. The `dist` argument is the distribution of the site prior.
+Create a site prior that is independent and identically distributed (IID) across time
+segments. The `seg` argument is a segmentation object that defines how fine the time
+segmentation is. The `dist` argument is the distribution of the site prior. A site's value
+in a time segment is shared by all frequency channels.
 
-`init = FixedInit(v)` fixes each site's *first* time stamp (per frequency channel) to `v`
+`init = FixedInit(v)` fixes each site's *first* time stamp to `v`
 instead of sampling it — the IID analogue of the chain-opening conditioning of
 [`GaussMarkovSitePrior`](@ref). Use it when the parameter rides on a separate per-site
 offset term: without the pin the offset trades off against a common shift of the site's

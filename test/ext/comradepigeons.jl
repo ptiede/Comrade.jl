@@ -3,7 +3,7 @@ using Enzyme
 
 @testset "ComradePigeonsExt" begin
     _, _, _, lcamp, cphase = load_data()
-    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 32, 32)
+    g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 32, 32)
     skym = SkyModel(test_model, test_prior(), g)
     post = VLBIPosterior(skym, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
 

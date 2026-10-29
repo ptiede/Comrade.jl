@@ -1,33 +1,33 @@
+const ARRAYFILE = joinpath(@__DIR__, "..", "examples", "Data", "array.txt")
+
+# The scan-averaged Stokes I visibilities of `test_data.uvfits`, with the stations' mounts
+# from the example `array.txt`.
+function load_test_table()
+    uvd = VLBIFiles.load(VLBIFiles.UVData, joinpath(@__DIR__, "test_data.uvfits"))
+    return average(reset_mounts!(VisTable(uvd, IPol()), ARRAYFILE), ByScan())
+end
+
+# Noise-free scan-averaged data of two Gaussians (FWHMs 40 × 20 and 20 × 10 μas) on the
+# `test_data.uvfits` coverage, and the coherencies of the polarized example file.
 function load_data()
-    obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "test_data.uvfits"))
-    obs.add_scans()
-    obsavg = scan_average(obs)
-
-    obspol = Pyehtim.load_uvfits_and_array(
-        joinpath(@__DIR__, "../examples/Data/polarized_gaussian_nogains_withdterms_withfr.uvfits"),
-        joinpath(@__DIR__, "../examples/Data/array.txt"),
-        polrep = "circ"
+    t = load_test_table()
+    fwhm = 2 * sqrt(2 * log(2))
+    θ = (
+        f1 = 1.0, σ1 = μas2rad(40.0) / fwhm, τ1 = 0.5, ξ1 = π / 3,
+        f2 = 0.5, σ2 = μas2rad(20.0) / fwhm, τ2 = 0.5, ξ2 = π / 6,
+        x = μas2rad(30.0), y = μas2rad(30.0),
     )
-    obspol.add_scans()
+    skym = SkyModel(test_model, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 64, 64))
+    vt = only(simulate_observation(VLBIPosterior(skym, t), (; sky = θ); add_thermal_noise = false))
 
-    m = ehtim.model.Model()
-    m = m.add_gauss(1.0, μas2rad(40.0), μas2rad(20.0), π / 3, 0.0, 0.0)
-    m = m.add_gauss(0.5, μas2rad(20.0), μas2rad(10.0), π / 6, μas2rad(30.0), μas2rad(30.0))
-    obsm = m.observe_same_nonoise(obsavg.switch_polrep("stokes"))
+    amp = amplitudes(vt)
+    lcamp = log_closure_amplitudes(vt)
+    cphase = closure_phases(vt)
 
-    vis = extract_table(obsm, Visibilities())
-    amp = extract_table(obsm, VisibilityAmplitudes())
-    lcamp = extract_table(obsm, LogClosureAmplitudes())
-    cphase = extract_table(obsm, ClosurePhases())
-    dcoh = extract_table(obspol, Coherencies())
+    uvp = VLBIFiles.load(VLBIFiles.UVData, joinpath(@__DIR__, "..", "examples", "Data", "polarized_gaussian_nogains_withdterms_withfr.uvfits"))
+    dcoh = reset_mounts!(VisTable(uvp, Correlations()), ARRAYFILE)
 
-    derr = noise(dcoh)
-    typeof(derr)
-    derr.:2 .= derr.:1
-    derr.:3 .= derr.:1
-
-
-    return m, vis, amp, lcamp, cphase, dcoh
+    return test_model(θ, nothing), vt, amp, lcamp, cphase, dcoh
 end
 
 
@@ -104,3 +104,34 @@ function test_prior()
         y = VLBIUniform(-μas2rad(40.0), μas2rad(40.0)),
     )
 end
+
+# The one-channel table `t` with a second channel at frequency `ν` holding the same values.
+function with_channel(t::VisTable, ν)
+    a = info(t)
+    d = domain(t)
+    ch = (; frequency = [only(a.channels.frequency), ν], width = fill(only(a.channels.width), 2))
+    order = sortperm(ch.frequency)
+    a2 = ArrayInfo(; stations = a.stations, channels = map(c -> c[order], ch), scans = a.scans, tracks = a.tracks, source = a.source, epoch = a.epoch)
+    V = Comrade._dense(measurement(t))
+    w = Comrade._dense(weight(t))
+    meters = Comrade.ComradeBase.speed_of_light / only(a.channels.frequency)
+    return VisTable(
+        t.pol, cat(V, V; dims = 2); weight = cat(w, w; dims = 2),
+        u = d.U[:, 1] .* meters, v = d.V[:, 1] .* meters, Ti = d.Ti, ant1 = d.ant1, ant2 = d.ant2, info = a2,
+    )
+end
+
+# `t` observed `days` days later: the same records with the epoch moved.
+function later(t::VisTable, days)
+    a, d = info(t), domain(t)
+    c = Comrade.ComradeBase.coords(d)
+    b = ArrayInfo(; a.stations, a.channels, a.scans, a.tracks, a.source, epoch = a.epoch + Comrade.Dates.Day(days))
+    return VisTable(
+        t.pol, Comrade._dense(measurement(t)); weight = Comrade._dense(weight(t)),
+        u = c.u, v = c.v, Ti = d.Ti, ant1 = d.ant1, ant2 = d.ant2, info = b,
+    )
+end
+
+# The observed instrument model of `m` on the visibility table `t`, and its prior.
+bind_instrument(m, t::VisTable) = Comrade.set_array(m, t)
+

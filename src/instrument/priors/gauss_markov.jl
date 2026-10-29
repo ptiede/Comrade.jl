@@ -51,8 +51,9 @@ A site prior that is correlated in time, following the continuous-time Gauss-Mar
 `process` (e.g. [`OrnsteinUhlenbeck`](@ref)) sampled at the times implied by the
 segmentation `seg`. The log-density factorizes over each site's time chain using the
 process's exact discretization, so the cost is `O(n)` in the number of times and the
-irregular time sampling of a VLBI observation is handled exactly. When the observation
-has multiple frequency channels each (site, channel) pair is an independent chain.
+irregular time sampling of a VLBI observation is handled exactly. Each site has one chain,
+shared by all frequency channels; frequency dependence, such as a delay, goes in the Jones
+function through the cell frequency `c.Fr`.
 
 Process fields that are `Distributions.Distribution`s are *fitted* hyperparameters. When
 any are present the prior sample is a `NamedTuple` `(params = SiteArray, hyperparams =
@@ -132,16 +133,14 @@ real-line process (e.g. `OrnsteinUhlenbeck` with
 `init = FixedInit(0.0)` on top of a circular offset) models the phase as an *unwrapped*
 real and is appropriate when the excursions stay well below `2π` — beyond that, the
 likelihood's periodicity in `exp(iθ)` produces spurious `2π`-shifted modes that only the
-wrapped process removes. In all cases the `phase=true` cumulative reparameterization of
-`ArrayPrior` is superseded by this prior: `phase` must be `false`.
+wrapped process removes.
 
 The initial distribution of each chain — how its first time stamp is treated — is set by
 `init` (see [`AbstractInitialPrior`](@ref)). [`StationaryInit`](@ref) (the default)
 starts the chain in the process's stationary marginal. [`GaussianInit`](@ref) uses an
 explicit `N(μ0, σ0²)` first marginal, e.g. an intentionally wide one so the starting
 value is essentially fit freely. [`FixedInit`](@ref) conditions the chain to an exact
-value at its first time, the continuous-time analogue of the cumulative `phase=true`
-parameterization: when the chain models an unwrapped phase fluctuation on top of a
+value at its first time: when the chain models an unwrapped phase fluctuation on top of a
 separate (circular) offset term, `FixedInit(0.0)` removes the level freedom that would
 otherwise trade off against the offset and, through the likelihood's `2π` periodicity,
 produce spurious posterior modes at `2π`-shifted levels. A referencing scheme that
@@ -153,7 +152,7 @@ an error.
 How a reference-fixed time stamp enters the chain depends on whether the process lives on
 the circle. On the **real line** the fixed value is a value of the process, and the chain
 is conditioned on it exactly — the free points are drawn from `p(free | fixed)`, which
-works with scattered fixed indices such as those produced by `SEFDReference`.
+works with scattered fixed indices such as those produced by `SensitiveReference`.
 
 On the **circle** it is a gauge choice instead. A station's phase is only defined up to
 the per-time global phase the reference scheme removes, so a station being picked as the
@@ -169,9 +168,9 @@ values still enter the likelihood; they just carry no prior term. For
 
 ```julia
 lg ~ ArrayPrior(GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(0.1), τ = VLBIExponential(2.0))))
-gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 3.0, τ = 1.0)); refant = SEFDReference(0.0))
+gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 3.0, τ = 1.0)); refant = SensitiveReference(0.0))
 ## phase-fluctuation term meant to be combined with a circular per-track offset
-dgp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = 1.0); init = FixedInit(0.0)); refant = SEFDReference(0.0))
+dgp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = 1.0); init = FixedInit(0.0)); refant = SensitiveReference(0.0))
 ```
 
 !!! note
@@ -239,29 +238,82 @@ end
 
 needs_chain_machinery(::GaussMarkovSitePrior) = true
 
-# ----- per-(site, freq) chain specifications --------------------------------
+# ----- Gauss–Markov chains ------------------------------------------------------
 #
-# Built once at `set_array` time; everything in a spec is constant during sampling
-# (indices, times, and the process *template* whose fitted fields are placeholders).
-
-struct MarkovChainSpec{P <: AbstractGaussMarkovProcess, I <: AbstractInitialPrior, C <: AbstractChainParameterization, K, V <: AbstractVector{<:Integer}, T <: AbstractVector, F <: NamedTuple, G <: NamedTuple}
-    process::P     # template; fitted fields are Distribution placeholders
-    init::I        # initial distribution of the chain's first time stamp
-    hpsel::Val{K}  # the site whose hyperparameters this chain reads, or nothing if fully fixed
-    inds::V        # flat indices into the full parameter vector, ascending in time
-    ts::T          # chain times in hours (strictly increasing)
-    param::C       # which latent coordinates the chain uses
-    free::F        # static per-free-point tables (see `_free_point_tables`)
-    fsub::G        # inds/ts restricted to the fixed points, materialized (views do not trace)
+# Built once at `set_array` time; everything here is constant during sampling (indices,
+# times, and the process *template* whose fitted fields are placeholders).
+#
+# A `MarkovChains` holds one or more site chains laid out chain after chain:
+# the static tables of `_free_point_tables` and `_logpdf_tables`, concatenated, plus a
+# per-point index `hpi` into the chains' process parameters. Every walker runs one loop over
+# all of its points, so Reactant raises each walker into a single set of vectorized ops
+# however many chains it covers. Chains may share a `MarkovChains` when they agree on
+# everything the loop bodies dispatch on: the process *type* (which also fixes which fields
+# are fitted), the initial prior (by value — `FixedInit`/`GaussianInit` carry numbers the
+# moments depend on), and `param`. They need *not* agree on the numeric field values of
+# their process templates, which are read per point (see `numvals`). `hasfix` need not
+# agree either — a chain with no reference-fixed points carries `mskf = 0`, and
+# `_bridge_weights(Q₁, 0, 1)` collapses exactly to the one-sided conditional.
+struct MarkovChains{P <: AbstractGaussMarkovProcess, I <: AbstractInitialPrior, R <: AbstractChainParameterization, S, N <: NamedTuple, T <: AbstractVector, F <: NamedTuple, C <: NamedTuple}
+    process::P     # template of the first chain; fitted fields are Distribution placeholders
+    init::I        # initial distribution of each chain's first time stamp
+    sites::Val{S}  # the site whose hyperparameters each chain reads, or nothing if none are fitted
+    param::R       # which latent coordinates the chains use
+    numvals::N     # numeric process fields: a scalar when every chain shares it, else one per chain
+    inds::Vector{Int}               # flat indices into the full parameter vector
+    ts::T                           # times in hours, strictly increasing within a chain
+    spans::Vector{UnitRange{Int}}   # each chain's positions in `inds` and `ts`
+    fixed::Vector{Bool}             # whether each point is reference-fixed
+    free::F        # per-free-point tables (see `_free_point_tables`) plus `hpi`
+    chain::C       # log-density tables (see `_logpdf_tables`)
+    fsub::C        # `chain`, restricted to the reference-fixed points
 end
 
-function MarkovChainSpec(
-        process::AbstractGaussMarkovProcess, init::AbstractInitialPrior, hpsel::Val, inds, ts, fixedpos, param::AbstractChainParameterization
+EnzymeRules.inactive_type(::Type{<:MarkovChains}) = true
+
+# One chain over the flat indices `inds` at times `ts`, conditioned on its points at `fixedpos`.
+function MarkovChains(
+        process::AbstractGaussMarkovProcess, init::AbstractInitialPrior, ::Val{K}, inds, ts, fixedpos, param::AbstractChainParameterization
+    ) where {K}
+    inds = collect(Int, inds)
+    ts = collect(ts)
+    fixed = fill(false, length(inds))
+    fixed[fixedpos] .= true
+    free = _free_point_tables(inds, ts, fixedpos)
+    numk = _numkeys(process)
+    numvals = NamedTuple{numk}(map(k -> getproperty(process, k), numk))
+    # A fully reference-fixed chain conditions on itself: its two log-density passes are
+    # identical for any hyperparameters and cancel, so it gets no log-density entries.
+    live = length(fixedpos) != length(inds)
+    T = eltype(ts)
+    chain = _logpdf_tables(live ? [(1, inds, ts, zero(T))] : [], T)
+    # Only a chain with reference-fixed points has anything to condition on.
+    fsub = _logpdf_tables(
+        (live && !isempty(fixedpos)) ? [(1, inds[fixedpos], ts[fixedpos], ts[first(fixedpos)] - first(ts))] : [], T
     )
-    return MarkovChainSpec(
-        process, init, hpsel, inds, ts, param,
-        _free_point_tables(inds, ts, fixedpos),
-        (inds = inds[fixedpos], ts = ts[fixedpos]),
+    return MarkovChains(
+        process, init, Val(K === nothing ? nothing : (K,)), param, numvals,
+        inds, ts, [firstindex(inds):lastindex(inds)], fixed, (; free..., hpi = fill(1, length(free.tgt))), chain, fsub
+    )
+end
+
+# Per-chain log-density tables, from `(j, inds, ts, Δ0)` for each chain `j`. `open` has one
+# entry per chain: the flat index of its first point, the gap `Δ0` that propagates the
+# initial marginal to it (see `chain_term`), and that gap's host-computed `iszero`
+# indicator, which keeps `marginal_moments` branchless. `step` has one entry per later
+# point: its flat index, its predecessor's, and the gap between them.
+function _logpdf_tables(chains, T)
+    oinds = Int[]; dt0 = T[]; z0 = T[]; ohpi = Int[]
+    sinds = Int[]; pinds = Int[]; dts = T[]; shpi = Int[]
+    for (j, I, ts, Δ0) in chains
+        push!(oinds, first(I)); push!(dt0, Δ0); push!(z0, iszero(Δ0)); push!(ohpi, j)
+        for i in (firstindex(I) + 1):lastindex(I)
+            push!(sinds, I[i]); push!(pinds, I[i - 1]); push!(dts, ts[i] - ts[i - 1]); push!(shpi, j)
+        end
+    end
+    return (
+        open = (inds = oinds, dt0 = dt0, z0 = z0, hpi = ohpi),
+        step = (inds = sinds, pinds = pinds, dts = dts, hpi = shpi),
     )
 end
 
@@ -277,36 +329,14 @@ end
 
 IIDChainSpec(dist, freeinds) = IIDChainSpec(dist, freeinds, PT.transport_node(dist, PT.TVFlat()))
 
-EnzymeRules.inactive_type(::Type{<:MarkovChainSpec}) = true
 EnzymeRules.inactive_type(::Type{<:IIDChainSpec}) = true
-
-struct MarkovGroup{P <: AbstractGaussMarkovProcess, I <: AbstractInitialPrior, R <: AbstractChainParameterization, S, N <: NamedTuple, F <: NamedTuple, C <: NamedTuple}
-    process::P     # template of the *first* member; fitted fields are Distribution placeholders
-    init::I
-    sites::Val{S}  # member sites in group order, or `nothing` when no field is fitted
-    param::R
-    numvals::N     # per-chain host vectors of the numeric (non-fitted) process fields
-    free::F        # concatenated `_free_point_tables`, plus `hpi` (point -> member index)
-    chain::C       # concatenated per-time-stamp tables for the chain log-density
-    fsub::C        # `chain`, restricted to the reference-fixed time stamps
-end
-
-EnzymeRules.inactive_type(::Type{<:MarkovGroup}) = true
-
-# A single chain and a batched group expose the same surface to every walker: `process`,
-# `init`, `param`, `free` and `_nfree`. See the batched-group section below.
-const ChainUnit = Union{MarkovChainSpec, MarkovGroup}
-
-@inline _selecthp(hp::NamedTuple, ::Val{nothing}) = (;)
-@inline _selecthp(hp::NamedTuple, ::Val{K}) where {K} = getproperty(hp, K)
 
 # ----- the chain log-density -------------------------------------------------
 
 # Log-density of the chain's first point under the init marginal propagated a gap Δ0
 # from the chain start (Δ0 = 0 for the full chain; the first fixed time for the
-# conditioning subtraction in `chain_term`). `z` is the `iszero(Δ0)` indicator that keeps
-# `marginal_moments` branchless: it is a plain host comparison for a single chain and a
-# static table read for a batched group, so one family serves both. For FixedInit the first
+# conditioning subtraction in `chain_term`). `z` is the `iszero(Δ0)` indicator, a static
+# table read that keeps `marginal_moments` branchless. For FixedInit the first
 # point is always reference-fixed, so its (delta) term appears identically in ℓ(all) and
 # ℓ(fixed subset) and is conventionally zero in both.
 @inline function _first_point_term(init::AbstractInitialPrior, p, x1, Δ0, z)
@@ -318,14 +348,30 @@ end
 # same constant serves the propagated subset marginal at any Δ0.
 @inline _first_point_term(::UniformInit, p, x1, Δ0, z) = -log(oftype(x1, 2π))
 
-function _gm_chain_logpdf(p::AbstractGaussMarkovProcess, init::AbstractInitialPrior, x, inds, ts, Δ0 = zero(eltype(ts)))
-    x1 = rgetindex(x, rgetindex(inds, firstindex(inds)))
-    ℓ = _first_point_term(init, p, x1, Δ0, oftype(Δ0, iszero(Δ0)))
-    μ = _process_mean(p)
-    @trace track_numbers = false for i in (firstindex(inds) + 1):lastindex(inds)
-        xi = rgetindex(x, rgetindex(inds, i))
-        xp = rgetindex(x, rgetindex(inds, i - 1))
-        ℓ += _transition_logpdf(p, xi, xp, rgetindex(ts, i) - rgetindex(ts, i - 1), μ)
+# `ℓ(all)` of the chains' points in `tab` (see `_logpdf_tables`), each chain's first point
+# under the propagated initial marginal and every later one under its transition law. The
+# tables are host data, so the emptiness checks are static; a traced loop over an empty
+# range still traces its body, whose table reads would fail.
+function _chains_logpdf(u::MarkovChains, tab, x, vals)
+    ℓ = _opening_logpdf(u, tab.open, x, vals)
+    st = tab.step
+    isempty(st.inds) && return ℓ
+    @trace track_numbers = false for i in eachindex(st.inds)
+        p = _unit_process(u, vals, rgetindex(st.hpi, i))
+        xi = rgetindex(x, rgetindex(st.inds, i))
+        xp = rgetindex(x, rgetindex(st.pinds, i))
+        ℓ += _transition_logpdf(p, xi, xp, rgetindex(st.dts, i), _process_mean(p))
+    end
+    return ℓ
+end
+
+function _opening_logpdf(u::MarkovChains, op, x, vals)
+    ℓ = zero(eltype(x))
+    isempty(op.inds) && return ℓ
+    @trace track_numbers = false for i in eachindex(op.inds)
+        p = _unit_process(u, vals, rgetindex(op.hpi, i))
+        x1 = rgetindex(x, rgetindex(op.inds, i))
+        ℓ += _first_point_term(u.init, p, x1, rgetindex(op.dt0, i), rgetindex(op.z0, i))
     end
     return ℓ
 end
@@ -348,42 +394,16 @@ end
 # its sum with the flat transform's log-density term is meaningful, and that sum is
 # unchanged by the fusion. `asflat` sampling, optimization, and `logdensityof` always
 # evaluate that sum; a standalone `logprior` of a constrained sample inherits the split.
-_fused_flat(u::ChainUnit) = is_wrapped(u.process) && u.param isa NonCentered
+_fused_flat(u::MarkovChains) = is_wrapped(u.process) && u.param isa NonCentered
 
-# Concrete unit types on both arguments so these shortcuts are unambiguously more
-# specific than the generic exact methods below.
-@inline _fused_chain_term(::UniformInit, u::MarkovChainSpec, x, hp) =
-    -_nlive(u) * log(oftype(zero(eltype(x)), 2π))
-@inline _fused_chain_term(::UniformInit, u::MarkovGroup, x, hp) =
-    -_nlive(u) * log(oftype(zero(eltype(x)), 2π))
-@inline _fused_chain_term(::FixedInit, ::MarkovChainSpec, x, hp) = zero(eltype(x))
-@inline _fused_chain_term(::FixedInit, ::MarkovGroup, x, hp) = zero(eltype(x))
-# `opens` marks each live chain's first stamp; the tables are host data, so the count is
-# a host constant (and folds at trace time under Reactant).
-@inline _nlive(spec::MarkovChainSpec) = one(eltype(spec.ts))
-@inline _nlive(g::MarkovGroup) = sum(g.chain.opens)
-
-# Exact for any init: the chain-opening first-point terms, evaluated on the angles. A
-# wrapped gauge chain conditions on nothing (`fsub` is empty apart from a FixedInit
-# opening, whose term is zero on both sides), so there is no subtraction here.
-@inline function _fused_chain_term(init::AbstractInitialPrior, spec::MarkovChainSpec, x, hp)
-    p = materialize(spec.process, _selecthp(hp, spec.hpsel))
-    x1 = rgetindex(x, rgetindex(spec.inds, firstindex(spec.inds)))
-    Δ0 = zero(eltype(spec.ts))
-    return _first_point_term(init, p, x1, Δ0, oftype(Δ0, true))
-end
-@inline function _fused_chain_term(init::AbstractInitialPrior, g::MarkovGroup, x, hp)
-    vals = _group_fieldvals(g, hp)
-    tab = g.chain
-    ℓ = zero(eltype(x))
-    @trace track_numbers = false for i in eachindex(tab.inds)
-        p = _point_process(g, vals, rgetindex(tab.hpi, i))
-        xi = rgetindex(x, rgetindex(tab.inds, i))
-        ℓ += rgetindex(tab.opens, i) *
-            _first_point_term(init, p, xi, rgetindex(tab.dt0, i), rgetindex(tab.z0, i))
-    end
-    return ℓ
-end
+# The chain-opening first-point terms, evaluated on the angles. A wrapped gauge chain
+# conditions on nothing (`fsub` is empty apart from a FixedInit opening, whose term is zero
+# on both sides), so there is no subtraction here. The opening count is host data.
+@inline _fused_chain_term(::UniformInit, u::MarkovChains, x, hp) =
+    -length(u.chain.open.inds) * log(oftype(zero(eltype(x)), 2π))
+@inline _fused_chain_term(::FixedInit, ::MarkovChains, x, hp) = zero(eltype(x))
+@inline _fused_chain_term(::AbstractInitialPrior, u::MarkovChains, x, hp) =
+    _opening_logpdf(u, u.chain.open, x, _unit_params(u, hp))
 
 # Exact conditioning on the reference-fixed values: the restriction of an order-1 Markov
 # process to a subset of times is Markov with the composed transition law over the larger
@@ -391,16 +411,13 @@ end
 # (`marginal_moments`). Hence log p(free | fixed) = ℓ(all) − ℓ(fixed subset). The
 # subtracted term depends on the hyperparameters even though the fixed values are
 # constants — dropping it would bias the hyperparameter posterior.
-@inline function chain_term(spec::MarkovChainSpec, x, hp)
-    # A fully reference-fixed chain conditions on itself: the two logpdf passes below are
-    # identical and cancel exactly for any hyperparameters, so skip both (host-static
-    # branch — the index vectors are concrete).
-    length(spec.fsub.inds) == length(spec.inds) && return zero(eltype(x))
-    _fused_flat(spec) && return _fused_chain_term(spec.init, spec, x, hp)
-    p = materialize(spec.process, _selecthp(hp, spec.hpsel))
-    ℓ = _gm_chain_logpdf(p, spec.init, x, spec.inds, spec.ts)
-    isempty(spec.fsub.inds) && return ℓ
-    return ℓ - _gm_chain_logpdf(p, spec.init, x, spec.fsub.inds, spec.fsub.ts, first(spec.fsub.ts) - first(spec.ts))
+@inline function chain_term(u::MarkovChains, x, hp)
+    isempty(u.chain.open.inds) && return zero(eltype(x))
+    _fused_flat(u) && return _fused_chain_term(u.init, u, x, hp)
+    vals = _unit_params(u, hp)
+    ℓ = _chains_logpdf(u, u.chain, x, vals)
+    isempty(u.fsub.open.inds) && return ℓ
+    return ℓ - _chains_logpdf(u, u.fsub, x, vals)
 end
 
 @inline function chain_term(spec::IIDChainSpec, x, hp)
@@ -417,14 +434,15 @@ end
 #    GaussMarkovChainDist
 #
 #The observed distribution over the full instrument parameter vector implied by
-#[`GaussMarkovSitePrior`](@ref): a set of independent per-(site, frequency) Gauss-Markov
+#[`GaussMarkovSitePrior`](@ref): a set of independent per-site Gauss-Markov
 #chains (plus IID terms for `IIDSitePrior` overrides), exactly conditioned on the
 #reference-fixed indices. This is an internal type constructed by `ObservedArrayPrior`.
 struct GaussMarkovChainDist{C <: NamedTuple, G <: Tuple, I <: AbstractVector{<:Integer}, F} <: Dists.ContinuousMultivariateDistribution
     chains::C
-    # `chains` batched into `MarkovGroup`s (plus any `IIDChainSpec`s, unchanged), in spec
-    # order, used for the dimension/trait queries and by the traced walkers (see
-    # `_walk_units`). `chains` itself is what the host walkers and the sampler iterate.
+    # Runs of compatible `chains` concatenated into one `MarkovChains` each (plus any
+    # `IIDChainSpec`s, unchanged), in chain order, used for the dimension/trait queries and
+    # by the traced walkers (see `_walk_units`). `chains`, one `MarkovChains` per chain, is
+    # what the host walkers and the sampler iterate.
     groups::G
     fixedinds::I
     fixedvals::F
@@ -447,11 +465,11 @@ end
 # Only affine-lift chains participate in the batched scan; a non-centered chain with a
 # nonlinear (equivariant) mean resolves its own recurrence and scatters its angles itself
 # (`_color_chain_wrapped_recur!`), so it must not claim scan slots it never stages.
-_scan_tgt(spec::ChainUnit) =
+_scan_tgt(spec::MarkovChains) =
     (spec.param isa NonCentered && has_affine_lift(spec.process)) ? spec.free.tgt : Int[]
 _scan_tgt(::IIDChainSpec) = Int[]
 
-_scan_wrap(spec::ChainUnit) = fill(Float64(is_wrapped(spec.process)), length(_scan_tgt(spec)))
+_scan_wrap(spec::MarkovChains) = fill(Float64(is_wrapped(spec.process)), length(_scan_tgt(spec)))
 _scan_wrap(::IIDChainSpec) = Float64[]
 
 function GaussMarkovChainDist(chains::NamedTuple, fixedinds, fixedvals, len::Int)
@@ -465,24 +483,25 @@ function GaussMarkovChainDist(chains::NamedTuple, fixedinds, fixedvals, len::Int
     )
 end
 
-# The batched units (see `_build_groups`).
+# The concatenated units (see `_build_groups`).
 chaingroups(d::GaussMarkovChainDist) = d.groups
 EnzymeRules.inactive(::typeof(chaingroups), args...) = nothing
 
-# Which units the per-evaluation walkers iterate. The batched group is the concatenation of
-# its chains *in order*, so both choices produce the same flat layout, the same `scantgt`,
+# Which units the per-evaluation walkers iterate. A group is the concatenation of its
+# chains *in order*, so both choices produce the same flat layout, the same `scantgt`,
 # and the same numbers — they differ only in cost model, and the two cost models disagree:
 #
 #   - On an accelerator every chain costs a kernel launch, and the arithmetic is free at
 #     these sizes. Batching makes the launch count O(1) in the number of chains instead of
 #     O(nchains) (measured post-XLA: 670 -> 124 kernels at 7 sites, and flat rather than
 #     linear as sites are added).
-#   - On the host the loops are plain Julia and launches do not exist. The per-chain form
-#     keeps the process loop-invariant, so `σ²`/`stationary_moments` hoist out of the loop
-#     and Enzyme accumulates `∂/∂σ` into a *scalar* shadow. The group reads each point's
-#     parameters through a gather, which makes that a scatter-add into a length-nchain
-#     shadow and costs Enzyme a per-iteration allocation: measured 3.4x slower gradients
-#     (34 -> 118 μs, 21 -> 76 allocs) for a fitted-hyperparameter OU chain.
+#   - On the host the loops are plain Julia and launches do not exist. A single chain
+#     keeps the process loop-invariant (see `_unit_params`), so `σ²`/`stationary_moments`
+#     hoist out of the loop and Enzyme accumulates `∂/∂σ` into a *scalar* shadow. A group
+#     of several sites reads each point's parameters through a gather, which makes that a
+#     scatter-add into a length-nchain shadow and costs Enzyme a per-iteration allocation:
+#     measured 3.4x slower gradients (34 -> 118 μs, 21 -> 76 allocs) for a
+#     fitted-hyperparameter OU chain.
 #
 # So: groups where launches dominate, chains where hoisting does. The Reactant extension
 # overrides this for traced arrays; everything else takes the host path.
@@ -504,7 +523,7 @@ struct _ChainFix{X, HP}
     x::X
     hp::HP
 end
-@inline (hp::_ChainFix)(spec::Union{ChainUnit, IIDChainSpec}) = chain_term(spec, hp.x, hp.hp)
+@inline (hp::_ChainFix)(spec::Union{MarkovChains, IIDChainSpec}) = chain_term(spec, hp.x, hp.hp)
 
 function _chain_logpdf(d::GaussMarkovChainDist, x::AbstractVector, hp::NamedTuple)
     fd = _ChainFix(x, hp)
@@ -612,6 +631,23 @@ function _fill_fixed!(y, d::GaussMarkovChainDist)
     return y
 end
 
+# `outs[j][offsets[j] + k - 1] = f(k)[j]` for `k in 1:n`, in one traced loop. Reactant's
+# loop raising vectorizes it because each output is written once per iteration at the loop
+# index. A value carried between iterations would keep it a `stablehlo.while`, so per-point
+# log terms are staged as an output and summed afterward.
+function _traced_fill!(f, outs::Tuple, offsets::Tuple, n)
+    @trace track_numbers = false for k in 1:n
+        vals = f(k)
+        map((o, v, i) -> rsetindex!(o, v, i + k - 1), outs, vals, offsets)
+    end
+    return outs
+end
+
+_traced_fill!(f, out, offset, n) = only(_traced_fill!(k -> (f(k),), (out,), (offset,), n))
+
+_logjac_sum(flag::TV.NoLogJac, ℓs) = TV.logjac_zero(flag, eltype(ℓs))
+_logjac_sum(::TV.LogJac, ℓs) = sum(ℓs)
+
 # First-order affine scan `c[k] ← a[k] * c[k-1] + c[k]` with implicit `c[0] = 0`,
 # overwriting `c` (both call sites pass discardable staging temps; the Reactant overload
 # shares this contract). The coloring coefficients are exactly zero at chain-opening and
@@ -622,19 +658,6 @@ end
 # loop raising never vectorizes a loop-carried recurrence (it would serialize into a
 # `stablehlo.while` in every logdensity/gradient evaluation) and IntegSeg-scale chains
 # (10³-10⁴ points) rule out any O(n²) closed form.
-# `out[offset + k - 1] = f(k)` for `k in 1:n` in one traced loop. Reactant's loop raising
-# vectorizes a traced loop only when it carries a single value, so every walker below fills
-# each staged array (and each per-point log term, summed afterward) with its own loop.
-function _traced_fill!(f, out, offset, n)
-    @trace track_numbers = false for k in 1:n
-        rsetindex!(out, f(k), offset + k - 1)
-    end
-    return out
-end
-
-# `sum(f(k) for k in 1:n)` through a staged vector (see `_traced_fill!`).
-_traced_sum(f, like, n) = sum(_traced_fill!(f, similar(like, n), 1, n))
-
 function affine_scan!(a, c)
     acc = zero(eltype(c))
     for k in eachindex(c)
@@ -706,219 +729,136 @@ function _free_point_tables(inds, ts, fixedpos)
     return (; tgt, lidx, dtl, mskl, lfree, pofs, fidx, dtf, mskf, hasfix = nfix > 0)
 end
 
-_nfree(spec::MarkovChainSpec) = length(spec.free.tgt)
+_nfree(u::MarkovChains) = length(u.free.tgt)
 _nfree(spec::IIDChainSpec) = length(spec.freeinds)
 
-# ----- batched chain groups ----------------------------------------------------
-#
-# A `MarkovGroup` is the concatenation of a *run of adjacent compatible chains*: the same
-# static tables of `_free_point_tables`, laid out chain after chain, plus a per-point index
-# into the group's per-chain process parameters. The loop bodies are the per-chain ones
-# unchanged — they simply run once over every point of every chain, so Reactant raises
-# each into a single set of vectorized ops instead of one set per chain. Without the
-# grouping, every walker runs once per (site, frequency) chain — its own staged loop,
-# `scatter_values!`, reduction and, with fitted hyperparameters, its own scalar pipeline
-# through `materialize` — and on an accelerator each of those is a separate kernel over a
-# few dozen elements (~4 extra kernels per Gaussian chain, ~37 per wrapped chain, on the
-# post-XLA gradient module at fixed total point count), so the cost of the prior scales
-# with the *number of chains* rather than with the amount of arithmetic. Only *adjacent*
-# specs are grouped, so the flat coordinate layout is bit-for-bit the one the per-chain
-# walkers produce.
-#
-# Chains may be grouped when they agree on everything the loop bodies dispatch on: the
-# process *type* (which also fixes which fields are fitted), the initial prior (by value —
-# `FixedInit`/`GaussianInit` carry numbers the moments depend on), and `param`. They
-# need *not* agree on the numeric field values of their process templates: every field is
-# read per point from a length-`nchain` vector, so per-site overrides that only change a
-# fixed σ or τ still share one group. `hasfix` need not agree either — a chain with no
-# reference-fixed points carries `mskf = 0`, and `_bridge_weights(Q₁, 0, 1)` collapses
-# exactly to the one-sided conditional, so mixing costs a masked-out bridge term and
-# changes no value.
+# ----- concatenating chains ------------------------------------------------------
 
-
-_nfree(g::MarkovGroup) = length(g.free.tgt)
-
-# Chains are grouped iff they agree on what the loop bodies dispatch on. `init` and
-# `param` compare by value; the process compares by *type*, which also fixes which
-# fields are `Distribution`s and hence whether `hpsel` is a site or `nothing`.
-_groupkey(spec::MarkovChainSpec) = (typeof(spec.process), spec.init, spec.param)
+# Chains share a `MarkovChains` iff they agree on what the loop bodies dispatch on. `init`
+# and `param` compare by value; the process compares by *type*, which also fixes which
+# fields are `Distribution`s and hence whether `sites` is `nothing`.
+_groupkey(u::MarkovChains) = (typeof(u.process), u.init, u.param)
 
 # Field names of `p` that are fitted (Distribution) and that are fixed (numeric).
 _fitkeys(p::AbstractGaussMarkovProcess) = keys(hyperprior(p))
 _numkeys(p::AbstractGaussMarkovProcess) = filter(!Base.Fix2(in, _fitkeys(p)), propertynames(p))
 
-# Concatenate the members' `_free_point_tables`. Every column carries over verbatim except
-# `pofs`, which is an offset *within* a chain's latent block and so shifts by the running
-# base — the rule itself stays in `_free_point_tables`. `hpi` (point -> member) and the
-# `hasfix` reduction are the only genuinely new columns. A chain's first free point always
-# has `lfree == 0`, so a shifted `pofs` never reaches across a chain boundary and the
-# coloring scan's carry still resets there.
-function _group_free(specs)
-    ks = (:tgt, :lidx, :dtl, :mskl, :lfree, :fidx, :dtf, :mskf)
-    cols = NamedTuple{ks}(map(k -> reduce(vcat, (getproperty(sp.free, k) for sp in specs)), ks))
-    ns = [length(sp.free.tgt) for sp in specs]
-    bases = cumsum(ns) .- ns
-    pofs = reduce(vcat, (sp.free.pofs .+ b for (sp, b) in zip(specs, bases)))
-    hpi = reduce(vcat, (fill(j, n) for (j, n) in enumerate(ns)))
-    return (; cols..., pofs, hpi, hasfix = any(sp -> sp.free.hasfix, specs))
+_nchains(u::MarkovChains) = length(u.spans)
+
+# Concatenate the columns of per-unit tables, adding `shifts[k][j]` to column `k` of unit `j`.
+function _cattable(tabs, shifts::NamedTuple)
+    ks = keys(first(tabs))
+    return NamedTuple{ks}(
+        map(ks) do k
+            cols = [getproperty(t, k) for t in tabs]
+            haskey(shifts, k) || return reduce(vcat, cols)
+            return reduce(vcat, map((c, b) -> c .+ b, cols, shifts[k]))
+        end
+    )
 end
 
-# Per-time-stamp tables for the batched chain log-density. Each entry carries the flat
-# index of its point and of the point before it *in the same chain*, the gap between them,
-# and a mask marking the chain-opening entries, whose transition term is replaced by the
-# initial-marginal term. A chain-opening entry reads itself as its predecessor over a
-# dummy 1 hour gap, so the masked-off transition stays finite rather than `0 * NaN`.
-# `Δ0` propagates the initial marginal to the first time stamp of a subset (see
-# `chain_term`); `z0` is its host-computed `iszero` indicator, which keeps the
-# `marginal_moments` shortcut branchless now that `Δ0` is a per-point table read.
-function _group_chain(chains, T)
-    inds = Int[]; pinds = Int[]; dts = T[]; opens = T[]; dt0 = T[]; hpi = Int[]
-    for (j, ch) in chains
-        I, ts, Δ0 = ch
-        for i in eachindex(I)
-            push!(inds, I[i]); push!(hpi, j)
-            if i == firstindex(I)
-                push!(pinds, I[i]); push!(dts, one(T)); push!(opens, one(T)); push!(dt0, T(Δ0))
-            else
-                push!(pinds, I[i - 1]); push!(dts, T(ts[i] - ts[i - 1]))
-                push!(opens, zero(T)); push!(dt0, zero(T))
-            end
-        end
+_bases(ns) = cumsum(ns) .- ns
+
+# `v` once per chain of a unit with `n` chains.
+_perchain(v::AbstractVector, n) = v
+_perchain(v, n) = fill(v, n)
+
+# Concatenate compatible `MarkovChains` (see `_groupkey`) into one. Every table column
+# carries over verbatim except the indices into the chains (`hpi`) and `pofs`, an offset
+# *within* the latent block, which shift by the running base. A chain's first free point
+# always has `lfree == 0`, so a shifted `pofs` never reaches across a chain boundary and
+# the coloring scan's carry still resets there.
+function MarkovChains(units::AbstractVector{<:MarkovChains})
+    u1 = first(units)
+    cbase = _bases(map(_nchains, units))
+    fbase = _bases(map(_nfree, units))
+    free = _cattable(
+        [Base.structdiff(u.free, NamedTuple{(:hasfix,)}) for u in units],
+        (hpi = cbase, pofs = fbase)
+    )
+    # A numeric field every chain shares stays a *scalar*, so the arithmetic built from it
+    # (σ², 2/τ, the Φ clamp) constant-folds instead of becoming a runtime gather over a
+    # constant vector. Only genuinely per-site values pay for the gather.
+    numvals = map(keys(u1.numvals)) do k
+        vs = reduce(vcat, [_perchain(getproperty(u.numvals, k), _nchains(u)) for u in units])
+        return allequal(vs) ? first(vs) : vs
     end
-    return (; inds, pinds, dts, opens, dt0, z0 = T.(iszero.(dt0)), hpi)
-end
-
-function MarkovGroup(specs::AbstractVector{<:MarkovChainSpec})
-    s1 = first(specs)
-    T = eltype(s1.free.dtl)
-    fitk = _fitkeys(s1.process)
-    sites = isempty(fitk) ? nothing : Tuple(_hpsite(sp) for sp in specs)
-    # A numeric field whose value every member shares stays a *scalar*, so the arithmetic
-    # built from it (σ², 2/τ, the Φ clamp) constant-folds exactly as it did per chain
-    # instead of becoming a runtime gather over a constant vector. Only genuinely per-site
-    # overrides pay for the gather.
-    numvals = NamedTuple{_numkeys(s1.process)}(
-        map(_numkeys(s1.process)) do k
-            vs = [getproperty(sp.process, k) for sp in specs]
-            return allequal(vs) ? first(vs) : vs
-        end
-    )
-    # A fully reference-fixed chain conditions on itself: its two log-density passes are
-    # identical for any hyperparameters and cancel, so drop it from both tables rather
-    # than emitting the cancelling work (the per-chain `chain_term` short-circuits it).
-    live = [(j, sp) for (j, sp) in enumerate(specs) if length(sp.fsub.inds) != length(sp.inds)]
-    chain = _group_chain(((j, (sp.inds, sp.ts, zero(T))) for (j, sp) in live), T)
-    # Only chains that actually have reference-fixed points contribute the conditioning
-    # subtraction; the rest have nothing to condition on.
-    fsub = _group_chain(
-        (
-            (j, (sp.fsub.inds, sp.fsub.ts, first(sp.fsub.ts) - first(sp.ts)))
-                for (j, sp) in live if !isempty(sp.fsub.inds)
-        ),
-        T
-    )
-    return MarkovGroup(
-        s1.process, s1.init, Val(sites), s1.param, numvals,
-        _group_free(specs), chain, fsub
+    sites = u1.sites === Val(nothing) ? nothing : reduce((a, b) -> (a..., b...), (_sitetuple(u.sites) for u in units))
+    ibase = _bases(map(u -> length(u.inds), units))
+    return MarkovChains(
+        u1.process, u1.init, Val(sites), u1.param, NamedTuple{keys(u1.numvals)}(numvals),
+        reduce(vcat, [u.inds for u in units]), reduce(vcat, [u.ts for u in units]),
+        reduce(vcat, map((u, b) -> map(r -> r .+ b, u.spans), units, ibase)),
+        reduce(vcat, [u.fixed for u in units]),
+        (; free..., hasfix = any(u -> u.free.hasfix, units)),
+        _cattable_nested([u.chain for u in units], cbase),
+        _cattable_nested([u.fsub for u in units], cbase),
     )
 end
 
-# Read through the field rather than by type-parameter position: the site key is one of
-# several parameters and a positional match silently follows any change to their order.
-_hpsite(spec::MarkovChainSpec) = _hpkey(spec.hpsel)
-_hpkey(::Val{K}) where {K} = K
+_sitetuple(::Val{S}) where {S} = S
 
-# Partition the spec tuple into maximal runs of groupable chains, preserving order (and
+_cattable_nested(tabs, cbase) = map(
+    k -> _cattable([getproperty(t, k) for t in tabs], (hpi = cbase,)), (open = :open, step = :step)
+)
+
+# Partition the chain tuple into maximal runs of compatible chains, preserving order (and
 # hence the flat coordinate layout). `IIDChainSpec`s pass through unchanged.
-function _build_groups(specs::Tuple)
-    units = Any[]
-    run = MarkovChainSpec[]
-    flush!() = (isempty(run) || (push!(units, MarkovGroup(run)); run = MarkovChainSpec[]))
-    for sp in specs
-        if sp isa MarkovChainSpec
-            (isempty(run) || isequal(_groupkey(first(run)), _groupkey(sp))) || flush!()
-            push!(run, sp)
+function _build_groups(units::Tuple)
+    out = Any[]
+    run = MarkovChains[]
+    flush!() = (isempty(run) || (push!(out, MarkovChains(run)); run = MarkovChains[]))
+    for u in units
+        if u isa MarkovChains
+            (isempty(run) || isequal(_groupkey(first(run)), _groupkey(u))) || flush!()
+            push!(run, u)
         else
             flush!()
-            push!(units, sp)
+            push!(out, u)
         end
     end
     flush!()
-    return Tuple(units)
+    return Tuple(out)
 end
 
 # ----- per-point process materialization ---------------------------------------
 #
-# The one thing a batched loop needs that a per-chain loop does not: each point's own
-# process parameters. Fitted fields are stacked into a length-`nchain` vector (one
-# `concatenate` per field) and gathered per point; fixed fields are host constants, which
-# the compiler folds. `setproperties` then rebuilds the process exactly as `materialize`
-# does, so every downstream formula is byte-identical to the per-chain path.
+# Each point's own process parameters. Fitted fields of several chains are stacked into a
+# length-`nchain` vector (one `concatenate` per field) and gathered per point; fixed fields
+# are host constants, which the compiler folds. `setproperties` then rebuilds the process
+# exactly as `materialize` does. When every value is a scalar — a single chain, or chains
+# sharing every value — the process is built once per walker instead, so it stays
+# loop-invariant: its derived quantities hoist out of the loop, and Enzyme accumulates each
+# hyperparameter's derivative into a scalar rather than scatter-adding into a vector.
+# `_unit_params` is evaluated once per walker and `_unit_process` once per point.
 
 # `vcat(t...)`, NOT `reduce(vcat, t)`. The n-ary form is one `stablehlo.concatenate`; the
 # left fold is K-1 pairwise ones, and from the second step on it concatenates a *traced
 # array* with a *traced scalar*, which drops off Reactant's fast path into Base's generic
 # `typed_vcat` and aborts the trace with "Scalar indexing is disallowed" (Reactant ≥ 0.2.280).
+@inline _stackvals(t::Tuple{Any}) = only(t)
 @inline _stackvals(t::Tuple) = vcat(t...)
 
-@inline _group_fieldvals(g::MarkovGroup, hp) = _group_fieldvals(g, g.sites, hp)
-@inline _group_fieldvals(g::MarkovGroup, ::Val{nothing}, hp) = g.numvals
-@inline function _group_fieldvals(g::MarkovGroup, ::Val{S}, hp) where {S}
-    fitk = _fitkeys(g.process)
+@inline _fieldvals(u::MarkovChains, ::Val{nothing}, hp) = u.numvals
+@inline function _fieldvals(u::MarkovChains, ::Val{S}, hp) where {S}
+    fitk = _fitkeys(u.process)
     fit = NamedTuple{fitk}(
         map(k -> _stackvals(map(s -> getproperty(getproperty(hp, s), k), S)), fitk)
     )
-    return merge(g.numvals, fit)
+    return merge(u.numvals, fit)
 end
 
-# A field the whole group shares is stored as a scalar and read straight through (see the
-# `numvals` comment); only a per-site one is gathered.
+@inline _unit_params(u::MarkovChains, hp) = _shared_process(u.process, _fieldvals(u, u.sites, hp))
+@inline _shared_process(p, vals::NamedTuple{F, <:Tuple{Vararg{Number}}}) where {F} = setproperties(p, vals)
+@inline _shared_process(p, vals) = vals
+
 @inline _gatherval(v::AbstractVector, j) = rgetindex(v, j)
 @inline _gatherval(x::Number, _) = x
 
-@inline function _point_process(g::MarkovGroup, vals::NamedTuple{F}, j) where {F}
-    return setproperties(g.process, NamedTuple{F}(map(v -> _gatherval(v, j), values(vals))))
-end
-
-# A single chain and a batched group expose the same surface to every walker below —
-# `process`, `init`, `param`, `free`, `_nfree` — so the walkers have one body each. The
-# only difference is where a point's process parameters come from: a single chain
-# materializes once up front, a group gathers per point. `_unit_params` is evaluated once
-# per walker, `_unit_process` once per point, and both collapse to the old code for a
-# single chain.
-
-@inline _unit_params(spec::MarkovChainSpec, hp) = materialize(spec.process, _selecthp(hp, spec.hpsel))
-@inline _unit_process(::MarkovChainSpec, p, j) = p
-@inline _hpidx(::MarkovChainSpec, free, k) = 1
-
-@inline _unit_params(g::MarkovGroup, hp) = _group_fieldvals(g, hp)
-@inline _unit_process(g::MarkovGroup, vals, j) = _point_process(g, vals, j)
-@inline _hpidx(::MarkovGroup, free, k) = rgetindex(free.hpi, k)
-
-# ----- the batched chain log-density --------------------------------------------
-
-function _group_chain_logpdf(g::MarkovGroup, tab, x, vals)
-    ℓ = zero(eltype(x))
-    @trace track_numbers = false for i in eachindex(tab.inds)
-        p = _point_process(g, vals, rgetindex(tab.hpi, i))
-        μ = _process_mean(p)
-        xi = rgetindex(x, rgetindex(tab.inds, i))
-        xp = rgetindex(x, rgetindex(tab.pinds, i))
-        op = rgetindex(tab.opens, i)
-        ℓ += op * _first_point_term(g.init, p, xi, rgetindex(tab.dt0, i), rgetindex(tab.z0, i)) +
-            (1 - op) * _transition_logpdf(p, xi, xp, rgetindex(tab.dts, i), μ)
-    end
-    return ℓ
-end
-
-@inline function chain_term(g::MarkovGroup, x, hp)
-    isempty(g.chain.inds) && return zero(eltype(x))
-    _fused_flat(g) && return _fused_chain_term(g.init, g, x, hp)
-    vals = _group_fieldvals(g, hp)
-    ℓ = _group_chain_logpdf(g, g.chain, x, vals)
-    isempty(g.fsub.inds) && return ℓ
-    return ℓ - _group_chain_logpdf(g, g.fsub, x, vals)
-end
+@inline _unit_process(::MarkovChains, p::AbstractGaussMarkovProcess, j) = p
+@inline _unit_process(u::MarkovChains, vals::NamedTuple, j) =
+    setproperties(u.process, map(v -> _gatherval(v, j), vals))
+@inline _hpidx(::MarkovChains, free, k) = rgetindex(free.hpi, k)
 
 # ----- exact conditional sampling (OU bridge) -----------------------------------
 # rand-only code, never in the logpdf hot path. `_fill_fixed!` zero-initializes, which
@@ -946,22 +886,23 @@ function _rand_chain!(rng::Random.AbstractRNG, x, spec::IIDChainSpec, hp)
     return x
 end
 
-function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec, hp)
-    p = materialize(spec.process, _selecthp(hp, spec.hpsel))
+function _rand_chain!(rng::Random.AbstractRNG, x, u::MarkovChains, hp)
     # Wrapped processes have no Gaussian conditionals, so this bridge would silently draw
     # unwrapped values ignoring winding. Each wrapped process registers its own sampler
-    # (dispatch, like `MarkovChainSpec{<:WrappedBrownian}` below); this guard makes a
-    # missing registration a loud error instead of wrong prior draws.
-    is_wrapped(p) && throw(
+    # (dispatch, like `MarkovChains{<:WrappedBrownian}` below); this guard makes a missing
+    # registration a loud error instead of wrong prior draws.
+    is_wrapped(u.process) && throw(
         ArgumentError(
-            "no chain sampler registered for the wrapped process $(typeof(p).name.name); " *
-                "define `_rand_chain!(rng, x, spec::MarkovChainSpec{<:$(typeof(p).name.name)}, hp)`"
+            "no chain sampler registered for the wrapped process $(typeof(u.process).name.name); " *
+                "define `_rand_chain!(rng, x, u::MarkovChains{<:$(typeof(u.process).name.name)}, hp)`"
         )
     )
-    μ = _process_mean(p)
-    m₀, P₀ = initial_moments(spec.init, p)
-    free = spec.free
-    @trace track_numbers = false for k in 1:_nfree(spec)
+    vals = _unit_params(u, hp)
+    free = u.free
+    @trace track_numbers = false for k in 1:_nfree(u)
+        p = _unit_process(u, vals, _hpidx(u, free, k))
+        μ = _process_mean(p)
+        m₀, P₀ = initial_moments(u.init, p)
         m, s = _free_moments(p, μ, m₀, P₀, x, free, k)
         rsetindex!(x, m + s * randn(rng, typeof(m)), rgetindex(free.tgt, k))
     end
@@ -992,27 +933,21 @@ function _sample_winding(rng::Random.AbstractRNG, Δθ, QT)
     return W
 end
 
-function _rand_chain!(rng::Random.AbstractRNG, x, spec::MarkovChainSpec{<:WrappedBrownian}, hp)
-    p = materialize(spec.process, _selecthp(hp, spec.hpsel))
-    inds = spec.inds
-    ts = spec.ts
+function _rand_chain!(rng::Random.AbstractRNG, x, u::MarkovChains{<:WrappedBrownian}, hp)
+    vals = _unit_params(u, hp)
+    for j in eachindex(u.spans)
+        r = u.spans[j]
+        _rand_wrapped_walk!(rng, x, _unit_process(u, vals, j), u.inds[r], u.ts[r], findall(u.fixed[r]))
+    end
+    return x
+end
+
+function _rand_wrapped_walk!(rng::Random.AbstractRNG, x, p, inds, ts, fixpos)
     T = float(eltype(x))
     # A wrapped chain is built only over the stamps where its site is free (`ref_is_gauge`),
     # so a site that is the reference at every one of its stamps has an empty chain. Its
     # values are all reference-fixed and `_fill_fixed!` has already placed them.
     isempty(inds) && return x
-
-    # positions of the fixed points, in chain order (`fsub.inds` preserves it)
-    fx = spec.fsub.inds
-    fixpos = Vector{Int}(undef, length(fx))
-    j = 1
-    for i in eachindex(inds)
-        j > length(fx) && break
-        if inds[i] == fx[j]
-            fixpos[j] = i
-            j += 1
-        end
-    end
 
     step_walk(prev, Δt) = _wrap_angle(prev + sqrt(_increment_var(p, Δt)) * randn(rng, T))
 
@@ -1062,14 +997,15 @@ end
 # rand-only path — the log-density is exact.
 function _rand_chain!(
         rng::Random.AbstractRNG, x,
-        spec::MarkovChainSpec{<:Union{WrappedOrnsteinUhlenbeck, VonMisesProcess}}, hp
+        u::MarkovChains{<:Union{WrappedOrnsteinUhlenbeck, VonMisesProcess}}, hp
     )
-    p = materialize(spec.process, _selecthp(hp, spec.hpsel))
-    μ = _process_mean(p)
-    m₀, P₀ = initial_moments(spec.init, p)
-    free = spec.free
+    vals = _unit_params(u, hp)
+    free = u.free
     T = float(eltype(x))
-    for k in 1:_nfree(spec)
+    for k in 1:_nfree(u)
+        p = _unit_process(u, vals, _hpidx(u, free, k))
+        μ = _process_mean(p)
+        m₀, P₀ = initial_moments(u.init, p)
         Φl, Ql = transition_moments(p, free.dtl[k])
         ml = free.mskl[k]
         # prior-from-the-left: the transition from the previous chain value, or the init
@@ -1105,16 +1041,16 @@ end
 
 # Only the angle embedding costs two latent reals per free phase; every other
 # parameterization takes one coordinate per free point.
-_flat_dim(spec::ChainUnit) =
+_flat_dim(spec::MarkovChains) =
     spec.param isa AngleEmbedded ? 2 * _nfree(spec) : _nfree(spec)
 _flat_dim(spec::IIDChainSpec) = _nfree(spec) * TV.dimension(PT.transport_node(spec.dist, PT.TVFlat()))
 _flat_dim(d::GaussMarkovChainDist) = sum(_flat_dim, chaingroups(d); init = 0)
 
-_std_dim(spec::ChainUnit, space) = _nfree(spec)
+_std_dim(spec::MarkovChains, space) = _nfree(spec)
 _std_dim(spec::IIDChainSpec, space) = _nfree(spec) * PT.dimension(PT.transport_node(spec.dist, space))
 _std_dim(d::GaussMarkovChainDist, space) = sum(Base.Fix2(_std_dim, space), chaingroups(d); init = 0)
 
-_std_transportable(spec::ChainUnit) = spec.param isa NonCentered && !is_wrapped(spec.process)
+_std_transportable(spec::MarkovChains) = spec.param isa NonCentered && !is_wrapped(spec.process)
 _std_transportable(::IIDChainSpec) = true
 function _check_std_transportable(d::GaussMarkovChainDist)
     all(_std_transportable, chaingroups(d)) || throw(
@@ -1184,7 +1120,7 @@ end
 # coordinates carry no 2π ambiguity. The chain density is still evaluated on the angles by
 # `chain_term`, so the exact refant conditioning is untouched, and the transform is
 # hyperparameter-independent, so the process is never materialized here.
-function _color_chain_wrapped!(flag, y, x, index, spec::ChainUnit)
+function _color_chain_wrapped!(flag, y, x, index, spec::MarkovChains)
     free = spec.free
     n = _nfree(spec)
     t = PT.angle_transform()
@@ -1192,11 +1128,12 @@ function _color_chain_wrapped!(flag, y, x, index, spec::ChainUnit)
     # positions serializes under Reactant's loop raising (a scattered-index scatter never
     # raises; scattered gathers and contiguous writes do). Stage into a contiguous temp
     # and finish with one vectorized `scatter_values!`.
-    step = k -> TV.transform_with(flag, t, x, index + 2 * (k - 1))
-    θs = _traced_fill!(k -> first(step(k)), similar(y, n), 1, n)
+    θs, ℓs = _traced_fill!((similar(y, n), similar(x, n)), (1, 1), n) do k
+        θ, ℓk, _ = TV.transform_with(TV.LogJac(), t, x, index + 2 * (k - 1))
+        return θ, ℓk
+    end
     scatter_values!(y, free.tgt, θs)
-    flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + 2n
-    return _traced_sum(k -> step(k)[2], x, n), index + 2n
+    return _logjac_sum(flag, ℓs), index + 2n
 end
 
 # Wrapped chains, centered (raw-angle) coordinates: one flat coordinate `φ` per free
@@ -1212,14 +1149,11 @@ end
 # sum to one. Reading the anchor from `x` rather than from the
 # colored `y` is what keeps this a pointwise loop: there is no recurrence to resolve, so
 # it raises under Reactant exactly like the other stage-then-scatter walkers.
-function _color_chain_wrapped_centered!(flag, y, x, index, spec::ChainUnit, hp)
+function _color_chain_wrapped_centered!(flag, y, x, index, spec::MarkovChains, hp)
     free = spec.free
     n = _nfree(spec)
     vals = _unit_params(spec, hp)
-    θs = _traced_fill!(k -> _wrap_angle(rgetindex(x, index + k - 1)), similar(y, n), 1, n)
-    scatter_values!(y, free.tgt, θs)
-    flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + n
-    ℓ = _traced_sum(x, n) do k
+    θs, ℓs = _traced_fill!((similar(y, n), similar(x, n)), (1, 1), n) do k
         p = _unit_process(spec, vals, _hpidx(spec, free, k))
         μ = _process_mean(p)
         φ = rgetindex(x, index + k - 1)
@@ -1234,9 +1168,10 @@ function _color_chain_wrapped_centered!(flag, y, x, index, spec::ChainUnit, hp)
         # so the unused transition weight is finite rather than NaN.
         wt = _sheet_logweight(p, φ, anchor, rgetindex(free.dtl, k), μ)
         w0 = _init_sheet_logweight(spec.init, p, φ)
-        return ml * wt + (1 - ml) * w0
+        return _wrap_angle(φ), ml * wt + (1 - ml) * w0
     end
-    return ℓ, index + n
+    scatter_values!(y, free.tgt, θs)
+    return _logjac_sum(flag, ℓs), index + n
 end
 
 # Wrapped chains, non-centered coordinates: the coordinate of each free phase is its
@@ -1253,30 +1188,25 @@ end
 #
 # `_cond_mean` must be affine in the previous point for the running sum to be a first-order
 # affine scan; `_check_param` rejects the processes where it is not.
-function _color_chain_wrapped_noncentered!(flag, y, x, index, sidx, av, cv, spec::ChainUnit, hp)
+function _color_chain_wrapped_noncentered!(flag, y, x, index, sidx, av, cv, spec::MarkovChains, hp)
     free = spec.free
     n = _nfree(spec)
     vals = _unit_params(spec, hp)
-    # `a = lfree` resets the carry wherever the previous chain value is not another free
-    # point; the fixed value it steps off is then a constant in `c`.
-    _traced_fill!(k -> rgetindex(free.lfree, k), av, sidx, n)
-    _traced_fill!(cv, sidx, n) do k
+    ℓs = similar(x, n)
+    _traced_fill!((av, cv, ℓs), (sidx, sidx, 1), n) do k
         p = _unit_process(spec, vals, _hpidx(spec, free, k))
         _, Q = transition_moments(p, rgetindex(free.dtl, k))
         ml = rgetindex(free.mskl, k)
         lf = rgetindex(free.lfree, k)
         z = rgetindex(x, index + k - 1)
-        return ml * (sqrt(Q) * z + (1 - lf) * rgetindex(y, rgetindex(free.lidx, k))) + (1 - ml) * z
-    end
-    flag isa TV.NoLogJac && return TV.logjac_zero(flag, eltype(x)), index + n, sidx + n
-    ℓ = _traced_sum(x, n) do k
-        p = _unit_process(spec, vals, _hpidx(spec, free, k))
-        ml = rgetindex(free.mskl, k)
-        z = rgetindex(x, index + k - 1)
-        return ml * (-(z^2 + log(oftype(float(z), 2π))) / 2) +
+        # `a = lfree` resets the carry wherever the previous chain value is not another
+        # free point; the fixed value it steps off is then a constant in `c`.
+        c = ml * (sqrt(Q) * z + (1 - lf) * rgetindex(y, rgetindex(free.lidx, k))) + (1 - ml) * z
+        ℓk = ml * (-(z^2 + log(oftype(float(z), 2π))) / 2) +
             (1 - ml) * _init_sheet_logweight(spec.init, p, z)
+        return lf, c, ℓk
     end
-    return ℓ, index + n, sidx + n
+    return _logjac_sum(flag, ℓs), index + n, sidx + n
 end
 
 # Wrapped chains, non-centered coordinates, for a process whose transition mean carries
@@ -1289,9 +1219,9 @@ end
 # Equivariance (`m(θ + 2πs) = m(θ) + 2πs`) lets the carry run on the *wrapped* angles: a
 # sheet shift of the carry shifts the mean by the same `2π` multiple, which the wrap
 # removes, so no unwrapped running phase is needed. Sequential by nature — under Reactant
-# a `stablehlo.while` per group, which is why this parameterization targets scan-level
+# a `stablehlo.while` per unit, which is why this parameterization targets scan-level
 # chains rather than IntegSeg-scale ones.
-function _color_chain_wrapped_recur!(flag, y, x, index, spec::ChainUnit, hp)
+function _color_chain_wrapped_recur!(flag, y, x, index, spec::MarkovChains, hp)
     free = spec.free
     n = _nfree(spec)
     vals = _unit_params(spec, hp)
@@ -1321,7 +1251,7 @@ function _color_chain_wrapped_recur!(flag, y, x, index, spec::ChainUnit, hp)
     return ℓ, index + n
 end
 
-function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::ChainUnit, hp)
+function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::MarkovChains, hp)
     free = spec.free
     n = _nfree(spec)
     ℓ0 = TV.logjac_zero(flag, eltype(x))
@@ -1348,31 +1278,29 @@ function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::ChainUnit, hp
     end
     vals = _unit_params(spec, hp)
     # The recurrence `y[tgt[k]] = m(y[tgt[k-1]]) + s*x[k]` is affine in the previous
-    # free value, so split it: these loops compute the coefficients `(a, c)` — reading
-    # only tables, hyperparameters, and fixed values, with contiguous writes, so they
-    # raise under Reactant. The recurrence itself is resolved by the caller's single
+    # free value, so split it: this loop computes the coefficients `(a, c)` — reading
+    # only tables, hyperparameters, and fixed values, with contiguous writes, so it
+    # raises under Reactant. The recurrence itself is resolved by the caller's single
     # batched `affine_scan!` over all chains.
-    coef = k -> _unit_affine(spec, vals, y, free, k)
-    _traced_fill!(k -> first(coef(k)), av, sidx, n)
-    _traced_fill!(cv, sidx, n) do k
-        _, c, s = coef(k)
-        return c + s * rgetindex(x, index + k - 1)
+    ℓs = similar(x, n)
+    _traced_fill!((av, cv, ℓs), (sidx, sidx, 1), n) do k
+        a, c, s = _unit_affine(spec, vals, y, free, k)
+        return a, c + s * rgetindex(x, index + k - 1), log(s)
     end
-    flag isa TV.NoLogJac && return ℓ0, index + n, sidx + n
-    return _traced_sum(k -> log(last(coef(k))), x, n), index + n, sidx + n
+    return _logjac_sum(flag, ℓs), index + n, sidx + n
 end
 
 function _color_chain_flat!(flag, y, x, index, sidx, av, cv, spec::IIDChainSpec, hp)
-    ℓ = TV.logjac_zero(flag, eltype(x))
     dim = TV.dimension(spec.fnode)
     n = _nfree(spec)
     # Independent pointwise transforms; stage contiguously so the loop raises and the
     # scattered write is a single vectorized scatter (see `_color_chain_wrapped!`).
-    step = k -> TV.transform_with(flag, spec.fnode, x, index + (k - 1) * dim)
-    ys = _traced_fill!(k -> first(step(k)), similar(y, n), 1, n)
+    ys, ℓs = _traced_fill!((similar(y, n), similar(x, n)), (1, 1), n) do k
+        yk, ℓk, _ = TV.transform_with(TV.LogJac(), spec.fnode, x, index + (k - 1) * dim)
+        return yk, ℓk
+    end
     scatter_values!(y, spec.freeinds, ys)
-    flag isa TV.NoLogJac && return ℓ, index + n * dim, sidx
-    return _traced_sum(k -> step(k)[2], x, n), index + n * dim, sidx
+    return _logjac_sum(flag, ℓs), index + n * dim, sidx
 end
 
 @inline _whiten_specs_flat!(x, index, y, ::Tuple{}, hp) = index
@@ -1381,26 +1309,15 @@ end
     return _whiten_specs_flat!(x, index, y, Base.tail(specs), hp)
 end
 
-# Inverse of the centered wrapped lift. The coloring stores wrapped angles, so the
-# coordinates are recovered by *unwrapping* the chain: each free point's coordinate is
-# its own sheet anchor plus the wrapped step onto it, which places every point on the
-# sheet the coloring's weight favours (steps within `(−π, π]`) instead of on whatever
-# sheet the stored angle happened to land. Anchoring on the previous *coordinate* makes
-# this a first-order recurrence, resolved with the same `affine_scan!` as the coloring
-# rather than a loop-carried traced loop. `transform ∘ inverse` is the identity on
-# wrapped angles; `inverse ∘ transform` is not (the sheet is not recoverable from the
-# angle), as for the angle embedding.
 # Inverse of the centered wrapped lift for a process whose transition mean is itself
 # `2π`-periodic (`_periodic_mean`): `_cond_mean` then reads the previous point only through
-# its *angle*, so the sheet the coloring's weight favours is pinned by the stored angles
-# alone and the unwrap is pointwise — there is no recurrence to resolve, unlike the
-# `WrappedBrownian` case below whose Φ ≡ 1 mean carries the previous point's sheet. The
-# chain-opening point takes the centre of `_init_window`, the same window its weight used.
-function _whiten_chain_wrapped_pointwise!(x, index, y, spec::ChainUnit, hp)
+# its *angle*, so the sheet the coloring's weight favors is pinned by the stored angles
+# alone and the unwrap is pointwise. The chain-opening point takes the centre of
+# `_init_window`, the same window its weight used.
+function _whiten_chain_wrapped_pointwise!(x, index, y, spec::MarkovChains, hp)
     free = spec.free
-    n = _nfree(spec)
     vals = _unit_params(spec, hp)
-    @trace track_numbers = false for k in 1:n
+    _traced_fill!(x, index, _nfree(spec)) do k
         p = _unit_process(spec, vals, _hpidx(spec, free, k))
         μ = _process_mean(p)
         m₀, _ = _init_window(spec.init, p, zero(eltype(x)))
@@ -1409,40 +1326,20 @@ function _whiten_chain_wrapped_pointwise!(x, index, y, spec::ChainUnit, hp)
         Φ, _ = transition_moments(p, rgetindex(free.dtl, k))
         yl = rgetindex(y, rgetindex(free.lidx, k))
         m = ml * _cond_mean(p, yl, Φ, μ) + (1 - ml) * m₀
-        rsetindex!(x, m + _wrap_angle(θ - m), index + k - 1)
+        return m + _wrap_angle(θ - m)
     end
-    return index + n
-end
-
-function _whiten_chain_wrapped_centered!(x, index, y, spec::ChainUnit)
-    free = spec.free
-    n = _nfree(spec)
-    a = similar(x, n)
-    c = similar(x, n)
-    @trace track_numbers = false for k in 1:n
-        θ = rgetindex(y, rgetindex(free.tgt, k))
-        ml = rgetindex(free.mskl, k)
-        lf = rgetindex(free.lfree, k)
-        # zero for a chain-opening point, whose window is centered at zero
-        yl = ml * rgetindex(y, rgetindex(free.lidx, k))
-        rsetindex!(a, lf, k)
-        rsetindex!(c, _wrap_angle(θ - yl) + (1 - lf) * yl, k)
-    end
-    affine_scan!(a, c)
-    @trace track_numbers = false for k in 1:n
-        rsetindex!(x, rgetindex(c, k), index + k - 1)
-    end
-    return index + n
+    return index + _nfree(spec)
 end
 
 # Inverse of the centered wrapped lift for a process whose transition mean carries the
-# previous point's sheet but is nonlinear in it (`VonMisesProcess`): the coordinate the
-# weights favour is `φₖ = m(φₖ₋₁) + wrap(θₖ − m(φₖ₋₁))`, and the mean of the previous
-# *coordinate* — equivariance makes it congruent to `m` of the stored angle modulo `2π`,
-# but its sheet needs the coordinate itself — enters nonlinearly, so unlike the affine
-# unwrap above this is a loop-carried recurrence. Inverse-only; never in the log-density
-# hot path.
-function _whiten_chain_wrapped_centered_recur!(x, index, y, spec::ChainUnit, hp)
+# previous point's sheet. The coloring stores wrapped angles, so the coordinates are
+# recovered by *unwrapping* the chain: each free point's coordinate is its sheet anchor's
+# mean plus the wrapped step onto it, `φₖ = m(φₖ₋₁) + wrap(θₖ − m(φₖ₋₁))`, which places every
+# point on the sheet the coloring's weight favors. The mean of the previous *coordinate*
+# fixes the sheet, so this is a loop-carried recurrence. `transform ∘ inverse` is the
+# identity on wrapped angles; `inverse ∘ transform` is not (the sheet is not recoverable
+# from the angle), as for the angle embedding.
+function _whiten_chain_wrapped_centered!(x, index, y, spec::MarkovChains, hp)
     free = spec.free
     n = _nfree(spec)
     vals = _unit_params(spec, hp)
@@ -1469,7 +1366,7 @@ end
 
 # Inverse of the non-centered wrapped lift: each coordinate is the wrapped step onto its
 # free point's transition mean divided by that step's standard deviation, which places the
-# step in `(−π, π]` — the sheet the coloring's weight favours. This is pointwise for
+# step in `(−π, π]` — the sheet the coloring's weight favors. This is pointwise for
 # *every* process the lift admits, the nonlinear sine drift included: the mean is
 # `2π`-equivariant, so its value modulo `2π` — all the wrapped step needs — is readable
 # from the stored previous angle, with no recurrence to resolve. The chain-opening point's
@@ -1477,11 +1374,11 @@ end
 # coloring. `transform ∘ inverse` is the identity on wrapped angles; `inverse ∘ transform`
 # is not (the sheet is not recoverable from the angle), as for the centered lift and the
 # angle embedding.
-function _whiten_chain_wrapped_noncentered!(x, index, y, spec::ChainUnit, hp)
+function _whiten_chain_wrapped_noncentered!(x, index, y, spec::MarkovChains, hp)
     free = spec.free
     n = _nfree(spec)
     vals = _unit_params(spec, hp)
-    @trace track_numbers = false for k in 1:n
+    _traced_fill!(x, index, n) do k
         p = _unit_process(spec, vals, _hpidx(spec, free, k))
         μ = _process_mean(p)
         Φ, Q = transition_moments(p, rgetindex(free.dtl, k))
@@ -1489,16 +1386,12 @@ function _whiten_chain_wrapped_noncentered!(x, index, y, spec::ChainUnit, hp)
         θ = rgetindex(y, rgetindex(free.tgt, k))
         ml = rgetindex(free.mskl, k)
         m = _cond_mean(p, rgetindex(y, rgetindex(free.lidx, k)), Φ, μ)
-        rsetindex!(
-            x,
-            ml * (_wrap_angle(θ - m) / sqrt(Q)) + (1 - ml) * (m₀ + _wrap_angle(θ - m₀)),
-            index + k - 1
-        )
+        return ml * (_wrap_angle(θ - m) / sqrt(Q)) + (1 - ml) * (m₀ + _wrap_angle(θ - m₀))
     end
     return index + n
 end
 
-function _whiten_chain_flat!(x, index, y, spec::ChainUnit, hp)
+function _whiten_chain_flat!(x, index, y, spec::MarkovChains, hp)
     free = spec.free
     if spec.param isa AngleEmbedded
         # Inverse of the angle embedding, `(sin θ, cos θ)` (radius 1); the coloring's
@@ -1520,25 +1413,21 @@ function _whiten_chain_flat!(x, index, y, spec::ChainUnit, hp)
             # so these are host-static branches.
             _periodic_mean(spec.process) &&
                 return _whiten_chain_wrapped_pointwise!(x, index, y, spec, hp)
-            has_affine_lift(spec.process) &&
-                return _whiten_chain_wrapped_centered!(x, index, y, spec)
-            return _whiten_chain_wrapped_centered_recur!(x, index, y, spec, hp)
+            return _whiten_chain_wrapped_centered!(x, index, y, spec, hp)
         end
-        @trace track_numbers = false for k in 1:n
-            rsetindex!(x, rgetindex(y, rgetindex(free.tgt, k)), index + k - 1)
-        end
+        _traced_fill!(k -> rgetindex(y, rgetindex(free.tgt, k)), x, index, n)
         return index + n
     end
     if is_wrapped(spec.process)
         return _whiten_chain_wrapped_noncentered!(x, index, y, spec, hp)
     end
     vals = _unit_params(spec, hp)
-    @trace track_numbers = false for k in 1:_nfree(spec)
+    _traced_fill!(x, index, _nfree(spec)) do k
         p = _unit_process(spec, vals, _hpidx(spec, free, k))
         μ = _process_mean(p)
         m₀, P₀ = initial_moments(spec.init, p)
         m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
-        rsetindex!(x, (rgetindex(y, rgetindex(free.tgt, k)) - m) / s, index + k - 1)
+        return (rgetindex(y, rgetindex(free.tgt, k)) - m) / s
     end
     return index + _nfree(spec)
 end
@@ -1571,18 +1460,16 @@ function _color_all_std!(y, x, index, d::GaussMarkovChainDist, hp, space)
     return index
 end
 
-function _color_chain_std!(y, x, index, sidx, av, cv, spec::ChainUnit, hp, space)
+function _color_chain_std!(y, x, index, sidx, av, cv, spec::MarkovChains, hp, space)
     # centered and wrapped chains are rejected at node construction (`_check_std_transportable`)
     vals = _unit_params(spec, hp)
     free = spec.free
     n = _nfree(spec)
     # Same affine split as the flat coloring (see `_color_chain_flat!`): coefficients
     # staged in raisable loops; the caller's batched `affine_scan!` resolves them.
-    coef = k -> _unit_affine(spec, vals, y, free, k)
-    _traced_fill!(k -> first(coef(k)), av, sidx, n)
-    _traced_fill!(cv, sidx, n) do k
-        _, c, s = coef(k)
-        return c + s * _to_stdnormal(space, rgetindex(x, index + k - 1))
+    _traced_fill!((av, cv), (sidx, sidx), n) do k
+        a, c, s = _unit_affine(spec, vals, y, free, k)
+        return a, c + s * _to_stdnormal(space, rgetindex(x, index + k - 1))
     end
     return index + n, sidx + n
 end
@@ -1601,11 +1488,7 @@ function _color_chain_std!(y, x, index, sidx, av, cv, spec::IIDChainSpec, hp, sp
     n = _nfree(spec)
     # Independent pointwise transforms; stage contiguously so the loop raises and the
     # scattered write is a single vectorized scatter (see `_color_chain_wrapped!`).
-    ys = similar(y, n)
-    @trace track_numbers = false for k in 1:n
-        yi, _ = PT.pfwd_step(tin, x, index + (k - 1) * dim)
-        rsetindex!(ys, yi, k)
-    end
+    ys = _traced_fill!(k -> first(PT.pfwd_step(tin, x, index + (k - 1) * dim)), similar(y, n), 1, n)
     scatter_values!(y, spec.freeinds, ys)
     return index + n * dim, sidx
 end
@@ -1616,16 +1499,16 @@ end
     return _whiten_specs_std!(x, index, y, Base.tail(specs), hp, space)
 end
 
-function _whiten_chain_std!(x, index, y, spec::ChainUnit, hp, space)
+function _whiten_chain_std!(x, index, y, spec::MarkovChains, hp, space)
     vals = _unit_params(spec, hp)
     free = spec.free
     n = _nfree(spec)
-    @trace track_numbers = false for k in 1:n
+    _traced_fill!(x, index, n) do k
         p = _unit_process(spec, vals, _hpidx(spec, free, k))
         μ = _process_mean(p)
         m₀, P₀ = initial_moments(spec.init, p)
         m, s = _free_moments(p, μ, m₀, P₀, y, free, k)
-        rsetindex!(x, _from_stdnormal(space, (rgetindex(y, rgetindex(free.tgt, k)) - m) / s), index + k - 1)
+        return _from_stdnormal(space, (rgetindex(y, rgetindex(free.tgt, k)) - m) / s)
     end
     return index + n
 end
@@ -1822,7 +1705,7 @@ end
 # multi-day tracks continued past 24 h through the `mjd` field. The origin is the whole
 # array's first day, shared by every chain, so a chain's times are directly comparable
 # both to the data and between sites; times relative to each chain's own first point
-# would make `spec.ts` silently unmatchable against `Ti` and incomparable across
+# would make a chain's `ts` silently unmatchable against `Ti` and incomparable across
 # sites. Only *gaps* reach the process — `transition_moments`, the bridge, and the
 # `Δ0` of `_first_point_term` are all differences — so the origin never enters the
 # density; this is purely an interface property.
@@ -1856,7 +1739,7 @@ end
 function _chainspec(sp::GaussMarkovSitePrior, site, inds, ts, fixedpos)
     hpk = isempty(hyperprior(sp.process)) ? nothing : site
     keep, kept = _gauge_split(sp.process, sp.init, length(inds), fixedpos)
-    return MarkovChainSpec(sp.process, sp.init, Val(hpk), inds[keep], ts[keep], kept, sp.param)
+    return MarkovChains(sp.process, sp.init, Val(hpk), inds[keep], ts[keep], kept, sp.param)
 end
 
 function _chainspec(sp::IIDSitePrior, site, inds, ts, fixedpos)
@@ -1874,15 +1757,7 @@ function _working_type(site_dists::NamedTuple)
     return T === Union{} ? Float64 : T
 end
 
-function build_markov_observed(d::ArrayPrior, site_dists::NamedTuple, smap::SiteLookup, array)
-    d.phase && throw(
-        ArgumentError(
-            "phase=true is not supported with GaussMarkovSitePrior: the cumulative " *
-                "reparameterization it enables is superseded by the correlated prior itself. " *
-                "Model phases as unwrapped reals with e.g. an OrnsteinUhlenbeck prior and set " *
-                "phase=false."
-        )
-    )
+function build_markov_observed(d::ArrayPrior, site_dists::NamedTuple, smap::SiteLookup, t)
     d.centroid_station === nothing ||
         throw(ArgumentError("centroid_station is not supported with GaussMarkovSitePrior"))
     # The chain-machinery path has no first-stamp pin for IID sites; refusing here beats
@@ -1898,7 +1773,7 @@ function build_markov_observed(d::ArrayPrior, site_dists::NamedTuple, smap::Site
     end
 
     T = _working_type(site_dists)
-    finds, vals = reference_indices(array, smap, d.refant)
+    finds, vals = reference_indices(t, smap, d.refant)
     fixedinds = collect(Int, finds)
     fixedvals = vals === nothing ? T[] : collect(T, vals)
 
@@ -1943,8 +1818,7 @@ function build_markov_observed(d::ArrayPrior, site_dists::NamedTuple, smap::Site
 
     # Assemble the merged hyperprior: every site gets its own hyperparameters, nested
     # under the site name. The process in the ArrayPrior default is a per-site template,
-    # so its fitted fields are replicated for each site that uses it. Multi-frequency
-    # chains of the same site share that site's hyperparameters.
+    # so its fitted fields are replicated for each site that uses it.
     hp = (;)
     for (s, sp) in pairs(site_dists)
         sp isa GaussMarkovSitePrior || continue
@@ -1954,6 +1828,6 @@ function build_markov_observed(d::ArrayPrior, site_dists::NamedTuple, smap::Site
     end
 
     dists = GaussMarkovChainDist(chains, fixedinds, fixedvals, length(smap.times))
-    isempty(hp) && return ObservedArrayPrior(dists, smap, false)
+    isempty(hp) && return ObservedArrayPrior(dists, smap)
     return ObservedHierarchicalArrayPrior(dists, NamedDist(hp), smap)
 end

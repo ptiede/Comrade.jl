@@ -167,30 +167,6 @@ EnzymeRules.inactive(::typeof(frequencies), ::SiteLookup) = nothing
 EnzymeRules.inactive(::typeof(sites), ::SiteLookup) = nothing
 EnzymeRules.inactive(::typeof(lookup), ::SiteLookup) = nothing
 
-function sitemap!(f, out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
-    return map(lookup(slook)) do site
-        ysite = @view gains[site]
-        outsite = @view out[site]
-        outsite .= f.(ysite)
-    end
-end
-
-function sitemap(f, gains::AbstractArray{T}, slook::SiteLookup) where {T}
-    out = similar(gains)
-    sitemap!(f, out, gains, slook)
-    return out
-end
-
-function sitemap!(::typeof(cumsum), out::AbstractArray, gains::AbstractArray, slook::SiteLookup)
-    map(lookup(slook)) do site
-        ys = @view gains[site]
-        outs = @view out[site]
-        cumsum!(outs, ys)
-        nothing
-    end
-    return out
-end
-
 """
     SiteLookup(s::SiteArray)
 

@@ -16,8 +16,22 @@ function Comrade.prepare_device(m::Comrade.ObservedSkyModel, ex::ReactantEx)
     return Comrade.ObservedSkyModel(Comrade.prepare_device(m.f, ex), grid, Reactant.to_rarray(m.metadata))
 end
 
+# The cell layout stays on the host, so indexing with it traces to constant gathers.
 function Comrade.prepare_device(m::Comrade.ObservedInstrumentModel, ex::ReactantEx)
-    return Comrade.ObservedInstrumentModel(Reactant.to_rarray(m.instrument), m.refbasis, m.bsitelookup)
+    return Comrade.ObservedInstrumentModel(_ondevice(m.instrument), m.refbasis, m.layout, m.pol, Comrade.corrected(m))
+end
+
+_ondevice(J) = Reactant.to_rarray(J)
+_ondevice(J::Comrade._StationGroups) = Comrade._StationGroups(Reactant.to_rarray(J.terms), J.cells)
+
+function Comrade.prepare_device(m::Comrade.ObservedSelfCalInstrumentModel, ex::ReactantEx)
+    stacks = map(st -> merge(st, (; eye = Reactant.to_rarray(st.eye))), m.layout.stacks)
+    layout = merge(m.layout, (; stacks))
+    return Comrade.ObservedSelfCalInstrumentModel(
+        Comrade.prepare_device(m.model, ex), m.phase,
+        map(Reactant.to_rarray, m.wdata), map(Reactant.to_rarray, m.weight), layout, m.squarings,
+        m.keep, m.entry1, m.entry2
+    )
 end
 
 function Comrade.prepare_device(grid::VLBISkyModels.FourierDualDomain, ex::ReactantEx)

@@ -7,7 +7,6 @@ using AdvancedHMC: AbstractHMCSampler
 using AbstractMCMC
 using AbstractMCMC: Sample
 using Accessors
-using ArgCheck
 using DocStringExtensions
 using LogDensityProblems
 using Printf

@@ -2,16 +2,14 @@ using Distributions
 using Optimization
 using OptimizationLBFGSB
 using StatsBase
-using Plots
 using LogDensityProblems
 using LogDensityProblemsAD
-using Pyehtim
 using Enzyme
 
 
 @testset "bayes" begin
     _, vis, amp, lcamp, cphase = load_data()
-    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
     post_cl = VLBIPosterior(skym, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
     post = VLBIPosterior(skym, vis)
@@ -178,9 +176,8 @@ using FiniteDifferences
 @testset "Polarized" begin
     _, vis, amp, lcamp, cphase, coh = load_data()
 
-    R = JonesR()
-    intm = InstrumentModel(R)
-    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
+    intm = InstrumentModel()
+    skym = SkyModel(test_skymodel_polarized, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
     post = VLBIPosterior(skym, intm, coh)
 
     tpost = asflat(post)
@@ -191,15 +188,13 @@ using FiniteDifferences
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
     @test gz ≈ gfd
 
-    R = JonesR()
-    Gp = JonesG(x -> (exp(complex(x.lg, x.gp)), exp(complex(x.lg, x.gp))))
-    J = JonesSandwich(Gp, R)
-    pr = (
+    Gp = Jones(
+        (x, c) -> gains(exp(complex(x.lg, x.gp)), exp(complex(x.lg, x.gp)));
         lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
+        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
     )
-    intm_coh = InstrumentModel(J, pr)
-    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
+    intm_coh = InstrumentModel(Gp)
+    skym = SkyModel(test_skymodel_polarized, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
     post = VLBIPosterior(skym, intm_coh, coh)
     tpost = asflat(post)
     x = prior_sample(tpost)
@@ -214,7 +209,7 @@ end
 
 @testset "simulate_obs" begin
     _, vis, amp, lcamp, cphase, coh = load_data()
-    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
 
     post_amp = VLBIPosterior(skym, amp)
@@ -222,13 +217,12 @@ end
     post_lc = VLBIPosterior(skym, lcamp)
     post_vis = VLBIPosterior(skym, vis)
 
-    G = SingleStokesGain(x -> exp(complex(x.lg, x.gp)))
-    intm = InstrumentModel(
-        G, (
-            lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
-        )
+    G = Jones(
+        (x, c) -> exp(complex(x.lg, x.gp));
+        lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
     )
+    intm = InstrumentModel(G)
     post_gvis = VLBIPosterior(skym, vis)
 
     fwhmfac = 2 * sqrt(2 * log(2))
@@ -243,7 +237,8 @@ end
         obs = simulate_observation(post, x)[begin]
         @test length(obs) == length(post.data[begin])
         obs_nn = simulate_observation(post, x, add_thermal_noise = false)[begin]
-        @test Comrade.measurement(obs_nn) == Comrade.likelihood(post.lklhds[1], last(Comrade.forward_model(post, x))).μ
+        μ = Comrade.likelihood(post.lklhds[1], last(Comrade.forward_model(post, x))).μ
+        @test Comrade._storage(Comrade.baseimage(Comrade.measurement(obs_nn))) == μ
 
         if isnothing(int)
             postsim = VLBIPosterior(skym, obs)
@@ -272,11 +267,9 @@ end
     simulate_observation(post_all, x0)
 
 
-    R = JonesR()
-    Gp = JonesG(x -> (exp(x.lg + 1im * x.gp), exp(x.lg + 1im * x.gp)))
-    J = JonesSandwich(Gp, R)
-    intm_coh = InstrumentModel(J, intm.prior)
-    skym = SkyModel(test_skymodel_polarized, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
+    Gp = Jones((x, c) -> gains(exp(x.lg + 1im * x.gp), exp(x.lg + 1im * x.gp)); intm.prior...)
+    intm_coh = InstrumentModel(Gp)
+    skym = SkyModel(test_skymodel_polarized, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
     post_coh = VLBIPosterior(skym, intm_coh, coh)
     test_simobs(post_coh, prior_sample(post_coh), intm_coh)
 end
@@ -287,16 +280,15 @@ end
 
     mfd = central_fdm(5, 1)
 
-    G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
-    intm = InstrumentModel(
-        G, (
-            lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
-        )
+    G = Jones(
+        (x, c) -> exp(x.lg + 1im .* x.gp);
+        lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
     )
+    intm = InstrumentModel(G)
 
     function test_nonanalytic(intm, algorithm, vis)
-        skym = SkyModel(test_model, test_prior(), imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256))
+        skym = SkyModel(test_model, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256))
         post = VLBIPosterior(skym, intm, vis)
 
         tpostf = asflat(post)
@@ -320,16 +312,15 @@ end
 @testset "FixedSkyModel" begin
     _, vis, amp, lcamp, cphase = load_data()
 
-    G = SingleStokesGain(x -> exp(x.lg + 1im .* x.gp))
-    intm = InstrumentModel(
-        G, (
-            lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-            gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SEFDReference(0.0), phase = true),
-        )
+    G = Jones(
+        (x, c) -> exp(x.lg + 1im .* x.gp);
+        lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
     )
+    intm = InstrumentModel(G)
 
     f = test_model
-    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(f, test_prior(), g)
 
     x = rand(Comrade.NamedDist(test_prior()))
@@ -348,18 +339,9 @@ end
         logdensityof(tpostf, xf)
         logdensityof(tpostc, xc)
 
-        # The transports must round-trip end-to-end through the instrument model. The
-        # flat path exercises the TVFlat instrument transform, the cube path the new
-        # `StdMarkovInstrumentTransform` (`pfwd_step`/`pback_step!`). The phase (Markov)
-        # transform applies a 2π branch cut, so `transform` is a bijection onto its
-        # *canonical* image rather than the identity (a prior draw here can have phases
-        # outside (-π, π]). After one round-trip the latent point is canonical, so
-        # `inverse ∘ transform` is idempotent there — verify that, which exercises both
-        # the forward (`pfwd_step`) and backward (`pback_step!`) transports.
-        xf1 = inverse(tpostf, transform(tpostf, xf))
-        @test inverse(tpostf, transform(tpostf, xf1)) ≈ xf1
-        xc1 = inverse(tpostc, transform(tpostc, xc))
-        @test inverse(tpostc, transform(tpostc, xc1)) ≈ xc1
+        # The flat and cube transports round-trip end-to-end through the instrument model.
+        @test inverse(tpostf, transform(tpostf, xf)) ≈ xf
+        @test inverse(tpostc, transform(tpostc, xc)) ≈ xc
         @test dimension(tpostf) == length(xf)
         @test dimension(tpostc) == length(xc)
     end

@@ -21,9 +21,7 @@ close(pkg_io) #hide
 using Comrade
 using CairoMakie
 
-# We also load `VLBIFiles` to read the uvfits file. `VLBIFiles` re-exports
-# `VLBIData`, so all of the data-table types (`uvtable`, `Antenna`, …) and the
-# `VLBI` averaging namespace come along for free.
+# We also load `VLBIFiles` to read the uvfits file.
 using VLBIFiles
 
 # We will use the 2017 public M87 data which can be downloaded from
@@ -33,33 +31,27 @@ uvd = VLBIFiles.load(
     joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
 )
 
-# We average the data over telescope scans by passing a `time_average` strategy on the data
-# product. Note that the EHT data has been pre-calibrated so this averaging doesn't induce
-# large coherence losses.
-scan_avg = VLBI.GapBasedScans()
-vis = extract_table(uvd, Visibilities(; time_average = scan_avg))                         # complex visibilities
-amp = extract_table(uvd, VisibilityAmplitudes(; time_average = scan_avg))                 # visibility amplitudes
-cphase = extract_table(uvd, ClosurePhases(; time_average = scan_avg))                        # minimal closure phases
-lcamp = extract_table(uvd, LogClosureAmplitudes(; time_average = scan_avg))                 # minimal log-closure amplitudes
+# `VisTable(uvd, IPol())` is the table of Stokes I visibilities, and `average(t, ByScan())`
+# averages it over telescope scans. Note that the EHT data has been pre-calibrated so this
+# averaging doesn't induce large coherence losses.
+vis = average(VisTable(uvd, IPol()), ByScan())   # complex visibilities
+
+# The other data products are formed from the averaged visibilities.
+amp = amplitudes(vis)                    # visibility amplitudes
+cphase = closure_phases(vis)             # minimal closure phases
+lcamp = log_closure_amplitudes(vis)      # minimal log-closure amplitudes
 
 # For polarization we load the file the same way; circular polarization is detected from the
-# antenna feed types in the FITS table. We pass the antenna text file via `arrayfile=` so
-# the telescope mount info is set correctly for the `Coherencies` extraction.
+# antenna feed types in the FITS table. `VisTable(uvdp, Correlations())` holds all four feed
+# products of each baseline as a 2×2 coherency matrix, and `reset_mounts!` sets the telescope
+# mount information from the antenna text file.
 uvdp = VLBIFiles.load(
     VLBIFiles.UVData,
     joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits")
 )
-coh = extract_table(
-    uvdp, Coherencies(;
-        time_average = scan_avg,
-        arrayfile = joinpath(__DIR, "..", "..", "Data", "array.txt"),
-    )
-)
+coh = average(VisTable(uvdp, Correlations()), ByScan())
+reset_mounts!(coh, joinpath(__DIR, "..", "..", "Data", "array.txt"))
 
-
-# !!! warning
-#     Always use our `extract_cphase` and `extract_lcamp` functions to find the closures
-#     eht-imaging will sometimes incorrectly calculate a non-redundant set of closures.
 #-
 # We can also recover the array used in the observation using
 using DisplayAs
@@ -70,31 +62,34 @@ plotfields(coh, U, V, axis_kwargs = (xreversed = true,)) |> DisplayAs.PNG |> Dis
 #  - `baselineplot` which gives complete control of plotting
 #  - `plotfields, axisfields` which are more automated and limited but will automatically add
 #     labels, legends, titles etc.
+#
+# For the closures, `:uvdist` is the longest baseline in each closure.
 fig = Figure(; size = (800, 600))
-plotfields!(fig[1, 1], vis, uvdist, measurement)
-plotfields!(fig[1, 2], amp, uvdist, measurement)
-plotfields!(fig[2, 1], cphase, uvdist, measurement)
-plotfields!(fig[2, 2], lcamp, uvdist, measurement)
+plotfields!(fig[1, 1], vis, :uvdist, :measurement)
+plotfields!(fig[1, 2], amp, :uvdist, :measurement)
+plotfields!(fig[2, 1], cphase, :uvdist, :measurement)
+plotfields!(fig[2, 2], lcamp, :uvdist, :measurement)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
-# And also the coherency matrices. Since the data products are a matrix we need to plot each one separately.
+# And also the coherency matrices. Since the data products are a matrix we need to plot each one
+# separately. Unmeasured feed products are `NaN`.
 fig = Figure(; size = (800, 600))
-plotfields!(fig[1, 1], coh, uvdist, x -> measwnoise(x)[1, 1], axis_kwargs = (ylabel = "RR", xlabel = "uv distance (Gλ)"))
-plotfields!(fig[2, 1], coh, uvdist, x -> measwnoise(x)[2, 1], axis_kwargs = (ylabel = "LR", xlabel = "uv distance (Gλ)"))
-plotfields!(fig[1, 2], coh, uvdist, x -> measwnoise(x)[1, 2], axis_kwargs = (ylabel = "RL", xlabel = "uv distance (Gλ)"))
-plotfields!(fig[2, 2], coh, uvdist, x -> measwnoise(x)[2, 2], axis_kwargs = (ylabel = "LL", xlabel = "uv distance (Gλ)"))
+plotfields!(fig[1, 1], coh, :uvdist, x -> x.measurement[1, 1], axis_kwargs = (ylabel = "RR", xlabel = "uv distance (λ)"))
+plotfields!(fig[2, 1], coh, :uvdist, x -> x.measurement[2, 1], axis_kwargs = (ylabel = "LR", xlabel = "uv distance (λ)"))
+plotfields!(fig[1, 2], coh, :uvdist, x -> x.measurement[1, 2], axis_kwargs = (ylabel = "RL", xlabel = "uv distance (λ)"))
+plotfields!(fig[2, 2], coh, :uvdist, x -> x.measurement[2, 2], axis_kwargs = (ylabel = "LL", xlabel = "uv distance (λ)"))
 fig
 
 # You can also plot a single baseline
-fig, ax = plotfields(coh, (:AA, :LM), Ti, x -> abs(measwnoise(x)[1, 1]), axis_kwargs = (; ylabel = "|RR|"))
-ax2 = plotfields!(fig[1, 2], coh, (:LM, :AZ), Ti, x -> abs(measwnoise(x)[1, 1]), axis_kwargs = (; ylabel = "|RR|"))
+fig, ax = plotfields(coh, (:AA, :LM), Ti, x -> abs(x.measurement[1, 1]), axis_kwargs = (; ylabel = "|RR|"))
+ax2 = plotfields!(fig[1, 2], coh, (:LM, :AZ), Ti, x -> abs(x.measurement[1, 1]), axis_kwargs = (; ylabel = "|RR|"))
 fig
 
 # Finally, we provide a more low-level plotting function `baselineplot` which allows you to plot
 # any field against any other field. This is what `plotfields` calls under the hood. However, it
 # does not automatically add labels, legends, titles etc, but can add multiple baselines to the same plot.
-fig, ax = baselineplot(coh, (:AA, :LM), Ti, x -> abs(measwnoise(x)[1, 1]), label = "AA-LM")
-baselineplot!(ax, coh, (:LM, :AZ), Ti, x -> abs(measwnoise(x)[1, 1]), label = "LM-AZ")
+fig, ax = baselineplot(coh, (:AA, :LM), Ti, x -> abs(x.measurement[1, 1]), label = "AA-LM")
+baselineplot!(ax, coh, (:LM, :AZ), Ti, x -> abs(x.measurement[1, 1]), label = "LM-AZ")
 ax.ylabel = "|RR|"
 ax.xlabel = "Time (UTC)"
 axislegend(ax)

@@ -65,7 +65,7 @@ ComradeBase.intensitymap_numeric!
 ComradeBase.AbstractDualDomain
 ComradeBase.RectiGrid
 ComradeBase.UnstructuredDomain
-ComradeBase.imagepixels
+ComradeBase.spatialgrid
 ComradeBase.dims
 ComradeBase.named_dims
 ComradeBase.axisdims

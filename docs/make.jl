@@ -6,7 +6,7 @@ using Documenter, Pkg
 using DocumenterVitepress
 using Comrade, ComradeBase, AdvancedHMC, Dynesty, Optimization,
     PolarizedTypes
-using Pyehtim, VLBISkyModels, InteractiveUtils
+using VLBISkyModels, InteractiveUtils
 using AbstractMCMC, Random
 using CairoMakie
 

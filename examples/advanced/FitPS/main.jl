@@ -40,17 +40,14 @@ rng = StableRNG(11)
 file = Base.download("https://github.com/ptiede/ComradeTestData/releases/download/Data/1308+326Q.2021-03-19.UVP")
 uvd = VLBIFiles.load(VLBIFiles.UVData, file)
 
-# Scan-average the data (gain phases are coherent within a scan), then inflate the noise
-# by 0.5% to account for residual calibration errors (e.g. leakage). For this tutorial we
-# only use closure quantities; polarized or complex visibilities can also be used with
-# instrumental models following the other tutorials.
-dlcamp, dcphase = extract_table(
-    uvd,
-    LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()),
-    ClosurePhases(; time_average = VLBI.GapBasedScans()),
-)
-add_fractional_noise!(dlcamp, 0.005)
-add_fractional_noise!(dcphase, 0.005)
+# Scan-average the Stokes I visibilities (gain phases are coherent within a scan), inflate the
+# noise by 0.5% to account for residual calibration errors (e.g. leakage), and form the closures.
+# For this tutorial we only use closure quantities; polarized or complex visibilities can also
+# be used with instrumental models following the other tutorials.
+dvis = average(VisTable(uvd, IPol()), ByScan())
+dvis = add_fractional_noise(dvis, 0.005)
+dlcamp = log_closure_amplitudes(dvis)
+dcphase = closure_phases(dvis)
 
 
 # ## Build the Model/Posterior
@@ -92,7 +89,7 @@ nx = 64
 ny = 64
 fovx = μas2rad(1_000)
 fovy = fovx * ny / nx
-grid = imagepixels(fovx, fovy, nx, ny, μas2rad(150.0), -μas2rad(150.0))
+grid = spatialgrid(fovx, fovy, nx, ny, μas2rad(150.0), -μas2rad(150.0))
 
 # Since we are using a Gaussian Markov random field prior we need to first specify our `mean`
 # image. For this work we will use a symmetric Gaussian with a FWHM equal to the approximate

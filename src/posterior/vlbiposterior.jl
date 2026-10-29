@@ -19,31 +19,23 @@ end
 
 """
     VLBIPosterior(skymodel::SkyModel, instumentmodel::InstrumentModel, 
-                  dataproducts::EHTObservationTable...; 
+                  dataproducts...; 
                   admode=set_runtime_activity(set_strong_zero(Reverse)))
 
-Creates a VLBILikelihood using the `skymodel` its related metadata `skymeta`
-and the `instrumentmodel` and its metadata `instumentmeta`. The `model` is a 
-function that converts from parameters `θ` to a Comrade
-AbstractModel which can be used to compute [`visibilitymap`](@ref) and a set of
-`metadata` that is used by `model` to compute the model.
+The posterior of the sky model `skymodel` and the instrument model `instrumentmodel` (default
+[`IdealInstrumentModel`](@ref)) given the data products: [`VisTable`](@ref)s and
+[`ClosureTable`](@ref)s formed from one visibility table. The models are evaluated on that
+table's records.
 
 To enable automatic differentiation, the `admode` keyword argument can be set to any `EnzymeCore.Mode` type 
 of if no AD is desired then `nothing`. The default is `Enzyme.set_runtime_activity(Enzyme.Reverse)` 
 which should work for essentially every problem. Note that runtime activity does have a perfomance cost, 
 and as Enzyme and Comrade matures we expect this to not need runtime activity.
 
-# Warning
-
-The `model` itself must be a two argument function where the first argument is the set
-of model parameters and the second is a container that holds all the additional
-information needed to construct the model. An example of this is when the model
-needs some precomputed cache to define the model.
-
 # Example
 ```julia
-dlcamp, dcphase = extract_table(obs, LogClosureAmplitude(), ClosurePhases())
-array = arrayconfiguration(dlcamp)
+t = average(VisTable(uvd, IPol()), ByScan())
+dlcamp, dcphase = log_closure_amplitudes(t), closure_phases(t)
 
 function sky(θ, metadata)
     (; r, a) = θ
@@ -52,33 +44,33 @@ function sky(θ, metadata)
 end
 
 skyprior = (r = VLBIUniform(μas2rad(10.0), μas2rad(30.0)), a = VLBIUniform(1.0, 10.0))
-g  = imagepixels(μas2rad(100.0), μas2rad(100.0), 256, 256)
+g  = spatialgrid(μas2rad(100.0), μas2rad(100.0), 256, 256)
 skym = SkyModel(sky, skyprior, g)
 
-G = SingleStokesGain(x->exp(complex(x.lg, x.pg)))
-intprior = (lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
-            pg = ArrayPrior(IIDSitePrior(ScanSeg(), DiagVonMises(0.0, inv(π^2))))
-            )
-intmodel = InstrumentModel(G, intprior, array)
+G = Jones((x, c) -> exp(complex(x.lg, x.pg));
+          lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+          pg = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))))
+          )
+intmodel = InstrumentModel(G)
 
-post = VLBIPosterior(skym, intmodel, dlcamp, dcphase)
+post = VLBIPosterior(skym, intmodel, t)
 ```
 """
 @noinline function VLBIPosterior(
         skymodel::AbstractSkyModel,
         instrumentmodel::AbstractInstrumentModel,
-        dataproducts::EHTObservationTable...;
+        data::Union{VisTable, ClosureTable}...;
         imgdata = nothing,
         admode = EnzymeCore.set_runtime_activity(EnzymeCore.set_strong_zero(EnzymeCore.Reverse))
     )
 
-
-    array = arrayconfig(dataproducts[begin])
-    int, intprior = set_array(instrumentmodel, array)
-    sky, skyprior = set_array(skymodel, array)
+    t = _commonvis(data)
+    _checkdata(instrumentmodel, data)
+    int, intprior = set_array(instrumentmodel, t)
+    sky, skyprior = set_array(skymodel, t)
     total_prior = combine_prior(skyprior, intprior)
 
-    ls = Tuple(map(makelikelihood, dataproducts))
+    ls = Tuple(map(makelikelihood, data))
     if !isnothing(imgdata)
         ils = Tuple(map(makelikelihood, imgdata))
     else
@@ -86,16 +78,37 @@ post = VLBIPosterior(skym, intmodel, dlcamp, dcphase)
     end
 
     return VLBIPosterior{
-        typeof(dataproducts), typeof(imgdata), typeof(ls), typeof(ils), typeof(total_prior),
+        typeof(data), typeof(imgdata), typeof(ls), typeof(ils), typeof(total_prior),
         typeof(sky), typeof(int), typeof(admode),
-    }(dataproducts, imgdata, ls, ils, total_prior, sky, int, admode)
+    }(data, imgdata, ls, ils, total_prior, sky, int, admode)
 end
 
 VLBIPosterior(
-    skymodel::AbstractSkyModel, dataproducts::EHTObservationTable...;
+    skymodel::AbstractSkyModel, dataproducts::Union{VisTable, ClosureTable}...;
     admode = EnzymeCore.set_runtime_activity(EnzymeCore.set_strong_zero(EnzymeCore.Reverse)), kwargs...
 ) =
     VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...; admode, kwargs...)
+
+_vis(t::VisTable) = t
+_vis(ct::ClosureTable) = getfield(ct, :vis)
+
+# The visibility table every data product is formed from; the model is evaluated on its records.
+function _commonvis(data)
+    t = _vis(first(data))
+    for d in data
+        _samerecords(_vis(d), t) || throw(
+            ArgumentError("every data product of a posterior must come from one table of visibilities: same records and channels")
+        )
+    end
+    return t
+end
+
+function _samerecords(a::VisTable, b::VisTable)
+    a === b && return true
+    ca, cb = ComradeBase.coords(domain(a)), ComradeBase.coords(domain(b))
+    return size(a) == size(b) && ca.u == cb.u && ca.v == cb.v && ca.Ti == cb.Ti && ca.ant1 == cb.ant1 &&
+        ca.ant2 == cb.ant2 && info(a).channels.frequency == info(b).channels.frequency
+end
 
 function combine_prior(skyprior, instrumentmodelprior)
     return NamedDist((sky = skyprior, instrument = instrumentmodelprior))
@@ -122,8 +135,7 @@ function Base.show(io::IO, mime::MIME"text/plain", post::VLBIPosterior)
     show(io, mime, post.instrumentmodel)
     println()
     printstyled(io, "Data Products: ", color = :light_green)
-    return println(io, map(x -> split(string(datumtype(x)), "{")[1], post.data)...)
-    # println(io, "  Prior: ", post.prior)
+    return println(io, join(map(_datadescription, post.data), ", "))
 end
 
 
@@ -137,51 +149,66 @@ If `add_thermal_noise` is true then baseline based thermal noise is added. Other
 return the model visibilities.
 """
 function simulate_observation(rng::Random.AbstractRNG, post::VLBIPosterior, θ; add_thermal_noise = true)
-    v0 = last(forward_model(post, θ))
-    Σn = _visnoise(first(post.data))
-    data = post.data
-
-    # Closures are rather annoying. So rather than directly simulating them under the likelihood
-    # we simulate the underlying visibilities thermal error and do regular error propogate.
+    vis = _storage(baseimage(last(forward_model(post, θ))))
+    t = _commonvis(post.data)
     if add_thermal_noise
-        if eltype(v0) <: Complex
-            dv = ComplexVisLikelihood(v0, Σn)
-        elseif eltype(v0) <: SMatrix
-            dv = CoherencyLikelihood(v0, Σn)
-        end
-        vis = rand(rng, dv)
-    else
-        vis = baseimage(v0)
+        w = _dense(weight(t))
+        vis = rand(rng, _noiselikelihood(eltype(measurement(t)), vis, w))
     end
-
-    ms = map(x -> likelihood(x, vis).μ, post.lklhds)
-    return ntuple(length(data)) do i
-        di = data[i]
-        ci = arrayconfig(di)
-        return EHTObservationTable{datumtype(di)}(ms[i], noise(di), ci)
-    end
+    return map(d -> _withmodel(d, vis), post.data)
 end
+
+_noiselikelihood(::Type{<:StaticArraysCore.StaticMatrix}, vis, w) = CoherencyLikelihood(vis, w)
+_noiselikelihood(::Type, vis, w) = ComplexVisLikelihood(vis, w)
 simulate_observation(post::VLBIPosterior, θ; add_thermal_noise = true) = simulate_observation(Random.default_rng(), post, θ; add_thermal_noise)
 
-_visnoise(d::EHTObservationTable) = noise(d) .^ 2
-function _visnoise(d::EHTObservationTable{<:EHTCoherencyDatum})
-    n = noise(d)
-    return map(x -> x .^ 2, n)
-end
-_visnoise(d::EHTObservationTable{<:EHTLogClosureAmplitudeDatum}) = getfield(arrayconfig(d), :noise) .^ 2
-_visnoise(d::EHTObservationTable{<:EHTClosurePhaseDatum}) = getfield(arrayconfig(d), :noise) .^ 2
+_datadescription(t::VisTable) = string(eltype(measurement(t)) <: Real ? "amplitudes" : "visibilities", " (", _polname(t.pol), ")")
+_datadescription(ct::ClosureTable) = ct.product isa ClosurePhases ? "closure phases" : "log closure amplitudes"
 
+# `d` with its measurements replaced by those formed from the model visibilities `vis`.
+function _withmodel(t::VisTable, vis)
+    m = _tablevalues(eltype(measurement(t)), vis)
+    w = _dense(weight(t))
+    return VisTable(t.pol, IntensityMap(_elements(t.pol, _zeroed(m, w)), domain(t)), weight(t), stations(t))
+end
+function _withmodel(ct::ClosureTable, vis)
+    x = _closurevalue.(Ref(ct.product), vis[_measuredvalues(getfield(ct, :vis))])
+    m = IntensityMap(getfield(ct, :design) * x, domain(ct))
+    return ClosureTable(ct.product, m, getfield(ct, :vis), getfield(ct, :design), getfield(ct, :covariance))
+end
+
+_tablevalues(::Type{<:Real}, vis) = abs.(vis)
+_tablevalues(::Type, vis) = vis
+
+# Values without a measurement are stored as 0.
+_zeroed(m::AbstractArray{<:Number}, w) = ifelse.(w .> 0, m, zero(eltype(m)))
+function _zeroed(m::AbstractArray{<:StaticArraysCore.StaticMatrix}, w)
+    d = reshape(reinterpret(eltype(eltype(m)), collect(m)), 2, 2, size(m)...)
+    return ifelse.(w .> 0, permutedims(d, (3, 4, 1, 2)), zero(eltype(d)))
+end
 
 """
     residuals(post::VLBIPosterior, θ)
 
-Compute the residuals for each data product in `post` using the parameter values `θ`.
-The resturn objects are `EHTObservationTables`, where the measurements are the residuals.
+The residuals of each data product in `post` at the parameter values `θ`: tables of the same
+kind (a [`VisTable`](@ref) or [`ClosureTable`](@ref)) whose measurements are the data minus the
+model. Closure phase residuals are wrapped to `(-π, π]`.
 """
 function residuals(post::VLBIPosterior, p)
-    vis = last(forward_model(post, p))
-    res = map(x -> residual_data(vis, x), post.data)
-    return res
+    vis = baseimage(last(forward_model(post, p)))
+    return map(d -> _residual(d, vis), post.data)
+end
+
+function _residual(t::VisTable, vis)
+    model = _withmodel(t, vis)
+    r = _dense(measurement(t)) .- _dense(measurement(model))
+    return VisTable(t.pol, IntensityMap(_elements(t.pol, r), domain(t)), weight(t), stations(t))
+end
+function _residual(ct::ClosureTable, vis)
+    model = _withmodel(ct, vis)
+    r = baseimage(measurement(ct)) .- baseimage(measurement(model))
+    r = ct.product isa ClosurePhases ? atan.(sin.(r), cos.(r)) : r
+    return ClosureTable(ct.product, IntensityMap(r, domain(ct)), getfield(ct, :vis), getfield(ct, :design), getfield(ct, :covariance))
 end
 
 """
@@ -207,25 +234,15 @@ function chi2(post::AbstractVLBIPosterior, p; reduce = false)
     end
 end
 
-function _chi2(res::EHTObservationTable)
-    c2 = sum(datatable(res)) do d
-        r2 = @. abs2(d.measurement / d.noise)
-        # Check if residual is NaN which means that the data is missing
-        isnan(r2) && return zero(r2)
-        return r2
-    end
-    return c2
-end
+# Σ |residual|² / σ² over the measured values.
+_chi2(res::VisTable) = sum(_dense(weight(res)) .* abs2.(_dense(measurement(res))))
+_chi2(res::ClosureTable) = sum(abs2.(baseimage(measurement(res)) ./ baseimage(noise(res))))
 
-function _chi2(res::EHTObservationTable{<:EHTCoherencyDatum})
-    c2 = sum(datatable(res)) do d
-        r2 = @. abs2(d.measurement / d.noise)
-        r11 = isnan(r2[1, 1]) ? zero(r2[1, 1]) : r2[1, 1]
-        r12 = isnan(r2[1, 2]) ? zero(r2[1, 2]) : r2[1, 2]
-        r21 = isnan(r2[2, 1]) ? zero(r2[2, 1]) : r2[2, 1]
-        r22 = isnan(r2[2, 2]) ? zero(r2[2, 2]) : r2[2, 2]
-        return typeof(r2)(r11, r21, r12, r22)
-    end
-    return c2
+"""
+    ndata(t)
 
-end
+The number of real data values in the table `t`: two per measured complex value, one per
+amplitude or closure.
+"""
+ndata(t::VisTable) = (eltype(measurement(t)) <: Real ? 1 : 2) * count(>(0), _dense(weight(t)))
+ndata(ct::ClosureTable) = length(ct)

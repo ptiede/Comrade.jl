@@ -49,9 +49,8 @@ Therefore, for this test we found that `Comrade` was the fastest method in all t
 
 ```julia
 # To download the data visit https://doi.org/10.25739/g85n-f134
-obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, "..", "examples", "Data", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
-obsavg = scan_average(obs)
-amp = extract_table(obsavg, VisibilityAmplitudes())
+uvd = VLBIFiles.load(VLBIFiles.UVData, joinpath(@__DIR__, "..", "examples", "Data", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
+amp = amplitudes(average(VisTable(uvd, IPol()), ByScan()))
 
 function model(θ, p)
     (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
@@ -71,7 +70,7 @@ prior = (
           y = VLBIUniform(-(80.0), (80.0))
         )
 # Now form the posterior
-skym = SkyModel(model, prior, imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128))
+skym = SkyModel(model, prior, spatialgrid(μas2rad(150.0), μas2rad(150.0), 128, 128))
 
 θ = (rad= 22.0, wid= 3.0, a = 0.0, b = 0.15, f=0.8, sig = 20.0, asy=0.2, pa=π/2, x=20.0, y=20.0)
 m = model(θ, nothing)

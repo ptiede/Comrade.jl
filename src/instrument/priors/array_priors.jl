@@ -1,54 +1,64 @@
-struct ArrayPrior{D, A, R, C}
+struct ArrayPrior{D, A, R, C, G, S}
     default_dist::D
     override_dist::A
     refant::R
-    phase::Bool
     centroid_station::C
-    gauge::Symbol
+    gauge::G
+    # the stations the parameter exists for; `nothing` for every station
+    stations::S
 end
 
 
 """
-    ArrayPrior(default_dist; refant=NoReference(), phase=false, gauge=:none, kwargs...)
+    ArrayPrior(default_dist; refant=NoReference(), gauge=nothing, stations=nothing, kwargs...)
 
 Construct a prior for an entire array of sites.
 
  - The `default_dist` is the default distribution for all sites. This may be an
 [`IIDSitePrior`](@ref) or a time-correlated [`GaussMarkovSitePrior`](@ref).
- - Different priors for specified sites can be set using kwargs.
+ - Different priors for specified sites can be set using kwargs named after the stations.
  - The `refant`  set the reference antennae to be used and is typically only done for priors that
 correspond to gain phases.
- - The `phase` argument is a boolean that specifies if
-the prior is for a `phase` or not. *The phase argument is experimental and we
-recommend setting it to false currently.*
+ - `stations`, a tuple of station names, restricts the parameter to those stations, for a
+term only some stations have (see [`PerStation`](@ref)); stations without data are skipped.
+`nothing` (the default) is every station.
  - The `gauge` argument declares that this parameter is a term of a quantity whose absolute
-level the data cannot see. `gauge = :phase` marks the parameter as one summand of the
+level the data cannot see. `gauge = StationPhase()` marks the parameter as one summand of the
 absolute station phase: the visibility phase on a baseline sees only differences of station
-phases, so the sum of all `gauge = :phase` parameters at a site is observable only up to one
+phases, so the sum of all `StationPhase()` parameters at a site is observable only up to one
 constant per (time, frequency) stamp. When several such parameters are added together (a
 track-level offset plus a per-integration residual, say) the reference pins placed on each
 one separately can leave the *sum* under-determined. Declaring the terms lets the
 [`InstrumentModel`](@ref) find the leftover flat directions with
 [`Comrade.gauge_pins`](@ref) and either report them or pin them, depending on its
-`gaugefix` setting. `gauge = :none` (the default) opts out of that analysis.
+`gaugefix` setting. `gauge = nothing` (the default) opts out of that analysis.
 
 # Example
 
 ```julia
-p = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0, 0.1)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)) refant=SEFDReference())
+p = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0, 0.1)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0))
 ```
 
 means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM which is mean
-zero and unit std. dev. Finally the refant is using the [`SEFDReference`](@ref) scheme.
+zero and unit std. dev. Finally the refant is using the [`SensitiveReference`](@ref) scheme.
 """
-function ArrayPrior(dist; refant = NoReference(), phase = false, gauge = :none, kwargs...)
+function ArrayPrior(dist; refant = NoReference(), gauge = nothing, stations = nothing, kwargs...)
     # if centroid_station isa Tuple{<:Symbol, <:Symbol}
     #     centroid_station = NamedTuple{centroid_station}((0.0, 0.0))
     # end
-    g = Symbol(gauge)
-    g in (:none, :phase) ||
-        throw(ArgumentError("ArrayPrior gauge must be :none or :phase, got :$g"))
-    return ArrayPrior(dist, kwargs, refant, phase, nothing, g)
+    gauge isa Union{Nothing, StationPhase} ||
+        throw(ArgumentError("ArrayPrior gauge must be nothing or StationPhase(), got $(repr(gauge))"))
+    st = isnothing(stations) ? nothing : Tuple(Symbol.(stations))
+    return ArrayPrior(dist, kwargs, refant, nothing, gauge, st)
+end
+
+# The site priors of `d` for the stations with measured values in `t` it covers.
+function _site_priors(d::ArrayPrior, t::VisTable)
+    s = _measuredpoints(t).sites
+    present = sort(unique(vcat(first.(s), last.(s))))
+    st = isnothing(d.stations) ? present : filter(in(present), collect(d.stations))
+    isempty(st) && throw(ArgumentError("none of the stations $(d.stations) of an instrument term has data"))
+    return site_tuple(st, d.default_dist; d.override_dist...)
 end
 
 
@@ -60,7 +70,6 @@ end
 struct ObservedArrayPrior{D, S} <: Distributions.ContinuousMultivariateDistribution
     dists::D
     sitemap::S
-    phase::Bool
 end
 Base.eltype(d::ObservedArrayPrior) = eltype(d.dists)
 Base.length(d::ObservedArrayPrior) = length(d.dists)
@@ -69,26 +78,24 @@ Dists._rand!(rng::Random.AbstractRNG, d::ObservedArrayPrior, x::AbstractArray{<:
 # Flat (`TVFlat`) path: a TransformVariables instrument transform wrapping the raw
 # TV node of the inner distribution, so it slots into the single flat TV tree.
 function PT.transport_node(d::ObservedArrayPrior, space::PT.TVFlat)
-    inner = PT.transport_node(d.dists, space)
-    d.phase && return MarkovInstrumentTransform(inner, d.sitemap)
-    return InstrumentTransform(inner, d.sitemap)
+    return InstrumentTransform(PT.transport_node(d.dists, space), d.sitemap)
 end
 
 # Std-space (`StdUniform`/`StdNormal`) path: a ProbabilityTransports node wrapping the
 # PT node of the inner distribution.
 function PT.transport_node(d::ObservedArrayPrior, space::PT.AbstractStdDist)
-    inner = PT.transport_node(d.dists, space)
-    d.phase && return StdMarkovInstrumentTransform(inner, d.sitemap)
-    return StdInstrumentTransform(inner, d.sitemap)
+    return StdInstrumentTransform(PT.transport_node(d.dists, space), d.sitemap)
 end
 
-function build_sitemap(d::ArrayPrior, array)
+function build_sitemap(d::ArrayPrior, t::VisTable)
     # construct the site by site prior
-    sites_prior = site_tuple(array, d.default_dist; d.override_dist...)
+    sites_prior = _site_priors(d, t)
 
     # Now we need all possible times to make sure we have all combinations
-    T = array[:Ti]
-    F = array[:Fr]
+    points = _measuredpoints(t)
+    T = points.Ti
+    F = points.Fr
+    fchan = [bandchannel(t)]
 
 
     # Ok to so this we are going to construct the schema first over sites.
@@ -97,19 +104,18 @@ function build_sitemap(d::ArrayPrior, array)
     lists = map(keys(sites_prior)) do s
         seg = segmentation(sites_prior[s])
         # get all the indices where this site is present
-        inds_s = findall(x -> ((x[1] == s)||x[2] == s), array[:sites])
+        inds_s = findall(x -> ((x[1] == s)||x[2] == s), points.sites)
         # Get all the times and frequencies for that site
         ts = T[inds_s]
         fs = F[inds_s]
         tfs = zip(ts, fs)
         # Now makes the acceptable time stamps given the segmentation
-        tstamp = timestamps(seg, array)
-        fchan = freqchannels(SpectralWindow(), array)
+        tstamp = timestamps(seg, t)
         # Now we find commonalities
         tf = Tuple{eltype(tstamp), eltype(fchan)}[]
-        for f in fchan, t in tstamp
-            if any(x -> (x[1] ∈ t && x[2] ∈ f), tfs) && ((!((t, f) ∈ tf)))
-                push!(tf, (t, f))
+        for f in fchan, τ in tstamp
+            if any(x -> (x[1] ∈ τ && x[2] ∈ f), tfs) && ((!((τ, f) ∈ tf)))
+                push!(tf, (τ, f))
             end
         end
         return first.(tf), last.(tf)
@@ -142,15 +148,15 @@ function build_sitemap(d::ArrayPrior, array)
     return SiteLookup(tlistre, flistre, slistre)
 end
 
-function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
-    smap = build_sitemap(d, array)
-    site_dists = site_tuple(array, d.default_dist; d.override_dist...)
+function ObservedArrayPrior(d::ArrayPrior, t::VisTable)
+    smap = build_sitemap(d, t)
+    site_dists = _site_priors(d, t)
     # Time-correlated site priors need per-chain machinery rather than a product
     # distribution; see gauss_markov.jl.
     any(needs_chain_machinery, values(site_dists)) &&
-        return build_markov_observed(d, site_dists, smap, array)
-    dists = build_dist(site_dists, smap, array, d.refant, d.centroid_station)
-    return ObservedArrayPrior(dists, smap, d.phase)
+        return build_markov_observed(d, site_dists, smap, t)
+    dists = build_dist(site_dists, smap, t, d.refant, d.centroid_station)
+    return ObservedArrayPrior(dists, smap)
 end
 
 
@@ -264,16 +270,16 @@ function PT.transport_node(t::PartiallyConditionedDist, space::PT.AbstractStdDis
     )
 end
 
-function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroid_station)
+function build_dist(dists::NamedTuple, smap::SiteLookup, t, refants, centroid_station)
     ts = smap.times
     ss = smap.sites
     # fs = smap.frequencies
-    fixedinds, vals = reference_indices(array, smap, refants)
+    fixedinds, vals = reference_indices(t, smap, refants)
     if any(!isnothing ∘ initprior, values(dists))
         fixedinds = convert(Vector{Int}, fixedinds)
         vals = vals === nothing ? Float64[] : convert(Vector{Float64}, vals)
         # Init pins: a site prior with `init = FixedInit(v)` fixes each site's first
-        # stamp (per frequency channel) to `v` — see `IIDSitePrior`. A stamp the
+        # stamp to `v` — see `IIDSitePrior`. A stamp the
         # referencing scheme already fixes stays the reference's, and the values must
         # agree: a silent disagreement would quietly change the reference gauge.
         for s in keys(dists)

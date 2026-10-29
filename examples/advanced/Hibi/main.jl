@@ -59,11 +59,11 @@ uvd = VLBIFiles.load(
 # For this tutorial we will once again fit complex visibilities since they
 # provide the most information once the telescope/instrument model are taken
 # into account. We scan-average the data (gain phases are coherent within a scan), then
-# remove baselines shorter than 0.1Gλ and add 1% systematic uncertainty to handle
+# flag baselines shorter than 0.1Gλ and add 1% systematic uncertainty to handle
 # residual calibration errors such as leakage.
-dvis = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans()))
-dvis = flag(x -> uvdist(x) < 0.1e9, dvis)
-add_fractional_noise!(dvis, 0.01)
+dvis = average(VisTable(uvd, IPol()), ByScan())
+dvis = flag(row -> hypot(row.U, row.V) < 0.1e9, dvis)
+dvis = add_fractional_noise(dvis, 0.01)
 
 # ## Building the Model/Posterior
 
@@ -112,10 +112,10 @@ using Distributions
         lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
         gp ~ ArrayPrior(
             GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = 0.1); init = UniformInit());
-            refant = SEFDReference(0.0)
+            refant = SensitiveReference(0.0)
         )
-        ## SingleStokesGain is a single complex gain for each site.
-        return SingleStokesGain(exp(complex(lg, gp)))
+        ## A single complex gain for each site.
+        return Jones(exp(complex(lg, gp)))
     end
 end
 intmodel = instrument()
@@ -123,7 +123,7 @@ intmodel = instrument()
 # Now let's define our grid and the data-dependent prior, then build the sky model.
 fovxy = μas2rad(150.0)
 npix = 48
-g = imagepixels(fovxy, fovxy, npix, npix)
+g = spatialgrid(fovxy, fovxy, npix, npix)
 
 
 # Part of hybrid imaging is to force a scale separation between

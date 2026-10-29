@@ -5,7 +5,7 @@ using Enzyme
 @testset "ComradeAdvancedHMCExt" begin
 
     _, _, _, lcamp, cphase = load_data()
-    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 256, 256)
+    g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
     post = VLBIPosterior(skym, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
 

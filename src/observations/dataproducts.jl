@@ -1,6 +1,4 @@
-export extract_table,
-    ClosurePhases, LogClosureAmplitudes,
-    VisibilityAmplitudes, Visibilities, Coherencies
+export ClosurePhases, LogClosureAmplitudes
 
 
 # Traits that decide the domain of the data. We include this to prevent additional computation if
@@ -16,209 +14,20 @@ datatype(::Type{<:Nothing}, ::Type) = ImgData()
 datatype(::Type{<:Nothing}, ::Type{<:Nothing}) = throw(ArgumentError("No data in uv plane or image plane is provided"))
 datatype(::Type, ::Type) = DualData()
 
+"""
+    ClosurePhases()
 
-abstract type VLBIDataProducts{K} end
-
-keywords(d::VLBIDataProducts) = d.keywords
+The kind of a [`ClosureTable`](@ref) of closure phases; see [`closure_phases`](@ref).
+"""
+struct ClosurePhases end
 
 """
-    ClosuresPhases(;kwargs...)
+    LogClosureAmplitudes()
 
-Type to specify to extract the closure phase table in the [`extract_table`](@ref) function.
-Optional keywords are passed through `extract_table` to specify additional option.
-
-# Special keywords for eht-imaging with Pyehtim.jl
-For a list of potential keyword arguments see `eht-imaging` and `add_cphase` command for obsdata.
-In addition note we have changed the following:
- - count: How the closures are formed, the available options are "min-correct", "min", "max"
-
-## Warning
-
-The `count` keyword argument is treated specially in `Comrade`. The default option
-is "min-correct" and should almost always be used.
-This option construct a minimal set of closure phases that is valid even when
-the array isn't fully connected. For testing and legacy reasons we `ehtim` other count
-options are also included. However, the current `ehtim` count="min" option is broken
-and does construct proper minimal sets of closure quantities if the array isn't fully connected.
-
+The kind of a [`ClosureTable`](@ref) of log closure amplitudes; see
+[`log_closure_amplitudes`](@ref).
 """
-struct ClosurePhases{K} <: VLBIDataProducts{K}
-    keywords::K
-end
-
-"""
-    LogClosureAmplitudes(;kwargs...)
-
-Type to specify to extract the log closure amplitudes table in the [`extract_table`](@ref) function.
-Optional keywords are passed through `extract_table` to specify additional option.
-
-# Special keywords for eht-imaging with Pyehtim.jl
-For a list of potential keyword arguments see `eht-imaging` and `add_cphase` command for obsdata.
-In addition note we have changed the following:
- - count: How the closures are formed, the available options are "min-correct", "min", "max"
-
-Returns an EHTObservation with log-closure amp. datums
-
-## Warning
-The `count` keyword argument is treated specially in `Comrade`. The default option
-is "min-correct" and should almost always be used.
-This option construct a minimal set of closure phases that is valid even when
-the array isn't fully connected. For testing and legacy reasons we `ehtim` other count
-options are also included. However, the current `ehtim` count="min" option is broken
-and does construct proper minimal sets of closure quantities if the array isn't fully connected.
-
-"""
-struct LogClosureAmplitudes{K} <: VLBIDataProducts{K}
-    keywords::K
-end
-
-"""
-    Visibilities(;kwargs...)
-
-Type to specify to extract the log closure amplitudes table in the [`extract_table`](@ref) function.
-Optional keywords are passed through `extract_table` to specify additional option.
-
-# Special keywords for eht-imaging with Pyehtim.jl
-For a list of potential keyword arguments see `eht-imaging` and `add_amp` command for obsdata.
-"""
-struct VisibilityAmplitudes{K} <: VLBIDataProducts{K}
-    keywords::K
-end
-
-"""
-    Visibilities(;kwargs...)
-
-Type to specify to extract the complex visibilities table in the [`extract_table`](@ref) function.
-Optional keywords are passed through `extract_table` to specify additional option.
-
-# Special keywords for eht-imaging with Pyehtim.jl
-Any keyword arguments are ignored for now. Use eht-imaging directly to modify the data.
-"""
-struct Visibilities{K} <: VLBIDataProducts{K}
-    keywords::K
-end
-
-"""
-    Coherencies(;kwargs...)
-
-Type to specify to extract the coherency matrices table in the [`extract_table`](@ref) function.
-Optional keywords are passed through `extract_table` to specify additional option.
-
-# Special keywords for eht-imaging with Pyehtim.jl
-Any keyword arguments are ignored for now. Use eht-imaging directly to modify the data.
-"""
-struct Coherencies{K} <: VLBIDataProducts{K}
-    keywords::K
-end
-
-for c in [:ClosurePhases, :LogClosureAmplitudes, :VisibilityAmplitudes, :Visibilities, :Coherencies]
-    @eval begin
-        $(c)(; kwargs...) = $(c)(kwargs)
-    end
-end
-
-"""
-    extract_table(obs, dataproducts::VLBIDataProducts)
-
-Extract an [`Comrade.EHTObservationTable`](@ref) table of data products `dataproducts`.
-To pass additional keyword for the data products you can pass them as keyword arguments
-to the data product type. For a list of potential data products see `subtypes(Comrade.VLBIDataProducts)`.
-
-# Example
-```julia-repl
-julia> dlcamp, dcphase = extract_table(obs, LogClosureAmplitudes(;snrcut=3.0), ClosurePhases(;snrcut=3.0, cut_trivial=true))
-julia> dcoh = extract_table(obs, Coherencies())
-julia> dvis = extract_table(obs, VisibilityAmplitudes())
-```
-"""
-function extract_table(obs, dataproducts::VLBIDataProducts...)
-    @assert length(dataproducts) >= 1 "No dataproducts passed to `extract_table`"
-    return map(x -> extract_table(obs, x), dataproducts)
-end
-
-function _preptable(obs, dataproduct)
-    return obs, dataproduct
-end
-
-function extract_table(obs, dataproduct::ClosurePhases)
-    pobs, dp2 = _preptable(obs, dataproduct)
-    return extract_cphase(pobs; keywords(dp2)...)
-end
-
-function extract_table(obs, dataproduct::LogClosureAmplitudes)
-    pobs, dp2 = _preptable(obs, dataproduct)
-    return extract_lcamp(pobs; keywords(dp2)...)
-end
-
-function extract_table(obs, dataproduct::Visibilities)
-    pobs, dp2 = _preptable(obs, dataproduct)
-    return extract_vis(pobs; keywords(dp2)...)
-end
-
-function extract_table(obs, dataproduct::VisibilityAmplitudes)
-    pobs, dp2 = _preptable(obs, dataproduct)
-    return extract_amp(pobs; keywords(dp2)...)
-end
-
-function extract_table(obs, dataproduct::Coherencies)
-    pobs, dp2 = _preptable(obs, dataproduct)
-    return extract_coherency(pobs; keywords(dp2)...)
-end
-
-# internal methods to extract information from `obs`
-"""
-    extract_cphase(obs; kwargs...)
-
-Extracts the closure phases from an `obs`.
-This is an internal method for dispatch. Only use this if
-interfacing Comrade with a new data type.
-"""
-function extract_cphase    end
-"""
-    extract_lcamp(obs; kwargs...)
-
-Extracts the log-closure amplitudes from an `obs`.
-This is an internal method for dispatch. Only use this if
-interfacing Comrade with a new data type.
-"""
-function extract_lcamp     end
-"""
-    extract_amp(obs; kwargs...)
-
-Extracts the visibility amplitudes from an `obs`.
-This is an internal method for dispatch. Only use this if
-interfacing Comrade with a new data type.
-"""
-function extract_amp       end
-"""
-    extract_vis(obs; kwargs...)
-
-Extracts the stokes I complex visibilities from an obs.
-This is an internal method for dispatch. Only use this if
-interfacing Comrade with a new data type.
-"""
-function extract_vis       end
-"""
-    extract_coherency(obs; kwargs...)
-
-Extracts the full coherency matrix from an observation.
-This is an internal method for dispatch. Only use this if
-interfacing Comrade with a new data type.
-"""
-function extract_coherency end
-
-# Sometimes missing hands are assigned strange values. This function
-# masks them to ensure that if we have a missing measurement they get properly NaN'd
-function mask_missing_hands(
-        v::StaticArraysCore.StaticMatrix{2, 2, <:Complex},
-        e::StaticArraysCore.StaticMatrix{2, 2, <:Real}
-    )
-    flagged = map(isnan, v)
-    any(flagged) || return v, e
-    nanv = complex(convert(real(eltype(v)), NaN), convert(real(eltype(v)), NaN))
-    nane = convert(eltype(e), NaN)
-    return map((f, z) -> f ? nanv : z, flagged, v), map((f, s) -> f ? nane : s, flagged, e)
-end
+struct LogClosureAmplitudes end
 
 """
     load_array_txt(path)
@@ -235,9 +44,7 @@ The file must begin with a commented header naming the columns, e.g.
 
 Columns are matched by name (case-insensitive), so the order of fields and the
 relative position of the D-term and FR blocks are flexible. `X, Y, Z` are
-ignored here — antenna positions come from the uvfits AIPS-AN table. The
-result can be passed to any `extract_*` as
-`array_overrides=load_array_txt("array.txt")`.
+ignored. The result can be passed to [`reset_mounts!`](@ref).
 """
 function load_array_txt(path::AbstractString)
     # Aliases for column names we care about. Matching is case-insensitive.

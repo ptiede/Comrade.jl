@@ -35,9 +35,10 @@ using Random
 
     stamplist(times) = [(t, GAUGE_FREQ) for t in times]
 
-    # The entry a per-stamp SEFDReference pins: the lowest-SEFD site present at each stamp.
-    sefd_pins(sites_at, sefd, idx) =
-        [idx[(τ, argmin(s -> sefd[s], sites_at[τ]))] for τ in eachindex(sites_at)]
+    # The entry a per-stamp SensitiveReference pins: the highest-weight site present at each
+    # stamp.
+    weight_pins(sites_at, weight, idx) =
+        [idx[(τ, argmax(s -> weight[s], sites_at[τ]))] for τ in eachindex(sites_at)]
 
     # The entry a FixedInit pins: each site's earliest stamp.
     function init_pins(sites_at, idx)
@@ -51,22 +52,22 @@ using Random
     @testset "one per-stamp term is the classical reference antenna" begin
         times = [0.0, 1.0, 2.0]
         sites_at = [[:AA, :AX, :GL], [:AX, :GL, :LM], [:GL, :LM, :SW]]
-        sefd = (AA = 100.0, AX = 300.0, GL = 15000.0, LM = 11000.0, SW = 12000.0)
+        weight = map(inv, (AA = 100.0, AX = 300.0, GL = 15000.0, LM = 11000.0, SW = 12000.0))
         smap, idx = integ_lookup(times, sites_at; dt = 0.5)
 
         pins = Comrade.gauge_pins(
-            (gp = (smap = smap, fixed = Int[]),), stamplist(times), sites_at, sefd
+            (gp = (smap = smap, fixed = Int[]),), stamplist(times), sites_at, weight
         )
-        # one gauge freedom per stamp, and the entry taken is the one SEFDReference takes
+        # one gauge freedom per stamp, and the entry taken is the one SensitiveReference takes
         @test length(pins) == length(times)
         @test all(p -> p[1] === :gp, pins)
-        @test sort(last.(pins)) == sort(sefd_pins(sites_at, sefd, idx))
+        @test sort(last.(pins)) == sort(weight_pins(sites_at, weight, idx))
 
         # once those entries are pinned nothing is left over
         @test isempty(
             Comrade.gauge_pins(
-                (gp = (smap = smap, fixed = sefd_pins(sites_at, sefd, idx)),),
-                stamplist(times), sites_at, sefd
+                (gp = (smap = smap, fixed = weight_pins(sites_at, weight, idx)),),
+                stamplist(times), sites_at, weight
             )
         )
     end
@@ -97,16 +98,18 @@ using Random
         ]
         times = first.(schedule)
         sites_at = [Symbol.(split(s, ',')) for s in last.(schedule)]
-        # GL, NN and PV are given the same SEFD so that the choice among them falls through
+        # GL, NN and PV are given the same weight so that the choice among them falls through
         # to the last tiebreak, the number of stamps a site is present at.
-        sefd = (
-            AA = 100.0, AX = 300.0, KT = 8000.0, MG = 9000.0, MM = 10000.0, LM = 11000.0,
-            SW = 12000.0, GL = 15000.0, NN = 15000.0, PV = 15000.0,
+        weight = map(
+            inv, (
+                AA = 100.0, AX = 300.0, KT = 8000.0, MG = 9000.0, MM = 10000.0, LM = 11000.0,
+                SW = 12000.0, GL = 15000.0, NN = 15000.0, PV = 15000.0,
+            )
         )
 
         res, ridx = integ_lookup(times, sites_at)
         off, oidx = track_lookup(times, sites_at)
-        resfixed = sort!(unique!(vcat(sefd_pins(sites_at, sefd, ridx), init_pins(sites_at, ridx))))
+        resfixed = sort!(unique!(vcat(weight_pins(sites_at, weight, ridx), init_pins(sites_at, ridx))))
         terms(offfixed) = (
             gp1μ = (smap = off, fixed = offfixed),
             gp1 = (smap = res, fixed = resfixed),
@@ -114,7 +117,7 @@ using Random
 
         # ALMA is the only offset the reference scheme pins, and that leaves the common
         # level of the three sites that observe before it rises undetermined.
-        pins = Comrade.gauge_pins(terms([oidx[:AA]]), stamplist(times), sites_at, sefd)
+        pins = Comrade.gauge_pins(terms([oidx[:AA]]), stamplist(times), sites_at, weight)
         @test length(pins) == 1
         name, i = only(pins)
         @test name === :gp1μ
@@ -125,7 +128,7 @@ using Random
         # applying the pin identifies the parameterization
         @test isempty(
             Comrade.gauge_pins(
-                terms(sort([oidx[:AA], i])), stamplist(times), sites_at, sefd
+                terms(sort([oidx[:AA], i])), stamplist(times), sites_at, weight
             )
         )
     end
@@ -133,7 +136,7 @@ using Random
     @testset "the coarsest term in a group carries the pin" begin
         times = [0.0]
         sites_at = [[:AA, :LM]]
-        sefd = (AA = 100.0, LM = 11000.0)
+        weight = map(inv, (AA = 100.0, LM = 11000.0))
         res, ridx = integ_lookup(times, sites_at)
         off, oidx = track_lookup(times, sites_at)
 
@@ -143,18 +146,18 @@ using Random
             gp1μ = (smap = off, fixed = [oidx[:LM]]),
             gp1 = (smap = res, fixed = [ridx[(1, :AA)]]),
         )
-        @test Comrade.gauge_pins(terms, stamplist(times), sites_at, sefd) ==
+        @test Comrade.gauge_pins(terms, stamplist(times), sites_at, weight) ==
             [(:gp1μ, oidx[:AA])]
         # the preference is the caller's to change
         @test Comrade.gauge_pins(
-            terms, stamplist(times), sites_at, sefd; prefer = e -> (e.dt,)
+            terms, stamplist(times), sites_at, weight; prefer = e -> (e.dt,)
         ) == [(:gp1, ridx[(1, :LM)])]
     end
 
     @testset "a datum tying three terms at once is rejected" begin
         times = [0.0, 1.0]
         sites_at = [[:AA, :LM], [:AA, :LM]]
-        sefd = (AA = 100.0, LM = 11000.0)
+        weight = map(inv, (AA = 100.0, LM = 11000.0))
         off1, _ = track_lookup(times, sites_at)
         off2, _ = track_lookup(times, sites_at)
         terms = (
@@ -162,20 +165,20 @@ using Random
             gpb = (smap = off2, fixed = Int[]),
         )
         @test_throws "leaves 2 gauge terms free at once" Comrade.gauge_pins(
-            terms, stamplist(times), sites_at, sefd
+            terms, stamplist(times), sites_at, weight
         )
     end
 
     @testset "input checks" begin
         times = [0.0]
         sites_at = [[:AA, :LM]]
-        sefd = (AA = 100.0, LM = 11000.0)
+        weight = map(inv, (AA = 100.0, LM = 11000.0))
         off, _ = track_lookup(times, sites_at)
         @test_throws "fixed indices outside" Comrade.gauge_pins(
-            (gp = (smap = off, fixed = [7]),), stamplist(times), sites_at, sefd
+            (gp = (smap = off, fixed = [7]),), stamplist(times), sites_at, weight
         )
         @test_throws DimensionMismatch Comrade.gauge_pins(
-            (gp = (smap = off, fixed = Int[]),), stamplist([0.0, 1.0]), sites_at, sefd
+            (gp = (smap = off, fixed = Int[]),), stamplist([0.0, 1.0]), sites_at, weight
         )
     end
 
@@ -228,10 +231,10 @@ using Random
         # carries two phase constants and a per-stamp term needs a pin in each group
         times = [0.0, 0.0]
         sites_at = [[:AA, :LM], [:GL, :PV]]
-        sefd = (AA = 100.0, LM = 11000.0, GL = 15000.0, PV = 1500.0)
+        weight = map(inv, (AA = 100.0, LM = 11000.0, GL = 15000.0, PV = 1500.0))
         smap, idx = integ_lookup(times, sites_at; dt = 0.5)
         pins = Comrade.gauge_pins(
-            (gp = (smap = smap, fixed = Int[]),), stamplist(times), sites_at, sefd
+            (gp = (smap = smap, fixed = Int[]),), stamplist(times), sites_at, weight
         )
         @test sort(last.(pins)) == sort([idx[(1, :AA)], idx[(2, :PV)]])
     end
@@ -263,7 +266,7 @@ using Random
 
         rng = Random.Xoshiro(20260919)
         allsites = [:AA, :AX, :GL, :LM, :SW, :PV]
-        sefd = (AA = 100.0, AX = 300.0, GL = 15000.0, LM = 11000.0, SW = 12000.0, PV = 1500.0)
+        weight = map(inv, (AA = 100.0, AX = 300.0, GL = 15000.0, LM = 11000.0, SW = 12000.0, PV = 1500.0))
         for _ in 1:200
             # random schedule; a time with at least four sites may split into two groups
             times = Float64[]
@@ -282,29 +285,29 @@ using Random
             res, ridx = integ_lookup(times, sites_at; dt = 0.05)
             off, oidx = track_lookup(times, sites_at)
             rfixed = rand(rng, Bool) ? init_pins(sites_at, ridx) : Int[]
-            rand(rng, Bool) && (rfixed = union(rfixed, sefd_pins(sites_at, sefd, ridx)))
+            rand(rng, Bool) && (rfixed = union(rfixed, weight_pins(sites_at, weight, ridx)))
             ofixed = rand(rng, Bool) ? [first(values(oidx))] : Int[]
             lookups = ((off, oidx), (res, ridx))
             terms(of, rf) = (gpμ = (smap = off, fixed = of), gp = (smap = res, fixed = rf))
 
-            pins = Comrade.gauge_pins(terms(ofixed, rfixed), stamplist(times), sites_at, sefd)
+            pins = Comrade.gauge_pins(terms(ofixed, rfixed), stamplist(times), sites_at, weight)
             @test length(pins) == nullity(lookups, (ofixed, rfixed), sites_at)
 
             ofull = union(ofixed, [i for (n, i) in pins if n === :gpμ])
             rfull = union(rfixed, [i for (n, i) in pins if n === :gp])
             @test nullity(lookups, (ofull, rfull), sites_at) == 0
             @test isempty(
-                Comrade.gauge_pins(terms(ofull, rfull), stamplist(times), sites_at, sefd)
+                Comrade.gauge_pins(terms(ofull, rfull), stamplist(times), sites_at, weight)
             )
         end
     end
 
     @testset "gauge is declared on the ArrayPrior" begin
-        p = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)); gauge = :phase)
-        @test p.gauge === :phase
-        @test ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))).gauge === :none
-        @test_throws "must be :none or :phase" ArrayPrior(
-            IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)); gauge = :amplitude
+        p = ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)); gauge = StationPhase())
+        @test p.gauge === StationPhase()
+        @test isnothing(ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 1.0))).gauge)
+        @test_throws "must be nothing or StationPhase()" ArrayPrior(
+            IIDSitePrior(ScanSeg(), Normal(0.0, 1.0)); gauge = :phase
         )
     end
 

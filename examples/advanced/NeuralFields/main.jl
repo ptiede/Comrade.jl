@@ -49,11 +49,8 @@ uvd = VLBIFiles.load(
 
 # For this tutorial we will only use closure quantities to reconstruct the image however, polarized
 # or complex visibilities can also be used with instrumental models following the other tutorials.
-dvis = extract_table(
-    uvd,
-    Visibilities(; time_average = VLBI.GapBasedScans()),
-)
-add_fractional_noise!(dvis, 0.005)
+dvis = average(VisTable(uvd, IPol()), ByScan())
+dvis = add_fractional_noise(dvis, 0.005)
 
 
 # ## Build the Model/Posterior
@@ -91,7 +88,7 @@ nx = 128
 ny = 128
 fovx = μas2rad(1_000)
 fovy = fovx * ny / nx
-grid = imagepixels(fovx, fovy, nx, ny, μas2rad(150.0), -μas2rad(150.0))
+grid = spatialgrid(fovx, fovy, nx, ny, μas2rad(150.0), -μas2rad(150.0))
 
 
 # Next we define neural network using the Lux.jl package.
@@ -201,10 +198,10 @@ skym = SkyModel(sky, prior, grid; algorithm = VLBISkyModels.ReactantNUFFTAlg(), 
         ## separate offset term is needed.
         gp ~ ArrayPrior(
             GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(τ = 2 / 90); init = UniformInit());
-            refant = SEFDReference(0.0),
+            refant = SensitiveReference(0.0),
         )
-        ## SingleStokesGain is a single complex gain for each site.
-        return SingleStokesGain(exp(complex(lg, gp)))
+        ## A single complex gain for each site.
+        return Jones(exp(complex(lg, gp)))
     end
 end
 intmodel = instrument()
@@ -300,7 +297,7 @@ xopt_cpu = latent_pfwd(transport_to(post_cpu, TVFlat()), Array(xcur))
 res = @jit(Comrade.residuals(post, xopt))[1]
 res_cpu = Comrade.Adapt.adapt(Array, res)
 fig = Figure(; size = (800, 300))
-plotfields!(fig[1, 1], res_cpu, uvdist, :res);
+plotfields!(fig[1, 1], res_cpu, :uvdist, :res);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 

@@ -23,14 +23,14 @@ struct MultiSkyModel{N, T} <: AbstractSkyModel
     skymodels::NamedTuple{N, T}
 end
 
-function ObservedSkyModel(m::MultiSkyModel, arr::AbstractArrayConfiguration)
+function ObservedSkyModel(m::MultiSkyModel, arr::VisTable)
     skymodels = map(m.skymodels) do sm
         ObservedSkyModel(sm, arr)
     end
     return MultiSkyModel(skymodels)
 end
 
-function set_prior(m::MultiSkyModel, array::AbstractArrayConfiguration)
+function set_prior(m::MultiSkyModel, array::VisTable)
     prs = map(m.skymodels) do sm
         set_prior(sm, array)
     end
@@ -52,7 +52,9 @@ function _multi_idealmaps(d::ComradeDataType, m::MultiSkyModel{N}, x) where {N}
         Base.@_inline_meta
         idealmaps(d, getproperty(sm, n), (; sky = getproperty(x.sky, n)))
     end
-    vis = reduce(+, map(last, maps))
+    # The components share one visibility domain, so their values add without comparing dims.
+    viss = map(last, maps)
+    vis = IntensityMap(reduce(+, map(baseimage, viss)), axisdims(first(viss)))
     return map(first, maps), vis
 end
 

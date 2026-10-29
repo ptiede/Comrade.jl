@@ -1,6 +1,6 @@
 abstract type ReferencingScheme end
 
-export NoReference, SingleReference, MultiReference, SEFDReference
+export NoReference, SingleReference, MultiReference, SensitiveReference
 
 struct NoReference <: ReferencingScheme end
 
@@ -94,25 +94,17 @@ function reference_value(r::CompositeReference)
     return nothing
 end
 
-struct SEFDReference{T} <: ReferencingScheme
+"""
+    SensitiveReference(val)
+
+Selects, in each time and frequency segment of the parameter, the site with the largest total
+data weight `Σ 1/σ²` over its measured values in that segment, and fixes its entry to `val`.
+"""
+struct SensitiveReference{T} <: ReferencingScheme
     value::T
-    offset::Int
 end
 
-"""
-    SEFDReference(val::Number, sefd_index = 1)
-
-Selects the reference site based on the SEFD of each telescope, where the smallest SEFD
-is preferentially selected. The reference gain is set to `val` and the user can select to
-use the `n` lowest SEFD site by passing `sefd_index = n`.
-
-## Notes
-This is done on a per-scan basis so if a site is missing from a scan the next highest SEFD
-site will be used.
-"""
-SEFDReference(val::Number) = SEFDReference(val, 0)
-
-# Only SEFDReference reads the array configuration; the schemes that name their sites
+# Only SensitiveReference reads the visibility table; the schemes that name their sites
 # outright ignore it.
 reference_indices(_, st::SiteLookup, ::NoReference) = [], nothing
 function reference_indices(_, st::SiteLookup, p::SingleReference)
@@ -151,8 +143,8 @@ function reference_indices(_, st::SiteLookup, r::EntryReference)
     return inds, fill(r.value, length(inds))
 end
 
-function reference_indices(array, st::SiteLookup, r::CompositeReference)
-    parts = [reference_indices(array, st, s) for s in r.schemes]
+function reference_indices(t, st::SiteLookup, r::CompositeReference)
+    parts = [reference_indices(t, st, s) for s in r.schemes]
     filter!(p -> !isempty(first(p)), parts)
     isempty(parts) && return Int[], nothing
     T = mapreduce(p -> eltype(last(p)), promote_type, parts)
@@ -176,21 +168,28 @@ function reference_indices(array, st::SiteLookup, r::CompositeReference)
     return inds[p], vals[p]
 end
 
-function reference_indices(array::AbstractArrayConfiguration, st::SiteLookup, r::SEFDReference)
-    tarr = array.tarr
-    t = unique(st.times)
-    f = unique(st.frequencies)
-    sefd = NamedTuple{Tuple(tarr.sites)}(Tuple(tarr.SEFD1 .+ tarr.SEFD2))
-    fixedinds = Int[]
-    for i in eachindex(t), j in eachindex(f)
-        inds = findall(x -> ((st.times[x] == t[i])&&(st.frequencies[x] == f[j])), eachindex(st.times))
-        if isempty(inds)
-            continue
-        end
-        sites = Tuple(st.sites[inds])
-        @assert length(sites) <= length(sefd) "Error in reference site generation. Too many sites"
-        _, ind = findmin(map(s -> sefd[s], sites))
-        push!(fixedinds, inds[ind])
+function reference_indices(tab::VisTable, st::SiteLookup, r::SensitiveReference)
+    w = _entryweights(tab, st)
+    groups = Dict{Tuple{eltype(st.times), eltype(st.frequencies)}, Vector{Int}}()
+    for i in eachindex(st.sites, st.times, st.frequencies)
+        push!(get!(groups, (st.times[i], st.frequencies[i]), Int[]), i)
     end
+    fixedinds = sort!([inds[argmax(w[inds])] for inds in values(groups)])
     return fixedinds, fill(r.value, length(fixedinds))
+end
+
+# The total data weight of the measured values each entry of `st` covers: those of its site
+# whose time and frequency lie in the entry's segments.
+function _entryweights(t::VisTable, st::SiteLookup)
+    p = _measuredpoints(t)
+    wv = _valueweights(t)[_measuredvalues(t)]
+    bysite = Dict{Symbol, Vector{Int}}()
+    for i in eachindex(st.sites)
+        push!(get!(bysite, st.sites[i], Int[]), i)
+    end
+    w = zeros(Float64, axes(st.sites))
+    for k in eachindex(wv, p.Ti, p.Fr, p.sites), s in p.sites[k], i in get(bysite, s, Int[])
+        (p.Ti[k] in st.times[i] && p.Fr[k] in st.frequencies[i]) && (w[i] += wv[k])
+    end
+    return w
 end

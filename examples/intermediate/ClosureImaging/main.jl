@@ -34,8 +34,7 @@ close(pkg_io) #hide
 # To get started, we will load Comrade
 using Comrade
 
-# VLBIFiles is a pure-Julia uvfits reader; it re-exports VLBIData, so the
-# `VLBI` averaging namespace is in scope too.
+# VLBIFiles is a pure-Julia uvfits reader.
 using VLBIFiles
 
 # For reproducibility we use a stable random number genreator
@@ -50,16 +49,14 @@ uvd = VLBIFiles.load(
     joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
 )
 
-# Now we extract closure quantities. We scan-average via the `time_average` keyword (the data
-# have been preprocessed so gain phases are coherent within a scan) and inflate the
-# uncertainties by 2% to deal with calibration issues such as leakage.
-dlcamp, dcphase = extract_table(
-    uvd,
-    LogClosureAmplitudes(; time_average = VLBI.GapBasedScans()),
-    ClosurePhases(; time_average = VLBI.GapBasedScans()),
-)
-add_fractional_noise!(dlcamp, 0.02)
-add_fractional_noise!(dcphase, 0.02)
+# Now we form the closure quantities. We scan-average the visibilities with `average` (the data
+# have been preprocessed so gain phases are coherent within a scan), inflate the
+# uncertainties by 2% to deal with calibration issues such as leakage, and form the closures
+# from the result.
+dvis = average(VisTable(uvd, IPol()), ByScan())
+dvis = add_fractional_noise(dvis, 0.02)
+dlcamp = log_closure_amplitudes(dvis)
+dcphase = closure_phases(dvis)
 
 # !!! note
 #     Fitting low SNR closure data is complicated and requires a more sophisticated likelihood.
@@ -102,7 +99,7 @@ end
 # a small FOV
 npix = 32
 fovxy = μas2rad(150.0)
-grid = imagepixels(fovxy, fovxy, npix, npix)
+grid = spatialgrid(fovxy, fovxy, npix, npix)
 
 # Given this grid we can now define our GMRF prior called `cprior` above.
 # For this we use a heirarchical prior where the
@@ -161,7 +158,7 @@ plotfields!(fig[1, 2], res[2], :uvdist, :res);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # Now let's plot the MAP estimate.
-g = imagepixels(μas2rad(150.0), μas2rad(150.0), 100, 100)
+g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 100, 100)
 img = intensitymap(skymodel(post, xopt), g)
 fig = imageviz(img, size = (600, 500));
 DisplayAs.Text(DisplayAs.PNG(fig)) #hide
@@ -209,8 +206,8 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # Now let's see whether our residuals look better.
 fig = Figure(; size = (800, 300))
-ax1, = baselineplot(fig[1, 1], res[1], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "LCA Normalized Residuals", xlabel = "uvdist (Gλ)"))
-ax2, = baselineplot(fig[1, 2], res[2], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "CP Normalized Residuals", xlabel = "uvdist (Gλ)"))
+ax1, = baselineplot(fig[1, 1], res[1], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "LCA Normalized Residuals", xlabel = "Longest Baseline (λ)"))
+ax2, = baselineplot(fig[1, 2], res[2], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "CP Normalized Residuals", xlabel = "Longest Baseline (λ)"))
 for s in sample(chain[501:end], 10)
     rs = residuals(post, s)
     baselineplot!(ax1, rs[1], :uvdist, :res, color = :grey, alpha = 0.2, label = "Posterior Draw")

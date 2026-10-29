@@ -338,7 +338,7 @@ free phase, not pulled toward the reference value.
 ```julia
 gp ~ ArrayPrior(
     GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0)); init = UniformInit());
-    refant = SEFDReference(0.0)
+    refant = SensitiveReference(0.0)
 )
 ```
 """
@@ -643,7 +643,7 @@ end
 
 Abstract type for the initial distribution `p(x(t₁))` of a [`GaussMarkovSitePrior`](@ref)
 chain. The process fixes the transition law between time stamps; the initial prior fixes
-how each (site, frequency) chain's *first* time stamp is treated:
+how each site chain's *first* time stamp is treated:
 
   - [`StationaryInit`](@ref): the process's stationary marginal (the default; requires a
     stationary process).
@@ -749,19 +749,11 @@ propagated through the transition law, `m = μ + Φ(m₀ − μ)`, `P = Φ²P₀
 this is `initial_moments` exactly; for [`StationaryInit`](@ref) the marginal is the
 stationary one at every gap.
 """
-function marginal_moments(init::AbstractInitialPrior, p::AbstractGaussMarkovProcess, Δt)
-    m₀, P₀ = initial_moments(init, p)
-    iszero(Δt) && return (m₀, P₀)
-    μ = _process_mean(p)
-    Φ, Q = transition_moments(p, Δt)
-    return (μ + Φ * (m₀ - μ), Φ^2 * P₀ + Q)
-end
-marginal_moments(::StationaryInit, p::AbstractGaussMarkovProcess, _) = stationary_moments(p)
+marginal_moments(init::AbstractInitialPrior, p::AbstractGaussMarkovProcess, Δt) =
+    marginal_moments(init, p, Δt, iszero(Δt))
 
-# Branchless variant for the batched chain log-density, where `Δt` is a per-point table read
-# and the `iszero` shortcut above cannot be a branch on a traced value. `z` is that
-# shortcut's host-computed indicator, so `z == 1` reproduces `initial_moments` exactly just
-# as the branch does, and `z == 0` takes the propagated moments.
+# `z` is the `iszero(Δt)` indicator. Passing it in keeps the selection branchless when `Δt`
+# is a traced table read.
 function marginal_moments(init::AbstractInitialPrior, p::AbstractGaussMarkovProcess, Δt, z)
     m₀, P₀ = initial_moments(init, p)
     μ = _process_mean(p)

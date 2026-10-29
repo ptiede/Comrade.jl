@@ -33,7 +33,7 @@ end
 
 @inline function apply_fluctuations(t::VLBIImagePriors.LogRatioTransform, m::AbstractModel, g::AbstractRectiGrid, δ::AbstractArray)
     mimg = baseimage(intensitymap(m, g))
-    return apply_fluctuations(t, IntensityMap(mimg ./ _fastsum(mimg), g), δ)
+    return apply_fluctuations(t, IntensityMap(mimg ./ sum(mimg), g), δ)
 end
 
 
@@ -50,15 +50,6 @@ end
 
 @noinline _checknorm(m::AbstractArray) = isapprox(sum(m), 1, atol = 1.0e-6)
 EnzymeRules.inactive(::typeof(_checknorm), args...) = nothing
-
-function _fastsum(x)
-    tot = zero(eltype(x))
-    @trace for i in eachindex(x)
-        tot += x[i]
-    end
-    return tot
-end
-
 
 """
     UnitFluxMap(f)
@@ -80,22 +71,9 @@ by broadcasting the function `F` over the array `δ` and then normalizing the re
 
 """
 function apply_fluctuations!(t::UnitFluxMap, out::IntensityMap, mimg::IntensityMap, δ::AbstractArray)
-    f = t.f
+    apply_fluctuations!(t.f, out, mimg, δ)
     bout = baseimage(out)
-    @inbounds for i in eachindex(bout, δ)
-        bout[i] = f(δ[i])
-    end
-    # bout .= f.(baseimage(δ))
-    fd = _fastsum(bout)
-    bmimg = baseimage(mimg)
-
-    @inbounds for i in eachindex(bout, bmimg)
-        bout[i] *= bmimg[i] / fd
-    end
-
-    fi = _fastsum(bout)
-    bout .*= inv(fi)
-
+    bout ./= sum(bout)
     return nothing
 end
 
@@ -115,7 +93,7 @@ end
 
 """
     corr_image_prior(grid::AbstractRectiGrid, corr_length::Real; base=GMRF, order=1, lower=1.0, upper=2*max(size(grid)...))
-    corr_image_prior(grid::AbstractRectiGrid, obs::EHTObservationTable; base=GMRF, order=1, lower=1.0, upper=2*max(size(grid)...))
+    corr_image_prior(grid::AbstractRectiGrid, t::VisTable; base=GMRF, order=1, lower=1.0, upper=2*max(size(grid)...))
 
 Construct a correlated image prior, for the image with grid `grid`, and using the observation `dvis`. 
 The correlation will be a Markov Random Field (MRF) of order `order`, with the base distribution `base`. For 
@@ -129,7 +107,7 @@ and upper bounds of the correlation length, we don't let the correlation length 
 
 ## Arguments
  - `grid::AbstractRectiGrid`: The grid of the image to be reconstructed.
- - `corr_length`: The correlation length of the MRF. If this is an `EHTObservationTable` then the corr_length 
+ - `corr_length`: The correlation length of the MRF. If this is a `VisTable` then the corr_length 
     will be the approximate beam size of the observation. 
 
 ## Keyword Arguments
@@ -157,4 +135,4 @@ function corr_image_prior(
     return cprior
 end
 
-corr_image_prior(grid::AbstractRectiGrid, obs::EHTObservationTable; kwargs...) = corr_image_prior(grid, beamsize(obs); kwargs...)
+corr_image_prior(grid::AbstractRectiGrid, t::VisTable; kwargs...) = corr_image_prior(grid, beamsize(t); kwargs...)

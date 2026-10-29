@@ -56,7 +56,18 @@ mean sidereal time. The parallactic angle uses the standard atan2 form
 
 which matches the convention used by both eht-imaging and Astropy.
 """
-function elevation_parallactic(
+function elevation_parallactic(antenna_xyz, ra_deg, dec_deg, jd; kwargs...)
+    el, par, _ = horizon_angles(antenna_xyz, ra_deg, dec_deg, jd; kwargs...)
+    return (el, par)
+end
+
+"""
+    horizon_angles(antenna_xyz, ra_deg, dec_deg, jd) -> (elevation, parallactic, azimuth)
+
+The source elevation, parallactic angle and azimuth (east of north), in radians, at one antenna
+and time, as in [`elevation_parallactic`](@ref).
+"""
+function horizon_angles(
         antenna_xyz, ra_deg, dec_deg, jd;
         precession::Bool = false,
         nutate::Bool = false,
@@ -70,7 +81,7 @@ function elevation_parallactic(
     # default we disable precession/nutation/aberration/refraction so the
     # result matches eht-imaging's `utc_to_gmst`-based pipeline; flip the
     # flags to get full Astropy-style apparent-place corrections.
-    alt_deg, _, ha_deg = AstroLib.eq2hor(
+    alt_deg, az_deg, ha_deg = AstroLib.eq2hor(
         ra_deg, dec_deg, jd,
         rad2deg(lat), rad2deg(lon), alt_m;
         precession, nutate, aberration, refract
@@ -82,5 +93,5 @@ function elevation_parallactic(
         sin(ha) * cos(lat),
         sin(lat) * cos(dec) - cos(lat) * sin(dec) * cos(ha)
     )
-    return (el, par)
+    return (el, par, deg2rad(az_deg))
 end

@@ -41,7 +41,7 @@ _fndef_body(def) = def.args[2]
 
 # Every name the instrument body binds, so we can tell "closes over a local" from "refers to a
 # global". Over-collecting is harmless: it only forces a definition to stay nested, which is the
-# conservative (previous) behaviour. Under-collecting is NOT harmless — a missed binding lets
+# conservative behavior. Under-collecting is NOT harmless — a missed binding lets
 # `_partition_fndefs` hoist a definition that closes over it, breaking it at evaluation time —
 # so every binding form conservatively collects *every* symbol on its binding side
 # (`_collect_lhs_symbols!`). That over-approximates the bound names for destructures
@@ -87,7 +87,7 @@ end
 # This matters for serialization. A function nested inside another is a *closure*, so its type is
 # gensym'd — `var"#_gain_pmap_1#37"` — and that trailing number is a module-global counter fixed
 # at compile time, not part of any name in the source. Because the param_map is a type parameter
-# of the Jones term (`JonesG{var"#_gain_pmap_1#37"}`), it is baked into every serialized model.
+# of the Jones term (`Jones{var"#_gain_pmap_1#37"}`), it is baked into every serialized model.
 # Editing *unrelated* code earlier in the module shifts the counter, and every previously
 # serialized posterior then fails to deserialize with `UndefVarError: #_gain_pmap_1#37`. Hoisted
 # to top level the same function has type `typeof(_gain_pmap_1)`, a stable singleton keyed on a
@@ -103,7 +103,7 @@ function _partition_fndefs(fndefs, user_kw_names, body_stmts)
     # The blocker set only grows: seed it with the enclosing bindings and append each
     # definition as it is forced to stay nested.
     blockers = Symbol[user_kw_names...]
-    push!(blockers, :refbasis)
+    push!(blockers, :refbasis, :feedrotation_corrected)
     _collect_assigned!(blockers, Expr(:block, body_stmts...))
 
     nested = Set{Symbol}()
@@ -135,9 +135,9 @@ end
 # The block's `~` lines are its priors; the rest is its param_map. A parameterized block must
 # end in a constructor call `Ctor(posarg; kws...)` with exactly one positional argument: the
 # preceding statements plus that argument become `Ctor`'s param_map, a named function of the
-# per-site parameter NamedTuple `x` with a leading `(; used...) = x` destructure. No constructor
-# name is consulted, so custom `AbstractJonesMatrix` types work automatically. A param-free
-# block (no `~` lines) is emitted verbatim — its value is the Jones matrix.
+# per-cell parameter NamedTuple `x` and cell coordinates `c`, with a leading `(; used...) = x`
+# destructure. The block's priors are passed to `Ctor` as keywords, so the term owns them.
+# A param-free block (no `~` lines) is emitted verbatim — its value is the Jones matrix.
 function _jones_impl(args, base::Symbol, counter::Base.RefValue{Int})
     length(args) == 1 ||
         error("@jones: expected `@jones begin ... end`, got $(length(args)) arguments")
@@ -165,7 +165,7 @@ function _jones_impl(args, base::Symbol, counter::Base.RefValue{Int})
     call = Meta.isexpr(finalstmt, :return) ? finalstmt.args[1] : finalstmt
     Meta.isexpr(call, :call) || error(
         "@jones: the final statement of a parameterized block (one with `~` priors) must be a " *
-            "Jones constructor call with a single positional argument, e.g. `return JonesG((g1, g2))`; " *
+            "Jones constructor call with a single positional argument, e.g. `return Jones(gains(g1, g2))`; " *
             "got `$(finalstmt)`. Control-flow finals (`if`/`let`/`begin`) are not decomposable into a " *
             "param_map — compute the entries into a single value first, then `return Ctor(entries)`."
     )
@@ -194,11 +194,15 @@ function _jones_impl(args, base::Symbol, counter::Base.RefValue{Int})
     push!(pmbody, posarg)
 
     fndefs = Any[]
-    pmname = _emit_fn!(fndefs, base, "_pmap_", counter, (:x,), Expr(:block, pmbody...))
+    pmname = _emit_fn!(fndefs, base, "_pmap_", counter, (:x, :c), Expr(:block, pmbody...))
 
-    newargs = Any[ctor]
-    params_expr === nothing || push!(newargs, params_expr)
-    push!(newargs, pmname)
+    params_expr === nothing && (params_expr = Expr(:parameters))
+    for a in params_expr.args
+        k = Meta.isexpr(a, :kw) ? a.args[1] : a
+        k in names && error("@jones: `$k` is both a `~` parameter and a keyword of `$(call)`")
+    end
+    append!(params_expr.args, [Expr(:kw, n, e) for (n, e) in zip(names, exprs)])
+    newargs = Any[ctor, params_expr, pmname]
     return (
         jones = Expr(:call, newargs...),
         fndefs = fndefs,
@@ -220,11 +224,10 @@ function _subst_jones(node, base, counter, fndefs, priors)
     return Expr(node.head, Any[_subst_jones(a, base, counter, fndefs, priors) for a in node.args]...)
 end
 
-# Lift anonymous functions (the `JonesSandwich` combination function, written as a `do`-block
-# or `->`) in the composition to named functions, so the model's `jones_map` is a named
-# (serializable) function rather than a gensym closure. These functions take the assembled
-# Jones matrices as arguments and never reference sampled parameters, so no destructure is
-# needed; `_partition_fndefs` decides afterwards whether each one can sit at top level.
+# Lift anonymous functions (written as a `do`-block or `->`) in the composition to named
+# functions, so the model holds named (serializable) functions rather than gensym closures.
+# These functions never reference sampled parameters, so no destructure is needed;
+# `_partition_fndefs` decides afterwards whether each one can sit at top level.
 #
 # A lifted function's body is kept *verbatim* — we deliberately do not recurse into it. A nested
 # anonymous function inside the body may close over the outer lambda's arguments (e.g.
@@ -247,7 +250,7 @@ function _lift_anons(node, base, counter, fndefs)
     return Expr(node.head, Any[_lift_anons(a, base, counter, fndefs) for a in node.args]...)
 end
 
-function _instrument_impl(fexpr)
+function _instrument_impl(fexpr; selfcal::Bool = false)
     Meta.isexpr(fexpr, :function) ||
         error("@instrument expects a `function name(; kwargs...) ... end` definition")
     sig, body = fexpr.args
@@ -271,18 +274,22 @@ function _instrument_impl(fexpr)
             error("@instrument: keyword arguments must be plain names (no type annotations); got $(k)")
     end
 
-    # Separate the special `refbasis` kwarg from the user kwargs. The user may supply their own
-    # default for `refbasis`; otherwise inject `CirBasis()`.
+    # Separate the special `refbasis` and `feedrotation_corrected` kwargs from the user kwargs.
+    # The user may supply their own defaults; otherwise inject `CirBasis()` and `false`.
     refbasis_kw = nothing
+    corrected_kw = nothing
     user_kw_args = Any[]
     for k in kw_args
         if _kwname(k) === :refbasis
             refbasis_kw = k
+        elseif _kwname(k) === :feedrotation_corrected
+            corrected_kw = k
         else
             push!(user_kw_args, k)
         end
     end
     refbasis_kw === nothing && (refbasis_kw = Expr(:kw, :refbasis, :(CirBasis())))
+    corrected_kw === nothing && (corrected_kw = Expr(:kw, :feedrotation_corrected, false))
     user_kw_names = Symbol[_kwname(k) for k in user_kw_args]
 
     # Walk the body: expand `@jones` blocks (collecting their param_maps + priors) and lift the
@@ -308,7 +315,6 @@ function _instrument_impl(fexpr)
     end
 
     tilde_names = Symbol[p.first for p in prior_pairs]
-    tilde_exprs = Any[p.second for p in prior_pairs]
     allunique(tilde_names) ||
         error("@instrument: duplicate sampled-parameter name across @jones blocks: $(tilde_names)")
     allunique(user_kw_names) ||
@@ -316,11 +322,12 @@ function _instrument_impl(fexpr)
     clashes = intersect(Set(tilde_names), Set(user_kw_names))
     isempty(clashes) ||
         error("@instrument: name clash between sampled parameters and keyword arguments: $(collect(clashes))")
-    :refbasis in tilde_names &&
-        error("@instrument: `refbasis` is reserved and cannot be used as a sampled-parameter name")
+    for reserved in (:refbasis, :feedrotation_corrected)
+        reserved in tilde_names &&
+            error("@instrument: `$reserved` is reserved and cannot be used as a sampled-parameter name")
+    end
 
     jones_fn_name = Symbol("_", name, "_jones")
-    prior_fn_name = Symbol("_", name, "_prior")
 
     # `_<name>_jones(; user_kwargs...)` — defines the lifted param_map / combination functions,
     # then runs the (jones-substituted) body, returning the composed `AbstractJonesMatrix`.
@@ -334,56 +341,42 @@ function _instrument_impl(fexpr)
         Expr(:block, inner_fndefs..., body_stmts...)
     )
 
-    # `_<name>_prior(; user_kwargs...)` — returns the (flat) prior NamedTuple. Empty when there
-    # are no `~` lines (a parameter-free instrument).
-    prior_nt = Expr(
-        :tuple,
-        Expr(:parameters, [Expr(:kw, n, e) for (n, e) in zip(tilde_names, tilde_exprs)]...)
-    )
-    prior_fn = Expr(
-        :function,
-        Expr(:call, prior_fn_name, Expr(:parameters, user_kw_args...)),
-        Expr(:block, Expr(:return, prior_nt))
-    )
-
     # `<name>(; refbasis = CirBasis(), user_kwargs...)` — the user-facing constructor.
-    ctor_sig = Expr(:call, name, Expr(:parameters, refbasis_kw, user_kw_args...))
+    ctor_sig = Expr(:call, name, Expr(:parameters, refbasis_kw, corrected_kw, user_kw_args...))
     fwd_kwargs = Expr(:parameters, [Expr(:kw, n, n) for n in user_kw_names]...)
-    prior_call = Expr(:call, prior_fn_name, fwd_kwargs)
     jones_call = Expr(:call, jones_fn_name, fwd_kwargs)
     instrument_call = Expr(
         :call, :InstrumentModel,
-        Expr(:parameters, Expr(:kw, :refbasis, :refbasis)),
-        :jones, :prior
+        Expr(
+            :parameters, Expr(:kw, :refbasis, :refbasis),
+            Expr(:kw, :feedrotation_corrected, :feedrotation_corrected), Expr(:kw, :selfcal, selfcal)
+        ),
+        :jones
     )
     ctor_body = Expr(
         :block,
-        Expr(:(=), :prior, prior_call),
         Expr(:(=), :jones, jones_call),
         Expr(:return, instrument_call)
     )
     ctor_fn = Expr(:function, ctor_sig, ctor_body)
 
-    return Expr(:block, top_fndefs..., jones_fn, prior_fn, ctor_fn)
+    return Expr(:block, top_fndefs..., jones_fn, ctor_fn)
 end
 
 """
     @jones begin
         param₁ ~ ArrayPrior(...)
-        # ... statements building the matrix entries from the params ...
-        return JonesG(entries)
+        # ... statements building the matrix from the params ...
+        return Jones(matrix)
     end
 
 Build one Jones term inside an [`@instrument`](@ref) block. Each `name ~ ArrayPrior(...)` line
-is a prior for this term; the rest of the block is how the we paraemeterized the Jones matrix.
+is a prior for this term; the rest of the block computes the Jones matrix from the sampled
+parameters. The block can also read the station cell's coordinates as `c` (`c.Ti`, `c.Fr`,
+`c.elevation`, `c.parallactic`, `c.azimuth`, `c.ant`; see [`AbstractJonesMatrix`](@ref Comrade.AbstractJonesMatrix)).
 
-A block with no `~` lines is parameter-free and is emitted verbatim (e.g. `JonesR`):
-
-```julia
-R = @jones begin
-    return JonesR(; add_fr = true)
-end
-```
+A block with no `~` lines is parameter-free and is emitted verbatim: its value is the Jones
+term.
 
 `@jones` is only meaningful inside [`@instrument`](@ref) (its `~` priors have nowhere else to
 go); using it standalone with `~` lines is an error.
@@ -409,15 +402,16 @@ end
 Define an [`InstrumentModel`](@ref) constructor in a single block, mirroring [`@sky`](@ref).
 Each Jones term is built with a [`@jones`](@ref) block, which carries its own `~` priors and
 `param_map`; the priors of all blocks are collected into the instrument prior. The body then
-composes the built Jones terms (e.g. with [`JonesSandwich`](@ref)) and returns the result.
+composes the built Jones terms with `*` (e.g. `G * D`) and returns the result.
 
 The instrument model takes no positional arguments. Keyword arguments are tunable constants in
 scope for the `~` prior expressions and the `@jones` bodies. `refbasis` is treated specially:
-it is forwarded only to `InstrumentModel` and defaults to `CirBasis()` if not listed. Priors
-are declared *only* inside `@jones` blocks — a top-level `~` is an error. `~` lines are
-optional overall, so a parameter-free response model is allowed.
+it is forwarded only to `InstrumentModel` and defaults to `CirBasis()` if not listed, and so is
+`feedrotation_corrected` (default `false`). Priors are declared *only* inside `@jones` blocks —
+a top-level `~` is an error. `~` lines are optional overall, so a parameter-free model is
+allowed.
 
-The `JonesSandwich` combination function is lifted to a named function automatically (named
+Anonymous functions in the composition are lifted to named functions automatically (named
 functions, unlike closures, serialize reliably).
 
 Example:
@@ -426,30 +420,29 @@ Example:
     G = @jones begin
         lgR   ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gain_std)))
         gpR   ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2)));
-                           refant = SEFDReference(0.0), phase = true)
+                           refant = SensitiveReference(0.0))
         lgrat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, gain_std)))
         gprat ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
         gR = exp(complex(lgR, gpR))
         gL = gR * exp(complex(lgrat, gprat))
-        return JonesG((gR, gL))
+        return Jones(gains(gR, gL))
     end
     D = @jones begin
         dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, dterm_std)))
         dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, dterm_std)))
         dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, dterm_std)))
         dLy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, dterm_std)))
-        return JonesD((complex(dRx, dRy), complex(dLx, dLy)))
+        return Jones(leakage(complex(dRx, dRy), complex(dLx, dLy)))
     end
-    R = @jones begin
-        return JonesR(; add_fr = true)
-    end
-    return JonesSandwich(G, D, R) do g, d, r
-        adjoint(r) * g * d * r
-    end
+    return G * D
 end
 
 intm = fullpol(; gain_std = 0.05)
 ```
+
+`@instrument selfcal = true function ...` builds the model with `selfcal = true` (see
+[`InstrumentModel`](@ref)): its Jones terms then omit the station phase, which is the
+self-calibration solution plus the sampled residual `selfcal_residual`.
 
 A Stokes-I example is a single block:
 
@@ -458,11 +451,18 @@ A Stokes-I example is a single block:
     return @jones begin
         lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
         gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))))
-        return SingleStokesGain(exp(complex(lg, gp)))
+        return Jones(exp(complex(lg, gp)))
     end
 end
 ```
 """
-macro instrument(fexpr)
-    return esc(_instrument_impl(fexpr))
+macro instrument(args...)
+    options = args[1:(end - 1)]
+    selfcal = false
+    for o in options
+        (Meta.isexpr(o, :(=)) && o.args[1] === :selfcal && o.args[2] isa Bool) ||
+            error("@instrument: the only option is `selfcal = true` or `selfcal = false`, got `$o`")
+        selfcal = o.args[2]
+    end
+    return esc(_instrument_impl(last(args); selfcal))
 end
