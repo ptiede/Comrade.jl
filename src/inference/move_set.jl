@@ -11,6 +11,16 @@ mutable struct _MoveStats
     bystep::Dict{Any, Vector{Int}}
 end
 
+# Warmup calls since the last logged table: accepted proposals per move, the calls, their
+# wall time, and the step of the first of them.
+mutable struct _MoveTally
+    accepted::Vector{Int}
+    calls::Int
+    seconds::Float64
+    first::Int
+end
+_MoveTally(n) = _MoveTally(zeros(Int, n), 0, 0.0, 0)
+
 function _MoveStats(m::AbstractMove)
     k = step_kind(m)
     complog = k isa ComponentwiseRandomWalk ? fill(log(k.initial_scale), k.n) : Float64[]
@@ -60,9 +70,9 @@ preconditioner's device buffers are seen without a recompile.
 
 During warmup the log step scale of each [`RandomWalk`](@ref) move follows a Robbins–Monro
 recursion toward `target_accept[j]`, updated after each proposal (for traceable moves, after
-the call, in proposal order); it is frozen for sampling. Every warmup call logs one
-line with its wall time, acceptance rates and scales; [`move_seconds`](@ref) is the total
-wall time of all calls. With `output` set, the statistics of
+the call, in proposal order); it is frozen for sampling. A warmup call whose `info.report` is true or absent logs a table
+of the acceptance rates over the calls since the last table, their wall time, and the
+current scales; [`move_seconds`](@ref) is the total wall time of all calls. With `output` set, the statistics of
 [`move_summary`](@ref) are serialized to that path after every call.
 
 Construction checks that the StdNormal log density has that form when any move is accepted
@@ -80,6 +90,7 @@ struct MoveSet{M <: Tuple, C}
     output::Union{Nothing, String}
     compiled::Base.RefValue{Any}
     seconds::Base.RefValue{Float64}
+    tally::_MoveTally
 end
 
 _per_move(v::Real, n, name) = fill(v, n)
@@ -97,8 +108,8 @@ function MoveSet(
     all(m -> m isa AbstractMove, moves) ||
         throw(ArgumentError("every move must be an AbstractMove"))
     for m in moves
-        (traceable(m) && !(step_kind(m) isa RandomWalk)) &&
-            throw(ArgumentError("move $(move_name(m)) is traceable but not a RandomWalk move"))
+        (traceable(m) && !(step_kind(m) isa Union{RandomWalk, OrbitStep})) &&
+            throw(ArgumentError("move $(move_name(m)) is traceable but not a RandomWalk or OrbitStep move"))
     end
     names = map(move_name, moves)
     allunique(names) || throw(ArgumentError("move names must be distinct, got $(collect(names))"))
@@ -131,7 +142,7 @@ function MoveSet(
     end
     return MoveSet(
         moves, ctx, Int.(r), Float64.(ta), [_MoveStats(m) for m in moves], free,
-        isnothing(output) ? nothing : String(output), Ref{Any}(nothing), Ref(0.0)
+        isnothing(output) ? nothing : String(output), Ref{Any}(nothing), Ref(0.0), _MoveTally(n)
     )
 end
 
@@ -182,7 +193,8 @@ end
 
 # The functions a `MoveSet` call runs through: `load(position) -> z`, `to_base(z) -> x`,
 # `from_base(x) -> z`, `logdensity(x) -> Float64` (of the base space),
-# `prior_delta(x, x′) -> Float64`, `propose(j, x, step) -> (x′, logdet)`,
+# `prior_delta(x, x′) -> Float64`, `propose(j, x, step) -> (x′, logdet)`, `context` (the
+# move context the proposals read),
 # `fused(x, ℓ, order, steps, logu) -> (x, ℓ, logα)` for the traceable moves,
 # `download(x)` and `upload(xh, x)` (a host copy of `x`, and a host vector back to where `x`
 # lives) and `store(z, position)`, here for host positions. The Reactant extension provides
@@ -197,6 +209,7 @@ function _move_kernels(ms::MoveSet, tpost, position)
         logdensity = x -> Float64(logdensityof(tbase, x)),
         prior_delta = _prior_delta,
         propose = (j, x, step) -> propose(ms.moves[j], x, step, ms.ctx),
+        context = ms.ctx,
         download = copy,
         upload = (xh, x) -> xh,
         store = (z, position) -> _position_like(z, position),
@@ -230,6 +243,28 @@ function _kernels_for(ms::MoveSet, tpost, position)
     kernels = _move_kernels(ms, tpost, position)
     ms.compiled[] = (; tpost, T = typeof(position), kernels)
     return kernels
+end
+
+"""
+    update_context!(ms::MoveSet, key::Symbol, value) -> MoveSet
+
+Overwrite the move-context array `key` of `ms` with `value` (same shape), in place, so the
+moves read the new value from their next call on. A compiled device program reads its copy
+of the context as an argument, so that copy is overwritten too and nothing recompiles.
+"""
+function update_context!(ms::MoveSet, key::Symbol, value)
+    haskey(ms.ctx, key) || throw(ArgumentError("the move context has no entry $key"))
+    dest = getproperty(ms.ctx, key)
+    dest isa AbstractArray || throw(ArgumentError("the move-context entry $key is not an array"))
+    size(dest) == size(value) ||
+        throw(DimensionMismatch("$key has size $(size(dest)), the new value $(size(value))"))
+    copyto!(dest, value)
+    c = ms.compiled[]
+    if !isnothing(c)
+        dev = getproperty(c.kernels.context, key)
+        dev === dest || copyto!(dev, dest)
+    end
+    return ms
 end
 
 _count!(c, accepted) = (c[1] += 1; c[2] += accepted; c)
@@ -357,21 +392,34 @@ function (ms::MoveSet)(state, tpost, info, rng)
     any(>(0), nacc) && (state.position = k.store(k.from_base(x), position))
     dt = Base.time() - t0
     ms.seconds[] += dt
-    if phase === :warmup
-        @info "moves after warmup step $(info.step)/$(info.total) ($(@sprintf("%.2f", dt)) s)\n" *
-            _moves_table(ms, nacc)
-    end
+    phase === :warmup && _log_warmup_moves!(ms, nacc, dt, info)
     return state
 end
 
-# One row per move: proposals accepted in this call, proposals made, the acceptance rate,
-# and the random-walk step scale (the geometric mean over components for a componentwise
-# move; blank for discrete moves).
-function _moves_table(ms::MoveSet, nacc)
+function _log_warmup_moves!(ms::MoveSet, nacc, dt, info)
+    t = ms.tally
+    t.calls == 0 && (t.first = info.step)
+    t.accepted .+= nacc
+    t.calls += 1
+    t.seconds += dt
+    get(info, :report, true) || return
+    calls = t.calls == 1 ? "1 call" : "$(t.calls) calls from step $(t.first)"
+    @info "moves after warmup step $(info.step)/$(info.total) ($calls, $(@sprintf("%.2f", t.seconds)) s)\n" *
+        _moves_table(ms, t.accepted, t.calls)
+    fill!(t.accepted, 0)
+    t.calls = 0
+    t.seconds = 0.0
+    return
+end
+
+# One row per move: proposals accepted over `calls` calls, proposals made, the acceptance
+# rate, and the random-walk step scale (the geometric mean over components for a
+# componentwise move; blank for discrete moves).
+function _moves_table(ms::MoveSet, nacc, calls)
     rows = map(enumerate(ms.moves)) do (j, m)
         kind = step_kind(m)
         st = ms.stats[j]
-        nprop = kind isa ComponentwiseRandomWalk ? ms.rounds[j] * kind.n : ms.rounds[j]
+        nprop = calls * (kind isa ComponentwiseRandomWalk ? ms.rounds[j] * kind.n : ms.rounds[j])
         τ = kind isa ComponentwiseRandomWalk ? exp(sum(st.complog) / length(st.complog)) :
             kind isa RandomWalk ? exp(st.logscale) : nothing
         return [

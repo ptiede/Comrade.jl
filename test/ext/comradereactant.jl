@@ -392,6 +392,32 @@ end
         isnothing(compiled[]) ? (compiled[] = msd.compiled[]) : @test(msd.compiled[] === compiled[])
     end
 
+    # A context update reaches the compiled program without recompiling it: with the scale
+    # `c` doubled, the device makes the host's proposals and decisions. The host context holds
+    # the moves' own arrays, so a MoveSet built from the same moves sees the update too.
+    k0 = msd.compiled[]
+    Comrade.update_context!(msd, :c, [2.0])
+    msh2 = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
+    @test only(msh2.ctx.c) == 2.0
+    msd.stats .= [Comrade._MoveStats(m) for m in msd.moves]
+    z2 = Comrade._affine_inv(p2, xstart)
+    sh2 = msh2(_DeviceMovesState(copy(z2)), thost(p2), warm, Random.Xoshiro(33))
+    sd2 = msd(_DeviceMovesState(Reactant.to_rarray(z2)), tdev, warm, Random.Xoshiro(33))
+    @test Array(sd2.position) ≈ sh2.position rtol = 1.0e-9
+    @test msd.compiled[] === k0
+    @test_throws DimensionMismatch Comrade.update_context!(msd, :c, [1.0, 2.0])
+    @test_throws "has no entry nope" Comrade.update_context!(msd, :nope, [1.0])
+
+    # An OrbitStep move in the compiled program draws the same points as on the host.
+    orbit = _ShiftOrbit(8, 0.3)
+    mso_h = MoveSet(post_cpu, (orbit,); space = sp, rounds = 6)
+    mso_d = MoveSet(post_cpu, (orbit,); space = sp, rounds = 6)
+    so_h = mso_h(_DeviceMovesState(copy(xstart)), Comrade.transport_to(post_cpu, sp), warm, Random.Xoshiro(41))
+    so_d = mso_d(_DeviceMovesState(Reactant.to_rarray(xstart)), Comrade.transport_to(post, sp), warm, Random.Xoshiro(41))
+    @test Array(so_d.position) ≈ so_h.position rtol = 1.0e-12
+    @test only(move_summary(mso_d)).warmup == only(move_summary(mso_h)).warmup
+    @test 0 < only(move_summary(mso_h)).warmup.accepted
+
     # Invariant moves are accepted without the likelihood, in the compiled program and on
     # the host alike: `u` and `w` do not enter the sky, so random walks of them are exact.
     post_u = VLBIPosterior(SkyModel(test_model, merge(gprior, (u = VLBIGaussian(0.0, 1.0), w = VLBIGaussian(0.0, 1.0))), g), vis; admode = nothing)

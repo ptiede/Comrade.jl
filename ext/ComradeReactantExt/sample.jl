@@ -270,6 +270,7 @@ function Comrade._move_kernels(ms::Comrade.MoveSet, tpost, position::Reactant.Ab
         logdensity = x -> Float64(ld(tbase, x)),
         prior_delta = (x, x′) -> Float64(pd(x, x′)),
         propose,
+        context = ctx,
         fused = run_fused,
         download = Array,
         upload = (xh, x) -> Reactant.to_rarray(xh),

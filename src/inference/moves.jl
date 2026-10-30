@@ -2,7 +2,7 @@
 # StdNormal), the parameter view they read and write through, and checks of their
 # correctness.
 
-export CoordinateView, AbstractMove, RandomWalk, DiscreteSymmetric, ComponentwiseRandomWalk,
+export CoordinateView, AbstractMove, RandomWalk, DiscreteSymmetric, ComponentwiseRandomWalk, OrbitStep,
     CompensatedMove, check_move
 
 """
@@ -118,14 +118,15 @@ A Metropolis–Hastings move of the base latent coordinates of a posterior. A mo
   - [`propose`](@ref)`(move, x, step, ctx) -> (x′, logdet)`: the moved point and
     `log|det ∂x′/∂x|`, with `ctx` from [`move_context`](@ref);
   - `step_kind(move)`: [`RandomWalk`](@ref) (a scalar step `u ~ N(0, τ²)`),
-    [`DiscreteSymmetric`](@ref), or [`ComponentwiseRandomWalk`](@ref) (a vector step, one
-    log-determinant per component, and `component_coords(move)`);
+    [`DiscreteSymmetric`](@ref), [`ComponentwiseRandomWalk`](@ref) (a vector step, one
+    log-determinant per component, and `component_coords(move)`), or [`OrbitStep`](@ref) (a
+    draw rather than a proposal);
   - `move_name(move)`.
 
 and optionally `draw_step(move, rng, τ)` and `reverse_step(move, step)` (required for
 `DiscreteSymmetric`), `is_invariant(move)` (default `true`: the likelihood does not change),
 `context_data(move, view)` (arrays the move reads from `ctx`) and `traceable(move)` (default
-`false`). A traceable `RandomWalk` move's proposal is compiled into a Reactant program when
+`false`). A traceable `RandomWalk` or `OrbitStep` move's proposal is compiled into a Reactant program when
 the sampler's position lives on the device; it must then read every array it needs from
 `ctx` (whose `view` is then over the device posterior) rather than capture host objects.
 
@@ -181,6 +182,24 @@ struct ComponentwiseRandomWalk
 end
 
 """
+    OrbitStep(K)
+
+The step kind of a move that draws its next point along a deterministic orbit through `x`
+from a window of `K` orbit points, leaving the target invariant by itself, rather than
+proposing one. The step is `o + v`: a window position `o` of `x`, uniform on `0:K-1`, and a
+uniform `v ∈ [0, 1)` for the draw. [`propose`](@ref) returns `logdet = Inf` when the drawn
+point differs from `x` and `-Inf` when it is `x`, so [`MoveSet`](@ref) keeps the draw, and its
+acceptance rate is the fraction of draws that move.
+"""
+struct OrbitStep
+    K::Int
+    function OrbitStep(K)
+        K >= 2 || throw(ArgumentError("an orbit window needs at least two points, got $K"))
+        return new(K)
+    end
+end
+
+"""
     component_coords(move) -> Vector{Vector{Int}}
 
 The latent coordinates each component of a [`ComponentwiseRandomWalk`](@ref) move changes.
@@ -211,6 +230,7 @@ traceable(::AbstractMove) = false
 draw_step(m::AbstractMove, rng::AbstractRNG, τ) = _draw_step(step_kind(m), rng, τ)
 _draw_step(::RandomWalk, rng, τ) = τ * randn(rng)
 _draw_step(k::ComponentwiseRandomWalk, rng, τ) = τ .* randn(rng, k.n)
+_draw_step(k::OrbitStep, rng, τ) = rand(rng, 0:(k.K - 1)) + rand(rng)
 
 reverse_step(m::AbstractMove, step) = _reverse_step(step_kind(m), step)
 _reverse_step(::RandomWalk, u) = -u

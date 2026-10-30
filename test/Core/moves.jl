@@ -226,6 +226,13 @@ end
         τ = s[1].τ
         ms(st, tflat, (; phase = :sampling, step = 1, total = 10), Random.Xoshiro(2))
         @test move_summary(ms)[1].τ == τ && move_summary(ms)[1].sampling.proposed == 5
+        # a warmup call logs only when `info.report` is true or absent, with the acceptances
+        # of every call since the last table
+        @test_logs ms(st, tflat, merge(warm(2), (; report = false)), Random.Xoshiro(3))
+        @test_logs (:info, r"moves after warmup step 30/100 \(2 calls from step 20, .* s\)(.|\n)*flux_gain\s*│\s*\d+\s*│\s*10\s*│") ms(
+            st, tflat, merge(warm(3), (; report = true)), Random.Xoshiro(4)
+        )
+        @test_logs (:info, r"moves after warmup step 40/100 \(1 call, ") ms(st, tflat, warm(4), Random.Xoshiro(5))
 
         # through a preconditioner the base-space chain and the decisions are the same
         n = dimension(tflat)
@@ -283,6 +290,21 @@ end
         fresh = [randn(prng, length(idx)) for _ in 1:nd]
         crit = sqrt(-log(1.0e-3 / length(idx) / 2) / 2) * sqrt(2 / nd)
         @test all(i -> Comrade._ks_statistic(getindex.(moved, i), getindex.(fresh, i)) <= crit, eachindex(idx))
+        # An OrbitStep move's draw is kept: the acceptance counts the draws that move, and the
+        # kernel leaves the move's own target, N(0, 1) on the first coordinate, invariant.
+        @test_throws "at least two points" OrbitStep(1)
+        osteps = [Comrade.draw_step(_ShiftOrbit(4, 0.5), prng, NaN) for _ in 1:1000]
+        @test all(s -> 0 <= s < 4, osteps) && sort(unique(floor.(Int, osteps))) == 0:3
+        mso = MoveSet(post, (_ShiftOrbit(8, 0.5),); space = sp, rounds = 3)
+        orbit1 = map(1:nd) do _
+            s = _MovesState(randn(prng, Comrade.dimension(tstd)))
+            mso(s, tstd, samp, prng)
+            s.position[1]
+        end
+        osum = only(move_summary(mso))
+        @test osum.sampling.proposed == 3nd && 0 < osum.sampling.accepted < 3nd
+        @test osum.τ === nothing
+        @test Comrade._ks_statistic(orbit1, randn(prng, nd)) <= sqrt(-log(1.0e-3 / 2) / 2) * sqrt(2 / nd)
         # a move flagged invariant that changes the likelihood fails the audit
         bad = CompensatedMove("bad", vs, (:sky, :f1), (:instrument, :lg), (vb, x, x′, ctx) -> vb)
         msb = MoveSet(post, (bad,); space = sp, rounds = 20)
@@ -294,7 +316,7 @@ end
         @test_throws "move names must be distinct" MoveSet(post, (fg, fg))
         @test_throws "MoveSet needs at least one move" MoveSet(post, ())
         @test_throws "unknown sampler phase" ms(st, tflat, (; phase = :burnin, step = 1, total = 1), rng)
-        @test_throws "is traceable but not a RandomWalk move" MoveSet(post, (_TracedDiscrete(),))
+        @test_throws "is traceable but not a RandomWalk or OrbitStep move" MoveSet(post, (_TracedDiscrete(),))
 
         # a traceable move runs from steps drawn up front at the call's step scale; with the
         # scale frozen (sampling) that is the same chain as proposing one step at a time
