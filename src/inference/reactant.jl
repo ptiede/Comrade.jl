@@ -14,7 +14,7 @@ for a `DiskStore`, otherwise the `chunk_size` passed to `sample`; override with 
 `warmup_chunk`). The ProbProg backend anchors the windowed schedule to the global warmup
 length (`total_warmup`/`warmup_offset`), so chunking is bit-identical to one fused warmup
 whatever the chunk length. When sampling to a `DiskStore`, the adaptation state is
-checkpointed after every warmup chunk, so an interrupted warmup can be resumed with
+checkpointed every `checkpoint_every` warmup steps, so an interrupted warmup can be resumed with
 `restart = true`, and one draw per chunk is logged to `<name>/warmup` for inspection.
 
 # Keyword arguments
@@ -37,6 +37,11 @@ checkpointed after every warmup chunk, so an interrupted warmup can be resumed w
                            [`FisherLowRank`](@ref) goes further and refits that transform
                            at scheduled warmup steps. Step-size adaptation runs in all
                            three cases.
+  diagonal = nothing       a [`NutpieDiagonal`](@ref) adapts the diagonal inverse mass
+                           matrix in the sampler's coordinates from the draw and gradient
+                           at the end of each warmup chunk, restarting from the unit matrix
+                           at each refit of the metric adaptor. It needs an adaptor that
+                           does not run its own diagonal adaptation.
 
 !!! note "Differences from AdvancedHMC's `NUTS`"
     Two pieces of AdvancedHMC's setup are not (yet) reachable through ProbProg:
@@ -47,11 +52,12 @@ checkpointed after every warmup chunk, so an interrupted warmup can be resumed w
     - **Target acceptance is fixed at 0.8** in the backend (matching `NUTS(0.8)`'s
       default) and is not currently configurable.
 """
-Base.@kwdef struct ReactantNUTS{A <: AbstractMetricAdaptor}
+Base.@kwdef struct ReactantNUTS{A <: AbstractMetricAdaptor, D <: Union{Nothing, NutpieDiagonal}}
     n_adapts::Int = 1000
     init_step_size::Float64 = 0.01
     max_tree_depth::Int = 10
     max_delta_energy::Float64 = 1000.0
     strong_zero::Bool = true
     metric_adaptor::A = WelfordDiagonal()
+    diagonal::D = nothing
 end

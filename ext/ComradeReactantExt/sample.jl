@@ -420,8 +420,8 @@ function _compile_warmup_kernel(
     )
     nuts = _nuts_settings(sampler)
     fn = function (st::ProbProg.MCMCState, lf, off)
-        # `_infer` returns (trace, diagnostics, log_densities, traced_result, state). The
-        # `log_densities` slot was added in Reactant 0.2.275 — hence the compat lower bound.
+        # `_infer` returns (trace, diagnostics, log_densities, traced_result, state); the
+        # `log_densities` slot needs Reactant ≥ 0.2.275.
         _, _, _, _, st_out = ProbProg._infer(
             st, lf, tpost;
             algorithm = :NUTS, num_warmup = nsteps, num_samples = 0,
@@ -453,26 +453,30 @@ raw `state`, and `gradient_time`: the wall seconds of one gradient through the d
 preconditioner, measured when a refit builds it (`nothing` before the first fit or
 without Enzyme loaded).
 
-If `checkpoint` is a path, the `MCMCState` is written there with `ProbProg.save_state` after
-*every* chunk (it persists the adaptation accumulators), and the step count is recorded to
-`progress_checkpoint`. Together these let `sample(...; restart=true)`
+If `checkpoint` is a path, the `MCMCState` is written there with `ProbProg.save_state`
+every `checkpoint_every` steps (it persists the adaptation accumulators), and the step
+count is recorded to `progress_checkpoint`. Together these let `sample(...; restart=true)`
 resume an interrupted warmup from the last completed chunk. To resume, pass the loaded state
 as `resume_state` and the recorded step count as `warmup_done`.
 
 `sampler.metric_adaptor` decides how the metric adapts. Under [`Comrade.FisherLowRank`](@ref)
 this loop also drives the refits: at each scheduled step it fits a new
 [`Comrade.LowRankPreconditioner`](@ref) from the base-flat draws and scores it has been
-accumulating (both taken from the sampler's own state — no separate score evaluation and
-no disk round-trip), swaps the latent space to it, and restarts dual averaging anchored at
-the current step size. A refit updates the transform's device buffers in place where the
+recording every [`Comrade.record_interval`](@ref) steps (both taken from the sampler's own
+state — no separate score evaluation and no disk round-trip), swaps the latent space to
+it, and, where [`Comrade.restart_step_size`](@ref) says so, restarts dual averaging anchored
+at the current step size. A refit updates the transform's device buffers in place where the
 rank allows, so the compiled kernel is reused; a rank that outgrows the padded block
 rebuilds them and costs one recompile. The accumulated draws are checkpointed to
-`adaptation_checkpoint` alongside the state, and the fitted transform to
-`transport_checkpoint`, so a restart resumes with the window it had built up.
+`adaptation_checkpoint` alongside the state (see [`Comrade.save_adaptation!`](@ref)), and the
+fitted transform to `transport_checkpoint`, so a restart resumes with the window it had
+built up.
 
 `between_chunks(state, tpost, info, host_rng) -> state` runs at the end of every chunk,
 after the refit, and may move `state.position` (e.g. a Metropolis–Hastings step); see the
-`ReactantNUTS` `sample` method. Here `info` is `(; phase = :warmup, step, total, pre)`.
+`ReactantNUTS` `sample` method.
+Here `info` is `(; phase = :warmup, step, total, pre, report)`, where `report` is true at
+the stops that checkpoint (or, without checkpointing, at chunk ends) and at the last step.
 
 If `draws_dir` is a path, the draw at the end of each chunk is appended there as it is
 produced, giving an inspectable warmup chain of `n_adapts ÷ chunk` draws:
@@ -515,14 +519,20 @@ function warmup_chunked(
         resume_state = nothing, warmup_done::Int = 0,
         adaptation = nothing, segment_start::Int = 0,
         between_chunks = nothing, host_rng = Random.default_rng(),
+        checkpoint_every::Int = chunk,
     )
 
     na = sampler.n_adapts
     na > 0 || throw(ArgumentError("n_adapts must be positive"))
     chunk > 0 || throw(ArgumentError("warmup chunk length must be positive"))
+    checkpoint_every > 0 ||
+        throw(ArgumentError("checkpoint_every must be positive, got $checkpoint_every"))
 
     adaptor = sampler.metric_adaptor
     astate = isnothing(adaptation) ? Comrade.init_metric_adaptation(adaptor) : adaptation
+    isnothing(sampler.diagonal) || !Comrade.adapts_welford(adaptor) || throw(
+        ArgumentError("a `diagonal` estimator needs a metric adaptor that does not adapt its own diagonal")
+    )
     Comrade.check_metric_space(adaptor, Comrade._base_space(tpost))
     initial = _initial_pre(adaptor, tpost, transport_checkpoint, isnothing(resume_state))
 
@@ -539,7 +549,14 @@ function warmup_chunked(
     else
         state = resume_state
         done = warmup_done
+        Comrade.resume_adaptation!(adaptor, astate, done)
     end
+    rec = Comrade.record_interval(adaptor)
+    ack = (isnothing(adaptation_checkpoint) || isnothing(astate)) ? nothing :
+        Comrade.adaptation_checkpoint(adaptation_checkpoint, adaptor)
+    # Moments of the current segment's chunk-end draws and gradients. A resumed warmup
+    # starts them afresh and keeps the checkpointed inverse mass matrix until it has two.
+    moments = isnothing(sampler.diagonal) ? nothing : Comrade._DiagonalMoments(length(state.position))
 
     # Append to the warmup chain when resuming, start a fresh one otherwise.
     wlog = isnothing(draws_dir) ? nothing :
@@ -566,9 +583,20 @@ function warmup_chunked(
     rankcap = 0
     # One gradient's wall time through the device preconditioner, measured when it is built.
     gradient_time = nothing
+    # Hessian-vector products in the base space for stiff-core corrections, compiled once.
+    stiffhvp = nothing
+    # The kernel stops at the next recorded draw, chunk end, checkpoint or refit, whichever
+    # comes first. Chunk ends run the callback, the warmup log, refits and `between_chunks`;
+    # the NUTS time and steps since the last one are reported there.
+    nextmult(k) = (done ÷ k + 1) * k
+    resave = false
+    since = (; seconds = 0.0, steps = 0, fresh = false)
     while done < na
-        nsteps = min(chunk, na - done)
-        !isempty(pending) && (nsteps = min(nsteps, first(pending) - done))
+        stop = min(na, nextmult(chunk))
+        isnothing(rec) || (stop = min(stop, nextmult(rec)))
+        isnothing(checkpoint) || (stop = min(stop, nextmult(checkpoint_every)))
+        isempty(pending) || (stop = min(stop, first(pending)))
+        nsteps = stop - done
         # With the metric frozen (post-refit), the Stan window schedule is inert and
         # `total_warmup` need not track the segment — pinning it keeps the kernel cache
         # key stable across refits (the schedule anchor only matters while the Welford
@@ -593,27 +621,45 @@ function warmup_chunked(
             Reactant.synchronize(state.position)
         end
         done += nsteps
+        since = (;
+            seconds = since.seconds + nuts_seconds, steps = since.steps + nsteps,
+            fresh = since.fresh || fresh,
+        )
+        event = done % chunk == 0 || done == na || (!isempty(pending) && done >= first(pending))
 
-        cur = _current_state(state, tpost)
         # Record the draw and its score for the metric adaptor before anything is
         # checkpointed, so the checkpoint and the accumulated window agree on how much
         # warmup has been seen. `xbf` is this draw in base-flat coordinates, which is also
         # what a new transform has to be re-expressed from.
-        xbf = Comrade.observe_draw!(
-            adaptor, astate, Comrade._transport_pre(tpost), cur.position, cur.gradient
-        )
+        xbf = if (isnothing(rec) ? event : done % rec == 0)
+            Comrade.observe_draw!(
+                adaptor, astate, Comrade._transport_pre(tpost),
+                Array(state.position), Array(state.gradient)
+            )
+        end
+        cur = event ? _current_state(state, tpost) : nothing
+        if event && !isnothing(moments)
+            Comrade._observe!(moments, vec(cur.position), vec(cur.gradient))
+            if moments.n >= 2
+                imm = Comrade.inverse_mass(sampler.diagonal, moments)
+                state.inverse_mass_matrix = Reactant.to_rarray(
+                    reshape(convert(Array{eltype(cur.position)}, imm), size(state.inverse_mass_matrix))
+                )
+            end
+        end
 
-        # Checkpoint AFTER the chunk so a crash resumes from completed work.
-        if !isnothing(checkpoint)
+        # Checkpoint AFTER the steps so a crash resumes from completed work.
+        if !isnothing(checkpoint) && (resave || done % checkpoint_every == 0 || done == na)
             ProbProg.save_state(checkpoint, state)
-            isnothing(adaptation_checkpoint) || isnothing(astate) ||
-                serialize(adaptation_checkpoint, astate)
+            isnothing(ack) || Comrade.save_adaptation!(ack, astate)
             isnothing(progress_checkpoint) ||
                 serialize(
                 progress_checkpoint,
                 (; warmup_done = done, n_adapts = na, segment_start = seg)
             )
+            resave = false
         end
+        event || continue
 
         # Log the draw before the callback so a throwing callback can't lose it.
         isnothing(wlog) || _write_warmup_draw!(
@@ -630,35 +676,57 @@ function warmup_chunked(
             position = cur.position, params = cur.params,
             potential_energy = cur.potential_energy, gradient = cur.gradient,
             inverse_mass_matrix = cur.inverse_mass_matrix,
-            state, gradient_time, nsteps, nuts_seconds, fresh_kernel = fresh,
+            state, gradient_time, nsteps = since.steps, nuts_seconds = since.seconds,
+            fresh_kernel = since.fresh,
         )
         push!(history, callback(info))
+        since = (; seconds = 0.0, steps = 0, fresh = false)
 
         # Windowed refit. The adaptor fits a new latent space from the draws and scores
         # accumulated so far; the current draw is carried into it through base-flat, and
-        # the sampler continues from there with dual averaging restarted at the current
-        # adapted step size, the metric frozen at identity, and the windowed schedule
-        # anchored to the new segment. Where the new rank still fits the padded device
+        # the sampler continues from there with the metric frozen at identity and the
+        # windowed schedule anchored to the new segment; dual averaging either carries over
+        # or restarts at the current adapted step size, per `restart_step_size`. Where the new rank still fits the padded device
         # block the buffers are overwritten in place and the compiled kernel is reused;
         # otherwise the block is rebuilt, which is a structural change and recompiles.
         if !isempty(pending) && done >= first(pending)
             popfirst!(pending)
-            pre = Comrade.metric_refit(adaptor, astate; current = Comrade._transport_pre(tpost), initial)
+            isnothing(xbf) && (xbf = Comrade._baseflat_draw(Comrade._transport_pre(tpost), vec(cur.position)))
+            pre = Comrade.metric_refit(adaptor, astate;
+                current = Comrade._transport_pre(tpost), initial, step = done, n_adapts = na, chunk
+            )
             if isnothing(pre)
                 @info "warmup metric refit at step $done skipped: too few draws recorded"
             else
-                @info "warmup metric refit at step $done" pre
                 base = Comrade._base_space(tpost)
+                if Comrade.stiff_core_due(adaptor, done, na)
+                    if isnothing(stiffhvp)
+                        stiffhvp = Comrade._device_hvp(Comrade.maybe_transport(tpost.lpost, base), Reactant.to_rarray(xbf))
+                        isnothing(stiffhvp) &&
+                            error("the stiff-core correction needs Enzyme loaded for its Hessian-vector products")
+                    end
+                    pre = Comrade.stiff_core_refit(adaptor, astate, pre, stiffhvp)
+                end
+                @info "warmup metric refit at step $done" pre
                 isnothing(transport_checkpoint) ||
                     serialize(transport_checkpoint, Comrade._in_space(base, pre))
                 nrank = length(pre.s)
-                if isnothing(devpre) || nrank > rankcap
-                    grow = !isnothing(devpre)
-                    rankcap = max(round(Int, 1.25 * nrank), 16)
+                fixedcap = Comrade.fixed_rank_cap(adaptor)
+                # A fit past a fixed cap leaves headroom, so later fits a little larger (as
+                # with stiff-core corrections) reuse the block instead of recompiling.
+                newcap = isnothing(fixedcap) ? max(round(Int, 1.25 * nrank), 16) :
+                    max(fixedcap, nrank > fixedcap ? round(Int, 1.1 * nrank) : nrank)
+                # The padded columns cost as much per gradient as fitted ones, so a cap at
+                # least twice what the fit needs is rebuilt smaller, unless the adaptor
+                # refits too often for rebuilds to pay.
+                if isnothing(devpre) || nrank > rankcap || (isnothing(fixedcap) && 2 * newcap <= rankcap)
+                    resized = isnothing(devpre) ? nothing : nrank > rankcap ? "grew" : "shrank"
+                    rankcap = newcap
                     devpre = Comrade._device_pre(pre; rank_cap = rankcap)
                     tpost = Comrade.maybe_transport(tpost.lpost, Comrade._in_space(base, devpre))
                     empty!(kernels)  # structural change: every cached kernel is stale
-                    grow && @info "grew low-rank cap to $rankcap (fit rank $nrank); one recompile"
+                    isnothing(resized) ||
+                        @info "$resized low-rank cap to $rankcap (fit rank $nrank); one recompile"
                     gradient_time = Comrade._gradient_seconds(tpost, Reactant.to_rarray(Comrade._affine_inv(pre, xbf)))
                     isnothing(gradient_time) ||
                         @info "one gradient through the device preconditioner: $(round(1000 * gradient_time; digits = 2)) ms"
@@ -666,26 +734,33 @@ function warmup_chunked(
                     Comrade._update_device_pre!(devpre, pre)
                 end
                 T = eltype(cur.position)
-                xnew = Reactant.to_rarray(T.(Comrade._affine_inv(pre, xbf)))
+                # Same shape as the sampler's position, so kernels cached against its type
+                # stay valid.
+                xnew = Reactant.to_rarray(reshape(T.(Comrade._affine_inv(pre, xbf)), size(state.position)))
                 step0 = ConcreteRNumber(T(cur.step_size))
                 mass0 = Reactant.to_rarray(ones(T, length(cur.position)))
+                # Dual averaging restarts from the current step size unless the adaptor
+                # carries it across this refit.
+                adaptation = Comrade.restart_step_size(adaptor, isempty(pending)) ? nothing : state.adaptation
                 state = ProbProg.MCMCState(
-                    xnew, nothing, nothing, step0, mass0, state.rng, nothing
+                    xnew, nothing, nothing, step0, mass0, state.rng, adaptation
                 )
                 seg = done
                 adapt_mm = false
+                isnothing(moments) || Comrade._reset!(moments)
                 # No checkpoint here: `save_state` cannot serialize the rebuilt state's
-                # empty gradient/adaptation slots. The next chunk's standard checkpoint
-                # (one chunk later) persists the populated state together with the new
-                # `segment_start`; until then the on-disk state predates the refit while
-                # `transport_checkpoint` is already new, so a crash inside that short
-                # window needs a fresh start rather than `restart = true`.
+                # empty gradient/adaptation slots. The next stop checkpoints the populated
+                # state together with the new `segment_start`; until then the on-disk state
+                # predates the refit while `transport_checkpoint` is already new, so a crash
+                # inside that short window needs a fresh start rather than `restart = true`.
+                resave = true
             end
         end
 
+        report = done == na || isnothing(checkpoint) || done % checkpoint_every == 0
         state = _run_between_chunks(
             between_chunks, state, tpost,
-            (; phase = :warmup, step = done, total = na, pre = Comrade._transport_pre(tpost)),
+            (; phase = :warmup, step = done, total = na, pre = Comrade._transport_pre(tpost), report),
             host_rng,
         )
     end
@@ -768,14 +843,14 @@ function sample_chunked(
         end
         t = @elapsed begin
             # (trace, diagnostics, log_densities, traced_result, state) — the
-            # `log_densities` slot appeared in Reactant 0.2.275 (see the compat bound).
+            # `log_densities` slot needs Reactant ≥ 0.2.275.
             samples, diagnostics, log_densities, _, state = cfn(state, ns)
             Reactant.synchronize(state.position)
         end
 
         raw = Array(samples)
         chain = [transform(tpost, r) for r in eachrow(raw)]
-        # `diagnostics` is an `ns x 2` matrix (Reactant ≥ 0.2.275, see the compat bound).
+        # `diagnostics` is an `ns x 2` matrix (Reactant ≥ 0.2.275).
         # Column 1 is a placeholder the impulse dialect reads `true` for every draw — even
         # for a chain frozen on a single point — so it carries no information. Column 2 is
         # the per-draw divergence signal: 0 for a healthy draw, 1 when the trajectory blows
@@ -855,7 +930,7 @@ _default_ldf(x, tpost) = logdensityof(tpost, x)
     sample(rng, post, sampler::ReactantNUTS, nsamples;
            transport_method=nothing,
            saveto=MemoryStore(), initial_params=nothing, restart=false,
-           chunk_size=100, warmup_chunk=0, ldf=_default_ldf,
+           chunk_size=100, warmup_chunk=0, checkpoint_every=20, ldf=_default_ldf,
            host_rng=Random.default_rng(),
            warmup_callback=nothing, between_chunks=nothing)
 
@@ -881,8 +956,9 @@ thread into a follow-up `sample_chunked`) and `out` is the standard Comrade outp
   - `saveto::DiskStore` -> writes per-chunk `PosteriorSamples` to `saveto.name` in
     Comrade's on-disk layout; `out` is the `Comrade.DiskOutput` handle. Read the
     chain back with `Comrade.load_samples(out)` or `Comrade.load_samples(saveto.name)`.
-    A resumable `MCMCState` is checkpointed to `<name>/state.jls` after every warmup
-    chunk and after each sampling chunk (warmup progress in `<name>/warmup_progress.jls`).
+    A resumable `MCMCState` is checkpointed to `<name>/state.jls` every
+    `checkpoint_every` warmup steps and after each sampling chunk (warmup progress in
+    `<name>/warmup_progress.jls`).
 
 ## Metric adaptation
 
@@ -891,9 +967,10 @@ thread into a follow-up `sample_chunked`) and `out` is the standard Comrade outp
 [`Comrade.FisherLowRank`](@ref). Under `FisherLowRank` the latent space is refit from the
 run's own warmup draws and scores at scheduled steps and warmup continues in the fitted
 coordinates; with a `DiskStore` each fit is written to `<name>/transport.jls` (which is
-also what a restart resumes in) and the accumulated draws and scores to
-`<name>/metric_adaptation.jls`, so a resumed warmup refits from the whole window rather
-than only the steps taken since the restart.
+also what a restart resumes in) and the recorded draws and scores to
+`<name>/metric_adaptation.jls` and `<name>/metric_adaptation.jls.log`, so a resumed warmup
+refits from the whole window rather than only the steps taken since the restart. Draws are
+recorded every `record_every` steps of the adaptor, independently of the chunk length.
 
 ## Inspecting warmup
 
@@ -954,7 +1031,9 @@ callback and any metric refit); during sampling, after the callback of every chu
 the last. `info` is `(; phase, step, total, pre)`: `phase` is `:warmup` or `:sampling`,
 `step` counts the warmup steps (or post-warmup draws) done so far out of `total`, and `pre`
 is the preconditioner composed into `tpost` (`nothing` for plain base-flat), so the
-constrained point is `transform(tpost, vec(Array(state.position)))`. `host_rng` is the
+constrained point is `transform(tpost, vec(Array(state.position)))`. During warmup `info`
+also has `report`, true at the stops that checkpoint (at chunk ends without checkpointing)
+and at the last step. `host_rng` is the
 `host_rng` keyword.
 
 `state.position` is the latent point of `tpost`; the hook may replace it with a device or
@@ -985,7 +1064,7 @@ function AbstractMCMC.sample(
         nsamples::Int;
         transport_method = nothing,
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
-        chunk_size::Int = 100, warmup_chunk::Int = 0,
+        chunk_size::Int = 100, warmup_chunk::Int = 0, checkpoint_every::Int = 20,
         ldf = _default_ldf, host_rng = Random.default_rng(),
         warmup_callback = nothing, between_chunks = nothing
     )
@@ -1052,7 +1131,7 @@ function AbstractMCMC.sample(
             chunk = warmup_chunk, callback = warmup_callback,
             checkpoint = state_ckpt, progress_checkpoint = progress_ckpt,
             adaptation_checkpoint = adapt_ckpt, transport_checkpoint = transport_ckpt,
-            draws_dir = warmup_draws_dir, between_chunks, host_rng,
+            draws_dir = warmup_draws_dir, between_chunks, host_rng, checkpoint_every,
         )
     else
         # Restart: load the checkpoint. If warmup did not finish (recorded step count <
@@ -1069,7 +1148,7 @@ function AbstractMCMC.sample(
             prog.segment_start
         # The accumulated warmup draws and scores are the metric adaptor's window; without
         # them a resumed run would refit from only the steps taken after the restart.
-        adaptation = isfile(adapt_ckpt) ? deserialize(adapt_ckpt) : nothing
+        adaptation = isfile(adapt_ckpt) ? Comrade.load_adaptation(adapt_ckpt, sampler.metric_adaptor) : nothing
         if warmup_done < sampler.n_adapts
             @info "ReactantNUTS restart: resuming warmup" done = warmup_done n_adapts = sampler.n_adapts
             state, warmup_history, tpost = warmup_chunked(
@@ -1080,7 +1159,7 @@ function AbstractMCMC.sample(
                 draws_dir = warmup_draws_dir,
                 resume_state = state, warmup_done = warmup_done,
                 adaptation = adaptation, segment_start = seg0,
-                between_chunks, host_rng,
+                between_chunks, host_rng, checkpoint_every,
             )
         else
             @info "ReactantNUTS restart: warmup complete, skipping" dir = saveto.name

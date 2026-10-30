@@ -36,6 +36,32 @@ end
 # stays valid.
 const _GRADIENT_SECONDS = Dict{UInt, Tuple{WeakRef, Float64}}()
 
+# Gradient of the potential (negative log density).
+_device_potential_grad(tpost, x) = -first(_device_flat_grad(tpost, x))
+
+# Hessian of the potential at `x` along `v`: forward-mode differentiation of the gradient.
+_device_hvp_kernel(tpost, x, v) = only(
+    Enzyme.autodiff(
+        Enzyme.set_strong_zero(Enzyme.Forward), Enzyme.Const(_device_potential_grad),
+        Enzyme.Const(tpost), Enzyme.Duplicated(x, v)
+    )
+)
+
+function Comrade._device_hvp(tpost, x0::Reactant.AbstractConcreteArray)
+    T = eltype(x0)
+    todevice(y) = Reactant.to_rarray(convert(Array{T}, reshape(y, size(x0))))
+    # A distinct direction buffer: compiling with `x0` in both places would tie them together.
+    hv = Reactant.@compile sync = true _device_hvp_kernel(tpost, x0, todevice(zeros(T, length(x0))))
+    return function (x, Y)
+        xd = todevice(x)
+        out = similar(Y, Float64, size(Y))
+        for j in axes(Y, 2)
+            out[:, j] = vec(Array(hv(tpost, xd, todevice(Y[:, j]))))
+        end
+        return out
+    end
+end
+
 function Comrade._gradient_seconds(tpost, x::Reactant.AbstractConcreteArray)
     pre = Comrade._transport_pre(tpost)
     obj = isnothing(pre) ? tpost : pre.V

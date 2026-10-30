@@ -238,14 +238,17 @@ end
     @test length(scales) >= count(!=(1.0), scales)
     @test all(isfinite, Array(state.position))
 
-    # Draws and scores were accumulated from the sampler itself, one per chunk, and
-    # checkpointed for restart.
+    # Draws and scores were recorded from the sampler itself every `record_every` steps, the
+    # stored ones covering the next fit's window, and checkpointed for restart.
     @test isfile(ckpt)
-    st = deserialize(ckpt)
+    st = Comrade.load_adaptation(ckpt, adaptor)
     rm(ckpt; force = true)
+    rm(ckpt * ".log"; force = true)
     rm(sckpt; force = true)
     @test st isa Comrade.FisherAdaptation
-    @test length(st.draws) == na ÷ chunk
+    @test st.nrecords == na ÷ adaptor.record_every
+    @test first(st.record) >= Comrade._window_start(adaptor, st.nrecords)
+    @test length(st.draws) >= adaptor.min_draws
     @test length(st.scores) == length(st.draws)
     @test all(d -> length(d) == dimension(tpost), st.draws)
     @test all(g -> all(isfinite, g), st.scores)
@@ -257,8 +260,35 @@ end
         chunk, callback = quiet, resume_state = state,
         warmup_done = na - 4, adaptation = st, segment_start = 20,
     )
-    @test length(st.draws) > na ÷ chunk
+    @test st.nrecords == na ÷ adaptor.record_every
     @test Comrade._transport_pre(resumed) isa LowRankPreconditioner
+
+    # The refit's new position has the sampler's own position type, so kernels cached
+    # against that type (e.g. a MoveSet's) are not rebuilt after a refit.
+    seen = Set{Type}()
+    record(s, _, _, _) = (push!(seen, typeof(s.position)); s)
+    ext.warmup_chunked(freshrng(), ldf, x0, tpost, sampler; chunk, callback = quiet, between_chunks = record)
+    @test length(seen) == 1
+
+    # A NutpieDiagonal sets the inverse mass matrix from the chunk-end draws and gradients
+    # of the segment since the refit, and the NUTS kernel samples with it.
+    dsampler = ReactantNUTS(;
+        n_adapts = na, max_tree_depth = 4, init_step_size = 0.01,
+        metric_adaptor = adaptor, diagonal = NutpieDiagonal()
+    )
+    imms = Vector{Float64}[]
+    capture(s, _, info, _) = (info.step > 20 && push!(imms, vec(Array(s.inverse_mass_matrix))); s)
+    dstate, _, _ = ext.warmup_chunked(freshrng(), ldf, x0, tpost, dsampler; chunk, callback = quiet, between_chunks = capture)
+    imm = vec(Array(dstate.inverse_mass_matrix))
+    @test all(isfinite, imm) && all(x -> 0.01 < x < 100, imm)
+    @test any(!≈(1), imm)
+    @test all(isone, first(imms))
+    @test last(imms) == imm
+    @test all(isfinite, Array(dstate.position))
+    @test_throws "does not adapt its own diagonal" ext.warmup_chunked(
+        freshrng(), ldf, x0, tpost, ReactantNUTS(; n_adapts = na, diagonal = NutpieDiagonal());
+        chunk, callback = quiet
+    )
 
     # WelfordDiagonal keeps the sampler's own adaptation and never touches the transform.
     wsampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01)
@@ -541,6 +571,22 @@ end
         @test Array(r0.state.step_size) == Array(r1.state.step_size)
     end
 
+    @testset "the hook runs at every chunk end and reports there without checkpointing" begin
+        calls = Tuple{Symbol, Int}[]
+        reports = Int[]
+        hook = function (st, _, info, _)
+            push!(calls, (info.phase, info.step))
+            get(info, :report, false) && push!(reports, info.step)
+            return st
+        end
+        r = runchain(hook)
+        wsteps = [step for (phase, step) in calls if phase === :warmup]
+        @test !isempty(wsteps) && last(wsteps) == 60 && allequal(diff([0; wsteps]))
+        @test reports == wsteps
+        @test [step for (phase, step) in calls if phase === :sampling] == collect(10:10:50)
+        @test length(Comrade.postsamples(r.out)) == 60
+    end
+
     @testset "moved states restart NUTS from a recomputed gradient" begin
         # A host-array position drops the cached gradient and potential energy and comes
         # back on the device in the kernel's shape; an unmoved state keeps both.
@@ -728,6 +774,38 @@ end
 # Device staging for the low-rank preconditioner. The buffers are padded to a fixed rank
 # so that a warmup refit can overwrite them in place: the compiled program sees the same
 # shapes and is not rebuilt. Padding columns carry `s = 1` and are exact no-ops.
+@testset "device Hessian-vector products" begin
+    ext = Base.get_extension(Comrade, :ComradeReactantEnzymeExt)
+    gprior = (
+        f1 = VLBIGaussian(1.0, 0.1), σ1 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ1 = VLBIGaussian(0.5, 0.05), ξ1 = VLBIGaussian(0.0, 0.3),
+        f2 = VLBIGaussian(0.5, 0.1), σ2 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ2 = VLBIGaussian(0.5, 0.05), ξ2 = VLBIGaussian(0.0, 0.3),
+        x = VLBIGaussian(0.0, μas2rad(20.0)), y = VLBIGaussian(0.0, μas2rad(20.0)),
+    )
+    _, vis, _, _, _ = load_data()
+    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 12, 12)
+    post = Comrade.prepare_device(
+        VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing), ReactantEx()
+    )
+    # The StdNormal latent space, where every coordinate is of order one.
+    tpost = Comrade.maybe_transport(post, Comrade.PT.StdNormal())
+    rng = Random.Xoshiro(3)
+    n = dimension(tpost)
+    x = 0.5 .* randn(rng, n)
+    hvp = Comrade._device_hvp(tpost, Reactant.to_rarray(x))
+    Y = randn(rng, n, 3)
+    HY = hvp(x, Y)
+    @test size(HY) == (n, 3)
+    @test iszero(hvp(x, zeros(n, 1)))
+    # Against central differences of the compiled gradient of the potential.
+    grad = Reactant.@compile ext._device_flat_grad(tpost, Reactant.to_rarray(x))
+    potgrad(z) = -Array(first(grad(tpost, Reactant.to_rarray(z))))
+    fd = reduce(hcat, [(h = 1.0e-5 / norm(y); (potgrad(x .+ h .* y) .- potgrad(x .- h .* y)) ./ (2h)) for y in eachcol(Y)])
+    @test HY ≈ fd rtol = 1.0e-5
+    @test dot(Y[:, 1], HY[:, 2]) ≈ dot(Y[:, 2], HY[:, 1]) rtol = 1.0e-8
+end
+
 @testset "LowRankPreconditioner device buffers" begin
     rng = Random.Xoshiro(7)
     n, m = 40, 3
