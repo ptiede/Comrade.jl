@@ -442,9 +442,24 @@ end
         G = Jones((x, c) -> exp(complex(x.lg, x.gp)); lg = ArrayPrior(g0), gp = ArrayPrior(g0; refant = SensitiveReference(0.0)))
         post_cpu = VLBIPosterior(planemodel(vis, 4), InstrumentModel(G), vis; admode = nothing)
 
+        # The device arrays that `x` holds.
+        function devicearrays(x, found = Any[], seen = IdDict{Any, Nothing}())
+            if x isa Reactant.AbstractConcreteArray
+                push!(found, x)
+            elseif x isa Array
+                isbitstype(eltype(x)) || foreach(y -> devicearrays(y, found, seen), x)
+            elseif !(isbits(x) || x isa Union{Module, Type, Symbol, AbstractString} || haskey(seen, x))
+                seen[x] = nothing
+                foreach(i -> isdefined(x, i) && devicearrays(getfield(x, i), found, seen), 1:fieldcount(typeof(x)))
+            end
+            return found
+        end
+
         @testset "time planes" begin
             check_matches_cpu(post_cpu, bytime)
             post = shard(post_cpu, bytime)
+            @test !isempty(devicearrays(post))
+            @test all(Reactant.Sharding.is_sharded, devicearrays(post))
             obs = only(post.lklhds).obs
             @test length(obs.sharding.device_to_array_slices) == 4
             @test size(obs) == size(post.instrumentmodel.layout.cell1)
