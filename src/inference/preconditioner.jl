@@ -399,6 +399,12 @@ end
 # which compiles the gradient once per device preconditioner.
 _gradient_seconds(tpost, x) = nothing
 
+# `(x, Y) -> H(x) Y`, the Hessian of the potential (negative log density) of `tpost` at the host
+# point `x` applied to the columns of the host matrix `Y`, by forward-over-reverse
+# differentiation compiled for the device, or `nothing` without Reactant and Enzyme. `x0` is a
+# device point that fixes the compiled shapes. Implemented by the Reactant + Enzyme extension.
+_device_hvp(tpost, x0) = nothing
+
 # Host score in the base space `space`, through the posterior's own AD mode.
 function _host_score(post::VLBIPosterior, space)
     tpost = maybe_transport(post, space)
@@ -481,13 +487,15 @@ end
 # minimizer); the low-rank part comes from eigendecomposing the SPD geometric mean of the
 # projected draw covariance and inverse score covariance on the joint draw-plus-score
 # subspace, keeping eigenvalues `λ ≥ cutoff` or `≤ 1/cutoff` (wide AND stiff directions in
-# one two-sided criterion, coupling included), up to `rank` by `|log λ|`. Returns a
-# `LowRankPreconditioner` with `s = √λ`.
+# one two-sided criterion, coupling included), up to `rank` by `|log λ|`, at
+# most `max_wide` of them wide. Returns a `LowRankPreconditioner` with `s = √λ`.
 function _fisher_lowrank(
         Z::AbstractMatrix, G::AbstractMatrix;
         rank::Int, cutoff::Real = 2.0, γ::Real = 1.0e-5, carry = nothing,
-        keep_carried::Bool = false
+        keep_carried::Bool = false, fixed = nothing, max_wide = nothing
     )
+    (carry !== nothing && fixed !== nothing) &&
+        throw(ArgumentError("a fit takes carried or fixed directions, not both"))
     n, N = size(Z)
     size(G) == (n, N) || throw(DimensionMismatch("draws and scores must align"))
     N >= 4 || throw(ArgumentError("need at least 4 draws, got $N"))
@@ -496,31 +504,36 @@ function _fisher_lowrank(
     (all(>(0), vz) && all(>(0), vg)) || throw(
         ArgumentError("zero-variance coordinates in draws or scores")
     )
-    # σ*² = √(var(x)/var(α)), or the carried transform's own diagonal when it is kept
-    σ = (keep_carried && carry !== nothing) ? carry.d : (vz ./ vg) .^ (1 // 4)
+    # σ*² = √(var(x)/var(α)), or the carried transform's own diagonal. A carried transform
+    # keeps its diagonal: re-estimating it from a window shorter than the number of stiff
+    # directions lets their stiffness shrink every coordinate they touch, and the window
+    # cannot measure the low-rank corrections that would undo it.
+    σ = carry === nothing ? (vz ./ vg) .^ (1 // 4) : Array(carry.d)
     x̄ = vec(mean(Z; dims = 2))
     ᾱ = vec(mean(G; dims = 2))
     # The estimation is centered at the draw mean (Algorithm 1); the returned transform's
     # SHIFT is the score-informed center, see `_fisher_center`.
     X = (Z .- x̄) ./ σ                               # standardized draws
     A = (G .- ᾱ) .* σ                               # standardized scores (contravariant)
-    X0h = copy(X); A0h = copy(A)                    # pre-deflation, for carried re-scale
     # Accumulation (carry): carry the previous transform's directions forward so a
-    # direction once found is never lost when a later window fails to see it. The carried
-    # directions are re-expressed in the CURRENT standardization, deflated out of the
-    # draws/scores so the residual fit spends its budget on NEW structure, and re-scaled
-    # on the current draws — keeping the wider of carried and re-measured for wide
-    # directions (a wide mode only ever gets wider as the chain frees).
+    # direction once found is never lost when a later window fails to see it. With σ the
+    # carried diagonal they stay orthonormal in this standardization. They are deflated out
+    # of the draws/scores so the residual fit spends its budget on NEW structure and, unless
+    # kept exactly, re-scaled on the current draws, keeping the wider of carried and
+    # re-measured for wide directions (a wide mode only ever gets wider as the chain frees).
     U0 = zeros(n, 0); s0 = Float64[]
-    if keep_carried && carry !== nothing && !isempty(carry.s)
-        # σ = carry.d, so the carried directions are orthonormal in this standardization.
-        U0, s0 = Array(carry.V), carry.s
+    if carry !== nothing && !isempty(carry.s)
+        U0 = Array(carry.V)
+        s0 = if keep_carried
+            carry.s
+        else
+            snow = (vec(var(U0' * X; dims = 2)) ./ vec(var(U0' * A; dims = 2))) .^ (1 // 4)
+            map((sc, sn) -> sc > 1 ? max(sc, sn) : sn, carry.s, snow)
+        end
         X .-= U0 * (U0' * X)
         A .-= U0 * (U0' * A)
-    elseif carry !== nothing && !isempty(carry.s)
-        U0 = _thinq((carry.d .* Array(carry.V)) ./ σ, length(carry.s))
-        s0now = (vec(var(U0' * X0h; dims = 2)) ./ vec(var(U0' * A0h; dims = 2))) .^ (1 // 4)
-        s0 = map((sc, sn) -> sc > 1 ? max(sc, sn) : sn, carry.s, s0now)
+    elseif fixed !== nothing
+        U0, s0 = _fixed_directions(fixed..., σ)
         X .-= U0 * (U0' * X)
         A .-= U0 * (U0' * A)
     end
@@ -550,7 +563,8 @@ function _fisher_lowrank(
     Σ = _spdm(Ca, Cx)                               # cov_draws # cov_grads⁻¹
     F = eigen(Σ)
     λ = F.values
-    cand = findall(l -> l >= cutoff || l <= inv(cutoff), λ)
+    nwide = isnothing(max_wide) ? typemax(Int) : max(max_wide - count(>(1), s0), 0)
+    cand = findall(l -> l <= inv(cutoff) || (nwide > 0 && l >= cutoff), λ)
     if isempty(cand)
         if isempty(U0)
             return LowRankPreconditioner(_fisher_center(x̄, σ, ᾱ, U0, s0), σ, U0, s0)
@@ -558,8 +572,8 @@ function _fisher_lowrank(
         V0 = hcat(U0)
         return LowRankPreconditioner(_fisher_center(x̄, σ, ᾱ, V0, s0), σ, V0, s0)
     end
+    # Orthonormal already: Q has orthonormal columns and so do the eigenvectors.
     U = Q * F.vectors[:, cand]
-    U = _thinq(U, length(cand))                     # re-orthonormalize after projection
     # In-sample geometric-mean scale s = √λ, taken as fitted — as nuts-rs takes it. The
     # identity shift on both covariances bounds λ away from zero, so a scale cannot
     # underflow and compress its axis by an unbounded 1/s.
@@ -567,6 +581,7 @@ function _fisher_lowrank(
     # `rank` bounds per-fit cost. A driver that pads device buffers to a fixed rank can
     # grow its cap to match, so this only bites at the configured ceiling.
     keep = sortperm(abs.(log.(s)); rev = true)
+    keep = keep[(s[keep] .< 1) .| (cumsum(s[keep] .> 1) .<= nwide)]
     keep = keep[1:min(max(rank - length(s0), 0), length(keep))]
     if isempty(U0)
         Vk, sk = U[:, keep], s[keep]
@@ -574,18 +589,27 @@ function _fisher_lowrank(
     end
     # Deflating the carried span out of the draws/scores leaves U0 and the new
     # directions mutually orthogonal only up to roundoff, which trips the constructor's
-    # orthonormality check. A column-order-preserving thin QR cleans the cross terms
-    # without disturbing the per-direction scale assignment: the already-orthonormal
-    # leading block reappears up to a per-column sign, and the scale is sign-invariant.
-    # A kept carried block stays exact; only the new block is cleaned against it.
-    V = if keep_carried
-        Un = U[:, keep] .- U0 * (U0' * U[:, keep])
-        hcat(U0, _thinq(Un, length(keep)))
-    else
-        _thinq(hcat(U0, U[:, keep]), length(s0) + length(keep))
-    end
+    # orthonormality check, so the new block is cleaned against the exact carried block.
+    Un = U[:, keep] .- U0 * (U0' * U[:, keep])
+    V = hcat(U0, _thinq(Un, length(keep)))
     sV = vcat(s0, s[keep])
     return LowRankPreconditioner(_fisher_center(x̄, σ, ᾱ, V, sV), σ, V, sV)
+end
+
+# The span of the base-flat directions `W` in the standardization `σ`, as orthonormal
+# directions and scales: the covariance they give is that of moving by `sd[j]` along each
+# unit column `W[:, j]`, so for one direction it is that direction with scale `sd‖W/σ‖`.
+function _fixed_directions(W::AbstractMatrix, sd::AbstractVector, σ::AbstractVector)
+    size(W, 1) == length(σ) || throw(
+        DimensionMismatch("fixed directions have $(size(W, 1)) rows for a $(length(σ))-dimensional space")
+    )
+    B = (W ./ map(norm, eachcol(W))') ./ σ
+    E = _thinq(B, size(B, 2))
+    EB = E' * B
+    F = eigen(Symmetric(EB * Diagonal(sd .^ 2) * EB'))
+    minimum(F.values) > sqrt(eps(eltype(F.values))) * maximum(F.values) ||
+        throw(ArgumentError("fixed directions must be linearly independent"))
+    return E * F.vectors, sqrt.(F.values)
 end
 
 # The preconditioner a pilot run itself sampled through, to be carried into a new fit as
@@ -668,7 +692,7 @@ function fit_preconditioner(
         )
     end
     if isfile(af)
-        st = deserialize(af)::FisherAdaptation
+        st = load_adaptation(af, FisherLowRank(; discard = 0.0))
         N = length(st.draws)
         start = round(Int, discard * N) + 1
         sel = unique(round.(Int, range(start, N, length = min(192, N - start + 1))))
