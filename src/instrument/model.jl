@@ -531,7 +531,7 @@ _sandwich(a::StaticArraysCore.StaticMatrix, x::Number, b::StaticArraysCore.Stati
     forward_jones(J::ObservedInstrumentModel, x, t::VisTable)
 
 The Jones matrix `J_a U_a` of every station, time stamp and channel at the parameters `x`, as an
-array over `(Ant, Ts, Fr)`; stations without a record at a time hold `NaN`.
+array over `(Ant, Ti, Fr)`; stations without a record at a time hold `NaN`.
 """
 function forward_jones(J::ObservedInstrumentModel, x, t::VisTable)
     L = layout(J)
@@ -543,7 +543,7 @@ function forward_jones(J::ObservedInstrumentModel, x, t::VisTable)
     for I in CartesianIndices(L.cell1), (a, c) in ((d.ant1[I[1]], L.cell1[I]), (d.ant2[I[1]], L.cell2[I]))
         out[a, d.ts[I[1]], I[2]] = jc[c]
     end
-    return DD.DimArray(out, (Ant(info(t).stations.name), Ts(times(t)), Fr(info(t).channels.frequency)))
+    return DD.DimArray(out, (Ant(info(t).stations.name), Ti(times(t)), Fr(info(t).channels.frequency)))
 end
 
 _nanof(::Type{T}) where {T <: Number} = T(NaN)

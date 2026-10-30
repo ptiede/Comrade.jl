@@ -125,7 +125,7 @@ end
     instrumentmodel(post::AbstractVLBIPosterior, θ)
 
 The Jones matrices `J_a U_a` of a posterior's instrument at the parameter values `θ`, for every
-station, time stamp and channel of its data, as an array over `(Ant, Ts, Fr)` (see
+station, time stamp and channel of its data, as an array over `(Ant, Ti, Fr)` (see
 [`forward_jones`](@ref)). A multi-field posterior gives one array per field, keyed by field name.
 """
 function instrumentmodel(post::AbstractVLBIPosterior, θ)

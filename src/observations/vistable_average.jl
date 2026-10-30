@@ -3,10 +3,10 @@ export average, ByScan, ChannelBins, ByChannel, averaging_axis, times
 """
     times(t::VisTable)
 
-The distinct time stamps of `t`, in hours since `info(t).epoch`, sorted: the `Ts` lookup of
+The distinct time stamps of `t`, in hours since `info(t).epoch`, sorted: the `Ti` lookup of
 its station grid.
 """
-times(t::VisTable) = collect(DD.lookup(stations(t), Ts))
+times(t::VisTable) = collect(DD.lookup(stations(t), Ti))
 
 """
     average(t::VisTable, by...)

@@ -274,7 +274,7 @@ function _stationgrid(info::ArrayInfo, times, elevation, parallactic)
             throw(DimensionMismatch("elevation and parallactic need the size (stations, time stamps) = $sz; got $(size(elevation)) and $(size(parallactic))"))
         el, par = Float64.(elevation), Float64.(parallactic)
     end
-    gd = (Ant(info.stations.name), Ts(times))
+    gd = (Ant(info.stations.name), Ti(times))
     return DD.DimStack((; elevation = DD.DimArray(el, gd), parallactic = DD.DimArray(par, gd), azimuth = DD.DimArray(az, gd)))
 end
 
@@ -333,7 +333,7 @@ info(t::VisTable) = ComradeBase.header(domain(t))
 """
     stations(t::VisTable)
 
-The station grid of `t`: a `DimStack` over `(Ant, Ts)`, the stations and the distinct time
+The station grid of `t`: a `DimStack` over `(Ant, Ti)`, the stations and the distinct time
 stamps, with the layers `elevation`, `parallactic` and `azimuth` (radians).
 """
 stations(t::VisTable) = getfield(t, :stations)
@@ -664,7 +664,7 @@ function _joingeometry(a::ArrayInfo, tabs, stidx, shift, times)
     elevation, parallactic, _ = _geometry(a, times)
     for k in eachindex(tabs)
         g = stations(tabs[k])
-        for (j, τ) in pairs(DD.lookup(g, Ts))
+        for (j, τ) in pairs(DD.lookup(g, Ti))
             col = searchsortedfirst(times, τ + shift[k])
             col <= lastindex(times) && times[col] == τ + shift[k] || continue
             elevation[stidx[k], col] .= parent(g.elevation)[:, j]

@@ -205,7 +205,7 @@ imageviz(img, size = (500, 400)) |> DisplayAs.PNG |> DisplayAs.Text
 # the instrument model.
 intopt = instrumentmodel(post, xopt)
 # This returns the gain of every station, time stamp and frequency channel of the data as an
-# array with the dimensions `(Ant, Ts, Fr)`; a station without data at a time stamp holds `NaN`.
+# array with the dimensions `(Ant, Ti, Fr)`; a station without data at a time stamp holds `NaN`.
 # To visualize the gains we use the fitted parameters, which are `SiteArray`s holding the gain
 # terms as a flat vector with metadata about the sites, time, and frequency. The
 # `plotcaltable` function plots them directly. We will first plot the gain phases.

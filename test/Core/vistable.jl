@@ -162,7 +162,7 @@ end
         @test baselines(j) == vcat(baselines(t), baselines(t2))
         @test domain(j).U[new, 2:3] ≈ domain(t2).U
         el = stations(j).elevation
-        @test el[Ant = At(:PV), Ts = At(domain(j).Ti[n + 1])] ≈ stations(t2).elevation[Ant = At(:PV), Ts = At(1.0)]
+        @test el[Ant = At(:PV), Ti = At(domain(j).Ti[n + 1])] ≈ stations(t2).elevation[Ant = At(:PV), Ti = At(1.0)]
         @test parent(el)[1:5, 1:2] ≈ parent(stations(t).elevation)
 
         @test_throws "measure the same channel" vcat(t, t)
