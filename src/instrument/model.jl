@@ -324,7 +324,7 @@ end
 # `L` with its cells in the order `perm`.
 function _permutecells(L::CellLayout, perm)
     newindex = invperm(perm)
-    response = isnothing(L.response) ? nothing : _Columns{SMatrix{2, 2}}(map(col -> col[perm], L.response.cols))
+    response = isnothing(L.response) ? nothing : map(col -> col[perm], L.response)
     return CellLayout(L.coords[perm], newindex[L.cell1], newindex[L.cell2], map(e -> e[perm], L.entries), response)
 end
 
@@ -370,55 +370,59 @@ EnzymeRules.inactive_type(::Type{<:FieldInstruments}) = true
 
 @inline apply_instrument(vis, J::ObservedIdealInstrument, x) = _IdealValue{typeof(J.pol), CirBasis}(J.pol).(baseimage(vis))
 
-# Instrument values are numbers or 2×2 matrices, held as one vector per component, so every
-# read and write in a loop indexes a vector. Each loop is a plain loop on the host and, under
-# `@trace`, a traced loop that Reactant raises to gathers, element-wise operations and stores; a
-# loop raises only if it stores to each array once per iteration, hence a vector per component.
-# `rgetindex` and `rsetindex!` index both.
+# Instrument values are numbers or 2×2 matrices, held as one vector per component: a 1-tuple of
+# vectors holds numbers, a 4-tuple 2×2 matrices (column-major). Every read and write in a loop
+# then indexes a vector. Each loop is a plain loop on the host and, under `@trace`, a traced loop
+# that Reactant raises to gathers, element-wise operations and stores; a loop raises only if it
+# stores to each array once per iteration, hence a vector per component. `rgetindex` and
+# `rsetindex!` index both.
+const _NumberColumns = Tuple{AbstractVector}
+const _MatrixColumns = NTuple{4, AbstractVector}
 
-# Values rebuilt as `T` from their component vectors `cols` (column-major for matrices).
-struct _Columns{T, C <: Tuple}
-    cols::C
-end
-_Columns{T}(cols) where {T} = _Columns{T, typeof(cols)}(cols)
-Base.length(c::_Columns) = length(first(c.cols))
+@inline _load(c::_NumberColumns, i) = rgetindex(only(c), i)
+@inline _load(c::_MatrixColumns, i) = SMatrix{2, 2}(map(col -> rgetindex(col, i), c))
 
-@inline _load(c::_Columns{<:Number}, i) = rgetindex(only(c.cols), i)
-@inline _load(c::_Columns{<:StaticArraysCore.StaticMatrix}, i) = SMatrix{2, 2}(map(col -> rgetindex(col, i), c.cols))
-@inline _load(c::_Columns{<:StokesParams}, i) = StokesParams(map(col -> rgetindex(col, i), c.cols)...)
+@inline _store!(c::_NumberColumns, v::Number, i) = (rsetindex!(only(c), v, i); nothing)
+@inline _store!(c::_MatrixColumns, v::StaticArraysCore.StaticMatrix, i) = (map((col, x) -> rsetindex!(col, x, i), c, Tuple(v)); nothing)
 
-@inline _store!(c::_Columns, v::Number, i) = (rsetindex!(only(c.cols), v, i); nothing)
-@inline _store!(c::_Columns, v::StaticArraysCore.StaticMatrix, i) = (map((col, x) -> rsetindex!(col, x, i), c.cols, Tuple(v)); nothing)
+_nvalues(c::Tuple) = length(first(c))
 
 # Storage for `n` values like `v`, in vectors like `like`.
-_valuecolumns(::Number, like, n) = _Columns{Number}((similar(like, n),))
-_valuecolumns(::StaticArraysCore.StaticMatrix, like, n) = _Columns{SMatrix{2, 2}}(ntuple(_ -> similar(like, n), Val(4)))
+_valuecolumns(::Number, like, n) = (similar(like, n),)
+_valuecolumns(::StaticArraysCore.StaticMatrix, like, n) = ntuple(_ -> similar(like, n), Val(4))
 function _valuecolumns(v, like, n)
     throw(ArgumentError("an instrument term gives values of type $(typeof(v)); expected numbers or 2×2 matrices"))
 end
 
-# `n` values rebuilt as `T` from components stored back to back: component `k` of value `i` is
-# `data[i + (k - 1) * n]`, the layout of a `FieldDimArray`'s storage. (A traced array cannot be
-# indexed through a view at a traced index, so the components are not views.)
-struct _Flat{T, D <: AbstractVector}
+# The sky's Stokes visibilities as four component vectors.
+struct _StokesColumns{C <: NTuple{4, AbstractVector}}
+    cols::C
+end
+@inline _load(c::_StokesColumns, i) = StokesParams(map(col -> rgetindex(col, i), c.cols)...)
+_nvalues(c::_StokesColumns) = length(first(c.cols))
+
+# The sky's `n` Stokes visibilities with their components stored back to back: component `k` of
+# value `i` is `data[i + (k - 1) * n]`, the layout of a `FieldDimArray`'s storage. (A traced
+# array cannot be indexed through a view at a traced index, so the components are not views.)
+struct _StokesFlat{D <: AbstractVector}
     data::D
     n::Int
 end
-_Flat{T}(data, n) where {T} = _Flat{T, typeof(data)}(data, n)
-Base.length(c::_Flat) = c.n
-@inline _load(c::_Flat{<:StokesParams}, i) = StokesParams(ntuple(k -> rgetindex(c.data, i + (k - 1) * c.n), Val(4))...)
+@inline _load(c::_StokesFlat, i) = StokesParams(ntuple(k -> rgetindex(c.data, i + (k - 1) * c.n), Val(4))...)
+_nvalues(c::_StokesFlat) = c.n
 
 # The sky's visibilities, and a vector to allocate like.
-_viscolumns(v::AbstractArray{<:Number}) = _Columns{Number}((vec(v),))
-_viscolumns(v::FieldDimArray{<:StokesParams}) = _Flat{StokesParams}(vec(parent(v)), length(v))
-_viscolumns(v::AbstractArray{<:StokesParams}) = _Columns{StokesParams}(ntuple(k -> vec(getfield.(v, k)), Val(4)))
-_template(c::_Columns) = first(c.cols)
-_template(c::_Flat) = c.data
+_viscolumns(v::AbstractArray{<:Number}) = (vec(v),)
+_viscolumns(v::FieldDimArray{<:StokesParams}) = _StokesFlat(vec(parent(v)), length(v))
+_viscolumns(v::AbstractArray{<:StokesParams}) = _StokesColumns(ntuple(k -> vec(getfield.(v, k)), Val(4)))
+_template(c::Tuple) = first(c)
+_template(c::_StokesColumns) = first(c.cols)
+_template(c::_StokesFlat) = c.data
 
 # The values over the table's `(record, channel)` shape: numbers, or a `FieldDimArray` of 2×2
 # matrices.
-_tablevalues(out::_Columns{<:Number}, sz) = reshape(only(out.cols), sz)
-_tablevalues(out::_Columns{<:StaticArraysCore.StaticMatrix}, sz) = FieldDimArray{SMatrix{2, 2}}(reshape(vcat(out.cols...), sz..., 2, 2))
+_tablevalues(out::_NumberColumns, sz) = reshape(only(out), sz)
+_tablevalues(out::_MatrixColumns, sz) = FieldDimArray{SMatrix{2, 2}}(reshape(vcat(out...), sz..., 2, 2))
 
 # The instrument parameters by name, as plain vectors.
 @inline _instrumentparams(J::ObservedInstrumentModel, x) = map(parent ∘ siteparams, x.instrument)
@@ -446,7 +450,7 @@ _cellfunctions(J::ObservedInstrumentModel{<:_StationGroups}) = map(t -> _cellfun
     return f(xs, cs, _cellresponse(L.response, k))
 end
 _cellresponse(::Nothing, k) = nothing
-_cellresponse(U::_Columns, k) = _load(U, k)
+_cellresponse(U::_MatrixColumns, k) = _load(U, k)
 
 # The Jones matrix `J U` of every cell, stored like `like`.
 function _celljones(J::ObservedInstrumentModel, x, like)
@@ -483,7 +487,7 @@ end
     jc = _celljones(J, x, like)
     f = _CellValue{typeof(J.pol), typeof(refbasis(J))}(J.pol)
     cell1, cell2 = vec(L.cell1), vec(L.cell2)
-    n = length(v)
+    n = _nvalues(v)
     out = _valuecolumns(_value(f, jc, v, cell1, cell2, 1), like, n)
     @trace track_numbers = false for i in 1:n
         _store!(out, _value(f, jc, v, cell1, cell2, i), i)
@@ -532,7 +536,7 @@ array over `(Ant, Ts, Fr)`; stations without a record at a time hold `NaN`.
 function forward_jones(J::ObservedInstrumentModel, x, t::VisTable)
     L = layout(J)
     cells = _celljones(J, x, ComplexF64[])
-    jc = [_load(cells, k) for k in 1:length(cells)]
+    jc = [_load(cells, k) for k in 1:_nvalues(cells)]
     T = eltype(jc)
     out = fill(_nanof(T), length(info(t).stations), length(times(t)), size(t, 2))
     d = domain(t)

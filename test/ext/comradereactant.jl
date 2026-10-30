@@ -5,8 +5,6 @@ using Distributions
 using StaticArrays
 import TransformVariables as TV
 
-const ReactantEx = Comrade.ComradeBase.ReactantEx
-
 # Reference-antenna gains fix some sites to a constant value. Rebuilding the full
 # parameter vector used to scatter those constants into a freshly-allocated array
 # (`yfv[fixed_index] .= fixed_values`), which forces scalar indexing and fails to
@@ -50,7 +48,7 @@ end
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 32, 32)
     skym = SkyModel(test_model, test_prior(), g)
     post_cpu = VLBIPosterior(skym, vis; admode = nothing)
-    post = Comrade.prepare_device(post_cpu, ReactantEx())
+    post = shard(post_cpu, Reactant.Sharding.NoSharding())
 
     tpost = asflat(post)
 
@@ -145,7 +143,7 @@ end
     _, vis, _, _, _ = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12)
     skym = SkyModel(test_model, gprior, g)
-    post = Comrade.prepare_device(VLBIPosterior(skym, vis; admode = nothing), ReactantEx())
+    post = shard(VLBIPosterior(skym, vis; admode = nothing), Reactant.Sharding.NoSharding())
     tpost = asflat(post)
     ldf = ext._default_ldf
 
@@ -194,7 +192,7 @@ end
     _, vis, _, _, _ = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12)
     post_cpu = VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing)
-    post = Comrade.prepare_device(post_cpu, ReactantEx())
+    post = shard(post_cpu, Reactant.Sharding.NoSharding())
     sp = Comrade.PT.StdNormal()
 
     # a full run to disk: draws are finite and the stored transport records the space
@@ -303,7 +301,7 @@ end
         tpost_cpu = asflat(post_cpu)
         x0 = prior_sample(Random.Xoshiro(31), tpost_cpu)
 
-        post = Comrade.prepare_device(post_cpu, ReactantEx())
+        post = shard(post_cpu, Reactant.Sharding.NoSharding())
         tpost = asflat(post)
         x0_r = Reactant.to_rarray(x0)
 
@@ -355,7 +353,7 @@ end
     function check_matches_cpu(post_cpu; transport = asflat)
         tpost_cpu = transport(post_cpu)
         x0 = prior_sample(Random.Xoshiro(41), tpost_cpu)
-        tpost = transport(Comrade.prepare_device(post_cpu, ReactantEx()))
+        tpost = transport(shard(post_cpu, Reactant.Sharding.NoSharding()))
         x0_r = Reactant.to_rarray(x0)
         @test convert(Float64, @jit(logdensityof(tpost, x0_r))) ≈ logdensityof(tpost_cpu, x0) rtol = 1.0e-10
         @test convert(Vector{Float64}, @jit(fgrad(x0_r, tpost))) ≈ fgrad(x0, tpost_cpu) rtol = 1.0e-8
@@ -401,5 +399,94 @@ end
         skym = SkyModel(test_model, test_prior(), g)
         post = VLBIPosterior(InstrumentModel(G * S), Field(:A, skym, vis), Field(:B, skym, later(vis, 1)); admode = nothing)
         check_matches_cpu(post)
+    end
+end
+
+@testset "Sharded posteriors" begin
+    if Reactant.XLA.REACTANT_XLA_RUNTIME != "IFRT" || length(Reactant.devices()) < 4
+        @warn "Sharded posterior tests skipped: they need Reactant's IFRT runtime and XLA_FLAGS=--xla_force_host_platform_device_count=4"
+    else
+        using Enzyme
+        mesh = Reactant.Sharding.Mesh(reshape(Reactant.devices()[1:4], 4), (:d,))
+        bytime = ShardLayout(mesh; Ti = :d)
+        fgrad(x, tp) = Enzyme.gradient(
+            Enzyme.set_runtime_activity(Enzyme.Reverse), Const(Base.Fix1(logdensityof, tp)), x
+        )[1]
+        function check_matches_cpu(post_cpu, layout)
+            tcpu = asflat(post_cpu)
+            x0 = prior_sample(Random.Xoshiro(41), tcpu)
+            tdev = asflat(shard(post_cpu, layout))
+            xr = Reactant.to_rarray(x0; sharding = Reactant.Sharding.Replicated(mesh))
+            @test convert(Float64, @jit(logdensityof(tdev, xr))) ≈ logdensityof(tcpu, x0) rtol = 1.0e-10
+            @test convert(Vector{Float64}, @jit(fgrad(xr, tdev))) ≈ fgrad(x0, tcpu) rtol = 1.0e-8
+            return nothing
+        end
+
+        # An image cube with `n` time planes spanning the table `t`.
+        function timegrid(t, n)
+            τ = Comrade.times(t)
+            e = range(first(τ) - 1.0e-3, last(τ) + 1.0e-3; length = n + 1)
+            return spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12) ⊗ frames(Ti, collect(e[1:(end - 1)]), collect(e[2:end]))
+        end
+        pulse = BSplinePulse{3}()
+        planesky(θ, meta) = ContinuousImage(IntensityMap(exp.(meta.base .+ reshape(collect(values(θ)), 1, 1, :)), meta.grid), pulse)
+        function planemodel(t, n)
+            g = timegrid(t, n)
+            base = [-(x^2 + y^2) / (2 * μas2rad(25.0)^2) for x in g.X, y in g.Y, _ in 1:n]
+            prior = NamedTuple{ntuple(i -> Symbol(:a, i), n)}(ntuple(_ -> VLBIGaussian(0.0, 0.3), n))
+            return SkyModel(planesky, prior, g; metadata = (; base, grid = g))
+        end
+
+        _, vis, _, _, cphase, dcoh = load_data()
+        g0 = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))
+        G = Jones((x, c) -> exp(complex(x.lg, x.gp)); lg = ArrayPrior(g0), gp = ArrayPrior(g0; refant = SensitiveReference(0.0)))
+        post_cpu = VLBIPosterior(planemodel(vis, 4), InstrumentModel(G), vis; admode = nothing)
+
+        @testset "time planes" begin
+            check_matches_cpu(post_cpu, bytime)
+            post = shard(post_cpu, bytime)
+            obs = only(post.lklhds).obs
+            @test length(obs.sharding.device_to_array_slices) == 4
+            @test size(obs) == size(post.instrumentmodel.layout.cell1)
+            @test size(obs, 1) > size(vis, 1)
+        end
+
+        @testset "polarized" begin
+            Gp = Jones(
+                (x, c) -> gains(exp(complex(x.lgR, x.gpR)), exp(complex(x.lgL, x.gpL)));
+                lgR = ArrayPrior(g0), gpR = ArrayPrior(g0; refant = SingleReference(:AA, 0.0)),
+                lgL = ArrayPrior(g0), gpL = ArrayPrior(g0; refant = SingleReference(:AA, 0.0)),
+            )
+            Q = Jones((x, c) -> SMatrix{2, 2}(1.0 + 0im, 0, 0, cis(x.δ)); δ = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.3))))
+            psky(θ, p) = PolarizedModel(modify(Gaussian(), Stretch(θ.σ)), 0.1 * modify(Gaussian(), Stretch(θ.σ)), 0.05 * modify(Gaussian(), Stretch(θ.σ)), 0.02 * modify(Gaussian(), Stretch(θ.σ)))
+            skym = SkyModel(psky, (; σ = VLBIUniform(μas2rad(10.0), μas2rad(30.0))), timegrid(dcoh, 4))
+            check_matches_cpu(VLBIPosterior(skym, InstrumentModel(PerStation(Gp; AA = Gp * Q)), dcoh; admode = nothing), bytime)
+        end
+
+        @testset "fields" begin
+            post = VLBIPosterior(
+                InstrumentModel(G), Field(:A, planemodel(vis, 4), vis), Field(:B, planemodel(later(vis, 1), 8), later(vis, 1));
+                admode = nothing
+            )
+            check_matches_cpu(post, bytime)
+        end
+
+        static = SkyModel(test_model, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12))
+        @testset "static image split by record" begin
+            check_matches_cpu(VLBIPosterior(static, InstrumentModel(G), vis; admode = nothing), ShardLayout(mesh; Node = :d))
+        end
+
+        @testset "fixed component" begin
+            fixed = FixedSkyModel(test_model(rand(NamedDist(test_prior())), nothing), timegrid(vis, 4))
+            check_matches_cpu(VLBIPosterior(MultiSkyModel((; a = planemodel(vis, 4), b = fixed)), InstrumentModel(G), vis; admode = nothing), bytime)
+        end
+
+        @testset "errors" begin
+            @test_throws "already on a device" shard(shard(post_cpu, Reactant.Sharding.NoSharding()), bytime)
+            @test_throws "closure products do not support a ShardLayout" shard(VLBIPosterior(planemodel(vis, 4), cphase; admode = nothing), bytime)
+            @test_throws "`Ti` is not a dimension" shard(VLBIPosterior(static, vis; admode = nothing), bytime)
+            selfcal = InstrumentModel(Jones((x, c) -> complex(exp(x.lg)); lg = ArrayPrior(g0)); selfcal = true)
+            @test_throws "self-calibration does not support a ShardLayout" shard(VLBIPosterior(planemodel(vis, 4), selfcal, vis; admode = nothing), bytime)
+        end
     end
 end

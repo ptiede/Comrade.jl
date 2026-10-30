@@ -8,11 +8,6 @@ export vlbimodel, logdensityof, dimension, skymodel, instrumentmodel, dataproduc
     VLBIPosterior, logdensityof, loglikelihood, chi2, residuals, ndata
 
 
-function prepare_device(any, ex)
-    return any
-end
-
-
 """
     $(TYPEDEF)
 
@@ -184,6 +179,9 @@ end
 @inline function logdensityofimg(lklhds::Tuple{}, img::AbstractArray{T}) where {T}
     return zero(T)
 end
+
+# The components of a `MultiSkyModel`.
+@inline logdensityofimg(lklhds::Tuple{}, img::Tuple) = sum(map(i -> logdensityofimg(lklhds, i), img))
 
 
 include("likelihood.jl")

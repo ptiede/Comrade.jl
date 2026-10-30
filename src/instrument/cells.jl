@@ -11,7 +11,8 @@ The station cells of a [`VisTable`](@ref) and the index maps the instrument mode
 - `cell1`, `cell2`: per value `(record, channel)`, the cells of its first and second station;
 - `entries`: per instrument parameter, the entry of its site array at each cell;
 - `response`: per cell, the matrix `U` from the global sky basis to the station's local ideal
-  feed basis, as `_Columns`, or `nothing` when the data need none (Stokes I).
+  feed basis, as its four column-major component vectors, or `nothing` when the data need
+  none (Stokes I).
 """
 struct CellLayout{C, I, E, R}
     coords::C
@@ -136,4 +137,4 @@ _needsresponse(::IPol) = false
 _needsresponse(_) = true
 
 # A vector of 2×2 matrices as their four column-major component vectors.
-_matrixcolumns(m::AbstractVector{<:StaticArraysCore.StaticMatrix}) = _Columns{SMatrix{2, 2}}(ntuple(k -> getindex.(m, k), Val(4)))
+_matrixcolumns(m::AbstractVector{<:StaticArraysCore.StaticMatrix}) = ntuple(k -> getindex.(m, k), Val(4))

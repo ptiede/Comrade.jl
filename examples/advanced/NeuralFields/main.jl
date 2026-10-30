@@ -30,7 +30,6 @@ using Lux
 # our optimizer.
 using Reactant
 using VLBISkyModels: ReactantNUFFTAlg
-using Comrade: ReactantEx
 
 # For reproducibility we use a stable random number genreator
 using StableRNGs
@@ -212,11 +211,11 @@ intmodel = instrument()
 using Enzyme
 post_cpu = VLBIPosterior(skym, intmodel, dvis)
 
-# Move every array Reactant cares about (sky-model grid + metadata, data tables, etc.)
-# onto the Reactant device. `prepare_device` walks the posterior tree and replaces the
-# concrete arrays with `Reactant.RArray`s, leaving priors and the (empty) instrument
-# model untouched.
-post = Comrade.prepare_device(post_cpu, ComradeBase.ReactantEx())
+# Place the posterior on one Reactant device. `shard` with `NoSharding()` moves its arrays
+# (visibility points, data, weights, the sky metadata and the instrument's tables) to the
+# device; the priors stay on the host as constants of the compiled program. A `ShardLayout`
+# instead splits the posterior over several devices.
+post = shard(post_cpu, Reactant.Sharding.NoSharding())
 
 # ## Reconstructing the Image
 

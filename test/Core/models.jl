@@ -130,6 +130,9 @@ end
         @test_opt Comrade.idealmaps(Comrade.VisData(), oskytot, (; sky = x))
 
         @test vtot ≈ vdyn + vstat
+
+        post = VLBIPosterior(skytot, vis)
+        @test loglikelihood(post, (; sky = x)) ≈ logdensityof(Comrade.makelikelihood(vis), vtot)
     end
 end
 
