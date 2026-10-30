@@ -20,6 +20,15 @@ function Comrade.prepare_device(m::Comrade.ObservedInstrumentModel, ex::Reactant
     return Comrade.ObservedInstrumentModel(Reactant.to_rarray(m.instrument), m.refbasis, m.bsitelookup)
 end
 
+# The index maps stay on the host so that indexing with them traces to constant gathers.
+function Comrade.prepare_device(m::Comrade.ObservedSelfCalInstrumentModel, ex::ReactantEx)
+    layout = merge(m.layout, (; eye = Reactant.to_rarray(m.layout.eye)))
+    return Comrade.ObservedSelfCalInstrumentModel(
+        Comrade.prepare_device(m.model, ex), m.phase,
+        map(Reactant.to_rarray, m.wdata), map(Reactant.to_rarray, m.weight), layout, m.squarings
+    )
+end
+
 function Comrade.prepare_device(grid::VLBISkyModels.FourierDualDomain, ex::ReactantEx)
     gimr = @jit identity(grid.imgdomain)
     guvr = Reactant.to_rarray(grid.visdomain)

@@ -247,7 +247,7 @@ function _lift_anons(node, base, counter, fndefs)
     return Expr(node.head, Any[_lift_anons(a, base, counter, fndefs) for a in node.args]...)
 end
 
-function _instrument_impl(fexpr)
+function _instrument_impl(fexpr; selfcal::Bool = false)
     Meta.isexpr(fexpr, :function) ||
         error("@instrument expects a `function name(; kwargs...) ... end` definition")
     sig, body = fexpr.args
@@ -353,7 +353,7 @@ function _instrument_impl(fexpr)
     jones_call = Expr(:call, jones_fn_name, fwd_kwargs)
     instrument_call = Expr(
         :call, :InstrumentModel,
-        Expr(:parameters, Expr(:kw, :refbasis, :refbasis)),
+        Expr(:parameters, Expr(:kw, :refbasis, :refbasis), Expr(:kw, :selfcal, selfcal)),
         :jones, :prior
     )
     ctor_body = Expr(
@@ -451,6 +451,10 @@ end
 intm = fullpol(; gain_std = 0.05)
 ```
 
+`@instrument selfcal = true function ...` builds the model with `selfcal = true` (see
+[`InstrumentModel`](@ref)): its Jones terms then omit the station phase, which is the
+self-calibration solution plus the sampled residual `selfcal_residual`.
+
 A Stokes-I example is a single block:
 
 ```julia
@@ -463,6 +467,13 @@ A Stokes-I example is a single block:
 end
 ```
 """
-macro instrument(fexpr)
-    return esc(_instrument_impl(fexpr))
+macro instrument(args...)
+    options = args[1:(end - 1)]
+    selfcal = false
+    for o in options
+        (Meta.isexpr(o, :(=)) && o.args[1] === :selfcal && o.args[2] isa Bool) ||
+            error("@instrument: the only option is `selfcal = true` or `selfcal = false`, got `$o`")
+        selfcal = o.args[2]
+    end
+    return esc(_instrument_impl(last(args); selfcal))
 end

@@ -12,8 +12,13 @@ Any subtype must implement the following methods
     for the instrument model `m` and returns the observed instrument model and prior.
  - `apply_instrument(vis, m::AbstractInstrumentModel, x)`: Applies the instrument model `m` to the visibilities
     `vis` given the model parameters `x`.
+
+A model that depends on the data also implements `set_array(m, array, data)`, where `data` are the
+data products the posterior fits; the default ignores them.
 """
 abstract type AbstractInstrumentModel end
+
+set_array(m::AbstractInstrumentModel, array, data) = set_array(m, array)
 
 """
     IdealInstrument(array::AbstractArrayConfiguration)
@@ -32,17 +37,21 @@ struct InstrumentModel{J <: AbstractJonesMatrix, PI, P <: PolBasis} <: AbstractI
     prior::PI
     refbasis::P
     gaugefix::Symbol
-    function InstrumentModel{J, PI, P}(jones, prior, refbasis, gaugefix) where {J, PI, P}
+    selfcal::Bool
+    function InstrumentModel{J, PI, P}(jones, prior, refbasis, gaugefix, selfcal) where {J, PI, P}
         g = Symbol(gaugefix)
         g in (:error, :pin) ||
             throw(ArgumentError("InstrumentModel gaugefix must be :error or :pin, got :$g"))
-        return new{J, PI, P}(jones, prior, refbasis, g)
+        selfcal && haskey(prior, SELFCAL_RESIDUAL) && throw(
+            ArgumentError("a self-calibrated instrument model adds the parameter `$SELFCAL_RESIDUAL`; the prior already has one")
+        )
+        return new{J, PI, P}(jones, prior, refbasis, g, selfcal)
     end
 end
 
-function InstrumentModel(jones, prior, refbasis, gaugefix = :error)
+function InstrumentModel(jones, prior, refbasis, gaugefix = :error, selfcal = false)
     return InstrumentModel{typeof(jones), typeof(prior), typeof(refbasis)}(
-        jones, prior, refbasis, gaugefix
+        jones, prior, refbasis, gaugefix, selfcal
     )
 end
 
@@ -52,6 +61,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::InstrumentModel)
     T = typeof(m.jones)
     ST = split(split(" $T", '{')[1], ".")[end]
     println(io, "  with Jones: ", ST)
+    m.selfcal && println(io, "  with the station phase self-calibrated")
     return print(io, "  with reference basis: ", m.refbasis)
 end
 
@@ -92,7 +102,7 @@ end
 
 
 """
-    InstrumentModel(jones, prior; refbasis = CirBasis(), gaugefix = :error)
+    InstrumentModel(jones, prior; refbasis = CirBasis(), gaugefix = :error, selfcal = false)
 
 Builds an instrument model using the jones matrix `jones`, with priors `prior`.
 The reference basis is `refbasis` and is used to define what
@@ -118,6 +128,36 @@ visibilities.
     directions and the entries that would fix them; `:pin` pins those entries itself, adding them to
     each affected prior's referencing scheme and logging one line per pin. The analysis is
     [`Comrade.gauge_pins`](@ref) and runs when the model is given an array configuration.
+  - `selfcal`: whether each station's common phase `φ` is written as its self-calibration
+    solution `φ̂` plus a sampled residual, `φ = φ̂ + selfcal_residual`. `jones` must then omit
+    the station phase. See the section below.
+
+# Self-calibrated station phase
+
+With `selfcal = true`, the model adds the instrument parameter `selfcal_residual`: one angle
+per station and data time, with a prior uniform on the circle. In each group of stations that
+baselines link at one time and frequency, the station with the largest total data weight
+`Σ 1/σ²` is the reference, and its residual is fixed to 0. The priors of all other terms are
+those in `prior`.
+
+`φ̂` is the phase of the leading eigenvector of each group's Hermitian station matrix
+```
+A_ij = Σ_p V_ij,p conj(M_ij,p) / σ²_ij,p      (i ≠ j)
+A_ii = Σ_j Σ_p |M_ij,p|² / σ²_ij,p
+```
+where `V` and `σ` are the data and their noise, `M` the model visibilities without the
+station phase, and `p` runs over the correlation products. The off-diagonal part is the
+phase-dependent term of the Gaussian log-likelihood; the diagonal makes `A` positive
+semidefinite when the model matches the data. The eigenvector is approximated by the column
+of `A^64`, computed by six squarings, at the reference station, so `φ̂` is zero there.
+
+`φ̂` depends on the sky and the other instrument parameters but not on the residual, so the
+change of variables from `φ` to the residual has unit Jacobian. Because the prior is uniform
+on the circle, the prior of `φ` does not depend on `φ̂`, and the posterior is that of a uniform
+station phase. The residual is the station phase in coordinates that depend on the data:
+compare or reuse draws through `φ` ([`selfcal_phase`](@ref)). The model needs the data, so it
+is bound to an array only through a [`VLBIPosterior`](@ref) of one table of complex
+visibilities or coherencies.
 
 
 # Example
@@ -164,9 +204,9 @@ basis.
 """
 function InstrumentModel(
         jones::AbstractJonesMatrix, prior::NamedTuple{N};
-        refbasis = CirBasis(), gaugefix = :error
+        refbasis = CirBasis(), gaugefix = :error, selfcal = false
     ) where {N}
-    return InstrumentModel(jones, prior, refbasis, gaugefix)
+    return InstrumentModel(jones, prior, refbasis, gaugefix, selfcal)
 end
 
 function InstrumentModel(jones::JonesR; refbasis = CirBasis(), gaugefix = :error)
@@ -174,6 +214,8 @@ function InstrumentModel(jones::JonesR; refbasis = CirBasis(), gaugefix = :error
 end
 
 function set_array(int::InstrumentModel, array::AbstractArrayConfiguration)
+    int.selfcal &&
+        throw(ArgumentError("a self-calibrated instrument model needs the data; build it into a VLBIPosterior"))
     (; jones, prior, refbasis) = int
     # 1. preallocate and jones matrices
     Jpre = preallocate_jones(jones, array, refbasis)
