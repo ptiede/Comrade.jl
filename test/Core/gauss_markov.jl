@@ -22,7 +22,7 @@ function gm_chain_logpdf(p, init, x, inds, ts, Δ0 = zero(eltype(ts)))
 end
 
 function _gm_test_sky()
-    tm(θ, meta) = θ.f1 * stretched(Gaussian(), θ.σ1, θ.σ1)
+    tm(θ, _, _) = θ.f1 * stretched(Gaussian(), θ.σ1, θ.σ1)
     prior = (f1 = VLBIUniform(0.5, 1.5), σ1 = VLBIUniform(μas2rad(1.0), μas2rad(100.0)))
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 64, 64)
     return SkyModel(tm, prior, g)

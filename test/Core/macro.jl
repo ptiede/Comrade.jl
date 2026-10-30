@@ -15,7 +15,7 @@ using VLBIImagePriors
         end
 
         # Hand-written equivalent
-        manual_f(θ, meta) = stretched(Gaussian(), θ.σ * θ.τ, θ.σ)
+        manual_f(θ, _, _) = stretched(Gaussian(), θ.σ * θ.τ, θ.σ)
         manual_prior = (
             σ = VLBIUniform(μas2rad(1.0), μas2rad(40.0)),
             τ = VLBIUniform(0.35, 0.65),
@@ -36,21 +36,21 @@ using VLBIImagePriors
         # Same model output on a fixed θ
         rng = Random.Xoshiro(42)
         x = rand(rng, Comrade.NamedDist(m_macro.prior))
-        @test m_macro.f(x, m_macro.metadata) == m_manual.f(x, m_manual.metadata)
+        @test m_macro.f(x, m_macro.grid, m_macro.metadata) == m_manual.f(x, m_manual.grid, m_manual.metadata)
     end
 
-    @testset "metadata flow and grid in metadata" begin
+    @testset "metadata flow; the grid is not metadata" begin
         @sky function with_grid(grid; ftot = 1.0)
             σ ~ VLBIUniform(μas2rad(1.0), μas2rad(40.0))
             return ftot * stretched(Gaussian(), σ, σ)
         end
         m = with_grid(g; ftot = 2.5)
         @test m.metadata.ftot == 2.5
-        @test m.metadata.grid === g
+        @test !haskey(m.metadata, :grid)
         @test m.grid === g
 
         x = (σ = μas2rad(10.0),)
-        @test m.f(x, m.metadata) == 2.5 * stretched(Gaussian(), x.σ, x.σ)
+        @test m.f(x, m.grid, m.metadata) == 2.5 * stretched(Gaussian(), x.σ, x.σ)
     end
 
     @testset "kwarg without default is required" begin
@@ -88,7 +88,7 @@ using VLBIImagePriors
         @test m.prior.c === cprior
         x = rand(Comrade.NamedDist(m.prior))
         @test haskey(x, :c) && haskey(x, :σimg)
-        @test m.f(x, m.metadata) isa ContinuousImage
+        @test m.f(x, m.grid, m.metadata) isa ContinuousImage
     end
 
     @testset "VLBIPosterior compatibility" begin

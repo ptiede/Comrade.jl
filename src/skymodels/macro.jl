@@ -48,23 +48,23 @@ function _sky_impl(fexpr)
     grid_arg in kw_names &&
         error("@sky: positional grid name `$(grid_arg)` collides with a keyword argument")
 
-    used_meta = _scan_used_names(body_stmts, candidate_meta_names)
+    used_meta_kw = _scan_used_names(body_stmts, kw_names)
 
     sky_fn_name = Symbol("_", name, "_sky")
     prior_fn_name = Symbol("_", name, "_prior")
 
     θ_destr = Expr(:(=), Expr(:tuple, Expr(:parameters, tilde_names...)), :θ)
     sky_body = Expr(:block, θ_destr)
-    if !isempty(used_meta)
+    if !isempty(used_meta_kw)
         push!(
             sky_body.args,
-            Expr(:(=), Expr(:tuple, Expr(:parameters, used_meta...)), :metadata)
+            Expr(:(=), Expr(:tuple, Expr(:parameters, used_meta_kw...)), :metadata)
         )
     end
     append!(sky_body.args, body_stmts)
     sky_fn = Expr(
         :function,
-        Expr(:call, sky_fn_name, :θ, :metadata),
+        Expr(:call, sky_fn_name, :θ, grid_arg, :metadata),
         sky_body
     )
 
@@ -83,15 +83,9 @@ function _sky_impl(fexpr)
     prior_fn = Expr(:function, prior_sig, Expr(:block, Expr(:return, prior_nt)))
 
     ctor_sig = Expr(:call, name, Expr(:parameters, kw_args...), grid_arg)
-    # Only keyword arguments actually referenced by the model body belong in
-    # `metadata`; kwargs used solely on `~` lines are priors and are consumed by
-    # the prior builder. Storing them in metadata needlessly duplicates them and
-    # breaks device transfer for objects Reactant cannot trace (e.g. the
-    # SparseMatrixCSC inside a GMRF `corr_image_prior`). `used_meta` may already
-    # contain `grid_arg`, so drop it before re-appending to avoid a duplicate
-    # NamedTuple field.
-    used_meta_kw = Symbol[n for n in used_meta if n != grid_arg]
-    metadata_nt = Expr(:tuple, Expr(:parameters, used_meta_kw..., grid_arg))
+    # Keyword arguments used only on `~` lines are priors and stay out of `metadata`: some hold
+    # objects Reactant cannot trace, such as the SparseMatrixCSC of a GMRF `corr_image_prior`.
+    metadata_nt = Expr(:tuple, Expr(:parameters, used_meta_kw...))
     prior_call = Expr(
         :call, prior_fn_name,
         Expr(:parameters, [Expr(:kw, n, n) for n in prior_required_kwargs]...)
@@ -123,14 +117,14 @@ Define a [`SkyModel`](@ref) constructor in a single block. Each `name ~ dist` li
 contributes an entry to the prior `NamedTuple`; everything else becomes the model
 body. The macro emits three definitions in the calling module:
 
-  - `_<name>_sky(θ, metadata)` — the model function passed to `SkyModel`.
+  - `_<name>_sky(θ, grid, metadata)` — the model function passed to `SkyModel`.
   - `_<name>_prior(; kwargs..., grid)` — builds the prior `NamedTuple`.
   - `<name>(grid; kwargs...)` — the user-facing constructor, returning a `SkyModel`.
 
-The first positional argument is the image grid. Keyword arguments are stored in
-the model `metadata` (along with the grid) and are in scope for both the prior
-RHS expressions and the model body. The metadata destructure inside the model
-body only unpacks names that the body actually references.
+The first positional argument is the image grid, which the model body receives as
+the grid argument of the model function. Keyword arguments are in scope for both
+the prior RHS expressions and the model body; those the body references are stored
+in the model `metadata`.
 
 # Hierarchical priors
 

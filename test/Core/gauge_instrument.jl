@@ -5,7 +5,7 @@ using VLBIImagePriors
 _gauge_test_data() = load_test_table()
 
 function _gauge_test_sky()
-    tm(θ, meta) = θ.f1 * stretched(Gaussian(), θ.σ1, θ.σ1)
+    tm(θ, _, _) = θ.f1 * stretched(Gaussian(), θ.σ1, θ.σ1)
     prior = (f1 = VLBIUniform(0.5, 1.5), σ1 = VLBIUniform(μas2rad(1.0), μas2rad(100.0)))
     return SkyModel(tm, prior, spatialgrid(μas2rad(150.0), μas2rad(150.0), 32, 32))
 end

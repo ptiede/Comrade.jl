@@ -86,9 +86,9 @@ using Enzyme
 
 
     x = prior_sample(post)
-    @test skymodel(post, x) == test_model(x.sky, nothing)
-    @test last(Comrade.idealmaps(Comrade.VisData(), skymodel(post), x)) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
-    @test last(Comrade.forward_model(post, x)) == visibilitymap(test_model(x.sky, nothing), post.skymodel.grid)
+    @test skymodel(post, x) == test_model(x.sky, nothing, nothing)
+    @test last(Comrade.idealmaps(Comrade.VisData(), skymodel(post), x)) == visibilitymap(test_model(x.sky, nothing, nothing), post.skymodel.grid)
+    @test last(Comrade.forward_model(post, x)) == visibilitymap(test_model(x.sky, nothing, nothing), post.skymodel.grid)
 
 
     @test dimension(post) == length(post.prior)
@@ -127,7 +127,7 @@ using Enzyme
     @test isapprox(xopt.sky.y, μas2rad(30.0), rtol = 1.0e-3)
 
 
-    mopt = test_model(xopt.sky, nothing)
+    mopt = test_model(xopt.sky, nothing, nothing)
     @test mopt == Comrade.skymodel(post, xopt)
 
     @testset "Plot residuals" begin

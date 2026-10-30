@@ -156,13 +156,13 @@ using Distributions
     @testset "ImgNormal ContinuousImage" begin
         imgdata = ImgNormalData(centroid, [0.0, 0.0], [1.0e-12, 1.0e-12])
         g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 32, 32)
-        skym = SkyModel(testimg, testimg_prior(g), g; metadata = (grid = g,))
+        skym = SkyModel(testimg, testimg_prior(g), g)
 
         post = VLBIPosterior(skym, vis; imgdata = (imgdata,))
         x_prior = prior_sample(post)
         @inferred logdensityof(post, x_prior)
 
-        skym = SkyModel(testimg_add, testimg_add_prior(g), g; metadata = (grid = g,))
+        skym = SkyModel(testimg_add, testimg_add_prior(g), g)
         post = VLBIPosterior(skym, vis; imgdata = (imgdata,))
         x_prior = prior_sample(post)
         @inferred logdensityof(post, x_prior)

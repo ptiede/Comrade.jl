@@ -20,8 +20,9 @@ contains additional information needed by the model `f`.
 
 # Arguments
 
- - `f(x, p)` : A function must be two arguments, where `x` are the model parameters and `p` is the metadata.
-    typically `x` and `p` are named tuples.
+ - `f(x, grid, metadata)` : The sky function. `x` are the model parameters, `grid` is the image
+   grid, and `metadata` is the `metadata` option. A model that needs no metadata is written
+   `f(x, grid, _)`.
 - `prior` : A named tuple of priors for the model parameters defined in `x`. Each model parameter
    used in `x` must have a defined element in the prior.
 - `grid` : The domain on which the model is defined. This defines the field of view and resolution
@@ -32,8 +33,9 @@ contains additional information needed by the model `f`.
 - `algorithm` : The Fourier transform algorithm used to compute the visibilities. The default is
    `NFFTAlg()` which uses a non-uniform fast Fourier transform. Other options can be found by using
    `subtypes(VLBISkyModels.FourierTransform)`
-- `metadata` : Additional information needed by the model `f`. These are the addtional arguments
-   passed to the model function `f`.
+- `metadata` : Additional information needed by the model `f`, passed as its third argument.
+   It can be any object. The grid is not part of it: `f` receives the grid as its second
+   argument.
 """
 function SkyModel(f, prior, grid::AbstractRectiGrid; algorithm = NFFTAlg(), metadata = nothing)
     return SkyModel(f, prior, grid, algorithm, metadata)
@@ -72,7 +74,7 @@ pass that to a [`VLBIPosterior`](@ref) object instead.
 """
 function ObservedSkyModel(m::SkyModel, arr::VisTable)
     x = rand(NamedDist(m.prior))
-    ms = m.f(x, m.metadata)
+    ms = m.f(x, m.grid, m.metadata)
     # if analytic don't bother planning the FT
     if ComradeBase.visanalytic(typeof(ms)) === ComradeBase.IsAnalytic()
         g = FourierDualDomain(m.grid, arr, AnalyticAlg())

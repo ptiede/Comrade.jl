@@ -382,7 +382,7 @@ end
             lgR = ArrayPrior(g0), gpR = ArrayPrior(g0; refant = SingleReference(:AA, 0.0)),
             lgL = ArrayPrior(g0), gpL = ArrayPrior(g0; refant = SingleReference(:AA, 0.0)),
         )
-        psky(θ, p) = PolarizedModel(modify(Gaussian(), Stretch(θ.σ)), 0.1 * modify(Gaussian(), Stretch(θ.σ)), 0.05 * modify(Gaussian(), Stretch(θ.σ)), 0.02 * modify(Gaussian(), Stretch(θ.σ)))
+        psky(θ, _, _) = PolarizedModel(modify(Gaussian(), Stretch(θ.σ)), 0.1 * modify(Gaussian(), Stretch(θ.σ)), 0.05 * modify(Gaussian(), Stretch(θ.σ)), 0.02 * modify(Gaussian(), Stretch(θ.σ)))
         skym = SkyModel(psky, (; σ = VLBIUniform(μas2rad(10.0), μas2rad(30.0))), g)
         check_matches_cpu(skym, InstrumentModel(PerStation(G; AA = G * Q)), dcoh)
     end
@@ -429,12 +429,12 @@ end
             return spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12) ⊗ frames(Ti, collect(e[1:(end - 1)]), collect(e[2:end]))
         end
         pulse = BSplinePulse{3}()
-        planesky(θ, meta) = ContinuousImage(IntensityMap(exp.(meta.base .+ reshape(collect(values(θ)), 1, 1, :)), meta.grid), pulse)
+        planesky(θ, grid, meta) = ContinuousImage(IntensityMap(exp.(meta.base .+ reshape(collect(values(θ)), 1, 1, :)), grid), pulse)
         function planemodel(t, n)
             g = timegrid(t, n)
             base = [-(x^2 + y^2) / (2 * μas2rad(25.0)^2) for x in g.X, y in g.Y, _ in 1:n]
             prior = NamedTuple{ntuple(i -> Symbol(:a, i), n)}(ntuple(_ -> VLBIGaussian(0.0, 0.3), n))
-            return SkyModel(planesky, prior, g; metadata = (; base, grid = g))
+            return SkyModel(planesky, prior, g; metadata = (; base))
         end
 
         _, vis, _, _, cphase, dcoh = load_data()
@@ -473,7 +473,7 @@ end
                 lgL = ArrayPrior(g0), gpL = ArrayPrior(g0; refant = SingleReference(:AA, 0.0)),
             )
             Q = Jones((x, c) -> SMatrix{2, 2}(1.0 + 0im, 0, 0, cis(x.δ)); δ = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.3))))
-            psky(θ, p) = PolarizedModel(modify(Gaussian(), Stretch(θ.σ)), 0.1 * modify(Gaussian(), Stretch(θ.σ)), 0.05 * modify(Gaussian(), Stretch(θ.σ)), 0.02 * modify(Gaussian(), Stretch(θ.σ)))
+            psky(θ, _, _) = PolarizedModel(modify(Gaussian(), Stretch(θ.σ)), 0.1 * modify(Gaussian(), Stretch(θ.σ)), 0.05 * modify(Gaussian(), Stretch(θ.σ)), 0.02 * modify(Gaussian(), Stretch(θ.σ)))
             skym = SkyModel(psky, (; σ = VLBIUniform(μas2rad(10.0), μas2rad(30.0))), timegrid(dcoh, 4))
             check_matches_cpu(VLBIPosterior(skym, InstrumentModel(PerStation(Gp; AA = Gp * Q)), dcoh; admode = nothing), bytime)
         end
@@ -492,7 +492,7 @@ end
         end
 
         @testset "fixed component" begin
-            fixed = FixedSkyModel(test_model(rand(NamedDist(test_prior())), nothing), timegrid(vis, 4))
+            fixed = FixedSkyModel(test_model(rand(NamedDist(test_prior())), nothing, nothing), timegrid(vis, 4))
             check_matches_cpu(VLBIPosterior(MultiSkyModel((; a = planemodel(vis, 4), b = fixed)), InstrumentModel(G), vis; admode = nothing), bytime)
         end
 

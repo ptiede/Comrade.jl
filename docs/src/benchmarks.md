@@ -52,7 +52,7 @@ Therefore, for this test we found that `Comrade` was the fastest method in all t
 uvd = VLBIFiles.load(VLBIFiles.UVData, joinpath(@__DIR__, "..", "examples", "Data", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
 amp = amplitudes(average(VisTable(uvd, IPol()), ByScan()))
 
-function model(θ, p)
+function model(θ, _, _)
     (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
     ring = f*smoothed(stretched(MRing((a,), (b,)), μas2rad(rad), μas2rad(rad)), μas2rad(wid))
     g = (1-f)*shifted(rotated(stretched(Gaussian(), μas2rad(sig)*asy, μas2rad(sig)), pa), μas2rad(x), μas2rad(y))
@@ -73,7 +73,7 @@ prior = (
 skym = SkyModel(model, prior, spatialgrid(μas2rad(150.0), μas2rad(150.0), 128, 128))
 
 θ = (rad= 22.0, wid= 3.0, a = 0.0, b = 0.15, f=0.8, sig = 20.0, asy=0.2, pa=π/2, x=20.0, y=20.0)
-m = model(θ, nothing)
+m = model(θ, nothing, nothing)
 
 post = VLBIPosterior(skym, amp)
 tpost = asflat(post)

@@ -112,9 +112,10 @@ nnmodel = Chain(
 
 
 # We can now define our sky model function. This function takes in the neural network parameters `nn`
-# and hyperparameters `fb, σ` and returns a `ContinuousImage` representing the sky brightness distribution.
+# and hyperparameters `fb, σ`, the image grid, and the metadata, and returns a `ContinuousImage`
+# representing the sky brightness distribution.
 # This should look similar to essentially every other imaging model in the Comrade tutorials.
-function sky(θ, metadata)
+function sky(θ, grid, metadata)
     (; nn, σ, fb, ftot) = θ
     (; nnmodel, mimg, ff, st) = metadata
     fbn = fb / length(mimg)
@@ -127,7 +128,7 @@ function sky(θ, metadata)
     mδ = maximum(δ)
     rast = @. exp(δ - mδ) * mb
     rast .*= ftot / sum(rast)
-    return ContinuousImage(rast, axisdims(mimg), DeltaPulse{Float64}())
+    return ContinuousImage(rast, grid, DeltaPulse{Float64}())
 end
 
 

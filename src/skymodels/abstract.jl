@@ -90,8 +90,11 @@ forward_dualmap(m::VLBISkyModels.AddModel{M1, <:ContinuousImage}, grid::VLBISkyM
 
 
 function skymodel(m::AbstractSkyModel, x)
-    return m.f(x, m.metadata)
+    return m.f(x, _imagegrid(m.grid), m.metadata)
 end
+
+_imagegrid(g::ComradeBase.AbstractDualDomain) = ComradeBase.imgdomain(g)
+_imagegrid(g) = g
 
 function set_prior(m::AbstractSkyModel, array::VisTable)
     return getfield(m, :prior)

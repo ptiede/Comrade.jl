@@ -27,17 +27,17 @@ function load_data()
     uvp = VLBIFiles.load(VLBIFiles.UVData, joinpath(@__DIR__, "..", "examples", "Data", "polarized_gaussian_nogains_withdterms_withfr.uvfits"))
     dcoh = reset_mounts!(VisTable(uvp, Correlations()), ARRAYFILE)
 
-    return test_model(θ, nothing), vt, amp, lcamp, cphase, dcoh
+    return test_model(θ, nothing, nothing), vt, amp, lcamp, cphase, dcoh
 end
 
 
-function test_model(θ, meta)
+function test_model(θ, _, _)
     m1 = θ.f1 * rotated(stretched(Gaussian(), θ.σ1 * θ.τ1, θ.σ1), θ.ξ1)
     m2 = θ.f2 * rotated(stretched(Gaussian(), θ.σ2 * θ.τ2, θ.σ2), θ.ξ2)
     return m1 + shifted(m2, θ.x, θ.y)
 end
 
-function test_skymodel_polarized(θ, metadata)
+function test_skymodel_polarized(θ, _, metadata)
     (; lp) = metadata
     m1 = θ.f1 * rotated(stretched(Gaussian(), θ.σ1 * θ.τ1, θ.σ1), θ.ξ1)
     m2 = θ.f2 * rotated(stretched(Gaussian(), θ.σ2 * θ.τ2, θ.σ2), θ.ξ2)
@@ -46,7 +46,7 @@ function test_skymodel_polarized(θ, metadata)
 end
 
 
-function test_model2(θ, metadata)
+function test_model2(θ, _, _)
     m2 = θ.f * stretched(ExtendedRing(θ.α), θ.r * (1 + θ.τ), θ.r)
     return m2
 end
@@ -60,9 +60,8 @@ function test_prior2()
     )
 end
 
-function testimg(θ, metadata)
+function testimg(θ, grid, _)
     (; c, σimg) = θ
-    (; grid) = metadata
     rast = to_simplex(CenteredLR(), σimg .* c.params)
     m = ContinuousImage(rast, grid, BSplinePulse{3}())
     return m
@@ -74,9 +73,8 @@ function testimg_prior(grid)
     return prior
 end
 
-function testimg_add(θ, metadata)
+function testimg_add(θ, grid, _)
     (; c, σimg, fg) = θ
-    (; grid) = metadata
     rast = to_simplex(CenteredLR(), σimg .* c.params)
     m = ContinuousImage((1 - fg) .* rast, grid, BSplinePulse{3}())
     g = fg * modify(Gaussian(), Stretch(μas2rad(500.0)))

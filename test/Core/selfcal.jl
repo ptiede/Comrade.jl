@@ -8,7 +8,7 @@ using Random
 _selfcal_test_data() = load_test_table()
 
 function _selfcal_test_sky()
-    tm(θ, meta) = θ.f1 * stretched(Gaussian(), θ.σ1, θ.σ1) + θ.f2 * shifted(Gaussian(), θ.x, 0.0)
+    tm(θ, _, _) = θ.f1 * stretched(Gaussian(), θ.σ1, θ.σ1) + θ.f2 * shifted(Gaussian(), θ.x, 0.0)
     prior = (
         f1 = VLBIUniform(0.5, 1.5), σ1 = VLBIUniform(μas2rad(1.0), μas2rad(100.0)),
         f2 = VLBIUniform(0.1, 0.5), x = VLBIUniform(μas2rad(10.0), μas2rad(40.0)),
