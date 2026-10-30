@@ -40,10 +40,6 @@ end
 
 @testset "ComradeReactantExt" begin
 
-    # NB: closures (lcamp/cphase) carry SparseMatrixCSC design matrices that
-    # Reactant.to_rarray cannot currently convert; use complex visibilities here
-    # so the data tuple round-trips cleanly onto the device (matches the NeuralFields
-    # example pattern).
     _, vis, _, _, _ = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 32, 32)
     skym = SkyModel(test_model, test_prior(), g)
@@ -412,12 +408,12 @@ end
         fgrad(x, tp) = Enzyme.gradient(
             Enzyme.set_runtime_activity(Enzyme.Reverse), Const(Base.Fix1(logdensityof, tp)), x
         )[1]
-        function check_matches_cpu(post_cpu, layout)
-            tcpu = asflat(post_cpu)
+        function check_matches_cpu(post_cpu, layout; transport = asflat, rtol = 1.0e-10)
+            tcpu = transport(post_cpu)
             x0 = prior_sample(Random.Xoshiro(41), tcpu)
-            tdev = asflat(shard(post_cpu, layout))
+            tdev = transport(shard(post_cpu, layout))
             xr = Reactant.to_rarray(x0; sharding = Reactant.Sharding.Replicated(mesh))
-            @test convert(Float64, @jit(logdensityof(tdev, xr))) ≈ logdensityof(tcpu, x0) rtol = 1.0e-10
+            @test convert(Float64, @jit(logdensityof(tdev, xr))) ≈ logdensityof(tcpu, x0) rtol = rtol
             @test convert(Vector{Float64}, @jit(fgrad(xr, tdev))) ≈ fgrad(x0, tcpu) rtol = 1.0e-8
             return nothing
         end
@@ -430,14 +426,14 @@ end
         end
         pulse = BSplinePulse{3}()
         planesky(θ, grid, meta) = ContinuousImage(IntensityMap(exp.(meta.base .+ reshape(collect(values(θ)), 1, 1, :)), grid), pulse)
-        function planemodel(t, n)
+        function planemodel(t, n; width = 25.0)
             g = timegrid(t, n)
-            base = [-(x^2 + y^2) / (2 * μas2rad(25.0)^2) for x in g.X, y in g.Y, _ in 1:n]
+            base = [-(x^2 + y^2) / (2 * μas2rad(width)^2) for x in g.X, y in g.Y, _ in 1:n]
             prior = NamedTuple{ntuple(i -> Symbol(:a, i), n)}(ntuple(_ -> VLBIGaussian(0.0, 0.3), n))
             return SkyModel(planesky, prior, g; metadata = (; base))
         end
 
-        _, vis, _, _, cphase, dcoh = load_data()
+        _, vis, _, lcamp, cphase, dcoh = load_data()
         g0 = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))
         G = Jones((x, c) -> exp(complex(x.lg, x.gp)); lg = ArrayPrior(g0), gp = ArrayPrior(g0; refant = SensitiveReference(0.0)))
         post_cpu = VLBIPosterior(planemodel(vis, 4), InstrumentModel(G), vis; admode = nothing)
@@ -496,12 +492,38 @@ end
             check_matches_cpu(VLBIPosterior(MultiSkyModel((; a = planemodel(vis, 4), b = fixed)), InstrumentModel(G), vis; admode = nothing), bytime)
         end
 
+        @testset "cube and static components" begin
+            fixed = FixedSkyModel(test_model(rand(Random.Xoshiro(3), NamedDist(test_prior())), nothing, nothing), static.grid)
+            check_matches_cpu(VLBIPosterior(MultiSkyModel((; a = planemodel(vis, 4), b = static)), InstrumentModel(G), vis; admode = nothing), bytime)
+            check_matches_cpu(VLBIPosterior(MultiSkyModel((; b = static, a = planemodel(vis, 4))), InstrumentModel(G), vis; admode = nothing), bytime)
+            check_matches_cpu(VLBIPosterior(MultiSkyModel((; a = planemodel(vis, 4), b = fixed)), InstrumentModel(G), vis; admode = nothing), bytime)
+        end
+
+        # Host and device NUFFTs differ by ~1e-8 relative in the model visibilities, which closures
+        # and very large χ² carry into the log density.
+        @testset "closures" begin
+            for c in (cphase, lcamp)
+                check_matches_cpu(VLBIPosterior(planemodel(vis, 4; width = 8.0), c; admode = nothing), bytime; rtol = 1.0e-8)
+            end
+            post = VLBIPosterior(planemodel(vis, 4; width = 8.0), cphase, lcamp; admode = nothing)
+            dev = shard(post, Reactant.Sharding.NoSharding())
+            θ = Comrade.transform(asflat(post), prior_sample(Random.Xoshiro(41), asflat(post)))
+            _, mv = @jit Comrade.forward_model(dev, Reactant.to_rarray(θ))
+            for (l, ldev) in zip(post.lklhds, dev.lklhds)
+                @test convert(Float64, @jit(logdensityof(ldev, mv))) ≈ logdensityof(l, Array(baseimage(mv))) rtol = 1.0e-12
+            end
+        end
+
+        @testset "self-calibration" begin
+            selfcal = InstrumentModel(Jones((x, c) -> complex(exp(x.lg)); lg = ArrayPrior(g0)); selfcal = true)
+            stdnormal = p -> transport_to(p, Comrade.PT.StdNormal())
+            check_matches_cpu(VLBIPosterior(static, selfcal, vis; admode = nothing), ShardLayout(mesh; Node = :d); transport = stdnormal)
+            check_matches_cpu(VLBIPosterior(planemodel(vis, 4), selfcal, vis; admode = nothing), bytime; transport = stdnormal, rtol = 1.0e-9)
+        end
+
         @testset "errors" begin
             @test_throws "already on a device" shard(shard(post_cpu, Reactant.Sharding.NoSharding()), bytime)
-            @test_throws "closure products do not support a ShardLayout" shard(VLBIPosterior(planemodel(vis, 4), cphase; admode = nothing), bytime)
             @test_throws "`Ti` is not a dimension" shard(VLBIPosterior(static, vis; admode = nothing), bytime)
-            selfcal = InstrumentModel(Jones((x, c) -> complex(exp(x.lg)); lg = ArrayPrior(g0)); selfcal = true)
-            @test_throws "self-calibration does not support a ShardLayout" shard(VLBIPosterior(planemodel(vis, 4), selfcal, vis; admode = nothing), bytime)
         end
     end
 end

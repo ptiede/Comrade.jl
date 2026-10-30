@@ -6,6 +6,9 @@ using StructArrays
 using StaticArraysCore
 using Accessors
 using PolarizedTypes
+using DensityInterface
+using LinearAlgebra
+using SparseArrays
 
 include("shard.jl")
 include("misc.jl")
