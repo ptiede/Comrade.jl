@@ -2,8 +2,8 @@ export selfcal_phase
 
 # The instrument parameter of the residual phase about the self-calibration solution.
 const SELFCAL_RESIDUAL = :selfcal_residual
-# Squarings of the station matrix: φ̂ is the phase of a column of A^(2^SELFCAL_SQUARINGS).
-const SELFCAL_SQUARINGS = 6
+# Power iterations on the station matrix: φ̂ is the phase of A^SELFCAL_ITERATIONS e_ref.
+const SELFCAL_ITERATIONS = 32
 
 struct ObservedSelfCalInstrumentModel{M <: ObservedInstrumentModel, W, G, L} <: AbstractInstrumentModel
     model::M
@@ -11,7 +11,7 @@ struct ObservedSelfCalInstrumentModel{M <: ObservedInstrumentModel, W, G, L} <: 
     wdata::W
     weight::G
     layout::L
-    squarings::Int
+    iterations::Int
 end
 
 EnzymeRules.inactive_type(::Type{<:ObservedSelfCalInstrumentModel}) = true
@@ -56,7 +56,7 @@ function set_array(m::InstrumentModel, array::AbstractArrayConfiguration, data)
     intobs, prior = set_array(_with_residual(m, EntryReference(refs, 0.0)), array)
     sort(fixed_indices(getproperty(prior, SELFCAL_RESIDUAL))) == sort(refs) ||
         error("the residual phase prior did not fix exactly the reference entries")
-    return ObservedSelfCalInstrumentModel(intobs, SELFCAL_RESIDUAL, wdata, weight, layout, SELFCAL_SQUARINGS), prior
+    return ObservedSelfCalInstrumentModel(intobs, SELFCAL_RESIDUAL, wdata, weight, layout, SELFCAL_ITERATIONS), prior
 end
 
 # Index maps from baselines to the station matrices `A[a, b, g]` of every group `g`, a set of
@@ -64,7 +64,9 @@ end
 # to its group's reference: the entry with the largest summed weight `rowweight` over the
 # baselines it is on. `pick[a, b, g]` indexes `[0; x; conj(x)]` for a per-baseline `x`: `1 + k`
 # when baseline `k` runs from station `a` to `b`, `1 + K + k` when it runs from `b` to `a`, and
-# `1` when no baseline joins them.
+# `1` when no baseline joins them. `start[a, g]` indexes `A[a, r, g]` for the reference station
+# `r` of group `g`, `entry[e]` indexes the `N × G` station vectors at entry `e`, and
+# `refslot[e]` at the reference entry of `e`'s group.
 function _selfcal_layout(smap::SiteLookup, i1::AbstractVector{<:Integer}, i2::AbstractVector{<:Integer}, rowweight)
     st = sites(smap)
     stamps = collect(zip(times(smap), frequencies(smap)))
@@ -115,36 +117,11 @@ function _selfcal_layout(smap::SiteLookup, i1::AbstractVector{<:Integer}, i2::Ab
     end
 
     L = LinearIndices((N, N, G))
+    start = [L[a, ne[ref[g]], g] for a in 1:N, g in 1:G]
+    entry = [LinearIndices((N, G))[ne[e], ge[e]] for e in eachindex(ge)]
     refentry = [ref[ge[e]] for e in eachindex(ge)]
-    column = [L[ne[e], ne[refentry[e]], ge[e]] for e in eachindex(ge)]
     eye = reshape([a == b ? 1.0 : 0.0 for a in 1:N, b in 1:N], N, N, 1)
-    return (; pick, eye, column, refentry, i1 = collect(Int, i1), i2 = collect(Int, i2))
-end
-
-_nproducts(::AbstractVector{<:Number}) = 1
-_nproducts(v::AbstractVector{<:StaticArraysCore.StaticMatrix}) = length(eltype(v))
-_product(v::Number, ::Int) = v
-_product(v::StaticArraysCore.StaticMatrix, p::Int) = v[p]
-
-# Data and weights per correlation product; missing data get zero weight, as in the likelihood.
-function _selfcal_weights(table)
-    V = measurement(table)
-    σ = noise(table)
-    np = _nproducts(V)
-    missingdata(v, s) = isnan(v) || isnan(s)
-    wdata = ntuple(np) do p
-        map(V, σ) do v, s
-            vp, sp = _product(v, p), _product(s, p)
-            missingdata(vp, sp) ? zero(complex(float(real(vp)))) : complex(vp) / sp^2
-        end
-    end
-    weight = ntuple(np) do p
-        map(V, σ) do v, s
-            vp, sp = _product(v, p), _product(s, p)
-            missingdata(vp, sp) ? zero(float(sp)) : inv(sp^2)
-        end
-    end
-    return wdata, weight
+    return (; pick, eye, start, entry, refslot = entry[refentry], refentry, i1 = collect(Int, i1), i2 = collect(Int, i2))
 end
 
 _products(v::AbstractArray{<:Number}) = (v,)
@@ -156,12 +133,25 @@ function _withproducts(v::AbstractArray{<:StaticArraysCore.StaticMatrix}, ps)
     return StructArray{T}(ps)
 end
 
-_squared(A) = dropdims(sum(reshape(A, size(A, 1), size(A, 2), 1, :) .* reshape(A, 1, size(A, 1), size(A, 2), :); dims = 2); dims = 2)
-_unitnorm(A) = A ./ sqrt.(sum(abs2, A; dims = (1, 2)))
+# Data and weights per correlation product; missing data get zero weight, as in the likelihood.
+function _selfcal_weights(table)
+    V, σ = _products(measurement(table)), _products(noise(table))
+    observed(v, s) = !(isnan(v) || isnan(s))
+    wdata = map(V, σ) do Vp, σp
+        map((v, s) -> observed(v, s) ? complex(v) / s^2 : zero(complex(float(real(v)))), Vp, σp)
+    end
+    weight = map(V, σ) do Vp, σp
+        map((v, s) -> observed(v, s) ? inv(s^2) : zero(float(s)), Vp, σp)
+    end
+    return wdata, weight
+end
+
+_matvec(A, x) = dropdims(sum(A .* reshape(x, 1, size(x)...); dims = 2); dims = 2)
+_unitnorm(x) = x ./ sqrt.(sum(abs2, x; dims = 1))
 
 # φ̂ at every entry of the phase term, given the model visibilities without the station phase.
 function _selfcal_solution(vt, J::ObservedSelfCalInstrumentModel)
-    (; pick, eye, column) = J.layout
+    (; pick, eye, start, entry, refslot) = J.layout
     m = _products(vt)
     c = sum(map((w, mp) -> w .* conj.(mp), J.wdata, m))
     g = sum(map((w, mp) -> w .* abs2.(mp), J.weight, m))
@@ -169,10 +159,11 @@ function _selfcal_solution(vt, J::ObservedSelfCalInstrumentModel)
     gx = vcat(zero(g[1:1]), g, g)
     d = sum(gx[pick]; dims = 2)
     A = cx[pick] .+ d .* eye
-    for _ in 1:J.squarings
-        A = _squared(_unitnorm(A))
+    x = A[start]
+    for _ in 2:J.iterations
+        x = _matvec(A, _unitnorm(x))
     end
-    z = A[column]
+    z = x[entry] .* conj.(x[refslot])
     return atan.(imag.(z), real.(z))
 end
 
@@ -180,7 +171,7 @@ end
     vt = apply_instrument(vis, J.model, x)
     φ = _selfcal_solution(vt, J) .+ parent(siteparams(getproperty(x.instrument, J.phase)))
     Δ = φ[J.layout.i1] .- φ[J.layout.i2]
-    r = complex.(cos.(Δ), sin.(Δ))
+    r = cis.(Δ)
     return _withproducts(vt, map(mp -> mp .* r, _products(vt)))
 end
 

@@ -25,7 +25,7 @@ function Comrade.prepare_device(m::Comrade.ObservedSelfCalInstrumentModel, ex::R
     layout = merge(m.layout, (; eye = Reactant.to_rarray(m.layout.eye)))
     return Comrade.ObservedSelfCalInstrumentModel(
         Comrade.prepare_device(m.model, ex), m.phase,
-        map(Reactant.to_rarray, m.wdata), map(Reactant.to_rarray, m.weight), layout, m.squarings
+        map(Reactant.to_rarray, m.wdata), map(Reactant.to_rarray, m.weight), layout, m.iterations
     )
 end
 

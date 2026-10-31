@@ -148,8 +148,8 @@ A_ii = Σ_j Σ_p |M_ij,p|² / σ²_ij,p
 where `V` and `σ` are the data and their noise, `M` the model visibilities without the
 station phase, and `p` runs over the correlation products. The off-diagonal part is the
 phase-dependent term of the Gaussian log-likelihood; the diagonal makes `A` positive
-semidefinite when the model matches the data. The eigenvector is approximated by the column
-of `A^64`, computed by six squarings, at the reference station, so `φ̂` is zero there.
+semidefinite when the model matches the data. The eigenvector is approximated by `A^32 e_r`,
+32 power iterations from the unit vector `e_r` of the reference station, so `φ̂` is zero there.
 
 `φ̂` depends on the sky and the other instrument parameters but not on the residual, so the
 change of variables from `φ` to the residual has unit Jacobian. Because the prior is uniform
