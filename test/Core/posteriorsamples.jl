@@ -1,4 +1,4 @@
-using Statistics
+using Statistics, Serialization
 
 @testset "PosteriorSamples" begin
 
@@ -83,6 +83,38 @@ using Statistics
         @test_throws "with and without sampler statistics" hcat(c1, PosteriorSamples(postsamples(c2), nothing))
         bare = hcat(PosteriorSamples(postsamples(c1), nothing), PosteriorSamples(postsamples(c2), nothing))
         @test isnothing(samplerstats(bare)) && isnothing(samplerstats(bare[:, 1]))
+    end
+
+    @testset "load_samples reads only the files of the selected draws" begin
+        dir = mktempdir()
+        mkpath(joinpath(dir, "samples"))
+        n, stride = 23, 10
+        draws = [(; x = Float64(i), v = fill(Float64(i), 2)) for i in 1:n]
+        for (f, r) in enumerate(Iterators.partition(1:n, stride))
+            serialize(
+                joinpath(dir, "samples", "output_scan_$(lpad(f, 5, '0')).jls"),
+                (samples = Comrade.StructArray(draws[r]), stats = Comrade.StructArray([(; logp = -Float64(i)) for i in r]))
+            )
+        end
+        serialize(joinpath(dir, "parameters.jls"), (; params = Comrade.DiskOutput(dir, 3, stride, n)))
+
+        full = load_samples(dir)
+        @test full.x == 1.0:n && samplerstats(full).logp == -(1.0:n)
+        for r in (3:7, 1:4:23, 12:12, 20:-3:2)
+            c = load_samples(dir, r)
+            @test c.x == Float64.(r) && samplerstats(c).logp == -Float64.(r)
+            @test c.v == [fill(Float64(i), 2) for i in r]
+        end
+        @test isnothing(samplerstats(load_samples(dir, 3:7; table = :samples)))
+        @test load_samples(dir, 3:7; table = :stats).logp == -(3.0:7.0)
+
+        @test_throws BoundsError load_samples(dir, 0:3)
+        @test_throws BoundsError load_samples(dir, 20:24)
+        @test_throws "no draws selected" load_samples(dir, 5:4)
+        @test_throws "table must be" load_samples(dir; table = :chain)
+
+        write(joinpath(dir, "samples", "output_scan_00002.jls"), "not a sample file")
+        @test load_samples(dir, 1:20:21).x == [1.0, 21.0]
     end
 
 end
