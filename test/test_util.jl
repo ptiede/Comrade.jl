@@ -104,3 +104,27 @@ function test_prior()
         y = VLBIUniform(-μas2rad(40.0), μas2rad(40.0)),
     )
 end
+
+# An `OrbitStep` move along the orbit `x + k h e₁` (a unit-Jacobian shift of the first latent
+# coordinate) that draws from a window of `K` orbit points with weights `exp(-x₁²/2)`, so it
+# leaves `N(0, 1)` on that coordinate invariant whatever the posterior. Traceable.
+struct _ShiftOrbit <: Comrade.AbstractMove
+    K::Int
+    h::Float64
+end
+Comrade.step_kind(m::_ShiftOrbit) = OrbitStep(m.K)
+Comrade.move_name(::_ShiftOrbit) = "shift_orbit"
+Comrade.is_invariant(::_ShiftOrbit) = false
+Comrade.traceable(::_ShiftOrbit) = true
+function Comrade.propose(m::_ShiftOrbit, x, step, ctx)
+    o = floor(Int, step)
+    v = step - o
+    x1 = Comrade._rget(x, 1)
+    lw = fill!(similar(x, m.K), 0)
+    for k in 1:m.K
+        Comrade.ComradeBase.rsetindex!(lw, -(x1 + (k - 1 - o) * m.h)^2 / 2, k)
+    end
+    p = exp.(lw .- maximum(lw))
+    j = sum(cumsum(p) .< v * sum(p))
+    return Comrade._with_coordinate(x, 1, x1 + (j - o) * m.h), ifelse(j == o, -Inf, Inf)
+end

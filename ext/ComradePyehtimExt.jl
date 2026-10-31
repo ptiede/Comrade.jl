@@ -86,6 +86,12 @@ function getcoherency(obs)
 
     errmat = StructArray{SMatrix{2, 2, eltype(e11), 4}}((e11, e21, e12, e22))
 
+    # `ehtim` reports a hand it does not have as a real-only `NaN` (`NaN + 0.0im`); make the
+    # flag whole so it survives the subtraction in `residuals`.
+    for i in eachindex(cohmat, errmat)
+        cohmat[i], errmat[i] = Comrade.mask_missing_hands(cohmat[i], errmat[i])
+    end
+
     return cohmat, errmat
 
 end

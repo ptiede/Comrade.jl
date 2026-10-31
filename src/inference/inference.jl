@@ -3,6 +3,11 @@ using Serialization
 
 include("optimization.jl")
 include("posteriorsamples.jl")
+include("preconditioner.jl")
+include("metric_adaptation.jl")
+include("moves.jl")
+include("move_set.jl")
+include("chain_moves.jl")
 include("reactant.jl")
 
 
@@ -120,8 +125,8 @@ struct DiskOutput
 end
 
 """
-    load_samples(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:samples)
-    load_samples(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:samples)
+    load_samples(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:both)
+    load_samples(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:both)
 
 The the results from a HMC run saved to disk. To read in the output the user can either
 pass the resulting `out` object, or the path to the directory that the results were saved,
@@ -131,78 +136,58 @@ i.e. the path specified in [`DiskStore`](@ref).
   - `out::Union{String, DiskOutput}`: If `out` is a string is must point to the direct that the `DiskStore`
      pointed to. Otherwise it is what is directly returned from sample.
   - `indices`: The indices of the that you want to load into memory. The default is to load the entire table.
+     Only the sample files holding these draws are read, each once.
 
 
 # Keyword Arguments
-  - `table`: A string specifying the table you wish to read in. There are two options: :samples which
-     corresponds to the actual MCMC chain, and `stats` which corresponds to additional information
-     about the sampler, e.g., the log density of each sample and tree statistics.
+  - `table`: The table to read: `:both` (the default) gives the MCMC chain with its sampler
+     statistics, `:samples` the chain alone, and `:stats` the sampler statistics alone, e.g., the
+     log density of each sample and tree statistics.
 """
 function load_samples(
         out::DiskOutput,
         indices::Union{Base.Colon, UnitRange, StepRange} = Base.Colon(); table = :both
     )
-    @assert (table == :samples || table == :stats || table == :both) "Please select either `samples` or `stats`"
-    d = readdir(joinpath(abspath(out.filename), "samples"), join = true)
-
-    if table == :both
-        chain = load_samples(out, indices; table = :samples)
-        stats = load_samples(out, indices; table = :stats)
-        return PosteriorSamples(
-            Comrade.postsamples(chain), stats,
-            ; metadata = Dict(:sampler => :AHMC)
-        )
+    table in (:samples, :stats, :both) ||
+        throw(ArgumentError("table must be :samples, :stats or :both, got $(repr(table))"))
+    files = readdir(joinpath(abspath(out.filename), "samples"); join = true)
+    pieces = map(_file_draws(files, indices, out)) do (file, js)
+        s = deserialize(file)
+        return (; samples = s.samples[js], stats = s.stats[js])
     end
+    stats = StructArray(reduce(vcat, [p.stats for p in pieces]))
+    table === :stats && return stats
+    chain = reduce(vcat, [p.samples for p in pieces])
+    return PosteriorSamples(chain, table === :both ? stats : nothing; metadata = Dict(:sampler => :AHMC))
+end
 
-
-    function tload(f, p)
-        s = deserialize(f)
-        return getproperty(s, p)
-    end
-
-    # load and return the entire table
-    if indices == Base.Colon()
-        if table == :samples
-            return PosteriorSamples(reduce(vcat, tload.(d, :samples)), nothing; metadata = Dict(:sampler => :AHMC))
+# Each sample file to read, in order, with the draws to keep from it.
+_file_draws(files, ::Base.Colon, out) = [f => Base.Colon() for f in files]
+function _file_draws(files, indices, out)
+    isempty(indices) && throw(ArgumentError("no draws selected"))
+    (minimum(indices) >= 1 && maximum(indices) <= out.nsamples) ||
+        throw(BoundsError(1:out.nsamples, indices))
+    runs = Pair{String, Vector{Int}}[]
+    for i in indices
+        f, j = fldmod1(i, out.stride)
+        f <= length(files) ||
+            error("draw $i is in sample file $f, but $(out.filename) has $(length(files)) sample files")
+        if isempty(runs) || first(last(runs)) != files[f]
+            push!(runs, files[f] => [j])
         else
-            return Comrade.StructArray(reduce(vcat, tload.(d, :stats)))
+            push!(last(runs).second, j)
         end
     end
-
-
-    # Now get the index of the first file
-    ind0 = first(indices)
-    (ind0 < 1) && throw(BoundsError(1:out.nsamples, ind0))
-    # Now let's find the file
-    find0 = ind0 ÷ out.stride + 1
-    offset0 = ind0 % out.stride # now get the offset
-    if offset0 == 0
-        find0 = find0 - 1
-        offset0 = out.stride
-    end
-
-    ind1 = last(indices)
-    (ind1 > out.nsamples) && throw(BoundsError(1:out.nsamples, ind1))
-    find1 = ind1 ÷ out.stride + 1
-    offset1 = ind1 % out.stride # now get the offset
-    if offset1 == 0
-        find1 = find1 - 1
-        offset1 = out.stride
-    end
-
-
-    t = reduce(vcat, tload.(d[find0:find1], table))
-    out = t[offset0:step(indices):(out.stride * (find1 - find0) + offset1)]
-    if table == :samples
-        return PosteriorSamples(out, nothing; metadata = Dict(:sampler => :AHMC))
-    else
-        return Comrade.StructArray(out)
-    end
+    return runs
 end
 
 function load_samples(out::String, indices::Union{Base.Colon, UnitRange, StepRange} = Base.Colon(); table = :both)
     @assert isdir(abspath(out)) "$out is not a directory. This isn't where the HMC samples are stored"
-    @assert isfile(joinpath(abspath(out), "parameters.jls")) "parameters.jls "
+    @assert isfile(joinpath(abspath(out), "parameters.jls")) "no parameters.jls in $out — " *
+        "this directory holds no chain yet. If the run is still warming up, the sampling " *
+        "chain is not written until warmup finishes; samplers that stream a warmup log " *
+        "write it to a subdirectory that can be loaded while warmup is in progress (see " *
+        "the sampler's docs)."
     p = deserialize(joinpath(abspath(out), "parameters.jls")).params
     if p.filename != abspath(out)
         @warn "filename stored in params does not equal what was passed\n" *
