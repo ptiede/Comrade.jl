@@ -43,4 +43,46 @@ using Statistics
         @test occursin("Mean", sprint(show, MIME"text/plain"(), PosteriorSamples(plain, nothing)))
     end
 
+    @testset "chains as columns" begin
+        function draws(n, μ)
+            return PosteriorSamples(
+                [(; sky = (; σ = μ + i, a = fill(Float64(i), 2, 2)), ρ = (1.0, 2.0)) for i in 1:n],
+                [(; logp = -Float64(i)) for i in 1:n]; metadata = Dict(:sampler => :test)
+            )
+        end
+        c1, c2 = draws(4, 0.0), draws(4, 10.0)
+        ps = hcat(c1, c2)
+        @test size(ps) == (4, 2)
+        @test ps.sky.σ == hcat(1.0:4.0, 11.0:14.0)
+        @test samplerstats(ps).logp == repeat(-(1.0:4.0), 1, 2)
+        @test samplerinfo(ps) === samplerinfo(c1)
+        @test ps[3, 2].sky.σ == 13.0
+        @test ps[CartesianIndex(3, 2)].sky.σ == 13.0
+        @test ps[7].sky.σ == 13.0
+        @test ps[3, 2].sky.a == fill(3.0, 2, 2)
+
+        second = ps[:, 2]
+        @test second isa PosteriorSamples && size(second) == (4,)
+        @test second.sky.σ == 11.0:14.0
+        @test samplerstats(second).logp == -(1.0:4.0)
+        thinned = ps[1:2:end, :]
+        @test size(thinned) == (2, 2) && samplerstats(thinned).logp == repeat([-1.0, -3.0], 1, 2)
+
+        @test reduce(hcat, [c1, c2]).sky.σ == ps.sky.σ
+        @test samplerstats(reduce(hcat, [c1, c2])).logp == samplerstats(ps).logp
+        joined = vcat(c1, c2)
+        @test size(joined) == (8,) && samplerstats(joined).logp == [-(1.0:4.0); -(1.0:4.0)]
+        @test reduce(vcat, [c1, c2]).sky.σ == joined.sky.σ
+
+        @test Comrade.rmap(mean, ps).sky.σ ≈ 7.5
+        @test vec(Comrade.rmap(x -> mean(x; dims = 1), ps).sky.σ) ≈ [2.5, 12.5]
+        @test count(Returns(true), ps) == 8
+        @test occursin("4 draws × 2 chains", sprint(show, MIME"text/plain"(), ps))
+
+        @test_throws DimensionMismatch hcat(c1, draws(3, 0.0))
+        @test_throws "with and without sampler statistics" hcat(c1, PosteriorSamples(postsamples(c2), nothing))
+        bare = hcat(PosteriorSamples(postsamples(c1), nothing), PosteriorSamples(postsamples(c2), nothing))
+        @test isnothing(samplerstats(bare)) && isnothing(samplerstats(bare[:, 1]))
+    end
+
 end
