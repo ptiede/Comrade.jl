@@ -1,4 +1,4 @@
-export comrade_opt, comrade_laplace
+export comrade_opt
 
 """
     comrade_opt(post::VLBIPosterior, opt, adtype=nothing, args...; initial_params=nothing, kwargs...)
@@ -11,5 +11,3 @@ The `args/kwargs` are forwarded to `the specific optimization package.
     We recommend loading the `Optimization.jl` package.
 """
 function comrade_opt end
-
-function comrade_laplace end

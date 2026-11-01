@@ -17,6 +17,11 @@ include(joinpath(@__DIR__, "test_util.jl"))
 
 # Pkg.develop(PackageSpec(url = "https://github.com/ptiede/ComradeBase.jl"))
 @testset "Comrade.jl" begin
+    @testset "exported names are defined" begin
+        # PolarizedTypes exports some names it does not define.
+        upstream = filter(n -> !isdefined(Comrade.PolarizedTypes, n), names(Comrade.PolarizedTypes))
+        @test setdiff(filter(n -> !isdefined(Comrade, n), names(Comrade)), upstream) == Symbol[]
+    end
     include(joinpath(@__DIR__, "Core/core.jl"))
     include(joinpath(@__DIR__, "ext/comradeahmc.jl"))
     include(joinpath(@__DIR__, "ext/comradeoptimization.jl"))

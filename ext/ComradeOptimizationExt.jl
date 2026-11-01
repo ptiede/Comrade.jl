@@ -22,28 +22,6 @@ function Optimization.OptimizationFunction(post::Comrade.TransformedVLBIPosterio
     end
 end
 
-# """
-#     comrade_laplace(prob, opt, args...; kwargs...)
-
-# Compute the Laplace or Quadratic approximation to the prob or posterior.
-# The `args` and `kwargs` are passed the the SciMLBase.solve function.
-# This will return a `Distributions.MvNormal` object that approximates
-# the posterior in the transformed space.
-
-# Note the quadratic approximation is in the space of the transformed posterior
-# not the usual parameter space. This is better for constrained problems where
-# we may run up against a boundary.
-# """
-# function Comrade.comrade_laplace(post::VLBIPosterior, opt, adtype=Val(:ForwardDiff))
-#     sol = solve(prob, opt, args...; kwargs...)
-#     f = Base.Fix2(prob.f, nothing)
-#     J = ForwardDiff.hessian(f, sol)
-#     @. J += 1e-5 # add offset to help with positive definitness
-#     h = J*sol
-#     return MvNormalCanon(h, Symmetric(J))
-# end
-
-
 """
     comrade_opt(post::VLBIPosterior, opt, args...; initial_params=nothing, kwargs...)
 

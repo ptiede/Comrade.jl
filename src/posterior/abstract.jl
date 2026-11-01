@@ -1,11 +1,12 @@
 using LinearAlgebra
-using VLBILikelihoods
+using VLBILikelihoods: VLBILikelihoods, AmplitudeLikelihood, ClosurePhaseLikelihood,
+    CoherencyLikelihood, ComplexVisLikelihood, RiceAmplitudeLikelihood
 # One `loglikelihood` with Distributions and StatsBase, so loading them with Comrade does not clash.
 import StatsBase: loglikelihood
 
-export vlbimodel, logdensityof, dimension, skymodel, instrumentmodel, dataproducts,
+export logdensityof, dimension, skymodel, instrumentmodel, dataproducts,
     forward_model, prior_sample, simulate_observation,
-    VLBIPosterior, logdensityof, loglikelihood, chi2, residuals, ndata
+    VLBIPosterior, loglikelihood, chi2, residuals, ndata
 
 
 """

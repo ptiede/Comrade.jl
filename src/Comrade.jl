@@ -48,12 +48,11 @@ using Dates: Dates, Date, DateTime, datetime2julian
 @reexport using PolarizedTypes
 @reexport using VLBIImagePriors
 
-export linearpol, mbreve, evpa
 using ComradeBase: AbstractRectiGrid, AbstractDomain, UnstructuredDomain,
     AbstractModel, AbstractPolarizedModel, AbstractHeader
 
 
-export rad2μas, μas2rad, logdensity_def, logdensityof
+export rad2μas, μas2rad
 
 
 import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
