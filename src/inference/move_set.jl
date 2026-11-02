@@ -64,6 +64,9 @@ log, labeled with `step` out of `total`. Throws if an accepted
 
 The `between_chunks` hook of [`ReactantNUTS`](@ref): moves `state.position`, reading `phase`,
 `step`, `total` and `report` from `info`.
+
+The manual page "Writing and using moves" describes how proposals are accepted and run on
+the device.
 """
 struct MoveSet{M <: Tuple, D <: Tuple, C}
     moves::M

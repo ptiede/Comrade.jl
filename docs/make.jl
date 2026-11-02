@@ -60,6 +60,7 @@ makedocs(;
             "ext/dynesty.md",
             "ext/pigeons.md",
         ],
+        "moves.md",
         "base_api.md",
         "api.md",
     ],
