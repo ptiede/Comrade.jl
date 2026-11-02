@@ -37,6 +37,7 @@ Comrade.stations(::Comrade.VisTable)
 Comrade.baselines
 Comrade.sites(::Comrade.VisTable)
 Comrade.times
+Comrade.frequencies
 Comrade.beamsize(::Comrade.VisTable)
 Comrade.amplitudes
 Comrade.flag

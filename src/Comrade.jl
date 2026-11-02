@@ -80,4 +80,15 @@ include("dirty_image.jl")
 include("mrf_image.jl")
 include("rules.jl")
 
+@static if VERSION >= v"1.11"
+    eval(
+        Expr(
+            :public,
+            :AbstractVLBIPosterior, :TransformedVLBIPosterior,
+            :AbstractSkyModel, :ObservedSkyModel,
+            :logprior, :likelihood, :idealmaps, :forward_model_map, :rmap,
+        )
+    )
+end
+
 end

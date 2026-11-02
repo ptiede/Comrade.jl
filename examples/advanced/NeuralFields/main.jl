@@ -181,7 +181,7 @@ prior = (;
 # We can then define our sky model. We pass `algorithm = ReactantAlg()` so the non-uniform
 # FFT used to evaluate visibilities runs through Reactant's XLA-traced NUFT plan rather
 # than the default CPU `NFFTAlg()`.
-skym = SkyModel(sky, prior, grid; algorithm = VLBISkyModels.ReactantNUFFTAlg(), metadata = skymeta)
+skym = SkyModel(sky, prior, grid; algorithm = ReactantNUFFTAlg(), metadata = skymeta)
 
 
 # Now we will fit gains since our data product are complex visibilities. We use the
