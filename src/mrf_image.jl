@@ -9,9 +9,7 @@ The function `f` is applied to the fluctuations and then the the transfored δ a
 to the image.
 """
 @inline function apply_fluctuations(f, mimg::IntensityMap, δ::AbstractArray)
-    out = _fluctuation_buffer(mimg, δ)
-    apply_fluctuations!(f, out, mimg, δ)
-    return out
+    return apply_fluctuations!(f, _fluctuation_buffer(mimg, δ), mimg, δ)
 end
 
 # Output buffer for `apply_fluctuations`, allocated from the *fluctuations* rather than
@@ -45,7 +43,7 @@ end
     bout = baseimage(out)
     bmimg = baseimage(mimg)
     bout .= bmimg .* f.(δ)
-    return nothing
+    return out
 end
 
 @noinline _checknorm(m::AbstractArray) = isapprox(sum(m), 1, atol = 1.0e-6)
@@ -68,13 +66,14 @@ end
 
 Apply multiplicative fluctuations to an image `mimg` with fluctuations `δ` using the transformation `t`,
 by broadcasting the function `F` over the array `δ` and then normalizing the resulting array to have unit flux.
+The result is written to `out`, which is returned.
 
 """
 function apply_fluctuations!(t::UnitFluxMap, out::IntensityMap, mimg::IntensityMap, δ::AbstractArray)
     apply_fluctuations!(t.f, out, mimg, δ)
     bout = baseimage(out)
     bout ./= sum(bout)
-    return nothing
+    return out
 end
 
 
@@ -87,7 +86,7 @@ function apply_fluctuations!(t::VLBIImagePriors.LogRatioTransform, out::Intensit
     fi = sum(bout)
 
     bout .*= inv(fi)
-    return nothing
+    return out
 end
 
 

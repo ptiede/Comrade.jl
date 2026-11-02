@@ -120,8 +120,8 @@ struct DiskOutput
 end
 
 """
-    load_samples(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:both)
-    load_samples(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:both)
+    load_samples(out::DiskOutput, indices=Base.Colon(); table=:both)
+    load_samples(out::String, indices=Base.Colon(); table=:both)
 
 The the results from a HMC run saved to disk. To read in the output the user can either
 pass the resulting `out` object, or the path to the directory that the results were saved,
@@ -130,7 +130,8 @@ i.e. the path specified in [`DiskStore`](@ref).
 # Arguments
   - `out::Union{String, DiskOutput}`: If `out` is a string is must point to the direct that the `DiskStore`
      pointed to. Otherwise it is what is directly returned from sample.
-  - `indices`: The indices of the that you want to load into memory. The default is to load the entire table.
+  - `indices`: The indices of the samples to load into memory, e.g., a range, a vector of
+     indices, or a `Bool` mask over all samples. The default is to load the entire table.
 
 
 # Keyword Arguments
@@ -141,7 +142,7 @@ i.e. the path specified in [`DiskStore`](@ref).
 """
 function load_samples(
         out::DiskOutput,
-        indices::Union{Base.Colon, UnitRange, StepRange} = Base.Colon(); table = :both
+        indices = Base.Colon(); table = :both
     )
     @assert (table == :samples || table == :stats || table == :both) "Please select either `samples` or `stats`"
     d = readdir(joinpath(abspath(out.filename), "samples"), join = true)
@@ -171,29 +172,13 @@ function load_samples(
     end
 
 
-    # Now get the index of the first file
-    ind0 = first(indices)
-    (ind0 < 1) && throw(BoundsError(1:out.nsamples, ind0))
-    # Now let's find the file
-    find0 = ind0 ÷ out.stride + 1
-    offset0 = ind0 % out.stride # now get the offset
-    if offset0 == 0
-        find0 = find0 - 1
-        offset0 = out.stride
-    end
-
-    ind1 = last(indices)
-    (ind1 > out.nsamples) && throw(BoundsError(1:out.nsamples, ind1))
-    find1 = ind1 ÷ out.stride + 1
-    offset1 = ind1 % out.stride # now get the offset
-    if offset1 == 0
-        find1 = find1 - 1
-        offset1 = out.stride
-    end
-
-
+    inds = (1:out.nsamples)[indices]
+    inds isa AbstractVector || throw(ArgumentError("indices must select a collection of samples, got $(typeof(indices))"))
+    lo, hi = isempty(inds) ? (1, 1) : extrema(inds)
+    find0 = (lo - 1) ÷ out.stride + 1
+    find1 = (hi - 1) ÷ out.stride + 1
     t = reduce(vcat, tload.(d[find0:find1], table))
-    out = t[offset0:step(indices):(out.stride * (find1 - find0) + offset1)]
+    out = t[inds .- (find0 - 1) * out.stride]
     if table == :samples
         return PosteriorSamples(out, nothing; metadata = Dict(:sampler => :AHMC))
     else
@@ -201,7 +186,7 @@ function load_samples(
     end
 end
 
-function load_samples(out::String, indices::Union{Base.Colon, UnitRange, StepRange} = Base.Colon(); table = :both)
+function load_samples(out::String, indices = Base.Colon(); table = :both)
     @assert isdir(abspath(out)) "$out is not a directory. This isn't where the HMC samples are stored"
     @assert isfile(joinpath(abspath(out), "parameters.jls")) "no parameters.jls in $out; this directory holds no chain yet"
     p = deserialize(joinpath(abspath(out), "parameters.jls")).params

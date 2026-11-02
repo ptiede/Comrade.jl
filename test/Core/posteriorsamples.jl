@@ -1,4 +1,6 @@
 using Statistics
+using Serialization
+using StructArrays
 
 @testset "PosteriorSamples" begin
 
@@ -41,6 +43,51 @@ using Statistics
         # and it is unaffected for a chain with no empty groups
         plain = [(; a = 1.0 * i, b = 2.0 * i) for i in 1:5]
         @test occursin("Mean", sprint(show, MIME"text/plain"(), PosteriorSamples(plain, nothing)))
+    end
+
+    @testset "constructor call forms" begin
+        chain = [(; a = 1.0 * i, b = (2.0 * i, 3.0)) for i in 1:4]
+        stats = [(; lp = -1.0 * i) for i in 1:4]
+        md = Dict(:sampler => :test)
+        ps = PosteriorSamples(chain, stats; metadata = md)
+        @test samplerstats(ps) isa StructArray
+        @test samplerinfo(ps) === md
+        @test PosteriorSamples(postsamples(ps), samplerstats(ps); metadata = md) == ps
+        @test samplerstats(PosteriorSamples(chain, (; lp = -1.0 .* (1:4)))) == samplerstats(ps)
+        @test samplerinfo(PosteriorSamples(chain, nothing)) == Dict(:sampler => :unknown)
+        @test typeof(ps)(postsamples(ps), samplerstats(ps), md) == ps
+        @test_deprecated PosteriorSamples(chain, stats, md)
+        @test_throws "chain and stats must have the same length, got 4 and 3" PosteriorSamples(chain, stats[1:3])
+    end
+
+    @testset "resample_equal" begin
+        chain = [(; a = 1.0 * i) for i in 1:4]
+        ps = PosteriorSamples(chain, (; weights = [0.0, 1.0, 0.0, 0.0]))
+        eq = resample_equal(ps, Int32(6))
+        @test length(eq) == 6
+        @test all(==(2.0), eq.a)
+        @test_throws "Weights not in chain stats" resample_equal(PosteriorSamples(chain, nothing), 6)
+    end
+
+    @testset "load_samples index forms" begin
+        dir = mktempdir()
+        mkpath(joinpath(dir, "samples"))
+        nsamples, stride = 10, 4
+        chain = [(; a = 1.0 * i) for i in 1:nsamples]
+        stats = [(; lp = -1.0 * i) for i in 1:nsamples]
+        for (k, r) in enumerate(Iterators.partition(1:nsamples, stride))
+            file = joinpath(dir, "samples", "output_scan_" * lpad(k, 5, '0') * ".jls")
+            serialize(file, (samples = StructArray(chain[r]), stats = StructArray(stats[r])))
+        end
+        out = Comrade.DiskOutput(dir, 3, stride, nsamples)
+        full = load_samples(out)
+        for inds in (2:7, 3:2:9, [9, 1, 5], 4:4, Int[], isodd.(1:nsamples))
+            @test postsamples(load_samples(out, inds)) == postsamples(full)[inds]
+            @test load_samples(out, inds; table = :stats) == samplerstats(full)[inds]
+        end
+        @test_throws BoundsError load_samples(out, 0:3)
+        @test_throws BoundsError load_samples(out, [11])
+        @test_throws "indices must select a collection of samples" load_samples(out, 3)
     end
 
 end

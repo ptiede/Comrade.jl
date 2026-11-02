@@ -1,56 +1,14 @@
 export PosteriorSamples, postsamples, samplerstats, samplerinfo, resample_equal
 
 
-struct PosteriorSamples{T, N, C <: AbstractArray{T, N}, S, M} <: AbstractArray{T, N}
-    chain::C
-    stats::S
-    metadata::M
-    function PosteriorSamples(chain, stats::S, metadata::M) where {S, M}
-        c = _convert2structarr(chain)
-        N = ndims(c)
-        T = eltype(c)
-        C = typeof(c)
-        return new{T, N, C, S, M}(c, stats, metadata)
-    end
-
-    function PosteriorSamples(chain::StructArray{T, N}, stats::StructArray, metadata) where {T, N}
-        length(chain) != length(stats) && throw(ArgumentError("chain and stats must have the same length"))
-        return new{T, N, typeof(chain), typeof(stats), typeof(metadata)}(chain, stats, metadata)
-    end
-
-end
-
-
-# Don't unwrap zero-field types: StructArrays refuses them ("only eltypes with fields are
-# supported"), and an empty group (e.g. the sky's `gauss` when no extra Gaussian is fit)
-# is fine as a plain column of empty NamedTuples.
-_convert2structarr(x::Union{<:NamedTuple, <:AbstractArray}) = StructArray(x, unwrap = (T -> (T <: Union{NamedTuple, Tuple}) && fieldcount(T) > 0))
-_convert2structarr(x::StructArray) = x
-
-
-function PosteriorSamples(chain, stats::AbstractArray; metadata = Dict(:sampler => :unknown))
-    ch = _convert2structarr(chain)
-    st = StructArray(stats)
-    return PosteriorSamples(ch, st; metadata)
-end
-
-
-function PosteriorSamples(chain, stats::NamedTuple; metadata = Dict(:sampler => :unknown))
-    ch = _convert2structarr(chain)
-    st = StructArray(stats)
-    return PosteriorSamples(ch, st; metadata)
-end
-
-function PosteriorSamples(chain, stats; metadata = Dict(:sampler => :unknown))
-    ch = _convert2structarr(chain)
-    return PosteriorSamples(ch, stats, metadata)
-end
-
 """
-PosteriorSamples(chain, stats; metadata=Dict(:sampler=>:unknown))
+    PosteriorSamples(chain, stats; metadata=Dict(:sampler=>:unknown))
 
 This is the default sampler output from Comrade MCMC extensions. The object contains the
 posterior samples, the sampler statistics, and metadata about the sampler used.
+
+`stats` is either `nothing` or the per-sample statistics, given as an array or as a
+`NamedTuple` of arrays, with one entry per sample in `chain`.
 
 Indexing this array behaves like indexing the samples organized as a StructArray. By
 default all NamedTuples and Tuples are unwrapped.
@@ -60,10 +18,34 @@ or the acesss sampler specific information use [`samplerinfo`](@ref).
 
 To recursively map a function over the samples the unexported [`Comrade.rmap`](@ref).
 """
-function PosteriorSamples(chain::StructArray{T, N}, stats::StructArray; metadata = Dict(:sampler => :unknown)) where {T, N}
-    length(chain) != length(stats) && throw(ArgumentError("chain and stats must have the same length"))
-    return PosteriorSamples(chain, stats, metadata)
+struct PosteriorSamples{T, N, C <: AbstractArray{T, N}, S, M} <: AbstractArray{T, N}
+    chain::C
+    stats::S
+    metadata::M
+    function PosteriorSamples{T, N, C, S, M}(chain, stats, metadata) where {T, N, C, S, M}
+        stats isa AbstractArray && length(chain) != length(stats) &&
+            throw(ArgumentError("chain and stats must have the same length, got $(length(chain)) and $(length(stats))"))
+        return new{T, N, C, S, M}(chain, stats, metadata)
+    end
 end
+
+function PosteriorSamples(chain, stats; metadata = Dict(:sampler => :unknown))
+    c = _convert2structarr(chain)
+    st = _statsarray(stats)
+    return PosteriorSamples{eltype(c), ndims(c), typeof(c), typeof(st), typeof(metadata)}(c, st, metadata)
+end
+
+Base.@deprecate PosteriorSamples(chain, stats, metadata) PosteriorSamples(chain, stats; metadata)
+
+# Don't unwrap zero-field types: StructArrays refuses them ("only eltypes with fields are
+# supported"), and an empty group (e.g. the sky's `gauss` when no extra Gaussian is fit)
+# is fine as a plain column of empty NamedTuples.
+_convert2structarr(x::Union{<:NamedTuple, <:AbstractArray}) = StructArray(x, unwrap = (T -> (T <: Union{NamedTuple, Tuple}) && fieldcount(T) > 0))
+_convert2structarr(x::StructArray) = x
+
+_statsarray(x::StructArray) = x
+_statsarray(x::Union{NamedTuple, AbstractArray}) = StructArray(x)
+_statsarray(x) = x
 
 
 function Base.parent(s::PosteriorSamples)
@@ -192,13 +174,13 @@ end
 
 
 """
-    resample_equal(post::PosteriorSamples, n::Int)
+    resample_equal(post::PosteriorSamples, n::Integer)
 
 Resample the posterior samples so you have `n` samples of equal weight. In order for this method to
 be applicable a `:weights` field must be present in the sampler statistics and the weight
 must correspond to the probability weights of the samples.
 """
-function resample_equal(post::PosteriorSamples, n::Int)
+function resample_equal(post::PosteriorSamples, n::Integer)
     !(:weights ∈ propertynames(samplerstats(post))) && throw(ArgumentError("Weights not in chain stats, cannot resample"))
     echain = sample(post, AbstractMCMC.StatsBase.Weights(samplerstats(post).weights), n)
     metadata = samplerinfo(post)

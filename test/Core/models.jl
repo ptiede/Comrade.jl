@@ -158,6 +158,12 @@ end
     @test img6 ≈ img5
     img7 = apply_fluctuations(UnitFluxMap(exp), mimg, δ)
     @test img7 ≈ img5
+
+    for f in (exp, UnitFluxMap(exp), CenteredLR())
+        out = similar(mimg)
+        @test apply_fluctuations!(f, out, mimg, δ) === out
+        @test out ≈ apply_fluctuations(f, mimg, δ)
+    end
 end
 
 function FiniteDifferences.to_vec(k::SiteArray)
