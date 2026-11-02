@@ -192,9 +192,9 @@ end
 
 
 """
-    resample_equal(post::PosteriorSamples, nsamples::Int)
+    resample_equal(post::PosteriorSamples, n::Int)
 
-Resample the posterior samples so you have `nsamples` of equal weight. In order for this method to
+Resample the posterior samples so you have `n` samples of equal weight. In order for this method to
 be applicable a `:weights` field must be present in the sampler statistics and the weight
 must correspond to the probability weights of the samples.
 """

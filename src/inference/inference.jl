@@ -120,8 +120,8 @@ struct DiskOutput
 end
 
 """
-    load_samples(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:samples)
-    load_samples(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:samples)
+    load_samples(out::DiskOutput, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:both)
+    load_samples(out::String, indices::Union{Base.Colon, UnitRange, StepRange}=Base.Colon(); table=:both)
 
 The the results from a HMC run saved to disk. To read in the output the user can either
 pass the resulting `out` object, or the path to the directory that the results were saved,
@@ -134,9 +134,10 @@ i.e. the path specified in [`DiskStore`](@ref).
 
 
 # Keyword Arguments
-  - `table`: A string specifying the table you wish to read in. There are two options: :samples which
-     corresponds to the actual MCMC chain, and `stats` which corresponds to additional information
-     about the sampler, e.g., the log density of each sample and tree statistics.
+  - `table`: A symbol specifying the table you wish to read in. There are three options: `:samples`
+     which corresponds to the actual MCMC chain, `:stats` which corresponds to additional information
+     about the sampler, e.g., the log density of each sample and tree statistics, and `:both` (the
+     default) which returns a `PosteriorSamples` holding the chain and its statistics.
 """
 function load_samples(
         out::DiskOutput,

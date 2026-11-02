@@ -69,10 +69,10 @@ end
 prior_sample(post::AbstractVLBIPosterior, args...) = prior_sample(Random.default_rng(), post, args...)
 
 """
-    prior_sample([rng::AbstractRandom], post::AbstractVLBIPosterior, [dims=1])
+    prior_sample([rng::AbstractRNG], post::AbstractVLBIPosterior, dims...)
 
-Returns sample from the prior distribution of the posterior. If dims is specified then
-multiple independent draws are returned with shape dims.
+Returns a sample from the prior distribution of the posterior. If `dims` are given, returns an
+array of size `dims` of independent draws.
 """
 function prior_sample(rng, post::AbstractVLBIPosterior)
     return rand(rng, post.prior)

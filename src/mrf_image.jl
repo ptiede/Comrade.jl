@@ -92,17 +92,17 @@ end
 
 
 """
-    corr_image_prior(grid::AbstractRectiGrid, corr_length::Real; base=GMRF, order=1, lower=1.0, upper=2*max(size(grid)...))
-    corr_image_prior(grid::AbstractRectiGrid, t::VisTable; base=GMRF, order=1, lower=1.0, upper=2*max(size(grid)...))
+    corr_image_prior(grid::AbstractRectiGrid, corr_length::Real; base=GMRF, order=1, frac_below_beam=0.01, lower=1.0, upper=2*max(size(grid)...))
+    corr_image_prior(grid::AbstractRectiGrid, t::VisTable; base=GMRF, order=1, frac_below_beam=0.01, lower=1.0, upper=2*max(size(grid)...))
 
-Construct a correlated image prior, for the image with grid `grid`, and using the observation `dvis`. 
+Construct a correlated image prior, for the image with grid `grid`, and using the observation `t`. 
 The correlation will be a Markov Random Field (MRF) of order `order`, with the base distribution `base`. For 
 `base` you can choose any of the Markov random fields defined in `VLBIImagePriors`, the default is `GMRF` which
 is a Gaussian MRF. 
 
 As part the prior will be a hierarchical prior with the correlation length as a hyperparameter. By default the correlation
 parameter uses a first order inverse gamma distribution for its prior. The `frac_below_beam` parameter is the fraction of the
-correlation prior mass that is below the beam size of the observation `dvis`. The `lower` and `upper` parameters are the lower
+correlation prior mass that is below the beam size `corr_length`. The `lower` and `upper` parameters are the lower
 and upper bounds of the correlation length, we don't let the correlation length to be too small or large for numerical reasons.
 
 ## Arguments
@@ -113,7 +113,7 @@ and upper bounds of the correlation length, we don't let the correlation length 
 ## Keyword Arguments
  - `base`: The base distribution of the MRF. Options include `GMRF`, `EMRF`, and `CMRF`
  - `order`: The order of the MRF. Default is first order
- - `frac_below_beam`: The fraction of the correlation prior mass that is below the beam size of the observation `dvis`. 
+ - `frac_below_beam`: The fraction of the correlation prior mass that is below the beam size `corr_length`. 
     the default is `0.01` which means only 1% of the log-image correlation length is below the beam size.
  - `lower`: The lower bound of the correlation length. Default is `1.0`
  - `upper`: The upper bound of the correlation length. Default is `2*max(size(grid)...)`

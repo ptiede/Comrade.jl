@@ -6,23 +6,21 @@ using Dynesty
 using Random
 
 """
-    dysample(post::Comrade.VLBIPosterior, smplr::Dynesty.NestedSampler, args...; kwargs...)
-    dysample(post::Comrade.VLBIPosterior, smplr::Dynesty.DynamicNestedSampler, args...; kwargs...)
+    dysample(post::Comrade.VLBIPosterior, smplr::Dynesty.NestedSampler; kwargs...)
+    dysample(post::Comrade.VLBIPosterior, smplr::Dynesty.DynamicNestedSampler; kwargs...)
 
 Sample the posterior `post` using `Dynesty.jl` `NestedSampler/DynamicNestedSampler` sampler.
-The `args/kwargs`
-are forwarded to `Dynesty` for more information see its [docs](https://github.com/ptiede/Dynesty.jl)
+The `kwargs` are forwarded to `Dynesty`; for more information see its
+[docs](https://github.com/ptiede/Dynesty.jl).
 
-This returns a PosteriorSamples object.
-The `samplerstats` includes additional information about the samples, like the log-likelihood,
-evidence, evidence error, and the sample weights. The final element of the tuple is the original
-dynesty output file.
+This returns a `PosteriorSamples` object. The `samplerstats` hold the log-likelihood and the
+weight of each sample. The `samplerinfo` holds the evidence `:logz`, its error `:logzerr`, and
+the original dynesty output `:dynesty_output`.
 
-To create equally weighted samples the user can use
+To create equally weighted samples use [`resample_equal`](@ref):
 ```julia
-using StatsBase
-chain = sample(post, NestedSampler(dimension(post), 1000))
-equal_weighted_chain = sample(chain, Weights(samplerstats(chain).weights), 10_000)
+chain = dysample(post, NestedSampler(; nlive = 1000))
+equal_weighted_chain = resample_equal(chain, 10_000)
 ```
 """
 function Dynesty.dysample(
