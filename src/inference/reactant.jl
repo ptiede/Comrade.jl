@@ -26,22 +26,6 @@ checkpointed every `checkpoint_every` warmup steps, so an interrupted warmup can
   strong_zero = true       turn 0*Inf / 0*NaN in the gradient into 0; REQUIRED for
                            stiff image models or every proposal NaN-rejects and the
                            chain freezes -- keep `true` unless you know better.
-  metric_adaptor           how the metric adapts during warmup, as an
-                           `AbstractMetricAdaptor`. [`WelfordDiagonal`](@ref) (the
-                           default) runs the backend's diagonal adaptation. It adapts to
-                           *marginal* variances, so it silently undoes any transform
-                           component that deliberately trades marginal against
-                           conditional width; with such a transform composed into the
-                           posterior use [`FixedMetric`](@ref), which freezes the metric
-                           at identity and lets the transform BE the metric.
-                           [`FisherLowRank`](@ref) goes further and refits that transform
-                           at scheduled warmup steps. Step-size adaptation runs in all
-                           three cases.
-  diagonal = nothing       a [`NutpieDiagonal`](@ref) adapts the diagonal inverse mass
-                           matrix in the sampler's coordinates from the draw and gradient
-                           at the end of each warmup chunk, restarting from the unit matrix
-                           at each refit of the metric adaptor. It needs an adaptor that
-                           does not run its own diagonal adaptation.
 
 !!! note "Differences from AdvancedHMC's `NUTS`"
     Two pieces of AdvancedHMC's setup are not (yet) reachable through ProbProg:
@@ -52,12 +36,10 @@ checkpointed every `checkpoint_every` warmup steps, so an interrupted warmup can
     - **Target acceptance is fixed at 0.8** in the backend (matching `NUTS(0.8)`'s
       default) and is not currently configurable.
 """
-Base.@kwdef struct ReactantNUTS{A <: AbstractMetricAdaptor, D <: Union{Nothing, NutpieDiagonal}}
+Base.@kwdef struct ReactantNUTS
     n_adapts::Int = 1000
     init_step_size::Float64 = 0.01
     max_tree_depth::Int = 10
     max_delta_energy::Float64 = 1000.0
     strong_zero::Bool = true
-    metric_adaptor::A = WelfordDiagonal()
-    diagonal::D = nothing
 end

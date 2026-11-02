@@ -148,6 +148,7 @@ Comrade.InstrumentModel
 Comrade.SiteArray
 Comrade.SiteLookup
 Comrade.forward_jones
+Comrade.selfcal_phase
 ```
 
 
@@ -193,25 +194,44 @@ Comrade.ReactantNUTS
 Comrade.default_disk_callback
 ```
 
-### Metric adaptation
+### Moves
+
 ```@docs
-Comrade.AbstractMetricAdaptor
-Comrade.WelfordDiagonal
-Comrade.FixedMetric
-Comrade.FisherLowRank
-Comrade.LowRankPreconditioner
-Comrade.fit_preconditioner
+Comrade.AbstractMove
+Comrade.MoveSet
+Comrade.NormalStep
+Comrade.ComponentwiseNormalStep
+Comrade.SymmetricDiscreteStep
+Comrade.CompensatedMove
+Comrade.ChainHyperMove
+Comrade.PhaseSheetMove
+Comrade.chain_hyper_moves
+Comrade.flux_gain_move
+Comrade.CoordinateView
+Comrade.check_move
+Comrade.check_moveset
+Comrade.move_summary
+Comrade.move_seconds
 ```
 
-The protocol an `AbstractMetricAdaptor` implements:
+The protocol a move implements, and the helpers for writing and checking one:
 
 ```@docs
-Comrade.adapts_welford
-Comrade.metric_refit_steps
-Comrade.init_metric_adaptation
-Comrade.observe_draw!
-Comrade.metric_refit
-Comrade.FisherAdaptation
+Comrade.propose
+Comrade.step_distribution
+Comrade.move_name
+Comrade.likelihood_invariant
+Comrade.context_data
+Comrade.traceable
+Comrade.move_context
+Comrade.update_context!
+Comrade.step_label
+Comrade.component_coords
+Comrade.component_label
+Comrade.node
+Comrade.coords
+Comrade.value
+Comrade.latent
 ```
 
 ## Misc
@@ -234,6 +254,7 @@ Comrade.rmap
 Comrade.build_datum
 Comrade.ObservedSkyModel
 Comrade.forward_model_map
+Comrade.fixed_indices
 
 ```
 

@@ -184,122 +184,30 @@ end
     @test Array(s_resume.step_size) == Array(s_single.step_size)
     @test Array(s_resume.inverse_mass_matrix) == Array(s_single.inverse_mass_matrix)
     @test Array(s_resume.position) == Array(s_single.position)
-end
 
-@testset "ReactantNUTS FisherLowRank warmup refits" begin
-    ext = Base.get_extension(Comrade, :ComradeReactantExt)
-
-    gprior = (
-        f1 = VLBIGaussian(1.0, 0.1), σ1 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
-        τ1 = VLBIGaussian(0.5, 0.05), ξ1 = VLBIGaussian(0.0, 0.3),
-        f2 = VLBIGaussian(0.5, 0.1), σ2 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
-        τ2 = VLBIGaussian(0.5, 0.05), ξ2 = VLBIGaussian(0.0, 0.3),
-        x = VLBIGaussian(0.0, μas2rad(20.0)), y = VLBIGaussian(0.0, μas2rad(20.0)),
-    )
-    _, vis, _, _, _ = load_data()
-    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 12, 12)
-    post = Comrade.prepare_device(
-        VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing), ReactantEx()
-    )
-    tpost = asflat(post)
-    ldf = ext._default_ldf
-    x0 = Reactant.to_rarray(prior_sample(Random.default_rng(), tpost))
-    freshrng() = Reactant.ReactantRNG(Reactant.to_rarray(UInt64[1, 5]))
-    quiet = _ -> nothing
-
-    na, chunk = 40, 2
-    adaptor = FisherLowRank(; rank = 4, schedule = [0.5], min_draws = 6)
-    sampler = ReactantNUTS(;
-        n_adapts = na, max_tree_depth = 4, init_step_size = 0.01,
-        metric_adaptor = adaptor
-    )
-    @test Comrade.metric_refit_steps(adaptor, na, chunk) == [20]
-
-    # The adaptation window is only checkpointed alongside the sampler state: a window
-    # persisted without the state it belongs to would let a restart refit from draws that
-    # do not match the position it resumes at.
-    sckpt, ckpt = tempname(), tempname()
-    state, _, newt = ext.warmup_chunked(
+    # Checkpoints land every `checkpoint_every` steps, independently of the chunk length: a
+    # warmup interrupted at step 24 resumes from the checkpoint at step 20 and reproduces the
+    # full-warmup state.
+    sckpt, pckpt = tempname(), tempname()
+    interrupt = info -> (info.step == 24 && error("interrupted"); nothing)
+    @test_throws "interrupted" ext.warmup_chunked(
         freshrng(), ldf, x0, tpost, sampler;
-        chunk, callback = quiet, checkpoint = sckpt, adaptation_checkpoint = ckpt,
+        chunk = 4, callback = interrupt, checkpoint = sckpt, progress_checkpoint = pckpt,
+        checkpoint_every = 10,
     )
-
-    # Warmup ran to completion in a latent space the refit installed: the transform is a
-    # different object and now carries a preconditioner, while base-flat dimension is
-    # unchanged (the refit reparameterizes, it does not project).
-    @test newt !== tpost
-    pre = Comrade._transport_pre(newt)
-    @test pre isa LowRankPreconditioner
-    @test length(pre.b) == dimension(tpost)
-    # The installed transform's low-rank block is padded to a fixed device rank cap so
-    # later refits can overwrite it in place; only the non-unit columns are corrections.
-    scales = Array(pre.s)
-    @test 0 < count(!=(1.0), scales) <= adaptor.rank
-    @test length(scales) >= count(!=(1.0), scales)
-    @test all(isfinite, Array(state.position))
-
-    # Draws and scores were recorded from the sampler itself every `record_every` steps, the
-    # stored ones covering the next fit's window, and checkpointed for restart.
-    @test isfile(ckpt)
-    st = Comrade.load_adaptation(ckpt, adaptor)
-    rm(ckpt; force = true)
-    rm(ckpt * ".log"; force = true)
+    @test deserialize(pckpt).warmup_done == 20
+    s_ckpt, _ = ext.warmup_chunked(
+        freshrng(), ldf, nothing, tpost, sampler;
+        chunk = 4, callback = quiet, resume_state = ProbProg.load_state(sckpt), warmup_done = 20,
+    )
     rm(sckpt; force = true)
-    @test st isa Comrade.FisherAdaptation
-    @test st.nrecords == na ÷ adaptor.record_every
-    @test first(st.record) >= Comrade._window_start(adaptor, st.nrecords)
-    @test length(st.draws) >= adaptor.min_draws
-    @test length(st.scores) == length(st.draws)
-    @test all(d -> length(d) == dimension(tpost), st.draws)
-    @test all(g -> all(isfinite, g), st.scores)
-
-    # Resuming hands the accumulated window back, so a post-restart refit sees the whole
-    # run rather than only the steps since the restart.
-    _, _, resumed = ext.warmup_chunked(
-        freshrng(), ldf, nothing, newt, sampler;
-        chunk, callback = quiet, resume_state = state,
-        warmup_done = na - 4, adaptation = st, segment_start = 20,
-    )
-    @test st.nrecords == na ÷ adaptor.record_every
-    @test Comrade._transport_pre(resumed) isa LowRankPreconditioner
-
-    # The refit's new position has the sampler's own position type, so kernels cached
-    # against that type (e.g. a MoveSet's) are not rebuilt after a refit.
-    seen = Set{Type}()
-    record(s, _, _, _) = (push!(seen, typeof(s.position)); s)
-    ext.warmup_chunked(freshrng(), ldf, x0, tpost, sampler; chunk, callback = quiet, between_chunks = record)
-    @test length(seen) == 1
-
-    # A NutpieDiagonal sets the inverse mass matrix from the chunk-end draws and gradients
-    # of the segment since the refit, and the NUTS kernel samples with it.
-    dsampler = ReactantNUTS(;
-        n_adapts = na, max_tree_depth = 4, init_step_size = 0.01,
-        metric_adaptor = adaptor, diagonal = NutpieDiagonal()
-    )
-    imms = Vector{Float64}[]
-    capture(s, _, info, _) = (info.step > 20 && push!(imms, vec(Array(s.inverse_mass_matrix))); s)
-    dstate, _, _ = ext.warmup_chunked(freshrng(), ldf, x0, tpost, dsampler; chunk, callback = quiet, between_chunks = capture)
-    imm = vec(Array(dstate.inverse_mass_matrix))
-    @test all(isfinite, imm) && all(x -> 0.01 < x < 100, imm)
-    @test any(!≈(1), imm)
-    @test all(isone, first(imms))
-    @test last(imms) == imm
-    @test all(isfinite, Array(dstate.position))
-    @test_throws "does not adapt its own diagonal" ext.warmup_chunked(
-        freshrng(), ldf, x0, tpost, ReactantNUTS(; n_adapts = na, diagonal = NutpieDiagonal());
-        chunk, callback = quiet
-    )
-
-    # WelfordDiagonal keeps the sampler's own adaptation and never touches the transform.
-    wsampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01)
-    _, _, samet = ext.warmup_chunked(
-        freshrng(), ldf, x0, tpost, wsampler; chunk = na, callback = quiet
-    )
-    @test samet === tpost
+    rm(pckpt; force = true)
+    @test Array(s_ckpt.step_size) == Array(s_single.step_size)
+    @test Array(s_ckpt.inverse_mass_matrix) == Array(s_single.inverse_mass_matrix)
+    @test Array(s_ckpt.position) == Array(s_single.position)
 end
 
 @testset "ReactantNUTS in the StdNormal space" begin
-    ext = Base.get_extension(Comrade, :ComradeReactantExt)
     gprior = (
         f1 = VLBIGaussian(1.0, 0.1), σ1 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
         τ1 = VLBIGaussian(0.5, 0.05), ξ1 = VLBIGaussian(0.0, 0.3),
@@ -312,64 +220,18 @@ end
     post_cpu = VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing)
     post = Comrade.prepare_device(post_cpu, ReactantEx())
     sp = Comrade.PT.StdNormal()
-    tstd = Comrade.transport_to(post, sp)
-    ldf = ext._default_ldf
-    x0 = Reactant.to_rarray(Comrade.inverse(tstd, prior_sample(Random.Xoshiro(2), post_cpu)))
-    freshrng() = Reactant.ReactantRNG(Reactant.to_rarray(UInt64[1, 5]))
-    quiet = _ -> nothing
-    na, chunk = 40, 2
-
-    # FisherLowRank refits stay in the StdNormal space and checkpoint a `Preconditioned`
-    adaptor = FisherLowRank(; rank = 4, schedule = [0.5], min_draws = 6)
-    sampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01, metric_adaptor = adaptor)
-    tckpt = tempname()
-    state, _, newt = ext.warmup_chunked(
-        freshrng(), ldf, x0, tstd, sampler; chunk, callback = quiet, transport_checkpoint = tckpt,
-    )
-    @test Comrade.PT.transport_node(newt.transform) isa Comrade.PreconditionedStd
-    @test Comrade._base_space(newt) === sp
-    @test Comrade._transport_pre(newt) isa LowRankPreconditioner
-    @test all(isfinite, Array(state.position))
-    saved = deserialize(tckpt)
-    rm(tckpt; force = true)
-    @test saved isa Preconditioned && saved.space === sp
-    # the device-buffered transform maps a host latent point like the saved host fit
-    hpre = Comrade.transport_to(post_cpu, saved)
-    z = randn(Random.Xoshiro(4), dimension(tstd))
-    @test Comrade.inverse(hpre, Comrade.transform(hpre, z)) ≈ z
-
-    # GaussNewtonLowRank refits from the curvature sketch: here a fixed rank-2 curvature,
-    # so every fit keeps its two directions. The curvature also holds host data Reactant
-    # cannot trace, as a curvature over a host posterior does; the compiled NUTS kernels
-    # must not capture the adaptor.
-    nstd = dimension(tstd)
-    Qg = Matrix(qr(randn(Random.Xoshiro(6), nstd, 2)).Q)[:, 1:2]
-    Hg = Qg * Diagonal([900.0, 300.0]) * Qg'
-    hostdata = Comrade.StructArrays.StructArray((rand(3), rand(3)))
-    gadaptor = GaussNewtonLowRank(
-        (x, W) -> (length(hostdata); Hg * W); rank = 2, oversample = 2, schedule = [0.5], min_draws = 4
-    )
-    gsampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01, metric_adaptor = gadaptor)
-    gstate, _, gt = ext.warmup_chunked(freshrng(), ldf, x0, tstd, gsampler; chunk, callback = quiet)
-    gpre = Comrade._hostify(Comrade._transport_pre(gt))
-    act = findall(!=(1), gpre.s)
-    @test sort(gpre.s[act]) ≈ inv.(sqrt.(1 .+ [900.0, 300.0])) rtol = 1.0e-8
-    @test abs.(gpre.V[:, act]' * Qg) * [1, 1] ≈ [1, 1] atol = 1.0e-8
-    @test all(isfinite, Array(gstate.position))
-    tflat = asflat(post)
-    @test_throws "GaussNewtonLowRank needs the StdNormal latent space" ext.warmup_chunked(
-        freshrng(), ldf, Reactant.to_rarray(zeros(dimension(tflat))), tflat, gsampler; chunk, callback = quiet
-    )
 
     # MoveSet between NUTS chunks on a device position: the log density is compiled once and
     # every round is proposed
     rwmove = CompensatedMove(
-        "f1_rw", CoordinateView(post_cpu, sp), (:sky, :f1), (:sky, :f2), (v, x, x′, ctx) -> v; invariant = false
+        "f1_rw", CoordinateView(post_cpu, sp), (:sky, :f1), (:sky, :f2), (v, x, x′, ctx) -> v
     )
     ms = MoveSet(post_cpu, (rwmove,); space = sp, rounds = 4)
     mdir = mktempdir()
-    mout = sample(post, ReactantNUTS(; n_adapts = 20, max_tree_depth = 4, init_step_size = 0.01), 20;
-        saveto = DiskStore(name = mdir, stride = 10), transport_method = sp, between_chunks = ms).out
+    mout = sample(
+        post, ReactantNUTS(; n_adapts = 20, max_tree_depth = 4, init_step_size = 0.01), 20;
+        saveto = DiskStore(name = mdir, stride = 10), transport_method = sp, between_chunks = ms
+    ).out
     msum = only(move_summary(ms))
     @test msum.warmup.proposed == 4 * 2 && msum.sampling.proposed == 4 * 1
     @test 0 < msum.warmup.accepted + msum.sampling.accepted
@@ -377,50 +239,35 @@ end
     rm(mdir; recursive = true)
 
     # On a device position a traceable move proposes in a compiled program and a host move
-    # from a copy of the base point; through a device preconditioner both make the same
-    # proposals and decisions as the host kernels on the same random numbers, and an
-    # in-place update of the preconditioner is used without recompiling.
+    # from a copy of the point; both make the same proposals and decisions as the host
+    # kernels on the same random numbers.
     mview = CoordinateView(post_cpu, sp)
     scaled(v, x, x′, ctx) = v * sum(ctx.c)
     devmove = CompensatedMove(
         "f1_dev", mview, (:sky, :f1), (:sky, :f2), scaled;
-        invariant = false, context = (; c = [1.0]), traceable = true
+        context = (; c = [1.0]), traceable = true
     )
     devmove2 = CompensatedMove(
         "τ1_dev", mview, (:sky, :τ1), (:sky, :f2), scaled;
-        invariant = false, context = (; c = [1.0]), traceable = true
+        context = (; c = [1.0]), traceable = true
     )
-    hostmove = CompensatedMove("ξ1_host", mview, (:sky, :ξ1), (:sky, :f2), scaled; invariant = false, context = (; c = [1.0]))
+    hostmove = CompensatedMove("ξ1_host", mview, (:sky, :ξ1), (:sky, :f2), scaled; context = (; c = [1.0]))
     @test Comrade.traceable(devmove) && !Comrade.traceable(hostmove)
     dmoves, drounds = (devmove, devmove2, hostmove), [6, 3, 4]
-    nstd = dimension(tstd)
-    hpre(seed) = LowRankPreconditioner(
-        0.1 .* randn(Random.Xoshiro(seed), nstd), exp.(0.2 .* randn(Random.Xoshiro(seed + 1), nstd)),
-        Matrix(qr(randn(Random.Xoshiro(seed + 2), nstd, 2)).Q)[:, 1:2], [0.5, 2.0]
-    )
-    p1, p2 = hpre(8), hpre(20)
-    dpre = Comrade._device_pre(p1; rank_cap = 4)
-    tdev = Comrade.transport_to(post, Preconditioned(sp, dpre))
-    thost(p) = Comrade.transport_to(post_cpu, Preconditioned(sp, p))
-    xstart = Comrade.inverse(Comrade.transport_to(post_cpu, sp), prior_sample(Random.Xoshiro(3), post_cpu))
+    thost = Comrade.transport_to(post_cpu, sp)
+    tdev = Comrade.transport_to(post, sp)
+    xstart = Comrade.inverse(thost, prior_sample(Random.Xoshiro(3), post_cpu))
     msd = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
+    msh = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
     warm = (; phase = :warmup, step = 2, total = 20)
-    compiled = Ref{Any}(nothing)
-    for p in (p1, p2)
-        p === p2 && Comrade._update_device_pre!(dpre, p2)
-        msh = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
-        msd.stats .= [Comrade._MoveStats(m) for m in msd.moves]
-        z0 = Comrade._affine_inv(p, xstart)
-        sh = msh(_DeviceMovesState(copy(z0)), thost(p), warm, Random.Xoshiro(30))
-        sd = msd(_DeviceMovesState(Reactant.to_rarray(z0)), tdev, warm, Random.Xoshiro(30))
-        @test sd.position isa Reactant.AbstractConcreteArray
-        @test Array(sd.position) ≈ sh.position rtol = 1.0e-9
-        @test [m.warmup for m in move_summary(msd)] == [m.warmup for m in move_summary(msh)]
-        @test [m.warmup.proposed for m in move_summary(msd)] == drounds
-        @test [m.τ for m in move_summary(msd)] ≈ [m.τ for m in move_summary(msh)]
-        @test sh.position != z0
-        isnothing(compiled[]) ? (compiled[] = msd.compiled[]) : @test(msd.compiled[] === compiled[])
-    end
+    sh = msh(_DeviceMovesState(copy(xstart)), thost, warm, Random.Xoshiro(30))
+    sd = msd(_DeviceMovesState(Reactant.to_rarray(xstart)), tdev, warm, Random.Xoshiro(30))
+    @test sd.position isa Reactant.AbstractConcreteArray
+    @test Array(sd.position) ≈ sh.position rtol = 1.0e-9
+    @test [m.warmup for m in move_summary(msd)] == [m.warmup for m in move_summary(msh)]
+    @test [m.warmup.proposed for m in move_summary(msd)] == drounds
+    @test [m.τ for m in move_summary(msd)] ≈ [m.τ for m in move_summary(msh)]
+    @test sh.position != xstart
 
     # A context update reaches the compiled program without recompiling it: with the scale
     # `c` doubled, the device makes the host's proposals and decisions. The host context holds
@@ -429,32 +276,21 @@ end
     Comrade.update_context!(msd, :c, [2.0])
     msh2 = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
     @test only(msh2.ctx.c) == 2.0
-    msd.stats .= [Comrade._MoveStats(m) for m in msd.moves]
-    z2 = Comrade._affine_inv(p2, xstart)
-    sh2 = msh2(_DeviceMovesState(copy(z2)), thost(p2), warm, Random.Xoshiro(33))
-    sd2 = msd(_DeviceMovesState(Reactant.to_rarray(z2)), tdev, warm, Random.Xoshiro(33))
+    msd.stats .= [Comrade._MoveStats(d, τ) for (d, τ) in zip(msd.dists, msd.initial_scale)]
+    sh2 = msh2(_DeviceMovesState(copy(xstart)), thost, warm, Random.Xoshiro(33))
+    sd2 = msd(_DeviceMovesState(Reactant.to_rarray(xstart)), tdev, warm, Random.Xoshiro(33))
     @test Array(sd2.position) ≈ sh2.position rtol = 1.0e-9
     @test msd.compiled[] === k0
     @test_throws DimensionMismatch Comrade.update_context!(msd, :c, [1.0, 2.0])
     @test_throws "has no entry nope" Comrade.update_context!(msd, :nope, [1.0])
-
-    # An OrbitStep move in the compiled program draws the same points as on the host.
-    orbit = _ShiftOrbit(8, 0.3)
-    mso_h = MoveSet(post_cpu, (orbit,); space = sp, rounds = 6)
-    mso_d = MoveSet(post_cpu, (orbit,); space = sp, rounds = 6)
-    so_h = mso_h(_DeviceMovesState(copy(xstart)), Comrade.transport_to(post_cpu, sp), warm, Random.Xoshiro(41))
-    so_d = mso_d(_DeviceMovesState(Reactant.to_rarray(xstart)), Comrade.transport_to(post, sp), warm, Random.Xoshiro(41))
-    @test Array(so_d.position) ≈ so_h.position rtol = 1.0e-12
-    @test only(move_summary(mso_d)).warmup == only(move_summary(mso_h)).warmup
-    @test 0 < only(move_summary(mso_h)).warmup.accepted
 
     # Invariant moves are accepted without the likelihood, in the compiled program and on
     # the host alike: `u` and `w` do not enter the sky, so random walks of them are exact.
     post_u = VLBIPosterior(SkyModel(test_model, merge(gprior, (u = VLBIGaussian(0.0, 1.0), w = VLBIGaussian(0.0, 1.0))), g), vis; admode = nothing)
     uview = CoordinateView(post_u, sp)
     keep(v, x, x′, ctx) = v
-    umove = CompensatedMove("u_dev", uview, (:sky, :u), (:sky, :f2), keep; traceable = true)
-    wmove = CompensatedMove("w_host", uview, (:sky, :w), (:sky, :f2), keep)
+    umove = CompensatedMove("u_dev", uview, (:sky, :u), (:sky, :f2), keep; likelihood_invariant = true, traceable = true)
+    wmove = CompensatedMove("w_host", uview, (:sky, :w), (:sky, :f2), keep; likelihood_invariant = true)
     tdev_u = Comrade.transport_to(Comrade.prepare_device(post_u, ReactantEx()), sp)
     thost_u = Comrade.transport_to(post_u, sp)
     xu = Comrade.inverse(thost_u, prior_sample(Random.Xoshiro(4), post_u))
@@ -468,40 +304,16 @@ end
     @test [m.τ for m in move_summary(msu_d)] ≈ [m.τ for m in move_summary(msu_h)]
     @test su_h.position[end] != xu[end]
 
-    # WelfordDiagonal leaves the StdNormal transform alone
-    wsampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01)
-    _, _, samet = ext.warmup_chunked(freshrng(), ldf, x0, tstd, wsampler; chunk = na, callback = quiet)
-    @test samet === tstd
-
-    # full runs to disk, without and with refits: draws are finite, the stored transport
-    # records the StdNormal base space
-    dadaptor = FisherLowRank(; rank = 4, schedule = [0.75], min_draws = 6)
-    @test Comrade.metric_refit_steps(dadaptor, 80, 10) == [60]
-    dsampler = ReactantNUTS(; n_adapts = 80, max_tree_depth = 4, init_step_size = 0.01, metric_adaptor = dadaptor)
-    for (smp, T) in ((wsampler, Comrade.PT.StdNormal), (dsampler, Preconditioned))
-        dir = mktempdir()
-        out = sample(post, smp, 20; saveto = DiskStore(name = dir, stride = 10), transport_method = sp).out
-        @test out.nsamples == 20
-        ps = Comrade.postsamples(load_samples(out))
-        @test all(p -> all(isfinite, values(p.sky)), ps)
-        @test deserialize(joinpath(dir, "transport.jls")) isa T
-        rm(dir; recursive = true)
-    end
-
-    # a host preconditioner is sampled through device buffers and stored as given
-    n = dimension(tstd)
-    V = Matrix(qr(randn(Random.Xoshiro(5), n, 3)).Q)[:, 1:3]
-    hp = Preconditioned(sp, LowRankPreconditioner(zeros(n), ones(n), V, [0.5, 2.0, 0.8]))
-    dt = ext._device_transport(Comrade.transport_to(post, hp))
-    @test Comrade._devicebuffers(Comrade._transport_pre(dt))
-    @test Comrade._base_space(dt) === sp
-    fsampler = ReactantNUTS(; n_adapts = 20, max_tree_depth = 4, init_step_size = 0.01, metric_adaptor = FixedMetric())
+    # a full run to disk in the StdNormal space: draws are finite and the stored transport
+    # records the space
     dir = mktempdir()
-    out = sample(post, fsampler, 10; saveto = DiskStore(name = dir, stride = 10), transport_method = hp).out
-    @test out.nsamples == 10
+    out = sample(
+        post, ReactantNUTS(; n_adapts = 40, max_tree_depth = 4, init_step_size = 0.01), 20;
+        saveto = DiskStore(name = dir, stride = 10), transport_method = sp
+    ).out
+    @test out.nsamples == 20
     @test all(p -> all(isfinite, values(p.sky)), Comrade.postsamples(load_samples(out)))
-    saved = deserialize(joinpath(dir, "transport.jls"))
-    @test saved isa Preconditioned && saved.pre.V isa Array && saved.pre.V == V
+    @test deserialize(joinpath(dir, "transport.jls")) isa Comrade.PT.StdNormal
     rm(dir; recursive = true)
 end
 
@@ -591,7 +403,7 @@ end
         # A host-array position drops the cached gradient and potential energy and comes
         # back on the device in the kernel's shape; an unmoved state keeps both.
         st = runchain(nothing; nsamples = 20).state
-        info = (; phase = :sampling, step = 0, total = 0, pre = nothing)
+        info = (; phase = :sampling, step = 0, total = 0)
         kept = ext._run_between_chunks((s, _, _, _) -> s, st, nothing, info, Random.Xoshiro(1))
         @test kept.gradient !== nothing && kept.potential_energy !== nothing
         znew = vec(Array(st.position)) .+ 0.1
@@ -769,99 +581,4 @@ end
     @testset "WrappedOrnsteinUhlenbeck StationaryInit refant (centered default)" begin
         check_matches_cpu(gmint_reactant_wou())
     end
-end
-
-# Device staging for the low-rank preconditioner. The buffers are padded to a fixed rank
-# so that a warmup refit can overwrite them in place: the compiled program sees the same
-# shapes and is not rebuilt. Padding columns carry `s = 1` and are exact no-ops.
-@testset "device Hessian-vector products" begin
-    ext = Base.get_extension(Comrade, :ComradeReactantEnzymeExt)
-    gprior = (
-        f1 = VLBIGaussian(1.0, 0.1), σ1 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
-        τ1 = VLBIGaussian(0.5, 0.05), ξ1 = VLBIGaussian(0.0, 0.3),
-        f2 = VLBIGaussian(0.5, 0.1), σ2 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
-        τ2 = VLBIGaussian(0.5, 0.05), ξ2 = VLBIGaussian(0.0, 0.3),
-        x = VLBIGaussian(0.0, μas2rad(20.0)), y = VLBIGaussian(0.0, μas2rad(20.0)),
-    )
-    _, vis, _, _, _ = load_data()
-    g = imagepixels(μas2rad(150.0), μas2rad(150.0), 12, 12)
-    post = Comrade.prepare_device(
-        VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing), ReactantEx()
-    )
-    # The StdNormal latent space, where every coordinate is of order one.
-    tpost = Comrade.maybe_transport(post, Comrade.PT.StdNormal())
-    rng = Random.Xoshiro(3)
-    n = dimension(tpost)
-    x = 0.5 .* randn(rng, n)
-    hvp = Comrade._device_hvp(tpost, Reactant.to_rarray(x))
-    Y = randn(rng, n, 3)
-    HY = hvp(x, Y)
-    @test size(HY) == (n, 3)
-    @test iszero(hvp(x, zeros(n, 1)))
-    # Against central differences of the compiled gradient of the potential.
-    grad = Reactant.@compile ext._device_flat_grad(tpost, Reactant.to_rarray(x))
-    potgrad(z) = -Array(first(grad(tpost, Reactant.to_rarray(z))))
-    fd = reduce(hcat, [(h = 1.0e-5 / norm(y); (potgrad(x .+ h .* y) .- potgrad(x .- h .* y)) ./ (2h)) for y in eachcol(Y)])
-    @test HY ≈ fd rtol = 1.0e-5
-    @test dot(Y[:, 1], HY[:, 2]) ≈ dot(Y[:, 2], HY[:, 1]) rtol = 1.0e-8
-end
-
-@testset "LowRankPreconditioner device buffers" begin
-    rng = Random.Xoshiro(7)
-    n, m = 40, 3
-    V = Matrix(qr(randn(rng, n, m)).Q)[:, 1:m]
-    p = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), V, [4.0, 2.0, 0.5])
-
-    dev = Comrade._device_pre(p; rank_cap = 8)
-    @test size(dev.V) == (n, 8)
-    @test Array(dev.V)[:, 1:m] ≈ V
-    @test all(iszero, Array(dev.V)[:, (m + 1):end])
-    @test Array(dev.s) == [4.0, 2.0, 0.5, 1, 1, 1, 1, 1]
-    @test_throws ArgumentError Comrade._device_pre(p; rank_cap = 2)
-
-    # A host vector goes through the host mirror of the device buffers, so the padded
-    # transform still agrees with the host fit it was built from.
-    z = randn(rng, n)
-    @test Comrade._affine_fwd(Comrade._pre_for(dev, z), z) ≈ Comrade._affine_fwd(p, z)
-    @test Comrade._hostify(dev) === Comrade._hostify(dev)
-
-    # In-place update at a lower rank: the tail returns to the no-op padding.
-    p2 = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), V[:, 1:2], [3.0, 0.4])
-    Comrade._update_device_pre!(dev, p2)
-    @test Array(dev.s) == [3.0, 0.4, 1, 1, 1, 1, 1, 1]
-    @test Array(dev.b) ≈ p2.b
-    @test Comrade._affine_fwd(Comrade._pre_for(dev, z), z) ≈ Comrade._affine_fwd(p2, z)
-    @test Comrade._hostify(dev).b ≈ p2.b
-
-    p3 = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), Matrix(qr(randn(rng, n, 9)).Q)[:, 1:9], fill(2.0, 9))
-    @test_throws ArgumentError Comrade._update_device_pre!(dev, p3)
-
-    # Directions confined to rows: padded on the device, the same map as the host fit in a
-    # compiled program, updated in place without recompiling; a refit on other rows or in
-    # dense storage is an error.
-    rows = sort(randperm(rng, n)[1:25])
-    R = RowSupportedMatrix(n, rows, Matrix(qr(randn(rng, 25, 3)).Q)[:, 1:3])
-    pr = LowRankPreconditioner(randn(rng, n), exp.(randn(rng, n)), R, [4.0, 2.0, 0.5])
-    devr = Comrade._device_pre(pr; rank_cap = 5)
-    @test devr.V isa RowSupportedMatrix && devr.V.rows == rows && size(devr.V) == (n, 5)
-    @test Array(devr.V)[:, 1:3] ≈ Array(R)
-    zr = randn(rng, n)
-    fr = Reactant.Compiler.compile((q, x) -> Comrade._affine_fwd(q, x), (devr, Reactant.to_rarray(zr)))
-    @test Array(fr(devr, Reactant.to_rarray(zr))) ≈ Comrade._affine_fwd(pr, zr)
-    pr2 = LowRankPreconditioner(pr.b, pr.d, R[:, 1:2], [3.0, 0.4])
-    Comrade._update_device_pre!(devr, pr2)
-    @test Array(fr(devr, Reactant.to_rarray(zr))) ≈ Comrade._affine_fwd(pr2, zr)
-    @test Comrade._affine_fwd(Comrade._pre_for(devr, zr), zr) ≈ Comrade._affine_fwd(pr2, zr)
-    other = RowSupportedMatrix(n, sort([setdiff(1:n, rows); rows[1:10]]), R.M)
-    @test_throws "changed the rows" Comrade._update_device_pre!(devr, LowRankPreconditioner(pr.b, pr.d, other, pr.s))
-    @test_throws "changed the storage" Comrade._update_device_pre!(devr, p2)
-
-    sp = Comrade.PT.StdNormal()
-    @test Comrade._devicebuffers(Comrade._device_space(p))
-    @test Comrade._device_space(dev) === dev
-    q = Comrade._device_space(Preconditioned(sp, p))
-    @test q.space === sp && Comrade._devicebuffers(q.pre)
-    @test Array(q.pre.V) ≈ V
-    @test Comrade._device_space(sp) === sp
-    @test Comrade._device_space(nothing) === nothing
 end

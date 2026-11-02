@@ -9,7 +9,6 @@ using PolarizedTypes
 
 include("prepare_device.jl")
 include("misc.jl")
-include("preconditioner.jl")
 include("sample.jl")
 
 
