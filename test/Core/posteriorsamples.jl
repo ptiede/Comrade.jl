@@ -3,13 +3,8 @@ using Statistics, Serialization
 @testset "PosteriorSamples" begin
 
     @testset "rmap over parameterless groups" begin
-        # A model component that is switched off contributes a group with no parameters, so
-        # every draw carries an empty NamedTuple (e.g. a sky model's `gauss` when no extra
-        # Gaussian is fitted). StructArrays cannot split that into component arrays, so it
-        # reaches `rmap` as a plain `Vector{@NamedTuple{}}` rather than a `StructArray`, and
-        # the generic `rmap(f, x) = f(x)` fallback would call the reduction on it —
-        # `mean` then fails in `sum(...)/n` with `no method matching /(::@NamedTuple{}, ::Int64)`.
-        # There is nothing to average, so the group must pass through untouched.
+        # An empty group reaches `rmap` as a `Vector{@NamedTuple{}}`, not a StructArray, and
+        # must pass through unchanged.
         chain = [(; sky = (; ftot = 1.0 * i, gauss = NamedTuple())) for i in 1:5]
         ps = PosteriorSamples(chain, nothing)
 
@@ -21,7 +16,7 @@ using Statistics, Serialization
         @test s.sky.gauss === NamedTuple()
         @test s.sky.ftot ≈ std(1.0:5.0)
 
-        # an empty group at the top level, not just nested
+        # an empty group at the top level
         flat = [(; a = 1.0 * i, empt = NamedTuple()) for i in 1:4]
         mf = Comrade.rmap(mean, PosteriorSamples(flat, nothing))
         @test mf.empt === NamedTuple()
@@ -29,8 +24,7 @@ using Statistics, Serialization
     end
 
     @testset "show with a parameterless group" begin
-        # `show` builds its Mean / Std. Dev. tables through `rmap`, so an empty group used to
-        # take the whole display down.
+        # `show` builds its Mean / Std. Dev. tables through `rmap`
         chain = [(; sky = (; ftot = 1.0 * i, gauss = NamedTuple())) for i in 1:5]
         ps = PosteriorSamples(chain, nothing)
         str = sprint(show, MIME"text/plain"(), ps)
@@ -38,7 +32,7 @@ using Statistics, Serialization
         @test occursin("Mean", str)
         @test occursin("Std. Dev.", str)
 
-        # and it is unaffected for a chain with no empty groups
+        # a chain without empty groups
         plain = [(; a = 1.0 * i, b = 2.0 * i) for i in 1:5]
         @test occursin("Mean", sprint(show, MIME"text/plain"(), PosteriorSamples(plain, nothing)))
     end

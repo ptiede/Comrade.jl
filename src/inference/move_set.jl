@@ -54,10 +54,10 @@ one value per move. A componentwise move must be [`likelihood_invariant`](@ref).
 
 Run the moves on the latent point `x` of `tpost`, which must use the same space, in the
 sampler phase `phase` (`:warmup` or `:sampling`). Call it between the steps of any MCMC
-sampler. Returns `x` itself if no proposal was
-accepted. A proposal with a NaN acceptance ratio is rejected. During warmup the step scales
-adapt, and with `report` the call logs the acceptance rates and step scales since the last
-log, labeled with `step` out of `total`. Throws if an accepted
+sampler. Returns `x` itself if no proposal was accepted. A proposal with a NaN acceptance
+ratio is rejected. During warmup the step scales adapt, and with `report` the call logs the
+acceptance rates and step scales since the last log, labeled with `step` out of `total`.
+Throws if an accepted
 [`likelihood_invariant`](@ref) move changed the likelihood.
 
     ms(state, tpost, info::NamedTuple, rng) -> state

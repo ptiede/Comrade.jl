@@ -614,8 +614,6 @@ function plotcaltable(
 end
 
 prepare_caltable(gt::Comrade.CalTable) = gt
-# `caltable` accepts both plain SiteArrays and hierarchical instrument samples
-# (e.g. GaussMarkovSitePrior with fitted hyperparameters)
 prepare_caltable(gt::Union{Comrade.SiteArray, Comrade.HierarchicalSiteSample}) = caltable(gt)
 
 end

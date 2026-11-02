@@ -14,14 +14,10 @@ to the image.
     return out
 end
 
-# Output buffer for `apply_fluctuations`, allocated from the *fluctuations* rather than
-# from the mean image. `δ` is the traced/differentiated argument while `mimg` is a
-# constant, so `similar(mimg)` returns a container of the mean image's type — under
-# Reactant a device-resident `ConcretePJRTArray`, and on any GPU backend a concrete
-# device array. The `apply_fluctuations!` methods then write traced values into that
-# concrete buffer, which falls back to scalar indexing and aborts the trace. Allocating
-# from `δ` keeps the buffer in the same (traced) family as the values being written; the
-# axes still come from `mimg`, so the result is unchanged on the CPU.
+# Output buffer for `apply_fluctuations`, allocated from `δ` with the axes of `mimg` so that
+# it has the array type of the values written into it. Under Reactant, `similar(mimg)` is a
+# concrete device array, and writing traced values into it falls back to scalar indexing
+# and aborts the trace.
 @inline function _fluctuation_buffer(mimg::IntensityMap, δ::AbstractArray)
     T = promote_type(eltype(mimg), eltype(δ))
     return IntensityMap(similar(baseimage(δ), T, size(mimg)), axisdims(mimg))

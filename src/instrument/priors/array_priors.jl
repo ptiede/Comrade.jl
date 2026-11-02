@@ -21,16 +21,14 @@ correspond to gain phases.
  - The `phase` argument is a boolean that specifies if
 the prior is for a `phase` or not. *The phase argument is experimental and we
 recommend setting it to false currently.*
- - The `gauge` argument declares that this parameter is a term of a quantity whose absolute
-level the data cannot see. `gauge = :phase` marks the parameter as one summand of the
-absolute station phase: the visibility phase on a baseline sees only differences of station
-phases, so the sum of all `gauge = :phase` parameters at a site is observable only up to one
-constant per (time, frequency) stamp. When several such parameters are added together (a
-track-level offset plus a per-integration residual, say) the reference pins placed on each
-one separately can leave the *sum* under-determined. Declaring the terms lets the
-[`InstrumentModel`](@ref) find the leftover flat directions with
-[`Comrade.gauge_pins`](@ref) and either report them or pin them, depending on its
-`gaugefix` setting. `gauge = :none` (the default) opts out of that analysis.
+ - The `gauge` argument is `:none` (the default) or `:phase`. `gauge = :phase` marks the
+parameter as one term of the station phase. Baseline phases depend only on differences of
+station phases, so the sum of the `gauge = :phase` terms at a site is determined only up to
+one constant per (time, frequency). When several such terms are added (for example a
+track-level offset plus a per-integration residual), references placed on each term can
+leave the sum undetermined. The [`InstrumentModel`](@ref) then finds the remaining flat
+directions with [`Comrade.gauge_pins`](@ref) and, depending on its `gaugefix` setting,
+throws or pins them.
 
 # Example
 
@@ -145,8 +143,7 @@ end
 function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
     smap = build_sitemap(d, array)
     site_dists = site_tuple(array, d.default_dist; d.override_dist...)
-    # Time-correlated site priors need per-chain machinery rather than a product
-    # distribution; see gauss_markov.jl.
+    # Time-correlated site priors are built in gauss_markov.jl.
     any(needs_chain_machinery, values(site_dists)) &&
         return build_markov_observed(d, site_dists, smap, array)
     dists = build_dist(site_dists, smap, array, d.refant, d.centroid_station)
@@ -164,20 +161,18 @@ end
 
 TV.dimension(t::PartiallyFixedTransform) = TV.dimension(t.transform)
 
-# Scatter `vals` into `y` at (static, host-side) `inds`. Under Reactant the broadcast
-# lowers to a single vectorized `stablehlo.scatter` — the fast, "raised" path — instead of
-# a serialized element-by-element traced loop; ComradeReactantExt overloads this for
-# traced arrays (the bounds check scalar-iterates the index vector, and the
-# single-element scatter hits a Reactant bug — see EnzymeAD/Reactant.jl#2960).
+# Scatter `vals` into `y` at the host-side indices `inds`. Under Reactant the broadcast
+# lowers to one `stablehlo.scatter` rather than a per-element loop. ComradeReactantExt
+# overloads this for traced arrays, because the bounds check uses scalar indexing and a
+# single-element scatter fails (EnzymeAD/Reactant.jl#2960).
 function scatter_values!(y, inds, vals)
     y[inds] .= vals
     return y
 end
 
 # Scatter the variate `y` and the fixed (reference) `fixed_values` back into the full
-# parameter vector. Both scatters go through `scatter_values!`, which carries the traced
-# workarounds (ComradeReactantExt overloads it — see EnzymeAD/Reactant.jl#2960), so this
-# generic method serves both backends.
+# parameter vector. Both scatters go through `scatter_values!` so that the Reactant
+# overload applies.
 function fill_partially_fixed!(yfv, variate_index, fixed_index, y, fixed_values)
     scatter_values!(yfv, variate_index, y)
     scatter_values!(yfv, fixed_index, fixed_values)
@@ -272,10 +267,8 @@ function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroi
     if any(!isnothing ∘ initprior, values(dists))
         fixedinds = convert(Vector{Int}, fixedinds)
         vals = vals === nothing ? Float64[] : convert(Vector{Float64}, vals)
-        # Init pins: a site prior with `init = FixedInit(v)` fixes each site's first
-        # stamp (per frequency channel) to `v` — see `IIDSitePrior`. A stamp the
-        # referencing scheme already fixes stays the reference's, and the values must
-        # agree: a silent disagreement would quietly change the reference gauge.
+        # `init = FixedInit(v)` fixes each site's first stamp per frequency channel to `v`.
+        # A stamp the referencing scheme also fixes must get the same value.
         for s in keys(dists)
             ini = initprior(getproperty(dists, s))
             ini === nothing && continue

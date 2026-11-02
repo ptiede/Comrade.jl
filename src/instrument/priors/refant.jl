@@ -18,18 +18,17 @@ end
 """
     MultiReference(sites, val)
 
-Selects several reference sites at once, fixing every entry of each site in `sites` to
-`val`. `sites` is any iterable of site names.
+Selects several reference sites, fixing every entry of each site in `sites` to `val`.
+`sites` is any iterable of site names.
 
-One pin removes one gauge freedom, so this is the scheme for a parameter that carries
-more than one. A track-segmented phase offset is the usual case: the array partitions
-into groups whose absolute phase level the schedule never links, and each group needs its
-own pin. That happens whenever a subset of the array observes for a stretch with no
-station in common with the site that is already pinned.
+Use it for a parameter with more than one gauge freedom. The usual case is a
+track-segmented phase offset when the schedule splits the array into groups that share no
+station, for example when a subset of the array observes for a stretch without the
+reference site. Each such group needs its own reference.
 
 ## Notes
-This pins exactly the sites it is given and does not check that the result leaves the
-model identified. Too few pins leave a flat direction in the posterior; too many
+This pins the sites it is given and does not check that the result leaves the model
+identified. Too few pins leave a flat direction in the posterior; too many
 over-constrain a scan, since a scan carries only one global phase.
 """
 struct MultiReference{S <: AbstractVector{Symbol}, T} <: ReferencingScheme
@@ -51,11 +50,9 @@ MultiReference(sites, value) = MultiReference(Symbol[Symbol(s) for s in sites], 
 
 #    EntryReference(indices, value)
 #
-# Pins the parameter entries at `indices` — positions in the parameter's `SiteLookup` — to
-# `value`. Unlike the site-named schemes this one carries no notion of which site or stamp
-# it pins, so it is meaningful only alongside the `SiteLookup` the indices were computed
-# from. `gauge_pins` returns such indices and `CompositeReference` is how they are added to
-# the scheme a user already asked for. Internal type.
+# Pins the parameter entries at `indices`, positions in the parameter's `SiteLookup`, to
+# `value`. The indices are meaningful only for the `SiteLookup` they were computed from.
+# Internal type.
 struct EntryReference{I <: AbstractVector{Int}, T} <: ReferencingScheme
     indices::I
     value::T
@@ -112,8 +109,7 @@ site will be used.
 """
 SEFDReference(val::Number) = SEFDReference(val, 0)
 
-# Only SEFDReference reads the array configuration; the schemes that name their sites
-# outright ignore it.
+# Only SEFDReference reads the array configuration.
 reference_indices(_, st::SiteLookup, ::NoReference) = [], nothing
 function reference_indices(_, st::SiteLookup, p::SingleReference)
     inds = findall(==(p.site), st.sites)
@@ -124,8 +120,7 @@ function reference_indices(_, st::SiteLookup, p::MultiReference)
     inds = Int[]
     for s in p.sites
         si = findall(==(s), st.sites)
-        # A name absent from this parameter's site list pins nothing, which would leave
-        # the gauge the scheme was asked to fix silently unfixed.
+        # An absent site would pin nothing and leave the gauge unfixed.
         isempty(si) && throw(
             ArgumentError(
                 "MultiReference site $s is not among this parameter's sites " *

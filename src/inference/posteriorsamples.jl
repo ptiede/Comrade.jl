@@ -21,9 +21,8 @@ struct PosteriorSamples{T, N, C <: AbstractArray{T, N}, S, M} <: AbstractArray{T
 end
 
 
-# Don't unwrap zero-field types: StructArrays refuses them ("only eltypes with fields are
-# supported"), and an empty group (e.g. the sky's `gauss` when no extra Gaussian is fit)
-# is fine as a plain column of empty NamedTuples.
+# Zero-field types stay a plain column because StructArrays rejects them, e.g. an empty
+# parameter group.
 _convert2structarr(x::Union{<:NamedTuple, <:AbstractArray}) = StructArray(x, unwrap = (T -> (T <: Union{NamedTuple, Tuple}) && fieldcount(T) > 0))
 _convert2structarr(x::StructArray) = x
 
@@ -146,14 +145,9 @@ function rmap(f, x::StructArray{<:Tuple})
     return map(x -> rmap(f, x), StructArrays.components(x))
 end
 
-# A parameter group with no parameters (an optional model component that is switched off, e.g.
-# a sky model's `gauss` when no extra Gaussian is fitted) has nothing to reduce. StructArrays
-# cannot split it into component arrays, so it arrives here as a plain `Vector{@NamedTuple{}}`
-# and the generic `rmap(f, x) = f(x)` would call e.g. `mean` on it — which fails in `sum(...)/n`
-# with `no method matching /(::@NamedTuple{}, ::Int64)`. Skip `f` and return the empty group.
-# (The `StructArray` methods resolve what would otherwise be ambiguities with the ones above.)
-# Both empty-group shapes are covered — empty NamedTuples AND empty Tuples — mirroring the
-# `fieldcount(T) > 0` unwrap predicate in `_convert2structarr`, which deliberately admits both.
+# An empty parameter group (empty NamedTuple or Tuple, kept as a plain column by
+# `_convert2structarr`) maps to an empty group without calling `f`, which would fail on it
+# (e.g. `mean`). The `StructArray` methods resolve ambiguities with the methods above.
 rmap(::Any, ::AbstractArray{<:NamedTuple{(), Tuple{}}}) = NamedTuple()
 rmap(::Any, ::StructArray{<:NamedTuple{(), Tuple{}}}) = NamedTuple()
 rmap(::Any, ::AbstractArray{Tuple{}}) = ()

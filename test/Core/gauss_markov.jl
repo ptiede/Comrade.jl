@@ -82,8 +82,7 @@ end
     end
 
     @testset "extreme correlation time stays finite" begin
-        # regression: Δt/τ underflow rounded Φ to exactly 1, so Q = σ²(1-Φ²) was 0 and
-        # the chain logpdf was NaN (0/0 + log 0) while the whitening divided by s = 0
+        # tiny Δt/τ must not round Φ to 1, which would make Q = σ²(1-Φ²) zero
         pext = Comrade.OrnsteinUhlenbeck(σ = 0.3, τ = 1.0e20, μ = 0.0)
         Φ, Q = Comrade.transition_moments(pext, 1.0e-3)
         @test Φ < 1
@@ -166,8 +165,7 @@ end
         Sc = Symmetric(Σg[frp, frp] .- Sfx * (Sxx \ Sfx'))
         @test ℓc ≈ logpdf(MvNormal(mc, Sc), x[frp])
 
-        # conditional rand exercises the init-marginal prior-from-the-left of the
-        # chain-opening free point
+        # conditional rand when the chain's first point is free
         rng2 = Random.Xoshiro(11)
         spec = Comrade.MarkovChainSpec(p, init, Val(nothing), inds, ts, fp, NonCentered())
         d = Comrade.GaussMarkovChainDist((AA = spec,), fp, x[fp], n)
@@ -237,18 +235,17 @@ end
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw)                          # StationaryInit invalid
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pw; init = GaussianInit(0.0, 1.0))
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), p; init = UniformInit())     # circular init on a real-line process
-        # WrappedBrownian has an affine transition mean, so it takes the non-centered
-        # (increment) coordinates by default, as the real-line processes do
+        # WrappedBrownian defaults to non-centered coordinates, as the real-line processes do
         sp = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit())
         @test sp.param isa Comrade.NonCentered
         @test GaussMarkovSitePrior(ScanSeg(), p).param isa Comrade.NonCentered
         @test GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), centered = true).param isa Comrade.Centered
         @test GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), centered = false).param isa Comrade.NonCentered
-        # the angle embedding is a wrapped-only third form and must be asked for by name
+        # the angle embedding applies only to wrapped processes and is never the default
         spe = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit(), param = AngleEmbedded())
         @test spe.param isa Comrade.AngleEmbedded
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), p; param = AngleEmbedded())
-        # `param` and the `centered` shorthand are alternatives, not a precedence rule
+        # `param` and `centered` cannot both be given
         @test_throws ArgumentError GaussMarkovSitePrior(
             ScanSeg(), pw; init = UniformInit(), param = Centered(), centered = true
         )
@@ -259,8 +256,8 @@ end
             @test Comrade._wn_logpdf(Δ, Q) ≈ brute rtol = 1.0e-10
         end
 
-        # a zero variance — a fitted hyperparameter materializing at the edge of its
-        # support — is floored: the log-densities are finite (hugely negative), never NaN
+        # a zero variance (a fitted hyperparameter at the edge of its support) gives a
+        # finite, very negative log density, not NaN
         @test isfinite(Comrade._wn_logpdf(0.5, 0.0))
         @test Comrade._wn_logpdf(0.5, 0.0) < -1.0e10
         @test isfinite(Comrade._normal_logpdf(0.5, 0.0))
@@ -276,7 +273,7 @@ end
             @test quad ≈ Comrade._wn_logpdf(Δ, Q1 + Q2) atol = 1.0e-8
         end
 
-        # exact 2π periodicity of the chain density — the property the wrap buys
+        # the chain density is 2π-periodic in each point
         ℓ0 = Comrade._gm_chain_logpdf(pw, UniformInit(), x, inds, ts)
         for i in (1, 4, n)
             xs = copy(x)
@@ -354,9 +351,8 @@ end
         θr, _, _ = TV.transform_with(TV.LogJac(), node, zi, 1)
         @test θr ≈ θe
 
-        # sheet weights: the reweighting that makes the raw-angle (centered) lift
-        # proper must leave the circular model *exactly* alone, i.e. the weights of the
-        # 2π sheets of any one coordinate sum to one.
+        # the sheet weights of any one coordinate sum to one over its 2π sheets, so they
+        # leave the circular model unchanged
         for Q in (0.001, 0.05, 0.5, 2.0, 3.9, 4.1, 10.0, 50.0)
             pq = Comrade.WrappedBrownian(τ = 2 / Q)   # Δt = 1, so the transition variance is Q
             for Δ in (0.0, 0.7, -2.5, 3.0, 6.0)
@@ -368,8 +364,7 @@ end
             tot = sum(m -> exp(Comrade._init_sheet_logweight(UniformInit(), pw, φ + 2π * m)), -40:40)
             @test tot ≈ 1 rtol = 1.0e-12
         end
-        # a 2π step is suppressed by exp(-(2π)²/2Q), so the lift has a single relevant
-        # mode whenever the process makes a full turn between points improbable
+        # a 2π step is suppressed by exp(-(2π)²/2Q)
         let pq = Comrade.WrappedBrownian(τ = 20.0)   # Δt = 1 transition variance 2/20 = 0.1
             w(Δ) = Comrade._sheet_logweight(pq, Δ, 0.0, 1.0, 0.0)
             @test w(2π) - w(0.0) ≈ -(2π)^2 / (2 * 0.1) rtol = 1.0e-6
@@ -386,13 +381,9 @@ end
         @test θc ≈ θin
         @test ℓcj ≈ Comrade._init_sheet_logweight(UniformInit(), pw, θin[1]) +
             sum(k -> Comrade._sheet_logweight(pw, θin[k], θin[k - 1], ts[k] - ts[k - 1], 0.0), 2:n)
-        # coordinates outside (−π, π] wrap to angles, and the lift is no longer
-        # 2π-periodic: it decays, so the flat density is proper. The baseline has to sit
-        # on the *favoured* sheet for that comparison to mean anything: `θin` is uniform
-        # on the circle, so its raw steps routinely exceed π and are already suppressed —
-        # from there, adding 2π to a coordinate can move it onto a better sheet and
-        # *raise* the weight. A smooth coordinate vector (every raw step well inside one
-        # sheet) is the favoured unwrapping of its own angles.
+        # Coordinates outside (−π, π] wrap to angles, and a 2π shift lowers the density.
+        # The baseline must be on the favored sheet: `θin` has steps beyond π, so shifting
+        # it can raise the weight, while the smooth `θsm` is its own favored unwrapping.
         θsm = collect(0.25 .* (1:n) .- 1.0)
         _, ℓsm, _ = TV.transform_with(TV.LogJac(), nodec, θsm, 1)
         for j in (3, n)
@@ -405,16 +396,14 @@ end
             _, ℓw2, _ = TV.transform_with(TV.LogJac(), nodec, θshift, 1)
             @test ℓw2 < ℓsm - 10
         end
-        # the inverse *unwraps*: it puts every point on the sheet the weights favour, so
-        # every step lands in (−π, π] and `transform ∘ inverse` returns the same angles
+        # the inverse unwraps onto the favored sheet: every step lies in (−π, π]
         zc = zeros(n)
         TV.inverse_at!(zc, 1, nodec, θc)
         @test all(k -> abs(zc[k] - zc[k - 1]) ≤ π + 1.0e-12, 2:n)
         θz, _, _ = TV.transform_with(TV.LogJac(), nodec, zc, 1)
         @test θz ≈ θc
-        # transform ∘ inverse is the identity on wrapped angles, also with scattered
-        # reference-fixed points, and the sheet weights still sum to one over the whole
-        # 2π lattice — the pushforward onto the circle is exactly the chain density
+        # with and without reference-fixed points: transform ∘ inverse is the identity on
+        # angles, and the pushforward onto the circle is the chain density
         for (fpos, fvals) in ((Int[], Float64[]), ([2], [0.4]), ([1, 4], [0.0, -1.2]))
             sp5 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), 1:5, ts[1:5], fpos, Centered())
             d5 = Comrade.GaussMarkovChainDist((AA = sp5,), collect(fpos), fvals, 5)
@@ -435,9 +424,8 @@ end
             @test mx + log(sum(l -> exp(l - mx), lat)) ≈ logpdf(d5, y5) atol = 1.0e-9
         end
 
-        # non-centered (the default): one coordinate per free phase, the *scaled step*
-        # onto it, so the phase is the wrapped running sum. The chain's first free point
-        # has nothing to step off and keeps its angle as its coordinate.
+        # non-centered (the default): each coordinate is a scaled step and the phase is the
+        # wrapped running sum; the first free point's coordinate is its angle
         specn = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), inds, ts, Int[], NonCentered())
         dn = Comrade.GaussMarkovChainDist((AA = specn,), Int[], Float64[], n)
         noden = Comrade.PT.transport_node(dn, Comrade.PT.TVFlat())
@@ -448,23 +436,19 @@ end
             vcat(zn[1], [sqrt(Comrade._increment_var(pw, ts[k] - ts[k - 1])) * zn[k] for k in 2:n])
         )
         @test θn ≈ Comrade._wrap_angle.(φn)
-        # the whole point: in these coordinates the flat target is exactly N(0, I), so
-        # the chain's prior correlation is not handed to the sampler at all
+        # the flat target is N(0, I) in the steps
         @test logpdf(dn, θn) + ℓn ≈
             -log(2π) + Comrade._init_sheet_logweight(UniformInit(), pw, zn[1]) +
             sum(k -> logpdf(Normal(), zn[k]), 2:n)
-        # the two halves are FUSED (`_fused_flat`): the WN transitions cancel exactly
-        # against the sheet weights, so neither side computes them — `logpdf` alone
-        # carries only the chain-opening init term and the transform ℓ the rest. Only
-        # their sum (asserted just above) is the flat density.
+        # `_fused_flat`: the transitions cancel against the sheet weights, so `logpdf`
+        # holds only the opening init term
         @test logpdf(dn, θn) ≈ -log(2π)
-        # transform ∘ inverse is the identity on wrapped angles, as for the other lifts
+        # transform ∘ inverse is the identity on wrapped angles
         zi = zeros(n)
         TV.inverse_at!(zi, 1, noden, θn)
         θi, _, _ = TV.transform_with(TV.LogJac(), noden, zi, 1)
         @test θi ≈ θn
-        # ... and the sheets still sum to the circular chain density, so the model is
-        # the same one the centered lift carries
+        # summed over sheets, the lift gives the circular chain density
         let ts2 = [0.0, 0.8], Q = Comrade._increment_var(pw, 0.8), sq = sqrt(Q)
             sp2 = Comrade.MarkovChainSpec(pw, UniformInit(), Val(nothing), [1, 2], ts2, Int[], NonCentered())
             d2 = Comrade.GaussMarkovChainDist((AA = sp2,), Int[], Float64[], 2)
@@ -479,9 +463,8 @@ end
             @test tot ≈ exp(Comrade._wn_logpdf(θb2 - θa2, Q)) / (2π) rtol = 1.0e-9
         end
 
-        # a reference-fixed time stamp is a *gauge* for a wrapped chain: it is dropped
-        # from the chain, the gap across it composes, and it carries no prior term — so a
-        # station picked as the reference is not pulled toward the reference value.
+        # A wrapped chain drops reference-fixed stamps: the transition spans the gap and
+        # the fixed value has no prior term.
         let indsg = collect(1:6), tsg = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5]
             spw = GaussMarkovSitePrior(ScanSeg(), pw; init = UniformInit())
             spr = GaussMarkovSitePrior(ScanSeg(), p)
@@ -503,17 +486,14 @@ end
             end
             @test lp(spw, 0.0) ≈ lp(spw, 2.5)
             @test !(lp(spr, 0.0) ≈ lp(spr, 2.5))
-            # a FixedInit chain's opening value states where the chain starts rather than
-            # a gauge, so it is retained and stays conditioned on
+            # a FixedInit opening value is kept and conditioned on
             spf = GaussMarkovSitePrior(ScanSeg(), pw; init = FixedInit(0.0))
             cf = Comrade._chainspec(spf, :a, indsg, tsg, [1, 4])
             @test cf.inds == [1, 2, 3, 5, 6] && cf.fsub.inds == [1]
             # fused remainder of a FixedInit chain is exactly zero for any values
             df = Comrade.GaussMarkovChainDist((AA = cf,), cf.fsub.inds, [0.0], 6)
             @test iszero(logpdf(df, [0.0, 0.4, -0.9, 99.0, 1.2, 0.3]))
-            # a site that is the reference at *every* one of its stamps has an empty chain:
-            # it contributes no coordinates and no prior term, and `rand` leaves the
-            # reference values `_fill_fixed!` placed
+            # a site fixed at every stamp has an empty chain; `rand` keeps its fixed values
             ca = Comrade._chainspec(spw, :a, indsg, tsg, collect(1:6))
             @test isempty(ca.inds) && Comrade._nfree(ca) == 0
             da = Comrade.GaussMarkovChainDist((AA = ca,), indsg, fill(0.3, 6), 6)
@@ -543,8 +523,8 @@ end
         @test Q ≈ σw^2 * (1 - Φ^2)
         @test keys(Comrade.hyperprior(Comrade.WrappedOrnsteinUhlenbeck(σ = Exponential(0.2), τ = 2.0))) == (:σ,)
 
-        # the shortest-arc drift is what makes this a *circular* kernel: the transition
-        # law is a normalized density on the circle and is 2π-periodic in BOTH arguments
+        # with the shortest-arc drift the transition law is a normalized density on the
+        # circle, 2π-periodic in both arguments
         θgrid = range(-π, π; length = 20_001)[1:(end - 1)]
         ker(p, xi, xp, Δt) = exp(Comrade._transition_logpdf(p, xi, xp, Δt, Comrade._process_mean(p)))
         for xp in (-3.0, -0.5, 0.9, 3.1), Δt in (0.1, 1.0, 20.0)
@@ -569,11 +549,9 @@ end
             @test errs[2] < 100 * eps() + errs[1] / 50   # falls off as 1/σ²
         end
 
-        # WN(μ, σ²) really is the stationary marginal, and the kernel composes over a
-        # skipped time stamp — the two properties the refant conditioning relies on. Both
-        # are exact only up to the WN mass beyond μ ± π, so they hold to machine precision
-        # at σ = 0.3 and degrade smoothly with σ (see the WrappedOrnsteinUhlenbeck
-        # docstring); the σ = 2 figure is the documented ceiling.
+        # WN(μ, σ²) is the stationary marginal and the kernel composes over a skipped
+        # stamp. Both hold up to the WN mass beyond μ ± π, so the error grows with σ;
+        # the σ = 2 bound is the one in the WrappedOrnsteinUhlenbeck docstring.
         wn(p, δ) = exp(Comrade._wn_logpdf(δ, p.σ^2))
         push0 = map(θgrid) do xi
             sum(θ -> ker(pr, xi, θ, 0.9) * wn(pr, θ - μw), θgrid) * step(θgrid)
@@ -590,8 +568,8 @@ end
         @test comperr(Comrade.WrappedOrnsteinUhlenbeck(σ = 1.0, τ = τw2), 0.7, 1.3, 0.4) < 1.0e-4
         @test comperr(Comrade.WrappedOrnsteinUhlenbeck(σ = 2.0, τ = τw2), 0.7, 1.3, 0.4) < 5.0e-3
 
-        # sheet weights still sum to exactly one, now around the mean-reverting centre,
-        # and the first point's weights sum to one over the WN(μ, σ²) window
+        # sheet weights sum to one around the mean-reverting center, and the first
+        # point's weights sum to one over the WN(μ, σ²) window
         for Δt in (0.05, 1.0, 8.0), xp in (-2.0, 0.4, 2.7)
             tot = sum(m -> exp(Comrade._sheet_logweight(pr, 0.37 + 2π * m, xp, Δt, μw)), -40:40)
             @test tot ≈ 1 rtol = 1.0e-12
@@ -600,12 +578,11 @@ end
             tot = sum(m -> exp(Comrade._init_sheet_logweight(StationaryInit(), pr, φ + 2π * m)), -40:40)
             @test tot ≈ 1 rtol = 1.0e-12
         end
-        # the window of a FixedInit chain-opening point is never used (such a point is
-        # always reference-fixed) and must stay finite rather than 0 * NaN
+        # the unused window of a FixedInit opening point is finite, not 0 * NaN
         @test isfinite(Comrade._init_sheet_logweight(FixedInit(0.0), pr, 0.3))
 
-        # construction rules: uniform is NOT the stationary law of a mean-reverting
-        # circular process, so it is rejected; StationaryInit is now the default
+        # construction rules: uniform is not the stationary law here, so it is rejected;
+        # StationaryInit is the default
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pr; init = UniformInit())
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pr; init = GaussianInit(0.0, 1.0))
         @test GaussMarkovSitePrior(ScanSeg(), pr).param isa Comrade.Centered
@@ -652,9 +629,8 @@ end
             @test all(abs.(vr) .<= π + 1.0e-8)
         end
 
-        # centered flat lift: the raw angles, sheet-weighted, and the inverse unwraps
-        # *pointwise* (the transition mean is periodic in the previous angle, so there is
-        # no sheet to carry) onto the sheet the weights favour
+        # centered flat lift: sheet-weighted raw angles; the inverse unwraps each point
+        # independently, since the transition mean is periodic in the previous angle
         nodew = Comrade.PT.transport_node(dr, Comrade.PT.TVFlat())
         @test TV.dimension(nodew) == nr
         θin = 2π .* rand(rngr, nr) .- π
@@ -672,8 +648,8 @@ end
             Φk, _ = Comrade.transition_moments(pr, tsr[k] - tsr[k - 1])
             @test abs(zw[k] - Comrade._cond_mean(pr, θw[k - 1], Φk, μw)) ≤ π + 1.0e-12
         end
-        # the lift is proper — no 2π lattice — and its pushforward onto the circle is
-        # exactly the chain density, with and without scattered reference-fixed points
+        # the lift is proper and its pushforward onto the circle is the chain density,
+        # with and without reference-fixed points
         for (fpos, fvals) in ((Int[], Float64[]), ([2], [0.4]), ([1, 4], [0.0, -1.2]))
             sp5 = Comrade.MarkovChainSpec(pr, StationaryInit(), Val(nothing), 1:5, tsr[1:5], fpos, Centered())
             d5 = Comrade.GaussMarkovChainDist((AA = sp5,), collect(fpos), fvals, 5)
@@ -719,9 +695,8 @@ end
             Comrade.transition_moments(Comrade.WrappedOrnsteinUhlenbeck(σ = σv, τ = τv), 0.5)
         @test keys(Comrade.hyperprior(Comrade.VonMisesProcess(σ = Exponential(0.2), τ = 2.0))) == (:σ,)
 
-        # the sine drift: 2π-equivariant (carries the previous point's sheet — the
-        # property that admits the non-centered lift), monotone (a circle diffeomorphism),
-        # and within (1 − Φ)|ε|³/6 of the shortest-arc drift inside the linear regime
+        # the sine drift is 2π-equivariant, monotone, and within (1 − Φ)|ε|³/6 of the
+        # shortest-arc drift for small ε
         pw = Comrade.WrappedOrnsteinUhlenbeck(σ = σv, τ = τv, μ = μv)
         for Δt in (0.1, 1.0, 20.0), xp in (-3.0, -0.5, 0.9, 3.1)
             Φ, _ = Comrade.transition_moments(pv, Δt)
@@ -734,7 +709,7 @@ end
         end
 
         # the transition law is a normalized circular kernel, 2π-periodic in both
-        # arguments, exactly as for the shortest-arc process
+        # arguments, as for the shortest-arc process
         θgrid = range(-π, π; length = 20_001)[1:(end - 1)]
         ker(p, xi, xp, Δt) = exp(Comrade._transition_logpdf(p, xi, xp, Δt, Comrade._process_mean(p)))
         for xp in (-3.0, 0.9), Δt in (0.1, 1.0)
@@ -744,16 +719,15 @@ end
             @test ℓ ≈ Comrade._transition_logpdf(pv, 0.7, xp - 2π, Δt, μv)
         end
 
-        # construction rules: NonCentered is the default (the point of the process);
-        # uniform is not its stationary law; the wrapped-only forms behave as for WOU
+        # construction rules: NonCentered is the default; uniform is rejected; the
+        # wrapped-only forms behave as for WOU
         @test GaussMarkovSitePrior(ScanSeg(), pv).param isa Comrade.NonCentered
         @test GaussMarkovSitePrior(ScanSeg(), pv).init isa StationaryInit
         @test GaussMarkovSitePrior(ScanSeg(), pv; centered = true).param isa Comrade.Centered
         @test GaussMarkovSitePrior(ScanSeg(), pv; param = AngleEmbedded()).param isa Comrade.AngleEmbedded
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pv; init = UniformInit())
         @test_throws ArgumentError GaussMarkovSitePrior(ScanSeg(), pv; init = GaussianInit(0.0, 1.0))
-        # ... while the shortest-arc process still rejects NonCentered, and the error
-        # points at this process as the whitened alternative
+        # the shortest-arc process rejects NonCentered and names VonMisesProcess instead
         @test_throws "VonMisesProcess" GaussMarkovSitePrior(ScanSeg(), pw; centered = false)
 
         nv = 8
@@ -761,8 +735,8 @@ end
         indsv = collect(1:nv)
         rngv = Random.Xoshiro(23)
 
-        # the chain density is exactly 2π-periodic in every point, and close to the
-        # shortest-arc chain density on an in-regime (prior-drawn) chain
+        # the chain density is 2π-periodic in every point and close to the shortest-arc
+        # chain density on a prior draw
         specn = Comrade.MarkovChainSpec(pv, StationaryInit(), Val(nothing), indsv, tsv, Int[], NonCentered())
         dn = Comrade.GaussMarkovChainDist((AA = specn,), Int[], Float64[], nv)
         xv = Vector{Float64}(undef, nv)
@@ -775,9 +749,8 @@ end
         end
         @test abs(ℓv - Comrade._gm_chain_logpdf(pw, StationaryInit(), xv, indsv, tsv)) < 0.05
 
-        # non-centered flat lift: the angles are the wrapped running recurrence
-        # θₖ = wrap(m(θₖ₋₁) + √Q zₖ) — resolved sequentially, not by the affine scan,
-        # which this chain must therefore not claim slots in
+        # non-centered flat lift: θₖ = wrap(m(θₖ₋₁) + √Q zₖ), computed sequentially, so the
+        # chain takes no affine-scan slots
         @test isempty(Comrade._scan_tgt(specn))
         noden = Comrade.PT.transport_node(dn, Comrade.PT.TVFlat())
         @test TV.dimension(noden) == nv
@@ -791,8 +764,8 @@ end
             push!(θman, φ)
         end
         @test θn ≈ θman
-        # the fused flat target: exactly N(0, 1) per stepping point plus the raw-angle
-        # chain opening (its WN marginal in `logpdf`, its sheet weight in the transform)
+        # flat target: N(0, 1) per step plus the opening point's WN marginal (in `logpdf`)
+        # and sheet weight (in the transform)
         @test logpdf(dn, θn) + ℓn ≈
             Comrade._wn_logpdf(zn[1] - μv, σv^2) +
             Comrade._init_sheet_logweight(StationaryInit(), pv, zn[1]) +
@@ -802,8 +775,7 @@ end
         TV.inverse_at!(zi, 1, noden, θn)
         θr, _, _ = TV.transform_with(TV.LogJac(), noden, zi, 1)
         @test θr ≈ θn
-        # ... and the sheets sum to the circular chain density: the flat lift carries
-        # exactly the wrapped model
+        # summed over sheets, the lift gives the circular chain density
         let ts2 = [0.0, 0.8], (Φ2, Q2) = Comrade.transition_moments(pv, 0.8), sq = sqrt(Q2)
             sp2 = Comrade.MarkovChainSpec(pv, StationaryInit(), Val(nothing), [1, 2], ts2, Int[], NonCentered())
             d2 = Comrade.GaussMarkovChainDist((AA = sp2,), Int[], Float64[], 2)
@@ -818,8 +790,7 @@ end
             @test tot ≈ exp(Comrade._wn_logpdf(θa - μv, σv^2) + Comrade._wn_logpdf(θb - m2, Q2)) rtol = 1.0e-9
         end
 
-        # Enzyme gradient of the fused flat density matches finite differences: the
-        # loop-carried recurrence is smooth in every coordinate
+        # Enzyme gradient of the flat density matches finite differences
         let node = noden, d = dn
             f = z -> begin
                 y, ℓ, _ = TV.transform_with(TV.LogJac(), node, z, 1)
@@ -830,8 +801,8 @@ end
             @test gz ≈ gfd rtol = 1.0e-6
         end
 
-        # centered flat lift: raw sheet-weighted angles; the inverse resolves the
-        # nonlinear unwrap recurrence and lands every step within π of its own mean
+        # centered flat lift: sheet-weighted raw angles; the inverse puts every step
+        # within π of its own mean
         specc = Comrade.MarkovChainSpec(pv, StationaryInit(), Val(nothing), indsv, tsv, Int[], Centered())
         dc = Comrade.GaussMarkovChainDist((AA = specc,), Int[], Float64[], nv)
         nodec = Comrade.PT.transport_node(dc, Comrade.PT.TVFlat())
@@ -856,8 +827,7 @@ end
             @test tot ≈ 1 rtol = 1.0e-12
         end
 
-        # a FixedInit chain steps off its (reference-fixed) opening value through the
-        # sine drift; the fused remainder is exactly zero
+        # a FixedInit chain starts from its fixed opening value; the fused remainder is zero
         let spf = GaussMarkovSitePrior(ScanSeg(), pv; init = FixedInit(0.0))
             cf = Comrade._chainspec(spf, :a, indsv, tsv, [1])
             @test cf.inds == indsv && cf.fsub.inds == [1]
@@ -877,8 +847,7 @@ end
             @test yfr ≈ yf
         end
 
-        # interior reference-fixed stamps are a gauge: dropped from the chain, with the
-        # transition composed over the gap, as for every wrapped process
+        # interior reference-fixed stamps are dropped and the transition spans the gap
         let spv = GaussMarkovSitePrior(ScanSeg(), pv)
             cg = Comrade._chainspec(spv, :a, indsv, tsv, [2, 5])
             @test cg.inds == [1, 3, 4, 6, 7, 8]
@@ -886,8 +855,8 @@ end
             @test cg.free.dtl[2] ≈ tsv[3] - tsv[1]
         end
 
-        # the batched group walkers agree with the per-chain ones (the group path is what
-        # Reactant traces), including per-site numeric overrides read through the gather
+        # batched group walkers (the path Reactant traces) agree with the per-chain ones,
+        # including per-site numeric overrides
         let inds2 = collect((nv + 1):(2nv)), pv2 = Comrade.VonMisesProcess(σ = 0.5, τ = 3.0, μ = μv)
             spa = Comrade.MarkovChainSpec(pv, StationaryInit(), Val(nothing), indsv, tsv, Int[], NonCentered())
             spb = Comrade.MarkovChainSpec(pv2, StationaryInit(), Val(nothing), inds2, tsv, Int[], NonCentered())
@@ -911,8 +880,8 @@ end
                 Comrade.chain_term(spa, yh, (;)) + Comrade.chain_term(spb, yh, (;))
         end
 
-        # fitted hyperparameters materialize through the fused flat path: whitened, the
-        # coordinates are σ-independent standard variates, so only the opening changes
+        # fitted hyperparameters: the whitened coordinates do not depend on σ, so only the
+        # opening term changes
         let ph = Comrade.VonMisesProcess(σ = Exponential(0.3), τ = τv, μ = μv)
             sph = Comrade.MarkovChainSpec(ph, StationaryInit(), Val(:AA), indsv, tsv, Int[], NonCentered())
             dh = Comrade.GaussMarkovChainDist((AA = sph,), Int[], Float64[], nv)
@@ -1013,9 +982,8 @@ end
     end
 
     @testset "hierarchical PosteriorSamples postprocessing" begin
-        # Exercises the caltable/rmap/siteparams path the StokesI example advertises:
-        # samples are `(params, hyperparams)` NamedTuples that must round-trip through
-        # PosteriorSamples' StructArray conversion and reduce with `rmap`.
+        # `(params, hyperparams)` samples pass through PosteriorSamples, `rmap`, `caltable`,
+        # and `siteparams`
         post = VLBIPosterior(skym, gmint_fitted(), dvis)
         samples = [prior_sample(rng, post) for _ in 1:20]
         chain = Comrade.PosteriorSamples(samples, nothing; metadata = Dict(:sampler => :prior))
@@ -1034,7 +1002,7 @@ end
 
         # instrumentmodel accepts the reduced hierarchical chain (siteparams strips hyperparams)
         @test instrumentmodel(post, mchain) isa Comrade.SiteArray
-        # the example's mean/std combine: siteparams unwraps both before the elementwise op
+        # combining mean and std: siteparams unwraps both before the elementwise op
         combined = map(
             (x, y) -> Comrade.siteparams(x) .+ Comrade.siteparams(y),
             mchain.instrument, schain.instrument,
@@ -1043,9 +1011,7 @@ end
     end
 
     @testset "empty-group PosteriorSamples (zero-field StructArray guard)" begin
-        # regression: an empty NamedTuple leaf (e.g. a sky group with no fitted params)
-        # must not error in PosteriorSamples' StructArray conversion (fieldcount guard in
-        # `_convert2structarr`).
+        # an empty NamedTuple leaf (a group with no fitted parameters)
         raw = [(a = i * 1.0, empty = NamedTuple()) for i in 1:5]
         ps = Comrade.PosteriorSamples(raw, nothing)
         @test length(Comrade.postsamples(ps)) == 5
@@ -1126,8 +1092,8 @@ end
         tp = asflat(post)
         @test isfinite(logdensityof(tp, prior_sample(rng, tp)))
 
-        # regression: an IID override on the reference site has every point fixed, so its
-        # chain term is a sum over an empty index set (previously threw an ArgumentError)
+        # an IID override on the reference site has every point fixed, so its chain term
+        # is an empty sum
         @instrument function gmint_iidrefover()
             return @jones begin
                 gp ~ ArrayPrior(
@@ -1146,10 +1112,8 @@ end
     end
 
     @testset "whitened flat density identity" begin
-        # Under exact whitening the flat density of the transported prior restricted to
-        # the z block is standard normal: perturbing only the z coordinates changes the
-        # flat log-density by exactly −Δ‖z‖²/2. This pins down both the coloring map and
-        # its Jacobian, including the hyperparameter coupling and refant conditioning.
+        # Under whitening the flat prior is standard normal in z: changing only z shifts
+        # the flat log density by −Δ‖z‖²/2. This checks the coloring map and its Jacobian.
         post = VLBIPosterior(skym, gmint_fitted(), dvis)
         nsite = length(Comrade.sites(dvis))
         for (name, nhp) in ((:lg, 2nsite), (:gp, nsite))  # number of hyperparameter coordinates
@@ -1210,8 +1174,7 @@ end
     end
 
     @testset "bounded IID override under GM default" begin
-        # regression: IID overrides must use their own transform (an identity transform
-        # would expose latents outside a bounded support)
+        # IID overrides use their own transform, which keeps bounded supports bounded
         @instrument function gmint_boundover()
             return @jones begin
                 lg ~ ArrayPrior(
@@ -1254,11 +1217,9 @@ end
     end
 
     @testset "hyperparameter recovery (conditional)" begin
-        # Simulate gains from a known OU process and check the conditional hyperparameter
-        # posterior at the true gains peaks near the truth. (The *joint* MAP is not a
-        # valid check here: maximizing a centered hierarchical model over params and
-        # hyperparams jointly is a degenerate variance-component estimate. Full NUTS
-        # recovery was verified out-of-band; it is too slow for CI.)
+        # Gains simulated from a known OU process: the hyperparameter posterior conditional
+        # on the true gains peaks near the truth. A joint MAP over gains and hyperparameters
+        # is degenerate for a hierarchical model, so it is not a valid check.
         rrng = Random.Xoshiro(7)
         @instrument function gmint_rec()
             return @jones begin
@@ -1294,8 +1255,8 @@ end
     end
 
     @testset "FixedInit chains" begin
-        # FixedInit(0.0) conditions every site's chain to zero at its first time, killing
-        # the level redundancy with a separate (circular) offset term
+        # FixedInit(0.0) fixes every site's chain to zero at its first time, removing the
+        # level degeneracy with a separate circular offset term
         @instrument function gmint_anch()
             return @jones begin
                 gp0 ~ ArrayPrior(IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2))))
@@ -1319,8 +1280,8 @@ end
         @test Comrade.inverse(tp, y) ≈ xf
         @test all(inds -> iszero(parent(y.instrument.dgp.params)[first(inds)]), chinds)
 
-        # FixedInit chains are whitened like any other; ascube works (checked without the
-        # circular offset term, which correctly refuses Std transport)
+        # ascube works for FixedInit chains (checked without the circular offset term,
+        # which refuses Std transports)
         @instrument function gmint_anchonly()
             return @jones begin
                 dgp ~ ArrayPrior(
@@ -1337,7 +1298,7 @@ end
         yc = Comrade.transform(tpc, xc)
         @test Comrade.inverse(tpc, yc) ≈ xc
 
-        # FixedInit + centered + fitted hyperparameters (the recommended phase setup)
+        # FixedInit + centered + fitted hyperparameters
         @instrument function gmint_anchcent()
             return @jones begin
                 dgp ~ ArrayPrior(
@@ -1376,8 +1337,7 @@ end
         y = Comrade.transform(tp, prior_sample(rng, tp))
         @test all(inds -> parent(y.instrument.lg)[first(inds)] == 0.3, chinds)
 
-        # a reference scheme that fixes a chain's first point to a different value than
-        # FixedInit is a conflict, not a silent precedence
+        # a reference value that disagrees with FixedInit at the first point is an error
         @instrument function gmint_conflict()
             return @jones begin
                 gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0); init = FixedInit(0.3)); refant = SEFDReference(0.0))
@@ -1454,9 +1414,8 @@ end
     end
 
     @testset "WrappedBrownian phase posterior" begin
-        # a fully circular phase prior: UniformInit absorbs the per-track offset, so no
-        # separate circular offset term is needed. Wrapped chains default to the centered
-        # raw-angle coordinates, made proper by the sheet weights.
+        # a circular phase prior; UniformInit covers the per-track offset, so no separate
+        # offset term is needed
         @instrument function gmint_wb()
             return @jones begin
                 gp ~ ArrayPrior(
@@ -1471,8 +1430,7 @@ end
         @test all(h -> keys(h) == (:τ,), values(s.instrument.gp.hyperparams))
         @test isfinite(logdensityof(post, s))
 
-        # the *model* is exactly invariant under a 2π shift of any single free phase —
-        # the sheet weights live in the flat lift and leave this untouched
+        # the model is invariant under a 2π shift of any free phase
         freeinds = setdiff(1:length(post.prior.instrument.gp.dists), post.prior.instrument.gp.dists.fixedinds)
         s2 = deepcopy(s)
         parent(s2.instrument.gp.params)[first(freeinds)] += 2π
@@ -1488,8 +1446,7 @@ end
 
         xf = prior_sample(rng, tp)
         @test isfinite(logdensityof(tp, xf))
-        # the coloring wraps, so the roundtrip identity is `transform ∘ inverse` on the
-        # angles (the sheet an angle came from is not recoverable from it)
+        # the coloring wraps, so the roundtrip is checked as `transform ∘ inverse`
         y = Comrade.transform(tp, xf)
         @test all(θ -> -π - 1.0e-12 ≤ θ ≤ π + 1.0e-12, parent(y.instrument.gp.params))
         y2 = Comrade.transform(tp, Comrade.inverse(tp, y))
@@ -1500,20 +1457,15 @@ end
                 values(y2.instrument.gp.hyperparams), values(y.instrument.gp.hyperparams)
             )
         )
-        # The flat lift is *proper*: the sheet weights break the exact 2π periodicity a
-        # raw-angle coordinate would otherwise have, so a 2π shift of a free phase
-        # coordinate is strongly suppressed rather than free, and the density decays in
-        # the tails instead of repeating forever.
+        # the flat lift is proper: the sheet weights break the 2π periodicity
         jc = LogDensityProblems.dimension(tp)
         ℓ0 = logdensityof(tp, xf)
         shift(δ) = (z = copy(xf); z[jc] += δ; logdensityof(tp, z))
-        # the exact 2π periodicity is gone — that was the bug, and it made the flat
-        # target an infinite lattice of identical modes. Assert only that the symmetry
-        # is broken, not its sign: `jc` need not be a phase coordinate, and a prior
-        # sample need not sit on the sheet the weights favour.
+        # Only the symmetry breaking is checked, not its sign: `jc` need not be a phase
+        # coordinate, and a prior sample need not sit on the favored sheet.
         @test !isapprox(shift(2π), ℓ0)
         @test !isapprox(shift(-2π), ℓ0)
-        # and the lift is proper: it decays far out instead of repeating forever
+        # the density decays far from the origin
         @test shift(40π) < ℓ0 - 10
         @test shift(-40π) < ℓ0 - 10
         # wrapped chains refuse the Std transports
@@ -1546,13 +1498,11 @@ end
             @test LogDensityProblems.dimension(tpe) == skydim + nsites + 2 * nfreew
             xe = prior_sample(rng, tpe)
             @test isfinite(logdensityof(tpe, xe))
-            # the angle embedding is not injective (the latent radius is dropped on
-            # inverse), so the roundtrip identity holds through the constrained space
+            # the embedding drops the latent radius, so the roundtrip is checked on angles
             ye = Comrade.transform(tpe, xe)
             ye2 = Comrade.transform(tpe, Comrade.inverse(tpe, ye))
             @test parent(ye2.instrument.gp.params) ≈ parent(ye.instrument.gp.params)
-            # the embedding has no sheet structure at all: the flat target is a function
-            # of the angle only, so scaling a latent pair is pure radial freedom
+            # the flat target depends only on the angle, so scaling a latent pair is free
             @test_throws ArgumentError ascube(poste)
 
             fe = let tpe = tpe
@@ -1565,9 +1515,7 @@ end
     end
 
     @testset "WrappedOrnsteinUhlenbeck ratio-phase posterior" begin
-        # the mean-reverting circular process: one chain replaces the
-        # WrappedBrownian-with-FixedInit plus separate circular offset pair, and σ — not
-        # an unbounded random walk — sets how far the phase may stray from its mean.
+        # a mean-reverting circular process: σ bounds how far the phase strays from its mean
         @instrument function gmint_wou()
             return @jones begin
                 gp ~ ArrayPrior(
@@ -1587,7 +1535,7 @@ end
         # prior draws land on the circle
         @test all(θ -> -π - 1.0e-8 ≤ θ ≤ π + 1.0e-8, parent(s.instrument.gp.params))
 
-        # the *model* is exactly invariant under a 2π shift of any single free phase
+        # the model is invariant under a 2π shift of any free phase
         freeinds = setdiff(1:length(post.prior.instrument.gp.dists), post.prior.instrument.gp.dists.fixedinds)
         s2 = deepcopy(s)
         parent(s2.instrument.gp.params)[first(freeinds)] += 2π
@@ -1660,12 +1608,9 @@ end
     end
 
     @testset "batched chain groups reproduce the per-chain walkers" begin
-        # Every per-evaluation walker runs over `chaingroups(d)` — the chains concatenated
-        # into `MarkovGroup`s — rather than once per chain. That is a pure execution
-        # change: the batched path must agree with the per-chain one to the last bit, for
-        # the chain log-density, the flat coloring and its log-Jacobian, the flat
-        # whitening, and both Std transports. The per-chain walkers stay reachable (the
-        # sampler uses them) and serve as the reference here.
+        # The batched walkers over `chaingroups(d)` match the per-chain walkers for the
+        # chain log density, flat coloring and its log-Jacobian, flat whitening, and both
+        # Std transports.
         perchain(dd, xx, hh) = sum(Comrade.chain_term(sp, xx, hh) for sp in values(Comrade.chainspecs(dd)))
 
         function mkdist(procs, init, par, n; fixed, hpnames)
@@ -1718,10 +1663,8 @@ end
             ("WB fitted noncentered", rep(WBh), UniformInit(), NonCentered(), allfix([2]), sites),
             ("WOU stationary", rep(WOU), StationaryInit(), Centered(), allfix(Int[]), nothing),
             ("WOU refant", rep(WOU), StationaryInit(), Centered(), allfix([1, 4]), nothing),
-            # heterogeneous groups: the two things a group is allowed to differ on.
-            # Per-site *numeric* process fields are read per point from `numvals`, so a
-            # site whose σ or τ is overridden still shares one group; getting that wrong
-            # would silently apply the first member's parameters to every chain.
+            # chains with different numeric σ or τ share one group; each reads its own values
+            # from `numvals`
             (
                 "mixed numeric fields",
                 (
@@ -1730,9 +1673,8 @@ end
                 ),
                 StationaryInit(), NonCentered(), allfix(Int[]), nothing,
             ),
-            # Mixed `hasfix`: a chain with no reference-fixed points carries `mskf = 0`,
-            # and `_bridge_weights(Q₁, 0, 1)` collapses exactly to the one-sided
-            # conditional, so it may share a group with chains that do have them.
+            # chains with and without reference-fixed points share a group: with `mskf = 0`,
+            # `_bridge_weights(Q₁, 0, 1)` reduces to the one-sided conditional
             ("mixed refant", rep(OU), StationaryInit(), NonCentered(), ([2], Int[], [1, 5], Int[]), nothing),
             ("mixed refant wrapped", rep(WB), UniformInit(), Centered(), (Int[], [3], Int[], [2, 6]), nothing),
             ("mixed refant wrapped nc", rep(WB), UniformInit(), NonCentered(), (Int[], [3], Int[], [2, 6]), nothing),
@@ -1741,7 +1683,7 @@ end
         for (nm, procs, init, par, fixed, hpn) in cases
             d = mkdist(procs, init, par, n; fixed, hpnames = hpn)
             @testset "$nm" begin
-                # every chain lands in a single group — that is the whole point
+                # every chain lands in a single group
                 @test length(Comrade.chaingroups(d)) == 1
                 @test Comrade._nfree(only(Comrade.chaingroups(d))) ==
                     sum(Comrade._nfree, values(Comrade.chainspecs(d)))
@@ -1806,9 +1748,8 @@ end
             end
         end
 
-        # Chains that disagree on the process type, the init, or `centered` must NOT be
-        # merged — the loop bodies dispatch on all three — and only *adjacent* compatible
-        # chains are merged, so the flat coordinate layout is unchanged.
+        # Chains that differ in process type, init, or `centered` are not merged, and only
+        # adjacent chains are merged, so the flat coordinate layout is unchanged.
         @testset "grouping boundaries" begin
             mixed = (
                 c1 = Comrade.MarkovChainSpec(OU, StationaryInit(), Val(nothing), 1:4, collect(0.1:0.1:0.4), Int[], NonCentered()),
@@ -1826,10 +1767,7 @@ end
     end
 
     @testset "chain times are absolute and on the data's clock" begin
-        # `spec.ts` must live on the same clock as the data's `Ti`, with one origin
-        # shared by every site. They used to be hours relative to each chain's *own*
-        # first point, so `ts[1]` was always 0.0, `spec.ts` could not be matched against
-        # `Ti`, and two sites' times were not comparable to each other.
+        # `spec.ts` uses the data's `Ti` clock, with one origin shared by every site
         dtab = Comrade.datatable(arrayconfig(dvis))
         function _specs(seg, centered)
             sp = GaussMarkovSitePrior(seg, Comrade.WrappedBrownian(τ = 2.0); init = UniformInit(), centered = centered)
@@ -1840,13 +1778,13 @@ end
             specst = _specs(seg, true)
             for (site, sp) in pairs(specst)
                 st = sort(unique(dtab.Ti[findall(b -> site in b, dtab.sites)]))
-                # absolute: no chain starts at 0 here (the data start at ~0.58 h), and
-                # every chain time lies inside that site's observed time span
+                # the data start at ~0.58 h, so no chain starts at 0; every chain time lies
+                # within the site's observed span
                 @test !iszero(first(sp.ts))
                 @test all(t -> minimum(st) - 1.0e-8 ≤ t ≤ maximum(st) + 1.0e-8, sp.ts)
                 @test issorted(sp.ts) && allunique(sp.ts)
                 if exact
-                    # one parameter per integration: chain times ARE datum times
+                    # one parameter per integration: chain times are datum times
                     @test all(t -> any(u -> isapprox(u, t; atol = 1.0e-8), st), sp.ts)
                     @test first(sp.ts) ≈ first(st)
                 end

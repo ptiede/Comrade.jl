@@ -34,7 +34,7 @@ In both spaces the log density is ``\ell(x) = \log p(y \mid T(x)) + \log \pi(x)`
 latent point. A move that leaves the likelihood unchanged ([`likelihood_invariant`](@ref)) is
 accepted using only the change in ``\log \pi`` and the log-determinant, without evaluating
 the likelihood. In the standard normal space ``\log \pi(x)`` is
-``-\lVert x \rVert^2/2`` up to a constant, so this costs nothing; in the flat space it is
+``-\lVert x \rVert^2/2`` up to a constant, which needs no evaluation of ``T``; in the flat space it is
 the prior density of ``T(x)`` times the Jacobian of ``T``. After a call that accepted such a
 move, [`MoveSet`](@ref) evaluates ``\ell`` once and throws an error if it differs from the
 value implied by the accepted moves. Moves with a [`ComponentwiseNormalStep`](@ref) must
@@ -158,8 +158,8 @@ state.
 With a device position, moves that are [`traceable`](@ref) propose inside one compiled
 Reactant program per call, and the position stays on the device. Other moves propose on
 the host from a copy of the position, with `ctx.view` over the host posterior the `MoveSet`
-was built from rather than the device posterior; their log density is still evaluated on
-the device.
+was built from rather than the device posterior; their log density is evaluated on the
+device.
 
 The method `ms(state, tpost, info, rng)` is the `between_chunks` form used by
 `ReactantNUTS`. It updates `state.position` and reads `phase`, `step`, `total`, and
@@ -200,8 +200,7 @@ The step distribution determines the step that `propose` receives and what it mu
 | [`SymmetricDiscreteStep`](@ref)`(draw, reverse)` | `draw(rng)`                              | `(x′, logdet)`                         | `reverse(step)` |
 
 Here `logdet = log|det ∂x′/∂x|`. Proposing with the reverse step from `x′` must return `x`
-with log-determinant `-logdet`. `propose` must not
-modify `x`.
+with log-determinant `-logdet`. `propose` must not modify `x`.
 
 A componentwise move also implements [`component_coords`](@ref)`(move)`, the latent
 coordinates each component changes. These sets must be disjoint, and component `i` of the
@@ -230,8 +229,8 @@ Optional methods:
     [`update_context!`](@ref) overwrites them in place, including the copies used by a
     compiled device program.
   - [`traceable`](@ref)`(move)` (default `false`): declares that `propose` compiles with
-    Reactant. A traceable move has a `NormalStep` and reads every array it
-    needs from `ctx` instead of capturing host objects.
+    Reactant. A traceable move has a `NormalStep` and reads every array it needs
+    from `ctx` instead of capturing host objects.
 
 ### A compensated move
 
@@ -303,8 +302,7 @@ At each point in `θs` it checks:
     over the coordinates the proposal changes;
   - invariance: a move flagged [`likelihood_invariant`](@ref) leaves the log-likelihood
     unchanged;
-  - components: for a componentwise move, the check verifies that the
-    components are independent.
+  - components: for a componentwise move, the components are independent.
 
 Two statistical tests are optional:
 

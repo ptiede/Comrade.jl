@@ -21,11 +21,9 @@ _argsig(::Any) = ()
 _asblock(body) = (body isa Expr && body.head === :block) ? body : Expr(:block, body)
 
 # Emit a fresh named function `_<base><suffix><k>(argsig...) = body` into `defs` and return its
-# name. Whether the definition ends up at top level or nested inside `_<name>_jones` is decided
-# later by `_partition_fndefs` — see the note there on why that distinction matters.
-# The body gets an inline meta (what `Base.@inline` lowers to): these functions are called
-# per-site/per-visibility in hot loops, and under Reactant a non-inlined call is an opaque
-# barrier to tracing.
+# name. `_partition_fndefs` decides whether it is placed at top level or inside
+# `_<name>_jones`. The body is marked inline: these functions run per site or per
+# visibility, and under Reactant a call that is not inlined is opaque to tracing.
 function _emit_fn!(defs, base, suffix, counter, argsig, body)
     counter[] += 1
     fname = Symbol("_", base, suffix, counter[])
@@ -39,15 +37,12 @@ end
 _fndef_name(def) = def.args[1].args[1]
 _fndef_body(def) = def.args[2]
 
-# Every name the instrument body binds, so we can tell "closes over a local" from "refers to a
-# global". Over-collecting is harmless: it only forces a definition to stay nested, which is the
-# conservative (previous) behaviour. Under-collecting is NOT harmless — a missed binding lets
-# `_partition_fndefs` hoist a definition that closes over it, breaking it at evaluation time —
-# so every binding form conservatively collects *every* symbol on its binding side
-# (`_collect_lhs_symbols!`). That over-approximates the bound names for destructures
-# (`(; a, b) = cfg`), splats (`a, b... = xs`), typed locals (`a::T = x`), indexed/field
-# assignment (`x[i] = v`), and function definitions in both short (`f(x) = 2x`) and long
-# (`function f(x) ... end`) form, all of which the old Symbol/tuple-only matcher missed.
+# Every name the instrument body binds, used to tell captured locals from globals. Collecting
+# too many only keeps a definition nested. Missing one lets `_partition_fndefs` hoist a
+# definition that captures it, which then fails at evaluation time, so every binding form
+# collects every symbol on its left-hand side: destructuring (`(; a, b) = cfg`), splats
+# (`a, b... = xs`), typed locals (`a::T = x`), indexed and field assignment (`x[i] = v`), and
+# function definitions in short and long form.
 _collect_lhs_symbols!(out, s::Symbol) = (push!(out, s); out)
 function _collect_lhs_symbols!(out, e::Expr)
     for a in e.args
@@ -70,9 +65,8 @@ function _collect_assigned!(out, node)
             _collect_lhs_symbols!(out, a)
         end
     elseif node.head === :try
-        # `catch e` binds the exception name, stored in args[2] as a bare Symbol (or
-        # `false` when absent) — the recursive walk below never sees non-Expr nodes,
-        # so it must be collected here.
+        # `catch e` stores the exception name in args[2] as a Symbol (or `false`), which
+        # the recursive walk below skips because it is not an Expr.
         _collect_lhs_symbols!(out, node.args[2])
     end
     for a in node.args
@@ -81,27 +75,20 @@ function _collect_assigned!(out, node)
     return out
 end
 
-# Split the generated definitions into those that can be hoisted to top level and those that
-# must stay nested inside `_<name>_jones`.
+# Split the generated definitions into those that can be placed at top level and those that
+# must stay nested inside `_<name>_jones`. A nested function is a closure with a gensym'd type
+# such as `var"#_gain_pmap_1#37"`, whose number comes from a module-wide counter. The
+# param_map is a type parameter of the Jones term, so a serialized model with such a type
+# fails to deserialize (`UndefVarError`) after any edit that shifts the counter. At top level
+# the type is `typeof(_gain_pmap_1)`, which is stable.
 #
-# This matters for serialization. A function nested inside another is a *closure*, so its type is
-# gensym'd — `var"#_gain_pmap_1#37"` — and that trailing number is a module-global counter fixed
-# at compile time, not part of any name in the source. Because the param_map is a type parameter
-# of the Jones term (`JonesG{var"#_gain_pmap_1#37"}`), it is baked into every serialized model.
-# Editing *unrelated* code earlier in the module shifts the counter, and every previously
-# serialized posterior then fails to deserialize with `UndefVarError: #_gain_pmap_1#37`. Hoisted
-# to top level the same function has type `typeof(_gain_pmap_1)`, a stable singleton keyed on a
-# name that actually appears in the source, so serialized models survive recompilation.
-#
-# A definition can be hoisted only if it closes over nothing: it must not mention the enclosing
-# keyword arguments, anything the instrument body assigns, or a sibling definition that itself
-# had to stay nested (hoisting it would leave that sibling out of scope). The last condition is
-# resolved to a fixpoint, since `@jones` blocks nested inside a lifted `do`-block make the
-# combination function reference a param_map by name.
+# A definition can be hoisted only if it captures nothing: no enclosing keyword argument,
+# nothing the instrument body assigns, and no sibling definition that stays nested. The last
+# condition is iterated to a fixpoint, since `@jones` blocks inside a lifted `do`-block make
+# the combination function reference a param_map by name.
 function _partition_fndefs(fndefs, user_kw_names, body_stmts)
     isempty(fndefs) && return (Any[], Any[])
-    # The blocker set only grows: seed it with the enclosing bindings and append each
-    # definition as it is forced to stay nested.
+    # Names that keep a definition nested; nested definitions are added as they are found.
     blockers = Symbol[user_kw_names...]
     push!(blockers, :refbasis)
     _collect_assigned!(blockers, Expr(:block, body_stmts...))
@@ -224,7 +211,7 @@ end
 # or `->`) in the composition to named functions, so the model's `jones_map` is a named
 # (serializable) function rather than a gensym closure. These functions take the assembled
 # Jones matrices as arguments and never reference sampled parameters, so no destructure is
-# needed; `_partition_fndefs` decides afterwards whether each one can sit at top level.
+# needed. `_partition_fndefs` decides where each one is placed.
 #
 # A lifted function's body is kept *verbatim* — we deliberately do not recurse into it. A nested
 # anonymous function inside the body may close over the outer lambda's arguments (e.g.
@@ -324,8 +311,8 @@ function _instrument_impl(fexpr; selfcal::Bool = false)
 
     # `_<name>_jones(; user_kwargs...)` — defines the lifted param_map / combination functions,
     # then runs the (jones-substituted) body, returning the composed `AbstractJonesMatrix`.
-    # Hoist the capture-free generated functions out of `_<name>_jones` so their types are stable
-    # singletons rather than gensym'd closure types (see `_partition_fndefs`).
+    # Capture-free generated functions go at top level so their types are stable (see
+    # `_partition_fndefs`).
     top_fndefs, inner_fndefs = _partition_fndefs(fndefs, user_kw_names, body_stmts)
 
     jones_fn = Expr(
@@ -452,8 +439,8 @@ intm = fullpol(; gain_std = 0.05)
 ```
 
 `@instrument selfcal = true function ...` builds the model with `selfcal = true` (see
-[`InstrumentModel`](@ref)): its Jones terms then omit the station phase, which is the
-self-calibration solution plus the sampled residual `selfcal_residual`.
+[`InstrumentModel`](@ref)). Its Jones terms must then omit the station phase, which the
+model sets to the self-calibration solution plus the sampled residual `selfcal_residual`.
 
 A Stokes-I example is a single block:
 

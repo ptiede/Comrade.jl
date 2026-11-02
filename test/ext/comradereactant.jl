@@ -71,11 +71,10 @@ end
     chain = res.out
     @test length(Comrade.postsamples(chain)) == 100
     @test hasproperty(samplerstats(chain), :numerical_error)
-    # cross-backend contract: per-draw Bool divergence flags (`count`-able by the
-    # default disk callback)
+    # divergence flags are per-draw Bools, as on the other backends
     @test eltype(samplerstats(chain).numerical_error) == Bool
-    # the remaining per-draw stats: the stored log density is that of the flat posterior
-    # at the draw, the step size is frozen after warmup, and the wall time is positive
+    # stored log density is the flat posterior's at the draw; step size is fixed after
+    # warmup; wall time is positive
     let st = samplerstats(chain), tcpu = asflat(post_cpu), ps = Comrade.postsamples(chain)
         @test length(st.log_density) == length(st.step_size) == length(st.time) == 100
         for i in (1, 25, 26, 100)
@@ -118,8 +117,7 @@ end
     c = load_samples(out2)
     @test length(Comrade.postsamples(c)) == 200
 
-    # a fresh run into a directory that already holds a chain warns, clears it, and
-    # starts over; `restart = true` is the way to continue
+    # a fresh run into a directory holding a chain warns and starts over
     out3 = (
         @test_logs (:warn, r"already contains a sampled chain") match_mode = :any sample(
             post, s, 100; saveto = DiskStore(name = dir, stride = 25)
@@ -185,9 +183,8 @@ end
     @test Array(s_resume.inverse_mass_matrix) == Array(s_single.inverse_mass_matrix)
     @test Array(s_resume.position) == Array(s_single.position)
 
-    # Checkpoints land every `checkpoint_every` steps, independently of the chunk length: a
-    # warmup interrupted at step 24 resumes from the checkpoint at step 20 and reproduces the
-    # full-warmup state.
+    # Checkpoints are written every `checkpoint_every` steps regardless of chunk length:
+    # interrupted at step 24, warmup resumes from step 20 and matches the full warmup.
     sckpt, pckpt = tempname(), tempname()
     interrupt = info -> (info.step == 24 && error("interrupted"); nothing)
     @test_throws "interrupted" ext.warmup_chunked(
@@ -221,8 +218,7 @@ end
     post = Comrade.prepare_device(post_cpu, ReactantEx())
     sp = Comrade.PT.StdNormal()
 
-    # MoveSet between NUTS chunks on a device position: the log density is compiled once and
-    # every round is proposed
+    # MoveSet between NUTS chunks on a device position proposes every round
     rwmove = CompensatedMove(
         "f1_rw", CoordinateView(post_cpu, sp), (:sky, :f1), (:sky, :f2), (v, x, x′, ctx) -> v
     )
@@ -238,9 +234,8 @@ end
     @test all(p -> all(isfinite, values(p.sky)), Comrade.postsamples(load_samples(mout)))
     rm(mdir; recursive = true)
 
-    # On a device position a traceable move proposes in a compiled program and a host move
-    # from a copy of the point; both make the same proposals and decisions as the host
-    # kernels on the same random numbers.
+    # Traceable (compiled) and host moves on a device position match the host kernels
+    # for the same random numbers.
     mview = CoordinateView(post_cpu, sp)
     scaled(v, x, x′, ctx) = v * sum(ctx.c)
     devmove = CompensatedMove(
@@ -269,9 +264,8 @@ end
     @test [m.τ for m in move_summary(msd)] ≈ [m.τ for m in move_summary(msh)]
     @test sh.position != xstart
 
-    # A context update reaches the compiled program without recompiling it: with the scale
-    # `c` doubled, the device makes the host's proposals and decisions. The host context holds
-    # the moves' own arrays, so a MoveSet built from the same moves sees the update too.
+    # `update_context!` reaches the compiled program without recompiling. The host context
+    # shares the moves' arrays, so a MoveSet built from the same moves sees the update.
     k0 = msd.compiled[]
     Comrade.update_context!(msd, :c, [2.0])
     msh2 = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
@@ -284,8 +278,8 @@ end
     @test_throws DimensionMismatch Comrade.update_context!(msd, :c, [1.0, 2.0])
     @test_throws "has no entry nope" Comrade.update_context!(msd, :nope, [1.0])
 
-    # Invariant moves are accepted without the likelihood, in the compiled program and on
-    # the host alike: `u` and `w` do not enter the sky, so random walks of them are exact.
+    # Likelihood-invariant moves skip the likelihood on device and host; `u` and `w` do
+    # not enter the sky.
     post_u = VLBIPosterior(SkyModel(test_model, merge(gprior, (u = VLBIGaussian(0.0, 1.0), w = VLBIGaussian(0.0, 1.0))), g), vis; admode = nothing)
     uview = CoordinateView(post_u, sp)
     keep(v, x, x′, ctx) = v
@@ -304,8 +298,7 @@ end
     @test [m.τ for m in move_summary(msu_d)] ≈ [m.τ for m in move_summary(msu_h)]
     @test su_h.position[end] != xu[end]
 
-    # a full run to disk in the StdNormal space: draws are finite and the stored transport
-    # records the space
+    # full run to disk in the StdNormal space
     dir = mktempdir()
     out = sample(
         post, ReactantNUTS(; n_adapts = 40, max_tree_depth = 4, init_step_size = 0.01), 20;
@@ -317,8 +310,7 @@ end
     rm(dir; recursive = true)
 end
 
-# Random-walk Metropolis–Hastings along the direction `v` for the log-density `target`,
-# keeping its own counters.
+# Random-walk Metropolis-Hastings along `v` for the log density `target`.
 mutable struct LineMove{F}
     target::F
     v::Vector{Float64}
@@ -343,9 +335,8 @@ function (m::LineMove)(state, tpost, info, rng)
     return state
 end
 
-# Host-side moves between NUTS chunks (`between_chunks`). The toy target ignores the
-# posterior and is a diagonal Gaussian in the latent coordinates, so the sampled moments
-# are known exactly and the host can evaluate the target for a Metropolis–Hastings step.
+# Host-side `between_chunks` moves. The target is a diagonal Gaussian in the latent
+# coordinates, so the sampled moments are known.
 @testset "ReactantNUTS between_chunks moves" begin
     ext = Base.get_extension(Comrade, :ComradeReactantExt)
 
@@ -400,8 +391,8 @@ end
     end
 
     @testset "moved states restart NUTS from a recomputed gradient" begin
-        # A host-array position drops the cached gradient and potential energy and comes
-        # back on the device in the kernel's shape; an unmoved state keeps both.
+        # A moved state drops the cached gradient and potential energy and returns to the
+        # device in the kernel's shape; an unmoved state keeps both.
         st = runchain(nothing; nsamples = 20).state
         info = (; phase = :sampling, step = 0, total = 0)
         kept = ext._run_between_chunks((s, _, _, _) -> s, st, nothing, info, Random.Xoshiro(1))
@@ -415,8 +406,7 @@ end
         @test size(moved.position) == (1, n)
         @test vec(Array(moved.position)) == znew
 
-        # One chunk from the moved state: the kernel compiled for an empty gradient slot
-        # runs, and returns a potential energy evaluated at its own position.
+        # one chunk from the moved state returns the potential energy at its own position
         st2, _, _ = ext.sample_chunked(moved, ldf, asflat(post), s; num_samples = 4, chunk_size = 4)
         @test -only(Array(st2.potential_energy)) ≈ target(vec(Array(st2.position))) rtol = 1.0e-10
 
@@ -437,27 +427,16 @@ end
         @test count(==(:sampling), mv.phases) == 3000 ÷ 10 - 1
         @test 0.2 < mv.nacc / mv.nprop < 0.95
         X = draws(res)
-        # the stored log densities are those of the stored draws
         @test samplerstats(res.out).log_density ≈ map(target, eachcol(X)) rtol = 1.0e-10
-        # NUTS on a Gaussian is close to independent draws: 6 standard errors on the
-        # mean, and the sample variance within 20%
+        # NUTS draws on a Gaussian are nearly independent, so plain standard errors apply
         @test all(abs.(vec(mean(X; dims = 2)) .- μ) .< 6 .* σ ./ sqrt(size(X, 2)))
         @test all(abs.(vec(var(X; dims = 2)) ./ σ .^ 2 .- 1) .< 0.2)
     end
 end
 
-# GaussMarkov (time-correlated) instrument priors trace through the flat path with no
-# Reactant-specific code: the `@trace`d chain logpdf and the branchless whitened coloring
-# only need `rgetindex`/`rsetindex!` for the scalar-indexing opt-in (Reactant promotes
-# the captured static chain tables itself). Pointwise-evaluated distributions
-# (hyperpriors, IID overrides) must accept `::Number`, so use the VLBI*/PT distributions.
-# Each process stresses a different traced path: OU the fitted-hyperparameter coloring,
-# BrownianMotion+FixedInit the `scatter_values!` fixed-value fill, WrappedBrownian the
-# log-sum-exp wrapped-normal image sum plus, in its default non-centered form, the masked
-# wrap of the batched affine scan and, in its centered form, the sheet-weight loop (whose
-# anchor read is a table-driven index into the latent segment); `AngleEmbedded` the
-# angle-embedding transform, and WrappedOrnsteinUhlenbeck the shortest-arc `_cond_mean`
-# and the pointwise (carry-free) unwrap of the centered lift.
+# GaussMarkov instrument priors under Reactant match the CPU value and gradient. Hyperpriors
+# and IID overrides are evaluated pointwise and must accept `::Number`, hence the VLBI*/PT
+# distributions. Each process and form covers a different traced code path.
 @testset "GaussMarkov priors under Reactant" begin
     using Enzyme
 
@@ -529,7 +508,6 @@ end
         end
     end
 
-    # gradient (what the compiled NUTS kernels differentiate) matches CPU Enzyme
     fgrad(x, tp) = Enzyme.gradient(
         Enzyme.set_runtime_activity(Enzyme.Reverse), Const(Base.Fix1(logdensityof, tp)), x
     )[1]
@@ -545,15 +523,11 @@ end
         tpost = asflat(post)
         x0_r = Reactant.to_rarray(x0)
 
-        # regression guard: the whole flat path — coloring (staged writes + affine
-        # scan + scatter), chain logpdf (re-read-style gathers), fixed-value fill —
-        # must stay fully raised. A serialized `stablehlo.while` costs ~100-200 us of
-        # device latency per leapfrog step, doubled in the gradient.
+        # No `stablehlo.while` may remain: each costs ~100-200 us of device latency per
+        # leapfrog step, doubled in the gradient.
         @test nwhile(Reactant.@code_hlo optimize = true logdensityof(tpost, x0_r)) == 0
         @test nwhile(Reactant.@code_hlo optimize = true fgrad(x0_r, tpost)) == 0
 
-        # value matches the CPU path (whitened hierarchical transform + chain logpdf +
-        # refant conditioning all traced)
         ld = @jit logdensityof(tpost, x0_r)
         @test convert(Float64, ld) ≈ logdensityof(tpost_cpu, x0) rtol = 1.0e-10
 

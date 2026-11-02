@@ -287,9 +287,8 @@ end
         θe = transform(tstd, ss.position)
         @test Comrade.loglikelihood(post, θe) ≈ Comrade.loglikelihood(post, θs[1]) rtol = 1.0e-8
         @test θe.instrument.lg.hyperparams != θs[1].instrument.lg.hyperparams
-        # The componentwise acceptance never reads the likelihood, so the kernel leaves the
-        # StdNormal prior N(0, I) itself invariant: prior draws run through MoveSet stay
-        # prior draws on the hyperparameter coordinates the moves step.
+        # The acceptance never reads the likelihood, so prior draws passed through the
+        # MoveSet stay prior draws on the stepped hyperparameter coordinates.
         msp = MoveSet(post, hm; space = sp, rounds = 10, initial_scale = 1.0)
         idx = reduce(vcat, [m.hcoords for m in hm])
         prng = Random.Xoshiro(31)
@@ -321,8 +320,8 @@ end
         @test_throws "unknown sampler phase" ms(x0, tflat, :burnin, rng)
         @test_throws "is traceable but does not have a NormalStep" MoveSet(post, (_TracedDiscrete(),))
 
-        # a traceable move runs from steps drawn up front at the call's step scale; with the
-        # scale frozen (sampling) that is the same chain as proposing one step at a time
+        # with the scale fixed (sampling), a traceable move gives the same chain as
+        # proposing one step at a time
         rw(traceable) = CompensatedMove("f1_rw", view, (:sky, :f1), (:instrument, :lg), (v, x, x′, ctx) -> v; traceable)
         msf, msq = MoveSet(post, (rw(true),); rounds = 7), MoveSet(post, (rw(false),); rounds = 7)
         xf0 = Comrade.inverse(tflat, θs[2])

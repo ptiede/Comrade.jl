@@ -1,8 +1,8 @@
 using Random
 import Distributions as Dists
 
-# Geweke's joint-distribution test (`check_move` with `ngeweke`, and `check_moveset`) of every
-# move kind, on the posteriors of moves.jl.
+# Geweke joint-distribution tests (`check_move` with `ngeweke`, and `check_moveset`) of every
+# move kind.
 
 # `move` with the sign of its log-determinant flipped.
 struct _FlippedLogdet{M} <: Comrade.AbstractMove
@@ -17,8 +17,7 @@ function Comrade.propose(w::_FlippedLogdet, x, step, ctx)
     return x′, -ld
 end
 
-# The random-walk `move` with its step shifted by `δ`, so its proposal is not symmetric and
-# `−u` does not reverse `u`.
+# The random-walk `move` with its step shifted by `δ`, so its proposal is not symmetric.
 struct _Drift{M} <: Comrade.AbstractMove
     move::M
     δ::Float64
@@ -28,8 +27,7 @@ Comrade.move_name(w::_Drift) = "drift_" * Comrade.move_name(w.move)
 Comrade.likelihood_invariant(w::_Drift) = Comrade.likelihood_invariant(w.move)
 Comrade.propose(w::_Drift, x, u, ctx) = Comrade.propose(w.move, x, u + w.δ, ctx)
 
-# The gain model of moves.jl with a wide phase chain, so that its 2π sheet moves are
-# accepted often enough to be tested.
+# A wide phase chain, so that its 2π sheet moves are accepted often enough to test.
 @instrument function _geweke_instrument()
     return @jones begin
         lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
@@ -38,9 +36,8 @@ Comrade.propose(w::_Drift, x, u, ctx) = Comrade.propose(w.move, x, u + w.δ, ctx
     end
 end
 
-# A phase chain with fitted hyperparameters, SEFD referencing, and correlation times that
-# range from far below the scan gaps to above them, so that the whitening of a point depends
-# on τ at some prior draws and not measurably at others.
+# A phase chain with fitted hyperparameters and SEFD referencing. The τ prior spans
+# correlation times both shorter and longer than the scan gaps.
 @instrument function _geweke_sefd_instrument()
     return @jones begin
         gp ~ ArrayPrior(
@@ -55,8 +52,7 @@ _noisier(d, k) = Comrade.EHTObservationTable{Comrade.datumtype(d)}(
     Comrade.measurement(d), k .* Comrade.noise(d), Comrade.arrayconfig(d)
 )
 
-# A pass that tests something: every statistic under the critical value, and every move
-# accepted often enough to have moved.
+# Every statistic is under the critical value and every move was accepted at least sometimes.
 _passes(r) = all(<=(r.geweke_critical), r.geweke) && all(>(0.05), r.geweke_accept)
 
 @testset "joint-distribution test of moves" begin
@@ -69,8 +65,8 @@ _passes(r) = all(<=(r.geweke_critical), r.geweke) && all(>(0.05), r.geweke_accep
             a = Dists.LogNormal(0.0, 0.3), b = Dists.LogNormal(0.0, 0.3),
             c = Dists.Uniform(0.2, 5.0), φ = Dists.Normal(0.0, 3.0),
         )
-        # a total signal-to-noise ratio of about 12, so the likelihood shapes the posterior
-        # without confining the non-invariant moves to tiny steps
+        # total S/N of about 12: the likelihood shapes the posterior but still allows
+        # large steps for the non-invariant moves
         g = imagepixels(μas2rad(150.0), μas2rad(150.0), 8, 8)
         post = VLBIPosterior(SkyModel(_moves_toy_sky, prior, g), _noisier(vis, 1000.0))
         rng = Random.Xoshiro(41)

@@ -4,9 +4,8 @@ abstract type AbstractSitePrior end
 
 segmentation(d::AbstractSitePrior) = getfield(d, :seg)
 
-# Whether this site prior's observed distribution needs the per-chain machinery of
-# gauss_markov.jl rather than a product distribution (see `ObservedArrayPrior`).
-# Time-correlated site-prior kinds opt in by overriding this.
+# Whether the observed prior is built by gauss_markov.jl rather than as a product
+# distribution. Time-correlated site priors return `true`.
 needs_chain_machinery(::AbstractSitePrior) = false
 
 """
@@ -16,13 +15,12 @@ Create a site prior that is independent and identically distributed (IID) across
 and frequencies. The `seg` argument is a segmentation object that defines how fine the time
 segmentation is. The `dist` argument is the distribution of the site prior.
 
-`init = FixedInit(v)` fixes each site's *first* time stamp (per frequency channel) to `v`
-instead of sampling it — the IID analogue of the chain-opening conditioning of
-[`GaussMarkovSitePrior`](@ref). Use it when the parameter rides on a separate per-site
-offset term: without the pin the offset trades off against a common shift of the site's
-values, and for a phase the likelihood's `2π` periodicity turns that redundancy into
-spurious modes. A stamp the referencing scheme (`refant`) already fixes stays the
-reference's; the two values must agree.
+`init = FixedInit(v)` fixes each site's first time stamp (per frequency channel) to `v`
+instead of sampling it, as the same option does for [`GaussMarkovSitePrior`](@ref).
+Use it when the parameter is added to a separate per-site offset term: otherwise the offset
+and a common shift of the site's values are degenerate, and for a phase the `2π`
+periodicity of the likelihood turns that degeneracy into extra modes. A stamp that the
+referencing scheme (`refant`) also fixes must get the same value.
 
 ## Example
 
@@ -49,7 +47,6 @@ function IIDSitePrior(seg::Segmentation, dist; init = nothing)
     return IIDSitePrior(seg, dist, init)
 end
 
-# The first-stamp pin of this site prior, or `nothing`. `build_dist` folds it into the
-# fixed indices alongside the referencing scheme's.
+# The first-stamp pin of this site prior, or `nothing`.
 initprior(::AbstractSitePrior) = nothing
 initprior(d::IIDSitePrior) = d.init

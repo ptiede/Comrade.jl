@@ -45,8 +45,8 @@ function set_array(m::InstrumentModel, array::AbstractArrayConfiguration, data)
         DimensionMismatch("the data have $(length(table)) rows but the array has $(length(array))")
     )
     wdata, weight = _selfcal_weights(table)
-    # The entries of the residual and the baselines between them do not depend on which are
-    # fixed, so a first build without references gives the groups the references come from.
+    # The residual's entries and baselines do not depend on which entries are fixed, so a
+    # build without references gives the groups from which the references are chosen.
     intfree, priorfree = set_array(_with_residual(m, NoReference()), array)
     smap = sitelookup(getproperty(priorfree, SELFCAL_RESIDUAL))
     bl = getproperty(intfree.bsitelookup, SELFCAL_RESIDUAL)
@@ -59,14 +59,15 @@ function set_array(m::InstrumentModel, array::AbstractArrayConfiguration, data)
     return ObservedSelfCalInstrumentModel(intobs, SELFCAL_RESIDUAL, wdata, weight, layout, SELFCAL_ITERATIONS), prior
 end
 
-# Index maps from baselines to the station matrices `A[a, b, g]` of every group `g`, a set of
-# entries of the residual at one time and frequency that baselines link, and from each entry
-# to its group's reference: the entry with the largest summed weight `rowweight` over the
-# baselines it is on. `pick[a, b, g]` indexes `[0; x; conj(x)]` for a per-baseline `x`: `1 + k`
-# when baseline `k` runs from station `a` to `b`, `1 + K + k` when it runs from `b` to `a`, and
-# `1` when no baseline joins them. `start[a, g]` indexes `A[a, r, g]` for the reference station
-# `r` of group `g`, `entry[e]` indexes the `N × G` station vectors at entry `e`, and
-# `refslot[e]` at the reference entry of `e`'s group.
+# Index maps for the station matrices `A[a, b, g]`, one per group `g` of residual entries
+# that baselines link at one time and frequency. A group's reference is its entry with the
+# largest `rowweight` summed over its baselines.
+#   - `pick[a, b, g]` indexes `[0; x; conj(x)]` for a per-baseline `x`: `1 + k` when baseline
+#     `k` runs from station `a` to `b`, `1 + K + k` when it runs from `b` to `a`, and `1` when
+#     no baseline joins them.
+#   - `start[a, g]` indexes `A[a, r, g]`, where `r` is the reference station of group `g`.
+#   - `entry[e]` indexes the `N × G` station vectors at entry `e`, and `refslot[e]` at the
+#     reference entry of `e`'s group.
 function _selfcal_layout(smap::SiteLookup, i1::AbstractVector{<:Integer}, i2::AbstractVector{<:Integer}, rowweight)
     st = sites(smap)
     stamps = collect(zip(times(smap), frequencies(smap)))

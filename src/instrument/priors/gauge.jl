@@ -1,18 +1,16 @@
-# The phase-gauge solver: which parameter entries have to be pinned so that a station
-# phase written as a sum of several `ArrayPrior` terms is determined by the data.
+# Finds the parameter entries that must be pinned so that a station phase written as a sum
+# of several `ArrayPrior` terms is determined by the data.
 #
-# Model. A datum is one (site, stamp) pair, a stamp being one (time, frequency) of the
-# observation. The visibility phase of a baseline sees only the difference of the two
-# station phases, so the data determine the total phase at every site of a stamp only up to
-# one additive constant per stamp. Writing that constant as an unknown `g_τ` gives one
-# equation per datum,
+# A datum is one (site, stamp) pair, where a stamp is one (time, frequency) of the
+# observation. Baseline phases depend only on differences of station phases, so the data
+# determine the total phase at the sites of a stamp up to one constant `g_τ` per stamp. Each
+# datum gives one equation,
 #
 #     sum_k x_{k,(s,τ)} − g_τ = (data),
 #
-# where `x_k` runs over the terms of the sum and reference-pinned entries are known
-# constants that drop out. The equations have all-unit coefficients, so the system is a
-# hypergraph: one node per unknown (the free entries and the stamp constants) and one
-# hyperedge per datum.
+# where `x_k` runs over the terms of the sum and pinned entries drop out as constants. All
+# coefficients are 1, so the system is a hypergraph with one node per unknown (free entries
+# and stamp constants) and one hyperedge per datum.
 
 # Union-find over gauge nodes, with path halving and union by rank.
 struct GaugeUnionFind
@@ -49,22 +47,19 @@ Rank the entries that [`gauge_pins`](@ref) may pin: the entry with the smallest 
 one it pins, and the largest key is the one it treats as determined when a datum can only
 determine one of its entries.
 
-`entry` is a NamedTuple `(; term, index, site, dt, sefd, occupancy)` describing one entry of
-one term — the term's name, the entry's position in the term's `SiteLookup`, its site, the
-width of its integration time, the site's SEFD (`Inf` when the array table has no such
-site), and the number of stamps at which the site appears.
+`entry` is a NamedTuple `(; term, index, site, dt, sefd, occupancy)`: the term's name, the
+entry's position in the term's `SiteLookup`, its site, the width of its integration time,
+the site's SEFD (`Inf` when the array table has no such site), and the number of stamps at
+which the site appears.
 
-The key is `(-dt, sefd, -occupancy)`: pin the coarsest term first, since one pin on a
-track-long entry fixes a level the finer terms then measure against; break ties on the most
-sensitive site, then on the site with the most data.
+The key is `(-dt, sefd, -occupancy)`: pin the entry with the longest integration time
+first, then the most sensitive site, then the site with the most data.
 """
 default_gauge_preference(e) = (-e.dt, e.sefd, -e.occupancy)
 
-# Stamps of an observation and the sites present at each: the (time, frequency) of the
-# data, sorted, with the sites of every baseline observed there. The phase constant of a
-# stamp is shared only by sites that baselines connect, so a (time, frequency) whose
-# baselines fall into several disconnected groups yields one stamp per group, repeated with
-# the same key.
+# The sorted (time, frequency) stamps of the data and the sites observed at each. Only
+# sites connected by baselines share a phase constant, so a (time, frequency) whose
+# baselines form several disconnected groups yields one stamp per group, with the same key.
 function gauge_stamps(array::AbstractArrayConfiguration)
     T = array[:Ti]
     F = array[:Fr]
@@ -117,10 +112,9 @@ function _connected_sites(baselines)
     return groups
 end
 
-# For each stamp, the entry of `smap` covering each site there. Every entry finds the
-# stamps it spans by binary search over the time-sorted `stamps`, so the work follows the
-# number of coverings rather than entries times stamps. `searchsorted` is a prefilter: the
-# containment test is `in`, whose intervals are half open.
+# For each stamp, the entry of `smap` covering each site there. `searchsorted` over the
+# time-sorted stamps is only a prefilter; containment is decided by `in`, whose intervals
+# are half open.
 function _coverage(smap::SiteLookup, stamps, stamptimes, name)
     cover = [Dict{Symbol, Int}() for _ in eachindex(stamps)]
     for i in eachindex(smap.sites)
@@ -145,47 +139,37 @@ end
     gauge_pins(terms, array::AbstractArrayConfiguration; prefer = default_gauge_preference)
     gauge_pins(terms, stamps, sites_at, sefd; prefer = default_gauge_preference)
 
-Return the entries that must be pinned, as `Vector{Tuple{Symbol, Int}}` of (term name, entry
-index), so that a station phase written as the sum of `terms` is determined by the data up
-to nothing at all. An empty result means the parameterization is already identified.
+Return the entries that must be pinned, as a `Vector{Tuple{Symbol, Int}}` of (term name,
+entry index), so that a station phase written as the sum of `terms` is fully determined by
+the data. An empty result means the parameterization is already identified.
 
 `terms` is a NamedTuple mapping each term's name to `(; smap, fixed)`, where `smap` is the
-term's [`SiteLookup`](@ref) and `fixed` holds the entry indices its referencing scheme and
-init pins already hold constant. The observation enters only through its schedule: the
-second form takes it as `stamps`, a vector of `(time, frequency)` pairs sorted by time,
-`sites_at`, the sites present at each stamp, and `sefd`, a site-keyed NamedTuple or
-dictionary of system equivalent flux densities; the first form reads all three off an array
-configuration. The sites of one stamp share a single phase constant, so they must be
-connected by baselines: a `(time, frequency)` whose baselines split into disconnected groups
-is listed once per group, which is how the first form builds it.
+term's [`SiteLookup`](@ref) and `fixed` holds the entry indices that its referencing scheme
+and init pins hold constant. The first form reads the schedule off an array configuration.
+The second takes `stamps`, a vector of `(time, frequency)` pairs sorted by time; `sites_at`,
+the sites present at each stamp; and `sefd`, a site-keyed NamedTuple or dictionary of system
+equivalent flux densities. The sites of one stamp must be connected by baselines: a
+`(time, frequency)` whose baselines split into disconnected groups is listed once per group.
 
-Each datum — site `s` at stamp `τ` — carries one equation relating the stamp's unobservable
-phase constant to the free entries covering `(s, τ)`; an entry covers a datum when its site
-matches and its integration time and frequency channel contain the stamp. The solver works
-on that hypergraph directly:
+Each datum (site `s` at stamp `τ`) gives one equation relating the stamp's phase constant to
+the free entries covering `(s, τ)`. An entry covers a datum when its site matches and its
+integration time and frequency channel contain the stamp. The solver:
 
- 1. A datum whose equation has three or more unknowns determines the least preferred of any
-    unknown that appears in no other equation, and then constrains nothing else, so the
-    equation and that unknown are removed. Removing an equation can make further unknowns
-    unique to a single equation, so this repeats until nothing more can be removed. This is
-    what strips the per-integration residual terms that are free everywhere, leaving the
-    data where they are pinned.
- 2. What remains is a graph: every surviving equation now relates a stamp constant to at
-    most one free entry. An equation with one unknown determines it; an equation with two
-    ties them together, so the entry and the stamp constant stand or fall as one. An
-    equation still holding three or more unknowns is a genuine hypergraph constraint and
-    throws.
- 3. Each connected group of unknowns that no equation determines is one flat direction, and
-    one pin anywhere in it removes that direction. `prefer` picks where; see
-    [`default_gauge_preference`](@ref).
+ 1. Removes each equation with three or more unknowns that contains an unknown appearing in
+    no other equation, and marks that unknown as determined (a stamp constant if there is
+    one, otherwise the least preferred entry). This repeats until no equation can be
+    removed.
+ 2. Treats the remaining equations as graph edges: an equation with one unknown determines
+    it, and one with two unknowns links them. A remaining equation with three or more
+    unknowns throws an `ArgumentError`.
+ 3. Pins one entry in each connected group of unknowns that no equation determines, chosen
+    by `prefer`; see [`default_gauge_preference`](@ref).
 
-Only entries can be pinned, so a group of unknowns holding nothing but stamp constants is
-reported as no pin: the data fix those constants once the entries around them are fixed.
+A group containing only stamp constants needs no pin.
 
 ## Notes
-This is the analysis behind the `gaugefix` setting of [`InstrumentModel`](@ref), which
-applies the pins for terms declared with `gauge = :phase`. Called directly it is a way to
-check a parameterization before running it.
+[`InstrumentModel`](@ref) applies this analysis, through its `gaugefix` setting, to the
+terms declared with `gauge = :phase`.
 """
 function gauge_pins(
         terms, array::AbstractArrayConfiguration; prefer = default_gauge_preference
@@ -221,9 +205,8 @@ function gauge_pins(terms, stamps, sites_at, sefd; prefer = default_gauge_prefer
         occupancy[s] = get(occupancy, s, 0) + 1
     end
 
-    # Node numbering: 1:nstamp are the per-stamp phase constants, then the entries of each
-    # term in turn. Fixed entries are constants, not unknowns, so they get a node that no
-    # equation ever mentions.
+    # Nodes 1:nstamp are the stamp constants, then the entries of each term in turn. Fixed
+    # entries get a node that no equation mentions.
     nstamp = length(stamps)
     offsets = Vector{Int}(undef, length(smaps))
     nnodes = nstamp
@@ -260,7 +243,6 @@ function gauge_pins(terms, stamps, sites_at, sefd; prefer = default_gauge_prefer
     end
     degree = map(length, incident)
 
-    # Which term and entry a node stands for, and how it ranks against the other entries.
     function entry_of(v)
         k = something(findlast(<(v), offsets))
         return k, v - offsets[k]
@@ -289,8 +271,7 @@ function gauge_pins(terms, stamps, sites_at, sefd; prefer = default_gauge_prefer
                 break
             end
         end
-        # An equation between a stamp constant and a single entry is the graph the core
-        # step needs; only equations with something left over are removed here.
+        # Equations with at most two unknowns are kept for the union-find step.
         (ei == 0 || length(edges[ei]) < 3) && continue
         trigger = _peel_trigger(edges[ei], degree, determined, nstamp, entry_key)
         determined[trigger] = true
@@ -325,9 +306,8 @@ function gauge_pins(terms, stamps, sites_at, sefd; prefer = default_gauge_prefer
     end
     grounded = Set(_find!(uf, v) for v in groundnodes)
 
-    # Entries that no equation determines, grouped by the flat direction they share. An
-    # entry that no datum ever sees is not a gauge freedom: the data say nothing about it
-    # and pinning it would not identify anything.
+    # Undetermined entries grouped by component. Entries that no datum sees are skipped:
+    # pinning them identifies nothing.
     components = Dict{Int, Vector{Int}}()
     for k in eachindex(smaps), i in eachindex(smaps[k].sites)
         v = offsets[k] + i
@@ -344,8 +324,8 @@ function gauge_pins(terms, stamps, sites_at, sefd; prefer = default_gauge_prefer
     return [(names[k], i) for (k, i) in pins]
 end
 
-# The unknown an equation is used up on: a stamp constant if one is available (it can never
-# be pinned), otherwise the least preferred entry.
+# The unknown an equation determines when removed: a stamp constant if one is available,
+# otherwise the least preferred entry.
 function _peel_trigger(e, degree, determined, nstamp, entry_key)
     best = 0
     for v in e
@@ -360,7 +340,7 @@ end
     fixed_indices(d)
 
 The entry indices an observed instrument prior holds constant: the pins of its referencing
-scheme together with any init pins folded in with them.
+scheme and its init pins.
 """
 fixed_indices(d::ObservedArrayPrior) = fixed_indices(d.dists)
 fixed_indices(d::ObservedHierarchicalArrayPrior) = fixed_indices(d.dists)
@@ -371,7 +351,7 @@ fixed_indices(::Dists.Distribution) = Int[]
 sitelookup(d::ObservedArrayPrior) = d.sitemap
 sitelookup(d::ObservedHierarchicalArrayPrior) = d.sitemap
 
-# The (name, smap, fixed) view of the observed priors `names` that `gauge_pins` works on.
+# The `terms` argument of `gauge_pins` for the observed priors `names`.
 function gauge_terms(obs::NamedTuple, names::Tuple)
     return NamedTuple{names}(
         map(names) do n
@@ -381,17 +361,14 @@ function gauge_terms(obs::NamedTuple, names::Tuple)
     )
 end
 
-# How a pin reads in a message: which entry of which term, by site and time.
 function _pin_description(obs::NamedTuple, name::Symbol, i::Int)
     smap = sitelookup(getproperty(obs, name))
     return "$name[site = $(smap.sites[i]), t = $(_center(smap.times[i]))]"
 end
 
-# Resolve the phase gauge of the observed priors `obs` built from the `ArrayPrior`s
-# `prior`. Terms declared `gauge = :phase` are summed to give the station phase, so their
-# reference pins have to identify the sum and not merely each term on its own; `gauge_pins`
-# says whether they do. With `gaugefix = :error` a leftover flat direction is reported,
-# with `:pin` it is pinned and the affected priors are re-observed.
+# Check that the reference pins of the `gauge = :phase` terms identify their sum. With
+# `gaugefix = :error` a remaining flat direction throws; with `:pin` it is pinned and the
+# affected priors are rebuilt.
 function fix_phase_gauge(prior::NamedTuple, obs::NamedTuple, array, gaugefix::Symbol)
     names = filter(n -> getproperty(prior, n).gauge === :phase, keys(prior))
     isempty(names) && return obs

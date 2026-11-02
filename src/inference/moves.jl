@@ -383,8 +383,8 @@ _ks_critical(alpha, m, n) = sqrt(-log(alpha / m / 2) / 2) * sqrt(2 / n)
 _logprior_latent(tbase, post, x) =
     logdensityof(tbase, x) - loglikelihood(post, transform(tbase, x))
 
-# The latent coordinates the first of up to 100 steps of `move` that changes a point of `xs`
-# (taken in turn) changes, and the unit direction of that change.
+# The coordinates changed by the first of up to 100 steps of `move` (from the points of `xs`
+# in turn) that changes its point, and the unit direction of the change.
 function _first_change(move, d, xs, ctx, rng, τ)
     for i in 1:100
         x = xs[mod1(i, length(xs))]

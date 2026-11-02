@@ -124,13 +124,13 @@ visibilities.
 # Optional Arguments
   - `refbasis`: The reference basis used for the computation. The default is `CirBasis()` which are circular feeds.
   - `gaugefix`: What to do when the priors declared with `gauge = :phase` (see [`ArrayPrior`](@ref))
-    add up to a station phase the data cannot determine. `:error` (the default) reports the flat
-    directions and the entries that would fix them; `:pin` pins those entries itself, adding them to
-    each affected prior's referencing scheme and logging one line per pin. The analysis is
-    [`Comrade.gauge_pins`](@ref) and runs when the model is given an array configuration.
-  - `selfcal`: whether each station's common phase `φ` is written as its self-calibration
-    solution `φ̂` plus a sampled residual, `φ = φ̂ + selfcal_residual`. `jones` must then omit
-    the station phase. See the section below.
+    add up to a station phase the data cannot determine. `:error` (the default) throws, listing the
+    entries that would fix it; `:pin` adds those entries to each affected prior's referencing scheme
+    and logs one line per pin. The check uses [`Comrade.gauge_pins`](@ref) and runs when the model
+    is given an array configuration.
+  - `selfcal`: whether each station's common phase is written as `φ = φ̂ + selfcal_residual`,
+    where `φ̂` is the self-calibration solution. `jones` must then omit the station phase. See
+    the section below.
 
 # Self-calibrated station phase
 
@@ -154,9 +154,9 @@ semidefinite when the model matches the data. The eigenvector is approximated by
 `φ̂` depends on the sky and the other instrument parameters but not on the residual, so the
 change of variables from `φ` to the residual has unit Jacobian. Because the prior is uniform
 on the circle, the prior of `φ` does not depend on `φ̂`, and the posterior is that of a uniform
-station phase. The residual is the station phase in coordinates that depend on the data:
-compare or reuse draws through `φ` ([`selfcal_phase`](@ref)). The model needs the data, so it
-is bound to an array only through a [`VLBIPosterior`](@ref) of one table of complex
+station phase. The residual is the station phase in coordinates that depend on the data, so
+compare or reuse draws through `φ` ([`selfcal_phase`](@ref)). Because `φ̂` depends on the
+data, the model can only be used in a [`VLBIPosterior`](@ref) with one table of complex
 visibilities or coherencies.
 
 
@@ -277,7 +277,7 @@ end
 
 @inline function apply_instrument(vis, J::ObservedInstrumentModel, x)
     vout = parent(intout(vis))
-    # Grab parent arrary so we don't trace through SiteArray since that stuff is constant.
+    # Grab parent array so we don't trace through SiteArray since that stuff is constant.
     # `siteparams` strips the hyperparameters from hierarchical samples first.
     xint = map(parent ∘ siteparams, x.instrument)
     _apply_instrument!(vout, parent(vis), J, xint)

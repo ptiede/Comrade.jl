@@ -207,8 +207,7 @@ interfacing Comrade with a new data type.
 """
 function extract_coherency end
 
-# Sometimes missing hands are assigned strange values. This function
-# masks them to ensure that if we have a missing measurement they get properly NaN'd
+# Set both the value and the noise of every hand whose value has a `NaN` part to `NaN`.
 function mask_missing_hands(
         v::StaticArraysCore.StaticMatrix{2, 2, <:Complex},
         e::StaticArraysCore.StaticMatrix{2, 2, <:Real}

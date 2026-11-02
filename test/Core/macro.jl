@@ -492,23 +492,11 @@ end
     end
 end
 
-# --- param_map hoisting -------------------------------------------------------------------
-# `@instrument` emits every param_map / combination function as a *named* function, and hoists
-# it to top level when it closes over nothing. That matters for serialization: a definition
-# nested inside `_<name>_jones` is a closure, so its type is gensym'd — `var"#_f_pmap_1#37"` —
-# and the trailing counter is a module-global compile-time number rather than anything written
-# in the source. Since the param_map is a type parameter of the Jones term, editing unrelated
-# code earlier in the module shifts that counter and every previously serialized model then
-# fails to load with `UndefVarError: #_f_pmap_1#37`. Hoisted, the type is the stable singleton
-# `typeof(_f_pmap_1)`. A param_map that genuinely captures a construction-time keyword must
-# still stay nested, or the captured value would go out of scope.
-#
-# These definitions are deliberately at file top level: `include` evaluates into module global
-# scope, which is what allows hoisting in the first place. Defining them inside a `@testset`
-# (a local scope) would leave them nested no matter what the macro does.
+# `@instrument` hoists capture-free param_maps to top level so their types do not carry a
+# gensym counter and serialized models stay loadable. These definitions must sit at file top
+# level; inside a `@testset` they would be closures regardless of the macro.
 
-# Every generic function's type is named "#f", so a leading "#" distinguishes nothing; the
-# closure marker is the trailing "#<counter>".
+# A closure's type name ends in "#<counter>".
 _is_hoisted(f) = isnothing(match(r"#\d+$", String(nameof(typeof(f)))))
 
 @instrument function hoist_plain(; refbasis = CirBasis())
@@ -543,7 +531,7 @@ end
 end
 
 @testset "@instrument param_map hoisting" begin
-    # Pin down what the marker actually distinguishes, so nothing below can pass vacuously.
+    # the probe must tell hoisted functions from closures
     @testset "hoisted/closure probe" begin
         @test _is_hoisted(identity)
         @test !_is_hoisted(
@@ -569,7 +557,7 @@ end
         @test pm((; lg = 0.5)) == let g = exp(2.0 * 0.5)
             (g, g)
         end
-        # the capture is live: a different keyword must give a different result
+        # a different keyword gives a different result
         pm3 = hoist_capture(; gscale = 3.0).jones.param_map
         @test pm3((; lg = 0.5)) == let g = exp(3.0 * 0.5)
             (g, g)
@@ -595,9 +583,8 @@ end
         end
     end
 
-    # Under-collecting an assigned name is unsafe (a definition closing over it would be
-    # wrongly hoisted), so every binding form must be seen — including the exception name
-    # of `catch e`, which the Expr stores as a bare Symbol outside any assignment head.
+    # A missed binding would wrongly hoist a closure over it; `catch e` stores `e` as a bare
+    # Symbol outside any assignment.
     @testset "catch binding is collected as assigned" begin
         out = Symbol[]
         Comrade._collect_assigned!(

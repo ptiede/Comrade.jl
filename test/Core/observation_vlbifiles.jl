@@ -101,11 +101,7 @@ end
     @test eltype(c[:measurement]) <: AbstractMatrix{<:Complex}
     @test all(d -> d.polbasis == (CirBasis(), CirBasis()), c[:baseline])
 
-    # A hand is either fully measured or fully flagged. Readers hand back a missing hand as
-    # a real-only `NaN` (`NaN + 0.0im`) with zero noise; the imaginary part of such an entry
-    # survives the subtraction in `residuals` as a finite `-imag(model)`, which then gets
-    # divided by a tiny noise and shows up as a huge spurious offset in exactly the hands
-    # that have flagged data.
+    # Each hand is either fully measured or fully flagged (NaN real, imaginary, and noise).
     for (m, n) in zip(Comrade.measurement(c), Comrade.noise(c)), i in 1:4
         @test isnan(real(m[i])) == isnan(imag(m[i]))
         @test isnan(real(m[i])) == isnan(n[i])
@@ -124,7 +120,7 @@ end
     n = Tn(0.1, 0.2, 0.3, 0.4)
     @test Comrade.mask_missing_hands(m, n) === (m, n)
 
-    # the LR hand as a reader reports it when the row does not carry it
+    # a missing LR hand as readers return it: `NaN + 0.0im` with zero noise
     vm, em = Comrade.mask_missing_hands(
         Base.setindex(m, complex(NaN, 0.0), 2), Base.setindex(n, 0.0, 2)
     )
@@ -135,7 +131,7 @@ end
         @test em[i] == n[i]
     end
 
-    # and the flag must survive the subtraction `residuals` performs
+    # the flag survives `residual_data`
     meas = fill(vm, length(c))
     nse = fill(em, length(c))
     cflag = Comrade.EHTObservationTable{Comrade.datumtype(c)}(meas, nse, arrayconfig(c))

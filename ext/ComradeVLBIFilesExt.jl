@@ -352,8 +352,8 @@ function Comrade.extract_coherency(
         c = coherency[i].value
         v = SMatrix{2, 2, ComplexF64, 4}(getproperty.(c, :v))
         e = SMatrix{2, 2, Float64, 4}(getproperty.(c, :u))
-        # A hand that this row does not carry arrives as `NaN + 0.0im` with zero
-        # uncertainty; make the flag whole so it survives the subtraction in `residuals`.
+        # A missing hand arrives as `NaN + 0.0im` with zero uncertainty; set it to
+        # `NaN + NaN*im` so it stays `NaN` after the subtraction in `residuals`.
         cohmat[i], errmat[i] = Comrade.mask_missing_hands(v, e)
     end
 
