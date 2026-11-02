@@ -87,8 +87,8 @@ using Distributions
         # silently change which gauge the model is in.
         agree = NamedTuple(
             s => IIDSitePrior(
-                    TrackSeg(), Normal(0.0, 1.0); init = s === :AA ? FixedInit(0.0) : nothing
-                ) for s in trk_sites
+                TrackSeg(), Normal(0.0, 1.0); init = s === :AA ? FixedInit(0.0) : nothing
+            ) for s in trk_sites
         )
         d = Comrade.build_dist(
             agree, trk_lookup, nothing, MultiReference([:AA, :GL], 0.0), nothing
@@ -97,8 +97,8 @@ using Distributions
 
         clash = NamedTuple(
             s => IIDSitePrior(
-                    TrackSeg(), Normal(0.0, 1.0); init = s === :AA ? FixedInit(0.7) : nothing
-                ) for s in trk_sites
+                TrackSeg(), Normal(0.0, 1.0); init = s === :AA ? FixedInit(0.7) : nothing
+            ) for s in trk_sites
         )
         @test_throws "conflicts with the reference value" Comrade.build_dist(
             clash, trk_lookup, nothing, MultiReference([:AA, :GL], 0.0), nothing
