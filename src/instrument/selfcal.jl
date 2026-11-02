@@ -24,7 +24,7 @@ end
 
 # `model` with the residual phase added, referenced by `refant`.
 function _with_residual(model::InstrumentModel, refant)
-    # Uniform on the circle to within 3e-9, with one latent coordinate per entry, no singular
+    # Uniform on the circle to a relative 5e-9, with one latent coordinate per entry, no singular
     # point, and no seam at ±π.
     residual = ArrayPrior(IIDSitePrior(IntegSeg(), WrappedNormal(0.0, 2π)); refant)
     prior = merge(model.prior, NamedTuple{(SELFCAL_RESIDUAL,)}((residual,)))

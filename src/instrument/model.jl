@@ -135,10 +135,11 @@ visibilities.
 # Self-calibrated station phase
 
 With `selfcal = true`, the model adds the instrument parameter `selfcal_residual`: one angle
-per station and data time, with a prior uniform on the circle. In each group of stations that
-baselines link at one time and frequency, the station with the largest total data weight
-`Σ 1/σ²` is the reference, and its residual is fixed to 0. The priors of all other terms are
-those in `prior`.
+per station and data time, with prior `WrappedNormal(0, 2π)`, whose density differs from the
+uniform density on the circle by a relative 2exp(-2π²) ≈ 5e-9 at most. In each group of
+stations that baselines link at one time and frequency, the station with the largest total
+data weight `Σ 1/σ²` is the reference, and its residual is fixed to 0. The priors of all
+other terms are those in `prior`.
 
 `φ̂` is the phase of the leading eigenvector of each group's Hermitian station matrix
 ```
