@@ -26,6 +26,6 @@ VLBISkyModels = "d6343c73-7174-4e0f-bb64-562643efbeca"
 
 [compat]
 Documenter = "1"
-DocumenterVitepress = "0.2"
+DocumenterVitepress = "0.3"
 # The tutorials run in this process and need Parsers 2 (CSV 0.10 via VLBIFiles).
 Parsers = "2"
