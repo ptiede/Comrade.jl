@@ -58,8 +58,8 @@ end
     s = ReactantNUTS(; n_adapts = 50, max_tree_depth = 6)
 
     # MemoryStore
-    res = sample(post, s, 100; chunk_size = 25)
-    chain = res.out
+    chain = sample(post, s, 100; chunk_size = 25)
+    @test chain isa PosteriorSamples
     @test length(Comrade.postsamples(chain)) == 100
     @test hasproperty(samplerstats(chain), :numerical_error)
     # cross-backend contract: per-draw Bool divergence flags (`count`-able by the
@@ -78,15 +78,16 @@ end
     @test haskey(samplerinfo(chain), :warmup_history)
     @test haskey(samplerinfo(chain), :sample_history)
 
-    # `sample` also returns the live final MCMC state.
-    @test hasproperty(res.state, :position)
-    @test length(Array(res.state.position)) == dimension(tpost)
+    # the final MCMC state is the one after the last draw
+    let st = samplerinfo(chain)[:final_state], tcpu = asflat(post_cpu)
+        @test vec(Array(st.position)) ≈ Comrade.inverse(tcpu, last(Comrade.postsamples(chain))) rtol = 1.0e-10
+    end
 
     show(IOBuffer(), MIME"text/plain"(), chain)
 
     # DiskStore + restart
     dir = mktempdir()
-    out = sample(post, s, 100; saveto = DiskStore(name = dir, stride = 25)).out
+    out = sample(post, s, 100; saveto = DiskStore(name = dir, stride = 25))
     @test out isa Comrade.DiskOutput
     @test out.nsamples == 100
     @test isfile(joinpath(dir, "state.jls"))
@@ -100,22 +101,31 @@ end
         @test meta[:sampler] == :ReactantNUTS
         @test haskey(meta, :warmup_history)
         @test haskey(meta, :sample_history)
+        @test haskey(meta, :final_state)
+    end
+    let st = Reactant.ProbProg.load_state(joinpath(dir, "state.jls")), tcpu = asflat(post_cpu)
+        @test vec(Array(st.position)) ≈ Comrade.inverse(tcpu, last(Comrade.postsamples(load_samples(out)))) rtol = 1.0e-10
     end
 
     # restart skips (already-completed) warmup, reloads state.jls, and appends
     # sampling chunks to reach the new total.
-    out2 = sample(post, s, 200; saveto = DiskStore(name = dir, stride = 25), restart = true).out
+    out2 = sample(post, s, 200; saveto = DiskStore(name = dir, stride = 25), restart = true)
     @test out2.nsamples == 200
     c = load_samples(out2)
     @test length(Comrade.postsamples(c)) == 200
 
+    # a restart that asks for no more samples than are on disk draws nothing
+    out_done = @test_logs (:warn, r"already on disk") match_mode = :any sample(
+        post, s, 200; saveto = DiskStore(name = dir, stride = 25), restart = true
+    )
+    @test out_done isa Comrade.DiskOutput
+    @test out_done.nsamples == 200
+
     # a fresh run into a directory that already holds a chain warns, clears it, and
     # starts over; `restart = true` is the way to continue
-    out3 = (
-        @test_logs (:warn, r"already contains a sampled chain") match_mode = :any sample(
-            post, s, 100; saveto = DiskStore(name = dir, stride = 25)
-        )
-    ).out
+    out3 = @test_logs (:warn, r"already contains a sampled chain") match_mode = :any sample(
+        post, s, 100; saveto = DiskStore(name = dir, stride = 25)
+    )
     @test out3.nsamples == 100
     @test length(Comrade.postsamples(load_samples(out3))) == 100
 
@@ -194,7 +204,7 @@ end
     # a full run to disk: draws are finite and the stored transport records the space
     sampler = ReactantNUTS(; n_adapts = 40, max_tree_depth = 4, init_step_size = 0.01)
     dir = mktempdir()
-    out = sample(post, sampler, 20; saveto = DiskStore(name = dir, stride = 10), transport_method = sp).out
+    out = sample(post, sampler, 20; saveto = DiskStore(name = dir, stride = 10), transport_method = sp)
     @test out.nsamples == 20
     ps = Comrade.postsamples(load_samples(out))
     @test all(p -> all(isfinite, values(p.sky)), ps)

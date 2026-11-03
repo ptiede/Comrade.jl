@@ -390,7 +390,7 @@ function sample_chunked(
     end
 
     meta = merge(
-        Dict{Symbol, Any}(:nsamples => num_samples, :sample_history => history),
+        Dict{Symbol, Any}(:nsamples => num_samples, :sample_history => history, :final_state => state),
         metadata,
     )
     return state, _close_sink(sink, saveto, meta), history
@@ -428,22 +428,22 @@ algorithmically identical to AdvancedHMC's NUTS adaptation.
 posterior as-is, while an explicit space (e.g. `TVFlat()`, `StdNormal()`) is always
 honored, re-transporting if needed.
 
-Returns a `NamedTuple` `(; out, state)` where `state` is the final ProbProg
-`MCMCState` (held in memory, ready to inspect, plot via [`_current_state`](@ref), or
-thread into a follow-up `sample_chunked`) and `out` is the standard Comrade output:
+Returns the same output as the AdvancedHMC extension's `sample`:
 
-  - `saveto::MemoryStore` -> `out` is a `PosteriorSamples` (chain transformed to
+  - `saveto::MemoryStore` -> a `PosteriorSamples` (chain transformed to
     constrained space; `samplerstats` carries per-sample `numerical_error`,
     `log_density` (of the flat, unconstrained posterior), `step_size` and `time`
-    (wall seconds per draw, averaged over the chunk); warmup/sample history + final
-    state in the metadata).
+    (wall seconds per draw, averaged over the chunk)). Its `samplerinfo` holds
+    `:warmup_history`, `:sample_history` and `:final_state`, the ProbProg `MCMCState`
+    after the last draw (see [`_current_state`](@ref) for a host-side view).
   - `saveto::DiskStore` -> writes per-chunk `PosteriorSamples` to `saveto.name` in
-    Comrade's on-disk layout; `out` is the `Comrade.DiskOutput` handle. Read the
+    Comrade's on-disk layout and returns the `Comrade.DiskOutput` handle. Read the
     chain back with `Comrade.load_samples(out)` or `Comrade.load_samples(saveto.name)`.
-    A resumable `MCMCState` is checkpointed to `<name>/state.jls` after every warmup
-    chunk and after each sampling chunk (warmup progress in `<name>/warmup_progress.jls`).
-    A fresh run (`restart=false`) into a directory that already holds a chain removes
-    that chain with a warning.
+    The same metadata is in `<name>/metadata.jls`. A resumable `MCMCState` is
+    checkpointed to `<name>/state.jls` (read it with `ProbProg.load_state`) after every
+    warmup chunk and after each sampling chunk (warmup progress in
+    `<name>/warmup_progress.jls`). A fresh run (`restart=false`) into a directory that
+    already holds a chain removes that chain with a warning.
 
 ## Callbacks
 
@@ -547,24 +547,17 @@ function AbstractMCMC.sample(
         remaining = nsamples - done
         if remaining <= 0
             @warn "Requested $nsamples samples but $done already on disk; nothing to do."
-            out = deserialize(joinpath(saveto.name, "parameters.jls")).params
-            return (; out, state)
+            return deserialize(joinpath(saveto.name, "parameters.jls")).params
         end
         @info "Appending $remaining samples to existing chain of $done" total = nsamples
     end
 
-    metadata = Dict{Symbol, Any}(
-        :sampler => :ReactantNUTS,
-        :warmup_history => warmup_history,
-        :final_state => state,
-    )
-    state, out, _ = sample_chunked(
+    metadata = Dict{Symbol, Any}(:sampler => :ReactantNUTS, :warmup_history => warmup_history)
+    _, out, _ = sample_chunked(
         state, ldf, tpost, sampler;
         num_samples = remaining, saveto, chunk_size, append = restart, metadata
     )
-    # sample_history is already merged into metadata by sample_chunked, so it lives
-    # in samplerinfo(out) for MemoryStore and in metadata.jls for DiskStore.
-    return (; out, state)
+    return out
 end
 
 """
