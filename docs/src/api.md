@@ -65,7 +65,7 @@ Comrade.averaging_axis
 ```@docs
 Comrade.ClosureTable
 Comrade.closure_phases(::Comrade.VisTable)
-Comrade.log_closure_amplitudes
+Comrade.logclosure_amplitudes
 Comrade.noise(::Comrade.ClosureTable)
 Comrade.ClosurePhases
 Comrade.LogClosureAmplitudes

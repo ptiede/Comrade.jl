@@ -23,7 +23,7 @@ function load_data()
     vt = only(simulate_observation(VLBIPosterior(skym, t), (; sky = θ); add_thermal_noise = false))
 
     amp = amplitudes(vt)
-    lcamp = log_closure_amplitudes(vt)
+    lcamp = logclosure_amplitudes(vt)
     cphase = closure_phases(vt)
 
     uvp = VLBIFiles.load(VLBIFiles.UVData, joinpath(@__DIR__, "..", "examples", "Data", "polarized_gaussian_nogains_withdterms_withfr.uvfits"))

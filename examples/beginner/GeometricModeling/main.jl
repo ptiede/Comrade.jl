@@ -49,7 +49,7 @@ dvis = average(VisTable(uvd, IPol()), ByScan())
 # residual systematics. The closures are then formed from these visibilities.
 dvis = flag(row -> hypot(row.U, row.V) < 0.1e9, dvis)
 dvis = add_fractional_noise(dvis, 0.02)
-dlcamp = log_closure_amplitudes(dvis)
+dlcamp = logclosure_amplitudes(dvis)
 dcphase = closure_phases(dvis)
 
 # !!!warn

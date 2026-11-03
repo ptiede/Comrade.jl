@@ -35,7 +35,7 @@ and as Enzyme and Comrade matures we expect this to not need runtime activity.
 # Example
 ```julia
 t = average(VisTable(uvd, IPol()), ByScan())
-dlcamp, dcphase = log_closure_amplitudes(t), closure_phases(t)
+dlcamp, dcphase = logclosure_amplitudes(t), closure_phases(t)
 
 function sky(θ, metadata)
     (; r, a) = θ

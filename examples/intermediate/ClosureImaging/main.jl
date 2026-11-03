@@ -55,7 +55,7 @@ uvd = VLBIFiles.load(
 # from the result.
 dvis = average(VisTable(uvd, IPol()), ByScan())
 dvis = add_fractional_noise(dvis, 0.02)
-dlcamp = log_closure_amplitudes(dvis)
+dlcamp = logclosure_amplitudes(dvis)
 dcphase = closure_phases(dvis)
 
 # !!! note

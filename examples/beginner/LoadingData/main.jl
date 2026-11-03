@@ -39,7 +39,7 @@ vis = average(VisTable(uvd, IPol()), ByScan())   # complex visibilities
 # The other data products are formed from the averaged visibilities.
 amp = amplitudes(vis)                    # visibility amplitudes
 cphase = closure_phases(vis)             # minimal closure phases
-lcamp = log_closure_amplitudes(vis)      # minimal log-closure amplitudes
+lcamp = logclosure_amplitudes(vis)      # minimal log-closure amplitudes
 
 # For polarization we load the file the same way; circular polarization is detected from the
 # antenna feed types in the FITS table. `VisTable(uvdp, Correlations())` holds all four feed

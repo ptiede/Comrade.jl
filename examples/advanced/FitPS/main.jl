@@ -46,7 +46,7 @@ uvd = VLBIFiles.load(VLBIFiles.UVData, file)
 # be used with instrumental models following the other tutorials.
 dvis = average(VisTable(uvd, IPol()), ByScan())
 dvis = add_fractional_noise(dvis, 0.005)
-dlcamp = log_closure_amplitudes(dvis)
+dlcamp = logclosure_amplitudes(dvis)
 dcphase = closure_phases(dvis)
 
 
