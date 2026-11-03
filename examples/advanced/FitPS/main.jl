@@ -207,7 +207,7 @@ cleanf = Base.download("https://github.com/ptiede/ComradeTestData/releases/downl
 # By default this will load the clean components with the beam defined in the FITS header.
 mcl = load_clean_components(cleanf)
 # We can also choose the load the clean components with a user-defined beam.
-mcl_25 = load_clean_components(cleanf, modify(Gaussian(), Stretch(beamsize(dlcamp) / 4 / fwhmfac)))
+mcl_25 = load_clean_components(cleanf; beam = modify(Gaussian(), Stretch(beamsize(dlcamp) / 4 / fwhmfac)))
 
 # Now we can produce the CLEAN images on the same grid as our Comrade reconstruction.
 cleanimg = intensitymap(mcl, gpl)
