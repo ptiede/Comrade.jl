@@ -189,7 +189,7 @@ xopt, sol = comrade_opt(
 using CairoMakie
 using DisplayAs
 res = residuals(post, xopt)
-plotfields(res[1], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
+fieldplot(res[1], :uvdist, :res) |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting. This could be
 # improved in a few ways, but that is beyond the goal of this quick tutorial.
@@ -208,9 +208,9 @@ intopt = instrumentmodel(post, xopt)
 # array with the dimensions `(Ant, Ti, Fr)`; a station without data at a time stamp holds `NaN`.
 # To visualize the gains we use the fitted parameters, which are `SiteArray`s holding the gain
 # terms as a flat vector with metadata about the sites, time, and frequency. The
-# `plotcaltable` function plots them directly. We will first plot the gain phases.
+# `caltableplot` function plots them directly. We will first plot the gain phases.
 gphase = angle.(cis.(Comrade.siteparams(xopt.instrument.gp)))
-plotcaltable(gphase) |> DisplayAs.PNG |> DisplayAs.Text
+caltableplot(gphase) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Due to the a priori calibration of the data, the gain phases are quite stable and just drift
 # over time. Note that the one outlier around 2.5 UT is when ALMA leaves the array. As a result
@@ -219,7 +219,7 @@ plotcaltable(gphase) |> DisplayAs.PNG |> DisplayAs.Text
 
 # We can also plot the gain amplitudes
 gamp = exp.(Comrade.siteparams(xopt.instrument.lg))
-plotcaltable(gamp) |> DisplayAs.PNG |> DisplayAs.Text
+caltableplot(gamp) |> DisplayAs.PNG |> DisplayAs.Text
 # Here we find relatively stable gains for most stations. The exception is LMT which
 # has a large offset after 2.5 UT. This is a known issue with the LMT in 2017 and is
 # due to pointing issues. However, we can see the power of simultaneous imaging and
@@ -292,10 +292,10 @@ ctable_am = caltable(exp.(gmeas.lg))
 ctable_ph = caltable(angle.(cis.(gmeas.gp)))
 
 # Now let's plot the phase curves
-plotcaltable(ctable_ph) |> DisplayAs.PNG |> DisplayAs.Text
+caltableplot(ctable_ph) |> DisplayAs.PNG |> DisplayAs.Text
 #-
 # and now the amplitude curves
-plotcaltable(ctable_am) |> DisplayAs.PNG |> DisplayAs.Text
+caltableplot(ctable_am) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Finally let's construct some representative image reconstructions.
 samples = skymodel.(Ref(post), chain[begin:5:end])

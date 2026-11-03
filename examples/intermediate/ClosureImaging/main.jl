@@ -153,8 +153,8 @@ using CairoMakie
 using DisplayAs #hide
 res = residuals(post, xopt)
 fig = Figure(; size = (800, 300))
-plotfields!(fig[1, 1], res[1], :uvdist, :res);
-plotfields!(fig[1, 2], res[2], :uvdist, :res);
+fieldplot(fig[1, 1], res[1], :uvdist, :res);
+fieldplot(fig[1, 2], res[2], :uvdist, :res);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # Now let's plot the MAP estimate.
@@ -206,12 +206,12 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # Now let's see whether our residuals look better.
 fig = Figure(; size = (800, 300))
-ax1, = baselineplot(fig[1, 1], res[1], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "LCA Normalized Residuals", xlabel = "Longest Baseline (λ)"))
-ax2, = baselineplot(fig[1, 2], res[2], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "CP Normalized Residuals", xlabel = "Longest Baseline (λ)"))
+ax1, = fieldplot(fig[1, 1], res[1], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "LCA Normalized Residuals", xlabel = "Longest Baseline (λ)"))
+ax2, = fieldplot(fig[1, 2], res[2], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "CP Normalized Residuals", xlabel = "Longest Baseline (λ)"))
 for s in sample(chain[501:end], 10)
     rs = residuals(post, s)
-    baselineplot!(ax1, rs[1], :uvdist, :res, color = :grey, alpha = 0.2, label = "Posterior Draw")
-    baselineplot!(ax2, rs[2], :uvdist, :res, color = :grey, alpha = 0.2, label = "Posterior Draw")
+    fieldplot!(ax1, rs[1], :uvdist, :res, color = :grey, alpha = 0.2, label = "Posterior Draw")
+    fieldplot!(ax2, rs[2], :uvdist, :res, color = :grey, alpha = 0.2, label = "Posterior Draw")
 end
 axislegend(ax1, merge = true)
 fig |> DisplayAs.PNG |> DisplayAs.Text

@@ -147,8 +147,8 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 # To see how well the MAP estimate fits the data we can plot the residuals.
 res = Comrade.residuals(post, xopt)
 fig = Figure(; size = (800, 300))
-plotfields!(fig[1, 1], res[1], :uvdist, :res);
-plotfields!(fig[1, 2], res[2], :uvdist, :res);
+fieldplot(fig[1, 1], res[1], :uvdist, :res);
+fieldplot(fig[1, 2], res[2], :uvdist, :res);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 

@@ -10,7 +10,7 @@ using DensityInterface
 using LinearAlgebra
 using SparseArrays
 
-include("shard.jl")
+include("todevice.jl")
 include("misc.jl")
 include("sample.jl")
 

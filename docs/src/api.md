@@ -187,7 +187,7 @@ Comrade.postsamples
 Comrade.samplerstats
 Comrade.samplerinfo
 Comrade.resample_equal
-Comrade.residual
+Comrade.residualplot
 Comrade.chi2
 Comrade.ndata
 Comrade.ReactantNUTS
@@ -224,11 +224,8 @@ Comrade.forward_model_map
 A user must first load `Makie` or a `Makie` backend, e.g., `CairoMakie` to use this functionality
 
 ```@docs
-Comrade.plotfields
-Comrade.plotfields!
-Comrade.axisfields
-Comrade.plotcaltable
-Comrade.baselineplot
-Comrade.baselineplot!
-ComradeMakieExt.BaselinePlot
+Comrade.fieldplot
+Comrade.datafield
+Comrade.DataField
+Comrade.caltableplot
 ```

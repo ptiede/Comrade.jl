@@ -212,11 +212,11 @@ intmodel = instrument()
 using Enzyme
 post_cpu = VLBIPosterior(skym, intmodel, dvis)
 
-# Place the posterior on one Reactant device. `shard` with `NoSharding()` moves its arrays
+# Place the posterior on one Reactant device. `todevice` with `NoSharding()` moves its arrays
 # (visibility points, data, weights, the sky metadata and the instrument's tables) to the
 # device; the priors stay on the host as constants of the compiled program. A `ShardLayout`
 # instead splits the posterior over several devices.
-post = shard(post_cpu, Reactant.Sharding.NoSharding())
+post = todevice(post_cpu, Reactant.Sharding.NoSharding())
 
 # ## Reconstructing the Image
 
@@ -297,7 +297,7 @@ xopt_cpu = latent_pfwd(transport_to(post_cpu, TVFlat()), Array(xcur))
 res = @jit(Comrade.residuals(post, xopt))[1]
 res_cpu = Comrade.Adapt.adapt(Array, res)
 fig = Figure(; size = (800, 300))
-plotfields!(fig[1, 1], res_cpu, :uvdist, :res);
+fieldplot(fig[1, 1], res_cpu, :uvdist, :res);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 

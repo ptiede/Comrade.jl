@@ -13,7 +13,7 @@ The following methods have default implementations:
     given the model parameters `x`.
  - `skymodel(m::AbstractSkyModel, x)`: Returns the sky model image given the model parameters `x`.
  - `domain(m::AbstractSkyModel)`: Returns the domain of the sky model `m`.
- - `set_array(m::AbstractSkyModel, t::VisTable)`: Sets the array configuration
+ - `observe(m::AbstractSkyModel, t::VisTable)`: Sets the array configuration
     for the sky model `m` and returns the observed sky model and prior.
  - `set_prior(m::AbstractSkyModel, t::VisTable)`: Sets the prior for the sky model
     `m` given the array configuration `array`. This is used to set the priors for the model parameters.
@@ -37,7 +37,7 @@ end
 skymodel(m::AbstractSkyModel) = getfield(m, :f)
 
 
-function set_array(m::AbstractSkyModel, array::VisTable)
+function observe(m::AbstractSkyModel, array::VisTable)
     return ObservedSkyModel(m, array), NamedDist(set_prior(m, array))
 end
 

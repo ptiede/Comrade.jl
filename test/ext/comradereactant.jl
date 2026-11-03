@@ -15,7 +15,7 @@ import TransformVariables as TV
     variate_index = [1, 2, 4]
     fixed_index = [3, 5]
     fixed_values = [7.0, 9.0]
-    pcd = Comrade.PartiallyConditionedDist(dist, variate_index, fixed_index, fixed_values)
+    pcd = VLBIInstrumentModels.PartiallyConditionedDist(dist, variate_index, fixed_index, fixed_values)
 
     # flat path (the gradient path NUTS uses): the raw TransformVariables node, on which
     # `TV.transform_with` runs directly. `asflat` now returns a `TransportedDistribution`
@@ -44,7 +44,7 @@ end
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 32, 32)
     skym = SkyModel(test_model, test_prior(), g)
     post_cpu = VLBIPosterior(skym, vis; admode = nothing)
-    post = shard(post_cpu, Reactant.Sharding.NoSharding())
+    post = todevice(post_cpu, Reactant.Sharding.NoSharding())
 
     tpost = asflat(post)
 
@@ -149,7 +149,7 @@ end
     _, vis, _, _, _ = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12)
     skym = SkyModel(test_model, gprior, g)
-    post = shard(VLBIPosterior(skym, vis; admode = nothing), Reactant.Sharding.NoSharding())
+    post = todevice(VLBIPosterior(skym, vis; admode = nothing), Reactant.Sharding.NoSharding())
     tpost = asflat(post)
     ldf = ext._default_ldf
 
@@ -198,7 +198,7 @@ end
     _, vis, _, _, _ = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12)
     post_cpu = VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing)
-    post = shard(post_cpu, Reactant.Sharding.NoSharding())
+    post = todevice(post_cpu, Reactant.Sharding.NoSharding())
     sp = Comrade.PT.StdNormal()
 
     # a full run to disk: draws are finite and the stored transport records the space
@@ -307,7 +307,7 @@ end
         tpost_cpu = asflat(post_cpu)
         x0 = prior_sample(Random.Xoshiro(31), tpost_cpu)
 
-        post = shard(post_cpu, Reactant.Sharding.NoSharding())
+        post = todevice(post_cpu, Reactant.Sharding.NoSharding())
         tpost = asflat(post)
         x0_r = Reactant.to_rarray(x0)
 
@@ -359,7 +359,7 @@ end
     function check_matches_cpu(post_cpu; transport = asflat)
         tpost_cpu = transport(post_cpu)
         x0 = prior_sample(Random.Xoshiro(41), tpost_cpu)
-        tpost = transport(shard(post_cpu, Reactant.Sharding.NoSharding()))
+        tpost = transport(todevice(post_cpu, Reactant.Sharding.NoSharding()))
         x0_r = Reactant.to_rarray(x0)
         @test convert(Float64, @jit(logdensityof(tpost, x0_r))) ≈ logdensityof(tpost_cpu, x0) rtol = 1.0e-10
         @test convert(Vector{Float64}, @jit(fgrad(x0_r, tpost))) ≈ fgrad(x0, tpost_cpu) rtol = 1.0e-8
@@ -421,7 +421,7 @@ end
         function check_matches_cpu(post_cpu, layout; transport = asflat, rtol = 1.0e-10)
             tcpu = transport(post_cpu)
             x0 = prior_sample(Random.Xoshiro(41), tcpu)
-            tdev = transport(shard(post_cpu, layout))
+            tdev = transport(todevice(post_cpu, layout))
             xr = Reactant.to_rarray(x0; sharding = Reactant.Sharding.Replicated(mesh))
             @test convert(Float64, @jit(logdensityof(tdev, xr))) ≈ logdensityof(tcpu, x0) rtol = rtol
             @test convert(Vector{Float64}, @jit(fgrad(xr, tdev))) ≈ fgrad(x0, tcpu) rtol = 1.0e-8
@@ -463,7 +463,7 @@ end
 
         @testset "time planes" begin
             check_matches_cpu(post_cpu, bytime)
-            post = shard(post_cpu, bytime)
+            post = todevice(post_cpu, bytime)
             @test !isempty(devicearrays(post))
             @test all(Reactant.Sharding.is_sharded, devicearrays(post))
             obs = only(post.lklhds).obs
@@ -516,7 +516,7 @@ end
                 check_matches_cpu(VLBIPosterior(planemodel(vis, 4; width = 8.0), c; admode = nothing), bytime; rtol = 1.0e-8)
             end
             post = VLBIPosterior(planemodel(vis, 4; width = 8.0), cphase, lcamp; admode = nothing)
-            dev = shard(post, Reactant.Sharding.NoSharding())
+            dev = todevice(post, Reactant.Sharding.NoSharding())
             θ = Comrade.transform(asflat(post), prior_sample(Random.Xoshiro(41), asflat(post)))
             _, mv = @jit Comrade.forward_model(dev, Reactant.to_rarray(θ))
             for (l, ldev) in zip(post.lklhds, dev.lklhds)
@@ -532,8 +532,8 @@ end
         end
 
         @testset "errors" begin
-            @test_throws "already on a device" shard(shard(post_cpu, Reactant.Sharding.NoSharding()), bytime)
-            @test_throws "`Ti` is not a dimension" shard(VLBIPosterior(static, vis; admode = nothing), bytime)
+            @test_throws "already on a device" todevice(todevice(post_cpu, Reactant.Sharding.NoSharding()), bytime)
+            @test_throws "`Ti` is not a dimension" todevice(VLBIPosterior(static, vis; admode = nothing), bytime)
         end
     end
 end

@@ -94,8 +94,11 @@ data products observed.
 """
 @inline function forward_model_map(D, d::AbstractVLBIPosterior, θ)
     img, vis = idealmaps(D, skymodel(d), θ)
-    return img, apply_instrument(vis, instrumentmodel(d), θ)
+    return img, apply_instrument(vis, instrumentmodel(d), _instrumentvalues(θ))
 end
+
+# The instrument parameters of `θ`; an ideal instrument has none.
+_instrumentvalues(θ::NamedTuple) = haskey(θ, :instrument) ? θ.instrument : (;)
 
 @inline function forward_model(d::AbstractVLBIPosterior, θ)
     return forward_model_map(datatype(typeof(d)), d, θ)
@@ -133,7 +136,7 @@ function instrumentmodel(post::AbstractVLBIPosterior, θ)
     return _forwardjones(instrumentmodel(post), θ, post.data)
 end
 
-_forwardjones(J, θ, data::Tuple) = forward_jones(_observedmodel(J), θ, _commonvis(data))
+_forwardjones(J, θ, data::Tuple) = forward_jones(_observedmodel(J), _instrumentvalues(θ), _commonvis(data))
 _forwardjones(J::FieldInstruments, θ, data::NamedTuple) = map((j, d) -> _forwardjones(j, θ, d), J.fields, data)
 
 _observedmodel(J::ObservedInstrumentModel) = J

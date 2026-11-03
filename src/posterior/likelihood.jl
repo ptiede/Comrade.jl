@@ -34,9 +34,6 @@ end
 
 (c::_Coherency)(μ) = CoherencyLikelihood(_storage(baseimage(μ)), c.w, c.L)
 
-# The dense `(…, 2, 2)` storage of coherencies, which the likelihood reads without converting.
-_storage(μ::FieldDimArray) = parent(μ)
-_storage(μ) = μ
 
 function _coherencylikelihood(vis, w)
     lnorm = VLBILikelihoods.lognorm(CoherencyLikelihood(vis, w))

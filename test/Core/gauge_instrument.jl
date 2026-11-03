@@ -34,23 +34,14 @@ end
 
     regauge(m, gaugefix) = InstrumentModel(m.jones; refbasis = m.refbasis, gaugefix)
 
-    @testset "an unreferenced offset is reported" begin
-        m = gauge_split()
-        @test_throws "rank deficient by 1" bind_instrument(m, t)
-        @test_throws "gpμ[site = AA" bind_instrument(m, t)
-        @test_throws "gaugefix = PinGauge()" bind_instrument(m, t)
-        # the analysis runs only on the terms that declare themselves
-        @test bind_instrument(gauge_split(; gauge = nothing), t) isa Tuple
-    end
-
     @testset "PinGauge identifies the phase" begin
-        _, pinned = bind_instrument(regauge(gauge_split(), PinGauge()), t)
-        _, loose = bind_instrument(gauge_split(; gauge = nothing), t)
+        _, pinned = observe(regauge(gauge_split(), PinGauge()), t)
+        _, loose = observe(gauge_split(; gauge = nothing), t)
         # a wrapped angle costs two flat coordinates, so one pin takes two off
         @test Comrade.dimension(asflat(pinned)) == Comrade.dimension(asflat(loose)) - 2
 
         # pinning the offset by hand instead reaches the same parameterization
-        _, byhand = bind_instrument(
+        _, byhand = observe(
             gauge_split(; offset_refant = SensitiveReference(0.0)), t
         )
         @test Comrade.dimension(asflat(pinned)) == Comrade.dimension(asflat(byhand))
@@ -58,7 +49,7 @@ end
         # nothing is left over, and the pinned entry no longer varies
         names = (:gpμ, :gp)
         obs = NamedTuple{names}(map(n -> getproperty(pinned, n), names))
-        @test isempty(Comrade.gauge_pins(Comrade.gauge_terms(obs, names), t))
+        @test isempty(VLBIInstrumentModels.gauge_pins(VLBIInstrumentModels.gauge_terms(obs, names), t))
         x, y = rand(pinned), rand(pinned)
         held = [i for i in eachindex(parent(x.gpμ)) if parent(x.gpμ)[i] == parent(y.gpμ)[i]]
         @test Comrade.sites(x.gpμ)[held] == [:AA]
@@ -67,12 +58,4 @@ end
         @test Comrade.dimension(asflat(post)) ==
             Comrade.dimension(asflat(VLBIPosterior(skym, gauge_split(; gauge = nothing), dvis))) - 2
     end
-
-    @testset "gaugefix takes two values" begin
-        m = gauge_split()
-        @test_throws "must be ReportGauge() or PinGauge()" regauge(m, :pin)
-        @test regauge(m, PinGauge()).gaugefix === PinGauge()
-        @test m.gaugefix === ReportGauge()
-    end
-
 end

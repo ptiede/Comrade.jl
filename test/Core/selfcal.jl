@@ -75,7 +75,7 @@ _wrapdiff(a, b) = abs(angle(cis(a - b)))
         d = parent(φ) .- parent(θtrue.instrument.gp)
         ref = Comrade.instrumentmodel(spost).layout.refentry
         @test maximum(_wrapdiff.(d, d[ref])) < 1.0e-8
-        fixed = Comrade.fixed_indices(spost.prior.instrument.selfcal_residual)
+        fixed = VLBIInstrumentModels.fixed_indices(spost.prior.instrument.selfcal_residual)
         @test !isempty(fixed) && all(iszero, parent(φ)[fixed])
         splain = VLBIPosterior(skym, phase_gains(), dsim)
         @test Comrade.loglikelihood(spost, θ) ≈ Comrade.loglikelihood(splain, θtrue)

@@ -9,7 +9,7 @@ function with_source(t::VisTable, name; dec = info(t).source.dec)
     g = stations(t)
     b = ArrayInfo(; a.stations, a.channels, a.scans, a.tracks, source = Source(name, a.source.ra, dec), a.epoch)
     return VisTable(
-        t.pol, Comrade._dense(measurement(t)); weight = Comrade._dense(weight(t)),
+        t.pol, VLBIInstrumentModels._dense(measurement(t)); weight = VLBIInstrumentModels._dense(weight(t)),
         u = c.u, v = c.v, Ti = d.Ti, ant1 = d.ant1, ant2 = d.ant2, info = b,
         elevation = parent(g.elevation), parallactic = parent(g.parallactic),
     )
@@ -72,8 +72,8 @@ end
         x = prior_sample(post).instrument
         parent(x.a) .= 0.5
         vis = parent(measurement(dvis))
-        @test Comrade.apply_instrument(vis, J.M87, (; instrument = x)) ≈ vis
-        @test Comrade.apply_instrument(vis, J.N, (; instrument = x)) ≈ vis .* exp(2 * 0.5 * deg2rad(1))
+        @test Comrade.apply_instrument(vis, J.M87, x) ≈ vis
+        @test Comrade.apply_instrument(vis, J.N, x) ≈ vis .* exp(2 * 0.5 * deg2rad(1))
     end
 
     @testset "errors" begin

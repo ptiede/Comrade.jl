@@ -2,15 +2,12 @@ module Comrade
 
 using Adapt
 using AbstractMCMC
-using Accessors: @set, getproperties, setproperties
 using DensityInterface
 import Distributions as Dists
 using DocStringExtensions
 using ChainRulesCore
 using EnzymeCore
 using EnzymeCore: EnzymeRules
-using FillArrays: Fill
-using IntervalSets
 using LogDensityProblems
 using LinearAlgebra
 import ProbabilityTransports as PT
@@ -25,31 +22,31 @@ import ProbabilityTransports: transport_node, latent_pfwd, latent_pback,
 import TransformVariables: transform, inverse, dimension
 import VLBIImagePriors: asflat, ascube
 #using MappedArrays: mappedarray
-using Measurements
-using Printf
 using Random
 using Reexport
-using SparseArrays
 using StaticArraysCore
-using StructArrays: StructVector, StructArray, append!!
+using Statistics
+using StructArrays: StructArray
 import StructArrays
-using Tables
-import TransformVariables as TV
-using ComradeBase: AbstractDomain, AbstractSingleDomain, AbstractRectiGrid
+using ComradeBase: AbstractDomain, AbstractRectiGrid
 using VLBISkyModels: FourierTransform, FourierDualDomain
-using ReactantCore
-using ComradeBase: rgetindex, rsetindex!
 import DimensionalData as DD
-using Dates: Dates, Date, DateTime, datetime2julian
 
 # Reexport the core libraries for Comrade
 @reexport using VLBISkyModels
 @reexport using ComradeBase
 @reexport using PolarizedTypes
 @reexport using VLBIImagePriors
+@reexport using VLBIInstrumentModels
 
-using ComradeBase: AbstractRectiGrid, AbstractDomain, UnstructuredDomain,
-    AbstractModel, AbstractPolarizedModel, AbstractHeader
+import VLBIInstrumentModels: observe, domain, simulate_observation, selfcal_phase
+using VLBIInstrumentModels: AbstractInstrumentModel, IdealInstrumentModel, FieldInstruments,
+    ObservedInstrumentModel, ObservedSelfCalInstrumentModel, instrument,
+    _closurevalue, _dense, _elements, _measuredvalues, _polname,
+    _observedvalues, _storage, _withmodel,
+    _kwname, _scan_used_names, _split_tildes
+
+using ComradeBase: AbstractRectiGrid, AbstractDomain, AbstractModel
 
 
 export rad2μas, μas2rad
@@ -69,14 +66,11 @@ import ComradeBase: flux, radialextent, intensitymap, intensitymap!,
     logclosure_amplitude, logclosure_amplitudemap,
     visibility, amplitude,
     amplitudemap
-include("macro_utils.jl")
-include("observations/observations.jl")
-include("instrument/instrument.jl")
+include("datatypes.jl")
 include("skymodels/abstract.jl")
 include("posterior/abstract.jl")
 include("inference/inference.jl")
 include("visualizations/visualizations.jl")
-include("dirty_image.jl")
 include("mrf_image.jl")
 include("rules.jl")
 

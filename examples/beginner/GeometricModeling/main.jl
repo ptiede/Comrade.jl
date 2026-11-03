@@ -227,18 +227,14 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 
 
 # That looks similar to the EHTC VI, and it took us no time at all!. To see how well the
-# model is fitting the data we can plot the model and data products. As of Comrade 0.11.7 Makie
-# is the preferred plotting tool. For plotting data there are two classes of functions
-#  - `baselineplot` which gives complete control of plotting
-#  - `plotfields, plotfields!` which are more automated and limited but will automatically add
-#     labels, legends, titles etc.
-# A reasonable workflow is to use `plotfields` to set up the initial figure and axis labels and then
-# then use `baselineplot!` to add additional plots to the axis. For example,
+# model is fitting the data we can plot the model and data products with `fieldplot`. A
+# reasonable workflow is to use `fieldplot` to set up the figure and axis labels and then use
+# `fieldplot!` to add more data to the axis. For example,
 lcsim, cpsim = simulate_observation(post, xopt; add_thermal_noise = false)
-fig, ax1 = plotfields(lcsim, :uvdist, :measwnoise, scatter_kwargs = (; marker = :circle, label = "MAP"), figure_kwargs = (; size = (800, 300)), legend = false);
-baselineplot!(ax1, dlcamp, :uvdist, :measurement, marker = :+, color = :black, label = "Data")
-ax2, = plotfields!(fig[1, 2], cpsim, :uvdist, x -> mod2pi(x.measurement), scatter_kwargs = (; marker = :circle, label = "MAP"), axis_kwargs = (ylabel = "Closure Phase (rad)",))
-baselineplot!(ax2, dcphase, :uvdist, x -> mod2pi(x.measurement), marker = :+, color = :black, label = "Data")
+fig, ax1 = fieldplot(lcsim, :uvdist, :measwnoise, marker = :circle, label = "MAP", figure = (; size = (800, 300)), legend = false);
+fieldplot!(ax1, dlcamp, :uvdist, :measurement, marker = :+, color = :black, label = "Data")
+ax2, = fieldplot(fig[1, 2], cpsim, :uvdist, x -> mod2pi(x.measurement), marker = :circle, label = "MAP", axis = (ylabel = "Closure Phase (rad)",))
+fieldplot!(ax2, dcphase, :uvdist, x -> mod2pi(x.measurement), marker = :+, color = :black, label = "Data")
 axislegend(ax1, framevisible = false)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
@@ -252,11 +248,11 @@ for i in 1:10
     mobs = simulate_observation(post, sample(chain, 1)[1])
     mlca = mobs[1]
     mcp = mobs[2]
-    baselineplot!(ax1, mlca, :uvdist, :measurement, color = :grey, alpha = 0.2)
-    baselineplot!(ax2, mcp, :uvdist, x -> mod2pi(x.measurement), color = :grey, alpha = 0.2)
+    fieldplot!(ax1, mlca, :uvdist, :measurement, color = :grey, alpha = 0.2)
+    fieldplot!(ax2, mcp, :uvdist, x -> mod2pi(x.measurement), color = :grey, alpha = 0.2)
 end
-baselineplot!(ax1, dlcamp, :uvdist, :measurement, marker = :x)
-baselineplot!(ax2, dcphase, :uvdist, x -> mod2pi(x.measurement), marker = :x)
+fieldplot!(ax1, dlcamp, :uvdist, :measurement, marker = :x)
+fieldplot!(ax2, dcphase, :uvdist, x -> mod2pi(x.measurement), marker = :x)
 DisplayAs.Text(DisplayAs.PNG(fig))
 
 
@@ -264,6 +260,6 @@ DisplayAs.Text(DisplayAs.PNG(fig))
 # The normalied residuals are the difference between the data
 # and the model, divided by the data's error:
 rd = residuals(post, chain[end])
-fig, ax = plotfields(rd[1], :uvdist, :res, axis_kwargs = (; ylabel = "Norm. Res. LCA"))
-plotfields!(fig[2, 1], rd[2], :uvdist, :res, axis_kwargs = (; ylabel = "Norm. Res. CP"))
+fig, ax = fieldplot(rd[1], :uvdist, :res, axis = (; ylabel = "Norm. Res. LCA"))
+fieldplot(fig[2, 1], rd[2], :uvdist, :res, axis = (; ylabel = "Norm. Res. CP"))
 DisplayAs.Text(DisplayAs.PNG(fig))

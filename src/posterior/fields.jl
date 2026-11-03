@@ -48,8 +48,8 @@ post = VLBIPosterior(InstrumentModel(G * D),
     tables = NamedTuple{names}(map(f -> _commonvis(f.data), fs))
     data = NamedTuple{names}(map(f -> f.data, fs))
 
-    int, intprior = set_array(instrumentmodel, tables)
-    observed = map((f, t) -> set_array(f.sky, t), fs, values(tables))
+    int, intprior = observe(instrumentmodel, tables)
+    observed = map((f, t) -> observe(f.sky, t), fs, values(tables))
     sky = FieldSkies(NamedTuple{names}(map(first, observed)))
     skyprior = NamedDist(NamedTuple{names}(map(last, observed)))
     total_prior = combine_prior(skyprior, intprior)

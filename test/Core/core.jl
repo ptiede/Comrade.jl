@@ -5,13 +5,8 @@ using Statistics
 using Test
 using VLBIImagePriors
 
-include(joinpath(@__DIR__, "observation_vlbifiles.jl"))
-include(joinpath(@__DIR__, "vistable.jl"))
 include(joinpath(@__DIR__, "plots.jl"))
-include(joinpath(@__DIR__, "partially_fixed.jl"))
-include(joinpath(@__DIR__, "refant.jl"))
 include(joinpath(@__DIR__, "selfcal.jl"))
-include(joinpath(@__DIR__, "gauge.jl"))
 include(joinpath(@__DIR__, "gauge_instrument.jl"))
 include(joinpath(@__DIR__, "gauss_markov.jl"))
 include(joinpath(@__DIR__, "models.jl"))

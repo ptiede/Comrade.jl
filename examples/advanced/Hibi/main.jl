@@ -164,7 +164,7 @@ xopt, sol = comrade_opt(
 
 # First we will evaluate our fit by plotting the residuals
 res = residuals(post, xopt);
-fig = plotfields(res[1], :uvdist, :res);
+fig = fieldplot(res[1], :uvdist, :res);
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 
 # These residuals suggest that we are substantially overfitting the data. This is a common
@@ -217,9 +217,9 @@ figd |> DisplayAs.PNG |> DisplayAs.Text #hide
 # Now let's check the residuals using draws from the posterior
 fig = Figure(; size = (600, 400))
 resch = residuals(post, chain[end])
-ax, = plotfields!(fig[1, 1], resch[1], :uvdist, :res, scatter_kwargs = (; label = "MAP", color = :blue, colorim = :red, marker = :circle), legend = false)
+ax, = fieldplot(fig[1, 1], resch[1], :uvdist, :res, label = "MAP", color = :blue, colorim = :red, marker = :circle, legend = false)
 for s in sample(chain, 10)
-    baselineplot!(ax, residuals(post, s)[1], :uvdist, :res, alpha = 0.2, label = "Draw")
+    fieldplot!(ax, residuals(post, s)[1], :uvdist, :res, alpha = 0.2, label = "Draw")
 end
 axislegend(ax, merge = true)
 fig |> DisplayAs.PNG |> DisplayAs.Text #hide

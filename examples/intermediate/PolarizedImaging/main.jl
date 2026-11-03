@@ -332,10 +332,10 @@ using CairoMakie
 using DisplayAs #hide
 res = residuals(post, xopt)
 fig = Figure(; size = (800, 600))
-plotfields!(fig[1, 1], res[1], :uvdist, x -> x.measurement[1, 1] / x.noise[1, 1], axis_kwargs = (; ylabel = "RR Residual"))
-plotfields!(fig[2, 1], res[1], :uvdist, x -> x.measurement[2, 1] / x.noise[2, 1], axis_kwargs = (; ylabel = "LR Residual"))
-plotfields!(fig[1, 2], res[1], :uvdist, x -> x.measurement[1, 2] / x.noise[1, 2], axis_kwargs = (; ylabel = "RL Residual"))
-plotfields!(fig[2, 2], res[1], :uvdist, x -> x.measurement[2, 2] / x.noise[2, 2], axis_kwargs = (; ylabel = "LL Residual"))
+fieldplot(fig[1, 1], res[1], :uvdist, x -> x.measurement[1, 1] / x.noise[1, 1], axis = (; ylabel = "RR Residual"))
+fieldplot(fig[2, 1], res[1], :uvdist, x -> x.measurement[2, 1] / x.noise[2, 1], axis = (; ylabel = "LR Residual"))
+fieldplot(fig[1, 2], res[1], :uvdist, x -> x.measurement[1, 2] / x.noise[1, 2], axis = (; ylabel = "RL Residual"))
+fieldplot(fig[2, 2], res[1], :uvdist, x -> x.measurement[2, 2] / x.noise[2, 2], axis = (; ylabel = "LL Residual"))
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # These look reasonable, although there may be some minor overfitting.
@@ -367,14 +367,14 @@ gamp_ratio = caltable(exp.(Comrade.siteparams(xopt.instrument.lgrat)))
 # expected since gain ratios are typically stable over the course of an observation and the constant
 # offset was removed in the EHT calibration process.
 gphaseR = caltable(xopt.instrument.gpR)
-fig = plotcaltable(gphaseR, gphase_ratio, labels = ["R Phase", "L/R Phase"]);
+fig = caltableplot(gphaseR, gphase_ratio, labels = ["R Phase", "L/R Phase"]);
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 # Moving to the amplitudes we see largely stable gain amplitudes on the right circular polarization except for LMT which is
 # known and due to pointing issues during the 2017 observation. Again the gain ratios are stable and close to unity. Typically
 # we expect that apriori calibration should make the gain ratios close to unity.
 gampr = caltable(exp.(Comrade.siteparams(xopt.instrument.lgR)))
-fig = plotcaltable(gampr, gamp_ratio, labels = ["R Amp", "L/R Amp"], axis_kwargs = (; limits = (nothing, (0.6, 1.3))));
+fig = caltableplot(gampr, gamp_ratio, labels = ["R Amp", "L/R Amp"], axis = (; limits = (nothing, (0.6, 1.3))));
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-
 

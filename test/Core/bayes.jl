@@ -132,13 +132,13 @@ using Enzyme
 
     @testset "Plot residuals" begin
         post = VLBIPosterior(skym, vis)
-        residual(post, xopt)
+        residualplot(post, xopt)
         post = VLBIPosterior(skym, amp)
-        residual(post, xopt)
+        residualplot(post, xopt)
         post = VLBIPosterior(skym, lcamp)
-        residual(post, xopt)
+        residualplot(post, xopt)
         post = VLBIPosterior(skym, cphase)
-        residual(post, xopt)
+        residualplot(post, xopt)
     end
 
     @testset "LogDensityProblems" begin
@@ -199,7 +199,7 @@ using FiniteDifferences
     tpost = asflat(post)
     x = prior_sample(tpost)
     fj = instrumentmodel(post, prior_sample(post))
-    residual(post, Comrade.transform(tpost, x))
+    residualplot(post, Comrade.transform(tpost, x))
     gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpost), x)
     mfd = central_fdm(5, 1)
     gfd, = FiniteDifferences.grad(mfd, tpost, x)
@@ -238,7 +238,7 @@ end
         @test length(obs) == length(post.data[begin])
         obs_nn = simulate_observation(post, x, add_thermal_noise = false)[begin]
         μ = Comrade.likelihood(post.lklhds[1], last(Comrade.forward_model(post, x))).μ
-        @test Comrade._storage(Comrade.baseimage(Comrade.measurement(obs_nn))) == μ
+        @test VLBIInstrumentModels._storage(Comrade.baseimage(Comrade.measurement(obs_nn))) == μ
 
         if isnothing(int)
             postsim = VLBIPosterior(skym, obs)

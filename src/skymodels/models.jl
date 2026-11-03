@@ -41,20 +41,6 @@ function SkyModel(f, prior, grid::AbstractRectiGrid; algorithm = NFFTAlg(), meta
     return SkyModel(f, prior, grid, algorithm, metadata)
 end
 
-function VLBISkyModels.FourierDualDomain(grid::AbstractRectiGrid, t::VisTable, alg::FourierTransform; executor = executor(grid))
-    return FourierDualDomain(grid, _skydomain(domain(t), executor), alg)
-end
-
-# The points the sky is evaluated at: the baselines in wavelengths, precomputed, and the times of
-# the table's records, without the station coordinates only the instrument reads.
-function _skydomain(d::StructuredDomain, executor)
-    return StructuredDomain(
-        DD.dims(d); executor, header = ComradeBase.header(d),
-        U = collect(d.U) => (:Node, :Fr), V = collect(d.V) => (:Node, :Fr), Ti = d.Ti => (:Node,),
-    )
-end
-
-
 # If we are using a analytic model then we don't need to plan the FT and we
 # can save some memory by not storing the plans.
 struct AnalyticAlg <: FourierTransform end

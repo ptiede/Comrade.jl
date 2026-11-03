@@ -1,10 +1,10 @@
 """
-    shard(post::VLBIPosterior, layout::ShardLayout)
-    shard(post::VLBIPosterior, sharding::Reactant.Sharding.AbstractSharding)
+    todevice(post::VLBIPosterior, layout::ShardLayout)
+    todevice(post::VLBIPosterior, sharding::Reactant.Sharding.AbstractSharding)
 
 Return a copy of the host posterior `post` with its arrays placed on Reactant devices.
 
-With a `layout`, each field's dual domain is split by `layout` (see `shard` for dual
+With a `layout`, each field's dual domain is split by `layout` (see `todevice` for dual
 domains): when it splits image planes such as `Ti`, every device holds the visibilities of
 its own planes, padded to a common length. The data, weights and the instrument's
 per-visibility station-cell indices follow the visibility points, with padding at weight 0.
@@ -19,7 +19,7 @@ Closure products and the self-calibrated station phase are replicated: every dev
 all model visibilities at the measured values, so XLA gathers them from the devices that
 hold them.
 
-With a `sharding`, every array is placed with it: `shard(post, Reactant.Sharding.NoSharding())`
+With a `sharding`, every array is placed with it: `todevice(post, Reactant.Sharding.NoSharding())`
 places the posterior on one device.
 
 The prior stays on the host, as constants of the compiled program.
@@ -32,19 +32,19 @@ posterior.
 `post` must be on the host: an array already on a device throws, since placing it again
 would first hold it whole on one device.
 """
-ComradeBase.shard(post::VLBIPosterior, layout::ShardLayout) = _shardposterior(post, layout)
-ComradeBase.shard(post::VLBIPosterior, sharding::Reactant.Sharding.AbstractSharding) = _shardposterior(post, sharding)
+ComradeBase.todevice(post::VLBIPosterior, layout::ShardLayout) = _shardposterior(post, layout)
+ComradeBase.todevice(post::VLBIPosterior, sharding::Reactant.Sharding.AbstractSharding) = _shardposterior(post, sharding)
 
 function _shardposterior(post::VLBIPosterior, p)
     _ondevice(post) && throw(
-        ArgumentError("the posterior holds arrays already on a device; shard the posterior built on the host")
+        ArgumentError("the posterior holds arrays already on a device; place the posterior built on the host")
     )
     sky = _placesky(post.skymodel, p)
     pts = _points(post.skymodel, sky, p)
     return Accessors.setproperties(
         post, (;
             skymodel = sky,
-            instrumentmodel = _placeinstrument(post.instrumentmodel, pts, p),
+            instrumentmodel = _placeinstrument(post.instrumentmodel, pts),
             lklhds = _placelikelihoods(post.lklhds, post.data, pts, p),
             lklhdsimg = _replicate(post.lklhdsimg, p),
         )
@@ -66,8 +66,8 @@ function _ondevice(x, seen)
     return any(i -> isdefined(x, i) && _ondevice(getfield(x, i), seen), 1:fieldcount(T))
 end
 
-_replicate(x, layout::ShardLayout) = Reactant.to_rarray(x; sharding = Reactant.Sharding.Replicated(layout.mesh))
-_replicate(x, sharding) = Reactant.to_rarray(x; sharding)
+_replicate(x, layout::ShardLayout) = todevice(x, Reactant.Sharding.Replicated(layout.mesh))
+_replicate(x, sharding) = todevice(x, sharding)
 
 # Where the per-value arrays of one table go: `host` is the table's domain of records and
 # channels, `to` the sharded visibility domain of its sky, or one sharding for every array.
@@ -77,8 +77,8 @@ struct _Points{H, T}
 end
 
 # The per-value map `m` over `p.host`, on the devices; slots added for padding hold `pad`.
-_pervalue(m::IntensityMap, p::_Points{<:Any, <:StructuredDomain}, pad) = shard(m, p.to; pad)
-_pervalue(m::IntensityMap, p::_Points, pad) = IntensityMap(Reactant.to_rarray(baseimage(m); sharding = p.to), axisdims(m))
+_pervalue(m::IntensityMap, p::_Points{<:Any, <:StructuredDomain}, pad) = todevice(m, p.to; pad)
+_pervalue(m::IntensityMap, p::_Points, pad) = todevice(m, p.to)
 
 ## Sky
 
@@ -122,12 +122,12 @@ _devicealg(alg, T) = VLBISkyModels.ReactantNUFFTAlg(T)
 function _placedual(g::VLBISkyModels.FourierDualDomain, layout::ShardLayout)
     img = ComradeBase.imgdomain(g)
     alg = _devicealg(VLBISkyModels.algorithm(g), eltype(img))
-    return shard(VLBISkyModels.FourierDualDomain(img, ComradeBase.visdomain(g), alg), layout)
+    return todevice(VLBISkyModels.FourierDualDomain(img, ComradeBase.visdomain(g), alg), layout)
 end
 
 function _placedual(g::VLBISkyModels.FourierDualDomain, sharding)
     img = ComradeBase.imgdomain(g)
-    visr = Reactant.to_rarray(ComradeBase.visdomain(g); sharding)
+    visr = todevice(ComradeBase.visdomain(g), sharding)
     return VLBISkyModels.FourierDualDomain(img, visr, _devicealg(VLBISkyModels.algorithm(g), eltype(img)))
 end
 
@@ -140,7 +140,7 @@ function _placedual(g::VLBISkyModels.FourierDualDomain, ::ShardLayout, vis::Stru
     )
     alg = _devicealg(VLBISkyModels.algorithm(g), eltype(img))
     blocked = ComradeBase.executor(vis).layout
-    return shard(VLBISkyModels.FourierDualDomain(img, host, alg), ShardLayout(blocked.mesh; Node = blocked.axes.Node))
+    return todevice(VLBISkyModels.FourierDualDomain(img, host, alg), ShardLayout(blocked.mesh; Node = blocked.axes.Node))
 end
 
 _tohost(c::Reactant.AbstractConcreteArray) = Array(c)
@@ -168,40 +168,8 @@ _nodes(_) = nothing
 
 ## Instrument
 
-_placeinstrument(J::Comrade.ObservedIdealInstrument, pts, p) = J
-_placeinstrument(J::Comrade.FieldInstruments, pts::NamedTuple, p) =
-    Comrade.FieldInstruments(map((j, q) -> _placeinstrument(j, q, p), J.fields, pts))
-
-function _placeinstrument(J::Comrade.ObservedInstrumentModel, pts, p)
-    return Comrade.ObservedInstrumentModel(
-        _placeterms(J.instrument, p), J.refbasis, _placecells(J.layout, pts, p), J.pol, Comrade.corrected(J)
-    )
-end
-
-_placeterms(J, p) = _replicate(J, p)
-_placeterms(J::Comrade._StationGroups, p) = Comrade._StationGroups(_replicate(J.terms, p), J.cells)
-
-# Each value's station cells follow the visibility points (padding reads cell 1); the per-cell
-# values are replicated.
-function _placecells(L::Comrade.CellLayout, pts, p)
-    cell(c) = baseimage(_pervalue(IntensityMap(c, pts.host), pts, one(eltype(c))))
-    coords = StructArray(map(c -> _replicate(c, p), StructArrays.components(L.coords)))
-    response = isnothing(L.response) ? nothing : _replicate(L.response, p)
-    return Comrade.CellLayout(coords, cell(L.cell1), cell(L.cell2), _replicate(L.entries, p), response)
-end
-
-# The data, weights and station matrices are per measured value and replicated; the model
-# visibilities are read at the measured values' slots, and each value's residual entries
-# follow its visibility point.
-function _placeinstrument(J::Comrade.ObservedSelfCalInstrumentModel, pts, p)
-    entry(e) = baseimage(_pervalue(IntensityMap(e, pts.host), pts, one(eltype(e))))
-    stacks = map(st -> merge(st, (; eye = _replicate(st.eye, p))), J.layout.stacks)
-    return Comrade.ObservedSelfCalInstrumentModel(
-        _placeinstrument(J.model, pts, p), J.phase,
-        map(w -> _replicate(w, p), J.wdata), map(w -> _replicate(w, p), J.weight),
-        merge(J.layout, (; stacks)), J.squarings, _slots(pts)[J.keep], entry(J.entry1), entry(J.entry2)
-    )
-end
+_placeinstrument(J, pts::_Points) = todevice(J, pts.to)
+_placeinstrument(J, pts::NamedTuple) = todevice(J, map(q -> q.to, pts))
 
 ## Likelihoods
 
@@ -215,13 +183,7 @@ function _placelikelihood(l::Comrade.ConditionedLikelihood, t::VisTable, pts, p)
 end
 
 # The linear index in the model visibilities on the devices of each value of the host domain.
-function _slots(pts::_Points{<:Any, <:StructuredDomain})
-    blocked = parent(DD.lookup(first(DD.dims(pts.to))))
-    at = Dict(v => s for (s, v) in pairs(blocked) if !iszero(v))
-    nodes = parent(DD.lookup(first(DD.dims(pts.host))))
-    L = LinearIndices(size(pts.to))
-    return map(I -> L[at[nodes[I[1]]], Base.tail(Tuple(I))...], CartesianIndices(size(pts.host)))
-end
+_slots(pts::_Points{<:Any, <:StructuredDomain}) = ComradeBase._slots(DD.dims(pts.host), pts.to)
 _slots(pts::_Points) = LinearIndices(size(pts.host))
 
 # Closures replicated on every device, by blocks of their covariance: the closures of one time
@@ -243,7 +205,7 @@ struct _ClosureMean{B, C}
 end
 
 function (b::_BlockClosures)(vis)
-    x = _closurevalue.(Ref(b.product), vec(baseimage(vis))[b.cols])
+    x = Comrade._closurevalue.(Ref(b.product), vec(baseimage(vis))[b.cols])
     return _ClosureMean(b, dropdims(sum(b.vals .* x; dims = 1); dims = 1))
 end
 
@@ -252,10 +214,6 @@ function DensityInterface.logdensityof(d::_ClosureMean, y)
     z = sum(d.blocks.W .* reshape(r, 1, size(r)...); dims = 2)
     return d.blocks.L - sum(abs2, z) / 2
 end
-
-# `angle` has no method for traced numbers.
-_closurevalue(::Comrade.ClosurePhases, V) = atan(imag(V), real(V))
-_closurevalue(::Comrade.LogClosureAmplitudes, V) = log(abs(V))
 
 _closureresidual(::Comrade.ClosurePhases, y, μ) = cis.(y) .- cis.(μ)
 _closureresidual(::Comrade.LogClosureAmplitudes, y, μ) = y .- μ

@@ -55,42 +55,36 @@ reset_mounts!(coh, joinpath(__DIR, "..", "..", "Data", "array.txt"))
 #-
 # We can also recover the array used in the observation using
 using DisplayAs
-plotfields(coh, U, V, axis_kwargs = (xreversed = true,)) |> DisplayAs.PNG |> DisplayAs.Text # Plot the baseline coverage
+fieldplot(coh, U, V, axis = (xreversed = true,)) |> DisplayAs.PNG |> DisplayAs.Text # Plot the baseline coverage
 
-# As of Comrade 0.11.7 Makie is the preferred plotting tool. For plotting data there are two
-# classes of functions:
-#  - `baselineplot` which gives complete control of plotting
-#  - `plotfields, axisfields` which are more automated and limited but will automatically add
-#     labels, legends, titles etc.
+# Data are plotted with Makie through `fieldplot`, which plots one field of the data rows
+# against another. `fieldplot(t, ...)` makes a figure and `fieldplot(fig[i, j], t, ...)` an axis,
+# both with labels and a legend; `fieldplot!(ax, t, ...)` adds to an existing axis.
 #
 # For the closures, `:uvdist` is the longest baseline in each closure.
 fig = Figure(; size = (800, 600))
-plotfields!(fig[1, 1], vis, :uvdist, :measurement)
-plotfields!(fig[1, 2], amp, :uvdist, :measurement)
-plotfields!(fig[2, 1], cphase, :uvdist, :measurement)
-plotfields!(fig[2, 2], lcamp, :uvdist, :measurement)
+fieldplot(fig[1, 1], vis, :uvdist, :measurement)
+fieldplot(fig[1, 2], amp, :uvdist, :measurement)
+fieldplot(fig[2, 1], cphase, :uvdist, :measurement)
+fieldplot(fig[2, 2], lcamp, :uvdist, :measurement)
 fig |> DisplayAs.PNG |> DisplayAs.Text
 
 # And also the coherency matrices. Since the data products are a matrix we need to plot each one
 # separately. Unmeasured feed products are `NaN`.
 fig = Figure(; size = (800, 600))
-plotfields!(fig[1, 1], coh, :uvdist, x -> x.measurement[1, 1], axis_kwargs = (ylabel = "RR", xlabel = "uv distance (λ)"))
-plotfields!(fig[2, 1], coh, :uvdist, x -> x.measurement[2, 1], axis_kwargs = (ylabel = "LR", xlabel = "uv distance (λ)"))
-plotfields!(fig[1, 2], coh, :uvdist, x -> x.measurement[1, 2], axis_kwargs = (ylabel = "RL", xlabel = "uv distance (λ)"))
-plotfields!(fig[2, 2], coh, :uvdist, x -> x.measurement[2, 2], axis_kwargs = (ylabel = "LL", xlabel = "uv distance (λ)"))
+fieldplot(fig[1, 1], coh, :uvdist, x -> x.measurement[1, 1], axis = (ylabel = "RR", xlabel = "uv distance (λ)"))
+fieldplot(fig[2, 1], coh, :uvdist, x -> x.measurement[2, 1], axis = (ylabel = "LR", xlabel = "uv distance (λ)"))
+fieldplot(fig[1, 2], coh, :uvdist, x -> x.measurement[1, 2], axis = (ylabel = "RL", xlabel = "uv distance (λ)"))
+fieldplot(fig[2, 2], coh, :uvdist, x -> x.measurement[2, 2], axis = (ylabel = "LL", xlabel = "uv distance (λ)"))
 fig
 
 # You can also plot a single baseline
-fig, ax = plotfields(coh, (:AA, :LM), Ti, x -> abs(x.measurement[1, 1]), axis_kwargs = (; ylabel = "|RR|"))
-ax2 = plotfields!(fig[1, 2], coh, (:LM, :AZ), Ti, x -> abs(x.measurement[1, 1]), axis_kwargs = (; ylabel = "|RR|"))
+fig, ax = fieldplot(coh, (:AA, :LM), Ti, x -> abs(x.measurement[1, 1]), axis = (; ylabel = "|RR|"))
+ax2 = fieldplot(fig[1, 2], coh, (:LM, :AZ), Ti, x -> abs(x.measurement[1, 1]), axis = (; ylabel = "|RR|"))
 fig
 
-# Finally, we provide a more low-level plotting function `baselineplot` which allows you to plot
-# any field against any other field. This is what `plotfields` calls under the hood. However, it
-# does not automatically add labels, legends, titles etc, but can add multiple baselines to the same plot.
-fig, ax = baselineplot(coh, (:AA, :LM), Ti, x -> abs(x.measurement[1, 1]), label = "AA-LM")
-baselineplot!(ax, coh, (:LM, :AZ), Ti, x -> abs(x.measurement[1, 1]), label = "LM-AZ")
-ax.ylabel = "|RR|"
-ax.xlabel = "Time (UTC)"
+# `fieldplot!` adds more data to an axis, such as a second baseline.
+fig, ax = fieldplot(coh, (:AA, :LM), Ti, x -> abs(x.measurement[1, 1]), label = "AA-LM", axis = (; ylabel = "|RR|"), legend = false)
+fieldplot!(ax, coh, (:LM, :AZ), Ti, x -> abs(x.measurement[1, 1]), label = "LM-AZ")
 axislegend(ax)
 fig

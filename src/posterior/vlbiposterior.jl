@@ -66,8 +66,8 @@ post = VLBIPosterior(skym, intmodel, t)
 
     t = _commonvis(data)
     _checkdata(instrumentmodel, data)
-    int, intprior = set_array(instrumentmodel, t)
-    sky, skyprior = set_array(skymodel, t)
+    int, intprior = observe(instrumentmodel, t)
+    sky, skyprior = observe(skymodel, t)
     total_prior = combine_prior(skyprior, intprior)
 
     ls = Tuple(map(makelikelihood, data))
@@ -140,6 +140,20 @@ function Base.show(io::IO, mime::MIME"text/plain", post::VLBIPosterior)
 end
 
 
+# A self-calibrated model is solved against the one table it is fit to.
+_checkdata(::AbstractInstrumentModel, data) = nothing
+function _checkdata(m::InstrumentModel, data)
+    m.selfcal || return nothing
+    vis = filter(d -> d isa VisTable && !(eltype(measurement(d)) <: Real), collect(data))
+    length(data) == 1 && length(vis) == 1 || throw(
+        ArgumentError(
+            "a self-calibrated instrument model needs exactly one table of visibilities or coherencies, " *
+                "got $(length(data)) table(s), $(length(vis)) of them complex"
+        )
+    )
+    return nothing
+end
+
 """
     simulate_observation([rng::Random.AbstractRNG], post::VLBIPosterior, θ; add_thermal_noise=true)
 
@@ -157,45 +171,27 @@ end
 # One tuple of simulated data products per field.
 _simulated(rng, data::NamedTuple, vis::NamedTuple, noise) = map((d, v) -> _simulated(rng, d, v, noise), data, vis)
 function _simulated(rng, data::Tuple, vis, noise)
-    v = _storage(baseimage(vis))
-    t = _commonvis(data)
-    if noise
-        w = _dense(weight(t))
-        v = rand(rng, _noiselikelihood(eltype(measurement(t)), v, w))
-    end
+    v = _observedvalues(rng, vis, _commonvis(data), noise)
     return map(d -> _withmodel(d, v), data)
 end
 
-_noiselikelihood(::Type{<:StaticArraysCore.StaticMatrix}, vis, w) = CoherencyLikelihood(vis, w)
-_noiselikelihood(::Type, vis, w) = ComplexVisLikelihood(vis, w)
 simulate_observation(post::VLBIPosterior, θ; add_thermal_noise = true) = simulate_observation(Random.default_rng(), post, θ; add_thermal_noise)
+
+"""
+    selfcal_phase(post::VLBIPosterior, θ)
+
+The station phase `φ = φ̂ + residual` at `θ` of a posterior whose instrument model
+self-calibrates the station phase (see [`InstrumentModel`](@ref)), as a `SiteArray`.
+"""
+function selfcal_phase(post::VLBIPosterior, θ)
+    _, vis = idealmaps(datatype(typeof(post)), skymodel(post), θ)
+    return selfcal_phase(instrumentmodel(post), vis, _instrumentvalues(θ))
+end
 
 _datadescription(data::Tuple) = join(map(_datadescription, data), ", ")
 _datadescription(data::NamedTuple) = join(map((n, d) -> string(n, ": ", _datadescription(d)), keys(data), values(data)), "; ")
 _datadescription(t::VisTable) = string(eltype(measurement(t)) <: Real ? "amplitudes" : "visibilities", " (", _polname(t.pol), ")")
 _datadescription(ct::ClosureTable) = ct.product isa ClosurePhases ? "closure phases" : "log closure amplitudes"
-
-# `d` with its measurements replaced by those formed from the model visibilities `vis`.
-function _withmodel(t::VisTable, vis)
-    m = _tablevalues(eltype(measurement(t)), vis)
-    w = _dense(weight(t))
-    return VisTable(t.pol, IntensityMap(_elements(t.pol, _zeroed(m, w)), domain(t)), weight(t), stations(t))
-end
-function _withmodel(ct::ClosureTable, vis)
-    x = _closurevalue.(Ref(ct.product), vis[_measuredvalues(getfield(ct, :vis))])
-    m = IntensityMap(getfield(ct, :design) * x, domain(ct))
-    return ClosureTable(ct.product, m, getfield(ct, :vis), getfield(ct, :design), getfield(ct, :covariance))
-end
-
-_tablevalues(::Type{<:Real}, vis) = abs.(vis)
-_tablevalues(::Type, vis) = vis
-
-# Values without a measurement are stored as 0.
-_zeroed(m::AbstractArray{<:Number}, w) = ifelse.(w .> 0, m, zero(eltype(m)))
-function _zeroed(m::AbstractArray{<:StaticArraysCore.StaticMatrix}, w)
-    d = reshape(reinterpret(eltype(eltype(m)), collect(m)), 2, 2, size(m)...)
-    return ifelse.(w .> 0, permutedims(d, (3, 4, 1, 2)), zero(eltype(d)))
-end
 
 """
     residuals(post::VLBIPosterior, θ)
