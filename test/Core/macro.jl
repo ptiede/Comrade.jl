@@ -491,3 +491,121 @@ end
         end
     end
 end
+
+# `@instrument` hoists capture-free param_maps to top level so their types do not carry a
+# gensym counter and serialized models stay loadable. These definitions must sit at file top
+# level; inside a `@testset` they would be closures regardless of the macro.
+
+# A closure's type name ends in "#<counter>".
+_is_hoisted(f) = isnothing(match(r"#\d+$", String(nameof(typeof(f)))))
+
+@instrument function hoist_plain(; refbasis = CirBasis())
+    return @jones begin
+        lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+        gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+        g = exp(lg + 1im * gp)
+        return JonesG((g, g))
+    end
+end
+
+# The param_map reads `gscale`, a construction-time keyword, so it cannot be hoisted.
+@instrument function hoist_capture(; refbasis = CirBasis(), gscale = 2.0)
+    return @jones begin
+        lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+        g = exp(gscale * lg)
+        return JonesG((g, g))
+    end
+end
+
+@instrument function hoist_sandwich(; refbasis = CirBasis())
+    G = @jones begin
+        lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+        return JonesG((exp(lg), exp(lg)))
+    end
+    R = @jones begin
+        return JonesR(; add_fr = true)
+    end
+    return JonesSandwich(G, R) do g, r
+        return g * r
+    end
+end
+
+@testset "@instrument param_map hoisting" begin
+    # the probe must tell hoisted functions from closures
+    @testset "hoisted/closure probe" begin
+        @test _is_hoisted(identity)
+        @test !_is_hoisted(
+            let y = 1
+                z -> z + y
+            end
+        )
+    end
+
+    @testset "capture-free param_map is hoisted to top level" begin
+        pm = hoist_plain().jones.param_map
+        @test _is_hoisted(pm)
+        @test isdefined(@__MODULE__, :_hoist_plain_pmap_1)
+        @test pm === _hoist_plain_pmap_1
+        @test pm((; lg = 0.3, gp = 0.2)) == let g = exp(0.3 + 1im * 0.2)
+            (g, g)
+        end
+    end
+
+    @testset "capturing param_map stays nested" begin
+        pm = hoist_capture().jones.param_map
+        @test !_is_hoisted(pm)
+        @test pm((; lg = 0.5)) == let g = exp(2.0 * 0.5)
+            (g, g)
+        end
+        # a different keyword gives a different result
+        pm3 = hoist_capture(; gscale = 3.0).jones.param_map
+        @test pm3((; lg = 0.5)) == let g = exp(3.0 * 0.5)
+            (g, g)
+        end
+    end
+
+    @testset "param_map inside a composition is hoisted" begin
+        pm = hoist_sandwich().jones.matrices[1].param_map
+        @test _is_hoisted(pm)
+        @test pm === _hoist_sandwich_pmap_1
+    end
+
+    @testset "hoisted type survives serialization" begin
+        m = hoist_plain()
+        f = tempname()
+        try
+            serialize(f, m.jones)
+            back = deserialize(f)
+            @test typeof(back) === typeof(m.jones)
+            @test back.param_map === m.jones.param_map
+        finally
+            rm(f; force = true)
+        end
+    end
+
+    # A missed binding would wrongly hoist a closure over it; `catch e` stores `e` as a bare
+    # Symbol outside any assignment.
+    @testset "catch binding is collected as assigned" begin
+        out = Symbol[]
+        Comrade._collect_assigned!(
+            out, :(
+                try
+                    f()
+                catch e
+                    handle(e)
+                end
+            )
+        )
+        @test :e in out
+        out2 = Symbol[]
+        Comrade._collect_assigned!(
+            out2, :(
+                try
+                    f()
+                catch
+                end
+            )
+        )
+        @test isempty(out2)
+    end
+end

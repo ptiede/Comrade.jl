@@ -9,9 +9,18 @@ The function `f` is applied to the fluctuations and then the the transfored δ a
 to the image.
 """
 @inline function apply_fluctuations(f, mimg::IntensityMap, δ::AbstractArray)
-    out = similar(mimg)
+    out = _fluctuation_buffer(mimg, δ)
     apply_fluctuations!(f, out, mimg, δ)
     return out
+end
+
+# Output buffer for `apply_fluctuations`, allocated from `δ` with the axes of `mimg` so that
+# it has the array type of the values written into it. Under Reactant, `similar(mimg)` is a
+# concrete device array, and writing traced values into it falls back to scalar indexing
+# and aborts the trace.
+@inline function _fluctuation_buffer(mimg::IntensityMap, δ::AbstractArray)
+    T = promote_type(eltype(mimg), eltype(δ))
+    return IntensityMap(similar(baseimage(δ), T, size(mimg)), axisdims(mimg))
 end
 
 @inline function apply_fluctuations(f, m::AbstractModel, g::AbstractRectiGrid, δ::AbstractArray)

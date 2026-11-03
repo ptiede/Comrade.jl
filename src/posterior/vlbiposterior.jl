@@ -74,7 +74,7 @@ post = VLBIPosterior(skym, intmodel, dlcamp, dcphase)
 
 
     array = arrayconfig(dataproducts[begin])
-    int, intprior = set_array(instrumentmodel, array)
+    int, intprior = set_array(instrumentmodel, array, dataproducts)
     sky, skyprior = set_array(skymodel, array)
     total_prior = combine_prior(skyprior, intprior)
 

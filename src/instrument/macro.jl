@@ -21,14 +21,96 @@ _argsig(::Any) = ()
 _asblock(body) = (body isa Expr && body.head === :block) ? body : Expr(:block, body)
 
 # Emit a fresh named function `_<base><suffix><k>(argsig...) = body` into `defs` and return its
-# name. The generated functions are spliced *inside* `_<name>_jones`, so they may capture the
-# instrument's construction-time keyword arguments while still being named (a named inner
-# function has a clean `nameof` and serializes — unlike an anonymous closure).
+# name. `_partition_fndefs` decides whether it is placed at top level or inside
+# `_<name>_jones`. The body is marked inline: these functions run per site or per
+# visibility, and under Reactant a call that is not inlined is opaque to tracing.
 function _emit_fn!(defs, base, suffix, counter, argsig, body)
     counter[] += 1
     fname = Symbol("_", base, suffix, counter[])
-    push!(defs, Expr(:function, Expr(:call, fname, argsig...), _asblock(body)))
+    blk = _asblock(body)
+    inlined = Expr(:block, Expr(:meta, :inline), blk.args...)
+    push!(defs, Expr(:function, Expr(:call, fname, argsig...), inlined))
     return fname
+end
+
+# Name introduced by a generated definition `function fname(args...) ... end`.
+_fndef_name(def) = def.args[1].args[1]
+_fndef_body(def) = def.args[2]
+
+# Every name the instrument body binds, used to tell captured locals from globals. Collecting
+# too many only keeps a definition nested. Missing one lets `_partition_fndefs` hoist a
+# definition that captures it, which then fails at evaluation time, so every binding form
+# collects every symbol on its left-hand side: destructuring (`(; a, b) = cfg`), splats
+# (`a, b... = xs`), typed locals (`a::T = x`), indexed and field assignment (`x[i] = v`), and
+# function definitions in short and long form.
+_collect_lhs_symbols!(out, s::Symbol) = (push!(out, s); out)
+function _collect_lhs_symbols!(out, e::Expr)
+    for a in e.args
+        _collect_lhs_symbols!(out, a)
+    end
+    return out
+end
+_collect_lhs_symbols!(out, ::Any) = out
+
+# Assignment heads: `=` plus the updating forms (`+=`, `-=`, `.=`, ...). Comparison operators
+# never appear as Expr *heads* (they parse as `:call`s), so the suffix test is unambiguous.
+_is_assignment_head(h::Symbol) = endswith(String(h), "=")
+
+function _collect_assigned!(out, node)
+    node isa Expr || return out
+    if _is_assignment_head(node.head) || node.head === :function || node.head === :macro
+        _collect_lhs_symbols!(out, node.args[1])
+    elseif node.head === :local || node.head === :global
+        for a in node.args
+            _collect_lhs_symbols!(out, a)
+        end
+    elseif node.head === :try
+        # `catch e` stores the exception name in args[2] as a Symbol (or `false`), which
+        # the recursive walk below skips because it is not an Expr.
+        _collect_lhs_symbols!(out, node.args[2])
+    end
+    for a in node.args
+        _collect_assigned!(out, a)
+    end
+    return out
+end
+
+# Split the generated definitions into those that can be placed at top level and those that
+# must stay nested inside `_<name>_jones`. A nested function is a closure with a gensym'd type
+# such as `var"#_gain_pmap_1#37"`, whose number comes from a module-wide counter. The
+# param_map is a type parameter of the Jones term, so a serialized model with such a type
+# fails to deserialize (`UndefVarError`) after any edit that shifts the counter. At top level
+# the type is `typeof(_gain_pmap_1)`, which is stable.
+#
+# A definition can be hoisted only if it captures nothing: no enclosing keyword argument,
+# nothing the instrument body assigns, and no sibling definition that stays nested. The last
+# condition is iterated to a fixpoint, since `@jones` blocks inside a lifted `do`-block make
+# the combination function reference a param_map by name.
+function _partition_fndefs(fndefs, user_kw_names, body_stmts)
+    isempty(fndefs) && return (Any[], Any[])
+    # Names that keep a definition nested; nested definitions are added as they are found.
+    blockers = Symbol[user_kw_names...]
+    push!(blockers, :refbasis)
+    _collect_assigned!(blockers, Expr(:block, body_stmts...))
+
+    nested = Set{Symbol}()
+    while true
+        grew = false
+        for def in fndefs
+            fname = _fndef_name(def)
+            fname in nested && continue
+            if !isempty(_scan_used_names([_fndef_body(def)], blockers))
+                push!(nested, fname)
+                push!(blockers, fname)
+                grew = true
+            end
+        end
+        grew || break
+    end
+
+    top = Any[d for d in fndefs if !(_fndef_name(d) in nested)]
+    inner = Any[d for d in fndefs if _fndef_name(d) in nested]
+    return (top, inner)
 end
 
 # Expand one `@jones begin ... end` block. Returns a NamedTuple:
@@ -126,10 +208,10 @@ function _subst_jones(node, base, counter, fndefs, priors)
 end
 
 # Lift anonymous functions (the `JonesSandwich` combination function, written as a `do`-block
-# or `->`) in the composition to named inner functions, so the model's `jones_map` is a named
+# or `->`) in the composition to named functions, so the model's `jones_map` is a named
 # (serializable) function rather than a gensym closure. These functions take the assembled
-# Jones matrices as arguments and never reference sampled parameters, so no destructure or
-# capture handling is needed.
+# Jones matrices as arguments and never reference sampled parameters, so no destructure is
+# needed. `_partition_fndefs` decides where each one is placed.
 #
 # A lifted function's body is kept *verbatim* — we deliberately do not recurse into it. A nested
 # anonymous function inside the body may close over the outer lambda's arguments (e.g.
@@ -152,7 +234,7 @@ function _lift_anons(node, base, counter, fndefs)
     return Expr(node.head, Any[_lift_anons(a, base, counter, fndefs) for a in node.args]...)
 end
 
-function _instrument_impl(fexpr)
+function _instrument_impl(fexpr; selfcal::Bool = false)
     Meta.isexpr(fexpr, :function) ||
         error("@instrument expects a `function name(; kwargs...) ... end` definition")
     sig, body = fexpr.args
@@ -229,10 +311,14 @@ function _instrument_impl(fexpr)
 
     # `_<name>_jones(; user_kwargs...)` — defines the lifted param_map / combination functions,
     # then runs the (jones-substituted) body, returning the composed `AbstractJonesMatrix`.
+    # Capture-free generated functions go at top level so their types are stable (see
+    # `_partition_fndefs`).
+    top_fndefs, inner_fndefs = _partition_fndefs(fndefs, user_kw_names, body_stmts)
+
     jones_fn = Expr(
         :function,
         Expr(:call, jones_fn_name, Expr(:parameters, user_kw_args...)),
-        Expr(:block, fndefs..., body_stmts...)
+        Expr(:block, inner_fndefs..., body_stmts...)
     )
 
     # `_<name>_prior(; user_kwargs...)` — returns the (flat) prior NamedTuple. Empty when there
@@ -254,7 +340,7 @@ function _instrument_impl(fexpr)
     jones_call = Expr(:call, jones_fn_name, fwd_kwargs)
     instrument_call = Expr(
         :call, :InstrumentModel,
-        Expr(:parameters, Expr(:kw, :refbasis, :refbasis)),
+        Expr(:parameters, Expr(:kw, :refbasis, :refbasis), Expr(:kw, :selfcal, selfcal)),
         :jones, :prior
     )
     ctor_body = Expr(
@@ -265,7 +351,7 @@ function _instrument_impl(fexpr)
     )
     ctor_fn = Expr(:function, ctor_sig, ctor_body)
 
-    return Expr(:block, jones_fn, prior_fn, ctor_fn)
+    return Expr(:block, top_fndefs..., jones_fn, prior_fn, ctor_fn)
 end
 
 """
@@ -352,6 +438,10 @@ end
 intm = fullpol(; gain_std = 0.05)
 ```
 
+`@instrument selfcal = true function ...` builds the model with `selfcal = true` (see
+[`InstrumentModel`](@ref)). Its Jones terms must then omit the station phase, which the
+model sets to the self-calibration solution plus the sampled residual `selfcal_residual`.
+
 A Stokes-I example is a single block:
 
 ```julia
@@ -364,6 +454,13 @@ A Stokes-I example is a single block:
 end
 ```
 """
-macro instrument(fexpr)
-    return esc(_instrument_impl(fexpr))
+macro instrument(args...)
+    options = args[1:(end - 1)]
+    selfcal = false
+    for o in options
+        (Meta.isexpr(o, :(=)) && o.args[1] === :selfcal && o.args[2] isa Bool) ||
+            error("@instrument: the only option is `selfcal = true` or `selfcal = false`, got `$o`")
+        selfcal = o.args[2]
+    end
+    return esc(_instrument_impl(last(args); selfcal))
 end

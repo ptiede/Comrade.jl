@@ -224,6 +224,10 @@ function _ctab_formatter(v, i, j)
 end
 
 
+# Hierarchical samples (e.g. from a GaussMarkovSitePrior with fitted hyperparameters) also
+# carry hyperparameters; the caltable shows only the gains.
+caltable(x::HierarchicalSiteSample) = caltable(siteparams(x))
+
 """
     caltable(s::SiteArray)
 

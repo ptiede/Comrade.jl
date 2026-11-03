@@ -333,7 +333,7 @@ end
 Build a Comrade `EHTObservationTable` of 2×2 coherency matrices. Requires the
 uvfits to contain all four circular hands (RR, LL, RL, LR). Missing hands for
 a given (time, baseline, frequency) row are filled with `NaN+NaN*im` and
-infinite uncertainty.
+`NaN` uncertainty.
 """
 function Comrade.extract_coherency(
         uvtbl::AbstractArray{<:NamedTuple};
@@ -350,10 +350,11 @@ function Comrade.extract_coherency(
 
     for i in eachindex(coherency)
         c = coherency[i].value
-        v = getproperty.(c, :v)
-        e = getproperty.(c, :u)
-        cohmat[i] = v
-        errmat[i] = e
+        v = SMatrix{2, 2, ComplexF64, 4}(getproperty.(c, :v))
+        e = SMatrix{2, 2, Float64, 4}(getproperty.(c, :u))
+        # A missing hand arrives as `NaN + 0.0im` with zero uncertainty; set it to
+        # `NaN + NaN*im` so it stays `NaN` after the subtraction in `residuals`.
+        cohmat[i], errmat[i] = Comrade.mask_missing_hands(v, e)
     end
 
     T = Comrade.EHTCoherencyDatum{Float64, typeof(config[1]), eltype(cohmat), eltype(errmat)}

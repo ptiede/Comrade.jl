@@ -98,8 +98,32 @@ Comrade.@instrument
 Comrade.@jones
 Comrade.CalTable
 Comrade.caltable(::Comrade.SiteArray)
+Comrade.siteparams
 Comrade.sites(::Comrade.CalTable)
 Comrade.IIDSitePrior
+Comrade.GaussMarkovSitePrior
+Comrade.AbstractChainParameterization
+Comrade.Centered
+Comrade.NonCentered
+Comrade.AngleEmbedded
+Comrade.AbstractGaussMarkovProcess
+Comrade.OrnsteinUhlenbeck
+Comrade.BrownianMotion
+Comrade.WrappedBrownian
+Comrade.WrappedOrnsteinUhlenbeck
+Comrade.VonMisesProcess
+Comrade.stationary_moments
+Comrade.transition_moments
+Comrade.isstationary
+Comrade.AbstractInitialPrior
+Comrade.StationaryInit
+Comrade.FixedInit
+Comrade.GaussianInit
+Comrade.UniformInit
+Comrade.initial_moments
+Comrade.marginal_moments
+Comrade.hyperprior
+Comrade.materialize
 Comrade.ArrayPrior
 Comrade.Segmentation
 Comrade.IntegSeg
@@ -107,7 +131,10 @@ Comrade.ScanSeg
 Comrade.TrackSeg
 Comrade.timestamps
 Comrade.SingleReference
+Comrade.MultiReference
 Comrade.SEFDReference
+Comrade.gauge_pins
+Comrade.default_gauge_preference
 Comrade.SingleStokesGain
 Comrade.JonesG
 Comrade.JonesD
@@ -121,6 +148,7 @@ Comrade.InstrumentModel
 Comrade.SiteArray
 Comrade.SiteLookup
 Comrade.forward_jones
+Comrade.selfcal_phase
 ```
 
 
@@ -166,6 +194,46 @@ Comrade.ReactantNUTS
 Comrade.default_disk_callback
 ```
 
+### Moves
+
+```@docs
+Comrade.AbstractMove
+Comrade.MoveSet
+Comrade.NormalStep
+Comrade.ComponentwiseNormalStep
+Comrade.SymmetricDiscreteStep
+Comrade.CompensatedMove
+Comrade.ChainHyperMove
+Comrade.PhaseSheetMove
+Comrade.chain_hyper_moves
+Comrade.flux_gain_move
+Comrade.CoordinateView
+Comrade.check_move
+Comrade.check_moveset
+Comrade.move_summary
+Comrade.move_seconds
+```
+
+The protocol a move implements, and the helpers for writing and checking one:
+
+```@docs
+Comrade.propose
+Comrade.step_distribution
+Comrade.move_name
+Comrade.likelihood_invariant
+Comrade.context_data
+Comrade.traceable
+Comrade.move_context
+Comrade.update_context!
+Comrade.step_label
+Comrade.component_coords
+Comrade.component_label
+Comrade.node
+Comrade.coords
+Comrade.value
+Comrade.latent
+```
+
 ## Misc
 
 ```@docs
@@ -186,6 +254,7 @@ Comrade.rmap
 Comrade.build_datum
 Comrade.ObservedSkyModel
 Comrade.forward_model_map
+Comrade.fixed_indices
 
 ```
 

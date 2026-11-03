@@ -4,21 +4,31 @@ struct ArrayPrior{D, A, R, C}
     refant::R
     phase::Bool
     centroid_station::C
+    gauge::Symbol
 end
 
 
 """
-    ArrayPrior(default_dist; refant=NoReference(), phase=false, kwargs...)
+    ArrayPrior(default_dist; refant=NoReference(), phase=false, gauge=:none, kwargs...)
 
 Construct a prior for an entire array of sites.
 
- - The `default_dist` is the default distribution for all sites. Currently only `IIDSitePrior` is supported.
+ - The `default_dist` is the default distribution for all sites. This may be an
+[`IIDSitePrior`](@ref) or a time-correlated [`GaussMarkovSitePrior`](@ref).
  - Different priors for specified sites can be set using kwargs.
  - The `refant`  set the reference antennae to be used and is typically only done for priors that
 correspond to gain phases.
  - The `phase` argument is a boolean that specifies if
 the prior is for a `phase` or not. *The phase argument is experimental and we
 recommend setting it to false currently.*
+ - The `gauge` argument is `:none` (the default) or `:phase`. `gauge = :phase` marks the
+parameter as one term of the station phase. Baseline phases depend only on differences of
+station phases, so the sum of the `gauge = :phase` terms at a site is determined only up to
+one constant per (time, frequency). When several such terms are added (for example a
+track-level offset plus a per-integration residual), references placed on each term can
+leave the sum undetermined. The [`InstrumentModel`](@ref) then finds the remaining flat
+directions with [`Comrade.gauge_pins`](@ref) and, depending on its `gaugefix` setting,
+throws or pins them.
 
 # Example
 
@@ -29,11 +39,14 @@ p = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0, 0.1)); LM = IIDSitePrior(
 means that every site has a normal prior with mean 0 and 0.1 std. dev. except LM which is mean
 zero and unit std. dev. Finally the refant is using the [`SEFDReference`](@ref) scheme.
 """
-function ArrayPrior(dist; refant = NoReference(), phase = false, kwargs...)
+function ArrayPrior(dist; refant = NoReference(), phase = false, gauge = :none, kwargs...)
     # if centroid_station isa Tuple{<:Symbol, <:Symbol}
     #     centroid_station = NamedTuple{centroid_station}((0.0, 0.0))
     # end
-    return ArrayPrior(dist, kwargs, refant, phase, nothing)
+    g = Symbol(gauge)
+    g in (:none, :phase) ||
+        throw(ArgumentError("ArrayPrior gauge must be :none or :phase, got :$g"))
+    return ArrayPrior(dist, kwargs, refant, phase, nothing, g)
 end
 
 
@@ -130,6 +143,9 @@ end
 function ObservedArrayPrior(d::ArrayPrior, array::EHTArrayConfiguration)
     smap = build_sitemap(d, array)
     site_dists = site_tuple(array, d.default_dist; d.override_dist...)
+    # Time-correlated site priors are built in gauss_markov.jl.
+    any(needs_chain_machinery, values(site_dists)) &&
+        return build_markov_observed(d, site_dists, smap, array)
     dists = build_dist(site_dists, smap, array, d.refant, d.centroid_station)
     return ObservedArrayPrior(dists, smap, d.phase)
 end
@@ -145,14 +161,21 @@ end
 
 TV.dimension(t::PartiallyFixedTransform) = TV.dimension(t.transform)
 
+# Scatter `vals` into `y` at the host-side indices `inds`. Under Reactant the broadcast
+# lowers to one `stablehlo.scatter` rather than a per-element loop. ComradeReactantExt
+# overloads this for traced arrays, because the bounds check uses scalar indexing and a
+# single-element scatter fails (EnzymeAD/Reactant.jl#2960).
+function scatter_values!(y, inds, vals)
+    y[inds] .= vals
+    return y
+end
+
 # Scatter the variate `y` and the fixed (reference) `fixed_values` back into the full
-# parameter vector. Under Reactant this `setindex!`/broadcast lowers to a `stablehlo.scatter`,
-# but the bounds check iterates the index vector with scalar `getindex`, which is disallowed
-# while tracing. ComradeReactantExt overloads this for traced arrays to wrap it in
-# `@allowscalar`. See https://github.com/EnzymeAD/Reactant.jl/issues/2960.
+# parameter vector. Both scatters go through `scatter_values!` so that the Reactant
+# overload applies.
 function fill_partially_fixed!(yfv, variate_index, fixed_index, y, fixed_values)
-    yfv[variate_index] = y
-    yfv[fixed_index] .= fixed_values
+    scatter_values!(yfv, variate_index, y)
+    scatter_values!(yfv, fixed_index, fixed_values)
     return yfv
 end
 
@@ -241,6 +264,36 @@ function build_dist(dists::NamedTuple, smap::SiteLookup, array, refants, centroi
     ss = smap.sites
     # fs = smap.frequencies
     fixedinds, vals = reference_indices(array, smap, refants)
+    if any(!isnothing ∘ initprior, values(dists))
+        fixedinds = convert(Vector{Int}, fixedinds)
+        vals = vals === nothing ? Float64[] : convert(Vector{Float64}, vals)
+        # `init = FixedInit(v)` fixes each site's first stamp per frequency channel to `v`.
+        # A stamp the referencing scheme also fixes must get the same value.
+        for s in keys(dists)
+            ini = initprior(getproperty(dists, s))
+            ini === nothing && continue
+            for f in unique(smap.frequencies)
+                sinds = findall(
+                    i -> ss[i] == s && smap.frequencies[i] == f, eachindex(ss)
+                )
+                isempty(sinds) && continue
+                i1 = sinds[argmin(view(ts, sinds))]
+                j = findfirst(==(i1), fixedinds)
+                if j === nothing
+                    push!(fixedinds, i1)
+                    push!(vals, ini.value)
+                elseif vals[j] != ini.value
+                    throw(
+                        ArgumentError(
+                            "init = FixedInit($(ini.value)) for site $s conflicts " *
+                                "with the reference value $(vals[j]) already fixing " *
+                                "its first stamp"
+                        )
+                    )
+                end
+            end
+        end
+    end
 
     if !(centroid_station isa Nothing)
         centstat = keys(centroid_station)

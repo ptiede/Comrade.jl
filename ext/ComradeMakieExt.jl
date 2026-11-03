@@ -614,6 +614,6 @@ function plotcaltable(
 end
 
 prepare_caltable(gt::Comrade.CalTable) = gt
-prepare_caltable(gt::Comrade.SiteArray) = caltable(gt)
+prepare_caltable(gt::Union{Comrade.SiteArray, Comrade.HierarchicalSiteSample}) = caltable(gt)
 
 end
