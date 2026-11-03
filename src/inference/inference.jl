@@ -3,6 +3,9 @@ using Serialization
 
 include("optimization.jl")
 include("posteriorsamples.jl")
+include("moves.jl")
+include("move_set.jl")
+include("chain_moves.jl")
 include("reactant.jl")
 
 
@@ -132,58 +135,46 @@ i.e. the path specified in [`DiskStore`](@ref).
      pointed to. Otherwise it is what is directly returned from sample.
   - `indices`: The indices of the samples to load into memory, e.g., a range, a vector of
      indices, or a `Bool` mask over all samples. The default is to load the entire table.
+     Only the sample files holding these draws are read, each once.
 
 
 # Keyword Arguments
-  - `table`: A symbol specifying the table you wish to read in. There are three options: `:samples`
-     which corresponds to the actual MCMC chain, `:stats` which corresponds to additional information
-     about the sampler, e.g., the log density of each sample and tree statistics, and `:both` (the
-     default) which returns a `PosteriorSamples` holding the chain and its statistics.
+  - `table`: The table to read: `:both` (the default) gives the MCMC chain with its sampler
+     statistics, `:samples` the chain alone, and `:stats` the sampler statistics alone, e.g., the
+     log density of each sample and tree statistics.
 """
-function load_samples(
-        out::DiskOutput,
-        indices = Base.Colon(); table = :both
-    )
-    @assert (table == :samples || table == :stats || table == :both) "Please select either `samples` or `stats`"
-    d = readdir(joinpath(abspath(out.filename), "samples"), join = true)
-
-    if table == :both
-        chain = load_samples(out, indices; table = :samples)
-        stats = load_samples(out, indices; table = :stats)
-        return PosteriorSamples(
-            Comrade.postsamples(chain), stats,
-            ; metadata = Dict(:sampler => :AHMC)
-        )
+function load_samples(out::DiskOutput, indices = Base.Colon(); table = :both)
+    table in (:samples, :stats, :both) ||
+        throw(ArgumentError("table must be :samples, :stats or :both, got $(repr(table))"))
+    files = readdir(joinpath(abspath(out.filename), "samples"); join = true)
+    pieces = map(_file_draws(files, indices, out)) do (file, js)
+        s = deserialize(file)
+        return (; samples = s.samples[js], stats = s.stats[js])
     end
+    stats = StructArray(reduce(vcat, [p.stats for p in pieces]))
+    table === :stats && return stats
+    chain = reduce(vcat, [p.samples for p in pieces])
+    return PosteriorSamples(chain, table === :both ? stats : nothing; metadata = Dict(:sampler => :AHMC))
+end
 
-
-    function tload(f, p)
-        s = deserialize(f)
-        return getproperty(s, p)
-    end
-
-    # load and return the entire table
-    if indices == Base.Colon()
-        if table == :samples
-            return PosteriorSamples(reduce(vcat, tload.(d, :samples)), nothing; metadata = Dict(:sampler => :AHMC))
-        else
-            return Comrade.StructArray(reduce(vcat, tload.(d, :stats)))
-        end
-    end
-
-
+# Each sample file to read, in order, with the draws to keep from it.
+_file_draws(files, ::Base.Colon, out) = [f => Base.Colon() for f in files]
+function _file_draws(files, indices, out)
     inds = (1:out.nsamples)[indices]
     inds isa AbstractVector || throw(ArgumentError("indices must select a collection of samples, got $(typeof(indices))"))
-    lo, hi = isempty(inds) ? (1, 1) : extrema(inds)
-    find0 = (lo - 1) ÷ out.stride + 1
-    find1 = (hi - 1) ÷ out.stride + 1
-    t = reduce(vcat, tload.(d[find0:find1], table))
-    out = t[inds .- (find0 - 1) * out.stride]
-    if table == :samples
-        return PosteriorSamples(out, nothing; metadata = Dict(:sampler => :AHMC))
-    else
-        return Comrade.StructArray(out)
+    isempty(inds) && throw(ArgumentError("no draws selected"))
+    runs = Pair{String, Vector{Int}}[]
+    for i in inds
+        f, j = fldmod1(i, out.stride)
+        f <= length(files) ||
+            error("draw $i is in sample file $f, but $(out.filename) has $(length(files)) sample files")
+        if isempty(runs) || first(last(runs)) != files[f]
+            push!(runs, files[f] => [j])
+        else
+            push!(last(runs).second, j)
+        end
     end
+    return runs
 end
 
 function load_samples(out::String, indices = Base.Colon(); table = :both)

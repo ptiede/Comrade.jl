@@ -209,7 +209,7 @@ fig = Figure(; size = (800, 300))
 ax1, = fieldplot(fig[1, 1], res[1], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "LCA Normalized Residuals", xlabel = "Longest Baseline (λ)"))
 ax2, = fieldplot(fig[1, 2], res[2], :uvdist, :res, label = "MAP residuals", axis = (ylabel = "CP Normalized Residuals", xlabel = "Longest Baseline (λ)"))
 for s in sample(chain[501:end], 10)
-    rs = residuals(post, s)
+    rs = Comrade.residuals(post, s)
     fieldplot!(ax1, rs[1], :uvdist, :res, color = :grey, alpha = 0.2, label = "Posterior Draw")
     fieldplot!(ax2, rs[2], :uvdist, :res, color = :grey, alpha = 0.2, label = "Posterior Draw")
 end

@@ -5,6 +5,7 @@ Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
 DisplayAs = "0b91fe84-8a4c-11e9-3e1d-67c38462b6d6"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+FFTA = "b86e33f2-c0db-4aa1-a6e0-ab43e668529e"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 OptimizationLBFGSB = "22f7324a-a79d-40f2-bebe-3af60c77bd15"
 OptimizationOptimJL = "36348300-93cb-4f02-beb5-3c3902f8871e"
@@ -15,6 +16,8 @@ VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
 
 [compat]
 CairoMakie = "0.15"
+# FFTA 0.3.2 makes plan_rfft ambiguous with FFTW (JuliaMath/FFTA.jl#146).
+FFTA = "0.3.0 - 0.3.1"
 Optimization = "5"
 StableRNGs = "1"
 StatsBase = "0.34"

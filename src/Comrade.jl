@@ -20,8 +20,11 @@ import ProbabilityTransports: transport_node, latent_pfwd, latent_pback,
 # same bindings on its posterior types (rather than creating shadowing copies that
 # would clash with VLBIImagePriors under `using Comrade, VLBIImagePriors`).
 import TransformVariables: transform, inverse, dimension
+import TransformVariables as TV
 import VLBIImagePriors: asflat, ascube
 #using MappedArrays: mappedarray
+using Accessors: setproperties
+using Printf
 using Random
 using Reexport
 using StaticArraysCore
@@ -44,7 +47,9 @@ using VLBIInstrumentModels: AbstractInstrumentModel, IdealInstrumentModel, Field
     ObservedInstrumentModel, ObservedSelfCalInstrumentModel, instrument,
     _closurevalue, _dense, _elements, _measuredvalues, _polname,
     _observedvalues, _storage, _withmodel,
-    _kwname, _scan_used_names, _split_tildes
+    _kwname, _scan_used_names, _split_tildes,
+    WhitenedHierarchicalTransform, StdWhitenedHierarchicalTransform,
+    MarkovChains, chain_term, _flat_dim, _fused_flat, _std_dim
 
 using ComradeBase: AbstractRectiGrid, AbstractDomain, AbstractModel
 

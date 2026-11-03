@@ -34,12 +34,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libhdf5-dev libxcb-xinerama0 qtbase5-dev
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
       - uses: julia-actions/setup-julia@v3
         with:
-          version: '1.10'
+          version: '1'
       - uses: julia-actions/cache@v3
       - name: Install docs dependencies
         run: |
@@ -80,12 +80,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libhdf5-dev libxcb-xinerama0 qtbase5-dev
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
       - uses: julia-actions/setup-julia@v3
         with:
-          version: '1.10'
+          version: '1'
       - uses: julia-actions/cache@v3
       - name: Install docs dependencies
         run: |

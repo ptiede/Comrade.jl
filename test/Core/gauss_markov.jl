@@ -84,9 +84,8 @@ end
     end
 
     @testset "hierarchical PosteriorSamples postprocessing" begin
-        # Exercises the caltable/rmap/siteparams path the StokesI example advertises:
-        # samples are `(params, hyperparams)` NamedTuples that must round-trip through
-        # PosteriorSamples' StructArray conversion and reduce with `rmap`.
+        # `(params, hyperparams)` samples pass through PosteriorSamples, `rmap`, `caltable`,
+        # and `siteparams`
         post = VLBIPosterior(skym, gmint_fitted(), dvis)
         samples = [prior_sample(rng, post) for _ in 1:20]
         chain = Comrade.PosteriorSamples(samples, nothing; metadata = Dict(:sampler => :prior))
@@ -105,7 +104,7 @@ end
 
         # instrumentmodel accepts the reduced hierarchical chain (siteparams strips hyperparams)
         @test instrumentmodel(post, mchain) isa Comrade.DD.AbstractDimArray
-        # the example's mean/std combine: siteparams unwraps both before the elementwise op
+        # combining mean and std: siteparams unwraps both before the elementwise op
         combined = map(
             (x, y) -> Comrade.siteparams(x) .+ Comrade.siteparams(y),
             mchain.instrument, schain.instrument,
@@ -114,9 +113,7 @@ end
     end
 
     @testset "empty-group PosteriorSamples (zero-field StructArray guard)" begin
-        # regression: an empty NamedTuple leaf (e.g. a sky group with no fitted params)
-        # must not error in PosteriorSamples' StructArray conversion (fieldcount guard in
-        # `_convert2structarr`).
+        # an empty NamedTuple leaf (a group with no fitted parameters)
         raw = [(a = i * 1.0, empty = NamedTuple()) for i in 1:5]
         ps = Comrade.PosteriorSamples(raw, nothing)
         @test length(Comrade.postsamples(ps)) == 5
@@ -197,8 +194,8 @@ end
         tp = asflat(post)
         @test isfinite(logdensityof(tp, prior_sample(rng, tp)))
 
-        # regression: an IID override on the reference site has every point fixed, so its
-        # chain term is a sum over an empty index set (previously threw an ArgumentError)
+        # an IID override on the reference site has every point fixed, so its chain term
+        # is an empty sum
         @instrument function gmint_iidrefover()
             return @jones begin
                 gp ~ ArrayPrior(
@@ -217,10 +214,8 @@ end
     end
 
     @testset "whitened flat density identity" begin
-        # Under exact whitening the flat density of the transported prior restricted to
-        # the z block is standard normal: perturbing only the z coordinates changes the
-        # flat log-density by exactly −Δ‖z‖²/2. This pins down both the coloring map and
-        # its Jacobian, including the hyperparameter coupling and refant conditioning.
+        # Under whitening the flat prior is standard normal in z: changing only z shifts
+        # the flat log density by −Δ‖z‖²/2. This checks the coloring map and its Jacobian.
         post = VLBIPosterior(skym, gmint_fitted(), dvis)
         nsite = length(Comrade.sites(dvis))
         for (name, nhp) in ((:lg, 2nsite), (:gp, nsite))  # number of hyperparameter coordinates
@@ -281,8 +276,7 @@ end
     end
 
     @testset "bounded IID override under GM default" begin
-        # regression: IID overrides must use their own transform (an identity transform
-        # would expose latents outside a bounded support)
+        # IID overrides use their own transform, which keeps bounded supports bounded
         @instrument function gmint_boundover()
             return @jones begin
                 lg ~ ArrayPrior(
@@ -327,11 +321,9 @@ end
     end
 
     @testset "hyperparameter recovery (conditional)" begin
-        # Simulate gains from a known OU process and check the conditional hyperparameter
-        # posterior at the true gains peaks near the truth. (The *joint* MAP is not a
-        # valid check here: maximizing a centered hierarchical model over params and
-        # hyperparams jointly is a degenerate variance-component estimate. Full NUTS
-        # recovery was verified out-of-band; it is too slow for CI.)
+        # Gains simulated from a known OU process: the hyperparameter posterior conditional
+        # on the true gains peaks near the truth. A joint MAP over gains and hyperparameters
+        # is degenerate for a hierarchical model, so it is not a valid check.
         rrng = Random.Xoshiro(7)
         @instrument function gmint_rec()
             return @jones begin
@@ -367,8 +359,8 @@ end
     end
 
     @testset "FixedInit chains" begin
-        # FixedInit(0.0) conditions every site's chain to zero at its first time, killing
-        # the level redundancy with a separate (circular) offset term
+        # FixedInit(0.0) fixes every site's chain to zero at its first time, removing the
+        # level degeneracy with a separate circular offset term
         @instrument function gmint_anch()
             return @jones begin
                 gp0 ~ ArrayPrior(IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2))))
@@ -392,8 +384,8 @@ end
         @test Comrade.inverse(tp, y) ≈ xf
         @test all(inds -> iszero(parent(y.instrument.dgp.params)[first(inds)]), chinds)
 
-        # FixedInit chains are whitened like any other; ascube works (checked without the
-        # circular offset term, which correctly refuses Std transport)
+        # ascube works for FixedInit chains (checked without the circular offset term,
+        # which refuses Std transports)
         @instrument function gmint_anchonly()
             return @jones begin
                 dgp ~ ArrayPrior(
@@ -410,7 +402,7 @@ end
         yc = Comrade.transform(tpc, xc)
         @test Comrade.inverse(tpc, yc) ≈ xc
 
-        # FixedInit + centered + fitted hyperparameters (the recommended phase setup)
+        # FixedInit + centered + fitted hyperparameters
         @instrument function gmint_anchcent()
             return @jones begin
                 dgp ~ ArrayPrior(
@@ -449,8 +441,7 @@ end
         y = Comrade.transform(tp, prior_sample(rng, tp))
         @test all(inds -> parent(y.instrument.lg)[first(inds)] == 0.3, chinds)
 
-        # a reference scheme that fixes a chain's first point to a different value than
-        # FixedInit is a conflict, not a silent precedence
+        # a reference value that disagrees with FixedInit at the first point is an error
         @instrument function gmint_conflict()
             return @jones begin
                 gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0); init = FixedInit(0.3)); refant = SensitiveReference(0.0))
@@ -527,9 +518,8 @@ end
     end
 
     @testset "WrappedBrownian phase posterior" begin
-        # a fully circular phase prior: UniformInit absorbs the per-track offset, so no
-        # separate circular offset term is needed. Wrapped chains default to the centered
-        # raw-angle coordinates, made proper by the sheet weights.
+        # a circular phase prior; UniformInit covers the per-track offset, so no separate
+        # offset term is needed
         @instrument function gmint_wb()
             return @jones begin
                 gp ~ ArrayPrior(
@@ -544,8 +534,7 @@ end
         @test all(h -> keys(h) == (:τ,), values(s.instrument.gp.hyperparams))
         @test isfinite(logdensityof(post, s))
 
-        # the *model* is exactly invariant under a 2π shift of any single free phase —
-        # the sheet weights live in the flat lift and leave this untouched
+        # the model is invariant under a 2π shift of any free phase
         freeinds = setdiff(1:length(post.prior.instrument.gp.dists), post.prior.instrument.gp.dists.fixedinds)
         s2 = deepcopy(s)
         parent(s2.instrument.gp.params)[first(freeinds)] += 2π
@@ -561,8 +550,7 @@ end
 
         xf = prior_sample(rng, tp)
         @test isfinite(logdensityof(tp, xf))
-        # the coloring wraps, so the roundtrip identity is `transform ∘ inverse` on the
-        # angles (the sheet an angle came from is not recoverable from it)
+        # the coloring wraps, so the roundtrip is checked as `transform ∘ inverse`
         y = Comrade.transform(tp, xf)
         @test all(θ -> -π - 1.0e-12 ≤ θ ≤ π + 1.0e-12, parent(y.instrument.gp.params))
         y2 = Comrade.transform(tp, Comrade.inverse(tp, y))
@@ -573,20 +561,15 @@ end
                 values(y2.instrument.gp.hyperparams), values(y.instrument.gp.hyperparams)
             )
         )
-        # The flat lift is *proper*: the sheet weights break the exact 2π periodicity a
-        # raw-angle coordinate would otherwise have, so a 2π shift of a free phase
-        # coordinate is strongly suppressed rather than free, and the density decays in
-        # the tails instead of repeating forever.
+        # the flat lift is proper: the sheet weights break the 2π periodicity
         jc = LogDensityProblems.dimension(tp)
         ℓ0 = logdensityof(tp, xf)
         shift(δ) = (z = copy(xf); z[jc] += δ; logdensityof(tp, z))
-        # the exact 2π periodicity is gone — that was the bug, and it made the flat
-        # target an infinite lattice of identical modes. Assert only that the symmetry
-        # is broken, not its sign: `jc` need not be a phase coordinate, and a prior
-        # sample need not sit on the sheet the weights favor.
+        # Only the symmetry breaking is checked, not its sign: `jc` need not be a phase
+        # coordinate, and a prior sample need not sit on the favored sheet.
         @test !isapprox(shift(2π), ℓ0)
         @test !isapprox(shift(-2π), ℓ0)
-        # and the lift is proper: it decays far out instead of repeating forever
+        # the density decays far from the origin
         @test shift(40π) < ℓ0 - 10
         @test shift(-40π) < ℓ0 - 10
         # wrapped chains refuse the Std transports
@@ -619,13 +602,11 @@ end
             @test LogDensityProblems.dimension(tpe) == skydim + nsites + 2 * nfreew
             xe = prior_sample(rng, tpe)
             @test isfinite(logdensityof(tpe, xe))
-            # the angle embedding is not injective (the latent radius is dropped on
-            # inverse), so the roundtrip identity holds through the constrained space
+            # the embedding drops the latent radius, so the roundtrip is checked on angles
             ye = Comrade.transform(tpe, xe)
             ye2 = Comrade.transform(tpe, Comrade.inverse(tpe, ye))
             @test parent(ye2.instrument.gp.params) ≈ parent(ye.instrument.gp.params)
-            # the embedding has no sheet structure at all: the flat target is a function
-            # of the angle only, so scaling a latent pair is pure radial freedom
+            # the flat target depends only on the angle, so scaling a latent pair is free
             @test_throws ArgumentError ascube(poste)
 
             fe = let tpe = tpe
@@ -638,9 +619,7 @@ end
     end
 
     @testset "WrappedOrnsteinUhlenbeck ratio-phase posterior" begin
-        # the mean-reverting circular process: one chain replaces the
-        # WrappedBrownian-with-FixedInit plus separate circular offset pair, and σ — not
-        # an unbounded random walk — sets how far the phase may stray from its mean.
+        # a mean-reverting circular process: σ bounds how far the phase strays from its mean
         @instrument function gmint_wou()
             return @jones begin
                 gp ~ ArrayPrior(
@@ -660,7 +639,7 @@ end
         # prior draws land on the circle
         @test all(θ -> -π - 1.0e-8 ≤ θ ≤ π + 1.0e-8, parent(s.instrument.gp.params))
 
-        # the *model* is exactly invariant under a 2π shift of any single free phase
+        # the model is invariant under a 2π shift of any free phase
         freeinds = setdiff(1:length(post.prior.instrument.gp.dists), post.prior.instrument.gp.dists.fixedinds)
         s2 = deepcopy(s)
         parent(s2.instrument.gp.params)[first(freeinds)] += 2π

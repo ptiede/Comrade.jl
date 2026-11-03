@@ -5,6 +5,10 @@ using Distributions
 using StaticArrays
 import TransformVariables as TV
 
+mutable struct _DeviceMovesState
+    position::Any
+end
+
 # Reference-antenna gains fix some sites to a constant value. Rebuilding the full
 # parameter vector used to scatter those constants into a freshly-allocated array
 # (`yfv[fixed_index] .= fixed_values`), which forces scalar indexing and fails to
@@ -62,11 +66,10 @@ end
     @test chain isa PosteriorSamples
     @test length(Comrade.postsamples(chain)) == 100
     @test hasproperty(samplerstats(chain), :numerical_error)
-    # cross-backend contract: per-draw Bool divergence flags (`count`-able by the
-    # default disk callback)
+    # divergence flags are per-draw Bools, as on the other backends
     @test eltype(samplerstats(chain).numerical_error) == Bool
-    # the remaining per-draw stats: the stored log density is that of the flat posterior
-    # at the draw, the step size is frozen after warmup, and the wall time is positive
+    # stored log density is the flat posterior's at the draw; step size is fixed after
+    # warmup; wall time is positive
     let st = samplerstats(chain), tcpu = asflat(post_cpu), ps = Comrade.postsamples(chain)
         @test length(st.log_density) == length(st.step_size) == length(st.time) == 100
         for i in (1, 25, 26, 100)
@@ -185,6 +188,26 @@ end
     @test Array(s_resume.step_size) == Array(s_single.step_size)
     @test Array(s_resume.inverse_mass_matrix) == Array(s_single.inverse_mass_matrix)
     @test Array(s_resume.position) == Array(s_single.position)
+
+    # Checkpoints are written every `checkpoint_every` steps regardless of chunk length:
+    # interrupted at step 24, warmup resumes from step 20 and matches the full warmup.
+    sckpt, pckpt = tempname(), tempname()
+    interrupt = info -> (info.step == 24 && error("interrupted"); nothing)
+    @test_throws "interrupted" ext.warmup_chunked(
+        freshrng(), ldf, x0, tpost, sampler;
+        chunk = 4, callback = interrupt, checkpoint = sckpt, progress_checkpoint = pckpt,
+        checkpoint_every = 10,
+    )
+    @test deserialize(pckpt).warmup_done == 20
+    s_ckpt, _ = ext.warmup_chunked(
+        freshrng(), ldf, nothing, tpost, sampler;
+        chunk = 4, callback = quiet, resume_state = ProbProg.load_state(sckpt), warmup_done = 20,
+    )
+    rm(sckpt; force = true)
+    rm(pckpt; force = true)
+    @test Array(s_ckpt.step_size) == Array(s_single.step_size)
+    @test Array(s_ckpt.inverse_mass_matrix) == Array(s_single.inverse_mass_matrix)
+    @test Array(s_ckpt.position) == Array(s_single.position)
 end
 
 @testset "ReactantNUTS in the StdNormal space" begin
@@ -201,6 +224,86 @@ end
     post = todevice(post_cpu, Reactant.Sharding.NoSharding())
     sp = Comrade.PT.StdNormal()
 
+    # MoveSet between NUTS chunks on a device position proposes every round
+    rwmove = CompensatedMove(
+        "f1_rw", CoordinateView(post_cpu, sp), (:sky, :f1), (:sky, :f2), (v, x, x′, ctx) -> v
+    )
+    ms = MoveSet(post_cpu, (rwmove,); space = sp, rounds = 4)
+    mdir = mktempdir()
+    mout = sample(
+        post, ReactantNUTS(; n_adapts = 20, max_tree_depth = 4, init_step_size = 0.01), 20;
+        saveto = DiskStore(name = mdir, stride = 10), transport_method = sp, between_chunks = ms
+    )
+    msum = only(move_summary(ms))
+    @test msum.warmup.proposed == 4 * 2 && msum.sampling.proposed == 4 * 1
+    @test 0 < msum.warmup.accepted + msum.sampling.accepted
+    @test all(p -> all(isfinite, values(p.sky)), Comrade.postsamples(load_samples(mout)))
+    rm(mdir; recursive = true)
+
+    # Traceable (compiled) and host moves on a device position match the host kernels
+    # for the same random numbers.
+    mview = CoordinateView(post_cpu, sp)
+    scaled(v, x, x′, ctx) = v * sum(ctx.c)
+    devmove = CompensatedMove(
+        "f1_dev", mview, (:sky, :f1), (:sky, :f2), scaled;
+        context = (; c = [1.0]), traceable = true
+    )
+    devmove2 = CompensatedMove(
+        "τ1_dev", mview, (:sky, :τ1), (:sky, :f2), scaled;
+        context = (; c = [1.0]), traceable = true
+    )
+    hostmove = CompensatedMove("ξ1_host", mview, (:sky, :ξ1), (:sky, :f2), scaled; context = (; c = [1.0]))
+    @test Comrade.traceable(devmove) && !Comrade.traceable(hostmove)
+    dmoves, drounds = (devmove, devmove2, hostmove), [6, 3, 4]
+    thost = Comrade.transport_to(post_cpu, sp)
+    tdev = Comrade.transport_to(post, sp)
+    xstart = Comrade.inverse(thost, prior_sample(Random.Xoshiro(3), post_cpu))
+    msd = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
+    msh = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
+    warm = (; phase = :warmup, step = 2, total = 20)
+    sh = msh(_DeviceMovesState(copy(xstart)), thost, warm, Random.Xoshiro(30))
+    sd = msd(_DeviceMovesState(Reactant.to_rarray(xstart)), tdev, warm, Random.Xoshiro(30))
+    @test sd.position isa Reactant.AbstractConcreteArray
+    @test Array(sd.position) ≈ sh.position rtol = 1.0e-9
+    @test [m.warmup for m in move_summary(msd)] == [m.warmup for m in move_summary(msh)]
+    @test [m.warmup.proposed for m in move_summary(msd)] == drounds
+    @test [m.τ for m in move_summary(msd)] ≈ [m.τ for m in move_summary(msh)]
+    @test sh.position != xstart
+
+    # `update_context!` reaches the compiled program without recompiling. The host context
+    # shares the moves' arrays, so a MoveSet built from the same moves sees the update.
+    k0 = msd.compiled[]
+    Comrade.update_context!(msd, :c, [2.0])
+    msh2 = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
+    @test only(msh2.ctx.c) == 2.0
+    msd.stats .= [Comrade._MoveStats(d, τ) for (d, τ) in zip(msd.dists, msd.initial_scale)]
+    sh2 = msh2(_DeviceMovesState(copy(xstart)), thost, warm, Random.Xoshiro(33))
+    sd2 = msd(_DeviceMovesState(Reactant.to_rarray(xstart)), tdev, warm, Random.Xoshiro(33))
+    @test Array(sd2.position) ≈ sh2.position rtol = 1.0e-9
+    @test msd.compiled[] === k0
+    @test_throws DimensionMismatch Comrade.update_context!(msd, :c, [1.0, 2.0])
+    @test_throws "has no entry nope" Comrade.update_context!(msd, :nope, [1.0])
+
+    # Likelihood-invariant moves skip the likelihood on device and host; `u` and `w` do
+    # not enter the sky.
+    post_u = VLBIPosterior(SkyModel(test_model, merge(gprior, (u = VLBIGaussian(0.0, 1.0), w = VLBIGaussian(0.0, 1.0))), g), vis; admode = nothing)
+    uview = CoordinateView(post_u, sp)
+    keep(v, x, x′, ctx) = v
+    umove = CompensatedMove("u_dev", uview, (:sky, :u), (:sky, :f2), keep; likelihood_invariant = true, traceable = true)
+    wmove = CompensatedMove("w_host", uview, (:sky, :w), (:sky, :f2), keep; likelihood_invariant = true)
+    tdev_u = Comrade.transport_to(todevice(post_u, Reactant.Sharding.NoSharding()), sp)
+    thost_u = Comrade.transport_to(post_u, sp)
+    xu = Comrade.inverse(thost_u, prior_sample(Random.Xoshiro(4), post_u))
+    msu_h = MoveSet(post_u, (umove, wmove); space = sp, rounds = [5, 3])
+    msu_d = MoveSet(post_u, (umove, wmove); space = sp, rounds = [5, 3])
+    @test all(msu_d.free)
+    su_h = msu_h(_DeviceMovesState(copy(xu)), thost_u, warm, Random.Xoshiro(31))
+    su_d = msu_d(_DeviceMovesState(Reactant.to_rarray(xu)), tdev_u, warm, Random.Xoshiro(31))
+    @test Array(su_d.position) ≈ su_h.position rtol = 1.0e-9
+    @test [m.warmup for m in move_summary(msu_d)] == [m.warmup for m in move_summary(msu_h)]
+    @test [m.τ for m in move_summary(msu_d)] ≈ [m.τ for m in move_summary(msu_h)]
+    @test su_h.position[end] != xu[end]
+
     # a full run to disk: draws are finite and the stored transport records the space
     sampler = ReactantNUTS(; n_adapts = 40, max_tree_depth = 4, init_step_size = 0.01)
     dir = mktempdir()
@@ -212,18 +315,133 @@ end
     rm(dir; recursive = true)
 end
 
-# GaussMarkov (time-correlated) instrument priors trace through the flat path with no
-# Reactant-specific code: the `@trace`d chain logpdf and the branchless whitened coloring
-# only need `rgetindex`/`rsetindex!` for the scalar-indexing opt-in (Reactant promotes
-# the captured static chain tables itself). Pointwise-evaluated distributions
-# (hyperpriors, IID overrides) must accept `::Number`, so use the VLBI*/PT distributions.
-# Each process stresses a different traced path: OU the fitted-hyperparameter coloring,
-# BrownianMotion+FixedInit the `scatter_values!` fixed-value fill, WrappedBrownian the
-# log-sum-exp wrapped-normal image sum plus, in its default non-centered form, the masked
-# wrap of the batched affine scan and, in its centered form, the sheet-weight loop (whose
-# anchor read is a table-driven index into the latent segment); `AngleEmbedded` the
-# angle-embedding transform, and WrappedOrnsteinUhlenbeck the shortest-arc `_cond_mean`
-# and the pointwise (carry-free) unwrap of the centered lift.
+# Random-walk Metropolis-Hastings along `v` for the log density `target`.
+mutable struct LineMove{F}
+    target::F
+    v::Vector{Float64}
+    scale::Float64
+    nprop::Int
+    nacc::Int
+    phases::Vector{Symbol}
+end
+LineMove(target, v, scale) = LineMove(target, v, scale, 0, 0, Symbol[])
+function (m::LineMove)(state, tpost, info, rng)
+    push!(m.phases, info.phase)
+    z = vec(Array(state.position))
+    for _ in 1:5
+        z1 = z .+ m.scale * randn(rng) .* m.v
+        m.nprop += 1
+        if log(rand(rng)) < m.target(z1) - m.target(z)
+            z = z1
+            m.nacc += 1
+        end
+    end
+    state.position = z
+    return state
+end
+
+# Host-side `between_chunks` moves. The target is a diagonal Gaussian in the latent
+# coordinates, so the sampled moments are known.
+@testset "ReactantNUTS between_chunks moves" begin
+    ext = Base.get_extension(Comrade, :ComradeReactantExt)
+
+    gprior = (
+        f1 = VLBIGaussian(1.0, 0.1), σ1 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ1 = VLBIGaussian(0.5, 0.05), ξ1 = VLBIGaussian(0.0, 0.3),
+        f2 = VLBIGaussian(0.5, 0.1), σ2 = VLBIGaussian(μas2rad(20.0), μas2rad(2.0)),
+        τ2 = VLBIGaussian(0.5, 0.05), ξ2 = VLBIGaussian(0.0, 0.3),
+        x = VLBIGaussian(0.0, μas2rad(20.0)), y = VLBIGaussian(0.0, μas2rad(20.0)),
+    )
+    _, vis, _, _, _ = load_data()
+    g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12)
+    post = todevice(
+        VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing), Reactant.Sharding.NoSharding()
+    )
+    n = dimension(asflat(post))
+    μ = collect(range(-1.0, 1.0; length = n))
+    σ = collect(range(0.5, 2.0; length = n))
+    target(x) = -sum(abs2, (x .- μ) ./ σ) / 2
+    ldf(x, _) = target(x)
+    x0 = Comrade.transform(asflat(post), zeros(n))
+    freshrng() = Reactant.ReactantRNG(Reactant.to_rarray(UInt64[3, 11]))
+    s = ReactantNUTS(; n_adapts = 60, max_tree_depth = 5)
+    runchain(hook; nsamples = 60, host_rng = Random.Xoshiro(2)) = sample(
+        freshrng(), post, s, nsamples;
+        chunk_size = 10, initial_params = x0, ldf, host_rng, between_chunks = hook
+    )
+    draws(res) = reduce(hcat, (Comrade.inverse(asflat(post), p) for p in Comrade.postsamples(res)))
+
+    @testset "no hook and an identity hook give the same chain" begin
+        r0 = runchain(nothing)
+        r1 = runchain((st, _, _, _) -> st)
+        @test draws(r0) == draws(r1)
+        @test Array(samplerinfo(r0)[:final_state].position) == Array(samplerinfo(r1)[:final_state].position)
+        @test Array(samplerinfo(r0)[:final_state].step_size) == Array(samplerinfo(r1)[:final_state].step_size)
+    end
+
+    @testset "the hook runs at every chunk end and reports there without checkpointing" begin
+        calls = Tuple{Symbol, Int}[]
+        reports = Int[]
+        hook = function (st, _, info, _)
+            push!(calls, (info.phase, info.step))
+            get(info, :report, false) && push!(reports, info.step)
+            return st
+        end
+        r = runchain(hook)
+        wsteps = [step for (phase, step) in calls if phase === :warmup]
+        @test !isempty(wsteps) && last(wsteps) == 60 && allequal(diff([0; wsteps]))
+        @test reports == wsteps
+        @test [step for (phase, step) in calls if phase === :sampling] == collect(10:10:50)
+        @test length(Comrade.postsamples(r)) == 60
+    end
+
+    @testset "moved states restart NUTS from a recomputed gradient" begin
+        # A moved state drops the cached gradient and potential energy and returns to the
+        # device in the kernel's shape; an unmoved state keeps both.
+        st = samplerinfo(runchain(nothing; nsamples = 20))[:final_state]
+        info = (; phase = :sampling, step = 0, total = 0)
+        kept = ext._run_between_chunks((s, _, _, _) -> s, st, nothing, info, Random.Xoshiro(1))
+        @test kept.gradient !== nothing && kept.potential_energy !== nothing
+        znew = vec(Array(st.position)) .+ 0.1
+        moved = ext._run_between_chunks(
+            (s, _, _, _) -> (s.position = znew; s), st, nothing, info, Random.Xoshiro(1)
+        )
+        @test moved.gradient === nothing && moved.potential_energy === nothing
+        @test moved.position isa Reactant.ConcreteRArray
+        @test size(moved.position) == (1, n)
+        @test vec(Array(moved.position)) == znew
+
+        # one chunk from the moved state returns the potential energy at its own position
+        st2, _, _ = ext.sample_chunked(moved, ldf, asflat(post), s; num_samples = 4, chunk_size = 4)
+        @test -only(Array(st2.potential_energy)) ≈ target(vec(Array(st2.position))) rtol = 1.0e-10
+
+        @test_throws "must return the MCMCState" ext._run_between_chunks(
+            (_, _, _, _) -> nothing, st2, nothing, info, Random.Xoshiro(1)
+        )
+        @test_throws DimensionMismatch ext._run_between_chunks(
+            (s, _, _, _) -> (s.position = zeros(n + 1); s), st2, nothing, info, Random.Xoshiro(1)
+        )
+    end
+
+    @testset "a valid MH move leaves the target moments unchanged" begin
+        v = normalize!([1.0; 1.0; zeros(n - 2)])
+        mv = LineMove(target, v, 1.5)
+        res = runchain(mv; nsamples = 3000)
+        @test :warmup in mv.phases && :sampling in mv.phases
+        @test count(==(:warmup), mv.phases) == s.n_adapts ÷ 10
+        @test count(==(:sampling), mv.phases) == 3000 ÷ 10 - 1
+        @test 0.2 < mv.nacc / mv.nprop < 0.95
+        X = draws(res)
+        @test samplerstats(res).log_density ≈ map(target, eachcol(X)) rtol = 1.0e-10
+        # NUTS draws on a Gaussian are nearly independent, so plain standard errors apply
+        @test all(abs.(vec(mean(X; dims = 2)) .- μ) .< 6 .* σ ./ sqrt(size(X, 2)))
+        @test all(abs.(vec(var(X; dims = 2)) ./ σ .^ 2 .- 1) .< 0.2)
+    end
+end
+
+# GaussMarkov instrument priors under Reactant match the CPU value and gradient. Hyperpriors
+# and IID overrides are evaluated pointwise and must accept `::Number`, hence the VLBI*/PT
+# distributions. Each process and form covers a different traced code path.
 @testset "GaussMarkov priors under Reactant" begin
     using Enzyme
 
@@ -295,7 +513,6 @@ end
         end
     end
 
-    # gradient (what the compiled NUTS kernels differentiate) matches CPU Enzyme
     fgrad(x, tp) = Enzyme.gradient(
         Enzyme.set_runtime_activity(Enzyme.Reverse), Const(Base.Fix1(logdensityof, tp)), x
     )[1]
@@ -311,15 +528,11 @@ end
         tpost = asflat(post)
         x0_r = Reactant.to_rarray(x0)
 
-        # regression guard: the whole flat path — coloring (staged writes + affine
-        # scan + scatter), chain logpdf (re-read-style gathers), fixed-value fill —
-        # must stay fully raised. A serialized `stablehlo.while` costs ~100-200 us of
-        # device latency per leapfrog step, doubled in the gradient.
+        # No `stablehlo.while` may remain: each costs ~100-200 us of device latency per
+        # leapfrog step, doubled in the gradient.
         @test nwhile(Reactant.@code_hlo optimize = true logdensityof(tpost, x0_r)) == 0
         @test nwhile(Reactant.@code_hlo optimize = true fgrad(x0_r, tpost)) == 0
 
-        # value matches the CPU path (whitened hierarchical transform + chain logpdf +
-        # refant conditioning all traced)
         ld = @jit logdensityof(tpost, x0_r)
         @test convert(Float64, ld) ≈ logdensityof(tpost_cpu, x0) rtol = 1.0e-10
 
