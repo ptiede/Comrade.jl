@@ -790,14 +790,15 @@ to the cumulative total). If the requested `nsamples` is already on disk, nothin
 drawn.
 """
 function AbstractMCMC.sample(
-        rng::Reactant.ReactantRNG, post, sampler::ReactantNUTS,
-        nsamples::Int;
+        rng::Reactant.ReactantRNG, post::Comrade.AbstractVLBIPosterior, sampler::ReactantNUTS,
+        nsamples::Integer;
         transport_method = nothing,
         saveto = MemoryStore(), initial_params = nothing, restart::Bool = false,
-        chunk_size::Int = 100, warmup_chunk::Int = 0, checkpoint_every::Int = 20,
+        chunk_size::Integer = 100, warmup_chunk::Integer = 0, checkpoint_every::Integer = 20,
         ldf = _default_ldf, host_rng = Random.default_rng(),
         warmup_callback = nothing, between_chunks = nothing
     )
+    nsamples, chunk_size, warmup_chunk, checkpoint_every = Int.((nsamples, chunk_size, warmup_chunk, checkpoint_every))
 
     if isnothing(warmup_callback)
         warmup_callback = saveto isa DiskStore ?
@@ -898,7 +899,7 @@ end
 Convenience method that builds a default `ReactantRNG` and forwards to the
 main `sample`.
 """
-function AbstractMCMC.sample(post, sampler::ReactantNUTS, nsamples::Int; kwargs...)
+function AbstractMCMC.sample(post::Comrade.AbstractVLBIPosterior, sampler::ReactantNUTS, nsamples::Integer; kwargs...)
     rng = Reactant.ReactantRNG()
     return AbstractMCMC.sample(rng, post, sampler, nsamples; kwargs...)
 end

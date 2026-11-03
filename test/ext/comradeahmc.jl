@@ -57,6 +57,8 @@ using Enzyme
     # prior into a flat vector and then double-transform it through `inverse`, which errored.
     # It should now run straight through (prior start chosen inside `initialize_params`).
     noinit_dir = joinpath(@__DIR__, "TestNoInit")
+    @test_throws "restart=true requires saveto::DiskStore" sample(post, s1, 10; restart = true)
+
     out_noinit = sample(post, s1, 200; n_adapts = 100, saveto = DiskStore(name = noinit_dir, stride = 100))
     @test length(load_samples(out_noinit)) == 200
     rm(noinit_dir, recursive = true)

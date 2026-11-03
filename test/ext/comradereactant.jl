@@ -62,7 +62,7 @@ end
     s = ReactantNUTS(; n_adapts = 50, max_tree_depth = 6)
 
     # MemoryStore
-    chain = sample(post, s, 100; chunk_size = 25)
+    chain = sample(post, s, Int32(100); chunk_size = Int32(25))
     @test chain isa PosteriorSamples
     @test length(Comrade.postsamples(chain)) == 100
     @test hasproperty(samplerstats(chain), :numerical_error)

@@ -42,7 +42,7 @@ function AbstractMCMC.steps(
 end
 
 """
-    sample(rng, post::VLBIPosterior, sampler::AbstractHMCSampler, nsamples, args...;saveto=MemoryStore(), initial_params=nothing, kwargs...)
+    sample(rng, post::VLBIPosterior, sampler::AbstractHMCSampler, nsamples, args...; saveto = MemoryStore(), initial_params = nothing, transport_method = nothing, restart = false, kwargs...)
 
 Sample from the posterior `post` using the sampler `sampler` for `nsamples` samples. Additional
 arguments are forwarded to AbstractMCMC.sample. If `saveto` is a DiskStore, the samples will be
@@ -63,6 +63,8 @@ saved to disk. If `initial_params` is not `nothing` then the sampler will start 
     ProbabilityTransports) to sample a standard-normal–standardized posterior instead. Note
     that HMC needs an unbounded latent space, so the unit hypercube (`StdUniform`) is not a
     good choice here.
+ - `restart`: Continue an interrupted run from the checkpoint in `saveto`, which must be a
+    `DiskStore`.
  - `kwargs`: Additional keyword arguments to pass to the sampler. Examples include `n_adapts` which is the total number of samples to use for adaptation.
     To see the others see the AdvancedHMC documentation.
 
@@ -83,10 +85,11 @@ generic default.
 function AbstractMCMC.sample(
         rng::Random.AbstractRNG, post::Comrade.VLBIPosterior,
         sampler::AbstractHMCSampler, nsamples, args...;
-        saveto = MemoryStore(), initial_params = nothing, transport_method = nothing, kwargs...
+        saveto = MemoryStore(), initial_params = nothing, transport_method = nothing, restart::Bool = false, kwargs...
     )
 
-    saveto isa DiskStore && return sample_to_disk(rng, post, sampler, nsamples, args...; outdir = saveto.name, output_stride = min(saveto.stride, nsamples), callback = saveto.callback, initial_params, transport_method, kwargs...)
+    saveto isa DiskStore && return sample_to_disk(rng, post, sampler, nsamples, args...; outdir = saveto.name, output_stride = min(saveto.stride, nsamples), callback = saveto.callback, initial_params, transport_method, restart, kwargs...)
+    restart && throw(ArgumentError("restart=true requires saveto::DiskStore"))
 
     if isnothing(Comrade.admode(post))
         throw(ArgumentError("You must specify an automatic differentiation type in VLBIPosterior with admode kwarg"))

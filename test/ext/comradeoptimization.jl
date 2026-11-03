@@ -35,18 +35,26 @@ const Ahyper = Comrade.CubeTransport
     postbig = VLBIPosterior(skymbig, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
 
     @testset "Heuristic Test" begin
-        @test !isa(COExt._transform_heuristic(post, LBFGSB(), nothing, nothing).transform, Ahyper)
-        @test isa(COExt._transform_heuristic(post, LBFGSB(), nothing, ascube).transform, Ahyper)
-        @test !isa(COExt._transform_heuristic(post, LBFGSB(), nothing, asflat).transform, Ahyper)
-        @test isa(COExt._transform_heuristic(post, BBO_adaptive_de_rand_1_bin_radiuslimited(), nothing, nothing).transform, Ahyper)
-        @test isa(COExt._transform_heuristic(post, GCMAESOpt(), nothing, nothing).transform, Ahyper)
-        @test_throws "You are using the" COExt._transform_heuristic(postbig, GCMAESOpt(), nothing, nothing)
+        @test !isa(COExt._transport_heuristic(post, LBFGSB(), nothing, nothing).transform, Ahyper)
+        @test isa(COExt._transport_heuristic(post, LBFGSB(), nothing, StdUniform()).transform, Ahyper)
+        @test !isa(COExt._transport_heuristic(post, LBFGSB(), nothing, TVFlat()).transform, Ahyper)
+        @test isa(COExt._transport_heuristic(post, BBO_adaptive_de_rand_1_bin_radiuslimited(), nothing, nothing).transform, Ahyper)
+        @test isa(COExt._transport_heuristic(post, GCMAESOpt(), nothing, nothing).transform, Ahyper)
+        @test_throws "You are using the" COExt._transport_heuristic(postbig, GCMAESOpt(), nothing, nothing)
         # We don't actually use the bounds when constructing so just test that the condition in the heuristic is correct
-        @test !isa(COExt._transform_heuristic(postbig, GCMAESOpt(), prior_sample(postbig), nothing).transform, Ahyper)
-        @test !isa(COExt._transform_heuristic(postbig, OptimizationOptimisers.Adam(), prior_sample(postbig), nothing).transform, Ahyper)
+        @test !isa(COExt._transport_heuristic(postbig, GCMAESOpt(), prior_sample(postbig), nothing).transform, Ahyper)
+        @test !isa(COExt._transport_heuristic(postbig, OptimizationOptimisers.Adam(), prior_sample(postbig), nothing).transform, Ahyper)
     end
 
     xopt2, sol = comrade_opt(post, LBFGSB(); initial_params = x0, maxiters = 10_000)
+
+    @testset "transport_method" begin
+        xc, _ = comrade_opt(post, LBFGSB(); initial_params = x0, transport_method = StdUniform(), maxiters = 10)
+        @test keys(xc) == keys(xopt2)
+        xd, _ = @test_deprecated comrade_opt(post, LBFGSB(); initial_params = x0, transform = ascube, maxiters = 10)
+        @test keys(xd) == keys(xopt2)
+        @test_throws "pass only `transport_method`" comrade_opt(post, LBFGSB(); transform = ascube, transport_method = StdUniform())
+    end
 
     xopt = xopt2.sky
     @test isapprox(xopt.f1 / xopt.f2, 2.0, atol = 1.0e-3)
