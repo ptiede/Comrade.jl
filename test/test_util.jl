@@ -6,7 +6,7 @@ const ARRAYFILE = joinpath(@__DIR__, "..", "examples", "Data", "array.txt")
 # from the example `array.txt`.
 function load_test_table()
     uvd = VLBIFiles.load(VLBIFiles.UVData, joinpath(@__DIR__, "test_data.uvfits"))
-    return average(reset_mounts!(VisTable(uvd, IPol()), ARRAYFILE), ByScan())
+    return average(reset_mounts(VisTable(uvd, IPol()), ARRAYFILE), ByScan())
 end
 
 # Noise-free scan-averaged data of two Gaussians (FWHMs 40 × 20 and 20 × 10 μas) on the
@@ -27,7 +27,7 @@ function load_data()
     cphase = closure_phases(vt)
 
     uvp = VLBIFiles.load(VLBIFiles.UVData, joinpath(@__DIR__, "..", "examples", "Data", "polarized_gaussian_nogains_withdterms_withfr.uvfits"))
-    dcoh = reset_mounts!(VisTable(uvp, Correlations()), ARRAYFILE)
+    dcoh = reset_mounts(VisTable(uvp, Correlations()), ARRAYFILE)
 
     return test_model(θ, nothing, nothing), vt, amp, lcamp, cphase, dcoh
 end

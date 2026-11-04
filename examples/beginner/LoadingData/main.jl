@@ -43,14 +43,14 @@ lcamp = logclosure_amplitudes(vis)      # minimal log-closure amplitudes
 
 # For polarization we load the file the same way; circular polarization is detected from the
 # antenna feed types in the FITS table. `VisTable(uvdp, Correlations())` holds all four feed
-# products of each baseline as a 2×2 coherency matrix, and `reset_mounts!` sets the telescope
+# products of each baseline as a 2×2 coherency matrix, and `reset_mounts` sets the telescope
 # mount information from the antenna text file.
 uvdp = VLBIFiles.load(
     VLBIFiles.UVData,
     joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits")
 )
 coh = average(VisTable(uvdp, Correlations()), ByScan())
-reset_mounts!(coh, joinpath(__DIR, "..", "..", "Data", "array.txt"))
+coh = reset_mounts(coh, joinpath(__DIR, "..", "..", "Data", "array.txt"))
 
 #-
 # We can also recover the array used in the observation using

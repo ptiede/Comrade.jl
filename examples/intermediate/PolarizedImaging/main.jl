@@ -123,7 +123,7 @@ dvis = average(VisTable(uvd, Correlations()), ByScan())
 # Unlike non-polarized tutorials, we also need an **array file** describing the antenna
 # feed rotation parameters. Often the EHT does not take into acount feed offsets. To load
 # those we read in the standard ehtim style array.txt files.
-reset_mounts!(dvis, joinpath(__DIR, "../../Data/array.txt"))
+dvis = reset_mounts(dvis, joinpath(__DIR, "../../Data/array.txt"))
 # Inflate noise by 1% and flag short (uvdist < 0.1 Gλ) baselines.
 dvis = add_fractional_noise(dvis, 0.01)
 dvis = flag(row -> hypot(row.U, row.V) < 0.1e9, dvis)

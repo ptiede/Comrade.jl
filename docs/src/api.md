@@ -44,7 +44,7 @@ Comrade.flag
 Comrade.drop
 Comrade.add_fractional_noise
 Comrade.load_array_txt
-Comrade.reset_mounts!
+Comrade.reset_mounts
 Comrade.datarows
 Comrade.ecef_to_geodetic
 Comrade.elevation_parallactic
