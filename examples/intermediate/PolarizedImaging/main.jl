@@ -321,7 +321,7 @@ tpost = transport_to(post, TVFlat());
 # due to the higher dimension of the space. In addition the only AD package that can currently
 # work with the polarized Comrade posterior is Enzyme.
 using Optimization, OptimizationLBFGSB
-xopt, sol = comrade_opt(
+xopt, sol = estimate_mode(
     post, LBFGSB();
     initial_params = prior_sample(rng, post), maxiters = 2_000
 )

@@ -1,13 +1,13 @@
-export comrade_opt
+export estimate_mode
 
 """
-    comrade_opt(post::VLBIPosterior, opt, adtype=nothing, args...; initial_params=nothing, kwargs...)
+    estimate_mode(post::AbstractVLBIPosterior, opt, args...; initial_params=nothing, kwargs...)
 
-Optimize the posterior `post` using the `opt` optimizer. The `adtype` specifies the automatic differentiation.
-The `args/kwargs` are forwarded to `the specific optimization package.
+The mode of the posterior `post`, found with the optimizer `opt`. The `args/kwargs` are
+forwarded to the optimization package.
 
 !!! warning
     This function won't have any methods until the optimization package is loaded.
     We recommend loading the `Optimization.jl` package.
 """
-function comrade_opt end
+function estimate_mode end

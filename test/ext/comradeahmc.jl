@@ -29,6 +29,10 @@ using Enzyme
     # Sample in a standard-normal latent space instead of the default `asflat`
     hchain_std = sample(post, s1, 500; n_adapts = 250, progress = false, transport_method = StdNormal(), initial_params = x0)
     @test Comrade.samplerinfo(hchain_std)[:post].transform.stop isa StdNormal
+    tstd = transport_to(post, StdNormal())
+    hchain_t = sample(tstd, s1, 200; n_adapts = 100, progress = false, initial_params = x0)
+    @test Comrade.samplerinfo(hchain_t)[:post] === tstd
+    @test Comrade.samplerinfo(sample(tstd, s1, 20; n_adapts = 10, progress = false, transport_method = TVFlat()))[:post].transform isa Comrade.FlatTransport
     out = sample(post, s1, 1_000; n_adapts = 500, saveto = DiskStore(name = joinpath(@__DIR__, "Test")), initial_params = x0)
     out = sample(post, s1, 1_200; n_adapts = 500, saveto = DiskStore(name = joinpath(@__DIR__, "Test")), initial_params = x0, restart = true)
 

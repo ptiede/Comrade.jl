@@ -154,9 +154,9 @@ fig |> DisplayAs.PNG |> DisplayAs.Text #hide
 #  - Optimization to find the MAP (fast but often a poor estimator)
 #  - Sampling to find the posterior (slow but provides a substantially better estimator)
 # For optimization we will use the `Optimization.jl` package and the LBFGS optimizer.
-# To use this we use the [`comrade_opt`](@ref) function
+# To use this we use the [`estimate_mode`](@ref) function
 using Optimization, OptimizationLBFGSB
-xopt, sol = comrade_opt(
+xopt, sol = estimate_mode(
     post, LBFGSB();
     initial_params = xrand, maxiters = 2000, g_tol = 1.0e0
 );

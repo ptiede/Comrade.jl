@@ -42,7 +42,7 @@ function AbstractMCMC.steps(
 end
 
 """
-    sample(rng, post::VLBIPosterior, sampler::AbstractHMCSampler, nsamples, args...; saveto = MemoryStore(), initial_params = nothing, transport_method = nothing, restart = false, kwargs...)
+    sample(rng, post::AbstractVLBIPosterior, sampler::AbstractHMCSampler, nsamples, args...; saveto = MemoryStore(), initial_params = nothing, transport_method = nothing, restart = false, kwargs...)
 
 Sample from the posterior `post` using the sampler `sampler` for `nsamples` samples. Additional
 arguments are forwarded to AbstractMCMC.sample. If `saveto` is a DiskStore, the samples will be
@@ -51,7 +51,8 @@ saved to disk. If `initial_params` is not `nothing` then the sampler will start 
 ## Arguments
 
  - rng: The random number generator to use
- - post: The posterior to sample from
+ - post: The posterior to sample from, a `VLBIPosterior` or one already in a latent space
+   (e.g. `asflat(post)`)
  - nsamples: The total number of samples
 
 ## Keyword Arguments
@@ -59,8 +60,9 @@ saved to disk. If `initial_params` is not `nothing` then the sampler will start 
  - `saveto`: If a DiskStore, the samples will be saved to disk, if [`MemoryStore`](@ref) the samples will be stored in memory/ram.
  - `initial_params`: The initial parameters to start the sampler from. If `nothing` then the sampler will start from a random point in the prior.
  - `transport_method`: The latent space to sample in. The default (`nothing`) uses the
-    unconstrained flat space, i.e. `asflat`. Pass e.g. `StdNormal()` (re-exported from
-    ProbabilityTransports) to sample a standard-normal–standardized posterior instead. Note
+    unconstrained flat space, i.e. `asflat`, or keeps the latent space of a posterior that
+    has one. Pass e.g. `StdNormal()` (re-exported from ProbabilityTransports) to sample a
+    standard-normal–standardized posterior instead. Note
     that HMC needs an unbounded latent space, so the unit hypercube (`StdUniform`) is not a
     good choice here.
  - `restart`: Continue an interrupted run from the checkpoint in `saveto`, which must be a
@@ -83,7 +85,7 @@ logger (mean/mode tree depth, divergences, average log-posterior) is used in pla
 generic default.
 """
 function AbstractMCMC.sample(
-        rng::Random.AbstractRNG, post::Comrade.VLBIPosterior,
+        rng::Random.AbstractRNG, post::Comrade.AbstractVLBIPosterior,
         sampler::AbstractHMCSampler, nsamples, args...;
         saveto = MemoryStore(), initial_params = nothing, transport_method = nothing, restart::Bool = false, kwargs...
     )
@@ -199,7 +201,7 @@ function _process_samples(pt, tpost, next, time, nscans, out, outbase, outdir, i
 end
 
 function sample_to_disk(
-        rng::Random.AbstractRNG, post::Comrade.VLBIPosterior,
+        rng::Random.AbstractRNG, post::Comrade.AbstractVLBIPosterior,
         sampler::AbstractHMCSampler, nsamples, args...;
         n_adapts = min(nsamples ÷ 2, 1000),
         initial_params = nothing, outdir = "Results",

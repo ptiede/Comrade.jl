@@ -46,14 +46,17 @@ const Ahyper = Comrade.CubeTransport
         @test !isa(COExt._transport_heuristic(postbig, OptimizationOptimisers.Adam(), prior_sample(postbig), nothing).transform, Ahyper)
     end
 
-    xopt2, sol = comrade_opt(post, LBFGSB(); initial_params = x0, maxiters = 10_000)
+    xopt2, sol = estimate_mode(post, LBFGSB(); initial_params = x0, maxiters = 10_000)
 
     @testset "transport_method" begin
-        xc, _ = comrade_opt(post, LBFGSB(); initial_params = x0, transport_method = StdUniform(), maxiters = 10)
+        xc, _ = estimate_mode(post, LBFGSB(); initial_params = x0, transport_method = StdUniform(), maxiters = 10)
         @test keys(xc) == keys(xopt2)
-        xd, _ = @test_deprecated comrade_opt(post, LBFGSB(); initial_params = x0, transform = ascube, maxiters = 10)
-        @test keys(xd) == keys(xopt2)
-        @test_throws "pass only `transport_method`" comrade_opt(post, LBFGSB(); transform = ascube, transport_method = StdUniform())
+        tc = ascube(post)
+        @test COExt._transport_heuristic(tc, GCMAESOpt(), nothing, nothing) === tc
+        @test !isa(COExt._transport_heuristic(tc, LBFGSB(), nothing, TVFlat()).transform, Ahyper)
+        xt, _ = estimate_mode(tc, LBFGSB(); initial_params = x0, maxiters = 10)
+        @test keys(xt) == keys(xopt2)
+        @test !isdefined(Comrade, :comrade_opt)
     end
 
     xopt = xopt2.sky

@@ -241,7 +241,7 @@ imageviz(init_img, size = (500, 400), colorscale = log10, colorrange = (1.0e-6, 
 xinit_r = Reactant.to_rarray(latent_pback(tpost, xinit_nt))
 
 # We use [Optimisers.jl](https://github.com/FluxML/Optimisers.jl) directly (rather than the
-# `comrade_opt` wrapper) because Reactant compiles the whole step — including the optimizer
+# `estimate_mode` wrapper) because Reactant compiles the whole step — including the optimizer
 # update — into a single XLA program. AdamW with a learning rate of `3.0e-4` matches the
 # Enzyme/CPU version of this tutorial.
 using Optimisers

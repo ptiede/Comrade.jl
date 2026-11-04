@@ -23,9 +23,10 @@ function Optimization.OptimizationFunction(post::Comrade.TransformedVLBIPosterio
 end
 
 """
-    comrade_opt(post::VLBIPosterior, opt, args...; initial_params = nothing, lb = nothing, ub = nothing, transport_method = nothing, kwargs...)
+    estimate_mode(post::AbstractVLBIPosterior, opt, args...; initial_params = nothing, lb = nothing, ub = nothing, transport_method = nothing, kwargs...)
 
-Optimize the posterior `post` using the `opt` optimizer.
+The mode of the posterior `post`, found with the optimizer `opt`. Returns the parameters at the
+mode and the `Optimization.jl` solution.
 
 !!! warning
     To use use a gradient optimizer with AD, `VLBIPosterior` must be created with a specific `admode` specified.
@@ -35,7 +36,8 @@ Optimize the posterior `post` using the `opt` optimizer.
 
 ## Arguments
 
- - `post` : The posterior to optimize.
+ - `post` : The posterior to optimize, a `VLBIPosterior` or one already in a latent space
+   (e.g. `ascube(post)`).
  - `opt` : The optimizer to use. This can be any optimizer from `Optimization.jl`.
  - `args` : Additional arguments passed to the `Optimization`, `solve` method
 
@@ -48,29 +50,20 @@ Optimize the posterior `post` using the `opt` optimizer.
  - `ub` : The upper bounds for the parameters. This is expected to be a NamedTuple of a similar structure as samples from the posterior.
  - `transport_method`: The latent space to optimize in, as for `sample`: `StdUniform()` for the unit
                 hypercube, `TVFlat()` for ℝⁿ, or `nothing` to choose between them from the optimizer's
-                bounds and gradient requirements and the dimension of the posterior.
+                bounds and gradient requirements and the dimension of the posterior. With `nothing`,
+                a posterior already in a latent space keeps it.
  - `kwargs` : Additional keyword arguments passed `Optimization.jl` `solve` method.
 
 """
-function Comrade.comrade_opt(
-        post::VLBIPosterior, opt, args...;
-        initial_params = nothing, lb = nothing, ub = nothing, transport_method = nothing, transform = nothing, kwargs...
+function Comrade.estimate_mode(
+        post::Comrade.AbstractVLBIPosterior, opt, args...;
+        initial_params = nothing, lb = nothing, ub = nothing, transport_method = nothing, kwargs...
     )
 
     (!isnothing(lb) & isnothing(ub)) && throw(ArgumentError("You specified lower bounds but not upper bounds. Please specify both or neither."))
     (!isnothing(ub) & isnothing(lb)) && throw(ArgumentError("You specified upper bounds but not lower bounds. Please specify both or neither."))
 
-    tpost = if isnothing(transform)
-        _transport_heuristic(post, opt, lb, transport_method)
-    else
-        isnothing(transport_method) || throw(ArgumentError("pass only `transport_method`; `transform` is deprecated"))
-        Base.depwarn(
-            "`comrade_opt(post, opt; transform)` is deprecated; pass the latent space as `transport_method` " *
-                "(`StdUniform()` for `ascube`, `TVFlat()` for `asflat`).",
-            :comrade_opt
-        )
-        transform(post)
-    end
+    tpost = _transport_heuristic(post, opt, lb, transport_method)
     f = OptimizationFunction(tpost)
 
     if isnothing(initial_params)
@@ -98,6 +91,8 @@ function Comrade.comrade_opt(
     sol = solve(prob, opt, args...; kwargs...)
     return Comrade.transform(tpost, sol), sol
 end
+
+_transport_heuristic(tpost::Comrade.TransformedVLBIPosterior, opt, lb, ::Nothing) = tpost
 
 @noinline function _transport_heuristic(post, opt, lb, transport_method)
     if isnothing(transport_method)

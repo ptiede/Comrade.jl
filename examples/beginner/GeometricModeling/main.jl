@@ -177,11 +177,11 @@ logdensityof(npost, latent_pback(npost, p))
 # Typically, most VLBI modeling codes only care about finding the optimal or best guess
 # image of our posterior `post` To do this, we will use [`Optimization.jl`](https://docs.sciml.ai/Optimization/stable/) and
 # specifically the [`BlackBoxOptim.jl`](https://github.com/robertfeldt/BlackBoxOptim.jl) package. For Comrade, this workflow is
-# we use the [`comrade_opt`](@ref) function.
+# we use the [`estimate_mode`](@ref) function.
 
 using Optimization
 using OptimizationBBO
-xopt, sol = comrade_opt(post, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters = 50_000);
+xopt, sol = estimate_mode(post, BBO_adaptive_de_rand_1_bin_radiuslimited(); maxiters = 50_000);
 
 # Given this we can now plot the optimal image or the *maximum a posteriori* (MAP) image.
 

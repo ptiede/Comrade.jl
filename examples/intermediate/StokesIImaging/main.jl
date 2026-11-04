@@ -171,12 +171,12 @@ post = VLBIPosterior(dvis; sky = skym, instrument = intmodel);
 
 # Now we need to actually compute our image. For this we will first follow standard approaches in
 # VLBI and find the maximum a posteriori (MAP) estimate of the image and instrument model.
-# This is done using the `comrade_opt` function which accepts the posterior, an optimization
+# This is done using the `estimate_mode` function which accepts the posterior, an optimization
 # algorithm, and some keyword arguments. For this tutorial we will use the L-BFGS algorithm.
 # For more information about the optimization algorithms available see the Optimization.jl
 # [docs](https://docs.sciml.ai/Optimization/stable/).
 using Optimization, OptimizationLBFGSB
-xopt, sol = comrade_opt(
+xopt, sol = estimate_mode(
     post, LBFGSB(); initial_params = prior_sample(rng, post),
     maxiters = 2000, g_tol = 1.0e-1
 );

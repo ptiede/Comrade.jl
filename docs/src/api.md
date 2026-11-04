@@ -182,7 +182,7 @@ Comrade.transport_to(::Comrade.VLBIPosterior, ::Comrade.PT.AbstractStdDist)
 
 ### Inference
 ```@docs
-Comrade.comrade_opt
+Comrade.estimate_mode
 Comrade.MemoryStore
 Comrade.DiskStore
 Comrade.load_samples
