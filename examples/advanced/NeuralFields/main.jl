@@ -191,16 +191,16 @@ skym = SkyModel(sky, prior, grid; algorithm = ReactantNUFFTAlg(), metadata = sky
 @instrument function instrument()
     return @jones begin
         lg ~ ArrayPrior(
-            IIDSitePrior(IntegSeg(), VLBIGaussian(0.0, 0.5))
+            IIDStationPrior(IntegSeg(), VLBIGaussian(0.0, 0.5))
         )
         ## Circular random-walk phases: a coherence time of 80 s (τ ≈ 0.022 hr) gives
         ## ≈ 0.5 rad drift per 10 s integration, starting uniform on the circle so no
         ## separate offset term is needed.
         gp ~ ArrayPrior(
-            GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(τ = 2 / 90); init = UniformInit());
+            GaussMarkovStationPrior(IntegSeg(), WrappedBrownian(τ = 2 / 90); init = UniformInit());
             refant = SensitiveReference(0.0),
         )
-        ## A single complex gain for each site.
+        ## A single complex gain for each station.
         return Jones(exp(complex(lg, gp)))
     end
 end

@@ -50,8 +50,8 @@ g  = spatialgrid(μas2rad(100.0), μas2rad(100.0), 256, 256)
 skym = SkyModel(sky, skyprior, g)
 
 G = Jones((x, c) -> exp(complex(x.lg, x.pg));
-          lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
-          pg = ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))))
+          lg = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+          pg = ArrayPrior(IIDStationPrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))))
           )
 intmodel = InstrumentModel(G)
 
@@ -272,7 +272,7 @@ simulate_observation(post::VLBIPosterior, θ; add_thermal_noise = true) = simula
     selfcal_phase(post::VLBIPosterior, θ)
 
 The station phase `φ = φ̂ + residual` at `θ` of a posterior whose instrument model
-self-calibrates the station phase (see [`InstrumentModel`](@ref)), as a `SiteArray`.
+self-calibrates the station phase (see [`InstrumentModel`](@ref)), as a `StationArray`.
 """
 function selfcal_phase(post::VLBIPosterior, θ)
     _, vis = idealmaps(datatype(typeof(post)), skymodel(post), θ)
@@ -304,7 +304,7 @@ _residuals(data::Tuple, vis) = map(d -> _residual(d, baseimage(vis)), data)
 function _residual(t::VisTable, vis)
     model = _withmodel(t, vis)
     r = _dense(measurement(t)) .- _dense(measurement(model))
-    return VisTable(t.pol, IntensityMap(_elements(t.pol, r), domain(t)), weight(t), stations(t))
+    return VisTable(t.pol, IntensityMap(_elements(t.pol, r), domain(t)), weight(t), stationgeometry(t))
 end
 function _residual(ct::ClosureTable, vis)
     model = _withmodel(ct, vis)

@@ -20,7 +20,7 @@ close(pkg_io) #hide
 # to roughly tracking a hockey puck on the moon when viewing it from the earth. However,
 # the EHT is also a unique interferometer. First, EHT data is incredibly sparse, the
 # array is formed from only eight geographic locations around the planet. Second, the obseving
-# frequency is much higher than traditional VLBI. Lastly, each site in the array is unique.
+# frequency is much higher than traditional VLBI. Lastly, each station in the array is unique.
 # They have different dishes, recievers, feeds, and electronics.
 # Putting this all together implies that many of the common imaging techniques struggle to
 # fit the EHT data and explore the uncertainty in both the image and instrument. One way to

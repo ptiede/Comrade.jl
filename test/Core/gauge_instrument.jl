@@ -14,13 +14,13 @@ end
 # carries a reference, so the offsets share one level the data never see.
 @instrument function gauge_split(; gauge = StationPhase(), offset_refant = NoReference())
     return @jones begin
-        lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)))
+        lg ~ ArrayPrior(IIDStationPrior(ScanSeg(), Normal(0.0, 0.1)))
         gpμ ~ ArrayPrior(
-            IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2)));
+            IIDStationPrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2)));
             refant = offset_refant, gauge
         )
         gp ~ ArrayPrior(
-            IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2)); init = FixedInit(0.0));
+            IIDStationPrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2)); init = FixedInit(0.0));
             refant = SensitiveReference(0.0), gauge
         )
         return Jones(exp(complex(lg, gpμ + gp)))
@@ -52,7 +52,7 @@ end
         @test isempty(VLBIInstrumentModels.gauge_pins(VLBIInstrumentModels.gauge_terms(obs, names), t))
         x, y = rand(pinned), rand(pinned)
         held = [i for i in eachindex(parent(x.gpμ)) if parent(x.gpμ)[i] == parent(y.gpμ)[i]]
-        @test Comrade.sites(x.gpμ)[held] == [:AA]
+        @test Comrade.stations(x.gpμ)[held] == [:AA]
 
         post = VLBIPosterior(dvis; sky = skym, instrument = regauge(gauge_split(), PinGauge()))
         @test Comrade.dimension(asflat(post)) ==

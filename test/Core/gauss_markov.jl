@@ -26,8 +26,8 @@ end
 
     @instrument function gmint_fitted()
         return @jones begin
-            lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
-            gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = InverseGamma(3.0, 6.0))); refant = SensitiveReference(0.0))
+            lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
+            gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = InverseGamma(3.0, 6.0))); refant = SensitiveReference(0.0))
             return Jones(exp(complex(lg, gp)))
         end
     end
@@ -36,9 +36,9 @@ end
         post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fitted(), admode = set_runtime_activity(Enzyme.Reverse))
         s = prior_sample(rng, post)
         @test s.instrument.lg isa NamedTuple{(:params, :hyperparams)}
-        @test s.instrument.lg.params isa Comrade.SiteArray
-        # every site gets its own hyperparameters, nested under the site name
-        @test keys(s.instrument.lg.hyperparams) == Tuple(Comrade.sites(dvis))
+        @test s.instrument.lg.params isa Comrade.StationArray
+        # every station gets its own hyperparameters, nested under the station name
+        @test keys(s.instrument.lg.hyperparams) == Tuple(Comrade.stations(dvis))
         @test all(h -> keys(h) == (:σ, :τ), values(s.instrument.lg.hyperparams))
         # gp fits only τ; σ is fixed
         @test all(h -> keys(h) == (:τ,), values(s.instrument.gp.hyperparams))
@@ -85,7 +85,7 @@ end
 
     @testset "hierarchical PosteriorSamples postprocessing" begin
         # `(params, hyperparams)` samples pass through PosteriorSamples, `rmap`, `caltable`,
-        # and `siteparams`
+        # and `stationparams`
         post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fitted())
         samples = [prior_sample(rng, post) for _ in 1:20]
         chain = Comrade.PosteriorSamples(samples, nothing; metadata = Dict(:sampler => :prior))
@@ -94,19 +94,19 @@ end
         mchain = Comrade.rmap(mean, chain)
         schain = Comrade.rmap(std, chain)
         # the hierarchical instrument terms survive reduction as (params, hyperparams) tuples
-        @test mchain.instrument.lg.params isa Comrade.SiteArray
-        @test keys(mchain.instrument.lg.hyperparams) == Tuple(Comrade.sites(dvis))
-        @test Comrade.siteparams(mchain.instrument.lg) === mchain.instrument.lg.params
+        @test mchain.instrument.lg.params isa Comrade.StationArray
+        @test keys(mchain.instrument.lg.hyperparams) == Tuple(Comrade.stations(dvis))
+        @test Comrade.stationparams(mchain.instrument.lg) === mchain.instrument.lg.params
 
         # caltable strips the hyperparameters from the reduced chain
         @test caltable(mchain.instrument.lg) isa VLBIInstrumentModels.CalTable
         @test caltable(abs.(mchain.instrument.lg.params)) isa VLBIInstrumentModels.CalTable
 
-        # instrumentmodel accepts the reduced hierarchical chain (siteparams strips hyperparams)
+        # instrumentmodel accepts the reduced hierarchical chain (stationparams strips hyperparams)
         @test instrumentmodel(post, mchain) isa Comrade.DD.AbstractDimArray
-        # combining mean and std: siteparams unwraps both before the elementwise op
+        # combining mean and std: stationparams unwraps both before the elementwise op
         combined = map(
-            (x, y) -> Comrade.siteparams(x) .+ Comrade.siteparams(y),
+            (x, y) -> Comrade.stationparams(x) .+ Comrade.stationparams(y),
             mchain.instrument, schain.instrument,
         )
         @test instrumentmodel(post, (; instrument = combined)) isa Comrade.DD.AbstractDimArray
@@ -123,14 +123,14 @@ end
 
     @testset "derived element type" begin
         # eltype is derived from the process/override parameters, not pinned to Float64
-        gmp(p) = GaussMarkovSitePrior(ScanSeg(), p)
+        gmp(p) = GaussMarkovStationPrior(ScanSeg(), p)
         @test VLBIInstrumentModels._working_type((a = gmp(Comrade.OrnsteinUhlenbeck(σ = 0.1, τ = 2.0)),)) === Float64
         @test VLBIInstrumentModels._working_type((a = gmp(Comrade.OrnsteinUhlenbeck(σ = 0.1f0, τ = 2.0f0, μ = 0.0f0)),)) === Float32
         # fitted (Distribution) fields contribute their own eltype
         @test VLBIInstrumentModels._working_type((a = gmp(Comrade.OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0)),)) === Float64
         # the init contributes to the working type as well
         @test VLBIInstrumentModels._working_type(
-            (a = GaussMarkovSitePrior(ScanSeg(), Comrade.OrnsteinUhlenbeck(σ = 0.1f0, τ = 2.0f0, μ = 0.0f0); init = FixedInit(0.0)),)
+            (a = GaussMarkovStationPrior(ScanSeg(), Comrade.OrnsteinUhlenbeck(σ = 0.1f0, τ = 2.0f0, μ = 0.0f0); init = FixedInit(0.0)),)
         ) === Float64
         post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fitted())
         @test eltype(post.prior.instrument.lg) === Float64
@@ -140,67 +140,67 @@ end
     @testset "fixed hyperparameters degrade to plain prior" begin
         @instrument function gmint_fixed()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 0.1, τ = 2.0)))
-                gp ~ ArrayPrior(IIDSitePrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SensitiveReference(0.0))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 0.1, τ = 2.0)))
+                gp ~ ArrayPrior(IIDStationPrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SensitiveReference(0.0))
                 return Jones(exp(complex(lg, gp)))
             end
         end
         post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fixed())
         s = prior_sample(rng, post)
-        @test s.instrument.lg isa Comrade.SiteArray
+        @test s.instrument.lg isa Comrade.StationArray
         @test isfinite(logdensityof(post, s))
         tp = asflat(post)
         @test isfinite(logdensityof(tp, prior_sample(rng, tp)))
         @test caltable(s.instrument.lg) isa VLBIInstrumentModels.CalTable
     end
 
-    @testset "site overrides" begin
+    @testset "station overrides" begin
         # IID override under a GaussMarkov default
         @instrument function gmint_iidover()
             return @jones begin
                 lg ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0));
-                    LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))
+                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0));
+                    LM = IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0))
                 )
                 return Jones(exp(lg))
             end
         end
         post = VLBIPosterior(dvis; sky = skym, instrument = gmint_iidover())
         s = prior_sample(rng, post)
-        # the IID-override site carries no hyperparameters; the GM sites each get their own
+        # the IID-override station carries no hyperparameters; the GM stations each get their own
         @test :LM ∉ keys(s.instrument.lg.hyperparams)
         @test all(h -> keys(h) == (:σ,), values(s.instrument.lg.hyperparams))
         @test isfinite(logdensityof(post, s))
         tp = asflat(post)
         @test isfinite(logdensityof(tp, prior_sample(rng, tp)))
 
-        # GaussMarkov override with its own fitted hyperparameters, nested under the site
+        # GaussMarkov override with its own fitted hyperparameters, nested under the station
         @instrument function gmint_gmover()
             return @jones begin
                 lg ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0)));
-                    LM = GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(1.0), τ = 2.0))
+                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0)));
+                    LM = GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(1.0), τ = 2.0))
                 )
                 return Jones(exp(lg))
             end
         end
         post = VLBIPosterior(dvis; sky = skym, instrument = gmint_gmover())
         s = prior_sample(rng, post)
-        @test keys(s.instrument.lg.hyperparams) == Tuple(Comrade.sites(dvis))
+        @test keys(s.instrument.lg.hyperparams) == Tuple(Comrade.stations(dvis))
         @test keys(s.instrument.lg.hyperparams.AA) == (:σ, :τ)
-        # the override site fixes τ, so only σ is fitted there
+        # the override station fixes τ, so only σ is fitted there
         @test keys(s.instrument.lg.hyperparams.LM) == (:σ,)
         @test isfinite(logdensityof(post, s))
         tp = asflat(post)
         @test isfinite(logdensityof(tp, prior_sample(rng, tp)))
 
-        # an IID override on the reference site has every point fixed, so its chain term
+        # an IID override on the reference station has every point fixed, so its chain term
         # is an empty sum
         @instrument function gmint_iidrefover()
             return @jones begin
                 gp ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0));
-                    AA = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)),
+                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0));
+                    AA = IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0)),
                     refant = SingleReference(:AA, 0.0)
                 )
                 return Jones(exp(1im * gp))
@@ -217,8 +217,8 @@ end
         # Under whitening the flat prior is standard normal in z: changing only z shifts
         # the flat log density by −Δ‖z‖²/2. This checks the coloring map and its Jacobian.
         post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fitted())
-        nsite = length(Comrade.sites(dvis))
-        for (name, nhp) in ((:lg, 2nsite), (:gp, nsite))  # number of hyperparameter coordinates
+        nstation = length(Comrade.stations(dvis))
+        for (name, nhp) in ((:lg, 2nstation), (:gp, nstation))  # number of hyperparameter coordinates
             obsprior = getproperty(post.prior.instrument, name)
             node = Comrade.transport_node(obsprior, Comrade.TVFlat())
             dim = TV.dimension(node)
@@ -239,7 +239,7 @@ end
         # at latents u must coincide with the flat transport at z = Φ⁻¹(u) coordinatewise.
         @instrument function gmint_fixref()
             return @jones begin
-                gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0)); refant = SensitiveReference(0.0))
+                gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0)); refant = SensitiveReference(0.0))
                 return Jones(exp(1im * gp))
             end
         end
@@ -280,8 +280,8 @@ end
         @instrument function gmint_boundover()
             return @jones begin
                 lg ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0));
-                    LM = IIDSitePrior(ScanSeg(), VLBIUniform(-1.0, 1.0))
+                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0));
+                    LM = IIDStationPrior(ScanSeg(), VLBIUniform(-1.0, 1.0))
                 )
                 return Jones(exp(lg))
             end
@@ -294,7 +294,7 @@ end
             @test isfinite(logdensityof(tp, randn(rng, dimension(tp))))
             x = 3 .* randn(rng, dimension(tp))
             y = Comrade.transform(tp, x)
-            @test all(v -> -1 ≤ v ≤ 1, parent(y.instrument.lg.params)[VLBIInstrumentModels.lookup(post.prior.instrument.lg.sitemap).LM])
+            @test all(v -> -1 ≤ v ≤ 1, parent(y.instrument.lg.params)[VLBIInstrumentModels.lookup(post.prior.instrument.lg.stationmap).LM])
             @test Comrade.inverse(tp, y) ≈ x
         end
         tpc = ascube(post)
@@ -304,7 +304,7 @@ end
     @testset "centered option" begin
         @instrument function gmint_centered()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0)); centered = true))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0)); centered = true))
                 return Jones(exp(lg))
             end
         end
@@ -327,18 +327,18 @@ end
         rrng = Random.Xoshiro(7)
         @instrument function gmint_rec()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.3), τ = Exponential(2.0))))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.3), τ = Exponential(2.0))))
                 return Jones(exp(lg))
             end
         end
         post0 = VLBIPosterior(dvis; sky = skym, instrument = gmint_rec())
         σtrue, τtrue = 0.15, 1.5
-        # every site has its own hyperparameters; use the same truth for all of them
-        hpof(σ, τ) = site_tuple(dvis, (σ = σ, τ = τ))
+        # every station has its own hyperparameters; use the same truth for all of them
+        hpof(σ, τ) = station_tuple(dvis, (σ = σ, τ = τ))
         obsprior = post0.prior.instrument.lg
         xg = Vector{Float64}(undef, length(obsprior.dists))
         VLBIInstrumentModels._rand_chains!(rrng, xg, obsprior.dists, hpof(σtrue, τtrue))
-        gtruth = Comrade.SiteArray(xg, obsprior.sitemap)
+        gtruth = Comrade.StationArray(xg, obsprior.stationmap)
         θtrue = (
             sky = (f1 = 1.0, σ1 = μas2rad(40.0)),
             instrument = (lg = (params = gtruth, hyperparams = hpof(σtrue, τtrue)),),
@@ -359,13 +359,13 @@ end
     end
 
     @testset "FixedInit chains" begin
-        # FixedInit(0.0) fixes every site's chain to zero at its first time, removing the
+        # FixedInit(0.0) fixes every station's chain to zero at its first time, removing the
         # level degeneracy with a separate circular offset term
         @instrument function gmint_anch()
             return @jones begin
-                gp0 ~ ArrayPrior(IIDSitePrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2))))
+                gp0 ~ ArrayPrior(IIDStationPrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2))))
                 dgp ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0));
+                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0));
                     refant = SensitiveReference(0.0)
                 )
                 return Jones(exp(1im * (gp0 + dgp)))
@@ -373,8 +373,8 @@ end
         end
         post = VLBIPosterior(dvis; sky = skym, instrument = gmint_anch())
         s = prior_sample(rng, post)
-        chinds = VLBIInstrumentModels.lookup(post.prior.instrument.dgp.sitemap)
-        # every site's first point is exactly zero, in rand and through the transform
+        chinds = VLBIInstrumentModels.lookup(post.prior.instrument.dgp.stationmap)
+        # every station's first point is exactly zero, in rand and through the transform
         @test all(inds -> iszero(parent(s.instrument.dgp.params)[first(inds)]), chinds)
         @test isfinite(logdensityof(post, s))
         tp = asflat(post)
@@ -389,7 +389,7 @@ end
         @instrument function gmint_anchonly()
             return @jones begin
                 dgp ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0));
+                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0));
                     refant = SensitiveReference(0.0)
                 )
                 return Jones(exp(1im * dgp))
@@ -406,7 +406,7 @@ end
         @instrument function gmint_anchcent()
             return @jones begin
                 dgp ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0), centered = true);
+                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0), centered = true);
                     refant = SensitiveReference(0.0)
                 )
                 return Jones(exp(1im * dgp))
@@ -414,7 +414,7 @@ end
         end
         postcc = VLBIPosterior(dvis; sky = skym, instrument = gmint_anchcent())
         scc = prior_sample(rng, postcc)
-        chindscc = VLBIInstrumentModels.lookup(postcc.prior.instrument.dgp.sitemap)
+        chindscc = VLBIInstrumentModels.lookup(postcc.prior.instrument.dgp.stationmap)
         @test all(inds -> iszero(parent(scc.instrument.dgp.params)[first(inds)]), chindscc)
         tpcc = asflat(postcc)
         xcc = prior_sample(rng, tpcc)
@@ -428,13 +428,13 @@ end
         # a nonzero init value propagates exactly through rand and the transform
         @instrument function gmint_fixval()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 0.5, τ = 2.0); init = FixedInit(0.3)))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 0.5, τ = 2.0); init = FixedInit(0.3)))
                 return Jones(exp(lg))
             end
         end
         post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fixval())
         s = prior_sample(rng, post)
-        chinds = VLBIInstrumentModels.lookup(post.prior.instrument.lg.sitemap)
+        chinds = VLBIInstrumentModels.lookup(post.prior.instrument.lg.stationmap)
         @test all(inds -> parent(s.instrument.lg)[first(inds)] == 0.3, chinds)
         @test isfinite(logdensityof(post, s))
         tp = asflat(post)
@@ -444,7 +444,7 @@ end
         # a reference value that disagrees with FixedInit at the first point is an error
         @instrument function gmint_conflict()
             return @jones begin
-                gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0); init = FixedInit(0.3)); refant = SensitiveReference(0.0))
+                gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0); init = FixedInit(0.3)); refant = SensitiveReference(0.0))
                 return Jones(exp(1im * gp))
             end
         end
@@ -453,7 +453,7 @@ end
         # agreeing values compose: the reference chain's first point is fixed by both
         @instrument function gmint_agree()
             return @jones begin
-                gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0); init = FixedInit(0.0)); refant = SensitiveReference(0.0))
+                gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0); init = FixedInit(0.0)); refant = SensitiveReference(0.0))
                 return Jones(exp(1im * gp))
             end
         end
@@ -465,7 +465,7 @@ end
         # wide explicit start together with a fitted hyperparameter
         @instrument function gmint_ginit()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0); init = GaussianInit(0.0, 1.0)))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0); init = GaussianInit(0.0, 1.0)))
                 return Jones(exp(lg))
             end
         end
@@ -488,13 +488,13 @@ end
         # random-walk drift from a fixed start with a fitted diffusion coefficient
         @instrument function gmint_bm()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), BrownianMotion(D = Exponential(0.1)); init = FixedInit(0.0)))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), BrownianMotion(D = Exponential(0.1)); init = FixedInit(0.0)))
                 return Jones(exp(lg))
             end
         end
         post = VLBIPosterior(dvis; sky = skym, instrument = gmint_bm())
         s = prior_sample(rng, post)
-        chinds = VLBIInstrumentModels.lookup(post.prior.instrument.lg.sitemap)
+        chinds = VLBIInstrumentModels.lookup(post.prior.instrument.lg.stationmap)
         @test all(inds -> iszero(parent(s.instrument.lg.params)[first(inds)]), chinds)
         @test all(h -> keys(h) == (:D,), values(s.instrument.lg.hyperparams))
         @test isfinite(logdensityof(post, s))
@@ -523,7 +523,7 @@ end
         @instrument function gmint_wb()
             return @jones begin
                 gp ~ ArrayPrior(
-                    GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = InverseGamma(3.0, 6.0)); init = UniformInit());
+                    GaussMarkovStationPrior(ScanSeg(), WrappedBrownian(τ = InverseGamma(3.0, 6.0)); init = UniformInit());
                     refant = SensitiveReference(0.0)
                 )
                 return Jones(exp(1im * gp))
@@ -541,12 +541,12 @@ end
         @test logdensityof(post, s2) ≈ logdensityof(post, s)
 
         tp = asflat(post)
-        # one coordinate per free phase, plus one τ per site and the sky's dimensions
+        # one coordinate per free phase, plus one τ per station and the sky's dimensions
         dchain = post.prior.instrument.gp.dists
         nfreew = length(dchain) - length(dchain.fixedinds)
-        nsites = length(keys(s.instrument.gp.hyperparams))
+        nstations = length(keys(s.instrument.gp.hyperparams))
         skydim = LogDensityProblems.dimension(asflat(VLBIPosterior(dvis; sky = skym)))
-        @test LogDensityProblems.dimension(tp) == skydim + nsites + nfreew
+        @test LogDensityProblems.dimension(tp) == skydim + nstations + nfreew
 
         xf = prior_sample(rng, tp)
         @test isfinite(logdensityof(tp, xf))
@@ -588,7 +588,7 @@ end
             @instrument function gmint_wbe()
                 return @jones begin
                     gp ~ ArrayPrior(
-                        GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = InverseGamma(3.0, 6.0)); init = UniformInit(), param = AngleEmbedded());
+                        GaussMarkovStationPrior(ScanSeg(), WrappedBrownian(τ = InverseGamma(3.0, 6.0)); init = UniformInit(), param = AngleEmbedded());
                         refant = SensitiveReference(0.0)
                     )
                     return Jones(exp(1im * gp))
@@ -599,7 +599,7 @@ end
             @test isfinite(logdensityof(poste, se))
             tpe = asflat(poste)
             # each free phase contributes two latent reals, same D and sky dims
-            @test LogDensityProblems.dimension(tpe) == skydim + nsites + 2 * nfreew
+            @test LogDensityProblems.dimension(tpe) == skydim + nstations + 2 * nfreew
             xe = prior_sample(rng, tpe)
             @test isfinite(logdensityof(tpe, xe))
             # the embedding drops the latent radius, so the roundtrip is checked on angles
@@ -623,7 +623,7 @@ end
         @instrument function gmint_wou()
             return @jones begin
                 gp ~ ArrayPrior(
-                    GaussMarkovSitePrior(
+                    GaussMarkovStationPrior(
                         ScanSeg(),
                         WrappedOrnsteinUhlenbeck(σ = Exponential(0.3), τ = InverseGamma(3.0, 6.0))
                     );
@@ -648,10 +648,10 @@ end
         tp = asflat(post)
         dchain = post.prior.instrument.gp.dists
         nfreew = length(dchain) - length(dchain.fixedinds)
-        nsites = length(keys(s.instrument.gp.hyperparams))
+        nstations = length(keys(s.instrument.gp.hyperparams))
         skydim = LogDensityProblems.dimension(asflat(VLBIPosterior(dvis; sky = skym)))
-        # one coordinate per free phase, plus σ and τ per site
-        @test LogDensityProblems.dimension(tp) == skydim + 2 * nsites + nfreew
+        # one coordinate per free phase, plus σ and τ per station
+        @test LogDensityProblems.dimension(tp) == skydim + 2 * nstations + nfreew
 
         xf = prior_sample(rng, tp)
         @test isfinite(logdensityof(tp, xf))
@@ -682,7 +682,7 @@ end
             @instrument function gmint_woue()
                 return @jones begin
                     gp ~ ArrayPrior(
-                        GaussMarkovSitePrior(
+                        GaussMarkovStationPrior(
                             ScanSeg(), WrappedOrnsteinUhlenbeck(σ = 0.3, τ = InverseGamma(3.0, 6.0));
                             param = AngleEmbedded()
                         );
@@ -695,7 +695,7 @@ end
             se = prior_sample(rng, poste)
             @test isfinite(logdensityof(poste, se))
             tpe = asflat(poste)
-            @test LogDensityProblems.dimension(tpe) == skydim + nsites + 2 * nfreew
+            @test LogDensityProblems.dimension(tpe) == skydim + nstations + 2 * nfreew
             xe = prior_sample(rng, tpe)
             @test isfinite(logdensityof(tpe, xe))
             ye = Comrade.transform(tpe, xe)

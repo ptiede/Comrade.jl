@@ -105,8 +105,8 @@ end
 
         @testset "standard" begin
             intprior = (
-                lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
-                gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SensitiveReference(0.0)),
+                lg = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 0.1))),
+                gp = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, inv(π^2))); refant = SensitiveReference(0.0)),
             )
 
             intm = InstrumentModel(Jones(gmap; intprior...))

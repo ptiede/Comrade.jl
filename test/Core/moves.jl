@@ -126,7 +126,7 @@ Comrade.move_name(::_BadStep) = "badstep"
 end
 
 # A small model with a gain log-amplitude chain `lg` (fitted OU hyperparameters) and a
-# real-line phase chain `gp` with a reference site: V = f1 · gᵢ conj(gⱼ) · Gaussian.
+# real-line phase chain `gp` with a reference station: V = f1 · gᵢ conj(gⱼ) · Gaussian.
 _moves_gm_data() = load_test_table()
 function _moves_gm_sky()
     tm(θ, _, _) = θ.f1 * stretched(Gaussian(), θ.σ1, θ.σ1)
@@ -135,14 +135,14 @@ function _moves_gm_sky()
 end
 @instrument function _moves_gm_instrument()
     return @jones begin
-        lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
-        gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 0.5, τ = 2.0)); refant = SensitiveReference(0.0))
+        lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
+        gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 0.5, τ = 2.0)); refant = SensitiveReference(0.0))
         return Jones(exp(complex(lg, gp)))
     end
 end
 @instrument function _moves_wrapped_instrument()
     return @jones begin
-        gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), WrappedOrnsteinUhlenbeck(σ = 0.5, τ = 2.0)); refant = SensitiveReference(0.0))
+        gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), WrappedOrnsteinUhlenbeck(σ = 0.5, τ = 2.0)); refant = SensitiveReference(0.0))
         return Jones(exp(complex(0.0, gp)))
     end
 end
@@ -175,7 +175,7 @@ end
         view = CoordinateView(post, space)
         sheet = PhaseSheetMove(post, (:gp,); space)
         @test Comrade.move_name(sheet) == "phase_sheet"
-        # the reference site's points are fixed; every other site has free points
+        # the reference station's points are fixed; every other station has free points
         @test !isempty(sheet.points) && any(sheet.fixed[1]) && !all(sheet.fixed[1])
         r = check_move(sheet, post, θs; space, rng, nprior = 300)
         @test r.logdet < 1.0e-6 && only(unique(length(r.ks))) >= 1
@@ -199,15 +199,15 @@ end
         hm = chain_hyper_moves(view, (:instrument, :lg))
         @test sort(Comrade.move_name.(hm)) == ["chain_hyper[lg.σ]", "chain_hyper[lg.τ]"]
         for m in hm
-            @test length(m.sites) > 1 && all(!isempty, m.innovations)
-            @test Comrade.step_distribution(m) == ComponentwiseNormalStep(length(m.sites))
+            @test length(m.stations) > 1 && all(!isempty, m.innovations)
+            @test Comrade.step_distribution(m) == ComponentwiseNormalStep(length(m.stations))
             r = check_move(m, post, θs; space, rng, nprior = m === first(hm) ? 300 : 0)
             @test r.logdet < 1.0e-6
-            x′, ld = Comrade.propose(m, x, fill(0.3, length(m.sites)), ctx)
+            x′, ld = Comrade.propose(m, x, fill(0.3, length(m.stations)), ctx)
             v′ = Comrade.value(view, x′, (:instrument, :lg))
             @test parent(v′.params) ≈ parent(θs[1].instrument.lg.params) rtol = 1.0e-10
-            @test all(s -> v′.hyperparams[s] != θs[1].instrument.lg.hyperparams[s], m.sites)
-            @test length(ld) == length(m.sites)
+            @test all(s -> v′.hyperparams[s] != θs[1].instrument.lg.hyperparams[s], m.stations)
+            @test length(ld) == length(m.stations)
         end
     end
     @test_throws "is not a Gauss–Markov chain term with fitted hyperparameters" chain_hyper_moves(CoordinateView(post), (:instrument, :gp))
@@ -276,11 +276,11 @@ end
             mss(ss, tstd, warm(k), Random.Xoshiro(20 + k))
         end
         sm = move_summary(mss)
-        nsite = [length(m.sites) for m in hm]
-        @test [x.warmup.proposed for x in sm] == 5 .* [4, 3 * nsite[1], 3 * nsite[2]]
+        nstation = [length(m.stations) for m in hm]
+        @test [x.warmup.proposed for x in sm] == 5 .* [4, 3 * nstation[1], 3 * nstation[2]]
         @test all(x -> x.warmup.accepted > 0, sm)
-        @test sm[2].τ isa Vector && length(sm[2].τ) == nsite[1] && sm[2].τ != fill(0.1, nsite[1])
-        @test sum(v[1] for v in values(sm[2].bystep)) == 15 * nsite[1]
+        @test sm[2].τ isa Vector && length(sm[2].τ) == nstation[1] && sm[2].τ != fill(0.1, nstation[1])
+        @test sum(v[1] for v in values(sm[2].bystep)) == 15 * nstation[1]
         θe = transform(tstd, ss.position)
         @test Comrade.loglikelihood(post, θe) ≈ Comrade.loglikelihood(post, θs[1]) rtol = 1.0e-8
         @test θe.instrument.lg.hyperparams != θs[1].instrument.lg.hyperparams

@@ -18,7 +18,7 @@ close(pkg_io) #hide
 # related to the electric field at the telescope along two *directions* using feeds.
 # There are two types of feeds at telescopes: circular, which measure $R/L$ components of the
 # electric field, and linear feeds, which measure $X/Y$ components of the electric field.
-# Most sites in the EHT use circular feeds, meaning they measure the right (R) and left
+# Most stations in the EHT use circular feeds, meaning they measure the right (R) and left
 # electric field (L) at each telescope. Although note that ALMA actually uses linear feeds.
 # Currently Comrade has the ability to fit natively mixed polarization data however, the
 # publically released EHT data has been converted to circular polarization.
@@ -59,7 +59,7 @@ close(pkg_io) #hide
 # ```math
 #    V_{ij} = J_iC_{ij}J_j^\dagger
 # ```
-# where $J$ is known as a *Jones matrix* and $ij$ denotes the baseline $ij$ with sites $i$ and $j$.
+# where $J$ is known as a *Jones matrix* and $ij$ denotes the baseline $ij$ with stations $i$ and $j$.
 #-
 # In `Comrade` a Jones term is a [`Jones`](@ref): a function that returns each station's 2×2
 # matrix from its parameters, so any optic can be modeled by writing its matrix down. Terms
@@ -263,12 +263,12 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # near zero on a `τ`-hour reversion timescale. One such chain replaces what would otherwise
 # be a pinned `WrappedBrownian` walk plus a separate circular offset term — and, unlike
 # that pair, it has something actually holding the ratio phase in place over a long track.
-# The `IIDSitePrior` segments are `ScanSeg()` (independent per scan), `TrackSeg()`
+# The `IIDStationPrior` segments are `ScanSeg()` (independent per scan), `TrackSeg()`
 # (constant over the track), and `IntegSeg()` (changes each integration time). For released
 # EHT data the gains are stable over a scan, while the d-terms are stable over the track.
-ou_amp(σ0, τ0) = GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); centered = true)
-wb_phase(τ0) = GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); init = UniformInit())
-wou_phase(σ0, τ0) = GaussMarkovSitePrior(ScanSeg(), WrappedOrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)))
+ou_amp(σ0, τ0) = GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); centered = true)
+wb_phase(τ0) = GaussMarkovStationPrior(ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); init = UniformInit())
+wou_phase(σ0, τ0) = GaussMarkovStationPrior(ScanSeg(), WrappedOrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)))
 
 
 @instrument function instrument()
@@ -284,10 +284,10 @@ wou_phase(σ0, τ0) = GaussMarkovSitePrior(ScanSeg(), WrappedOrnsteinUhlenbeck(�
     end
     ## Leakage/d-terms (re-im parameterization).
     D = @jones begin
-        dRx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-        dRy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-        dLx ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
-        dLy ~ ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        dRx ~ ArrayPrior(IIDStationPrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        dRy ~ ArrayPrior(IIDStationPrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        dLx ~ ArrayPrior(IIDStationPrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
+        dLy ~ ArrayPrior(IIDStationPrior(TrackSeg(), VLBIGaussian(0.0, 0.2)))
         return Jones(leakage(complex(dRx, dRy), complex(dLx, dLy)))
     end
     ## Combine into the full Jones matrix J = G*D.
@@ -358,7 +358,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # To grab the ratios and products we can use the `caltable` function which will return analyze the gprat array
 # and convert it to a uniform table. We can then plot the gain phases and amplitudes.
 gphase_ratio = caltable(xopt.instrument.gprat)
-gamp_ratio = caltable(exp.(Comrade.siteparams(xopt.instrument.lgrat)))
+gamp_ratio = caltable(exp.(Comrade.stationparams(xopt.instrument.lgrat)))
 
 #-
 # Plotting the phases first, we see large trends in the righ circular polarization phase. This is expected
@@ -373,7 +373,7 @@ fig |> DisplayAs.PNG |> DisplayAs.Text
 # Moving to the amplitudes we see largely stable gain amplitudes on the right circular polarization except for LMT which is
 # known and due to pointing issues during the 2017 observation. Again the gain ratios are stable and close to unity. Typically
 # we expect that apriori calibration should make the gain ratios close to unity.
-gampr = caltable(exp.(Comrade.siteparams(xopt.instrument.lgR)))
+gampr = caltable(exp.(Comrade.stationparams(xopt.instrument.lgR)))
 fig = caltableplot(gampr, gamp_ratio, labels = ["R Amp", "L/R Amp"], axis = (; limits = (nothing, (0.6, 1.3))));
 fig |> DisplayAs.PNG |> DisplayAs.Text
 #-

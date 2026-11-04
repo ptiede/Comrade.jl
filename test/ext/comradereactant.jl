@@ -9,7 +9,7 @@ mutable struct _DeviceMovesState
     position::Any
 end
 
-# Reference-antenna gains fix some sites to a constant value. Rebuilding the full
+# Reference-antenna gains fix some stations to a constant value. Rebuilding the full
 # parameter vector used to scatter those constants into a freshly-allocated array
 # (`yfv[fixed_index] .= fixed_values`), which forces scalar indexing and fails to
 # trace under Reactant. This checks the gather-based path traces and matches the CPU
@@ -451,15 +451,15 @@ end
 
     @instrument function gmint_reactant()
         return @jones begin
-            lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(0.1), τ = VLBIExponential(2.0))))
-            gp ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = VLBIInverseGamma(3.0, 6.0))); refant = SensitiveReference(0.0))
+            lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(0.1), τ = VLBIExponential(2.0))))
+            gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = VLBIInverseGamma(3.0, 6.0))); refant = SensitiveReference(0.0))
             return Jones(exp(complex(lg, gp)))
         end
     end
 
     @instrument function gmint_reactant_bm()
         return @jones begin
-            lg ~ ArrayPrior(GaussMarkovSitePrior(ScanSeg(), BrownianMotion(D = VLBIExponential(0.1)); init = FixedInit(0.0)))
+            lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), BrownianMotion(D = VLBIExponential(0.1)); init = FixedInit(0.0)))
             return Jones(exp(lg))
         end
     end
@@ -467,7 +467,7 @@ end
     @instrument function gmint_reactant_wb()
         return @jones begin
             gp ~ ArrayPrior(
-                GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0)); init = UniformInit());
+                GaussMarkovStationPrior(ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0)); init = UniformInit());
                 refant = SensitiveReference(0.0)
             )
             return Jones(exp(1im * gp))
@@ -477,7 +477,7 @@ end
     @instrument function gmint_reactant_wbc()
         return @jones begin
             gp ~ ArrayPrior(
-                GaussMarkovSitePrior(
+                GaussMarkovStationPrior(
                     ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0));
                     init = UniformInit(), param = Centered()
                 );
@@ -490,7 +490,7 @@ end
     @instrument function gmint_reactant_wbe()
         return @jones begin
             gp ~ ArrayPrior(
-                GaussMarkovSitePrior(
+                GaussMarkovStationPrior(
                     ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0));
                     init = UniformInit(), param = AngleEmbedded()
                 );
@@ -503,7 +503,7 @@ end
     @instrument function gmint_reactant_wou()
         return @jones begin
             gp ~ ArrayPrior(
-                GaussMarkovSitePrior(
+                GaussMarkovStationPrior(
                     ScanSeg(),
                     WrappedOrnsteinUhlenbeck(σ = VLBIExponential(0.3), τ = VLBIInverseGamma(3.0, 6.0))
                 );
@@ -581,8 +581,8 @@ end
 
     _, vis, _, _, _, dcoh = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12)
-    g0 = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))
-    Q = Jones((x, c) -> SMatrix{2, 2}(1.0 + 0im, 0, 0, cis(x.δ)); δ = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.3))))
+    g0 = IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 0.1))
+    Q = Jones((x, c) -> SMatrix{2, 2}(1.0 + 0im, 0, 0, cis(x.δ)); δ = ArrayPrior(IIDStationPrior(TrackSeg(), VLBIGaussian(0.0, 0.3))))
 
     @testset "plain numbers" begin
         G = Jones((x, c) -> exp(complex(x.lg, x.gp)); lg = ArrayPrior(g0), gp = ArrayPrior(g0; refant = SensitiveReference(0.0)))
@@ -614,7 +614,7 @@ end
 
     @testset "fields" begin
         G = Jones((x, c) -> exp(complex(x.lg, x.gp)); lg = ArrayPrior(g0), gp = ArrayPrior(g0; refant = SensitiveReference(0.0)))
-        S = Jones((x, c) -> exp(x.s); s = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.1))))
+        S = Jones((x, c) -> exp(x.s); s = ArrayPrior(IIDStationPrior(TrackSeg(), VLBIGaussian(0.0, 0.1))))
         skym = SkyModel(test_model, test_prior(), g)
         post = VLBIPosterior((; A = vis, B = later(vis, 1)); sky = (; A = skym, B = skym), instrument = InstrumentModel(G * S), admode = nothing)
         check_matches_cpu(post)
@@ -657,7 +657,7 @@ end
         end
 
         _, vis, _, lcamp, cphase, dcoh = load_data()
-        g0 = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))
+        g0 = IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 0.1))
         G = Jones((x, c) -> exp(complex(x.lg, x.gp)); lg = ArrayPrior(g0), gp = ArrayPrior(g0; refant = SensitiveReference(0.0)))
         post_cpu = VLBIPosterior(vis; sky = planemodel(vis, 4), instrument = InstrumentModel(G), admode = nothing)
 
@@ -691,7 +691,7 @@ end
                 lgR = ArrayPrior(g0), gpR = ArrayPrior(g0; refant = SingleReference(:AA, 0.0)),
                 lgL = ArrayPrior(g0), gpL = ArrayPrior(g0; refant = SingleReference(:AA, 0.0)),
             )
-            Q = Jones((x, c) -> SMatrix{2, 2}(1.0 + 0im, 0, 0, cis(x.δ)); δ = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.3))))
+            Q = Jones((x, c) -> SMatrix{2, 2}(1.0 + 0im, 0, 0, cis(x.δ)); δ = ArrayPrior(IIDStationPrior(TrackSeg(), VLBIGaussian(0.0, 0.3))))
             psky(θ, _, _) = PolarizedModel(modify(Gaussian(), Stretch(θ.σ)), 0.1 * modify(Gaussian(), Stretch(θ.σ)), 0.05 * modify(Gaussian(), Stretch(θ.σ)), 0.02 * modify(Gaussian(), Stretch(θ.σ)))
             skym = SkyModel(psky, (; σ = VLBIUniform(μas2rad(10.0), μas2rad(30.0))), timegrid(dcoh, 4))
             check_matches_cpu(VLBIPosterior(dcoh; sky = skym, instrument = InstrumentModel(PerStation(Gp; AA = Gp * Q)), admode = nothing), bytime)

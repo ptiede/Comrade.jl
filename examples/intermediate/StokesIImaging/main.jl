@@ -115,7 +115,7 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 #   - Gain phases which are more difficult to constrain and can shift rapidly.
 
 # Rather than treating every integration as independent, we will use the time-correlated
-# [`GaussMarkovSitePrior`](@ref). For the gain *amplitudes* each site's log-gain series is
+# [`GaussMarkovStationPrior`](@ref). For the gain *amplitudes* each station's log-gain series is
 # a stationary [`OrnsteinUhlenbeck`](@ref) process (the continuous-time AR(1) process)
 # whose marginal standard deviation `σ` and correlation time `τ` (in hours) can either be
 # fixed numbers or hyperparameters that are fit alongside the gains — pass a
@@ -129,7 +129,7 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 # process decorrelates as `exp(-Δt/τ)`, so `τ` is the phase coherence time in hours — the
 # same units as the amplitude chain's `τ`. Starting each chain uniformly on the circle
 # (`init = UniformInit()`) absorbs the per-track phase offset, so no separate offset term
-# is needed. To remove the trivial station-phase degeneracy we pin one site's phases to
+# is needed. To remove the trivial station-phase degeneracy we pin one station's phases to
 # zero.
 
 # We set `centered = true` for the amplitude chains, which can help with mixing/
@@ -144,8 +144,8 @@ skym = sky(grid; ftot = 1.1, mimg, cprior)
 
 # To reduce repetition we define small helpers that build the amplitude and phase
 # processes,
-ou_amp(σ0) = GaussMarkovSitePrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * 0.1)); centered = true)
-wb_phase(τ0) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); init = UniformInit())
+ou_amp(σ0) = GaussMarkovStationPrior(IntegSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * 0.1)); centered = true)
+wb_phase(τ0) = GaussMarkovStationPrior(IntegSeg(), WrappedBrownian(τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); init = UniformInit())
 
 # Just like the sky model, we use the `@instrument` macro to bundle the Jones matrices and
 # their priors in one block. Each Jones term is a `@jones` block whose `name ~ ArrayPrior(...)`
@@ -154,7 +154,7 @@ wb_phase(τ0) = GaussMarkovSitePrior(IntegSeg(), WrappedBrownian(τ = VLBIInvers
     return @jones begin
         lg ~ ArrayPrior(ou_amp(0.2); LM = ou_amp(0.5))
         gp ~ ArrayPrior(wb_phase(0.5); refant = SingleReference(:AA, 0.0))
-        ## A single complex gain for each site.
+        ## A single complex gain for each station.
         return Jones(exp(complex(lg, gp)))
     end
 end
@@ -206,10 +206,10 @@ imageviz(img, size = (500, 400)) |> DisplayAs.PNG |> DisplayAs.Text
 intopt = instrumentmodel(post, xopt)
 # This returns the gain of every station, time stamp and frequency channel of the data as an
 # array with the dimensions `(Ant, Ti, Fr)`; a station without data at a time stamp holds `NaN`.
-# To visualize the gains we use the fitted parameters, which are `SiteArray`s holding the gain
-# terms as a flat vector with metadata about the sites, time, and frequency. The
+# To visualize the gains we use the fitted parameters, which are `StationArray`s holding the gain
+# terms as a flat vector with metadata about the stations, time, and frequency. The
 # `caltableplot` function plots them directly. We will first plot the gain phases.
-gphase = angle.(cis.(Comrade.siteparams(xopt.instrument.gp)))
+gphase = angle.(cis.(Comrade.stationparams(xopt.instrument.gp)))
 caltableplot(gphase) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Due to the a priori calibration of the data, the gain phases are quite stable and just drift
@@ -218,7 +218,7 @@ caltableplot(gphase) |> DisplayAs.PNG |> DisplayAs.Text
 
 
 # We can also plot the gain amplitudes
-gamp = exp.(Comrade.siteparams(xopt.instrument.lg))
+gamp = exp.(Comrade.stationparams(xopt.instrument.lg))
 caltableplot(gamp) |> DisplayAs.PNG |> DisplayAs.Text
 # Here we find relatively stable gains for most stations. The exception is LMT which
 # has a large offset after 2.5 UT. This is a known issue with the LMT in 2017 and is
@@ -228,10 +228,10 @@ caltableplot(gamp) |> DisplayAs.PNG |> DisplayAs.Text
 
 # Because the amplitude and phase processes have fitted hyperparameters, their samples are
 # named tuples with a `params` field holding the gain series and a `hyperparams` field
-# holding the process hyperparameters, nested under each site's name. Let's look at the
-# fitted amplitude variability `σ` and correlation time `τ` (in hours) for each site,
+# holding the process hyperparameters, nested under each station's name. Let's look at the
+# fitted amplitude variability `σ` and correlation time `τ` (in hours) for each station,
 xopt.instrument.lg.hyperparams
-# and the per-site phase coherence times `τ` (also in hours)
+# and the per-station phase coherence times `τ` (also in hours)
 xopt.instrument.gp.hyperparams
 # !!! warning
 #     Joint MAP estimates of hierarchical hyperparameters are systematically biased: the
@@ -282,10 +282,10 @@ schain = Comrade.rmap(std, chain);
 # Now we can use the measurements package to automatically plot everything with error bars.
 # First we create a `caltable` the same way but making sure all of our variables have errors
 # attached to them. For the hierarchical (Gauss-Markov) terms we only want the gain series,
-# so we unwrap the `(params, hyperparams)` named tuples with `Comrade.siteparams`.
+# so we unwrap the `(params, hyperparams)` named tuples with `Comrade.stationparams`.
 using Measurements
 gmeas = map(
-    (x, y) -> Measurements.measurement.(Comrade.siteparams(x), Comrade.siteparams(y)),
+    (x, y) -> Measurements.measurement.(Comrade.stationparams(x), Comrade.stationparams(y)),
     mchain.instrument, schain.instrument
 )
 ctable_am = caltable(exp.(gmeas.lg))

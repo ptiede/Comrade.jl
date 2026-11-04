@@ -4,8 +4,8 @@
     skym = SkyModel(test_model, test_prior(), g)
     G = Jones(
         (x, c) -> exp(complex(x.lg, x.gp));
-        lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
+        lg = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+        gp = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
     )
     intm = InstrumentModel(G)
     fd = ImgNormalData(Comrade.flux, 1.0, 0.1)

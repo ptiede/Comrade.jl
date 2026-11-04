@@ -109,12 +109,12 @@ using Distributions
 # whose body builds and returns the Jones matrix.
 @instrument function instrument()
     return @jones begin
-        lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
+        lg ~ ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
         gp ~ ArrayPrior(
-            GaussMarkovSitePrior(ScanSeg(), WrappedBrownian(τ = 0.1); init = UniformInit());
+            GaussMarkovStationPrior(ScanSeg(), WrappedBrownian(τ = 0.1); init = UniformInit());
             refant = SensitiveReference(0.0)
         )
-        ## A single complex gain for each site.
+        ## A single complex gain for each station.
         return Jones(exp(complex(lg, gp)))
     end
 end
@@ -189,7 +189,7 @@ chain = chain[501:end]
 
 # Now lets plot the mean image and standard deviation images.
 # To do this we first clip the first 250 MCMC steps since that is during tuning and
-# so the posterior is not sampling from the correct sitesary distribution.
+# so the posterior is not sampling from the correct stationary distribution.
 
 using StatsBase
 msamples = skymodel.(Ref(post), chain[begin:5:end]);

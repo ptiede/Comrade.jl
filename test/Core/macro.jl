@@ -157,7 +157,7 @@ end
         # a stray prior tilde — only the binary `lhs ~ rhs` form is a prior.
         @instrument function tilde_op(; refbasis = CirBasis())
             return @jones begin
-                lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
+                lg ~ ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 0.1)))
                 bits = ~0x0f                       # bitwise NOT, not a prior
                 scale = float(bits & 0x01)
                 return Jones(exp(lg) * (1.0 + 0.0 * scale))

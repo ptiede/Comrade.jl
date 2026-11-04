@@ -18,29 +18,29 @@ end
 
 @instrument function amplitude_gains()
     return @jones begin
-        lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)))
+        lg ~ ArrayPrior(IIDStationPrior(ScanSeg(), Normal(0.0, 0.1)))
         return Jones(complex(exp(lg)))
     end
 end
 
 @instrument selfcal = true function selfcal_gains()
     return @jones begin
-        lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)))
+        lg ~ ArrayPrior(IIDStationPrior(ScanSeg(), Normal(0.0, 0.1)))
         return Jones(complex(exp(lg)))
     end
 end
 
 @instrument selfcal = true function named_residual()
     return @jones begin
-        selfcal_residual ~ ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)))
+        selfcal_residual ~ ArrayPrior(IIDStationPrior(ScanSeg(), Normal(0.0, 0.1)))
         return Jones(complex(exp(selfcal_residual)))
     end
 end
 
 @instrument function phase_gains()
     return @jones begin
-        lg ~ ArrayPrior(IIDSitePrior(ScanSeg(), Normal(0.0, 0.1)))
-        gp ~ ArrayPrior(IIDSitePrior(IntegSeg(), VLBIUniform(-π, π)); refant = SensitiveReference(0.0))
+        lg ~ ArrayPrior(IIDStationPrior(ScanSeg(), Normal(0.0, 0.1)))
+        gp ~ ArrayPrior(IIDStationPrior(IntegSeg(), VLBIUniform(-π, π)); refant = SensitiveReference(0.0))
         return Jones(exp(complex(lg, gp)))
     end
 end

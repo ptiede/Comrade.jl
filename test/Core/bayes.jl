@@ -190,8 +190,8 @@ using FiniteDifferences
 
     Gp = Jones(
         (x, c) -> gains(exp(complex(x.lg, x.gp)), exp(complex(x.lg, x.gp)));
-        lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
+        lg = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+        gp = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
     )
     intm_coh = InstrumentModel(Gp)
     skym = SkyModel(test_skymodel_polarized, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
@@ -219,8 +219,8 @@ end
 
     G = Jones(
         (x, c) -> exp(complex(x.lg, x.gp));
-        lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
+        lg = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+        gp = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
     )
     intm = InstrumentModel(G)
     post_gvis = VLBIPosterior(vis; sky = skym)
@@ -282,8 +282,8 @@ end
 
     G = Jones(
         (x, c) -> exp(x.lg + 1im .* x.gp);
-        lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
+        lg = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+        gp = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
     )
     intm = InstrumentModel(G)
 
@@ -314,8 +314,8 @@ end
 
     G = Jones(
         (x, c) -> exp(x.lg + 1im .* x.gp);
-        lg = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
-        gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
+        lg = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0))),
+        gp = ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
     )
     intm = InstrumentModel(G)
 

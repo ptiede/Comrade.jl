@@ -50,10 +50,10 @@ chosen space. Comrade provides these moves:
 
   - [`flux_gain_move`](@ref): trades a scalar flux parameter against the gain
     log-amplitudes, keeping `F · exp(power · g)` fixed;
-  - [`PhaseSheetMove`](@ref): adds `±2π` to one site's path of a real-line Gauss–Markov
+  - [`PhaseSheetMove`](@ref): adds `±2π` to one station's path of a real-line Gauss–Markov
     phase chain, from a free point up to the next point the model fixes;
   - [`chain_hyper_moves`](@ref): one [`ChainHyperMove`](@ref) per fitted hyperparameter of a
-    Gauss–Markov chain term, which updates the hyperparameter of each site while keeping the
+    Gauss–Markov chain term, which updates the hyperparameter of each station while keeping the
     chain values fixed;
   - [`CompensatedMove`](@ref): a general random-walk move that shifts one latent coordinate
     and recomputes a block of parameters to compensate (see [Writing a move](@ref)).

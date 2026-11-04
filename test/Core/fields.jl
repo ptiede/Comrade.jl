@@ -6,7 +6,7 @@ using FiniteDifferences
 function with_source(t::VisTable, name; dec = info(t).source.dec)
     a, d = info(t), domain(t)
     c = Comrade.ComradeBase.coords(d)
-    g = stations(t)
+    g = stationgeometry(t)
     b = ArrayInfo(; a.stations, a.channels, a.scans, a.tracks, source = Source(name, a.source.ra, dec), a.epoch)
     return VisTable(
         t.pol, VLBIInstrumentModels._dense(measurement(t)); weight = VLBIInstrumentModels._dense(weight(t)),
@@ -20,8 +20,8 @@ end
     skym = SkyModel(test_model, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 64, 64))
     gainterm(seg) = Jones(
         (x, c) -> exp(complex(x.lg, x.gp));
-        lg = ArrayPrior(IIDSitePrior(seg, Normal(0.0, 0.1))),
-        gp = ArrayPrior(IIDSitePrior(seg, DiagonalVonMises(0.0, inv(π^2))); refant = SensitiveReference(0.0)),
+        lg = ArrayPrior(IIDStationPrior(seg, Normal(0.0, 0.1))),
+        gp = ArrayPrior(IIDStationPrior(seg, DiagonalVonMises(0.0, inv(π^2))); refant = SensitiveReference(0.0)),
     )
     cal = with_source(dvis, :CAL)
 
@@ -64,7 +64,7 @@ end
 
     @testset "direction-dependent terms" begin
         dec0 = deg2rad(info(dvis).source.dec)
-        A = Jones((x, c) -> exp(x.a * (c.dec - dec0)); a = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 1.0))))
+        A = Jones((x, c) -> exp(x.a * (c.dec - dec0)); a = ArrayPrior(IIDStationPrior(TrackSeg(), Normal(0.0, 1.0))))
         north = with_source(dvis, :N; dec = info(dvis).source.dec + 1)
         post = VLBIPosterior((; M87 = dvis, N = north); sky = (; M87 = skym, N = skym), instrument = InstrumentModel(A))
         J = post.instrumentmodel.fields

@@ -33,9 +33,9 @@ Comrade.weight
 Comrade.noise(::Comrade.VisTable)
 Comrade.domain(::Comrade.VisTable)
 Comrade.info(::Comrade.VisTable)
-Comrade.stations(::Comrade.VisTable)
+Comrade.stationgeometry(::Comrade.VisTable)
 Comrade.baselines
-Comrade.sites(::Comrade.VisTable)
+Comrade.stations(::Comrade.VisTable)
 Comrade.times
 Comrade.frequencies
 Comrade.beamsize(::Comrade.VisTable)
@@ -93,11 +93,11 @@ Comrade.skymodel(::Comrade.AbstractVLBIPosterior, ::Any)
 Comrade.@instrument
 Comrade.@jones
 Comrade.CalTable
-Comrade.caltable(::Comrade.SiteArray)
-Comrade.siteparams
-Comrade.sites(::Comrade.CalTable)
-Comrade.IIDSitePrior
-Comrade.GaussMarkovSitePrior
+Comrade.caltable(::Comrade.StationArray)
+Comrade.stationparams
+Comrade.stations(::Comrade.CalTable)
+Comrade.IIDStationPrior
+Comrade.GaussMarkovStationPrior
 Comrade.AbstractChainParameterization
 Comrade.Centered
 Comrade.NonCentered
@@ -145,8 +145,8 @@ Comrade.PerStation
 Comrade.AbstractInstrumentModel
 Comrade.IdealInstrumentModel
 Comrade.InstrumentModel
-Comrade.SiteArray
-Comrade.SiteLookup
+Comrade.StationArray
+Comrade.StationLookup
 Comrade.forward_jones
 Comrade.selfcal_phase
 ```
@@ -241,7 +241,7 @@ Comrade.latent
 ## Misc
 
 ```@docs
-Comrade.site_tuple
+Comrade.station_tuple
 Comrade.dirty_image
 Comrade.dirty_beam
 Comrade.beamsize
