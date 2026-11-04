@@ -33,7 +33,7 @@ end
     end
 
     @testset "posterior with fitted hyperparameters" begin
-        post = VLBIPosterior(skym, gmint_fitted(), dvis; admode = set_runtime_activity(Enzyme.Reverse))
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fitted(), admode = set_runtime_activity(Enzyme.Reverse))
         s = prior_sample(rng, post)
         @test s.instrument.lg isa NamedTuple{(:params, :hyperparams)}
         @test s.instrument.lg.params isa Comrade.SiteArray
@@ -86,7 +86,7 @@ end
     @testset "hierarchical PosteriorSamples postprocessing" begin
         # `(params, hyperparams)` samples pass through PosteriorSamples, `rmap`, `caltable`,
         # and `siteparams`
-        post = VLBIPosterior(skym, gmint_fitted(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fitted())
         samples = [prior_sample(rng, post) for _ in 1:20]
         chain = Comrade.PosteriorSamples(samples, nothing; metadata = Dict(:sampler => :prior))
         @test length(Comrade.postsamples(chain)) == 20
@@ -132,7 +132,7 @@ end
         @test VLBIInstrumentModels._working_type(
             (a = GaussMarkovSitePrior(ScanSeg(), Comrade.OrnsteinUhlenbeck(σ = 0.1f0, τ = 2.0f0, μ = 0.0f0); init = FixedInit(0.0)),)
         ) === Float64
-        post = VLBIPosterior(skym, gmint_fitted(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fitted())
         @test eltype(post.prior.instrument.lg) === Float64
         @test eltype(parent(prior_sample(rng, post).instrument.lg.params)) === Float64
     end
@@ -145,7 +145,7 @@ end
                 return Jones(exp(complex(lg, gp)))
             end
         end
-        post = VLBIPosterior(skym, gmint_fixed(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fixed())
         s = prior_sample(rng, post)
         @test s.instrument.lg isa Comrade.SiteArray
         @test isfinite(logdensityof(post, s))
@@ -165,7 +165,7 @@ end
                 return Jones(exp(lg))
             end
         end
-        post = VLBIPosterior(skym, gmint_iidover(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_iidover())
         s = prior_sample(rng, post)
         # the IID-override site carries no hyperparameters; the GM sites each get their own
         @test :LM ∉ keys(s.instrument.lg.hyperparams)
@@ -184,7 +184,7 @@ end
                 return Jones(exp(lg))
             end
         end
-        post = VLBIPosterior(skym, gmint_gmover(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_gmover())
         s = prior_sample(rng, post)
         @test keys(s.instrument.lg.hyperparams) == Tuple(Comrade.sites(dvis))
         @test keys(s.instrument.lg.hyperparams.AA) == (:σ, :τ)
@@ -206,7 +206,7 @@ end
                 return Jones(exp(1im * gp))
             end
         end
-        post = VLBIPosterior(skym, gmint_iidrefover(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_iidrefover())
         s = prior_sample(rng, post)
         @test isfinite(logdensityof(post, s))
         tp = asflat(post)
@@ -216,7 +216,7 @@ end
     @testset "whitened flat density identity" begin
         # Under whitening the flat prior is standard normal in z: changing only z shifts
         # the flat log density by −Δ‖z‖²/2. This checks the coloring map and its Jacobian.
-        post = VLBIPosterior(skym, gmint_fitted(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fitted())
         nsite = length(Comrade.sites(dvis))
         for (name, nhp) in ((:lg, 2nsite), (:gp, nsite))  # number of hyperparameter coordinates
             obsprior = getproperty(post.prior.instrument, name)
@@ -243,7 +243,7 @@ end
                 return Jones(exp(1im * gp))
             end
         end
-        post = VLBIPosterior(skym, gmint_fixref(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fixref())
         op = post.prior.instrument.gp
         nf = Comrade.transport_node(op, Comrade.TVFlat())
         nc = Comrade.transport_node(op, Comrade.StdUniform())
@@ -261,7 +261,7 @@ end
     end
 
     @testset "hierarchical cube pushforward moments" begin
-        post = VLBIPosterior(skym, gmint_fitted(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fitted())
         obsprior = post.prior.instrument.lg
         nc = Comrade.transport_node(obsprior, Comrade.StdUniform())
         N = 5000
@@ -286,7 +286,7 @@ end
                 return Jones(exp(lg))
             end
         end
-        post = VLBIPosterior(skym, gmint_boundover(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_boundover())
         tp = asflat(post)
         for _ in 1:5
             # Far out (3σ in every latent) a hyperparameter can overflow the gains, so the
@@ -308,7 +308,7 @@ end
                 return Jones(exp(lg))
             end
         end
-        post = VLBIPosterior(skym, gmint_centered(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_centered())
         s = prior_sample(rng, post)
         @test isfinite(logdensityof(post, s))
         tp = asflat(post)
@@ -331,7 +331,7 @@ end
                 return Jones(exp(lg))
             end
         end
-        post0 = VLBIPosterior(skym, gmint_rec(), dvis)
+        post0 = VLBIPosterior(dvis; sky = skym, instrument = gmint_rec())
         σtrue, τtrue = 0.15, 1.5
         # every site has its own hyperparameters; use the same truth for all of them
         hpof(σ, τ) = site_tuple(dvis, (σ = σ, τ = τ))
@@ -345,7 +345,7 @@ end
         )
         @test isfinite(logdensityof(post0, θtrue))
         obs = simulate_observation(rrng, post0, θtrue)
-        post = VLBIPosterior(skym, gmint_rec(), obs[1])
+        post = VLBIPosterior(obs[1]; sky = skym, instrument = gmint_rec())
         condld(σ, τ) = logdensityof(
             post,
             (sky = θtrue.sky, instrument = (lg = (params = gtruth, hyperparams = hpof(σ, τ)),))
@@ -371,7 +371,7 @@ end
                 return Jones(exp(1im * (gp0 + dgp)))
             end
         end
-        post = VLBIPosterior(skym, gmint_anch(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_anch())
         s = prior_sample(rng, post)
         chinds = VLBIInstrumentModels.lookup(post.prior.instrument.dgp.sitemap)
         # every site's first point is exactly zero, in rand and through the transform
@@ -395,7 +395,7 @@ end
                 return Jones(exp(1im * dgp))
             end
         end
-        postc = VLBIPosterior(skym, gmint_anchonly(), dvis)
+        postc = VLBIPosterior(dvis; sky = skym, instrument = gmint_anchonly())
         tpc = ascube(postc)
         xc = prior_sample(rng, tpc)
         @test isfinite(logdensityof(tpc, xc))
@@ -412,7 +412,7 @@ end
                 return Jones(exp(1im * dgp))
             end
         end
-        postcc = VLBIPosterior(skym, gmint_anchcent(), dvis)
+        postcc = VLBIPosterior(dvis; sky = skym, instrument = gmint_anchcent())
         scc = prior_sample(rng, postcc)
         chindscc = VLBIInstrumentModels.lookup(postcc.prior.instrument.dgp.sitemap)
         @test all(inds -> iszero(parent(scc.instrument.dgp.params)[first(inds)]), chindscc)
@@ -432,7 +432,7 @@ end
                 return Jones(exp(lg))
             end
         end
-        post = VLBIPosterior(skym, gmint_fixval(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fixval())
         s = prior_sample(rng, post)
         chinds = VLBIInstrumentModels.lookup(post.prior.instrument.lg.sitemap)
         @test all(inds -> parent(s.instrument.lg)[first(inds)] == 0.3, chinds)
@@ -448,7 +448,7 @@ end
                 return Jones(exp(1im * gp))
             end
         end
-        @test_throws ArgumentError VLBIPosterior(skym, gmint_conflict(), dvis)
+        @test_throws ArgumentError VLBIPosterior(dvis; sky = skym, instrument = gmint_conflict())
 
         # agreeing values compose: the reference chain's first point is fixed by both
         @instrument function gmint_agree()
@@ -457,7 +457,7 @@ end
                 return Jones(exp(1im * gp))
             end
         end
-        post2 = VLBIPosterior(skym, gmint_agree(), dvis)
+        post2 = VLBIPosterior(dvis; sky = skym, instrument = gmint_agree())
         @test isfinite(logdensityof(post2, prior_sample(rng, post2)))
     end
 
@@ -469,7 +469,7 @@ end
                 return Jones(exp(lg))
             end
         end
-        post = VLBIPosterior(skym, gmint_ginit(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_ginit())
         s = prior_sample(rng, post)
         @test isfinite(logdensityof(post, s))
         tp = asflat(post)
@@ -492,7 +492,7 @@ end
                 return Jones(exp(lg))
             end
         end
-        post = VLBIPosterior(skym, gmint_bm(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_bm())
         s = prior_sample(rng, post)
         chinds = VLBIInstrumentModels.lookup(post.prior.instrument.lg.sitemap)
         @test all(inds -> iszero(parent(s.instrument.lg.params)[first(inds)]), chinds)
@@ -529,7 +529,7 @@ end
                 return Jones(exp(1im * gp))
             end
         end
-        post = VLBIPosterior(skym, gmint_wb(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_wb())
         s = prior_sample(rng, post)
         @test all(h -> keys(h) == (:τ,), values(s.instrument.gp.hyperparams))
         @test isfinite(logdensityof(post, s))
@@ -545,7 +545,7 @@ end
         dchain = post.prior.instrument.gp.dists
         nfreew = length(dchain) - length(dchain.fixedinds)
         nsites = length(keys(s.instrument.gp.hyperparams))
-        skydim = LogDensityProblems.dimension(asflat(VLBIPosterior(skym, dvis)))
+        skydim = LogDensityProblems.dimension(asflat(VLBIPosterior(dvis; sky = skym)))
         @test LogDensityProblems.dimension(tp) == skydim + nsites + nfreew
 
         xf = prior_sample(rng, tp)
@@ -594,7 +594,7 @@ end
                     return Jones(exp(1im * gp))
                 end
             end
-            poste = VLBIPosterior(skym, gmint_wbe(), dvis)
+            poste = VLBIPosterior(dvis; sky = skym, instrument = gmint_wbe())
             se = prior_sample(rng, poste)
             @test isfinite(logdensityof(poste, se))
             tpe = asflat(poste)
@@ -632,7 +632,7 @@ end
                 return Jones(exp(1im * gp))
             end
         end
-        post = VLBIPosterior(skym, gmint_wou(), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = gmint_wou())
         s = prior_sample(rng, post)
         @test all(h -> keys(h) == (:σ, :τ), values(s.instrument.gp.hyperparams))
         @test isfinite(logdensityof(post, s))
@@ -649,7 +649,7 @@ end
         dchain = post.prior.instrument.gp.dists
         nfreew = length(dchain) - length(dchain.fixedinds)
         nsites = length(keys(s.instrument.gp.hyperparams))
-        skydim = LogDensityProblems.dimension(asflat(VLBIPosterior(skym, dvis)))
+        skydim = LogDensityProblems.dimension(asflat(VLBIPosterior(dvis; sky = skym)))
         # one coordinate per free phase, plus σ and τ per site
         @test LogDensityProblems.dimension(tp) == skydim + 2 * nsites + nfreew
 
@@ -691,7 +691,7 @@ end
                     return Jones(exp(1im * gp))
                 end
             end
-            poste = VLBIPosterior(skym, gmint_woue(), dvis)
+            poste = VLBIPosterior(dvis; sky = skym, instrument = gmint_woue())
             se = prior_sample(rng, poste)
             @test isfinite(logdensityof(poste, se))
             tpe = asflat(poste)

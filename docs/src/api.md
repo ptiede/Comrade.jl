@@ -165,11 +165,14 @@ Comrade.instrumentmodel(::Comrade.AbstractVLBIPosterior, ::Any)
 Comrade.prior_sample
 Comrade.likelihood
 Comrade.VLBIPosterior
-Comrade.Field
 Comrade.simulate_observation
 Comrade.residuals
 Comrade.TransformedVLBIPosterior
 Comrade.ImgNormalData
+Comrade.datadomain
+Comrade.VisDomain
+Comrade.ImageDomain
+Comrade.makelikelihood
 Comrade.transform(::Comrade.TransformedVLBIPosterior, ::Any)
 Comrade.inverse(::Comrade.TransformedVLBIPosterior, ::Any)
 Comrade.ascube(::Comrade.VLBIPosterior)

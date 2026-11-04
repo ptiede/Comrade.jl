@@ -63,7 +63,7 @@ using JET
 
         @test vtot ≈ vdyn + vstat
 
-        post = VLBIPosterior(skytot, vis)
+        post = VLBIPosterior(vis; sky = skytot)
         @test loglikelihood(post, (; sky = x)) ≈ logdensityof(Comrade.makelikelihood(vis), vtot)
     end
 end
@@ -111,7 +111,7 @@ end
 
             intm = InstrumentModel(Jones(gmap; intprior...))
             skym = SkyModel(test_model, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256))
-            post = VLBIPosterior(skym, intm, dvis)
+            post = VLBIPosterior(dvis; sky = skym, instrument = intm)
 
             cpost = ascube(post)
             x = prior_sample(cpost)

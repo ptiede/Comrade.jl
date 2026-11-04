@@ -1,3 +1,12 @@
+"""
+    makelikelihood(d)
+
+The likelihood of the data product `d`: an object `ℓ` whose `logdensityof(ℓ, μ)` is the
+log-likelihood of the model values `μ`, the visibilities or the image according to
+[`datadomain`](@ref).
+"""
+function makelikelihood end
+
 struct ConditionedLikelihood{F, O}
     kernel::F
     obs::O
@@ -72,6 +81,9 @@ function (c::_CPhase)(μ)
     return ClosurePhaseLikelihood(c.f(baseimage(μ)), c.S, c.L)
 end
 
+datadomain(::Type{<:VisTable}) = VisDomain()
+datadomain(::Type{<:ClosureTable}) = VisDomain()
+
 # Coherencies go to the likelihood as dense `(…, 2, 2)` arrays.
 function makelikelihood(t::VisTable)
     return _tablelikelihood(eltype(measurement(t)), _dense(measurement(t)), _dense(weight(t)))
@@ -109,13 +121,17 @@ export ImgNormalData
 """
     ImgNormalData(reduction, measurement, noise)
 
-Container for image-domain data assuming a normal likelihood with a `measurement` and `noise`. 
+Image-domain data with a normal likelihood: `reduction(img)` of the model image `img` is
+compared with `measurement`, with standard deviation `noise`. For example,
+`ImgNormalData(flux, 0.6, 0.1)` constrains the total flux of the image.
 """
 struct ImgNormalData{F, M, N}
     reduction::F
     measurement::M
     noise::N
 end
+
+datadomain(::Type{<:ImgNormalData}) = ImageDomain()
 
 
 struct _Reduced{F, T}
@@ -137,25 +153,6 @@ end
 function (c::_Reduced)(μ)
     return NormalFast(c.f(μ), c.σ)
 end
-
-export ParamLogDensity
-
-"""
-    ParamLogDensity(f)
-
-A log-density term `f(θ)` of the posterior parameters `θ` (the named tuple with `sky` and
-`instrument` entries), added to the log-likelihood. Pass it with any image-domain data through
-the `imgdata` keyword of [`VLBIPosterior`](@ref).
-
-The term is part of the log-likelihood, not the prior: a transport of the prior to a standard
-space does not see it.
-"""
-struct ParamLogDensity{F}
-    f::F
-end
-
-makelikelihood(data::ParamLogDensity) = data
-@inline _imglogdensity(l::ParamLogDensity, img, θ) = l.f(θ)
 
 function makelikelihood(data::ImgNormalData)
     σ = data.noise

@@ -5,7 +5,7 @@ using Enzyme
     _, _, _, lcamp, cphase = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 32, 32)
     skym = SkyModel(test_model, test_prior(), g)
-    post = VLBIPosterior(skym, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
+    post = VLBIPosterior(lcamp, cphase; sky = skym, admode = set_runtime_activity(Enzyme.Reverse))
 
     PigeonsExt = Base.get_extension(Comrade, :ComradePigeonsExt)
 

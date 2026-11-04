@@ -111,9 +111,7 @@ Computes the log-likelihood of the posterior `d` with parameters `θ`.
 """
 @inline function loglikelihood(d::AbstractVLBIPosterior, θ)
     img, vis = forward_model(d, θ)
-    # Convert because of conventions
-    lis = d.lklhdsimg
-    return logdensityofvis(d.lklhds, vis) + logdensityofimg(lis, img, θ)
+    return logdensityofvis(d.lklhds, vis) + logdensityofimg(d.lklhdsimg, img)
 end
 
 """
@@ -146,8 +144,8 @@ _observedmodel(J::ObservedSelfCalInstrumentModel) = J.model
 """
     dataproducts(d::AbstractVLBIPosterior)
 
-Returns the data products you are fitting as a tuple. The order of the tuple corresponds
-to the order of the `dataproducts` argument in [`VLBIPosterior`](@ref).
+The visibility-domain data products of `d` as a tuple, in the order given to
+[`VLBIPosterior`](@ref); a multi-field posterior gives one tuple per field, keyed by field name.
 """
 function dataproducts(d::AbstractVLBIPosterior)
     return getfield(d, :data)
@@ -160,20 +158,11 @@ end
     return sum(ls)
 end
 
-@inline function logdensityofimg(lklhds, img::IntensityMap)
+@inline function logdensityofimg(lklhds::Tuple, img)
     fl = Base.Fix2(logdensityof, img)
     ls = map(fl, lklhds)
     return sum(ls)
 end
-
-@inline _imglogdensity(l, img, θ) = logdensityof(l, img)
-
-@inline function logdensityofimg(lklhds::Tuple, img, θ)
-    ls = map(l -> _imglogdensity(l, img, θ), lklhds)
-    return sum(ls)
-end
-
-@inline logdensityofimg(lklhds::Tuple{}, img, θ) = logdensityofimg(lklhds, img)
 
 ## There is no image data so just return 0
 @inline function logdensityofimg(lklhds::Tuple{}, img::Number)

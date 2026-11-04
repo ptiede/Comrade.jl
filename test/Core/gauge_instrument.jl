@@ -54,8 +54,8 @@ end
         held = [i for i in eachindex(parent(x.gpμ)) if parent(x.gpμ)[i] == parent(y.gpμ)[i]]
         @test Comrade.sites(x.gpμ)[held] == [:AA]
 
-        post = VLBIPosterior(skym, regauge(gauge_split(), PinGauge()), dvis)
+        post = VLBIPosterior(dvis; sky = skym, instrument = regauge(gauge_split(), PinGauge()))
         @test Comrade.dimension(asflat(post)) ==
-            Comrade.dimension(asflat(VLBIPosterior(skym, gauge_split(; gauge = nothing), dvis))) - 2
+            Comrade.dimension(asflat(VLBIPosterior(dvis; sky = skym, instrument = gauge_split(; gauge = nothing)))) - 2
     end
 end

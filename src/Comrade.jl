@@ -86,6 +86,7 @@ include("rules.jl")
             :AbstractVLBIPosterior, :TransformedVLBIPosterior,
             :AbstractSkyModel, :ObservedSkyModel,
             :logprior, :likelihood, :idealmaps, :forward_model_map, :rmap,
+            :datadomain, :VisDomain, :ImageDomain, :makelikelihood,
         )
     )
 end

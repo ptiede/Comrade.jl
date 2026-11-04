@@ -102,7 +102,7 @@ skym = sky(spatialgrid(μas2rad(200.0), μas2rad(200.0), 128, 128))
 
 # Since we are fitting closures this is essentialy the entire model. In other tutorials we will
 # show how to model the instrument directly, e.g., gains.
-post = VLBIPosterior(skym, dlcamp, dcphase);
+post = VLBIPosterior(dlcamp, dcphase; sky = skym);
 
 # !!! note
 #     When fitting visibilities a instrument is required, and a reader can refer to

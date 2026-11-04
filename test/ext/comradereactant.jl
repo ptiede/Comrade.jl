@@ -47,7 +47,7 @@ end
     _, vis, _, _, _ = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 32, 32)
     skym = SkyModel(test_model, test_prior(), g)
-    post_cpu = VLBIPosterior(skym, vis; admode = nothing)
+    post_cpu = VLBIPosterior(vis; sky = skym, admode = nothing)
     post = todevice(post_cpu, Reactant.Sharding.NoSharding())
 
     tpost = asflat(post)
@@ -152,7 +152,7 @@ end
     _, vis, _, _, _ = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12)
     skym = SkyModel(test_model, gprior, g)
-    post = todevice(VLBIPosterior(skym, vis; admode = nothing), Reactant.Sharding.NoSharding())
+    post = todevice(VLBIPosterior(vis; sky = skym, admode = nothing), Reactant.Sharding.NoSharding())
     tpost = asflat(post)
     ldf = ext._default_ldf
 
@@ -220,7 +220,7 @@ end
     )
     _, vis, _, _, _ = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12)
-    post_cpu = VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing)
+    post_cpu = VLBIPosterior(vis; sky = SkyModel(test_model, gprior, g), admode = nothing)
     post = todevice(post_cpu, Reactant.Sharding.NoSharding())
     sp = Comrade.PT.StdNormal()
 
@@ -286,7 +286,7 @@ end
 
     # Likelihood-invariant moves skip the likelihood on device and host; `u` and `w` do
     # not enter the sky.
-    post_u = VLBIPosterior(SkyModel(test_model, merge(gprior, (u = VLBIGaussian(0.0, 1.0), w = VLBIGaussian(0.0, 1.0))), g), vis; admode = nothing)
+    post_u = VLBIPosterior(vis; sky = SkyModel(test_model, merge(gprior, (u = VLBIGaussian(0.0, 1.0), w = VLBIGaussian(0.0, 1.0))), g), admode = nothing)
     uview = CoordinateView(post_u, sp)
     keep(v, x, x′, ctx) = v
     umove = CompensatedMove("u_dev", uview, (:sky, :u), (:sky, :f2), keep; likelihood_invariant = true, traceable = true)
@@ -355,7 +355,7 @@ end
     _, vis, _, _, _ = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12)
     post = todevice(
-        VLBIPosterior(SkyModel(test_model, gprior, g), vis; admode = nothing), Reactant.Sharding.NoSharding()
+        VLBIPosterior(vis; sky = SkyModel(test_model, gprior, g), admode = nothing), Reactant.Sharding.NoSharding()
     )
     n = dimension(asflat(post))
     μ = collect(range(-1.0, 1.0; length = n))
@@ -520,7 +520,7 @@ end
     nwhile(hlo) = length(collect(eachmatch(r"stablehlo\.while", repr(hlo))))
 
     function check_matches_cpu(intm)
-        post_cpu = VLBIPosterior(skym, intm, vis; admode = nothing)
+        post_cpu = VLBIPosterior(vis; sky = skym, instrument = intm, admode = nothing)
         tpost_cpu = asflat(post_cpu)
         x0 = prior_sample(Random.Xoshiro(31), tpost_cpu)
 
@@ -568,7 +568,7 @@ end
         Enzyme.set_runtime_activity(Enzyme.Reverse), Const(Base.Fix1(logdensityof, tp)), x
     )[1]
     check_matches_cpu(skym, intm, data; transport = asflat) =
-        check_matches_cpu(VLBIPosterior(skym, intm, data; admode = nothing); transport)
+        check_matches_cpu(VLBIPosterior(data; sky = skym, instrument = intm, admode = nothing); transport)
     function check_matches_cpu(post_cpu; transport = asflat)
         tpost_cpu = transport(post_cpu)
         x0 = prior_sample(Random.Xoshiro(41), tpost_cpu)
@@ -616,7 +616,7 @@ end
         G = Jones((x, c) -> exp(complex(x.lg, x.gp)); lg = ArrayPrior(g0), gp = ArrayPrior(g0; refant = SensitiveReference(0.0)))
         S = Jones((x, c) -> exp(x.s); s = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.1))))
         skym = SkyModel(test_model, test_prior(), g)
-        post = VLBIPosterior(InstrumentModel(G * S), Field(:A, skym, vis), Field(:B, skym, later(vis, 1)); admode = nothing)
+        post = VLBIPosterior((; A = vis, B = later(vis, 1)); sky = (; A = skym, B = skym), instrument = InstrumentModel(G * S), admode = nothing)
         check_matches_cpu(post)
     end
 end
@@ -659,7 +659,7 @@ end
         _, vis, _, lcamp, cphase, dcoh = load_data()
         g0 = IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 0.1))
         G = Jones((x, c) -> exp(complex(x.lg, x.gp)); lg = ArrayPrior(g0), gp = ArrayPrior(g0; refant = SensitiveReference(0.0)))
-        post_cpu = VLBIPosterior(planemodel(vis, 4), InstrumentModel(G), vis; admode = nothing)
+        post_cpu = VLBIPosterior(vis; sky = planemodel(vis, 4), instrument = InstrumentModel(G), admode = nothing)
 
         # The device arrays that `x` holds.
         function devicearrays(x, found = Any[], seen = IdDict{Any, Nothing}())
@@ -694,12 +694,14 @@ end
             Q = Jones((x, c) -> SMatrix{2, 2}(1.0 + 0im, 0, 0, cis(x.δ)); δ = ArrayPrior(IIDSitePrior(TrackSeg(), VLBIGaussian(0.0, 0.3))))
             psky(θ, _, _) = PolarizedModel(modify(Gaussian(), Stretch(θ.σ)), 0.1 * modify(Gaussian(), Stretch(θ.σ)), 0.05 * modify(Gaussian(), Stretch(θ.σ)), 0.02 * modify(Gaussian(), Stretch(θ.σ)))
             skym = SkyModel(psky, (; σ = VLBIUniform(μas2rad(10.0), μas2rad(30.0))), timegrid(dcoh, 4))
-            check_matches_cpu(VLBIPosterior(skym, InstrumentModel(PerStation(Gp; AA = Gp * Q)), dcoh; admode = nothing), bytime)
+            check_matches_cpu(VLBIPosterior(dcoh; sky = skym, instrument = InstrumentModel(PerStation(Gp; AA = Gp * Q)), admode = nothing), bytime)
         end
 
         @testset "fields" begin
             post = VLBIPosterior(
-                InstrumentModel(G), Field(:A, planemodel(vis, 4), vis), Field(:B, planemodel(later(vis, 1), 8), later(vis, 1));
+                (; A = vis, B = later(vis, 1));
+                sky = (; A = planemodel(vis, 4), B = planemodel(later(vis, 1), 8)),
+                instrument = InstrumentModel(G),
                 admode = nothing
             )
             check_matches_cpu(post, bytime)
@@ -707,28 +709,28 @@ end
 
         static = SkyModel(test_model, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12))
         @testset "static image split by record" begin
-            check_matches_cpu(VLBIPosterior(static, InstrumentModel(G), vis; admode = nothing), ShardLayout(mesh; Node = :d))
+            check_matches_cpu(VLBIPosterior(vis; sky = static, instrument = InstrumentModel(G), admode = nothing), ShardLayout(mesh; Node = :d))
         end
 
         @testset "fixed component" begin
             fixed = FixedSkyModel(test_model(rand(NamedDist(test_prior())), nothing, nothing), timegrid(vis, 4))
-            check_matches_cpu(VLBIPosterior(MultiSkyModel((; a = planemodel(vis, 4), b = fixed)), InstrumentModel(G), vis; admode = nothing), bytime)
+            check_matches_cpu(VLBIPosterior(vis; sky = MultiSkyModel((; a = planemodel(vis, 4), b = fixed)), instrument = InstrumentModel(G), admode = nothing), bytime)
         end
 
         @testset "cube and static components" begin
             fixed = FixedSkyModel(test_model(rand(Random.Xoshiro(3), NamedDist(test_prior())), nothing, nothing), static.grid)
-            check_matches_cpu(VLBIPosterior(MultiSkyModel((; a = planemodel(vis, 4), b = static)), InstrumentModel(G), vis; admode = nothing), bytime)
-            check_matches_cpu(VLBIPosterior(MultiSkyModel((; b = static, a = planemodel(vis, 4))), InstrumentModel(G), vis; admode = nothing), bytime)
-            check_matches_cpu(VLBIPosterior(MultiSkyModel((; a = planemodel(vis, 4), b = fixed)), InstrumentModel(G), vis; admode = nothing), bytime)
+            check_matches_cpu(VLBIPosterior(vis; sky = MultiSkyModel((; a = planemodel(vis, 4), b = static)), instrument = InstrumentModel(G), admode = nothing), bytime)
+            check_matches_cpu(VLBIPosterior(vis; sky = MultiSkyModel((; b = static, a = planemodel(vis, 4))), instrument = InstrumentModel(G), admode = nothing), bytime)
+            check_matches_cpu(VLBIPosterior(vis; sky = MultiSkyModel((; a = planemodel(vis, 4), b = fixed)), instrument = InstrumentModel(G), admode = nothing), bytime)
         end
 
         # Host and device NUFFTs differ by ~1e-8 relative in the model visibilities, which closures
         # and very large χ² carry into the log density.
         @testset "closures" begin
             for c in (cphase, lcamp)
-                check_matches_cpu(VLBIPosterior(planemodel(vis, 4; width = 8.0), c; admode = nothing), bytime; rtol = 1.0e-8)
+                check_matches_cpu(VLBIPosterior(c; sky = planemodel(vis, 4; width = 8.0), admode = nothing), bytime; rtol = 1.0e-8)
             end
-            post = VLBIPosterior(planemodel(vis, 4; width = 8.0), cphase, lcamp; admode = nothing)
+            post = VLBIPosterior(cphase, lcamp; sky = planemodel(vis, 4; width = 8.0), admode = nothing)
             dev = todevice(post, Reactant.Sharding.NoSharding())
             θ = Comrade.transform(asflat(post), prior_sample(Random.Xoshiro(41), asflat(post)))
             _, mv = @jit Comrade.forward_model(dev, Reactant.to_rarray(θ))
@@ -740,13 +742,13 @@ end
         @testset "self-calibration" begin
             selfcal = InstrumentModel(Jones((x, c) -> complex(exp(x.lg)); lg = ArrayPrior(g0)); selfcal = true)
             stdnormal = p -> transport_to(p, Comrade.PT.StdNormal())
-            check_matches_cpu(VLBIPosterior(static, selfcal, vis; admode = nothing), ShardLayout(mesh; Node = :d); transport = stdnormal)
-            check_matches_cpu(VLBIPosterior(planemodel(vis, 4), selfcal, vis; admode = nothing), bytime; transport = stdnormal, rtol = 1.0e-9)
+            check_matches_cpu(VLBIPosterior(vis; sky = static, instrument = selfcal, admode = nothing), ShardLayout(mesh; Node = :d); transport = stdnormal)
+            check_matches_cpu(VLBIPosterior(vis; sky = planemodel(vis, 4), instrument = selfcal, admode = nothing), bytime; transport = stdnormal, rtol = 1.0e-9)
         end
 
         @testset "errors" begin
             @test_throws "already on a device" todevice(todevice(post_cpu, Reactant.Sharding.NoSharding()), bytime)
-            @test_throws "`Ti` is not a dimension" todevice(VLBIPosterior(static, vis; admode = nothing), bytime)
+            @test_throws "`Ti` is not a dimension" todevice(VLBIPosterior(vis; sky = static, admode = nothing), bytime)
         end
     end
 end

@@ -165,7 +165,7 @@ intmodel = instrument()
 # gradients of the posterior we also need to load `Enzyme.jl`. Under the hood, Comrade will use
 # Enzyme to compute the gradients of the posterior.
 using Enzyme
-post = VLBIPosterior(skym, intmodel, dvis);
+post = VLBIPosterior(dvis; sky = skym, instrument = intmodel);
 
 # ## Optimization and Sampling
 

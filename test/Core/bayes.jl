@@ -11,8 +11,8 @@ using Enzyme
     _, vis, amp, lcamp, cphase = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
-    post_cl = VLBIPosterior(skym, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
-    post = VLBIPosterior(skym, vis)
+    post_cl = VLBIPosterior(lcamp, cphase; sky = skym, admode = set_runtime_activity(Enzyme.Reverse))
+    post = VLBIPosterior(vis; sky = skym)
 
     prior = test_prior()
 
@@ -131,13 +131,13 @@ using Enzyme
     @test mopt == Comrade.skymodel(post, xopt)
 
     @testset "Plot residuals" begin
-        post = VLBIPosterior(skym, vis)
+        post = VLBIPosterior(vis; sky = skym)
         residualplot(post, xopt)
-        post = VLBIPosterior(skym, amp)
+        post = VLBIPosterior(amp; sky = skym)
         residualplot(post, xopt)
-        post = VLBIPosterior(skym, lcamp)
+        post = VLBIPosterior(lcamp; sky = skym)
         residualplot(post, xopt)
-        post = VLBIPosterior(skym, cphase)
+        post = VLBIPosterior(cphase; sky = skym)
         residualplot(post, xopt)
     end
 
@@ -178,7 +178,7 @@ using FiniteDifferences
 
     intm = InstrumentModel()
     skym = SkyModel(test_skymodel_polarized, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
-    post = VLBIPosterior(skym, intm, coh)
+    post = VLBIPosterior(coh; sky = skym, instrument = intm)
 
     tpost = asflat(post)
 
@@ -195,7 +195,7 @@ using FiniteDifferences
     )
     intm_coh = InstrumentModel(Gp)
     skym = SkyModel(test_skymodel_polarized, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
-    post = VLBIPosterior(skym, intm_coh, coh)
+    post = VLBIPosterior(coh; sky = skym, instrument = intm_coh)
     tpost = asflat(post)
     x = prior_sample(tpost)
     fj = instrumentmodel(post, prior_sample(post))
@@ -212,10 +212,10 @@ end
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
 
-    post_amp = VLBIPosterior(skym, amp)
-    post_cp = VLBIPosterior(skym, cphase)
-    post_lc = VLBIPosterior(skym, lcamp)
-    post_vis = VLBIPosterior(skym, vis)
+    post_amp = VLBIPosterior(amp; sky = skym)
+    post_cp = VLBIPosterior(cphase; sky = skym)
+    post_lc = VLBIPosterior(lcamp; sky = skym)
+    post_vis = VLBIPosterior(vis; sky = skym)
 
     G = Jones(
         (x, c) -> exp(complex(x.lg, x.gp));
@@ -223,7 +223,7 @@ end
         gp = ArrayPrior(IIDSitePrior(ScanSeg(), VLBIGaussian(0.0, 1.0)), refant = SensitiveReference(0.0)),
     )
     intm = InstrumentModel(G)
-    post_gvis = VLBIPosterior(skym, vis)
+    post_gvis = VLBIPosterior(vis; sky = skym)
 
     fwhmfac = 2 * sqrt(2 * log(2))
     x0 = (;
@@ -241,11 +241,11 @@ end
         @test VLBIInstrumentModels._storage(Comrade.baseimage(Comrade.measurement(obs_nn))) == μ
 
         if isnothing(int)
-            postsim = VLBIPosterior(skym, obs)
-            postsim_nn = VLBIPosterior(skym, obs_nn)
+            postsim = VLBIPosterior(obs; sky = skym)
+            postsim_nn = VLBIPosterior(obs_nn; sky = skym)
         else
-            postsim = VLBIPosterior(skym, int, obs)
-            postsim_nn = VLBIPosterior(skym, int, obs_nn)
+            postsim = VLBIPosterior(obs; sky = skym, instrument = int)
+            postsim_nn = VLBIPosterior(obs_nn; sky = skym, instrument = int)
         end
 
 
@@ -263,14 +263,14 @@ end
     test_simobs(post_vis, x0)
     test_simobs(post_gvis, x0)
 
-    post_all = VLBIPosterior(skym, vis, amp, lcamp, cphase)
+    post_all = VLBIPosterior(vis, amp, lcamp, cphase; sky = skym)
     simulate_observation(post_all, x0)
 
 
     Gp = Jones((x, c) -> gains(exp(x.lg + 1im * x.gp), exp(x.lg + 1im * x.gp)); intm.prior...)
     intm_coh = InstrumentModel(Gp)
     skym = SkyModel(test_skymodel_polarized, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256); metadata = (; lp = 0.1))
-    post_coh = VLBIPosterior(skym, intm_coh, coh)
+    post_coh = VLBIPosterior(coh; sky = skym, instrument = intm_coh)
     test_simobs(post_coh, prior_sample(post_coh), intm_coh)
 end
 
@@ -289,7 +289,7 @@ end
 
     function test_nonanalytic(intm, algorithm, vis)
         skym = SkyModel(test_model, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256))
-        post = VLBIPosterior(skym, intm, vis)
+        post = VLBIPosterior(vis; sky = skym, instrument = intm)
 
         tpostf = asflat(post)
         x0 = prior_sample(tpostf)
@@ -328,7 +328,7 @@ end
     skyf = FixedSkyModel(m, g)
 
     @testset "With Instrument Model" begin
-        post = VLBIPosterior(skyf, intm, vis)
+        post = VLBIPosterior(vis; sky = skyf, instrument = intm)
         prior_sample(post)
         tpostf = asflat(post)
         tpostc = ascube(post)
@@ -347,7 +347,7 @@ end
     end
 
     @testset "No Instrument Model" begin
-        post = VLBIPosterior(skyf, lcamp, cphase)
+        post = VLBIPosterior(lcamp, cphase; sky = skyf)
         prior_sample(post) == (;)
         tpostf = asflat(post)
         tpostc = ascube(post)

@@ -75,7 +75,7 @@ skym = SkyModel(model, prior, spatialgrid(μas2rad(150.0), μas2rad(150.0), 128,
 θ = (rad= 22.0, wid= 3.0, a = 0.0, b = 0.15, f=0.8, sig = 20.0, asy=0.2, pa=π/2, x=20.0, y=20.0)
 m = model(θ, nothing, nothing)
 
-post = VLBIPosterior(skym, amp)
+post = VLBIPosterior(amp; sky = skym)
 tpost = asflat(post)
 
 x0 = prior_sample(tpost)

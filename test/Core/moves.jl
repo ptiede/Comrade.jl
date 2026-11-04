@@ -33,7 +33,7 @@ Comrade.move_name(::_BadStep) = "badstep"
         c = Dists.Uniform(0.2, 5.0), φ = Dists.Normal(0.0, 3.0),
     )
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 8, 8)
-    post = VLBIPosterior(SkyModel(_moves_toy_sky, prior, g), vis)
+    post = VLBIPosterior(vis; sky = SkyModel(_moves_toy_sky, prior, g))
     sp = Comrade.PT.StdNormal()
     rng = Random.Xoshiro(3)
     θs = [prior_sample(rng, post) for _ in 1:3]
@@ -166,7 +166,7 @@ mutable struct _MovesState
 end
 
 @testset "chain moves and MoveSet" begin
-    post = VLBIPosterior(_moves_gm_sky(), _moves_gm_instrument(), _moves_gm_data())
+    post = VLBIPosterior(_moves_gm_data(); sky = _moves_gm_sky(), instrument = _moves_gm_instrument())
     sp = Comrade.PT.StdNormal()
     rng = Random.Xoshiro(11)
     θs = [prior_sample(rng, post) for _ in 1:2]
@@ -213,7 +213,7 @@ end
     @test_throws "is not a Gauss–Markov chain term with fitted hyperparameters" chain_hyper_moves(CoordinateView(post), (:instrument, :gp))
     @test MoveSet(post, chain_hyper_moves(CoordinateView(post), (:instrument, :lg))) isa MoveSet
     @test_throws "is componentwise, which needs a move that leaves the likelihood unchanged" MoveSet(post, (_NotInvariant(first(chain_hyper_moves(CoordinateView(post), (:instrument, :lg)))),))
-    @test_throws "may be wrapped" PhaseSheetMove(VLBIPosterior(_moves_gm_sky(), _moves_wrapped_instrument(), _moves_gm_data()), (:gp,))
+    @test_throws "may be wrapped" PhaseSheetMove(VLBIPosterior(_moves_gm_data(); sky = _moves_gm_sky(), instrument = _moves_wrapped_instrument()), (:gp,))
     @test_throws "no instrument parameter gq" PhaseSheetMove(post, (:gq,))
     @test_throws "power must be positive" flux_gain_move(CoordinateView(post); flux = (:sky, :f1), gains = (:instrument, :lg), power = 0)
 

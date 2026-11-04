@@ -27,8 +27,8 @@ end
 
     @testset "simultaneous fields share the instrument" begin
         intm = InstrumentModel(gainterm(ScanSeg()))
-        post1 = VLBIPosterior(skym, intm, dvis)
-        post2 = VLBIPosterior(intm, Field(:M87, skym, dvis), Field(:CAL, skym, cal))
+        post1 = VLBIPosterior(dvis; sky = skym, instrument = intm)
+        post2 = VLBIPosterior((; M87 = dvis, CAL = cal); sky = (; M87 = skym, CAL = skym), instrument = intm)
         θ1 = prior_sample(post1)
         θ2 = (; sky = (; M87 = θ1.sky, CAL = θ1.sky), θ1.instrument)
         @test dimension(post2) == dimension(post1) + length(θ1.sky)
@@ -53,11 +53,11 @@ end
         late = later(cal, 1)
         for (seg, n) in ((ScanSeg(), 2), (EpochSeg(), 2), (TrackSeg(), 1))
             intm = InstrumentModel(gainterm(seg))
-            single = dimension(VLBIPosterior(skym, intm, dvis)) - length(test_prior())
-            post = VLBIPosterior(intm, Field(:M87, skym, dvis), Field(:CAL, skym, late))
+            single = dimension(VLBIPosterior(dvis; sky = skym, instrument = intm)) - length(test_prior())
+            post = VLBIPosterior((; M87 = dvis, CAL = late); sky = (; M87 = skym, CAL = skym), instrument = intm)
             @test dimension(post) - 2 * length(test_prior()) == n * single
         end
-        post = VLBIPosterior(InstrumentModel(gainterm(ScanSeg())), Field(:M87, skym, dvis), Field(:CAL, skym, late))
+        post = VLBIPosterior((; M87 = dvis, CAL = late); sky = (; M87 = skym, CAL = skym), instrument = InstrumentModel(gainterm(ScanSeg())))
         L = post.instrumentmodel.fields
         @test L.CAL.layout.coords.Ti ≈ L.M87.layout.coords.Ti .+ 24
     end
@@ -66,7 +66,7 @@ end
         dec0 = deg2rad(info(dvis).source.dec)
         A = Jones((x, c) -> exp(x.a * (c.dec - dec0)); a = ArrayPrior(IIDSitePrior(TrackSeg(), Normal(0.0, 1.0))))
         north = with_source(dvis, :N; dec = info(dvis).source.dec + 1)
-        post = VLBIPosterior(InstrumentModel(A), Field(:M87, skym, dvis), Field(:N, skym, north))
+        post = VLBIPosterior((; M87 = dvis, N = north); sky = (; M87 = skym, N = skym), instrument = InstrumentModel(A))
         J = post.instrumentmodel.fields
         @test all(≈(dec0 + deg2rad(1)), J.N.layout.coords.dec)
         x = prior_sample(post).instrument
@@ -78,9 +78,8 @@ end
 
     @testset "errors" begin
         intm = InstrumentModel(gainterm(ScanSeg()))
-        @test_throws "distinct names" VLBIPosterior(intm, Field(:A, skym, dvis), Field(:A, skym, cal))
-        @test_throws "no data products" Field(:A, skym)
-        @test_throws "one table of visibilities" VLBIPosterior(intm, Field(:A, skym, dvis, amplitudes(later(dvis, 1))))
-        @test_throws "several fields" VLBIPosterior(InstrumentModel(gainterm(ScanSeg()); selfcal = true), Field(:A, skym, dvis), Field(:B, skym, cal))
+        @test_throws "visibility-domain data product" VLBIPosterior((; A = ()); sky = (; A = skym), instrument = intm)
+        @test_throws "one table of visibilities" VLBIPosterior((; A = (dvis, amplitudes(later(dvis, 1)))); sky = (; A = skym), instrument = intm)
+        @test_throws "several fields" VLBIPosterior((; A = dvis, B = cal); sky = (; A = skym, B = skym), instrument = InstrumentModel(gainterm(ScanSeg()); selfcal = true))
     end
 end

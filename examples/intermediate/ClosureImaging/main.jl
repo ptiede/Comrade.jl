@@ -128,7 +128,7 @@ skym = sky(grid; mimg, cprior)
 # At this point since we are fitting closures we have essentially finished our model specification and can form
 # our VLBIPosterior.
 using Enzyme
-post = VLBIPosterior(skym, dlcamp, dcphase);
+post = VLBIPosterior(dlcamp, dcphase; sky = skym);
 
 # ## Reconstructing the Image
 

@@ -20,7 +20,7 @@ function load_data()
         x = μas2rad(30.0), y = μas2rad(30.0),
     )
     skym = SkyModel(test_model, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 64, 64))
-    vt = only(simulate_observation(VLBIPosterior(skym, t), (; sky = θ); add_thermal_noise = false))
+    vt = only(simulate_observation(VLBIPosterior(t; sky = skym), (; sky = θ); add_thermal_noise = false))
 
     amp = amplitudes(vt)
     lcamp = logclosure_amplitudes(vt)

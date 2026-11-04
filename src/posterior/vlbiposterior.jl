@@ -18,14 +18,16 @@ end
 
 
 """
-    VLBIPosterior(skymodel::SkyModel, instumentmodel::InstrumentModel, 
-                  dataproducts...; 
-                  admode=set_runtime_activity(set_strong_zero(Reverse)))
+    VLBIPosterior(dataproducts...; sky, instrument = IdealInstrumentModel(),
+                  admode = set_runtime_activity(set_strong_zero(Reverse)))
 
-The posterior of the sky model `skymodel` and the instrument model `instrumentmodel` (default
-[`IdealInstrumentModel`](@ref)) given the data products: [`VisTable`](@ref)s and
-[`ClosureTable`](@ref)s formed from one visibility table. The models are evaluated on that
-table's records.
+The posterior of the sky model `sky` and the instrument model `instrument` given the data
+products. The parameters are `(; sky = …, instrument = …)`.
+
+The data products are visibility-domain products, [`VisTable`](@ref)s and
+[`ClosureTable`](@ref)s formed from one visibility table, on whose records the models are
+evaluated, and image-domain products such as [`ImgNormalData`](@ref), compared with the image of
+`sky`. [`Comrade.datadomain`](@ref) sorts them.
 
 To enable automatic differentiation, the `admode` keyword argument can be set to any `EnzymeCore.Mode` type 
 of if no AD is desired then `nothing`. The default is `Enzyme.set_runtime_activity(Enzyme.Reverse)` 
@@ -53,41 +55,127 @@ G = Jones((x, c) -> exp(complex(x.lg, x.pg));
           )
 intmodel = InstrumentModel(G)
 
-post = VLBIPosterior(skym, intmodel, t)
+post = VLBIPosterior(t, ImgNormalData(flux, 0.6, 0.1); sky = skym, instrument = intmodel)
+```
+
+# Several fields
+
+    VLBIPosterior(data::NamedTuple; sky::NamedTuple, instrument, admode)
+
+The posterior of several sources observed through one instrument. `sky` holds the sky model of
+each field, `data` the data products of each field, with the same keys: a tuple of products, or
+one product. The data products of one field must come from one table, and every field needs a
+visibility-domain product. The parameters are `(; sky = (; name₁ = …, name₂ = …), instrument = …)`,
+the sky parameters keyed by field name.
+
+The instrument parameters are built on the measured values of all fields, on the time axis of
+the earliest of their epochs, which the cell time `c.Ti` of every field reads. A parameter is
+shared by the fields wherever its time segments cover the data of several: a `TrackSeg()`
+leakage is shared by every field, while a `ScanSeg()` gain is shared only where the fields'
+scans overlap. A term that depends on direction reads it from the cell: `c.ra` and `c.dec`
+are the direction of the field's source, and `c.elevation`, `c.azimuth` and `c.parallactic`
+its geometry at each station.
+
+```julia
+post = VLBIPosterior((; SgrA = (dvis_sgra, ImgNormalData(flux, 2.4, 0.1)), J1924 = dvis_cal);
+                     sky = (; SgrA = sky_sgra, J1924 = sky_cal), instrument = InstrumentModel(G * D))
 ```
 """
 @noinline function VLBIPosterior(
-        skymodel::AbstractSkyModel,
-        instrumentmodel::AbstractInstrumentModel,
-        data::Union{VisTable, ClosureTable}...;
-        imgdata = nothing,
+        data...; sky, instrument = IdealInstrumentModel(),
         admode = EnzymeCore.set_runtime_activity(EnzymeCore.set_strong_zero(EnzymeCore.Reverse))
     )
+    instrument isa AbstractInstrumentModel ||
+        throw(ArgumentError("the instrument must be an AbstractInstrumentModel, got a $(typeof(instrument))"))
+    return _posterior(sky, instrument, data, admode)
+end
 
-    t = _commonvis(data)
-    _checkdata(instrumentmodel, data)
+function _posterior(skymodel::AbstractSkyModel, instrumentmodel, data::Tuple, admode)
+    vis, img = _splitdomains(data)
+    isempty(vis) && throw(
+        ArgumentError("a posterior needs a visibility-domain data product (a VisTable or ClosureTable), got $(_typenames(data))")
+    )
+    t = _commonvis(vis)
+    _checkdata(instrumentmodel, vis)
     int, intprior = observe(instrumentmodel, t)
     sky, skyprior = observe(skymodel, t)
     total_prior = combine_prior(skyprior, intprior)
 
-    ls = Tuple(map(makelikelihood, data))
-    if !isnothing(imgdata)
-        ils = Tuple(map(makelikelihood, imgdata))
-    else
-        ils = ()
-    end
-
+    ls = map(makelikelihood, vis)
+    ils = map(makelikelihood, img)
+    dataimg = _imagedata(img)
     return VLBIPosterior{
-        typeof(data), typeof(imgdata), typeof(ls), typeof(ils), typeof(total_prior),
+        typeof(vis), typeof(dataimg), typeof(ls), typeof(ils), typeof(total_prior),
         typeof(sky), typeof(int), typeof(admode),
-    }(data, imgdata, ls, ils, total_prior, sky, int, admode)
+    }(vis, dataimg, ls, ils, total_prior, sky, int, admode)
 end
 
-VLBIPosterior(
-    skymodel::AbstractSkyModel, dataproducts::Union{VisTable, ClosureTable}...;
-    admode = EnzymeCore.set_runtime_activity(EnzymeCore.set_strong_zero(EnzymeCore.Reverse)), kwargs...
-) =
-    VLBIPosterior(skymodel, IdealInstrumentModel(), dataproducts...; admode, kwargs...)
+function _posterior(skies::NamedTuple, instrumentmodel, (data,)::Tuple{NamedTuple}, admode)
+    names = keys(skies)
+    isempty(names) && throw(ArgumentError("a multi-field posterior needs at least one field"))
+    issetequal(names, keys(data)) || throw(
+        ArgumentError("the sky models and the data need the same field names, got sky models for $names and data for $(keys(data))")
+    )
+    for (n, s) in pairs(skies)
+        s isa AbstractSkyModel || throw(ArgumentError("the sky model of the field $n must be an AbstractSkyModel, got a $(typeof(s))"))
+    end
+    split = map(_splitdomains ∘ _products, NamedTuple{names}(data))
+    vis, img = map(first, split), map(last, split)
+    for (n, v) in pairs(vis)
+        isempty(v) && throw(
+            ArgumentError("the field $n needs a visibility-domain data product (a VisTable or ClosureTable), got $(_typenames(_products(data[n])))")
+        )
+    end
+    tables = map(_commonvis, vis)
+
+    int, intprior = observe(instrumentmodel, tables)
+    observed = map(observe, skies, tables)
+    sky = FieldSkies(map(first, observed))
+    skyprior = NamedDist(map(last, observed))
+    total_prior = combine_prior(skyprior, intprior)
+    ls = map(d -> map(makelikelihood, d), vis)
+    dataimg = _imagedata(img)
+    ils = _imagelikelihoods(dataimg)
+
+    return VLBIPosterior{
+        typeof(vis), typeof(dataimg), typeof(ls), typeof(ils), typeof(total_prior),
+        typeof(sky), typeof(int), typeof(admode),
+    }(vis, dataimg, ls, ils, total_prior, sky, int, admode)
+end
+
+_posterior(::NamedTuple, _, data::Tuple, _) = throw(
+    ArgumentError(
+        "a NamedTuple of sky models takes one NamedTuple of data products with the same keys, " *
+            "got $(length(data)) data argument(s): $(_typenames(data))"
+    )
+)
+_posterior(::AbstractSkyModel, _, ::Tuple{NamedTuple}, _) = throw(
+    ArgumentError("a NamedTuple of data products takes a NamedTuple of sky models with the same keys")
+)
+_posterior(sky, _, _, _) =
+    throw(ArgumentError("the sky must be an AbstractSkyModel or a NamedTuple of them, got a $(typeof(sky))"))
+
+_products(d::Tuple) = d
+_products(d) = (d,)
+
+# The visibility-domain and the image-domain products of `data`, each in the order given.
+_splitdomains(data::Tuple) = (_indomain(VisDomain(), data), _indomain(ImageDomain(), data))
+_indomain(_, ::Tuple{}) = ()
+function _indomain(D, data::Tuple)
+    d = first(data)
+    rest = _indomain(D, Base.tail(data))
+    return datadomain(d) === D ? (d, rest...) : rest
+end
+
+_imagedata(::Tuple{}) = nothing
+_imagedata(img::Tuple) = img
+_imagedata(::NamedTuple{K, <:Tuple{Vararg{Tuple{}}}}) where {K} = nothing
+_imagedata(img::NamedTuple) = img
+_imagelikelihoods(::Nothing) = ()
+_imagelikelihoods(img::NamedTuple) = map(d -> map(makelikelihood, d), img)
+
+_typenames(::Tuple{}) = "no data products"
+_typenames(data) = join(map(d -> string(nameof(typeof(d))), data), ", ")
 
 _vis(t::VisTable) = t
 _vis(ct::ClosureTable) = getfield(ct, :vis)
@@ -136,7 +224,10 @@ function Base.show(io::IO, mime::MIME"text/plain", post::VLBIPosterior)
     show(io, mime, post.instrumentmodel)
     println()
     printstyled(io, "Data Products: ", color = :light_green)
-    return println(io, _datadescription(post.data))
+    println(io, _datadescription(post.data))
+    isnothing(post.dataimg) && return nothing
+    printstyled(io, "Image Data Products: ", color = :light_green)
+    return println(io, _datadescription(post.dataimg))
 end
 
 
@@ -192,6 +283,7 @@ _datadescription(data::Tuple) = join(map(_datadescription, data), ", ")
 _datadescription(data::NamedTuple) = join(map((n, d) -> string(n, ": ", _datadescription(d)), keys(data), values(data)), "; ")
 _datadescription(t::VisTable) = string(eltype(measurement(t)) <: Real ? "amplitudes" : "visibilities", " (", _polname(t.pol), ")")
 _datadescription(ct::ClosureTable) = ct.product isa ClosurePhases ? "closure phases" : "log closure amplitudes"
+_datadescription(d) = string(nameof(typeof(d)))
 
 """
     residuals(post::VLBIPosterior, θ)

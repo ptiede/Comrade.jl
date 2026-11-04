@@ -6,7 +6,7 @@ using Random
 #     _, _, _, lcamp, cphase = load_data()
 #     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256)
 #     skym = SkyModel(test_model, test_prior(), g)
-#     post = VLBIPosterior(skym, lcamp, cphase)
+#     post = VLBIPosterior(lcamp, cphase; sky = skym)
 #     a1 = Nested(dimension(ascube(post)), 1000)
 
 #     chain = sample(Random.default_rng(), post, a1; dlogz=0.01, progress=false)

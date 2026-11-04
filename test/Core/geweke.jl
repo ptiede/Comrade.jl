@@ -66,7 +66,7 @@ _passes(r) = all(<=(r.geweke_critical), r.geweke) && all(>(0.05), r.geweke_accep
         # total S/N of about 12: the likelihood shapes the posterior but still allows
         # large steps for the non-invariant moves
         g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 8, 8)
-        post = VLBIPosterior(SkyModel(_moves_toy_sky, prior, g), _noisier(vis, 1000.0))
+        post = VLBIPosterior(_noisier(vis, 1000.0); sky = SkyModel(_moves_toy_sky, prior, g))
         rng = Random.Xoshiro(41)
         θs = [prior_sample(rng, post) for _ in 1:2]
         view = CoordinateView(post, space)
@@ -84,7 +84,7 @@ _passes(r) = all(<=(r.geweke_critical), r.geweke) && all(>(0.05), r.geweke_accep
         @test_throws "does not leave the posterior invariant" check_move(_Drift(rw(false), 0.05), post, θs; space, rng, rtol = Inf, kw...)
     end
 
-    post = VLBIPosterior(_moves_gm_sky(), _geweke_instrument(), _moves_gm_data())
+    post = VLBIPosterior(_moves_gm_data(); sky = _moves_gm_sky(), instrument = _geweke_instrument())
     rng = Random.Xoshiro(43)
     θs = [prior_sample(rng, post) for _ in 1:2]
     @testset "chain moves: $(Comrade._space_name(space))" for space in (nothing, sp)
@@ -116,7 +116,7 @@ _passes(r) = all(<=(r.geweke_critical), r.geweke) && all(>(0.05), r.geweke_accep
     hm = chain_hyper_moves(vs, (:instrument, :lg))
     @test_throws "ngeweke must be positive" check_moveset(MoveSet(post, (fgs,); space = sp); ngeweke = 0)
 
-    rpost = VLBIPosterior(_moves_gm_sky(), _geweke_sefd_instrument(), _moves_gm_data())
+    rpost = VLBIPosterior(_moves_gm_data(); sky = _moves_gm_sky(), instrument = _geweke_sefd_instrument())
     rview = CoordinateView(rpost, sp)
     rθs = [prior_sample(rng, rpost) for _ in 1:2]
     @testset "sensitivity-referenced chain: $(Comrade.move_name(m))" for m in chain_hyper_moves(rview, (:instrument, :gp))

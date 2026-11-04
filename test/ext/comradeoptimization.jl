@@ -13,7 +13,7 @@ const Ahyper = Comrade.CubeTransport
     _, _, _, lcamp, cphase = load_data()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
-    post = VLBIPosterior(skym, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
+    post = VLBIPosterior(lcamp, cphase; sky = skym, admode = set_runtime_activity(Enzyme.Reverse))
     tpost = asflat(post)
     x0 = transform(
         tpost, [
@@ -32,7 +32,7 @@ const Ahyper = Comrade.CubeTransport
 
     # This is a dummy test for the heuristic to ensure that for large problems we switch to asflat
     skymbig = SkyModel(test_model, merge(test_prior(), (; foo = MvNormal(ones(100)))), g)
-    postbig = VLBIPosterior(skymbig, lcamp, cphase; admode = set_runtime_activity(Enzyme.Reverse))
+    postbig = VLBIPosterior(lcamp, cphase; sky = skymbig, admode = set_runtime_activity(Enzyme.Reverse))
 
     @testset "Heuristic Test" begin
         @test !isa(COExt._transport_heuristic(post, LBFGSB(), nothing, nothing).transform, Ahyper)

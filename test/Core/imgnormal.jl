@@ -9,7 +9,7 @@ using Distributions
     skym = SkyModel(test_model, test_prior(), g)
 
     # Create a base posterior to sample from
-    base_post = VLBIPosterior(skym, vis)
+    base_post = VLBIPosterior(vis; sky = skym)
 
     # Test with a simple reduction function (total flux)
     @testset "Total Flux Measurement" begin
@@ -137,8 +137,8 @@ using Distributions
         noise = [0.1]
         imgdata = ImgNormalData(reduction, measurement, noise)
 
-        # Create posterior with both VLBI and image data using keyword argument
-        post = VLBIPosterior(skym, vis; imgdata = (imgdata,))
+        # Create posterior with both VLBI and image data
+        post = VLBIPosterior(vis, imgdata; sky = skym)
 
         # Test that we can evaluate the posterior
         x_prior = prior_sample(post)
@@ -158,12 +158,12 @@ using Distributions
         g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 32, 32)
         skym = SkyModel(testimg, testimg_prior(g), g)
 
-        post = VLBIPosterior(skym, vis; imgdata = (imgdata,))
+        post = VLBIPosterior(vis, imgdata; sky = skym)
         x_prior = prior_sample(post)
         @inferred logdensityof(post, x_prior)
 
         skym = SkyModel(testimg_add, testimg_add_prior(g), g)
-        post = VLBIPosterior(skym, vis; imgdata = (imgdata,))
+        post = VLBIPosterior(vis, imgdata; sky = skym)
         x_prior = prior_sample(post)
         @inferred logdensityof(post, x_prior)
 

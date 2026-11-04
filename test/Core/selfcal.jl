@@ -52,8 +52,8 @@ _wrapdiff(a, b) = abs(angle(cis(a - b)))
     rng = Random.Xoshiro(17)
     dvis = _selfcal_test_data()
     skym = _selfcal_test_sky()
-    post = VLBIPosterior(skym, selfcal_gains(), dvis)
-    plain = VLBIPosterior(skym, phase_gains(), dvis)
+    post = VLBIPosterior(dvis; sky = skym, instrument = selfcal_gains())
+    plain = VLBIPosterior(dvis; sky = skym, instrument = phase_gains())
 
     @testset "the likelihood is that of the plain model at φ = φ̂ + selfcal_residual" begin
         for _ in 1:3
@@ -66,7 +66,7 @@ _wrapdiff(a, b) = abs(angle(cis(a - b)))
     @testset "φ̂ is the station phase of noise-free data, and zero at the fixed entries" begin
         θtrue = prior_sample(rng, plain)
         dsim = only(simulate_observation(rng, plain, θtrue; add_thermal_noise = false))
-        spost = VLBIPosterior(skym, selfcal_gains(), dsim)
+        spost = VLBIPosterior(dsim; sky = skym, instrument = selfcal_gains())
         θ = prior_sample(rng, spost)
         res0 = map(zero, θ.instrument.selfcal_residual)
         θ = (sky = θtrue.sky, instrument = (lg = θtrue.instrument.lg, selfcal_residual = res0))
@@ -77,7 +77,7 @@ _wrapdiff(a, b) = abs(angle(cis(a - b)))
         @test maximum(_wrapdiff.(d, d[ref])) < 1.0e-8
         fixed = VLBIInstrumentModels.fixed_indices(spost.prior.instrument.selfcal_residual)
         @test !isempty(fixed) && all(iszero, parent(φ)[fixed])
-        splain = VLBIPosterior(skym, phase_gains(), dsim)
+        splain = VLBIPosterior(dsim; sky = skym, instrument = phase_gains())
         @test Comrade.loglikelihood(spost, θ) ≈ Comrade.loglikelihood(splain, θtrue)
     end
 
@@ -96,8 +96,8 @@ _wrapdiff(a, b) = abs(angle(cis(a - b)))
         @test selfcal_gains().selfcal && !amplitude_gains().selfcal
         @test_throws "the prior already has one" named_residual()
         t = dvis
-        @test_throws "exactly one table" VLBIPosterior(skym, selfcal_gains(), amplitudes(t))
-        @test_throws "exactly one table" VLBIPosterior(skym, selfcal_gains(), t, amplitudes(t))
-        @test_throws "exactly one table" VLBIPosterior(skym, selfcal_gains(), closure_phases(t))
+        @test_throws "exactly one table" VLBIPosterior(amplitudes(t); sky = skym, instrument = selfcal_gains())
+        @test_throws "exactly one table" VLBIPosterior(t, amplitudes(t); sky = skym, instrument = selfcal_gains())
+        @test_throws "exactly one table" VLBIPosterior(closure_phases(t); sky = skym, instrument = selfcal_gains())
     end
 end

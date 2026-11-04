@@ -101,7 +101,7 @@ using VLBIImagePriors
         m = gauss2(g)
         # Smoke-test through the full posterior pipeline
         _, vis, _, _, _ = load_data()
-        post = VLBIPosterior(m, vis)
+        post = VLBIPosterior(vis; sky = m)
         x = prior_sample(post)
         @test isfinite(logdensityof(post, x))
         tpostf = asflat(post)

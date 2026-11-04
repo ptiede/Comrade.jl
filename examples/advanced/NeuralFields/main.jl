@@ -210,7 +210,7 @@ intmodel = instrument()
 # Since we are fitting closures we do not need to include an instrument model, since
 # the closure likelihood is approximately independent of gains in the high SNR limit.
 using Enzyme
-post_cpu = VLBIPosterior(skym, intmodel, dvis)
+post_cpu = VLBIPosterior(dvis; sky = skym, instrument = intmodel)
 
 # Place the posterior on one Reactant device. `todevice` with `NoSharding()` moves its arrays
 # (visibility points, data, weights, the sky metadata and the instrument's tables) to the

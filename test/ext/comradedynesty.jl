@@ -6,7 +6,7 @@ using Dynesty
     prior = test_prior()
     g = spatialgrid(μas2rad(150.0), μas2rad(150.0), 256, 256)
     skym = SkyModel(test_model, test_prior(), g)
-    post = VLBIPosterior(skym, lcamp, cphase)
+    post = VLBIPosterior(lcamp, cphase; sky = skym)
     a1 = NestedSampler()
     a2 = DynamicNestedSampler()
 
