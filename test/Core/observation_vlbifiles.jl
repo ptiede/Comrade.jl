@@ -206,3 +206,17 @@ end
     cp_avg = extract_table(uvd, ClosurePhases(; time_average = VLBI.GapBasedScans()))
     @test length(cp_avg) > 0
 end
+
+
+@testset "scan table follows the GapBasedScans of time_average" begin
+    path = joinpath(@__DIR__, "..", "test_data.uvfits")
+    uvd = VLBIFiles.load(VLBIFiles.UVData, path)
+    # A gap shorter than the record spacing makes every record time its own scan.
+    for min_gap in (1.0VLBIFiles.Unitful.u"minute", 1.0VLBIFiles.Unitful.u"s")
+        v = extract_table(uvd, Visibilities(; time_average = VLBI.GapBasedScans(; min_gap)))
+        sc = arrayconfig(v).scans
+        ts = unique(arrayconfig(v)[:Ti])
+        @test length(sc) == length(ts)
+        @test all(t -> count(i -> sc.start[i] <= t <= sc.stop[i], eachindex(sc)) == 1, ts)
+    end
+end
