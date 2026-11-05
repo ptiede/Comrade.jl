@@ -56,6 +56,7 @@ Comrade.elevation_parallactic
 Comrade.average
 Comrade.ByScan
 Comrade.ChannelBins
+Comrade.BySpw
 Comrade.ByChannel
 Comrade.averaging_axis
 ```
@@ -128,6 +129,7 @@ Comrade.TrackSeg
 Comrade.EpochSeg
 Comrade.SpanSeg
 Comrade.ChannelSeg
+Comrade.SpwSeg
 Comrade.BandSeg
 Comrade.ProductSeg
 Comrade.:⊗(::Comrade.VLBIInstrumentModels.TimeSegmentation, ::Comrade.VLBIInstrumentModels.FrequencySegmentation)
