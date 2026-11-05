@@ -126,7 +126,16 @@ Comrade.IntegSeg
 Comrade.ScanSeg
 Comrade.TrackSeg
 Comrade.EpochSeg
+Comrade.SpanSeg
+Comrade.ChannelSeg
+Comrade.BandSeg
+Comrade.ProductSeg
+Comrade.:⊗(::Comrade.VLBIInstrumentModels.TimeSegmentation, ::Comrade.VLBIInstrumentModels.FrequencySegmentation)
+Comrade.bands
 Comrade.timestamps
+Comrade.VLBIInstrumentModels.freqsegments
+Comrade.VLBIInstrumentModels.TimeSegmentation
+Comrade.VLBIInstrumentModels.FrequencySegmentation
 Comrade.SingleReference
 Comrade.MultiReference
 Comrade.SensitiveReference
