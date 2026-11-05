@@ -39,7 +39,7 @@ and as Enzyme and Comrade matures we expect this to not need runtime activity.
 t = average(VisTable(uvd, IPol()), ByScan())
 dlcamp, dcphase = logclosure_amplitudes(t), closure_phases(t)
 
-function sky(θ, metadata)
+function sky(θ, grid, metadata)
     (; r, a) = θ
     m = stretched(ExtendedRing(a), r, r)
     return m
