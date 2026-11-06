@@ -9,7 +9,7 @@ _with_chain_params(v, p) = _is_chain_value(v) ? (; params = p, hyperparams = v.h
 # Indices of each station's points within a `StationArray`, in time order.
 function _station_points(sa)
     st = stations(sa)
-    ts = [t.t0 for t in times(sa)]
+    ts = [t.start for t in times(sa)]
     return map(unique(st)) do s
         I = findall(==(s), st)
         s => I[sortperm(ts[I])]

@@ -138,6 +138,8 @@ Comrade.timestamps
 Comrade.VLBIInstrumentModels.freqsegments
 Comrade.VLBIInstrumentModels.TimeSegmentation
 Comrade.VLBIInstrumentModels.FrequencySegmentation
+Comrade.VLBIInstrumentModels.TimeSegment
+Comrade.VLBIInstrumentModels.FrequencySegment
 Comrade.SingleReference
 Comrade.MultiReference
 Comrade.SensitiveReference
@@ -157,6 +159,7 @@ Comrade.AbstractInstrumentModel
 Comrade.IdealInstrumentModel
 Comrade.InstrumentModel
 Comrade.StationArray
+Comrade.stationgrid
 Comrade.StationLookup
 Comrade.forward_jones
 Comrade.selfcal_phase
