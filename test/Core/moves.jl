@@ -135,14 +135,14 @@ function _moves_gm_sky()
 end
 @instrument function _moves_gm_instrument()
     return @jones begin
-        lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
-        gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 0.5, τ = 2.0)); refant = SensitiveReference(0.0))
+        lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
+        gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 0.5, τ = 2.0)); refant = SensitiveReference(0.0))
         return Jones(exp(complex(lg, gp)))
     end
 end
 @instrument function _moves_wrapped_instrument()
     return @jones begin
-        gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), WrappedOrnsteinUhlenbeck(σ = 0.5, τ = 2.0)); refant = SensitiveReference(0.0))
+        gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = WrappedOrnsteinUhlenbeck(σ = 0.5, τ = 2.0)); refant = SensitiveReference(0.0))
         return Jones(exp(complex(0.0, gp)))
     end
 end

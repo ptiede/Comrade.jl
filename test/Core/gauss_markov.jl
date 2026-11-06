@@ -26,8 +26,8 @@ end
 
     @instrument function gmint_fitted()
         return @jones begin
-            lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
-            gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = InverseGamma(3.0, 6.0))); refant = SensitiveReference(0.0))
+            lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
+            gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 2.0, τ = InverseGamma(3.0, 6.0))); refant = SensitiveReference(0.0))
             return Jones(exp(complex(lg, gp)))
         end
     end
@@ -123,14 +123,14 @@ end
 
     @testset "derived element type" begin
         # eltype is derived from the process/override parameters, not pinned to Float64
-        gmp(p) = GaussMarkovStationPrior(ScanSeg(), p)
+        gmp(p) = GaussMarkovStationPrior(ScanSeg(); Ti = p)
         @test VLBIInstrumentModels._working_type((a = gmp(Comrade.OrnsteinUhlenbeck(σ = 0.1, τ = 2.0)),)) === Float64
         @test VLBIInstrumentModels._working_type((a = gmp(Comrade.OrnsteinUhlenbeck(σ = 0.1f0, τ = 2.0f0, μ = 0.0f0)),)) === Float32
         # fitted (Distribution) fields contribute their own eltype
         @test VLBIInstrumentModels._working_type((a = gmp(Comrade.OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0)),)) === Float64
         # the init contributes to the working type as well
         @test VLBIInstrumentModels._working_type(
-            (a = GaussMarkovStationPrior(ScanSeg(), Comrade.OrnsteinUhlenbeck(σ = 0.1f0, τ = 2.0f0, μ = 0.0f0); init = FixedInit(0.0)),)
+            (a = GaussMarkovStationPrior(ScanSeg(); Ti = Comrade.OrnsteinUhlenbeck(σ = 0.1f0, τ = 2.0f0, μ = 0.0f0), init = FixedInit(0.0)),)
         ) === Float64
         post = VLBIPosterior(dvis; sky = skym, instrument = gmint_fitted())
         @test eltype(post.prior.instrument.lg) === Float64
@@ -140,7 +140,7 @@ end
     @testset "fixed hyperparameters degrade to plain prior" begin
         @instrument function gmint_fixed()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 0.1, τ = 2.0)))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 0.1, τ = 2.0)))
                 gp ~ ArrayPrior(IIDStationPrior(ScanSeg(), DiagonalVonMises(0.0, inv(π^2))); refant = SensitiveReference(0.0))
                 return Jones(exp(complex(lg, gp)))
             end
@@ -159,7 +159,7 @@ end
         @instrument function gmint_iidover()
             return @jones begin
                 lg ~ ArrayPrior(
-                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0));
+                    GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0));
                     LM = IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0))
                 )
                 return Jones(exp(lg))
@@ -178,8 +178,8 @@ end
         @instrument function gmint_gmover()
             return @jones begin
                 lg ~ ArrayPrior(
-                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0)));
-                    LM = GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(1.0), τ = 2.0))
+                    GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0)));
+                    LM = GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = Exponential(1.0), τ = 2.0))
                 )
                 return Jones(exp(lg))
             end
@@ -199,7 +199,7 @@ end
         @instrument function gmint_iidrefover()
             return @jones begin
                 gp ~ ArrayPrior(
-                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0));
+                    GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 2.0, τ = 1.0));
                     AA = IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0)),
                     refant = SingleReference(:AA, 0.0)
                 )
@@ -239,7 +239,7 @@ end
         # at latents u must coincide with the flat transport at z = Φ⁻¹(u) coordinatewise.
         @instrument function gmint_fixref()
             return @jones begin
-                gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0)); refant = SensitiveReference(0.0))
+                gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 2.0, τ = 1.0)); refant = SensitiveReference(0.0))
                 return Jones(exp(1im * gp))
             end
         end
@@ -280,7 +280,7 @@ end
         @instrument function gmint_boundover()
             return @jones begin
                 lg ~ ArrayPrior(
-                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0));
+                    GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0));
                     LM = IIDStationPrior(ScanSeg(), VLBIUniform(-1.0, 1.0))
                 )
                 return Jones(exp(lg))
@@ -304,7 +304,7 @@ end
     @testset "centered option" begin
         @instrument function gmint_centered()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0)); centered = true))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0)), centered = true))
                 return Jones(exp(lg))
             end
         end
@@ -327,7 +327,7 @@ end
         rrng = Random.Xoshiro(7)
         @instrument function gmint_rec()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.3), τ = Exponential(2.0))))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = Exponential(0.3), τ = Exponential(2.0))))
                 return Jones(exp(lg))
             end
         end
@@ -365,7 +365,7 @@ end
             return @jones begin
                 gp0 ~ ArrayPrior(IIDStationPrior(TrackSeg(), DiagonalVonMises(0.0, inv(π^2))))
                 dgp ~ ArrayPrior(
-                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0));
+                    GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)), init = FixedInit(0.0));
                     refant = SensitiveReference(0.0)
                 )
                 return Jones(exp(1im * (gp0 + dgp)))
@@ -389,7 +389,7 @@ end
         @instrument function gmint_anchonly()
             return @jones begin
                 dgp ~ ArrayPrior(
-                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0));
+                    GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)), init = FixedInit(0.0));
                     refant = SensitiveReference(0.0)
                 )
                 return Jones(exp(1im * dgp))
@@ -406,7 +406,7 @@ end
         @instrument function gmint_anchcent()
             return @jones begin
                 dgp ~ ArrayPrior(
-                    GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)); init = FixedInit(0.0), centered = true);
+                    GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 1.0, τ = InverseGamma(3.0, 3.0)), init = FixedInit(0.0), centered = true);
                     refant = SensitiveReference(0.0)
                 )
                 return Jones(exp(1im * dgp))
@@ -428,7 +428,7 @@ end
         # a nonzero init value propagates exactly through rand and the transform
         @instrument function gmint_fixval()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 0.5, τ = 2.0); init = FixedInit(0.3)))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 0.5, τ = 2.0), init = FixedInit(0.3)))
                 return Jones(exp(lg))
             end
         end
@@ -444,7 +444,7 @@ end
         # a reference value that disagrees with FixedInit at the first point is an error
         @instrument function gmint_conflict()
             return @jones begin
-                gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0); init = FixedInit(0.3)); refant = SensitiveReference(0.0))
+                gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 2.0, τ = 1.0), init = FixedInit(0.3)); refant = SensitiveReference(0.0))
                 return Jones(exp(1im * gp))
             end
         end
@@ -453,7 +453,7 @@ end
         # agreeing values compose: the reference chain's first point is fixed by both
         @instrument function gmint_agree()
             return @jones begin
-                gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = 1.0); init = FixedInit(0.0)); refant = SensitiveReference(0.0))
+                gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 2.0, τ = 1.0), init = FixedInit(0.0)); refant = SensitiveReference(0.0))
                 return Jones(exp(1im * gp))
             end
         end
@@ -465,7 +465,7 @@ end
         # wide explicit start together with a fitted hyperparameter
         @instrument function gmint_ginit()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0); init = GaussianInit(0.0, 1.0)))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = Exponential(0.1), τ = 2.0), init = GaussianInit(0.0, 1.0)))
                 return Jones(exp(lg))
             end
         end
@@ -488,7 +488,7 @@ end
         # random-walk drift from a fixed start with a fitted diffusion coefficient
         @instrument function gmint_bm()
             return @jones begin
-                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), BrownianMotion(D = Exponential(0.1)); init = FixedInit(0.0)))
+                lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = BrownianMotion(D = Exponential(0.1)), init = FixedInit(0.0)))
                 return Jones(exp(lg))
             end
         end
@@ -523,7 +523,7 @@ end
         @instrument function gmint_wb()
             return @jones begin
                 gp ~ ArrayPrior(
-                    GaussMarkovStationPrior(ScanSeg(), WrappedBrownian(τ = InverseGamma(3.0, 6.0)); init = UniformInit());
+                    GaussMarkovStationPrior(ScanSeg(); Ti = WrappedBrownian(τ = InverseGamma(3.0, 6.0)), init = UniformInit());
                     refant = SensitiveReference(0.0)
                 )
                 return Jones(exp(1im * gp))
@@ -588,7 +588,7 @@ end
             @instrument function gmint_wbe()
                 return @jones begin
                     gp ~ ArrayPrior(
-                        GaussMarkovStationPrior(ScanSeg(), WrappedBrownian(τ = InverseGamma(3.0, 6.0)); init = UniformInit(), param = AngleEmbedded());
+                        GaussMarkovStationPrior(ScanSeg(); Ti = WrappedBrownian(τ = InverseGamma(3.0, 6.0)), init = UniformInit(), param = AngleEmbedded());
                         refant = SensitiveReference(0.0)
                     )
                     return Jones(exp(1im * gp))
@@ -624,8 +624,7 @@ end
             return @jones begin
                 gp ~ ArrayPrior(
                     GaussMarkovStationPrior(
-                        ScanSeg(),
-                        WrappedOrnsteinUhlenbeck(σ = Exponential(0.3), τ = InverseGamma(3.0, 6.0))
+                        ScanSeg(); Ti = WrappedOrnsteinUhlenbeck(σ = Exponential(0.3), τ = InverseGamma(3.0, 6.0))
                     );
                     refant = SensitiveReference(0.0)
                 )
@@ -683,7 +682,7 @@ end
                 return @jones begin
                     gp ~ ArrayPrior(
                         GaussMarkovStationPrior(
-                            ScanSeg(), WrappedOrnsteinUhlenbeck(σ = 0.3, τ = InverseGamma(3.0, 6.0));
+                            ScanSeg(); Ti = WrappedOrnsteinUhlenbeck(σ = 0.3, τ = InverseGamma(3.0, 6.0)),
                             param = AngleEmbedded()
                         );
                         refant = SensitiveReference(0.0)

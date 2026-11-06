@@ -451,15 +451,15 @@ end
 
     @instrument function gmint_reactant()
         return @jones begin
-            lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(0.1), τ = VLBIExponential(2.0))))
-            gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 2.0, τ = VLBIInverseGamma(3.0, 6.0))); refant = SensitiveReference(0.0))
+            lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = VLBIExponential(0.1), τ = VLBIExponential(2.0))))
+            gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 2.0, τ = VLBIInverseGamma(3.0, 6.0))); refant = SensitiveReference(0.0))
             return Jones(exp(complex(lg, gp)))
         end
     end
 
     @instrument function gmint_reactant_bm()
         return @jones begin
-            lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), BrownianMotion(D = VLBIExponential(0.1)); init = FixedInit(0.0)))
+            lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = BrownianMotion(D = VLBIExponential(0.1)), init = FixedInit(0.0)))
             return Jones(exp(lg))
         end
     end
@@ -467,7 +467,7 @@ end
     @instrument function gmint_reactant_wb()
         return @jones begin
             gp ~ ArrayPrior(
-                GaussMarkovStationPrior(ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0)); init = UniformInit());
+                GaussMarkovStationPrior(ScanSeg(); Ti = WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0)), init = UniformInit());
                 refant = SensitiveReference(0.0)
             )
             return Jones(exp(1im * gp))
@@ -478,7 +478,7 @@ end
         return @jones begin
             gp ~ ArrayPrior(
                 GaussMarkovStationPrior(
-                    ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0));
+                    ScanSeg(); Ti = WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0)),
                     init = UniformInit(), param = Centered()
                 );
                 refant = SensitiveReference(0.0)
@@ -491,7 +491,7 @@ end
         return @jones begin
             gp ~ ArrayPrior(
                 GaussMarkovStationPrior(
-                    ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0));
+                    ScanSeg(); Ti = WrappedBrownian(τ = VLBIInverseGamma(3.0, 6.0)),
                     init = UniformInit(), param = AngleEmbedded()
                 );
                 refant = SensitiveReference(0.0)
@@ -504,8 +504,7 @@ end
         return @jones begin
             gp ~ ArrayPrior(
                 GaussMarkovStationPrior(
-                    ScanSeg(),
-                    WrappedOrnsteinUhlenbeck(σ = VLBIExponential(0.3), τ = VLBIInverseGamma(3.0, 6.0))
+                    ScanSeg(); Ti = WrappedOrnsteinUhlenbeck(σ = VLBIExponential(0.3), τ = VLBIInverseGamma(3.0, 6.0))
                 );
                 refant = SensitiveReference(0.0)
             )

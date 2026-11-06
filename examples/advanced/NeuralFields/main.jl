@@ -197,7 +197,7 @@ skym = SkyModel(sky, prior, grid; algorithm = ReactantNUFFTAlg(), metadata = sky
         ## ≈ 0.5 rad drift per 10 s integration, starting uniform on the circle so no
         ## separate offset term is needed.
         gp ~ ArrayPrior(
-            GaussMarkovStationPrior(IntegSeg(), WrappedBrownian(τ = 2 / 90); init = UniformInit());
+            GaussMarkovStationPrior(IntegSeg(); Ti = WrappedBrownian(τ = 2 / 90), init = UniformInit());
             refant = SensitiveReference(0.0),
         )
         ## A single complex gain for each station.

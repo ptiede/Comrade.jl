@@ -111,7 +111,7 @@ using Distributions
     return @jones begin
         lg ~ ArrayPrior(IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 0.2)); LM = IIDStationPrior(ScanSeg(), VLBIGaussian(0.0, 1.0)))
         gp ~ ArrayPrior(
-            GaussMarkovStationPrior(ScanSeg(), WrappedBrownian(τ = 0.1); init = UniformInit());
+            GaussMarkovStationPrior(ScanSeg(); Ti = WrappedBrownian(τ = 0.1), init = UniformInit());
             refant = SensitiveReference(0.0)
         )
         ## A single complex gain for each station.

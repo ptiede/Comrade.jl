@@ -30,8 +30,8 @@ Comrade.propose(w::_Drift, x, u, ctx) = Comrade.propose(w.move, x, u + w.δ, ctx
 # A wide phase chain, so that its 2π sheet moves are accepted often enough to test.
 @instrument function _geweke_instrument()
     return @jones begin
-        lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
-        gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = 4.0, τ = 2.0)); refant = SensitiveReference(0.0))
+        lg ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = Exponential(0.1), τ = Exponential(2.0))))
+        gp ~ ArrayPrior(GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = 4.0, τ = 2.0)); refant = SensitiveReference(0.0))
         return Jones(exp(complex(lg, gp)))
     end
 end
@@ -41,7 +41,7 @@ end
 @instrument function _geweke_sefd_instrument()
     return @jones begin
         gp ~ ArrayPrior(
-            GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = Exponential(1.0), τ = Dists.LogNormal(log(0.02), 1.0)));
+            GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = Exponential(1.0), τ = Dists.LogNormal(log(0.02), 1.0)));
             refant = SensitiveReference(0.0)
         )
         return Jones(exp(complex(0.0, gp)))

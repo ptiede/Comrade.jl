@@ -266,9 +266,9 @@ skym = sky(grid; mimg, ftot = 0.6, cprior)
 # The `IIDStationPrior` segments are `ScanSeg()` (independent per scan), `TrackSeg()`
 # (constant over the track), and `IntegSeg()` (changes each integration time). For released
 # EHT data the gains are stable over a scan, while the d-terms are stable over the track.
-ou_amp(σ0, τ0) = GaussMarkovStationPrior(ScanSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); centered = true)
-wb_phase(τ0) = GaussMarkovStationPrior(ScanSeg(), WrappedBrownian(τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)); init = UniformInit())
-wou_phase(σ0, τ0) = GaussMarkovStationPrior(ScanSeg(), WrappedOrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)))
+ou_amp(σ0, τ0) = GaussMarkovStationPrior(ScanSeg(); Ti = OrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)), centered = true)
+wb_phase(τ0) = GaussMarkovStationPrior(ScanSeg(); Ti = WrappedBrownian(τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)), init = UniformInit())
+wou_phase(σ0, τ0) = GaussMarkovStationPrior(ScanSeg(); Ti = WrappedOrnsteinUhlenbeck(σ = VLBIExponential(σ0), τ = VLBIInverseGamma(1.0, -log(0.1) * τ0)))
 
 
 @instrument function instrument()
