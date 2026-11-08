@@ -36,6 +36,8 @@ Comrade.info(::Comrade.VisTable)
 Comrade.stationgeometry(::Comrade.VisTable)
 Comrade.baselines
 Comrade.stations(::Comrade.VisTable)
+Comrade.uvw
+Comrade.uvdist
 Comrade.times
 Comrade.frequencies
 Comrade.beamsize(::Comrade.VisTable)
