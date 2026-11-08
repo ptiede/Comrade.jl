@@ -74,6 +74,5 @@ end
         intm = InstrumentModel(gainterm(ScanSeg()))
         @test_throws "visibility-domain data product" VLBIPosterior((; A = ()); sky = (; A = skym), instrument = intm)
         @test_throws "one table of visibilities" VLBIPosterior((; A = (dvis, amplitudes(later(dvis, 1)))); sky = (; A = skym), instrument = intm)
-        @test_throws "several fields" VLBIPosterior((; A = dvis, B = cal); sky = (; A = skym, B = skym), instrument = InstrumentModel(gainterm(ScanSeg()); selfcal = true))
     end
 end

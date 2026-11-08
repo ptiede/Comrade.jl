@@ -92,6 +92,28 @@ _wrapdiff(a, b) = abs(angle(cis(a - b)))
         @test dot(g, v) ≈ fd rtol = 1.0e-4
     end
 
+    @testset "fields at different times" begin
+        fields = (; M87 = dvis, CAL = later(dvis, 1))
+        skies = (; M87 = skym, CAL = skym)
+        fpost = VLBIPosterior(fields; sky = skies, instrument = selfcal_gains())
+        fplain = VLBIPosterior(fields; sky = skies, instrument = phase_gains())
+        θ = prior_sample(rng, fpost)
+        φ = selfcal_phase(fpost, θ)
+        @test Comrade.loglikelihood(fpost, θ) ≈ Comrade.loglikelihood(fplain, _withphase(θ, φ))
+        @test keys(Comrade.instrumentmodel(fpost, θ)) == (:M87, :CAL)
+
+        tpost = transport_to(fpost, Comrade.PT.StdNormal())
+        x = randn(rng, dimension(tpost)) .* 0.3
+        _, g = Comrade.LogDensityProblems.logdensity_and_gradient(tpost, x)
+        v = normalize(randn(rng, length(x)))
+        h = 1.0e-5
+        fd = (Comrade.logdensityof(tpost, x .+ h .* v) - Comrade.logdensityof(tpost, x .- h .* v)) / 2h
+        @test dot(g, v) ≈ fd rtol = 1.0e-4
+
+        @test_throws "share no baseline at one time" VLBIPosterior((; M87 = dvis, CAL = dvis); sky = skies, instrument = selfcal_gains())
+        @test_throws "for the field CAL" VLBIPosterior((; M87 = dvis, CAL = amplitudes(later(dvis, 1))); sky = skies, instrument = selfcal_gains())
+    end
+
     @testset "construction is validated" begin
         @test selfcal_gains().selfcal && !amplitude_gains().selfcal
         @test_throws "the prior already has one" named_residual()

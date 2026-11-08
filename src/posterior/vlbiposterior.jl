@@ -76,6 +76,10 @@ scans overlap. A term that depends on direction reads it from the cell: `c.ra` a
 are the direction of the field's source, and `c.elevation`, `c.azimuth` and `c.parallactic`
 its geometry at each station.
 
+A self-calibrated instrument (`selfcal = true` in [`InstrumentModel`](@ref)) needs one table of
+visibilities or coherencies per field, and fields that share no baseline at one time; the
+station phase is solved against the data of all fields.
+
 ```julia
 post = VLBIPosterior((; SgrA = (dvis_sgra, ImgNormalData(flux, 2.4, 0.1)), J1924 = dvis_cal);
                      sky = (; SgrA = sky_sgra, J1924 = sky_cal), instrument = InstrumentModel(G * D))
@@ -125,6 +129,7 @@ function _posterior(skies::NamedTuple, instrumentmodel, (data,)::Tuple{NamedTupl
         isempty(v) && throw(
             ArgumentError("the field $n needs a visibility-domain data product (a VisTable or ClosureTable), got $(_typenames(_products(data[n])))")
         )
+        _checkdata(instrumentmodel, v, n)
     end
     tables = map(_commonvis, vis)
 
@@ -231,14 +236,15 @@ function Base.show(io::IO, mime::MIME"text/plain", post::VLBIPosterior)
 end
 
 
-# A self-calibrated model is solved against the one table it is fit to.
-_checkdata(::AbstractInstrumentModel, data) = nothing
-function _checkdata(m::InstrumentModel, data)
+# A self-calibrated model is solved against the one table of each field it is fit to.
+_checkdata(::AbstractInstrumentModel, data, field = nothing) = nothing
+function _checkdata(m::InstrumentModel, data, field = nothing)
     m.selfcal || return nothing
     vis = filter(d -> d isa VisTable && !(eltype(measurement(d)) <: Real), collect(data))
+    of = isnothing(field) ? "" : " for the field $field"
     length(data) == 1 && length(vis) == 1 || throw(
         ArgumentError(
-            "a self-calibrated instrument model needs exactly one table of visibilities or coherencies, " *
+            "a self-calibrated instrument model needs exactly one table of visibilities or coherencies$of, " *
                 "got $(length(data)) table(s), $(length(vis)) of them complex"
         )
     )

@@ -136,6 +136,7 @@ end
 
 _forwardjones(J, θ, data::Tuple) = forward_jones(_observedmodel(J), _instrumentvalues(θ), _commonvis(data))
 _forwardjones(J::FieldInstruments, θ, data::NamedTuple) = map((j, d) -> _forwardjones(j, θ, d), J.fields, data)
+_forwardjones(J::ObservedSelfCalInstrumentModel{<:FieldInstruments}, θ, data::NamedTuple) = _forwardjones(J.model, θ, data)
 
 _observedmodel(J::ObservedInstrumentModel) = J
 _observedmodel(J::ObservedSelfCalInstrumentModel) = J.model
