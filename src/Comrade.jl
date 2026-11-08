@@ -45,7 +45,7 @@ import DimensionalData as DD
 import VLBIInstrumentModels: observe, domain, simulate_observation, selfcal_phase
 using VLBIInstrumentModels: AbstractInstrumentModel, IdealInstrumentModel, FieldInstruments,
     ObservedInstrumentModel, ObservedSelfCalInstrumentModel, instrument,
-    _closurevalue, _dense, _elements, _measuredvalues, _polname,
+    _closurevalue, _dense, _measuredvalues, _polname,
     _observedvalues, _storage, _withmodel,
     _kwname, _scan_used_names, _split_tildes,
     WhitenedHierarchicalTransform, StdWhitenedHierarchicalTransform,

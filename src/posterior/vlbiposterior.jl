@@ -302,15 +302,12 @@ _residuals(data::NamedTuple, vis::NamedTuple) = map(_residuals, data, vis)
 _residuals(data::Tuple, vis) = map(d -> _residual(d, baseimage(vis)), data)
 
 function _residual(t::VisTable, vis)
-    model = _withmodel(t, vis)
-    r = _dense(measurement(t)) .- _dense(measurement(model))
-    return VisTable(t.pol, IntensityMap(_elements(t.pol, r), domain(t)), weight(t), stationgeometry(t))
+    return VisTable(t.pol, measurement(t) .- measurement(_withmodel(t, vis)), weight(t))
 end
 function _residual(ct::ClosureTable, vis)
-    model = _withmodel(ct, vis)
-    r = baseimage(measurement(ct)) .- baseimage(measurement(model))
+    r = measurement(ct) .- measurement(_withmodel(ct, vis))
     r = ct.product isa ClosurePhases ? atan.(sin.(r), cos.(r)) : r
-    return ClosureTable(ct.product, IntensityMap(r, domain(ct)), getfield(ct, :vis), getfield(ct, :design), getfield(ct, :covariance))
+    return ClosureTable(ct.product, r, getfield(ct, :vis), getfield(ct, :design), getfield(ct, :covariance))
 end
 
 """

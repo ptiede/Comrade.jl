@@ -4,15 +4,9 @@ using FiniteDifferences
 
 # `t` as an observation of the source `name` at declination `dec`.
 function with_source(t::VisTable, name; dec = info(t).source.dec)
-    a, d = info(t), domain(t)
-    c = Comrade.ComradeBase.coords(d)
-    g = stationgeometry(t)
+    a = info(t)
     b = ArrayInfo(; a.stations, a.channels, a.scans, a.tracks, source = Source(name, a.source.ra, dec), a.epoch)
-    return VisTable(
-        t.pol, VLBIInstrumentModels._dense(measurement(t)); weight = VLBIInstrumentModels._dense(weight(t)),
-        u = c.u, v = c.v, Ti = d.Ti, ant1 = d.ant1, ant2 = d.ant2, info = b,
-        elevation = parent(g.elevation), parallactic = parent(g.parallactic),
-    )
+    return VisTable(t.pol, records(t), collect(baseimage(measurement(t))), collect(baseimage(weight(t))); info = b)
 end
 
 @testset "Fields" begin

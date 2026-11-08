@@ -231,7 +231,7 @@ end
 function _closureblocks(ct::Comrade.ClosureTable, slot)
     D, Σ = getfield(ct, :design), getfield(ct, :covariance)
     d = Comrade.domain(ct)
-    stamp = collect(zip(d.ts, d.Fr))
+    stamp = collect(zip(d.Ti, d.Fr))
     blocks = [findall(==(s), stamp) for s in unique(stamp)]
     sum(r -> nnz(Σ[r, r]), blocks) == nnz(Σ) ||
         error("the closure covariance is not block diagonal over time stamps and channels")

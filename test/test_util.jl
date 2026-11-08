@@ -108,26 +108,23 @@ end
 # The one-channel table `t` with a second channel at frequency `ν` holding the same values.
 function with_channel(t::VisTable, ν)
     a = info(t)
-    d = domain(t)
     ch = (; frequency = [only(a.channels.frequency), ν], width = fill(only(a.channels.width), 2))
     order = sortperm(ch.frequency)
     a2 = ArrayInfo(; stations = a.stations, channels = map(c -> c[order], ch), scans = a.scans, tracks = a.tracks, source = a.source, epoch = a.epoch)
-    V = VLBIInstrumentModels._dense(measurement(t))
-    w = VLBIInstrumentModels._dense(weight(t))
-    meters = Comrade.ComradeBase.speed_of_light / only(a.channels.frequency)
-    return VisTable(
-        t.pol, cat(V, V; dims = 2); weight = cat(w, w; dims = 2),
-        u = d.U[:, 1] .* meters, v = d.V[:, 1] .* meters, Ti = d.Ti, ant1 = d.ant1, ant2 = d.ant2, info = a2,
-    )
+    V, w = collect(baseimage(measurement(t))), collect(baseimage(weight(t)))
+    return VisTable(t.pol, records(t), hcat(V, V), hcat(w, w); info = a2)
+end
+
+# The per-record coordinates of `t` as a records table.
+function records(t::VisTable)
+    d = domain(t)
+    c = Comrade.ComradeBase.coords(d)
+    return (; uvw = tuple.(c.u, c.v, c.w), d.Ti, d.ant1, d.ant2)
 end
 
 # `t` observed `days` days later: the same records with the epoch moved.
 function later(t::VisTable, days)
-    a, d = info(t), domain(t)
-    c = Comrade.ComradeBase.coords(d)
+    a = info(t)
     b = ArrayInfo(; a.stations, a.channels, a.scans, a.tracks, a.source, epoch = a.epoch + Dates.Day(days))
-    return VisTable(
-        t.pol, VLBIInstrumentModels._dense(measurement(t)); weight = VLBIInstrumentModels._dense(weight(t)),
-        u = c.u, v = c.v, Ti = d.Ti, ant1 = d.ant1, ant2 = d.ant2, info = b,
-    )
+    return VisTable(t.pol, records(t), collect(baseimage(measurement(t))), collect(baseimage(weight(t))); info = b)
 end
