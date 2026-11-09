@@ -53,11 +53,18 @@ _noisier(t, k) = VLBIInstrumentModels._withweights(t, baseimage(weight(t)) ./ k^
 # Every statistic is under the critical value and every move was accepted at least sometimes.
 _passes(r) = all(<=(r.geweke_critical), r.geweke) && all(>(0.05), r.geweke_accept)
 
+# The full joint-distribution tests (both latent spaces, every move, more replicates) run with
+# COMRADE_TEST_GEWEKE=1; by default one small case per move kind runs in the StdNormal space.
+const _FULL_GEWEKE = get(ENV, "COMRADE_TEST_GEWEKE", "0") == "1"
+
 @testset "joint-distribution test of moves" begin
     sp = Comrade.PT.StdNormal()
-    kw = (; ngeweke = 1000, geweke_steps = 20)
+    spaces = _FULL_GEWEKE ? (nothing, sp) : (sp,)
+    # The broken moves need the full replicates to fail reliably.
+    full = (; ngeweke = 1000, geweke_steps = 20)
+    kw = _FULL_GEWEKE ? full : (; ngeweke = 200, geweke_steps = 10)
 
-    @testset "toy sky: $(Comrade._space_name(space))" for space in (nothing, sp)
+    @testset "toy sky: $(Comrade._space_name(space))" for space in spaces
         _, vis, _, _, _ = load_data()
         prior = (
             a = Dists.LogNormal(0.0, 0.3), b = Dists.LogNormal(0.0, 0.3),
@@ -78,27 +85,27 @@ _passes(r) = all(<=(r.geweke_critical), r.geweke) && all(>(0.05), r.geweke_accep
         rw(traceable) = CompensatedMove("a_rw", view, (:sky, :a), (:sky, :b), (vb, x, x′, ctx) -> vb; traceable)
         @test _passes(check_move(ab, post, θs; space, rng, τ = 0.3, kw...))
         @test _passes(check_move(rw(false), post, θs; space, rng, kw...))
-        @test _passes(check_move(rw(true), post, θs; space, rng, kw...))
+        _FULL_GEWEKE && @test _passes(check_move(rw(true), post, θs; space, rng, kw...))
         @test _passes(check_move(_SheetToy(), post, θs; space, rng, kw...))
         @test_throws "is not reversed by its reverse step" check_move(_Drift(rw(false), 0.05), post, θs; space, rng)
-        @test_throws "does not leave the posterior invariant" check_move(_Drift(rw(false), 0.05), post, θs; space, rng, rtol = Inf, kw...)
+        @test_throws "does not leave the posterior invariant" check_move(_Drift(rw(false), 0.05), post, θs; space, rng, rtol = Inf, full...)
     end
 
     post = VLBIPosterior(_moves_gm_data(); sky = _moves_gm_sky(), instrument = _geweke_instrument())
     rng = Random.Xoshiro(43)
     θs = [prior_sample(rng, post) for _ in 1:2]
-    @testset "chain moves: $(Comrade._space_name(space))" for space in (nothing, sp)
+    @testset "chain moves: $(Comrade._space_name(space))" for space in spaces
         view = CoordinateView(post, space)
         fg = flux_gain_move(view; flux = (:sky, :f1), gains = (:instrument, :lg))
         @test _passes(check_move(fg, post, θs; space, rng, kw...))
         @test _passes(check_move(PhaseSheetMove(post, (:gp,); space), post, θs; space, rng, kw...))
     end
 
-    @testset "componentwise and MoveSet: $(Comrade._space_name(space))" for space in (nothing, sp)
+    @testset "componentwise and MoveSet: $(Comrade._space_name(space))" for space in spaces
         view = CoordinateView(post, space)
         fg = flux_gain_move(view; flux = (:sky, :f1), gains = (:instrument, :lg))
         hm = chain_hyper_moves(view, (:instrument, :lg))
-        @testset "componentwise $(Comrade.move_name(m))" for m in hm
+        @testset "componentwise $(Comrade.move_name(m))" for m in (_FULL_GEWEKE ? hm : hm[1:1])
             @test _passes(check_move(m, post, θs; space, rng, τ = 0.5, kw...))
         end
         sheet = PhaseSheetMove(post, (:gp,); space)
@@ -125,17 +132,17 @@ _passes(r) = all(<=(r.geweke_critical), r.geweke) && all(>(0.05), r.geweke_accep
             x = Comrade.inverse(rview.tbase, prior_sample(rng, rpost))
             @test isnothing(Comrade._check_components(m, x, 0.5 .* randn(rng, length(m.stations)), ctx))
         end
-        @test _passes(check_move(m, rpost, rθs; space = sp, rng, τ = 0.5, kw...))
+        _FULL_GEWEKE && @test _passes(check_move(m, rpost, rθs; space = sp, rng, τ = 0.5, kw...))
     end
 
     @testset "broken moves fail" begin
         @test_throws "does not leave the posterior invariant" check_move(
-            _FlippedLogdet(first(hm)), post, θs; space = sp, rng, τ = 0.5, logdet_atol = Inf, kw...
+            _FlippedLogdet(first(hm)), post, θs; space = sp, rng, τ = 0.5, logdet_atol = Inf, full...
         )
         @test_throws "does not leave the posterior invariant" check_move(
-            _Drift(fgs, 0.025), post, θs; space = sp, rng, τ = 0.05, rtol = Inf, kw...
+            _Drift(fgs, 0.025), post, θs; space = sp, rng, τ = 0.05, rtol = Inf, full...
         )
         liar = CompensatedMove("liar", vs, (:sky, :f1), (:instrument, :lg), (vb, x, x′, ctx) -> vb; likelihood_invariant = true)
-        @test_throws "changed the likelihood" check_move(liar, post, θs; space = sp, rng, rtol = Inf, kw...)
+        @test_throws "changed the likelihood" check_move(liar, post, θs; space = sp, rng, rtol = Inf, full...)
     end
 end

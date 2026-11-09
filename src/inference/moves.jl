@@ -255,8 +255,12 @@ _reverse_step(d::SymmetricDiscreteStep, step) = d.reverse(step)
 The `ctx` argument of [`propose`](@ref): `(; view, ...)` merged with the `context_data` of
 every move.
 """
-function move_context(view::CoordinateView, moves)
-    return foldl((c, m) -> merge(c, context_data(m, view)), moves; init = (; view))
+Base.@nospecializeinfer function move_context(@nospecialize(view::CoordinateView), @nospecialize(moves))
+    ctx = (; view)
+    for m in moves
+        ctx = merge(ctx, context_data(m, view))
+    end
+    return ctx
 end
 
 _rget(x, i) = ComradeBase.rgetindex(x, i)
@@ -344,7 +348,7 @@ end
 # Throws unless the components of a componentwise move are independent at `x`: disjoint
 # coordinates, nothing changed outside them, and component `i` of `step` alone changing only
 # component `i`'s coordinates, as in the full step and with the same log-determinant.
-function _check_components(move::AbstractMove, x, step, ctx; rtol::Real = 1.0e-8)
+Base.@nospecializeinfer function _check_components(@nospecialize(move::AbstractMove), x, step, @nospecialize(ctx); rtol::Real = 1.0e-8)
     name = move_name(move)
     cs = component_coords(move)
     length(cs) == length(step) ||
@@ -385,7 +389,7 @@ _logprior_latent(tbase, post, x) =
 
 # The coordinates changed by the first of up to 100 steps of `move` (from the points of `xs`
 # in turn) that changes its point, and the unit direction of the change.
-function _first_change(move, d, xs, ctx, rng, τ)
+Base.@nospecializeinfer function _first_change(@nospecialize(move), d, xs, @nospecialize(ctx), rng, τ)
     for i in 1:100
         x = xs[mod1(i, length(xs))]
         step = _draw_step(d, rng, τ)
@@ -428,8 +432,8 @@ statistics `ks` and `geweke` with their critical values; and `geweke_accept`, th
 rate in the Geweke test. A move that rarely moves passes the Geweke test untested, so check
 that `geweke_accept` is not near zero.
 """
-function check_move(
-        move::AbstractMove, post::VLBIPosterior, θs; space = nothing,
+Base.@nospecializeinfer function check_move(
+        @nospecialize(move::AbstractMove), @nospecialize(post::VLBIPosterior), @nospecialize(θs); space = nothing,
         rng::AbstractRNG = Random.default_rng(), τ::Real = 0.1, rtol::Real = 1.0e-8,
         h::Real = 1.0e-6, logdet_atol::Real = 1.0e-5, nprior::Integer = 0, nsteps::Integer = 5,
         ncoords::Integer = 5, ks_alpha::Real = 1.0e-3, ngeweke::Integer = 0,
@@ -441,7 +445,10 @@ function check_move(
     name = move_name(move)
     tbase = view.tbase
     rev, lderr, dll = 0.0, 0.0, 0.0
-    xs = [inverse(tbase, θ) for θ in θs]
+    xs = Vector{Float64}[]
+    for θ in θs
+        push!(xs, inverse(tbase, θ))
+    end
     for x in xs
         step = _draw_step(d, rng, τ)
         x′, ld = propose(move, x, step, ctx)
@@ -479,9 +486,9 @@ function check_move(
     if nprior > 0
         idx = _spread(changed, ncoords)
         crit = _ks_critical(ks_alpha, length(idx), nprior)
-        draw() = inverse(tbase, prior_sample(rng, post))
-        moved = map(1:nprior) do _
-            x = draw()
+        moved = Vector{Vector{Float64}}(undef, nprior)
+        for i in 1:nprior
+            x = inverse(tbase, prior_sample(rng, post))
             ℓ = _logprior_latent(tbase, post, x)
             for _ in 1:nsteps
                 x′, ld = propose(move, x, _draw_step(d, rng, τ), ctx)
@@ -490,9 +497,12 @@ function check_move(
                     x, ℓ = x′, ℓ′
                 end
             end
-            x[idx]
+            moved[i] = x[idx]
         end
-        fresh = [draw()[idx] for _ in 1:nprior]
+        fresh = Vector{Vector{Float64}}(undef, nprior)
+        for i in 1:nprior
+            fresh[i] = inverse(tbase, prior_sample(rng, post))[idx]
+        end
         ks = [_ks_statistic(getindex.(moved, k), getindex.(fresh, k)) for k in eachindex(idx)]
         all(<=(crit), ks) || error(
             "move $name does not leave the prior invariant: KS statistics $(round.(ks; digits = 3)) " *

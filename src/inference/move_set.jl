@@ -89,8 +89,8 @@ function _per_move(v::AbstractVector, n, name)
     return collect(v)
 end
 
-function MoveSet(
-        post::VLBIPosterior, moves; space = nothing, θ0 = nothing, rounds = 1,
+Base.@nospecializeinfer function MoveSet(
+        @nospecialize(post::VLBIPosterior), @nospecialize(moves); space = nothing, θ0 = nothing, rounds = 1,
         initial_scale = 0.1, target_accept = 0.45, output = nothing,
         rng::AbstractRNG = Random.default_rng()
     )
@@ -171,8 +171,8 @@ end
 
 # The change in the log-likelihood when `move` proposes from `x` with `step` (by default drawn
 # from `rng` at scale 0.1); throws if it exceeds `rtol` relative to the log-likelihood.
-function _check_invariance(
-        move::AbstractMove, ctx, x;
+Base.@nospecializeinfer function _check_invariance(
+        @nospecialize(move::AbstractMove), @nospecialize(ctx), x;
         rng::AbstractRNG = Random.default_rng(), step = _draw_step(_step_distribution(move), rng, 0.1),
         rtol::Real = 1.0e-8
     )
@@ -199,7 +199,7 @@ _compile_moves(ms::MoveSet, tpost, position) = (; data = Base.structdiff(ms.ctx,
 # position; the Reactant extension defines the same set for a device position.
 # `fused(x, ℓ, order, steps, logu)` runs the traceable moves' steps of one call and returns
 # `(x, ℓ, logα, accepted)`.
-function _move_kernels(ms::MoveSet, c, tpost, position)
+Base.@nospecializeinfer function _move_kernels(@nospecialize(ms::MoveSet), @nospecialize(c), @nospecialize(tpost), @nospecialize(position))
     ctx = _bind_context(c.data, tpost)
     host_propose = (j, x, step) -> propose(ms.moves[j], x, step, ctx)
     k = (;
@@ -222,7 +222,7 @@ _traced_moves(ms::MoveSet) = [j for j in eachindex(ms.moves) if traceable(ms.mov
 
 # One step of move `j` with `step` from `x`, whose log density is `ℓ`, and the uniform
 # `logu`: the point and its log density after the step, `log α`, and whether it was accepted.
-function _transition(k, free, j, x, ℓ, step, logu)
+Base.@nospecializeinfer function _transition(@nospecialize(k), free, j, x, ℓ, step, logu)
     x′, logdet = k.propose(j, x, step)
     ℓ′ = free ? ℓ + k.prior_delta(x, x′) : k.logdensity(x′)
     logα = ℓ′ - ℓ + logdet
@@ -232,7 +232,7 @@ end
 
 # The traceable moves' steps of one call: step `s` is the step `steps[s]` of move
 # `tj[order[s]]`, with the uniform `logu[s]`.
-function _fused_sequential(k, tj, free, x, ℓ, order, steps, logu)
+Base.@nospecializeinfer function _fused_sequential(@nospecialize(k), tj, free, x, ℓ, order, steps, logu)
     logα = similar(steps)
     accepted = falses(length(steps))
     for (s, c) in pairs(order)
@@ -244,7 +244,7 @@ end
 
 # The cache is keyed by `objectid(tpost)` rather than holding `tpost`, so a `MoveSet` kept
 # after sampling does not keep the sampler's posterior alive.
-function _kernels_for(ms::MoveSet, tpost, position)
+Base.@nospecializeinfer function _kernels_for(@nospecialize(ms::MoveSet), @nospecialize(tpost), @nospecialize(position))
     c = ms.compiled[]
     if isnothing(c) || c.key != objectid(tpost) || c.T !== typeof(position)
         c = (; key = objectid(tpost), T = typeof(position), compiled = _compile_moves(ms, tpost, position))
@@ -293,7 +293,7 @@ end
 # One round of the componentwise move `j` on the host: a step for every component, each
 # accepted in turn from the prior alone. Returns the point, its log density and the number of
 # components accepted.
-function _componentwise_round(ms::MoveSet, j, k, x, ℓ, phase, rng)
+Base.@nospecializeinfer function _componentwise_round(@nospecialize(ms::MoveSet), j, @nospecialize(k), x, ℓ, phase, rng)
     m = ms.moves[j]
     st = ms.stats[j]
     xh = k.download(x)
@@ -332,6 +332,15 @@ _adapt(logτ, α, target, n) = clamp(logτ + (α - target) / n^0.6, log(1.0e-8),
 function (ms::MoveSet)(
         position, tpost, phase::Symbol, rng::AbstractRNG;
         step = nothing, total = nothing, report::Bool = true
+    )
+    return _call(ms, position, tpost, phase, rng, step, total, report)
+end
+
+# Compiled once for all moves and posteriors, whose types are large; the calls inside dispatch
+# to code compiled for each type.
+Base.@nospecializeinfer function _call(
+        @nospecialize(ms::MoveSet), @nospecialize(position), @nospecialize(tpost), phase::Symbol,
+        rng::AbstractRNG, step, total, report::Bool
     )
     want = space(ms.ctx.view)
     have = _node_space(PT.transport_node(tpost.transform))
@@ -482,34 +491,38 @@ _step_scale(::NormalStep, st) = exp(only(st.logscales))
 _step_scale(::ComponentwiseNormalStep, st) = exp.(st.logscales)
 _step_scale(d, st) = nothing
 
+# `post` with data simulated at the parameters `θ`.
+function _with_data(rng, post, θ)
+    data = simulate_observation(rng, post, θ)
+    return setproperties(post, (; data, lklhds = map(makelikelihood, data)))
+end
+
 # The KS statistics and their critical value of Geweke's joint-distribution test of the
 # kernel of one call of `ms` (see `check_move`) on the latent coordinates `idx`, the
 # projections onto the vectors `dirs` and the log-likelihood, and the acceptance rate of
 # each move; an error if a statistic exceeds the critical value.
-function _check_geweke(ms::MoveSet, idx, dirs, n, steps, ks_alpha, rng)
+Base.@nospecializeinfer function _check_geweke(@nospecialize(ms::MoveSet), idx, dirs, n, steps, ks_alpha, rng)
     tbase = ms.ctx.view.tbase
     post = tbase.lpost
     isnothing(post.dataimg) || throw(
         ArgumentError("the joint-distribution test cannot simulate the image data of the posterior")
     )
-    function with_data(θ)
-        data = simulate_observation(rng, post, θ)
-        return setproperties(post, (; data, lklhds = map(makelikelihood, data)))
-    end
-    moved = map(1:n) do _
+    moved = Vector{Vector{Float64}}(undef, n)
+    for i in 1:n
         θ = prior_sample(rng, post)
         x = inverse(tbase, θ)
-        py = with_data(θ)
+        py = _with_data(rng, post, θ)
         for t in 1:steps
-            t > 1 && (py = with_data(transform(tbase, x)))
+            t > 1 && (py = _with_data(rng, post, transform(tbase, x)))
             x = ms(x, TransformedVLBIPosterior(py, tbase.transform), :sampling, rng)
         end
-        return vcat(x[idx], dot.(dirs, Ref(x)), loglikelihood(py, transform(tbase, x)))
+        moved[i] = vcat(x[idx], dot.(dirs, Ref(x)), loglikelihood(py, transform(tbase, x)))
     end
-    fresh = map(1:n) do _
+    fresh = Vector{Vector{Float64}}(undef, n)
+    for i in 1:n
         θ = prior_sample(rng, post)
         x = inverse(tbase, θ)
-        return vcat(x[idx], dot.(dirs, Ref(x)), loglikelihood(with_data(θ), θ))
+        fresh[i] = vcat(x[idx], dot.(dirs, Ref(x)), loglikelihood(_with_data(rng, post, θ), θ))
     end
     ks = [_ks_statistic(getindex.(moved, k), getindex.(fresh, k)) for k in eachindex(first(fresh))]
     crit = _ks_critical(ks_alpha, length(ks), n)
@@ -532,8 +545,8 @@ of the coordinates each move changes, and the position along each move's directi
 `geweke`, `geweke_critical` and `geweke_accept` (one rate per move). Throws if a KS statistic
 exceeds its critical value.
 """
-function check_moveset(
-        ms::MoveSet; ngeweke::Integer, geweke_steps::Integer = 10,
+Base.@nospecializeinfer function check_moveset(
+        @nospecialize(ms::MoveSet); ngeweke::Integer, geweke_steps::Integer = 10,
         rng::AbstractRNG = Random.default_rng(), ncoords::Integer = 5, ks_alpha::Real = 1.0e-3
     )
     ngeweke > 0 || throw(ArgumentError("ngeweke must be positive, got $ngeweke"))
@@ -547,14 +560,15 @@ function check_moveset(
         a.logscales .= b.logscales
     end
     xs = prior_sample(rng, view.tbase, 10)
-    moved = map(eachindex(ms.moves)) do j
-        st = ms.stats[j]
+    idxs, dirs = Vector{Int}[], Vector{Float64}[]
+    for j in eachindex(ms.moves)
         d = ms.dists[j]
-        changed, direction = _first_change(ms.moves[j], d, xs, ms.ctx, rng, _step_scale(d, st))
-        return _spread(changed, ncoords), direction
+        changed, direction = _first_change(ms.moves[j], d, xs, ms.ctx, rng, _step_scale(d, ms.stats[j]))
+        push!(idxs, _spread(changed, ncoords))
+        push!(dirs, direction)
     end
-    idx = sort!(unique(reduce(vcat, first.(moved))))
+    idx = sort!(unique(reduce(vcat, idxs)))
     geweke, geweke_critical, geweke_accept =
-        _check_geweke(run, idx, collect(last.(moved)), ngeweke, geweke_steps, ks_alpha, rng)
+        _check_geweke(run, idx, dirs, ngeweke, geweke_steps, ks_alpha, rng)
     return (; geweke, geweke_critical, geweke_accept)
 end
