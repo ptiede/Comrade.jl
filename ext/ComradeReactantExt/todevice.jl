@@ -136,8 +136,9 @@ function _placesky(m::Comrade.ObservedSkyModel{<:Comrade.FixedSkyModel}, p, grid
     return Comrade.ObservedSkyModel(_replicate(m.f, p), grid, (; model = _replicate(m.metadata.model, p), vis))
 end
 
-_placesky(m::Comrade.MultiSkyModel, p) = Comrade.MultiSkyModel(map(sm -> _placesky(sm, p), m.skymodels))
-_placesky(m::Comrade.FieldSkies, p) = Comrade.FieldSkies(map(sm -> _placesky(sm, p), m.fields))
+_placesky(m::Comrade.MultiSkyModel, p) = Comrade.MultiSkyModel(map(Base.Fix2(_placesky, p), m.skymodels))
+_placesky(m::Comrade.FieldSkies, p) = Comrade.FieldSkies(map(Base.Fix2(_placesky, p), m.fields))
+_placesky(m::Comrade.TableSkies, p) = Comrade.TableSkies(map(Base.Fix2(_placesky, p), m.tables))
 
 # A component whose image lacks the dims the layout splits goes on the visibility points of the
 # first component that has them.
@@ -195,6 +196,7 @@ _points(host::Comrade.ObservedSkyModel, placed::Comrade.ObservedSkyModel, ::Shar
 _points(host::Comrade.ObservedSkyModel, placed::Comrade.ObservedSkyModel, sharding) =
     _Points(ComradeBase.visdomain(host.grid), sharding)
 _points(host::Comrade.FieldSkies, placed::Comrade.FieldSkies, p) = map((h, s) -> _points(h, s, p), host.fields, placed.fields)
+_points(host::Comrade.TableSkies, placed::Comrade.TableSkies, p) = map((h, s) -> _points(h, s, p), host.tables, placed.tables)
 
 # The components of a multi-component sky add their visibilities, so they must share points.
 function _points(host::Comrade.MultiSkyModel, placed::Comrade.MultiSkyModel, p)

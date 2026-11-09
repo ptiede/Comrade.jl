@@ -70,6 +70,31 @@ end
         @test Comrade.apply_instrument(vis, J.N, x) ≈ vis .* exp(2 * 0.5 * deg2rad(1))
     end
 
+    @testset "several tables of one sky" begin
+        intm = InstrumentModel(gainterm(ScanSeg()))
+        late = later(dvis, 1)
+        single = VLBIPosterior(dvis; sky = skym, instrument = intm)
+        post = VLBIPosterior((; A = dvis, B = late); sky = skym, instrument = intm)
+        θ = prior_sample(post)
+        @test keys(θ.sky) == keys(prior_sample(single).sky)
+        @test dimension(post) == length(test_prior()) + 2 * (dimension(single) - length(test_prior()))
+        ideal = VLBIPosterior((; A = dvis, B = late); sky = skym)
+        θi = prior_sample(ideal)
+        @test loglikelihood(ideal, θi) ≈
+            loglikelihood(VLBIPosterior(dvis; sky = skym), θi) + loglikelihood(VLBIPosterior(late; sky = skym), θi)
+        @test keys(instrumentmodel(post, θ)) == (:A, :B)
+        @test keys(simulate_observation(post, θ; add_thermal_noise = false)) == (:A, :B)
+        @test keys(chi2(post, θ)) == (:A, :B)
+        @test typeof(skymodel(post, θ)) == typeof(skymodel(single, θ))
+
+        tpost = asflat(post)
+        x = prior_sample(tpost)
+        gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpost), x)
+        gfd, = FiniteDifferences.grad(central_fdm(5, 1), tpost, x)
+        @test gz ≈ gfd
+        @test_throws "needs at least one table" VLBIPosterior((;); sky = skym)
+    end
+
     @testset "errors" begin
         intm = InstrumentModel(gainterm(ScanSeg()))
         @test_throws "visibility-domain data product" VLBIPosterior((; A = ()); sky = (; A = skym), instrument = intm)

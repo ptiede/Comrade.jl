@@ -617,6 +617,7 @@ end
         skym = SkyModel(test_model, test_prior(), g)
         post = VLBIPosterior((; A = vis, B = later(vis, 1)); sky = (; A = skym, B = skym), instrument = InstrumentModel(G * S), admode = nothing)
         check_matches_cpu(post)
+        check_matches_cpu(VLBIPosterior((; A = vis, B = later(vis, 1)); sky = skym, instrument = InstrumentModel(G * S), admode = nothing))
     end
 end
 
@@ -721,6 +722,11 @@ end
                 instrument = InstrumentModel(G),
                 admode = nothing
             )
+            check_matches_cpu(post, bytime)
+        end
+
+        @testset "several tables of one sky" begin
+            post = VLBIPosterior((; A = vis, B = later(vis, 1)); sky = planemodel(vis, 4), instrument = InstrumentModel(G), admode = nothing)
             check_matches_cpu(post, bytime)
         end
 

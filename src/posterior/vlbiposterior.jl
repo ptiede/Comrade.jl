@@ -86,6 +86,21 @@ station phase is solved against the data of all fields.
 post = VLBIPosterior((; SgrA = (dvis_sgra, ImgNormalData(flux, 2.4, 0.1)), J1924 = dvis_cal);
                      sky = (; SgrA = sky_sgra, J1924 = sky_cal), instrument = InstrumentModel(G * D))
 ```
+
+# Several tables of one source
+
+    VLBIPosterior(data::NamedTuple; sky::AbstractSkyModel, instrument, admode)
+
+The posterior of one source observed in several tables, such as different bands or epochs:
+`data` holds the data products of each table, a tuple of products or one product, and the one
+sky model is evaluated on the records and channels of each table, with the same parameters
+`(; sky = …, instrument = …)`. A table is not padded to the channels of the others, unlike a
+table joined with `vcat`. The instrument is bound to the tables as to several fields, and a
+frequency-dependent sky reads each table's frequencies from its points.
+
+```julia
+post = VLBIPosterior((; Q = (dvis86, dcp86), A = dvis230); sky = skym, instrument = InstrumentModel(G))
+```
 """
 @noinline function VLBIPosterior(
         data...; sky, instrument = IdealInstrumentModel(),
@@ -98,11 +113,7 @@ end
 
 function _posterior(skymodel::AbstractSkyModel, instrumentmodel, data::Tuple, admode)
     vis, img = _splitdomains(data)
-    isempty(vis) && throw(
-        ArgumentError("a posterior needs a visibility-domain data product (a VisTable or ClosureTable), got $(_typenames(data))")
-    )
-    t = _commonvis(vis)
-    _checkdata(instrumentmodel, vis)
+    t = _commonvis(instrumentmodel, vis, data)
     int, intprior = observe(instrumentmodel, t)
     sky, skyprior = observe(skymodel, t)
     total_prior = combine_prior(skyprior, intprior)
@@ -125,22 +136,32 @@ function _posterior(skies::NamedTuple, instrumentmodel, (data,)::Tuple{NamedTupl
     for (n, s) in pairs(skies)
         s isa AbstractSkyModel || throw(ArgumentError("the sky model of the field $n must be an AbstractSkyModel, got a $(typeof(s))"))
     end
-    split = map(_splitdomains ∘ _products, NamedTuple{names}(data))
-    vis, img = map(first, split), map(last, split)
-    for (n, v) in pairs(vis)
-        isempty(v) && throw(
-            ArgumentError("the field $n needs a visibility-domain data product (a VisTable or ClosureTable), got $(_typenames(_products(data[n])))")
-        )
-        _checkdata(instrumentmodel, v, n)
+    return _severaltables(instrumentmodel, NamedTuple{names}(data), admode, "field") do tables
+        observed = map(observe, skies, tables)
+        return FieldSkies(map(first, observed)), NamedDist(map(last, observed))
     end
-    tables = map(_commonvis, vis)
+end
+
+function _posterior(skymodel::AbstractSkyModel, instrumentmodel, (data,)::Tuple{NamedTuple}, admode)
+    isempty(data) && throw(ArgumentError("a NamedTuple of data products needs at least one table"))
+    return _severaltables(instrumentmodel, data, admode, "table") do tables
+        observed = map(t -> observe(skymodel, t), tables)
+        return TableSkies(map(first, observed)), last(first(observed))
+    end
+end
+
+# The posterior of the data products of several tables, keyed like `data`; `observesky(tables)`
+# returns the observed sky and its prior. `kind` names a key in error messages.
+function _severaltables(observesky, instrumentmodel, data::NamedTuple, admode, kind)
+    split = map(_splitdomains ∘ _products, data)
+    vis, img = map(first, split), map(last, split)
+    names = keys(vis)
+    tables = NamedTuple{names}(map(n -> _commonvis(instrumentmodel, vis[n], _products(data[n]), "$kind $n"), names))
 
     int, intprior = observe(instrumentmodel, tables)
-    observed = map(observe, skies, tables)
-    sky = FieldSkies(map(first, observed))
-    skyprior = NamedDist(map(last, observed))
+    sky, skyprior = observesky(tables)
     total_prior = combine_prior(skyprior, intprior)
-    ls = map(d -> map(makelikelihood, d), vis)
+    ls = map(Base.Fix1(map, makelikelihood), vis)
     dataimg = _imagedata(img)
     ils = _imagelikelihoods(dataimg)
 
@@ -155,9 +176,6 @@ _posterior(::NamedTuple, _, data::Tuple, _) = throw(
         "a NamedTuple of sky models takes one NamedTuple of data products with the same keys, " *
             "got $(length(data)) data argument(s): $(_typenames(data))"
     )
-)
-_posterior(::AbstractSkyModel, _, ::Tuple{NamedTuple}, _) = throw(
-    ArgumentError("a NamedTuple of data products takes a NamedTuple of sky models with the same keys")
 )
 _posterior(sky, _, _, _) =
     throw(ArgumentError("the sky must be an AbstractSkyModel or a NamedTuple of them, got a $(typeof(sky))"))
@@ -179,7 +197,7 @@ _imagedata(img::Tuple) = img
 _imagedata(::NamedTuple{K, <:Tuple{Vararg{Tuple{}}}}) where {K} = nothing
 _imagedata(img::NamedTuple) = img
 _imagelikelihoods(::Nothing) = ()
-_imagelikelihoods(img::NamedTuple) = map(d -> map(makelikelihood, d), img)
+_imagelikelihoods(img::NamedTuple) = map(Base.Fix1(map, makelikelihood), img)
 
 _typenames(::Tuple{}) = "no data products"
 _typenames(data) = join(map(d -> string(nameof(typeof(d))), data), ", ")
@@ -187,23 +205,28 @@ _typenames(data) = join(map(d -> string(nameof(typeof(d))), data), ", ")
 _vis(t::VisTable) = t
 _vis(ct::ClosureTable) = getfield(ct, :vis)
 
-# The visibility table every data product is formed from; the model is evaluated on its records.
-function _commonvis(data)
-    t = _vis(first(data))
-    for d in data
-        _samerecords(_vis(d), t) || throw(
-            ArgumentError("every data product of a posterior must come from one table of visibilities: same records and channels")
-        )
-    end
+# The visibility table every product in `vis` is formed from; the model is evaluated on its records.
+function _commonvis(vis)
+    t = _vis(first(vis))
+    all(d -> _samerecords(_vis(d), t), vis) || throw(
+        ArgumentError("every data product of a posterior must come from one table of visibilities: same records and channels")
+    )
     return t
 end
 
+# `_commonvis(vis)` after checking the products against `instrumentmodel`; `data` holds all
+# products of the table, `key` names it in error messages.
+function _commonvis(instrumentmodel, vis, data, key = nothing)
+    isempty(vis) && throw(
+        ArgumentError("$(isnothing(key) ? "a posterior" : "the $key") needs a visibility-domain data product (a VisTable or ClosureTable), got $(_typenames(data))")
+    )
+    _checkdata(instrumentmodel, vis, key)
+    return _commonvis(vis)
+end
+
 function _samerecords(a::VisTable, b::VisTable)
-    a === b && return true
-    ca, cb = ComradeBase.coords(domain(a)), ComradeBase.coords(domain(b))
-    return size(a) == size(b) && ca.u == cb.u && ca.v == cb.v && ca.Ti == cb.Ti && ca.ant1 == cb.ant1 &&
-        ca.ant2 == cb.ant2 && info(a).channels.frequency == info(b).channels.frequency &&
-        info(a).epoch == info(b).epoch && info(a).source == info(b).source
+    table(t) = (ComradeBase.coords(domain(t)), info(t).channels.frequency, info(t).epoch, info(t).source)
+    return a === b || table(a) == table(b)
 end
 
 function combine_prior(skyprior, instrumentmodelprior)
@@ -239,11 +262,11 @@ end
 
 
 # A self-calibrated model is solved against the one table of each field it is fit to.
-_checkdata(::AbstractInstrumentModel, data, field = nothing) = nothing
-function _checkdata(m::InstrumentModel, data, field = nothing)
+_checkdata(::AbstractInstrumentModel, data, key = nothing) = nothing
+function _checkdata(m::InstrumentModel, data, key = nothing)
     m.selfcal || return nothing
     vis = filter(d -> d isa VisTable && !(eltype(measurement(d)) <: Real), collect(data))
-    of = isnothing(field) ? "" : " for the field $field"
+    of = isnothing(key) ? "" : " for the $key"
     length(data) == 1 && length(vis) == 1 || throw(
         ArgumentError(
             "a self-calibrated instrument model needs exactly one table of visibilities or coherencies$of, " *

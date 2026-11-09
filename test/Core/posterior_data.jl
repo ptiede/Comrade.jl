@@ -49,7 +49,6 @@
         @test_throws "a posterior needs a visibility-domain data product" VLBIPosterior(fd; sky = skym)
         @test_throws "the field B needs a visibility-domain data product" VLBIPosterior((; A = vis, B = fd); sky = (; A = skym, B = skym))
         @test_throws "takes one NamedTuple of data products" VLBIPosterior(vis; sky = (; A = skym))
-        @test_throws "takes a NamedTuple of sky models" VLBIPosterior((; A = vis); sky = skym)
         @test_throws "the sky model of the field B must be an AbstractSkyModel" VLBIPosterior((; A = vis, B = amp); sky = (; A = skym, B = 1))
         @test_throws "the instrument must be an AbstractInstrumentModel" VLBIPosterior(vis; sky = skym, instrument = G)
         @test_throws "the sky must be an AbstractSkyModel" VLBIPosterior(vis; sky = test_model)
