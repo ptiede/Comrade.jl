@@ -1,4 +1,4 @@
-struct VLBIPosterior{DV, DI, LV, LI, P, MS <: AbstractSkyModel, MI <: AbstractInstrumentModel, ADMode <: Union{Nothing, EnzymeCore.Mode}} <: AbstractVLBIPosterior
+struct VLBIPosterior{DV, DI, LV, LI, P, MS <: AbstractSkyModel, MI <: AbstractInstrumentModel, ADMode <: Union{Nothing, EnzymeCore.Mode}, D} <: AbstractVLBIPosterior
     data::DV
     dataimg::DI
     lklhds::LV
@@ -7,6 +7,8 @@ struct VLBIPosterior{DV, DI, LV, LI, P, MS <: AbstractSkyModel, MI <: AbstractIn
     skymodel::MS
     instrumentmodel::MI
     admode::ADMode
+    # The layout or sharding `todevice` placed the posterior with; `nothing` on the host.
+    placement::D
 end
 
 (post::VLBIPosterior)(θ) = logdensityof(post, θ)
@@ -110,8 +112,8 @@ function _posterior(skymodel::AbstractSkyModel, instrumentmodel, data::Tuple, ad
     dataimg = _imagedata(img)
     return VLBIPosterior{
         typeof(vis), typeof(dataimg), typeof(ls), typeof(ils), typeof(total_prior),
-        typeof(sky), typeof(int), typeof(admode),
-    }(vis, dataimg, ls, ils, total_prior, sky, int, admode)
+        typeof(sky), typeof(int), typeof(admode), Nothing,
+    }(vis, dataimg, ls, ils, total_prior, sky, int, admode, nothing)
 end
 
 function _posterior(skies::NamedTuple, instrumentmodel, (data,)::Tuple{NamedTuple}, admode)
@@ -144,8 +146,8 @@ function _posterior(skies::NamedTuple, instrumentmodel, (data,)::Tuple{NamedTupl
 
     return VLBIPosterior{
         typeof(vis), typeof(dataimg), typeof(ls), typeof(ils), typeof(total_prior),
-        typeof(sky), typeof(int), typeof(admode),
-    }(vis, dataimg, ls, ils, total_prior, sky, int, admode)
+        typeof(sky), typeof(int), typeof(admode), Nothing,
+    }(vis, dataimg, ls, ils, total_prior, sky, int, admode, nothing)
 end
 
 _posterior(::NamedTuple, _, data::Tuple, _) = throw(

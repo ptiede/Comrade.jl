@@ -1,5 +1,6 @@
 module ComradeReactantExt
 using Comrade
+using Comrade: Adapt
 using ComradeBase: ComradeBase, DD, ShardLayout, StructuredDomain
 using Reactant
 using StructArrays

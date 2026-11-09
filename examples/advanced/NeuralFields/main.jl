@@ -233,12 +233,13 @@ tpost = transport_to(post, TVFlat())
 # the underlying raster back onto the host before handing it to Makie.
 using CairoMakie, DisplayAs
 xinit_nt = prior_sample(rng, post) ## NamedTuple in the original parameter space
-init_img_r = @jit skymodel(post, Reactant.to_rarray(xinit_nt))
+init_img_r = @jit skymodel(post, todevice(xinit_nt, post))
 init_img = Comrade.Adapt.adapt(Array, init_img_r.img)
 imageviz(init_img, size = (500, 400), colorscale = log10, colorrange = (1.0e-6, 1.0e-4)) |> DisplayAs.PNG |> DisplayAs.Text
 
-# Move the parameter vector onto the Reactant device.
-xinit_r = Reactant.to_rarray(latent_pback(tpost, xinit_nt))
+# Place the parameter vector for the device posterior. `todevice(x, tpost)` lays it out
+# like `tpost`, and `tohost` returns it to the host layout.
+xinit_r = todevice(latent_pback(tpost, xinit_nt), tpost)
 
 # We use [Optimisers.jl](https://github.com/FluxML/Optimisers.jl) directly (rather than the
 # `estimate_mode` wrapper) because Reactant compiles the whole step — including the optimizer
@@ -293,7 +294,7 @@ DisplayAs.Text(DisplayAs.PNG(fig)) #hide
 
 
 # To see how well the MAP estimate fits the data we can plot the residuals.
-xopt_cpu = latent_pfwd(transport_to(post_cpu, TVFlat()), Array(xcur))
+xopt_cpu = latent_pfwd(transport_to(post_cpu, TVFlat()), tohost(xcur, tpost))
 res = @jit(Comrade.residuals(post, xopt))[1]
 res_cpu = Comrade.Adapt.adapt(Array, res)
 fig = Figure(; size = (800, 300))

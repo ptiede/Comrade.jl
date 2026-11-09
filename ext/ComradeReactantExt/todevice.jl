@@ -47,9 +47,52 @@ function _shardposterior(post::VLBIPosterior, p)
             instrumentmodel = _placeinstrument(post.instrumentmodel, pts),
             lklhds = _placelikelihoods(post.lklhds, post.data, pts, p),
             lklhdsimg = _replicate(post.lklhdsimg, p),
+            placement = p,
         )
     )
 end
+
+"""
+    todevice(x::AbstractArray, tpost::Comrade.TransformedVLBIPosterior)
+    todevice(θ::NamedTuple, post::AbstractVLBIPosterior)
+
+Return parameters placed for a posterior placed by `todevice(post, layout)` or
+`todevice(post, sharding)`, or for its transform such as `asflat` or `ascube`: `x`, a point
+of the transformed space, or `θ`, the model parameters, both in host layout, as returned by
+`prior_sample`, `inverse` or `transform` on the host. For a posterior on the host, which
+Reactant compiles with its arrays as constants, they go to the default device.
+
+The placed parameters have the device layout of the posterior, which may differ from the
+host layout: [`tohost`](@ref) returns them, or a gradient of `tpost`'s log density, to the
+host layout. Inside compiled code, read model parameters with `transform(tpost, x)` rather
+than by index.
+"""
+function ComradeBase.todevice(x::AbstractArray, tpost::Comrade.TransformedVLBIPosterior)
+    length(x) == dimension(tpost) || throw(
+        DimensionMismatch("the posterior has $(dimension(tpost)) dimensions, got an array of length $(length(x))")
+    )
+    return _placeparams(x, tpost.lpost.placement)
+end
+ComradeBase.todevice(θ::NamedTuple, tpost::Comrade.TransformedVLBIPosterior) = todevice(θ, tpost.lpost)
+ComradeBase.todevice(θ::NamedTuple, post::VLBIPosterior) = _placeparams(θ, post.placement)
+ComradeBase.todevice(::AbstractArray, ::VLBIPosterior) = throw(
+    ArgumentError("an array of parameters belongs to a transformed posterior, such as `asflat(post)`; place model parameters as a NamedTuple")
+)
+
+"""
+    tohost(x, post::AbstractVLBIPosterior)
+
+Return the parameters `x`, placed by `todevice(x, post)`, or a gradient of `post`'s log
+density, as host arrays in host layout.
+"""
+ComradeBase.tohost(x, ::Comrade.AbstractVLBIPosterior) = Adapt.adapt(_Host(), x)
+
+_placeparams(x, ::Nothing) = Reactant.to_rarray(x)
+_placeparams(x, p) = _replicate(x, p)
+
+struct _Host end
+Adapt.adapt_storage(::_Host, x::Reactant.AbstractConcreteArray) = Array(x)
+Adapt.adapt_storage(::_Host, x::Reactant.AbstractConcreteNumber) = Reactant.to_number(x)
 
 # Whether `x` holds an array or number on a device.
 _ondevice(x) = _ondevice(x, IdDict{Any, Nothing}())

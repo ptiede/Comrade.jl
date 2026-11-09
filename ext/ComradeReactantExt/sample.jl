@@ -176,14 +176,14 @@ Fields:
   - `inverse_mass_matrix::Vector` current (diagonal) inverse mass matrix
 """
 function _current_state(state, tpost)
-    position = Array(state.position)
+    position = tohost(state.position, tpost)
     return (;
         position,
         params = transform(tpost, vec(position)),
         potential_energy = only(Array(state.potential_energy)),
-        gradient = Array(state.gradient),
+        gradient = tohost(state.gradient, tpost),
         step_size = only(Array(state.step_size)),
-        inverse_mass_matrix = Array(state.inverse_mass_matrix),
+        inverse_mass_matrix = tohost(state.inverse_mass_matrix, tpost),
     )
 end
 
@@ -196,19 +196,19 @@ end
 # next kernel recomputes them.
 function _run_between_chunks(hook, state, tpost, info, host_rng)
     isnothing(hook) && return state
-    before = Array(state.position)
+    before = tohost(state.position, tpost)
     state = hook(state, tpost, info, host_rng)
     state isa ProbProg.MCMCState || throw(
         ArgumentError("`between_chunks` must return the MCMCState, got $(typeof(state))")
     )
-    after = Array(state.position)
+    after = tohost(state.position, tpost)
     length(after) == length(before) || throw(
         DimensionMismatch(
             "`between_chunks` changed the position length from $(length(before)) to $(length(after))"
         )
     )
     if after != before
-        state.position = Reactant.to_rarray(reshape(convert(Array{eltype(before)}, after), size(before)))
+        state.position = todevice(reshape(convert(Array{eltype(before)}, after), size(before)), tpost)
         state.gradient = nothing
         state.potential_energy = nothing
     end
@@ -220,7 +220,7 @@ end
 function Comrade._compile_moves(ms::Comrade.MoveSet, tpost, position::Reactant.AbstractConcreteArray)
     data = map(v -> v isa AbstractArray ? Reactant.to_rarray(v) : v, Base.structdiff(ms.ctx, NamedTuple{(:view,)}))
     ctx = Comrade._bind_context(data, tpost)
-    zd = Reactant.to_rarray(collect(Float64, vec(Array(position))))
+    zd = todevice(collect(Float64, vec(tohost(position, tpost))), tpost)
     ld = Reactant.Compiler.compile((tb, x) -> logdensityof(tb, x), (tpost, zd))
     # Distinct arguments: compiling with one array in both places traces them as one input.
     sp = Comrade.space(ctx.view)
@@ -234,8 +234,8 @@ function Comrade._move_kernels(ms::Comrade.MoveSet, c, tpost, position::Reactant
     ctx = Comrade._bind_context(c.data, tpost)
     host_propose = (j, xh, step) -> Comrade.propose(ms.moves[j], xh, step, ms.ctx)
     function propose(j, x, step)
-        x′, r = host_propose(j, Array(x), step)
-        return Reactant.to_rarray(x′), r
+        x′, r = host_propose(j, tohost(x, tpost), step)
+        return todevice(x′, tpost), r
     end
     function run_fused(x, ℓ, order, steps, logu)
         x, ℓd, logα, accepted = c.fused(
@@ -245,16 +245,16 @@ function Comrade._move_kernels(ms::Comrade.MoveSet, c, tpost, position::Reactant
         return x, Float64(ℓd), Array(logα), Array(accepted) .> 0
     end
     return (;
-        load = p -> Reactant.to_rarray(collect(Float64, vec(Array(p)))),
+        load = p -> todevice(collect(Float64, vec(tohost(p, tpost))), tpost),
         logdensity = x -> Float64(c.ld(tpost, x)),
         prior_delta = (x, x′) -> Float64(c.pd(tpost, x, x′)),
         propose,
         host_propose,
         context = ctx,
         fused = run_fused,
-        download = Array,
-        upload = (xh, x) -> Reactant.to_rarray(xh),
-        store = (z, p) -> Reactant.to_rarray(reshape(convert(Array{eltype(p)}, Array(z)), size(p))),
+        download = x -> tohost(x, tpost),
+        upload = (xh, x) -> todevice(xh, tpost),
+        store = (z, p) -> todevice(reshape(convert(Array{eltype(p)}, tohost(z, tpost)), size(p)), tpost),
     )
 end
 
@@ -451,7 +451,7 @@ function warmup_chunked(
     if isnothing(resume_state)
         T = eltype(x0)
         step0 = ConcreteRNumber(T(sampler.init_step_size))
-        mass0 = Reactant.to_rarray(ones(T, length(x0)))
+        mass0 = todevice(ones(T, dimension(tpost)), tpost)
         # gradient/potential_energy start as `nothing` (computed on the first chunk) and there
         # are no adaptation accumulators yet. The `config` is left at its default — every NUTS
         # parameter is passed explicitly to `_infer`/`mcmc_logpdf`, so the stored config is
@@ -672,7 +672,7 @@ function _initial_position(rng, tpost, initial_params)
     else
         Comrade.inverse(tpost, initial_params)
     end
-    return Reactant.to_rarray(x)
+    return todevice(x, tpost)
 end
 
 _default_ldf(x, tpost) = logdensityof(tpost, x)
@@ -764,7 +764,7 @@ preserves the posterior. During warmup it runs at the end of every warmup chunk 
 callback); during sampling, after the callback of every chunk but the last. `info` is
 `(; phase, step, total)`: `phase` is `:warmup` or `:sampling`, and `step` counts the warmup
 steps (or post-warmup draws) done so far out of `total`. The constrained point is
-`transform(tpost, vec(Array(state.position)))`. During warmup `info` also has `report`, true
+`transform(tpost, vec(tohost(state.position, tpost)))`. During warmup `info` also has `report`, true
 at the stops that checkpoint (at chunk ends without checkpointing) and at the last step.
 `host_rng` is the `host_rng` keyword.
 

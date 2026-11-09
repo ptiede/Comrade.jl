@@ -53,7 +53,7 @@ end
     tpost = asflat(post)
 
     # logdensity round-trips through Reactant
-    x0_r = Reactant.to_rarray(prior_sample(Random.default_rng(), tpost))
+    x0_r = todevice(prior_sample(Random.default_rng(), tpost), tpost)
     ld = @jit logdensityof(tpost, x0_r)
     @test isfinite(convert(Float64, ld))
 
@@ -158,7 +158,7 @@ end
 
     na = 30
     sampler = ReactantNUTS(; n_adapts = na, max_tree_depth = 4, init_step_size = 0.01)
-    x0 = Reactant.to_rarray(prior_sample(Random.default_rng(), tpost))
+    x0 = todevice(prior_sample(Random.default_rng(), tpost), tpost)
     freshrng() = Reactant.ReactantRNG(Reactant.to_rarray(UInt64[1, 5]))
     quiet = _ -> nothing
 
@@ -262,7 +262,7 @@ end
     msh = MoveSet(post_cpu, dmoves; space = sp, rounds = drounds)
     warm = (; phase = :warmup, step = 2, total = 20)
     sh = msh(_DeviceMovesState(copy(xstart)), thost, warm, Random.Xoshiro(30))
-    sd = msd(_DeviceMovesState(Reactant.to_rarray(xstart)), tdev, warm, Random.Xoshiro(30))
+    sd = msd(_DeviceMovesState(todevice(xstart, tdev)), tdev, warm, Random.Xoshiro(30))
     @test sd.position isa Reactant.AbstractConcreteArray
     @test Array(sd.position) ≈ sh.position rtol = 1.0e-9
     @test [m.warmup for m in move_summary(msd)] == [m.warmup for m in move_summary(msh)]
@@ -278,7 +278,7 @@ end
     @test only(msh2.ctx.c) == 2.0
     msd.stats .= [Comrade._MoveStats(d, τ) for (d, τ) in zip(msd.dists, msd.initial_scale)]
     sh2 = msh2(_DeviceMovesState(copy(xstart)), thost, warm, Random.Xoshiro(33))
-    sd2 = msd(_DeviceMovesState(Reactant.to_rarray(xstart)), tdev, warm, Random.Xoshiro(33))
+    sd2 = msd(_DeviceMovesState(todevice(xstart, tdev)), tdev, warm, Random.Xoshiro(33))
     @test Array(sd2.position) ≈ sh2.position rtol = 1.0e-9
     @test msd.compiled[] === k0
     @test_throws DimensionMismatch Comrade.update_context!(msd, :c, [1.0, 2.0])
@@ -298,7 +298,7 @@ end
     msu_d = MoveSet(post_u, (umove, wmove); space = sp, rounds = [5, 3])
     @test all(msu_d.free)
     su_h = msu_h(_DeviceMovesState(copy(xu)), thost_u, warm, Random.Xoshiro(31))
-    su_d = msu_d(_DeviceMovesState(Reactant.to_rarray(xu)), tdev_u, warm, Random.Xoshiro(31))
+    su_d = msu_d(_DeviceMovesState(todevice(xu, tdev_u)), tdev_u, warm, Random.Xoshiro(31))
     @test Array(su_d.position) ≈ su_h.position rtol = 1.0e-9
     @test [m.warmup for m in move_summary(msu_d)] == [m.warmup for m in move_summary(msu_h)]
     @test [m.τ for m in move_summary(msu_d)] ≈ [m.τ for m in move_summary(msu_h)]
@@ -400,11 +400,11 @@ end
         # device in the kernel's shape; an unmoved state keeps both.
         st = samplerinfo(runchain(nothing; nsamples = 20))[:final_state]
         info = (; phase = :sampling, step = 0, total = 0)
-        kept = ext._run_between_chunks((s, _, _, _) -> s, st, nothing, info, Random.Xoshiro(1))
+        kept = ext._run_between_chunks((s, _, _, _) -> s, st, asflat(post), info, Random.Xoshiro(1))
         @test kept.gradient !== nothing && kept.potential_energy !== nothing
         znew = vec(Array(st.position)) .+ 0.1
         moved = ext._run_between_chunks(
-            (s, _, _, _) -> (s.position = znew; s), st, nothing, info, Random.Xoshiro(1)
+            (s, _, _, _) -> (s.position = znew; s), st, asflat(post), info, Random.Xoshiro(1)
         )
         @test moved.gradient === nothing && moved.potential_energy === nothing
         @test moved.position isa Reactant.ConcreteRArray
@@ -416,10 +416,10 @@ end
         @test -only(Array(st2.potential_energy)) ≈ target(vec(Array(st2.position))) rtol = 1.0e-10
 
         @test_throws "must return the MCMCState" ext._run_between_chunks(
-            (_, _, _, _) -> nothing, st2, nothing, info, Random.Xoshiro(1)
+            (_, _, _, _) -> nothing, st2, asflat(post), info, Random.Xoshiro(1)
         )
         @test_throws DimensionMismatch ext._run_between_chunks(
-            (s, _, _, _) -> (s.position = zeros(n + 1); s), st2, nothing, info, Random.Xoshiro(1)
+            (s, _, _, _) -> (s.position = zeros(n + 1); s), st2, asflat(post), info, Random.Xoshiro(1)
         )
     end
 
@@ -525,7 +525,7 @@ end
 
         post = todevice(post_cpu, Reactant.Sharding.NoSharding())
         tpost = asflat(post)
-        x0_r = Reactant.to_rarray(x0)
+        x0_r = todevice(x0, tpost)
 
         # No `stablehlo.while` may remain: each costs ~100-200 us of device latency per
         # leapfrog step, doubled in the gradient.
@@ -572,7 +572,7 @@ end
         tpost_cpu = transport(post_cpu)
         x0 = prior_sample(Random.Xoshiro(41), tpost_cpu)
         tpost = transport(todevice(post_cpu, Reactant.Sharding.NoSharding()))
-        x0_r = Reactant.to_rarray(x0)
+        x0_r = todevice(x0, tpost)
         @test convert(Float64, @jit(logdensityof(tpost, x0_r))) ≈ logdensityof(tpost_cpu, x0) rtol = 1.0e-10
         @test convert(Vector{Float64}, @jit(fgrad(x0_r, tpost))) ≈ fgrad(x0, tpost_cpu) rtol = 1.0e-8
         return nothing
@@ -634,7 +634,7 @@ end
             tcpu = transport(post_cpu)
             x0 = prior_sample(Random.Xoshiro(41), tcpu)
             tdev = transport(todevice(post_cpu, layout))
-            xr = Reactant.to_rarray(x0; sharding = Reactant.Sharding.Replicated(mesh))
+            xr = todevice(x0, tdev)
             @test convert(Float64, @jit(logdensityof(tdev, xr))) ≈ logdensityof(tcpu, x0) rtol = rtol
             @test convert(Vector{Float64}, @jit(fgrad(xr, tdev))) ≈ fgrad(x0, tcpu) rtol = 1.0e-8
             return nothing
@@ -682,6 +682,24 @@ end
             @test length(obs.sharding.device_to_array_slices) == 4
             @test size(obs) == size(post.instrumentmodel.layout.cell1)
             @test size(obs, 1) > size(vis, 1)
+        end
+
+        @testset "parameter placement" begin
+            tcpu = asflat(post_cpu)
+            post = todevice(post_cpu, bytime)
+            tdev = asflat(post)
+            x0 = prior_sample(Random.Xoshiro(41), tcpu)
+            xr = todevice(x0, tdev)
+            @test xr isa Reactant.AbstractConcreteArray
+            @test tohost(xr, tdev) == x0
+            @test tohost(@jit(fgrad(xr, tdev)), tdev) ≈ fgrad(x0, tcpu) rtol = 1.0e-8
+            θ = Comrade.transform(tcpu, x0)
+            θr = todevice(θ, post)
+            @test convert(Float64, @jit(logdensityof(post, θr))) ≈ logdensityof(post_cpu, θ) rtol = 1.0e-10
+            @test logdensityof(post_cpu, tohost(θr, post)) == logdensityof(post_cpu, θ)
+            @test todevice(x0, tcpu) isa Reactant.AbstractConcreteArray
+            @test_throws "got an array of length" todevice(x0[1:(end - 1)], tdev)
+            @test_throws "belongs to a transformed posterior" todevice(x0, post)
         end
 
         @testset "polarized" begin
@@ -732,7 +750,7 @@ end
             post = VLBIPosterior(cphase, lcamp; sky = planemodel(vis, 4; width = 8.0), admode = nothing)
             dev = todevice(post, Reactant.Sharding.NoSharding())
             θ = Comrade.transform(asflat(post), prior_sample(Random.Xoshiro(41), asflat(post)))
-            _, mv = @jit Comrade.forward_model(dev, Reactant.to_rarray(θ))
+            _, mv = @jit Comrade.forward_model(dev, todevice(θ, dev))
             for (l, ldev) in zip(post.lklhds, dev.lklhds)
                 @test convert(Float64, @jit(logdensityof(ldev, mv))) ≈ logdensityof(l, Array(baseimage(mv))) rtol = 1.0e-12
             end
