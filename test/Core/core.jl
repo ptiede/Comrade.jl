@@ -7,7 +7,6 @@ using VLBIImagePriors
 
 include(joinpath(@__DIR__, "plots.jl"))
 include(joinpath(@__DIR__, "selfcal.jl"))
-include(joinpath(@__DIR__, "gauge_instrument.jl"))
 include(joinpath(@__DIR__, "gauss_markov.jl"))
 include(joinpath(@__DIR__, "models.jl"))
 include(joinpath(@__DIR__, "imgnormal.jl"))

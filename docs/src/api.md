@@ -149,11 +149,6 @@ Comrade.VLBIInstrumentModels.FrequencySegment
 Comrade.SingleReference
 Comrade.MultiReference
 Comrade.SensitiveReference
-Comrade.StationPhase
-Comrade.ReportGauge
-Comrade.PinGauge
-Comrade.gauge_pins
-Comrade.default_gauge_preference
 Comrade.AbstractJonesMatrix
 Comrade.Jones
 Comrade.gains
