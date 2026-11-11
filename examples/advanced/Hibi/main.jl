@@ -62,7 +62,7 @@ uvd = VLBIFiles.load(
 # flag baselines shorter than 0.1Gλ and add 1% systematic uncertainty to handle
 # residual calibration errors such as leakage.
 dvis = average(VisTable(uvd, IPol()), ByScan())
-dvis = flag(row -> hypot(row.U, row.V) < 0.1e9, dvis)
+dvis = flag(dvis, uvdist(dvis) .< 0.1e9)
 dvis = add_fractional_noise(dvis, 0.01)
 
 # ## Building the Model/Posterior

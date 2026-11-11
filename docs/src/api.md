@@ -23,6 +23,10 @@ For the description of the model API see [VLBISkyModels](https://ehtjulia.github
 
 ```@docs
 Comrade.ArrayInfo
+Comrade.Station
+Comrade.Receiver
+Comrade.receivers
+Comrade.receiver
 Comrade.Source
 Comrade.stationindex
 Comrade.VisTable

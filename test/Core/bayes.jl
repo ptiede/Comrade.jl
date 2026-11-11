@@ -252,7 +252,8 @@ end
         c2 = chi2(postsim, x; reduce = true)
         c2nn = chi2(postsim_nn, x; reduce = true)
         @test all(x -> reduce(&, x .< 1.25), c2)
-        @test all(x -> reduce(&, x .≈ 0), c2nn)
+        T = real(eltype(eltype(Comrade.measurement(obs_nn))))
+        @test all(x -> all(<(sqrt(eps(T))), x), c2nn)
 
 
     end

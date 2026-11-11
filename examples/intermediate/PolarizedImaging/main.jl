@@ -126,7 +126,7 @@ dvis = average(VisTable(uvd, Correlations()), ByScan())
 dvis = reset_mounts(dvis, joinpath(__DIR, "../../Data/array.txt"))
 # Inflate noise by 1% and flag short (uvdist < 0.1 Gλ) baselines.
 dvis = add_fractional_noise(dvis, 0.01)
-dvis = flag(row -> hypot(row.U, row.V) < 0.1e9, dvis)
+dvis = flag(dvis, uvdist(dvis) .< 0.1e9)
 
 # ##Building the Model/Posterior
 

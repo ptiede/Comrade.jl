@@ -47,7 +47,7 @@ dvis = average(VisTable(uvd, IPol()), ByScan())
 # We also flag the short baselines, which removes the trivial 0-baseline triangles (we don't
 # care about large-scale flux), and inflate the noise by 2% in quadrature to account for
 # residual systematics. The closures are then formed from these visibilities.
-dvis = flag(row -> hypot(row.U, row.V) < 0.1e9, dvis)
+dvis = flag(dvis, uvdist(dvis) .< 0.1e9)
 dvis = add_fractional_noise(dvis, 0.02)
 dlcamp = logclosure_amplitudes(dvis)
 dcphase = closure_phases(dvis)

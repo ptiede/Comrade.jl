@@ -93,6 +93,18 @@ end
         gfd, = FiniteDifferences.grad(central_fdm(5, 1), tpost, x)
         @test gz ≈ gfd
         @test_throws "needs at least one table" VLBIPosterior((;); sky = skym)
+
+        # Tables whose receivers differ at one station bind one instrument, though they cannot be joined.
+        a = info(late)
+        s1 = first(a.stations)
+        r1 = only(receivers(s1))
+        moved = Station(s1.name, s1.position, Receiver(MountEquatorial(), r1.feeds; r1.orientations))
+        b = ArrayInfo(; stations = [moved; a.stations[2:end]], a.channels, a.scans, a.tracks, a.source, a.epoch)
+        remounted = VisTable(late.pol, records(late), collect(baseimage(measurement(late))), collect(baseimage(weight(late))); info = b)
+        two = VLBIPosterior((; A = dvis, B = remounted); sky = skym, instrument = intm)
+        @test dimension(two) == dimension(post)
+        @test logdensityof(two, θ) ≈ logdensityof(post, θ)
+        @test_throws "overlapping bands" vcat(dvis, remounted)
     end
 
     @testset "errors" begin
