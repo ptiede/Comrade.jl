@@ -1370,9 +1370,10 @@ end
 
 function _color_chain_std!(y, x, index, sidx, av, cv, spec::ChainUnit, hp, space)
     # centered and wrapped chains are rejected at node construction (`_check_std_transportable`)
-    vals = _unit_params(spec, hp)
     free = spec.free
     n = _nfree(spec)
+    n == 0 && return index, sidx
+    vals = _unit_params(spec, hp)
     # Same affine split as `_color_chain_flat!`.
     coef = k -> _unit_affine(spec, vals, y, free, k)
     _traced_fill!(k -> first(coef(k)), av, sidx, n)

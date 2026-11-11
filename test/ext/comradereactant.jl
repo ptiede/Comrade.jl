@@ -508,19 +508,32 @@ end
         end
     end
 
+    # SM keeps a single scan, so its own `FixedInit` chain has no free points.
+    @instrument function gmint_reactant_bm_nofree()
+        return @jones begin
+            lg ~ ArrayPrior(
+                GaussMarkovSitePrior(ScanSeg(), BrownianMotion(D = VLBIExponential(0.1)); init = FixedInit(0.0));
+                SM = GaussMarkovSitePrior(ScanSeg(), BrownianMotion(D = VLBIUniform(0.0, 0.5)); init = FixedInit(0.0))
+            )
+            return SingleStokesGain(exp(lg))
+        end
+    end
+    tsm = minimum(b -> b.Ti, filter(b -> :SM in b.sites, vis[:baseline]))
+    vis_sm1 = flag(x -> :SM in x.baseline.sites && x.baseline.Ti != tsm, vis)
+
     fgrad(x, tp) = Enzyme.gradient(
         Enzyme.set_runtime_activity(Enzyme.Reverse), Const(Base.Fix1(logdensityof, tp)), x
     )[1]
 
     nwhile(hlo) = length(collect(eachmatch(r"stablehlo\.while", repr(hlo))))
 
-    function check_matches_cpu(intm)
-        post_cpu = VLBIPosterior(skym, intm, vis; admode = nothing)
-        tpost_cpu = asflat(post_cpu)
+    function check_matches_cpu(intm; data = vis, space = nothing)
+        post_cpu = VLBIPosterior(skym, intm, data; admode = nothing)
+        tpost_cpu = Comrade.maybe_transport(post_cpu, space)
         x0 = prior_sample(Random.Xoshiro(31), tpost_cpu)
 
         post = Comrade.prepare_device(post_cpu, ReactantEx())
-        tpost = asflat(post)
+        tpost = Comrade.maybe_transport(post, space)
         x0_r = Reactant.to_rarray(x0)
 
         # No `stablehlo.while` may remain: each costs ~100-200 us of device latency per
@@ -542,6 +555,12 @@ end
     end
     @testset "BrownianMotion FixedInit" begin
         check_matches_cpu(gmint_reactant_bm())
+    end
+    @testset "BrownianMotion FixedInit, a unit with no free points" begin
+        d = VLBIPosterior(skym, gmint_reactant_bm_nofree(), vis_sm1; admode = nothing).prior.instrument.lg.dists
+        @test any(u -> Comrade._nfree(u) == 0, Comrade.chaingroups(d))
+        check_matches_cpu(gmint_reactant_bm_nofree(); data = vis_sm1)
+        check_matches_cpu(gmint_reactant_bm_nofree(); data = vis_sm1, space = Comrade.PT.StdNormal())
     end
     @testset "WrappedBrownian UniformInit refant (non-centered default)" begin
         check_matches_cpu(gmint_reactant_wb())
