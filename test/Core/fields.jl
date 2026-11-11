@@ -107,6 +107,37 @@ end
         @test_throws "overlapping bands" vcat(dvis, remounted)
     end
 
+    @testset "frequency phase transfer across tables" begin
+        ν0 = only(info(dvis).channels.frequency)
+        dense = with_channel(dvis, ν0 / 2)
+        lo = dense[Fr = At(ν0 / 2)]
+        P = Jones(
+            (x, c) -> exp(1im * (x.φ * c.Fr / ν0 + x.δ * ν0 / c.Fr + x.ψ));
+            φ = ArrayPrior(IIDStationPrior(ScanSeg(), Normal(0.0, 1.0)); refant = SensitiveReference(0.0)),
+            δ = ArrayPrior(IIDStationPrior(ScanSeg(), Normal(0.0, 0.1)); refant = SensitiveReference(0.0)),
+            ψ = ArrayPrior(IIDStationPrior(TrackSeg() ⊗ BandSeg(bands(dense)...), Normal(0.0, 0.1)); refant = SensitiveReference(0.0)),
+        )
+        intm = InstrumentModel(P)
+        post = VLBIPosterior((; lo, hi = dvis); sky = skym, instrument = intm)
+        joined = VLBIPosterior(dense; sky = skym, instrument = intm)
+        @test dimension(post) == dimension(joined)
+        θ = prior_sample(post)
+        @test logdensityof(post, θ) ≈ logdensityof(joined, θ)
+
+        x = θ.instrument
+        foreach(p -> parent(p) .= 0, (x.φ, x.δ, x.ψ))
+        s = first(stations(dvis))
+        xφ, xδ, xψ = x.φ[Ant = At(s)], x.δ[Ant = At(s)], x.ψ[Ant = At(s), Fr = At(ν0 / 2)]
+        xφ .= 0.3
+        xδ .= 0.05
+        xψ .= -0.2
+        for (t, J, θs) in ((lo, post.instrumentmodel.fields.lo, 0.3 / 2 + 0.05 * 2 - 0.2), (dvis, post.instrumentmodel.fields.hi, 0.3 + 0.05))
+            vis = parent(measurement(t))
+            side = map(b -> (b[1] == s) - (b[2] == s), baselines(t))
+            @test Comrade.apply_instrument(vis, J, x) ≈ vis .* exp.(1im .* θs .* side)
+        end
+    end
+
     @testset "errors" begin
         intm = InstrumentModel(gainterm(ScanSeg()))
         @test_throws "visibility-domain data product" VLBIPosterior((; A = ()); sky = (; A = skym), instrument = intm)
