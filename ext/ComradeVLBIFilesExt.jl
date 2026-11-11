@@ -231,11 +231,14 @@ end
 #   frequency_average=true (or anything truthy) -> VLBI.average_data(VLBI.ByFrequency(), ...)
 #   time_average=VLBI.GapBasedScans()           -> VLBI.average_data(time_average, ...)
 #   time_average=VLBI.FixedTimeIntervals(...)
+# The scan table is built with `time_average` when it is a `GapBasedScans`, so each averaged
+# scan is its own scan in the table; otherwise with the default `GapBasedScans()`.
 function _prep_uvtable(
         uvtbl;
         time_average = nothing, frequency_average = true
     )
-    scan_table = VLBIData.scan_intervals(VLBI.GapBasedScans(), uvtbl)
+    scan_strategy = time_average isa VLBIData.GapBasedScans ? time_average : VLBIData.GapBasedScans()
+    scan_table = VLBIData.scan_intervals(scan_strategy, uvtbl)
     rows = uvtbl
     if frequency_average !== nothing && frequency_average !== false
         rows = VLBI.average_data(VLBI.ByFrequency(), rows)
