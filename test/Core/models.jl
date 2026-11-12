@@ -404,6 +404,14 @@ end
         fj = forward_jones(JG, x)
         @test fj[1][1] == x.lg[1]
 
+        intou = InstrumentModel(
+            JG, (; lg = ArrayPrior(GaussMarkovSitePrior(ScanSeg(), OrnsteinUhlenbeck(σ = VLBIExponential(0.1), τ = VLBIExponential(1.0))))),
+        )
+        _, printou = Comrade.set_array(intou, arrayconfig(dcoh))
+        xou = rand(printou)
+        @test xou.lg isa Comrade.HierarchicalSiteSample
+        @test forward_jones(JG, xou)[1][1] == xou.lg.params[1]
+
 
         Fpre = Comrade.preallocate_jones(F, arrayconfig(dcoh), CirBasis())
         Rpre = Comrade.preallocate_jones(JonesR(; add_fr = true), arrayconfig(dcoh), CirBasis())

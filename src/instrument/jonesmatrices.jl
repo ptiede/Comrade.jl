@@ -228,17 +228,19 @@ end
 Construct the forward model for the jones matrix model `J` with the parameters `xs`.
     
 The `xs` is a named tuple where the keys are the parameter names and the values are SiteArrays with
-the parameter values. The return value is a `SiteArray` whose dimension is the largest of the elements
+the parameter values, or hierarchical samples `(params, hyperparams)` (see [`siteparams`](@ref)).
+The return value is a `SiteArray` whose dimension is the largest of the elements
 of `xs, and whose elements are the jones matrices for the specific parameters.
 
 """
 function forward_jones(v::AbstractJonesMatrix, xs::NamedTuple{N}) where {N}
-    sm = broadest_sitemap(xs)
+    ps = map(siteparams, xs)
+    sm = broadest_sitemap(ps)
     bl = map(x -> (x, x), sm.sites)
-    bmaps = map(x -> _construct_baselinemap(getproperty.(sm.times, :t0), getproperty.(sm.frequencies, :central), bl, x).indices_1, xs)
+    bmaps = map(x -> _construct_baselinemap(getproperty.(sm.times, :t0), getproperty.(sm.frequencies, :central), bl, x).indices_1, ps)
     vs = map(eachindex(sm.times)) do index
         indices = map(x -> getindex(x, index), bmaps)
-        params = NamedTuple{N}(map(getindex, values(xs), values(indices)))
+        params = NamedTuple{N}(map(getindex, values(ps), values(indices)))
         return jonesmatrix(v, params, index, Val(1))
     end
     return SiteArray(vs, sm)
