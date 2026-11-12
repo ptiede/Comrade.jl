@@ -110,7 +110,11 @@ _wrapdiff(a, b) = abs(angle(cis(a - b)))
         fd = (Comrade.logdensityof(tpost, x .+ h .* v) - Comrade.logdensityof(tpost, x .- h .* v)) / 2h
         @test dot(g, v) ≈ fd rtol = 1.0e-4
 
-        @test_throws "share no baseline at one time and band" VLBIPosterior((; M87 = dvis, CAL = dvis); sky = skies, instrument = selfcal_gains())
+        same = (; M87 = dvis, CAL = dvis)
+        spost = VLBIPosterior(same; sky = skies, instrument = selfcal_gains())
+        θs = prior_sample(rng, spost)
+        @test Comrade.loglikelihood(spost, θs) ≈
+            Comrade.loglikelihood(VLBIPosterior(same; sky = skies, instrument = phase_gains()), _withphase(θs, selfcal_phase(spost, θs)))
         @test_throws "for the field CAL" VLBIPosterior((; M87 = dvis, CAL = amplitudes(later(dvis, 1))); sky = skies, instrument = selfcal_gains())
     end
 
