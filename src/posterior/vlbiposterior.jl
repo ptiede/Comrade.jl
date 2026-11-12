@@ -80,10 +80,10 @@ its geometry at each station.
 
 In addition you can add a self-calibrated reparameterization of the instrument model through
 `selfcal` in [`InstrumentModel`](@ref). This will reparameterize the gain phases for the model
-in terms of an approximate self-calibration solution through special eigenvalue problem. 
-Instead of fitting the gain phases directly the residual phase around this is fit, so a user 
-should not specify the gain phase itself. For multifrequency problems a residual phase can 
-be added to tie the phases across frequency, ala FPT is desired. 
+in terms of an approximate self-calibration solution through a special eigenvalue problem.
+Instead of fitting the gain phases directly the residual phase around this is fit, so a user
+should not specify the gain phase itself. For multifrequency problems a residual phase can
+be added to tie the phases across frequency, as in frequency phase transfer (FPT), if desired.
 
 ```julia
 post = VLBIPosterior((; SgrA = (dvis_sgra, ImgNormalData(flux, 2.4, 0.1)), J1924 = dvis_cal);
