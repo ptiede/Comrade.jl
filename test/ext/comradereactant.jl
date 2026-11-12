@@ -618,6 +618,13 @@ end
         post = VLBIPosterior((; A = vis, B = later(vis, 1)); sky = (; A = skym, B = skym), instrument = InstrumentModel(G * S), admode = nothing)
         check_matches_cpu(post)
         check_matches_cpu(VLBIPosterior((; A = vis, B = later(vis, 1)); sky = skym, instrument = InstrumentModel(G * S), admode = nothing))
+        nested = (; A = (; P = vis, Q = later(vis, 1)), B = later(vis, 2))
+        check_matches_cpu(VLBIPosterior(nested; sky = (; A = skym, B = skym), instrument = InstrumentModel(G * S), admode = nothing))
+        selfcal = InstrumentModel(Jones((x, c) -> complex(exp(x.lg)); lg = ArrayPrior(g0)); selfcal = true)
+        check_matches_cpu(
+            VLBIPosterior(nested; sky = (; A = skym, B = skym), instrument = selfcal, admode = nothing);
+            transport = p -> transport_to(p, Comrade.PT.StdNormal())
+        )
     end
 end
 
@@ -730,6 +737,12 @@ end
             check_matches_cpu(post, bytime)
         end
 
+        @testset "sources with several tables" begin
+            nested = (; A = (; P = vis, Q = later(vis, 1)), B = later(vis, 2))
+            post = VLBIPosterior(nested; sky = (; A = planemodel(vis, 4), B = planemodel(later(vis, 2), 8)), instrument = InstrumentModel(G), admode = nothing)
+            check_matches_cpu(post, bytime)
+        end
+
         static = SkyModel(test_model, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 12, 12))
         @testset "static image split by record" begin
             check_matches_cpu(VLBIPosterior(vis; sky = static, instrument = InstrumentModel(G), admode = nothing), ShardLayout(mesh; Node = :d))
@@ -767,6 +780,8 @@ end
             stdnormal = p -> transport_to(p, Comrade.PT.StdNormal())
             check_matches_cpu(VLBIPosterior(vis; sky = static, instrument = selfcal, admode = nothing), ShardLayout(mesh; Node = :d); transport = stdnormal)
             check_matches_cpu(VLBIPosterior(vis; sky = planemodel(vis, 4), instrument = selfcal, admode = nothing), bytime; transport = stdnormal, rtol = 1.0e-9)
+            nested = (; A = (; P = vis, Q = later(vis, 1)), B = later(vis, 2))
+            check_matches_cpu(VLBIPosterior(nested; sky = (; A = static, B = static), instrument = selfcal, admode = nothing), ShardLayout(mesh; Node = :d); transport = stdnormal)
         end
 
         @testset "errors" begin

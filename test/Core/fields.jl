@@ -107,6 +107,35 @@ end
         @test_throws "overlapping bands" vcat(dvis, remounted)
     end
 
+    @testset "sources with several tables" begin
+        intm = InstrumentModel(gainterm(ScanSeg()))
+        fluxdata = ImgNormalData(Comrade.flux, 1.0, 0.1)
+        late = later(dvis, 1)
+        post = VLBIPosterior((; M87 = (; A = (dvis, fluxdata), B = late), CAL = cal); sky = (; M87 = skym, CAL = skym), instrument = intm)
+        flat = VLBIPosterior((; MA = (dvis, fluxdata), MB = late, CAL = cal); sky = (; MA = skym, MB = skym, CAL = skym), instrument = intm)
+        θ = prior_sample(post)
+        @test keys(θ.sky) == (:M87, :CAL)
+        @test dimension(post) == dimension(flat) - length(test_prior())
+        θflat = (; sky = (; MA = θ.sky.M87, MB = θ.sky.M87, θ.sky.CAL), θ.instrument)
+        @test loglikelihood(post, θ) ≈ loglikelihood(flat, θflat)
+        @test collect(chi2(post, θ).M87.B) ≈ collect(chi2(flat, θflat).MB)
+        @test keys(instrumentmodel(post, θ).M87) == (:A, :B)
+        @test keys(simulate_observation(post, θ; add_thermal_noise = false).M87) == (:A, :B)
+        @test keys(Comrade.residuals(post, θ).M87) == (:A, :B)
+
+        tpost = asflat(post)
+        x = prior_sample(tpost)
+        gz, = Enzyme.gradient(set_runtime_activity(Enzyme.Reverse), Const(tpost), x)
+        gfd, = FiniteDifferences.grad(central_fdm(5, 1), tpost, x)
+        @test gz ≈ gfd
+
+        @test_throws "must observe one source, got A: M87, B: CAL" VLBIPosterior((; M87 = (; A = dvis, B = cal)); sky = (; M87 = skym), instrument = intm)
+        @test_throws "must observe one source" VLBIPosterior((; A = dvis, B = cal); sky = skym)
+        @test_throws "give several tables as a NamedTuple keyed by table name" VLBIPosterior((; M87 = (dvis, late)); sky = (; M87 = skym), instrument = intm)
+        @test_throws "holds a NamedTuple" VLBIPosterior((; A = (; B = dvis)); sky = skym)
+        @test_throws "must hold a VisTable or a NamedTuple of them" VLBIPosterior((; M87 = (; A = (; B = dvis))); sky = (; M87 = skym), instrument = intm)
+    end
+
     @testset "frequency phase transfer across tables" begin
         ν0 = only(info(dvis).channels.frequency)
         dense = with_channel(dvis, ν0 / 2)

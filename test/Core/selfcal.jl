@@ -110,8 +110,28 @@ _wrapdiff(a, b) = abs(angle(cis(a - b)))
         fd = (Comrade.logdensityof(tpost, x .+ h .* v) - Comrade.logdensityof(tpost, x .- h .* v)) / 2h
         @test dot(g, v) ≈ fd rtol = 1.0e-4
 
-        @test_throws "share no baseline at one time" VLBIPosterior((; M87 = dvis, CAL = dvis); sky = skies, instrument = selfcal_gains())
+        @test_throws "share no baseline at one time and band" VLBIPosterior((; M87 = dvis, CAL = dvis); sky = skies, instrument = selfcal_gains())
         @test_throws "for the field CAL" VLBIPosterior((; M87 = dvis, CAL = amplitudes(later(dvis, 1))); sky = skies, instrument = selfcal_gains())
+    end
+
+    @testset "a source with simultaneous bands" begin
+        ν0 = only(info(dvis).channels.frequency)
+        lo = with_channel(dvis, ν0 / 2)[Fr = At(ν0 / 2)]
+        data = (; M87 = (; lo, hi = dvis), CAL = later(dvis, 1))
+        skies = (; M87 = skym, CAL = skym)
+        perband = InstrumentModel(
+            Jones(
+                (x, c) -> exp(complex(x.lg, x.gp));
+                lg = ArrayPrior(IIDStationPrior(ScanSeg(), Normal(0.0, 0.1))),
+                gp = ArrayPrior(IIDStationPrior(IntegSeg() ⊗ BandSeg(bands(lo)..., bands(dvis)...), VLBIUniform(-π, π)); refant = SensitiveReference(0.0)),
+            )
+        )
+        npost = VLBIPosterior(data; sky = skies, instrument = selfcal_gains())
+        nplain = VLBIPosterior(data; sky = skies, instrument = perband)
+        θ = prior_sample(rng, npost)
+        φ = selfcal_phase(npost, θ)
+        @test Comrade.loglikelihood(npost, θ) ≈ Comrade.loglikelihood(nplain, _withphase(θ, φ))
+        @test keys(Comrade.instrumentmodel(npost, θ).M87) == (:lo, :hi)
     end
 
     @testset "construction is validated" begin

@@ -213,8 +213,9 @@ _nodes(_) = nothing
 
 ## Instrument
 
-_placeinstrument(J, pts::_Points) = todevice(J, pts.to)
-_placeinstrument(J, pts::NamedTuple) = todevice(J, map(q -> q.to, pts))
+_placeinstrument(J, pts) = todevice(J, _targets(pts))
+_targets(pts::_Points) = pts.to
+_targets(pts::NamedTuple) = map(_targets, pts)
 
 ## Likelihoods
 

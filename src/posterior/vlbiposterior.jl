@@ -79,8 +79,8 @@ are the direction of the field's source, and `c.elevation`, `c.azimuth` and `c.p
 its geometry at each station.
 
 A self-calibrated instrument (`selfcal = true` in [`InstrumentModel`](@ref)) needs one table of
-visibilities or coherencies per field, and fields that share no baseline at one time; the
-station phase is solved against the data of all fields.
+visibilities or coherencies per field or table, and tables that share no baseline at one time
+and band; the station phase is solved per band against the data of all tables.
 
 ```julia
 post = VLBIPosterior((; SgrA = (dvis_sgra, ImgNormalData(flux, 2.4, 0.1)), J1924 = dvis_cal);
@@ -96,10 +96,25 @@ The posterior of one source observed in several tables, such as different bands 
 sky model is evaluated on the records and channels of each table, with the same parameters
 `(; sky = …, instrument = …)`. A table is not padded to the channels of the others, unlike a
 table joined with `vcat`. The instrument is bound to the tables as to several fields, and a
-frequency-dependent sky reads each table's frequencies from its points.
+frequency-dependent sky reads each table's frequencies from its points. The tables must observe
+one source, by the source name each table records.
 
 ```julia
 post = VLBIPosterior((; Q = (dvis86, dcp86), A = dvis230); sky = skym, instrument = InstrumentModel(G))
+```
+
+# Several sources with several tables
+
+A field's data may itself be a NamedTuple of tables, keyed by table name: that source's sky
+model is evaluated on each of its tables with the same parameters, as for several tables of one
+source, and the other fields keep one table each or have several of their own. The sky
+parameters are keyed by field name, and results such as `instrumentmodel`, `chi2` and
+`simulate_observation` by field name, then table name.
+
+```julia
+post = VLBIPosterior((; SgrA = (; Q = (s86, cp86), A = s230), CAL = c230);
+                     sky = (; SgrA = skyS, CAL = skyC), instrument = InstrumentModel(G))
+chi2(post, θ).SgrA.Q
 ```
 """
 @noinline function VLBIPosterior(
@@ -137,31 +152,45 @@ function _posterior(skies::NamedTuple, instrumentmodel, (data,)::Tuple{NamedTupl
         s isa AbstractSkyModel || throw(ArgumentError("the sky model of the field $n must be an AbstractSkyModel, got a $(typeof(s))"))
     end
     return _severaltables(instrumentmodel, NamedTuple{names}(data), admode, "field") do tables
-        observed = map(observe, skies, tables)
+        observed = map(observesource, skies, tables)
         return FieldSkies(map(first, observed)), NamedDist(map(last, observed))
     end
 end
 
 function _posterior(skymodel::AbstractSkyModel, instrumentmodel, (data,)::Tuple{NamedTuple}, admode)
     isempty(data) && throw(ArgumentError("a NamedTuple of data products needs at least one table"))
-    return _severaltables(instrumentmodel, data, admode, "table") do tables
-        observed = map(t -> observe(skymodel, t), tables)
-        return TableSkies(map(first, observed)), last(first(observed))
+    for (n, d) in pairs(data)
+        d isa NamedTuple && throw(
+            ArgumentError("the table $n holds a NamedTuple; to give several sources their tables, key the sky models by source")
+        )
     end
+    return _severaltables(instrumentmodel, data, admode, "table") do tables
+        return observesource(skymodel, tables)
+    end
+end
+
+# The observed sky of one source on its table and its prior, or on each of its tables, keyed by
+# table name, which read the same parameters.
+observesource(sky, t::VisTable) = observe(sky, t)
+function observesource(sky, tables::NamedTuple)
+    sources = map(t -> info(t).source.name, tables)
+    allequal(sources) || throw(
+        ArgumentError("the tables of one sky model must observe one source, got " * join(("$n: $s" for (n, s) in pairs(sources)), ", "))
+    )
+    observed = map(Base.Fix1(observe, sky), tables)
+    return TableSkies(map(first, observed)), last(first(observed))
 end
 
 # The posterior of the data products of several tables, keyed like `data`; `observesky(tables)`
 # returns the observed sky and its prior. `kind` names a key in error messages.
 function _severaltables(observesky, instrumentmodel, data::NamedTuple, admode, kind)
-    split = map(_splitdomains ∘ _products, data)
-    vis, img = map(first, split), map(last, split)
-    names = keys(vis)
-    tables = NamedTuple{names}(map(n -> _commonvis(instrumentmodel, vis[n], _products(data[n]), "$kind $n"), names))
+    vis, img = splitbytable(data)
+    tables = NamedTuple{keys(vis)}(map(n -> tablesof(instrumentmodel, vis[n], data[n], "$kind $n"), keys(vis)))
 
     int, intprior = observe(instrumentmodel, tables)
     sky, skyprior = observesky(tables)
     total_prior = combine_prior(skyprior, intprior)
-    ls = map(Base.Fix1(map, makelikelihood), vis)
+    ls = likelihoods(vis)
     dataimg = _imagedata(img)
     ils = _imagelikelihoods(dataimg)
 
@@ -183,6 +212,21 @@ _posterior(sky, _, _, _) =
 _products(d::Tuple) = d
 _products(d) = (d,)
 
+# The visibility-domain and the image-domain products of each table of `data`, keyed like it.
+function splitbytable(data::NamedTuple)
+    split = map(splitbytable, data)
+    return map(first, split), map(last, split)
+end
+splitbytable(d) = _splitdomains(_products(d))
+
+# The visibility table of each table of `vis`, keyed like it; `key` names it in error messages.
+tablesof(instrumentmodel, vis::Tuple, data, key) = _commonvis(instrumentmodel, vis, _products(data), key)
+tablesof(instrumentmodel, vis::NamedTuple, data::NamedTuple, key) =
+    NamedTuple{keys(vis)}(map(n -> tablesof(instrumentmodel, vis[n], data[n], "table $n of the $key"), keys(vis)))
+
+likelihoods(products::Tuple) = map(makelikelihood, products)
+likelihoods(products::NamedTuple) = map(likelihoods, products)
+
 # The visibility-domain and the image-domain products of `data`, each in the order given.
 _splitdomains(data::Tuple) = (_indomain(VisDomain(), data), _indomain(ImageDomain(), data))
 _indomain(_, ::Tuple{}) = ()
@@ -194,10 +238,11 @@ end
 
 _imagedata(::Tuple{}) = nothing
 _imagedata(img::Tuple) = img
-_imagedata(::NamedTuple{K, <:Tuple{Vararg{Tuple{}}}}) where {K} = nothing
-_imagedata(img::NamedTuple) = img
+_imagedata(img::NamedTuple) = noproducts(img) ? nothing : img
+noproducts(products::Tuple) = isempty(products)
+noproducts(products::NamedTuple) = all(noproducts, products)
 _imagelikelihoods(::Nothing) = ()
-_imagelikelihoods(img::NamedTuple) = map(Base.Fix1(map, makelikelihood), img)
+_imagelikelihoods(img::NamedTuple) = likelihoods(img)
 
 _typenames(::Tuple{}) = "no data products"
 _typenames(data) = join(map(d -> string(nameof(typeof(d))), data), ", ")
@@ -209,7 +254,10 @@ _vis(ct::ClosureTable) = getfield(ct, :vis)
 function _commonvis(vis)
     t = _vis(first(vis))
     all(d -> _samerecords(_vis(d), t), vis) || throw(
-        ArgumentError("every data product of a posterior must come from one table of visibilities: same records and channels")
+        ArgumentError(
+            "every data product of a posterior must come from one table of visibilities: same records and channels; " *
+                "give several tables as a NamedTuple keyed by table name, such as (; Q = dvis86, A = dvis230)"
+        )
     )
     return t
 end
@@ -311,7 +359,9 @@ function selfcal_phase(post::VLBIPosterior, θ)
 end
 
 _datadescription(data::Tuple) = join(map(_datadescription, data), ", ")
-_datadescription(data::NamedTuple) = join(map((n, d) -> string(n, ": ", _datadescription(d)), keys(data), values(data)), "; ")
+_datadescription(data::NamedTuple) = join(map((n, d) -> string(n, ": ", _grouped(d)), keys(data), values(data)), "; ")
+_grouped(data::NamedTuple) = string("(", _datadescription(data), ")")
+_grouped(data) = _datadescription(data)
 _datadescription(t::VisTable) = string(eltype(measurement(t)) <: Real ? "amplitudes" : "visibilities", " (", _polname(t.pol), ")")
 _datadescription(ct::ClosureTable) = ct.product isa ClosurePhases ? "closure phases" : "log closure amplitudes"
 _datadescription(d) = string(nameof(typeof(d)))
