@@ -84,14 +84,10 @@ end
 datadomain(::Type{<:VisTable}) = VisDomain()
 datadomain(::Type{<:ClosureTable}) = VisDomain()
 
+makelikelihood(t::ScalarVisTable) = _vislikelihood(_dense(measurement(t)), _dense(weight(t)))
 # Coherencies go to the likelihood as dense `(…, 2, 2)` arrays.
-function makelikelihood(t::VisTable)
-    return _tablelikelihood(eltype(measurement(t)), _dense(measurement(t)), _dense(weight(t)))
-end
+makelikelihood(t::VisTable{Visibilities, Correlations}) = _coherencylikelihood(_dense(measurement(t)), _dense(weight(t)))
 makelikelihood(t::VisTable{<:VisAmplitudes}) = _amplikelihood(_dense(measurement(t)), _dense(weight(t)))
-
-_tablelikelihood(::Type{<:Complex}, vis, w) = _vislikelihood(vis, w)
-_tablelikelihood(::Type{<:StaticArraysCore.StaticMatrix}, vis, w) = _coherencylikelihood(vis, w)
 
 # The closures of model visibilities `vis` over a table's records: their measured values, by
 # record then channel, through the design matrix.

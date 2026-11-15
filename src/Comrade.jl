@@ -27,7 +27,6 @@ using Accessors: setproperties
 using Printf
 using Random
 using Reexport
-using StaticArraysCore
 using Statistics
 using StructArrays: StructArray
 import StructArrays
@@ -45,7 +44,7 @@ import DimensionalData as DD
 import VLBIInstrumentModels: observe, domain, simulate_observation, selfcal_phase
 using VLBIInstrumentModels: AbstractInstrumentModel, IdealInstrumentModel, FieldInstruments,
     ObservedInstrumentModel, ObservedSelfCalInstrumentModel, instrument,
-    _closurevalue, _dense, _measuredvalues, _polname, _productname,
+    ScalarVisTable, _closurevalue, _dense, _measuredvalues, _polname, _productname,
     _observedvalues, _storage, _withmodel,
     _kwname, _scan_used_names, _split_tildes,
     WhitenedHierarchicalTransform, StdWhitenedHierarchicalTransform,
