@@ -50,7 +50,7 @@ Therefore, for this test we found that `Comrade` was the fastest method in all t
 ```julia
 # To download the data visit https://doi.org/10.25739/g85n-f134
 uvd = VLBIFiles.load(VLBIFiles.UVData, joinpath(@__DIR__, "..", "examples", "Data", "SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits"))
-amp = amplitudes(average(VisTable(uvd, IPol()), ByScan()))
+amp = ObsTable(VisAmplitudes(), average(ObsTable(IPol(), uvd), ByScan()))
 
 function model(θ, _, _)
     (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ

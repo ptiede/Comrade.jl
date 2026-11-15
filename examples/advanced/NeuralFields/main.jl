@@ -48,7 +48,7 @@ uvd = VLBIFiles.load(
 
 # For this tutorial we will only use closure quantities to reconstruct the image however, polarized
 # or complex visibilities can also be used with instrumental models following the other tutorials.
-dvis = average(VisTable(uvd, IPol()), ByScan())
+dvis = average(ObsTable(IPol(), uvd), ByScan())
 dvis = add_fractional_noise(dvis, 0.005)
 
 

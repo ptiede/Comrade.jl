@@ -115,7 +115,7 @@ _wrapdiff(a, b) = abs(angle(cis(a - b)))
         θs = prior_sample(rng, spost)
         @test Comrade.loglikelihood(spost, θs) ≈
             Comrade.loglikelihood(VLBIPosterior(same; sky = skies, instrument = phase_gains()), _withphase(θs, selfcal_phase(spost, θs)))
-        @test_throws "for the field CAL" VLBIPosterior((; M87 = dvis, CAL = amplitudes(later(dvis, 1))); sky = skies, instrument = selfcal_gains())
+        @test_throws "for the field CAL" VLBIPosterior((; M87 = dvis, CAL = ObsTable(VisAmplitudes(), later(dvis, 1))); sky = skies, instrument = selfcal_gains())
     end
 
     @testset "a source with simultaneous bands" begin
@@ -142,8 +142,8 @@ _wrapdiff(a, b) = abs(angle(cis(a - b)))
         @test selfcal_gains().selfcal && !amplitude_gains().selfcal
         @test_throws "the prior already has one" named_residual()
         t = dvis
-        @test_throws "exactly one table" VLBIPosterior(amplitudes(t); sky = skym, instrument = selfcal_gains())
-        @test_throws "exactly one table" VLBIPosterior(t, amplitudes(t); sky = skym, instrument = selfcal_gains())
-        @test_throws "exactly one table" VLBIPosterior(closure_phases(t); sky = skym, instrument = selfcal_gains())
+        @test_throws "exactly one table" VLBIPosterior(ObsTable(VisAmplitudes(), t); sky = skym, instrument = selfcal_gains())
+        @test_throws "exactly one table" VLBIPosterior(t, ObsTable(VisAmplitudes(), t); sky = skym, instrument = selfcal_gains())
+        @test_throws "exactly one table" VLBIPosterior(ObsTable(ClosurePhases(), t); sky = skym, instrument = selfcal_gains())
     end
 end

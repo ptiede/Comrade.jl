@@ -29,6 +29,7 @@ Comrade.receivers
 Comrade.receiver
 Comrade.Source
 Comrade.stationindex
+Comrade.ObsTable
 Comrade.VisTable
 Comrade.Correlation
 Comrade.Correlations
@@ -45,7 +46,7 @@ Comrade.uvdist
 Comrade.times
 Comrade.frequencies
 Comrade.beamsize(::Comrade.VisTable)
-Comrade.amplitudes
+Comrade.VisAmplitudes
 Comrade.flag
 Comrade.drop
 Comrade.add_fractional_noise
@@ -71,8 +72,6 @@ Comrade.averaging_axis
 
 ```@docs
 Comrade.ClosureTable
-Comrade.closure_phases(::Comrade.VisTable)
-Comrade.logclosure_amplitudes
 Comrade.noise(::Comrade.ClosureTable)
 Comrade.ClosurePhases
 Comrade.LogClosureAmplitudes

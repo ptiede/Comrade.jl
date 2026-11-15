@@ -6,7 +6,7 @@ const ARRAYFILE = joinpath(@__DIR__, "..", "examples", "Data", "array.txt")
 # from the example `array.txt`.
 function load_test_table()
     uvd = VLBIFiles.load(VLBIFiles.UVData, joinpath(@__DIR__, "test_data.uvfits"))
-    return average(reset_mounts(VisTable(uvd, IPol()), ARRAYFILE), ByScan())
+    return average(reset_mounts(ObsTable(IPol(), uvd), ARRAYFILE), ByScan())
 end
 
 # Noise-free scan-averaged data of two Gaussians (FWHMs 40 × 20 and 20 × 10 μas) on the
@@ -22,12 +22,12 @@ function load_data()
     skym = SkyModel(test_model, test_prior(), spatialgrid(μas2rad(150.0), μas2rad(150.0), 64, 64))
     vt = only(simulate_observation(VLBIPosterior(t; sky = skym), (; sky = θ); add_thermal_noise = false))
 
-    amp = amplitudes(vt)
-    lcamp = logclosure_amplitudes(vt)
-    cphase = closure_phases(vt)
+    amp = ObsTable(VisAmplitudes(), vt)
+    lcamp = ObsTable(LogClosureAmplitudes(), vt)
+    cphase = ObsTable(ClosurePhases(), vt)
 
     uvp = VLBIFiles.load(VLBIFiles.UVData, joinpath(@__DIR__, "..", "examples", "Data", "polarized_gaussian_nogains_withdterms_withfr.uvfits"))
-    dcoh = reset_mounts(VisTable(uvp, Correlations()), ARRAYFILE)
+    dcoh = reset_mounts(ObsTable(Correlations(), uvp), ARRAYFILE)
 
     return test_model(θ, nothing, nothing), vt, amp, lcamp, cphase, dcoh
 end
@@ -112,7 +112,7 @@ function with_channel(t::VisTable, ν)
     order = sortperm(ch.frequency)
     a2 = ArrayInfo(; stations = a.stations, channels = map(c -> c[order], ch), scans = a.scans, tracks = a.tracks, source = a.source, epoch = a.epoch)
     V, w = collect(baseimage(measurement(t))), collect(baseimage(weight(t)))
-    return VisTable(t.pol, records(t), hcat(V, V), hcat(w, w); info = a2)
+    return ObsTable(t.pol, records(t), hcat(V, V), hcat(w, w); info = a2)
 end
 
 # The per-record coordinates of `t` as a records table.
@@ -126,5 +126,5 @@ end
 function later(t::VisTable, days)
     a = info(t)
     b = ArrayInfo(; a.stations, a.channels, a.scans, a.tracks, a.source, epoch = a.epoch + Dates.Day(days))
-    return VisTable(t.pol, records(t), collect(baseimage(measurement(t))), collect(baseimage(weight(t))); info = b)
+    return ObsTable(t.pol, records(t), collect(baseimage(measurement(t))), collect(baseimage(weight(t))); info = b)
 end

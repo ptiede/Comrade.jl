@@ -44,10 +44,10 @@ uvd = VLBIFiles.load(VLBIFiles.UVData, file)
 # noise by 0.5% to account for residual calibration errors (e.g. leakage), and form the closures.
 # For this tutorial we only use closure quantities; polarized or complex visibilities can also
 # be used with instrumental models following the other tutorials.
-dvis = average(VisTable(uvd, IPol()), ByScan())
+dvis = average(ObsTable(IPol(), uvd), ByScan())
 dvis = add_fractional_noise(dvis, 0.005)
-dlcamp = logclosure_amplitudes(dvis)
-dcphase = closure_phases(dvis)
+dlcamp = ObsTable(LogClosureAmplitudes(), dvis)
+dcphase = ObsTable(ClosurePhases(), dvis)
 
 
 # ## Build the Model/Posterior

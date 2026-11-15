@@ -61,7 +61,7 @@ uvd = VLBIFiles.load(
 # into account. We scan-average the data (gain phases are coherent within a scan), then
 # flag baselines shorter than 0.1Gλ and add 1% systematic uncertainty to handle
 # residual calibration errors such as leakage.
-dvis = average(VisTable(uvd, IPol()), ByScan())
+dvis = average(ObsTable(IPol(), uvd), ByScan())
 dvis = flag(dvis, uvdist(dvis) .< 0.1e9)
 dvis = add_fractional_noise(dvis, 0.01)
 

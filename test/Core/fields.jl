@@ -6,7 +6,7 @@ using FiniteDifferences
 function with_source(t::VisTable, name; dec = info(t).source.dec)
     a = info(t)
     b = ArrayInfo(; a.stations, a.channels, a.scans, a.tracks, source = Source(name, a.source.ra, dec), a.epoch)
-    return VisTable(t.pol, records(t), collect(baseimage(measurement(t))), collect(baseimage(weight(t))); info = b)
+    return ObsTable(t.pol, records(t), collect(baseimage(measurement(t))), collect(baseimage(weight(t))); info = b)
 end
 
 @testset "Fields" begin
@@ -100,7 +100,7 @@ end
         r1 = only(receivers(s1))
         moved = Station(s1.name, s1.position, Receiver(MountEquatorial(), r1.feeds; r1.orientations))
         b = ArrayInfo(; stations = [moved; a.stations[2:end]], a.channels, a.scans, a.tracks, a.source, a.epoch)
-        remounted = VisTable(late.pol, records(late), collect(baseimage(measurement(late))), collect(baseimage(weight(late))); info = b)
+        remounted = ObsTable(late.pol, records(late), collect(baseimage(measurement(late))), collect(baseimage(weight(late))); info = b)
         two = VLBIPosterior((; A = dvis, B = remounted); sky = skym, instrument = intm)
         @test dimension(two) == dimension(post)
         @test logdensityof(two, θ) ≈ logdensityof(post, θ)
@@ -170,6 +170,6 @@ end
     @testset "errors" begin
         intm = InstrumentModel(gainterm(ScanSeg()))
         @test_throws "visibility-domain data product" VLBIPosterior((; A = ()); sky = (; A = skym), instrument = intm)
-        @test_throws "one table of visibilities" VLBIPosterior((; A = (dvis, amplitudes(later(dvis, 1)))); sky = (; A = skym), instrument = intm)
+        @test_throws "one table of visibilities" VLBIPosterior((; A = (dvis, ObsTable(VisAmplitudes(), later(dvis, 1)))); sky = (; A = skym), instrument = intm)
     end
 end

@@ -31,25 +31,25 @@ uvd = VLBIFiles.load(
     joinpath(__DIR, "..", "..", "Data", "SR1_M87_2017_096_lo_hops_netcal_StokesI.uvfits")
 )
 
-# `VisTable(uvd, IPol())` is the table of Stokes I visibilities, and `average(t, ByScan())`
+# `ObsTable(IPol(), uvd)` is the table of Stokes I visibilities, and `average(t, ByScan())`
 # averages it over telescope scans. Note that the EHT data has been pre-calibrated so this
 # averaging doesn't induce large coherence losses.
-vis = average(VisTable(uvd, IPol()), ByScan())   # complex visibilities
+vis = average(ObsTable(IPol(), uvd), ByScan())   # complex visibilities
 
 # The other data products are formed from the averaged visibilities.
-amp = amplitudes(vis)                    # visibility amplitudes
-cphase = closure_phases(vis)             # minimal closure phases
-lcamp = logclosure_amplitudes(vis)      # minimal log-closure amplitudes
+amp = ObsTable(VisAmplitudes(), vis)           # visibility amplitudes
+cphase = ObsTable(ClosurePhases(), vis)        # minimal closure phases
+lcamp = ObsTable(LogClosureAmplitudes(), vis)  # minimal log-closure amplitudes
 
 # For polarization we load the file the same way; circular polarization is detected from the
-# antenna feed types in the FITS table. `VisTable(uvdp, Correlations())` holds all four feed
+# antenna feed types in the FITS table. `ObsTable(Correlations(), uvdp)` holds all four feed
 # products of each baseline as a 2×2 coherency matrix, and `reset_mounts` sets the telescope
 # mount information from the antenna text file.
 uvdp = VLBIFiles.load(
     VLBIFiles.UVData,
     joinpath(__DIR, "..", "..", "Data", "polarized_gaussian_all_corruptions.uvfits")
 )
-coh = average(VisTable(uvdp, Correlations()), ByScan())
+coh = average(ObsTable(Correlations(), uvdp), ByScan())
 coh = reset_mounts(coh, joinpath(__DIR, "..", "..", "Data", "array.txt"))
 
 #-

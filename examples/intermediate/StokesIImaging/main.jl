@@ -39,7 +39,7 @@ uvd = VLBIFiles.load(
 )
 # Scan-average the Stokes I complex visibilities. Then inflate the noise by 2% to account for
 # residual calibration errors.
-dvis = average(VisTable(uvd, IPol()), ByScan())
+dvis = average(ObsTable(IPol(), uvd), ByScan())
 dvis = add_fractional_noise(dvis, 0.02)
 
 # ##Building the Model/Posterior

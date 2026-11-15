@@ -43,14 +43,14 @@ uvd = VLBIFiles.load(
 # Since the gains in this dataset are coherent across a scan, we average the visibilities
 # over each scan. Since uvfits aren't guaranteed to have the scan table, `ByScan` finds the
 # scans from gaps in the data when the file does not list them.
-dvis = average(VisTable(uvd, IPol()), ByScan())
+dvis = average(ObsTable(IPol(), uvd), ByScan())
 # We also flag the short baselines, which removes the trivial 0-baseline triangles (we don't
 # care about large-scale flux), and inflate the noise by 2% in quadrature to account for
 # residual systematics. The closures are then formed from these visibilities.
 dvis = flag(dvis, uvdist(dvis) .< 0.1e9)
 dvis = add_fractional_noise(dvis, 0.02)
-dlcamp = logclosure_amplitudes(dvis)
-dcphase = closure_phases(dvis)
+dlcamp = ObsTable(LogClosureAmplitudes(), dvis)
+dcphase = ObsTable(ClosurePhases(), dvis)
 
 # !!!warn
 #    We remove the low-snr closures since they are very non-gaussian. This can create rather

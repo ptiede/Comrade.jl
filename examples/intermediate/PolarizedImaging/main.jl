@@ -118,7 +118,7 @@ uvd = VLBIFiles.load(VLBIFiles.UVData, fname)
 
 
 # We scan-average the full 2×2 coherency matrices of each baseline.
-dvis = average(VisTable(uvd, Correlations()), ByScan())
+dvis = average(ObsTable(Correlations(), uvd), ByScan())
 
 # Unlike non-polarized tutorials, we also need an **array file** describing the antenna
 # feed rotation parameters. Often the EHT does not take into acount feed offsets. To load

@@ -53,10 +53,10 @@ uvd = VLBIFiles.load(
 # have been preprocessed so gain phases are coherent within a scan), inflate the
 # uncertainties by 2% to deal with calibration issues such as leakage, and form the closures
 # from the result.
-dvis = average(VisTable(uvd, IPol()), ByScan())
+dvis = average(ObsTable(IPol(), uvd), ByScan())
 dvis = add_fractional_noise(dvis, 0.02)
-dlcamp = logclosure_amplitudes(dvis)
-dcphase = closure_phases(dvis)
+dlcamp = ObsTable(LogClosureAmplitudes(), dvis)
+dcphase = ObsTable(ClosurePhases(), dvis)
 
 # !!! note
 #     Fitting low SNR closure data is complicated and requires a more sophisticated likelihood.
