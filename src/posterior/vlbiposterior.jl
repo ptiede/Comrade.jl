@@ -316,7 +316,7 @@ end
 _checkdata(::AbstractInstrumentModel, data, key = nothing) = nothing
 function _checkdata(m::InstrumentModel, data, key = nothing)
     m.selfcal || return nothing
-    vis = filter(d -> d isa VisTable && !(eltype(measurement(d)) <: Real), collect(data))
+    vis = filter(d -> d isa VisTable{Visibilities}, collect(data))
     of = isnothing(key) ? "" : " for the $key"
     length(data) == 1 && length(vis) == 1 || throw(
         ArgumentError(
@@ -365,7 +365,7 @@ _datadescription(data::Tuple) = join(map(_datadescription, data), ", ")
 _datadescription(data::NamedTuple) = join(map((n, d) -> string(n, ": ", _grouped(d)), keys(data), values(data)), "; ")
 _grouped(data::NamedTuple) = string("(", _datadescription(data), ")")
 _grouped(data) = _datadescription(data)
-_datadescription(t::VisTable) = string(eltype(measurement(t)) <: Real ? "amplitudes" : "visibilities", " (", _polname(t.pol), ")")
+_datadescription(t::VisTable) = string(_productname(t.product), " (", _polname(t.pol), ")")
 _datadescription(ct::ClosureTable) = ct.product isa ClosurePhases ? "closure phases" : "log closure amplitudes"
 _datadescription(d) = string(nameof(typeof(d)))
 
@@ -386,7 +386,7 @@ _residuals(data::NamedTuple, vis::NamedTuple) = map(_residuals, data, vis)
 _residuals(data::Tuple, vis) = map(d -> _residual(d, baseimage(vis)), data)
 
 function _residual(t::VisTable, vis)
-    return VisTable(t.pol, measurement(t) .- measurement(_withmodel(t, vis)), weight(t))
+    return VisTable(t.product, t.pol, measurement(t) .- measurement(_withmodel(t, vis)), weight(t))
 end
 function _residual(ct::ClosureTable, vis)
     r = measurement(ct) .- measurement(_withmodel(ct, vis))
@@ -421,5 +421,6 @@ _chi2(res::ClosureTable) = sum(abs2.(baseimage(measurement(res)) ./ baseimage(no
 The number of real data values in the table `t`: two per measured complex value, one per
 amplitude or closure.
 """
-ndata(t::VisTable) = (eltype(measurement(t)) <: Real ? 1 : 2) * count(>(0), _dense(weight(t)))
+ndata(t::VisTable) = 2 * count(>(0), _dense(weight(t)))
+ndata(t::VisTable{<:VisAmplitudes}) = count(>(0), _dense(weight(t)))
 ndata(ct::ClosureTable) = length(ct)

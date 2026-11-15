@@ -88,9 +88,9 @@ datadomain(::Type{<:ClosureTable}) = VisDomain()
 function makelikelihood(t::VisTable)
     return _tablelikelihood(eltype(measurement(t)), _dense(measurement(t)), _dense(weight(t)))
 end
+makelikelihood(t::VisTable{<:VisAmplitudes}) = _amplikelihood(_dense(measurement(t)), _dense(weight(t)))
 
 _tablelikelihood(::Type{<:Complex}, vis, w) = _vislikelihood(vis, w)
-_tablelikelihood(::Type{<:Real}, amp, w) = _amplikelihood(amp, w)
 _tablelikelihood(::Type{<:StaticArraysCore.StaticMatrix}, vis, w) = _coherencylikelihood(vis, w)
 
 # The closures of model visibilities `vis` over a table's records: their measured values, by

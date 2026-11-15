@@ -46,6 +46,7 @@ Comrade.uvdist
 Comrade.times
 Comrade.frequencies
 Comrade.beamsize(::Comrade.VisTable)
+Comrade.Visibilities
 Comrade.VisAmplitudes
 Comrade.flag
 Comrade.drop
