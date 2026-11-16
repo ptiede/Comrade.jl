@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Benchmarks · Comrade.jl</title><meta name="title" content="Benchmarks · Comrade.jl"/><meta property="og:title" content="Benchmarks · Comrade.jl"/><meta property="twitter:title" content="Benchmarks · Comrade.jl"/><meta name="description" content="Documentation for Comrade.jl."/><meta property="og:description" content="Documentation for Comrade.jl."/><meta property="twitter:description" content="Documentation for Comrade.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">Comrade.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Benchmarks</a><ul class="internal"><li><a class="tocitem" href="#Benchmarking-Problem"><span>Benchmarking Problem</span></a></li><li><a class="tocitem" href="#Results"><span>Results</span></a></li><li><a class="tocitem" href="#Code"><span>Code</span></a></li></ul></li><li><a class="tocitem" href="../vlbi_imaging_problem/">Introduction to the VLBI Imaging Problem</a></li><li><a class="tocitem" href="../conventions/">Conventions</a></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../tutorials/ClosureImaging/">Imaging a Black Hole using only Closure Quantities</a></li><li><a class="tocitem" href="../tutorials/GeometricModeling/">Geometric Modeling of EHT Data</a></li><li><a class="tocitem" href="../tutorials/HybridImaging/">Hybrid Imaging of a Black Hole</a></li><li><a class="tocitem" href="../tutorials/LoadingData/">Loading Data into Comrade</a></li><li><a class="tocitem" href="../tutorials/PolarizedImaging/">Polarized Image and Instrumental Modeling</a></li><li><a class="tocitem" href="../tutorials/StokesIImaging/">Stokes I Simultaneous Image and Instrument Modeling</a></li></ul></li><li><span class="tocitem">Extensions</span><ul><li><a class="tocitem" href="../ext/optimization/">Optimization Extension</a></li><li><a class="tocitem" href="../ext/ahmc/">AdvancedHMC Extension</a></li><li><a class="tocitem" href="../ext/nested/">NestedSamples Extension</a></li><li><a class="tocitem" href="../ext/dynesty/">Dynesty Extension</a></li></ul></li><li><a class="tocitem" href="../base_api/">Base API</a></li><li><a class="tocitem" href="../api/">Comrade API</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Benchmarks</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Benchmarks</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/ptiede/Comrade.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/ptiede/Comrade.jl/blob/main/docs/src/benchmarks.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Benchmarks"><a class="docs-heading-anchor" href="#Benchmarks">Benchmarks</a><a id="Benchmarks-1"></a><a class="docs-heading-anchor-permalink" href="#Benchmarks" title="Permalink"></a></h1><p><code>Comrade</code> was partially designed with performance in mind. Solving imaging inverse problems is traditionally very computationally expensive, especially since Comrade uses Bayesian inference. To benchmark <code>Comrade</code> we will compare it to two of the most common modeling or imaging packages within the EHT:</p><ul><li><a href="https://github.com/achael/eht-imaging/">eht-imaging</a></li><li><a href="https://iopscience.iop.org/article/10.3847/1538-4357/ab91a4">Themis</a></li></ul><p><code>eht-imaging</code><sup class="footnote-reference"><a id="citeref-1" href="#footnote-1">[1]</a></sup> or <code>ehtim</code> is a Python package that is widely used within the EHT for its imaging and modeling interfaces. It is easy to use and is commonly used in the EHT. However, to specify the model, the user must specify how to calculate the model&#39;s complex visibilities <strong>and</strong> its gradients, allowing eht-imaging&#39;s modeling package to achieve acceptable speeds.</p><p>Themis is a C++ package focused on providing Bayesian estimates of the image structure. In fact, <code>Comrade</code> took some design cues from <code>Themis</code>. Themis has been used in various EHT publications and is the standard Bayesian modeling tool used in the EHT. However, <code>Themis</code> is quite challenging to use and requires a high level of knowledge from its users, requiring them to understand makefile, C++, and the MPI standard. Additionally, Themis provides no infrastructure to compute gradients, instead relying on finite differencing, which scales poorly for large numbers of model parameters. </p><h2 id="Benchmarking-Problem"><a class="docs-heading-anchor" href="#Benchmarking-Problem">Benchmarking Problem</a><a id="Benchmarking-Problem-1"></a><a class="docs-heading-anchor-permalink" href="#Benchmarking-Problem" title="Permalink"></a></h2><p>For our benchmarking problem, we analyze a situation very similar to the one explained in  Namely, we will consider fitting 2017 M87 April 6 data using an m-ring and a single Gaussian component. Please see the end of this page to see the code we used for <code>Comrade</code> and <code>eht-imaging</code>.</p><h2 id="Results"><a class="docs-heading-anchor" href="#Results">Results</a><a id="Results-1"></a><a class="docs-heading-anchor-permalink" href="#Results" title="Permalink"></a></h2><p>All tests were run using the following system</p><pre><code class="language-julia hljs">Julia Version 1.10.3
+Python Version 3.10.12
+Comrade Version 0.10.0
+eht-imaging Version 1.2.7
+Platform Info:
+  OS: Linux (x86_64-pc-linux-gnu)
+  CPU: 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz
+  WORD_SIZE: 64
+  LIBM: libopenlibm
+  LLVM: libLLVM-12.0.1 (ORCJIT, tigerlake)</code></pre><p>Our benchmark results are the following:</p><table><tr><th style="text-align: right"></th><th style="text-align: right">Comrade (micro sec)</th><th style="text-align: right">eht-imaging (micro sec)</th><th style="text-align: right">Themis (micro sec)</th></tr><tr><td style="text-align: right">posterior eval (min)</td><td style="text-align: right">31</td><td style="text-align: right">445</td><td style="text-align: right">55</td></tr><tr><td style="text-align: right">posterior eval (mean)</td><td style="text-align: right">36</td><td style="text-align: right">476</td><td style="text-align: right">60</td></tr><tr><td style="text-align: right">grad posterior eval (min)</td><td style="text-align: right">105 (ForwardDiff)</td><td style="text-align: right">1898</td><td style="text-align: right">1809</td></tr><tr><td style="text-align: right">grad posterior eval (mean)</td><td style="text-align: right">119 (ForwardDiff)</td><td style="text-align: right">1971</td><td style="text-align: right">1866</td></tr></table><p>Therefore, for this test we found that <code>Comrade</code> was the fastest method in all tests. For the posterior evaluation we found that Comrade is &gt; 10x faster than <code>eht-imaging</code>, and 2x faster then <code>Themis</code>. For gradient evaluations we have <code>Comrade</code> is &gt; 15x faster than both <code>eht-imaging</code> and <code>Themis</code>.</p><h2 id="Code"><a class="docs-heading-anchor" href="#Code">Code</a><a id="Code-1"></a><a class="docs-heading-anchor-permalink" href="#Code" title="Permalink"></a></h2><h3 id="Julia-Code"><a class="docs-heading-anchor" href="#Julia-Code">Julia Code</a><a id="Julia-Code-1"></a><a class="docs-heading-anchor-permalink" href="#Julia-Code" title="Permalink"></a></h3><pre><code class="language-julia hljs"># To download the data visit https://doi.org/10.25739/g85n-f134
+obs = ehtim.obsdata.load_uvfits(joinpath(@__DIR__, &quot;..&quot;, &quot;examples&quot;, &quot;Data&quot;, &quot;SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits&quot;))
+obsavg = scan_average(obs)
+amp = extract_table(obsavg, VisibilityAmplitudes())
+
+function model(θ, p)
+    (;rad, wid, a, b, f, sig, asy, pa, x, y) = θ
+    ring = f*smoothed(stretched(MRing((a,), (b,)), μas2rad(rad), μas2rad(rad)), μas2rad(wid))
+    g = (1-f)*shifted(rotated(stretched(Gaussian(), μas2rad(sig)*asy, μas2rad(sig)), pa), μas2rad(x), μas2rad(y))
+    return ring + g
+end
+prior = (
+          rad = Uniform(10.0, 30.0),
+          wid = Uniform(1.0, 10.0),
+          a = Uniform(-0.5, 0.5), b = Uniform(-0.5, 0.5),
+          f = Uniform(0.0, 1.0),
+          sig = Uniform((1.0), (60.0)),
+          asy = Uniform(0.0, 0.9),
+          pa = Uniform(0.0, 1π),
+          x = Uniform(-(80.0), (80.0)),
+          y = Uniform(-(80.0), (80.0))
+        )
+# Now form the posterior
+skym = SkyModel(model, prior, imagepixels(μas2rad(150.0), μas2rad(150.0), 128, 128))
+
+θ = (rad= 22.0, wid= 3.0, a = 0.0, b = 0.15, f=0.8, sig = 20.0, asy=0.2, pa=π/2, x=20.0, y=20.0)
+m = model(θ, nothing)
+
+post = VLBIPosterior(skym, amp)
+tpost = asflat(post)
+
+x0 = prior_sample(tpost)
+
+using Zygote
+@benchmark $(tpost)($x0)
+# 32 μs
+@benchmark Zygote.gradient($tpost, $x0)
+# 175 μs</code></pre><h3 id="eht-imaging-Code"><a class="docs-heading-anchor" href="#eht-imaging-Code">eht-imaging Code</a><a id="eht-imaging-Code-1"></a><a class="docs-heading-anchor-permalink" href="#eht-imaging-Code" title="Permalink"></a></h3><pre><code class="language-python hljs">import ehtim as eh
+import numpy as np
+import os
+obs = eh.obsdata.load_uvfits(os.path.join(&quot;examples&quot;, &quot;Data&quot;, &quot;SR1_M87_2017_096_hi_hops_netcal_StokesI.uvfits&quot;))
+obs.add_scans()
+obsavg = obs.avg_coherent(0.0, scan_avg=True)
+
+meh = eh.model.Model()
+meh = meh.add_thick_mring(F0=0.8,
+                    d=2*22.0*eh.RADPERUAS,
+                    alpha=2*np.sqrt(2*np.log(2))*eh.RADPERUAS*3.0,
+                    x0 = 0.0,
+                    y0 = 0.0,
+                    beta_list=[0.0+0.15j]
+                    )
+meh = meh.add_gauss(F0=1-0.8,
+                    FWHM_maj=2*np.sqrt(2*np.log(2))*eh.RADPERUAS*(3.0),
+                    FWHM_min=2*np.sqrt(2*np.log(2))*eh.RADPERUAS*(3.0)*0.2,
+                    PA = np.pi/2,
+                    x0 = eh.RADPERUAS*(20.0),
+                    y0 = eh.RADPERUAS*(20.0)
+                    )
+
+preh = meh.default_prior()
+preh[0][&quot;F0&quot;] = {&quot;prior_type&quot;: &quot;flat&quot;, &quot;min&quot; : 0.0, &quot;max&quot; : 1.0}
+preh[0][&quot;d&quot;] = {&quot;prior_type&quot;: &quot;flat&quot;, &quot;min&quot; : eh.RADPERUAS*(20.0), &quot;max&quot; : eh.RADPERUAS*(60.0)}
+preh[0][&quot;alpha&quot;] = {&quot;prior_type&quot;: &quot;flat&quot;, &quot;min&quot; : eh.RADPERUAS*(2.0), &quot;max&quot; : eh.RADPERUAS*(25.0)}
+preh[0][&quot;x0&quot;] = {&quot;prior_type&quot;: &quot;fixed&quot;}
+preh[0][&quot;y0&quot;] = {&quot;prior_type&quot;: &quot;fixed&quot;}
+
+preh[1][&quot;F0&quot;] = {&quot;prior_type&quot;: &quot;flat&quot;, &quot;min&quot; : 0.0, &quot;max&quot; : 1.0}
+preh[1][&quot;FWHM_maj&quot;] = {&quot;prior_type&quot;: &quot;flat&quot;, &quot;min&quot; : eh.RADPERUAS*(2.0), &quot;max&quot; : eh.RADPERUAS*(120.0)}
+preh[1][&quot;FWHM_min&quot;] = {&quot;prior_type&quot;: &quot;flat&quot;, &quot;min&quot; : eh.RADPERUAS*(2.0), &quot;max&quot; : eh.RADPERUAS*(120.0)}
+preh[1][&quot;x0&quot;] = {&quot;prior_type&quot;: &quot;flat&quot;, &quot;min&quot; : -eh.RADPERUAS*(40.0), &quot;max&quot; : eh.RADPERUAS*(40.0)}
+preh[1][&quot;y0&quot;] = {&quot;prior_type&quot;: &quot;flat&quot;, &quot;min&quot; : -eh.RADPERUAS*(40.0), &quot;max&quot; : eh.RADPERUAS*(40.0)}
+preh[1][&quot;PA&quot;] = {&quot;prior_type&quot;: &quot;flat&quot;, &quot;min&quot; : -np.pi, &quot;max&quot; : np.pi}
+
+# This is a hack to get the objective function and its gradient
+# we need to do this since the functions depend on some global variables
+transform_param = eh.modeling.modeling_utils.transform_param
+def make_paraminit(param_map, meh, trial_model, model_prior):
+    model_init = meh.copy()
+    param_init = []
+    for j in range(len(param_map)):
+        pm = param_map[j]
+        if param_map[j][1] in trial_model.params[param_map[j][0]].keys():
+            param_init.append(transform_param(model_init.params[pm[0]][pm[1]]/pm[2], model_prior[pm[0]][pm[1]],inverse=False))
+        else: # In this case, the parameter is a list of complex numbers, so the real/imaginary or abs/arg components need to be assigned
+            if param_map[j][1].find(&#39;cpol&#39;) != -1:
+                param_type = &#39;beta_list_cpol&#39;
+                idx = int(param_map[j][1].split(&#39;_&#39;)[0][8:])
+            elif param_map[j][1].find(&#39;pol&#39;) != -1:
+                param_type = &#39;beta_list_pol&#39;
+                idx = int(param_map[j][1].split(&#39;_&#39;)[0][7:]) + (len(trial_model.params[param_map[j][0]][param_type])-1)//2
+            elif param_map[j][1].find(&#39;beta&#39;) != -1:
+                param_type = &#39;beta_list&#39;
+                idx = int(param_map[j][1].split(&#39;_&#39;)[0][4:]) - 1
+            else:
+                raise Exception(&#39;Unsure how to interpret &#39; + param_map[j][1])
+
+            curval = model_init.params[param_map[j][0]][param_type][idx]
+            if &#39;_&#39; not in param_map[j][1]:
+                param_init.append(transform_param(np.real( model_init.params[pm[0]][param_type][idx]/pm[2]), model_prior[pm[0]][pm[1]],inverse=False))
+            elif   param_map[j][1][-2:] == &#39;re&#39;:
+                param_init.append(transform_param(np.real( model_init.params[pm[0]][param_type][idx]/pm[2]), model_prior[pm[0]][pm[1]],inverse=False))
+            elif param_map[j][1][-2:] == &#39;im&#39;:
+                param_init.append(transform_param(np.imag( model_init.params[pm[0]][param_type][idx]/pm[2]), model_prior[pm[0]][pm[1]],inverse=False))
+            elif param_map[j][1][-3:] == &#39;abs&#39;:
+                param_init.append(transform_param(np.abs(  model_init.params[pm[0]][param_type][idx]/pm[2]), model_prior[pm[0]][pm[1]],inverse=False))
+            elif param_map[j][1][-3:] == &#39;arg&#39;:
+                param_init.append(transform_param(np.angle(model_init.params[pm[0]][param_type][idx])/pm[2], model_prior[pm[0]][pm[1]],inverse=False))
+            else:
+                if not quiet: print(&#39;Parameter &#39; + param_map[j][1] + &#39; not understood!&#39;)
+    n_params = len(param_init)
+    return n_params, param_init
+
+# make the python param map and use optimize so we flatten the parameter space.
+pmap, pmask = eh.modeling.modeling_utils.make_param_map(meh, preh, &quot;scipy.optimize.dual_annealing&quot;, fit_model=True)
+trial_model = meh.copy()
+
+# get initial parameters
+n_params, pinit = make_paraminit(pmap, meh, trial_model, preh)
+
+# make data products for the globdict
+data1, sigma1, uv1, _ = eh.modeling.modeling_utils.chisqdata(obsavg, &quot;amp&quot;, pol=&quot;I&quot;)
+data2, sigma2, uv2, _ = eh.modeling.modeling_utils.chisqdata(obsavg, True, pol=&quot;I&quot;)
+data3, sigma3, uv3, _ = eh.modeling.modeling_utils.chisqdata(obsavg, True, pol=&quot;I&quot;)
+data4, sigma4, uv4, _ = eh.modeling.modeling_utils.chisqdata(obsavg, True, pol=&quot;I&quot;)
+
+# now set the ehtim modeling globdict
+
+eh.modeling.modeling_utils.globdict = {&quot;trial_model&quot; : trial_model,
+                &quot;d1&quot; : &quot;amp&quot;, &quot;d2&quot; : False, &quot;d3&quot; : False, &quot;d4&quot; : False,
+                &quot;pol1&quot; : &quot;I&quot;, &quot;pol2&quot; : &quot;I&quot;, &quot;pol3&quot; : &quot;I&quot;, &quot;pol4&quot; : &quot;I&quot;,
+                &quot;data1&quot; : data1, &quot;sigma1&quot; : sigma1, &quot;uv1&quot; : uv1, &quot;jonesdict1&quot; : None,
+                &quot;data2&quot; : data2, &quot;sigma2&quot; : sigma2, &quot;uv2&quot; : uv2, &quot;jonesdict2&quot; : None,
+                &quot;data3&quot; : data3, &quot;sigma3&quot; : sigma3, &quot;uv3&quot; : uv3, &quot;jonesdict3&quot; : None,
+                &quot;data4&quot; : data3, &quot;sigma4&quot; : sigma3, &quot;uv4&quot; : uv3, &quot;jonesdict4&quot; : None,
+                &quot;alpha_d1&quot; : 0, &quot;alpha_d2&quot; : 0, &quot;alpha_d3&quot; : 0, &quot;alpha_d4&quot; : 0,
+                &quot;n_params&quot; :  n_params, &quot;n_gains&quot; : 0, &quot;n_leakage&quot; : 0,
+                &quot;model_prior&quot; : preh, &quot;param_map&quot; : pmap, &quot;param_mask&quot; : pmask,
+                &quot;gain_prior&quot; : None, &quot;gain_list&quot; : [], &quot;gain_init&quot; : None,
+                &quot;fit_leakage&quot; : False, &quot;leakage_init&quot; : [], &quot;leakage_fit&quot; : [],
+                &quot;station_leakages&quot; : None, &quot;leakage_prior&quot; : None,
+                &quot;show_updates&quot; : False, &quot;update_interval&quot; : 1,
+                &quot;gains_t1&quot; : None, &quot;gains_t2&quot; : None,
+                &quot;minimizer_func&quot; : &quot;scipy.optimize.dual_annealing&quot;,
+                &quot;Obsdata&quot; : obsavg,
+                &quot;fit_pol&quot; : False, &quot;fit_cpol&quot; : False,
+                &quot;flux&quot; : 1.0, &quot;alpha_flux&quot; : 0, &quot;fit_gains&quot; : False,
+                &quot;marginalize_gains&quot; : False, &quot;ln_norm&quot; : 1314.33,
+                &quot;param_init&quot; : pinit, &quot;test_gradient&quot; : False
+}
+
+# This is the negative log-posterior
+fobj = eh.modeling.modeling_utils.objfunc
+%timeit fobj(pinit)
+# 298 us +/- 7.7
+
+# This is the gradient of the negative log-posterior
+gfobj = eh.modeling.modeling_utils.objgrad
+%timeit gfobj(pinit)
+# 1.3 ms</code></pre><section class="footnotes is-size-7"><ul><li class="footnote" id="footnote-1"><a class="tag is-link" href="#citeref-1">1</a>Chael A, et al. <em>Inteferometric Imaging Directly with Closure Phases</em> 2018 ApJ 857 1 arXiv:1803/07088</li></ul></section></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../vlbi_imaging_problem/">Introduction to the VLBI Imaging Problem »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.4.1 on <span class="colophon-date" title="Thursday 16 May 2024 03:36">Thursday 16 May 2024</span>. Using Julia version 1.10.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
